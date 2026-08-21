@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "exhaust-plume"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Standalone compressible exhaust-plume model"
 requires-python = ">=3.10"
 dependencies = [
@@ -16,13 +16,16 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest"]
+test = ["pytest", "build"]
 
 [project.scripts]
 exhaust-plume = "exhaust_plume.models.plume.run_plume_solve:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.dynamic]
+version = {attr = "exhaust_plume.constants.VERSION"}
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

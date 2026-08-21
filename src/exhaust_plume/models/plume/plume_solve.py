@@ -11,9 +11,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, fields
 from enum import Enum, auto as getAutoEnumValue
+from numbers import Integral
 from typing import Any, ClassVar, Dict, List, Sequence, Tuple, Union
 
-from numpy import argmax, argmin, asarray, cos, eye, full, isnan, nan, nanmax, ndarray, polyfit, polyval, ptp, repeat, roots, sin, tan, vstack
+from numpy import argmax, argmin, asarray, cos, eye, full, isfinite, isnan, nan, nanmax, ndarray, polyfit, polyval, ptp, repeat, roots, sin, tan, vstack
 from numpy.linalg import pinv
 
 from exhaust_plume.log.log import getCleanLogger
@@ -33,6 +34,32 @@ from exhaust_plume.util.pretty_table import ColumnColorOption, ColumnSortOrder, 
 
 ###########################################
 log = getCleanLogger(__name__)
+
+
+def _validate_positive_finite(name: str, value: float) -> None:
+  try:
+    value_float = float(value)
+  except (TypeError, ValueError) as exc:
+    raise ValueError(f'Expected `{name}` to be a finite positive number. Got:{value}') from exc
+  if not isfinite(value_float) or value_float <= 0.:
+    raise ValueError(f'Expected `{name}` to be a finite positive number. Got:{value}')
+  ##
+##
+
+
+def _validate_gamma(gamma: float) -> None:
+  _validate_positive_finite('gamma', gamma)
+  if float(gamma) <= 1.:
+    raise ValueError(f'Expected `gamma` to be greater than 1. Got:{gamma}')
+  ##
+##
+
+
+def _validate_count(name: str, value: int, minimum: int) -> None:
+  if isinstance(value, bool) or not isinstance(value, Integral) or value < minimum:
+    raise ValueError(f'Expected `{name}` to be an integer greater than or equal to {minimum}. Got:{value}')
+  ##
+##
 
 
 def calcLineIntersection2d(*,
@@ -821,6 +848,11 @@ def calcNozzleExitFlowState(mach: float,
                             total_pressure: float,
                             gamma: float,
                             ) -> FlowState:
+  """Calculate the static state at a nozzle exit from total conditions."""
+  _validate_positive_finite('mach', mach)
+  _validate_positive_finite('total_temperature', total_temperature)
+  _validate_positive_finite('total_pressure', total_pressure)
+  _validate_gamma(gamma)
   total_density = calcDensityFromSpecificVolume(
       specific_volume_m3pkg=calcIdealGasSpecificVolumeFromPressureSpecificWork(
           pressure_Pa=total_pressure,
@@ -854,6 +886,22 @@ def calculatePlumeZones(nozzle_mach: float,
                         num_compression_lines: int,
                         num_plumes: int,
                         ) -> Tuple[List[ZoneResult], Dict[str, Any]]:
+  """Calculate plume zones and construction details for one or more plumes.
+
+  The current geometry construction requires a supersonic nozzle, at least two
+  expansion lines, and at least one compression line.
+  """
+  _validate_positive_finite('nozzle_mach', nozzle_mach)
+  if float(nozzle_mach) <= 1.:
+    raise ValueError(f'Expected `nozzle_mach` to be greater than 1. Got:{nozzle_mach}')
+  _validate_positive_finite('nozzle_total_temperature', nozzle_total_temperature)
+  _validate_positive_finite('nozzle_total_pressure', nozzle_total_pressure)
+  _validate_positive_finite('nozzle_radius', nozzle_radius)
+  _validate_positive_finite('atmospheric_pressure', atmospheric_pressure)
+  _validate_gamma(gamma)
+  _validate_count('num_expansion_lines', num_expansion_lines, minimum=2)
+  _validate_count('num_compression_lines', num_compression_lines, minimum=1)
+  _validate_count('num_plumes', num_plumes, minimum=1)
   zones = [
       # Initial zone is isentropic nozzle expansion
       ZoneResult.fromFlowState(
@@ -883,7 +931,6 @@ def calculatePlumeZones(nozzle_mach: float,
     )
     zones.extend(over_expanded_precursor_zones)
   ##
-  num_plumes = max(1, num_plumes)
   extra: Dict[str, Any] = {}
   for plume_index in range(num_plumes):
     under_exp_zones, extra = calculateUnderExpandedPlumeZones(

@@ -8,4 +8,4 @@ __all__ = (
 ######################################
 
 MODULE_NAME = 'exhaust_plume'
-VERSION = '0.2.14'
+VERSION = '0.1.0'
