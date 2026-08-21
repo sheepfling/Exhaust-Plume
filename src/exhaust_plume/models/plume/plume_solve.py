@@ -18,7 +18,6 @@ from numpy import argmax, argmin, asarray, cos, eye, full, isfinite, isnan, nan,
 from numpy.linalg import pinv
 
 from exhaust_plume.log.log import getCleanLogger
-from exhaust_plume.log.terminal_colormaps import PiYG as tc_PiYG, RdBu as tc_RdBu, hot as tc_hot, jet as tc_jet, rainbow as tc_rainbow, terrain as tc_terrain
 from exhaust_plume.util.aero.constants import MAX_ITER_DEFAULT
 from exhaust_plume.util.aero.expansion_fan import ExpansionFanState
 from exhaust_plume.util.aero.flow_state import FlowState
@@ -30,7 +29,6 @@ from exhaust_plume.util.cached_property import cached_property
 from exhaust_plume.util.dataclass_util import dataclassIsClose, dataclassIsEqual
 from exhaust_plume.util.numpy_util import ATOL_DEFAULT, EQUAL_NAN_DEFAULT, RTOL_DEFAULT, makeReadOnly, unitize
 from exhaust_plume.util.physical_constants import ATM_PER_PASCAL
-from exhaust_plume.util.pretty_table import ColumnColorOption, ColumnSortOrder, PrettyTable
 
 ###########################################
 log = getCleanLogger(__name__)
@@ -322,6 +320,9 @@ class ZoneResult(FlowState):
 def printPrettyTableZones(zones: Sequence[Union[ZoneResult, ObliqueShockState, ExpansionFanState, FlowState]],
                           title: str,
                           p_amtos: float) -> None:
+  from exhaust_plume.log.terminal_colormaps import PiYG as tc_PiYG, RdBu as tc_RdBu, hot as tc_hot, rainbow as tc_rainbow, terrain as tc_terrain
+  from exhaust_plume.util.pretty_table import ColumnColorOption, ColumnSortOrder, PrettyTable
+
   lods = []
   keys = [
       'Plume', 'Group', '#', 'Type', 'Label', 'Beta', 'Theta',

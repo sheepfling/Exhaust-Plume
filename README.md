@@ -19,12 +19,14 @@ The model uses SI units internally: pressure in pascals, temperature in kelvin, 
 
 The plume geometry is a method-of-characteristics-style study model with ideal-gas, isentropic, expansion-fan, and oblique-shock relations. It is intended for exploratory engineering studies, not certification analysis. Very low or very high Mach numbers and extreme pressure ratios remain known failure regions.
 
+The governing equations and conservation checks are summarized in [`docs/mathematical_model.tex`](docs/mathematical_model.tex).
+
 ## Command-line use
 
 Install the project and run the default study:
 
 ```bash
-python -m pip install -e '.[test]'
+python -m pip install -e '.[plot]'
 exhaust-plume --help
 exhaust-plume --nozzle-mach 4.13 --nozzle-pressure-atm 69 --nozzle-temperature-K 2000
 ```
@@ -58,3 +60,5 @@ python -m pip install -e '.[test]'
 python -m pytest
 python -m build
 ```
+
+The scientific API only requires the dependencies listed under `[project].dependencies`. Install the `plot` extra for the command-line runner and graphical output.

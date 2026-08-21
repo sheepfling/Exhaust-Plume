@@ -1,0 +1,160 @@
+\documentclass[11pt]{article}
+
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{hyperref}
+
+\title{Mathematical Model for the Exhaust-Plume Study Solver}
+\author{Exhaust-Plume project}
+\date{\today}
+
+\newcommand{\Mach}{\mathit{M}}
+\newcommand{\gammaa}{\gamma}
+\newcommand{\Rgas}{R}
+\newcommand{\dd}{\,\mathrm{d}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This note records the equations and modeling assumptions used by the
+standalone compressible exhaust-plume study solver.  The implementation is a
+calorically perfect, ideal-gas model that combines one-dimensional nozzle
+relations with Prandtl--Meyer expansion fans, oblique shocks, and a
+two-dimensional geometric construction of plume zones.  It is intended for
+reproducible exploratory studies rather than certification analysis.
+\end{abstract}
+
+\section{Assumptions and notation}
+
+The gas is modeled as calorically perfect with constant ratio of specific heats
+\(\gamma=C_p/C_v\).  The equation of state and speed of sound are
+\begin{equation}
+  p = \rho \Rgas T,
+  \qquad
+  a = \sqrt{\gammaa \frac{p}{\rho}},
+  \qquad
+  V = \Mach a .
+\end{equation}
+Here \(p\) is static pressure, \(\rho\) is density, \(T\) is static
+temperature, \(a\) is speed of sound, \(V\) is flow speed, and \(\Mach\) is
+Mach number.  The code uses SI units: pascals, kelvin, kilograms per cubic
+meter, meters, and seconds.  Angles are stored in degrees in the public flow
+state classes and converted to radians for trigonometric operations.
+
+\section{Isentropic relations}
+
+For an isentropic change between a static state and its stagnation state,
+\begin{align}
+  \frac{T_0}{T} &= 1 + \frac{\gammaa-1}{2}\Mach^2, \\
+  \frac{p_0}{p} &=
+    \left(1 + \frac{\gammaa-1}{2}\Mach^2\right)^{\gammaa/(\gammaa-1)}, \\
+  \frac{\rho_0}{\rho} &=
+    \left(1 + \frac{\gammaa-1}{2}\Mach^2\right)^{1/(\gammaa-1)}.
+\end{align}
+The nozzle-exit helper takes \(p_0\), \(T_0\), \(\Mach\), and \(\gammaa\),
+then evaluates these relations to obtain the exit static state.  Its current
+gas constant is based on the configured dry-air molar mass.
+
+For a quasi-one-dimensional nozzle, the area--Mach relation is
+\begin{equation}
+  \frac{A}{A^*} = \frac{1}{\Mach}
+  \left[\frac{2}{\gammaa+1}
+  \left(1+\frac{\gammaa-1}{2}\Mach^2\right)\right]^{{(\gammaa+1)}/{(2(\gammaa-1))}},
+\end{equation}
+where \(A^*\) is the sonic throat area.  The study solver uses the
+supersonic branch for an exit Mach number greater than one.
+
+\section{Prandtl--Meyer expansion}
+
+For a supersonic expansion, the Prandtl--Meyer function is
+\begin{equation}
+  \nu(\Mach) =
+  \sqrt{\frac{\gammaa+1}{\gammaa-1}}
+  \tan^{-1}\!\left(\sqrt{\frac{\gammaa-1}{\gammaa+1}(\Mach^2-1)}\right)
+  - \tan^{-1}\!\left(\sqrt{\Mach^2-1}\right).
+\end{equation}
+The flow turning angle between two states is
+\begin{equation}
+  \Delta\theta = \nu(\Mach_2)-\nu(\Mach_1).
+\end{equation}
+The expansion fan preserves stagnation pressure and temperature while changing
+the static state according to the isentropic relations.
+
+\section{Normal and oblique shocks}
+
+An oblique shock is reduced to a normal shock using the upstream Mach number
+normal to the shock,
+\begin{equation}
+  \Mach_{n1} = \Mach_1\sin\beta,
+\end{equation}
+where \(\beta\) is the shock angle.  The normal-shock relations used by the
+solver are
+\begin{align}
+  \frac{p_2}{p_1} &= 1 + \frac{2\gammaa}{\gammaa+1}(\Mach_{n1}^2-1), \\
+  \frac{\rho_2}{\rho_1} &=
+    \frac{(\gammaa+1)\Mach_{n1}^2}
+         {2+(\gammaa-1)\Mach_{n1}^2}, \\
+  \frac{T_2}{T_1} &= \frac{p_2/p_1}{\rho_2/\rho_1}, \\
+  \Mach_{n2}^2 &=
+    \frac{1+\frac{\gammaa-1}{2}\Mach_{n1}^2}
+         {\gammaa\Mach_{n1}^2-\frac{\gammaa-1}{2}}.
+\end{align}
+The downstream Mach number for the oblique shock is reconstructed as
+\begin{equation}
+  \Mach_2 = \frac{\Mach_{n2}}{\sin(\beta-\theta)},
+\end{equation}
+where \(\theta\) is the flow-turning angle.
+
+The shock angle is determined from the \(\theta\)--\(\beta\)--\(\Mach\)
+relation,
+\begin{equation}
+  \tan\theta = 2\cot\beta\,
+  \frac{\Mach_1^2\sin^2\beta-1}
+       {\Mach_1^2\left(\gammaa+\cos(2\beta)\right)+2}.
+\end{equation}
+The weak-shock branch is used for ordinary compression-wave construction.
+
+\section{Plume-zone construction}
+
+The solver first constructs the nozzle-exit zone from total conditions.  Let
+\(p_e\) be its static pressure and \(p_a\) the atmospheric pressure.
+
+\begin{itemize}
+  \item If \(p_e > p_a\), the plume is underexpanded.  The solver constructs
+    an expansion-fan sequence, reflects the characteristics across the
+    centerline, and adds oblique compression waves to approximately equalize
+    the plume pressure with the atmosphere.
+  \item If \(p_e \leq p_a\), the plume is treated as overexpanded.  An initial
+    pair of oblique-shock precursor zones raises the pressure before the
+    reflected expansion/compression construction is applied.
+\end{itemize}
+
+The geometric construction uses straight characteristic segments, line
+intersections, and a fitted parabola for one reflected slip-line boundary.
+Some intermediate regions are intentionally represented as approximate study
+zones; the method is not a full viscous or reacting-flow solution.
+
+\section{Conservation checks}
+
+The benchmark tests in the repository verify the algebraic relations above.
+For a normal shock they additionally check conservation of mass flux,
+streamwise momentum flux, and total enthalpy:
+\begin{align}
+  \rho_1 V_1 &= \rho_2 V_2, \\
+  p_1+\rho_1 V_1^2 &= p_2+\rho_2 V_2^2, \\
+  C_pT_1+\frac{V_1^2}{2} &= C_pT_2+\frac{V_2^2}{2}.
+\end{align}
+For isentropic transformations, the tests verify that converting static
+properties to stagnation properties and back preserves the supplied state.
+
+\section{Known limits}
+
+The reflected geometry can become ill-conditioned for extreme pressure ratios
+and very low or very high Mach numbers.  The current implementation reports
+invalid input values early, but it does not claim convergence for every
+physically imaginable input.  Future work should replace the geometric hacks
+with explicit characteristic validity checks and report a structured solver
+status alongside the zone list.
+
+\end{document}

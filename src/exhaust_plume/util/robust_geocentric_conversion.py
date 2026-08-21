@@ -4,11 +4,10 @@ from __future__ import annotations
 
 from numpy import arcsin, arctan2, clip, concatenate, cos, deg2rad, einsum, inf, ndarray, newaxis, rad2deg, sin, zeros
 from numpy.linalg import norm
-from radar_tools.geov import ecef2enuT, enu2ecefT
 
 from exhaust_plume.earth.spherical_earth_constants import SPHERICAL_EARTH_RADIUS_m
 from exhaust_plume.log.log import getCleanLogger
-from exhaust_plume.util.robust_geodetic_conversion import ned2enu
+from exhaust_plume.util.robust_geodetic_conversion import _ecef2enu_transform, _enu2ecef_transform, ned2enu
 
 __all__ = (
     'ecef2lla_geocentric',
@@ -64,14 +63,14 @@ def lla_geocentric2ecef(lla_geocentric: ndarray, earth_radius_m: float = SPHERIC
 
 def ecef2enu_geocentric(position_ecef: ndarray, reference_ecef: ndarray, earth_radius_m: float = SPHERICAL_EARTH_RADIUS_m) -> ndarray:
   lla_ref = ecef2lla_geocentric(ecef_xyz=reference_ecef, earth_radius_m=earth_radius_m)
-  T = ecef2enuT(lla_ref)
+  T = _ecef2enu_transform(lla_ref)
   return einsum('...ij,...j->...i', T, position_ecef - reference_ecef)
 ##
 
 
 def enu_geocentric2ecef(position_enu: ndarray, reference_ecef: ndarray, earth_radius_m: float = SPHERICAL_EARTH_RADIUS_m) -> ndarray:
   lla_ref = ecef2lla_geocentric(ecef_xyz=reference_ecef, earth_radius_m=earth_radius_m)
-  T = enu2ecefT(lla_ref)
+  T = _enu2ecef_transform(lla_ref)
   return einsum('...ij,...j->...i', T, position_enu) + reference_ecef
 ##
 
@@ -87,7 +86,7 @@ def ecef2ned_geocentric(position_ecef: ndarray, reference_ecef: ndarray, earth_r
 def ned_geocentric2ecef(position_ned: ndarray, reference_ecef: ndarray, earth_radius_m: float = SPHERICAL_EARTH_RADIUS_m) -> ndarray:
   position_enu = ned2enu(ned=position_ned)
   lla_ref = ecef2lla_geocentric(ecef_xyz=reference_ecef, earth_radius_m=earth_radius_m)
-  T = enu2ecefT(lla_ref)
+  T = _enu2ecef_transform(lla_ref)
   out = einsum('...ij,...j->...i', T, position_enu) + reference_ecef
   return out
 ##

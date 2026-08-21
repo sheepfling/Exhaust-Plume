@@ -95,7 +95,8 @@ def configureLogging(config_file: Optional[Union[str, Path]] = None,
   ##
   if not config_file:
     # no env var or input arg - use the default embedded config
-    with importlib.resources.open_text(_DEFAULT_CONFIG_PKG, _DEFAULT_CONFIG_NAME) as fin:
+    config_resource = importlib.resources.files(_DEFAULT_CONFIG_PKG).joinpath(_DEFAULT_CONFIG_NAME)
+    with config_resource.open('r', encoding='utf-8') as fin:
       file_text = fin.read()
     ##
   else:

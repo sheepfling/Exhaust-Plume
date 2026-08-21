@@ -4,10 +4,8 @@ from __future__ import annotations
 import sys
 from argparse import ArgumentParser, Namespace
 from dataclasses import dataclass, fields
-from typing import Any, List, Mapping, Optional, Sequence
+from typing import TYPE_CHECKING, Any, List, Mapping, Optional, Sequence
 
-import matplotlib.ticker as mticker
-from matplotlib import pyplot as plt
 from numpy import array, asarray, full, inf, isfinite, linspace, nan, nanmax, nanmin, ndarray, polyval, ptp
 
 from exhaust_plume.log.extra_log_levels import VERBOSE, setDefaultLogLevels
@@ -16,17 +14,13 @@ from exhaust_plume.models.plume.plume_solve import ZoneCoordinates, ZoneResult, 
 from exhaust_plume.util.arg_util import getRangeLimitedType
 from exhaust_plume.util.atmosphere.atmosphere_interpolator_interface import AtmosphereScalarStateInterface
 from exhaust_plume.util.atmosphere.pdas_atmosphere_interpolator import calculateAtmosphereStateFromGeopotentialAltitude
-from exhaust_plume.util.colormap_util import get_cmap
-from exhaust_plume.util.mesh.mesh_generation import generateRevolvedMesh
-from exhaust_plume.util.mesh.mesh_plotting import plotTriangularMeshes
 from exhaust_plume.util.physical_constants import PASCAL_PER_ATM
-from exhaust_plume.util.plot_util import FigureType
+
+if TYPE_CHECKING:
+  from exhaust_plume.util.plot_util import FigureType
 
 ###########################################
 log = getCleanLogger(__name__)
-
-jet_cmap = get_cmap('jet')
-
 
 @dataclass(frozen=True)
 class ScriptOptions:
@@ -47,7 +41,7 @@ class ScriptOptions:
     parser.add_argument('--show-plots', action='store_true', help='Displays plots')
     parser.add_argument(
         '--num-plumes', type=getRangeLimitedType(typ=int, min_val=1, max_val=None, ),
-        default=defaults.num_compression_lines, help="Number of plumes to calculate",
+        default=defaults.num_plumes, help="Number of plumes to calculate",
     )
     parser.add_argument(
         '--altitude-m', type=float, default=defaults.altitude_m,
@@ -77,7 +71,7 @@ class ScriptOptions:
         default=defaults.nozzle_radius_m, help='Nozzle radius in meters',
     )
     parser.add_argument(
-        '--gamma', type=getRangeLimitedType(typ=int, min_val=0., max_val=None, min_is_valid=False),
+        '--gamma', type=getRangeLimitedType(typ=float, min_val=0., max_val=None, min_is_valid=False),
         default=defaults.gamma, help='Gas gamma (γ=Cp/Cv)')
     return parser
 
@@ -101,6 +95,8 @@ class ScriptOptions:
 
 
 def plotNormalizedZoneValues(zones: Sequence[ZoneResult], atmos_stat: AtmosphereScalarStateInterface, num_plumes: int) -> List[FigureType]:
+  from matplotlib import pyplot as plt
+
   indices = range(len(zones))
   machs = array([z.mach for z in zones])
   total_pressure_Pa = array([z.total_pressure for z in zones])
@@ -137,6 +133,8 @@ def plotNormalizedZoneValues(zones: Sequence[ZoneResult], atmos_stat: Atmosphere
 
 
 def plotTotalPressureDensity(zones: Sequence[ZoneResult], num_plumes: int) -> List[FigureType]:
+  from matplotlib import pyplot as plt
+
   indices = range(len(zones))
   total_pressure_Pa = array([z.total_pressure for z in zones])
   total_density_kgmp3 = array([z.static_density for z in zones])
@@ -164,6 +162,9 @@ def plotTotalPressureDensity(zones: Sequence[ZoneResult], num_plumes: int) -> Li
 
 
 def plotSpecificEnergy(zones: Sequence[ZoneResult], num_plumes: int) -> List[FigureType]:
+  import matplotlib.ticker as mticker
+  from matplotlib import pyplot as plt
+
   indices = range(len(zones))
   spec_energy_Jpkg = array([z.specific_total_energy_Jpkg for z in zones])
   fig, ax = plt.subplots(1, 1)
@@ -178,6 +179,8 @@ def plotSpecificEnergy(zones: Sequence[ZoneResult], num_plumes: int) -> List[Fig
 
 
 def plotZoneCoordinates2D(zones: Sequence[ZoneResult], extra: Optional[Mapping[str, Any]] = None) -> List[FigureType]:
+  from matplotlib import pyplot as plt
+
   figs = []
   fig, ax = plt.subplots(1, 1)
   if extra is None:
@@ -220,6 +223,12 @@ def plotZoneCoordinates3D(zones: Sequence[ZoneResult],
                           num_plumes: int,
                           colormap_key: str = 'static_temperature', num_rotations: int = 30,
                           ) -> List[FigureType]:
+  from matplotlib import pyplot as plt
+
+  from exhaust_plume.util.colormap_util import get_cmap
+  from exhaust_plume.util.mesh.mesh_generation import generateRevolvedMesh
+  from exhaust_plume.util.mesh.mesh_plotting import plotTriangularMeshes
+
   if not zones:
     return []
   ##
@@ -237,7 +246,7 @@ def plotZoneCoordinates3D(zones: Sequence[ZoneResult],
   ##
 
   normed_values = (values - nanmin(values)) / ptp(values)
-  colors = jet_cmap(normed_values)
+  colors = get_cmap('jet')(normed_values)
 
   fig = plt.figure(figsize=(10, 10))
   ax, _ = plotTriangularMeshes(
@@ -335,6 +344,8 @@ def main() -> None:
   ##
 
   if figs:
+    from matplotlib import pyplot as plt
+
     plt.show()
     for fig in figs:
       if fig is not None:
