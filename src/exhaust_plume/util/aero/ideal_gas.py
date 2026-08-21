@@ -17,7 +17,7 @@ Modern Compressible Flow: With Historical Perspective 3rd Edition
 """
 from __future__ import annotations
 
-from typing import TypeVar, Union
+from typing import TypeVar, Union, cast
 
 from numpy import log as ln, ndarray
 
@@ -225,5 +225,5 @@ def calcIdealGasSpecificEntropyChange(
   specific_gas_R = calcSpecificGasConstant(molar_mass_kg=molar_mass_kg)
   cp = calcSpecificHeatPressure(gamma=gamma, molar_mass_kg=molar_mass_kg)
   delta_s = cp * ln(temperature_ratio) - specific_gas_R * ln(pressure_ratio)
-  return delta_s
+  return cast(T, delta_s)
 ##

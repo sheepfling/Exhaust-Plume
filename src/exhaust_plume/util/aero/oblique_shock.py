@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass
-from typing import Optional, TypeVar, Union
+from typing import Optional, TypeVar, Union, cast
 
 from numpy import arccos, arctan, cos, deg2rad, isclose, ndarray, pi, rad2deg, sin, sqrt, tan
 
@@ -80,7 +80,7 @@ def calcShockObliqueAngle(*, theta_deg: T, mach: T, gamma: Union[float, T], delt
   if isinstance(mach, float):
     beta = float(beta)
   ##
-  return beta
+  return cast(T, beta)
 ##
 
 

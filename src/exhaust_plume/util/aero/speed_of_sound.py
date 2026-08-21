@@ -7,7 +7,7 @@ References:
 """
 from __future__ import annotations
 
-from typing import TypeVar
+from typing import TypeVar, cast
 
 from numpy import ndarray, sqrt
 
@@ -29,5 +29,5 @@ def calculateSpeedOfSoundInGas(pressure_Pa: T, density_kgpm3: T, adiabatic_index
   """
   # speed = sqrt(gamma * Pressure / density)
   speed_mps = sqrt(adiabatic_index * pressure_Pa / density_kgpm3)
-  return speed_mps
+  return cast(T, speed_mps)
 ##

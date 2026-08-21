@@ -320,7 +320,7 @@ class ZoneResult(FlowState):
 def printPrettyTableZones(zones: Sequence[Union[ZoneResult, ObliqueShockState, ExpansionFanState, FlowState]],
                           title: str,
                           p_amtos: float) -> None:
-  from exhaust_plume.log.terminal_colormaps import PiYG as tc_PiYG, RdBu as tc_RdBu, hot as tc_hot, rainbow as tc_rainbow, terrain as tc_terrain
+  from exhaust_plume.log.terminal_colormaps import PiYG as tc_PiYG, RdBu as tc_RdBu, hot as tc_hot, jet as tc_jet, rainbow as tc_rainbow, terrain as tc_terrain
   from exhaust_plume.util.pretty_table import ColumnColorOption, ColumnSortOrder, PrettyTable
 
   lods = []

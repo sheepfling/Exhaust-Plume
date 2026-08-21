@@ -56,9 +56,15 @@ zones, details = calculatePlumeZones(
 ## Development
 
 ```bash
-python -m pip install -e '.[test]'
+python -m pip install -e '.[test,quality]'
 python -m pytest
+python -m ruff check .
+python -m pyright
 python -m build
 ```
 
 The scientific API only requires the dependencies listed under `[project].dependencies`. Install the `plot` extra for the command-line runner and graphical output.
+
+Ruff checks the complete source and test tree. Pyright checks the focused solver and aerodynamic modules listed in [`pyrightconfig.json`](pyrightconfig.json).
+
+CI also installs the built wheel into a fresh virtual environment and runs `tests/installed_smoke.py` from outside the repository. That check discovers the installed package resources dynamically before exercising the public API and CLI help path.

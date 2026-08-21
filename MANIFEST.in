@@ -1,1 +1,2 @@
 include docs/mathematical_model.tex
+include pyrightconfig.json

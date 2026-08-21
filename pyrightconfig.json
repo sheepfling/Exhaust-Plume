@@ -1,0 +1,17 @@
+{
+  "include": [
+    "src/exhaust_plume/models/plume",
+    "src/exhaust_plume/util/aero"
+  ],
+  "exclude": [
+    "build",
+    "dist",
+    "legacy",
+    "tests"
+  ],
+  "pythonVersion": "3.10",
+  "typeCheckingMode": "basic",
+  "reportMissingImports": "error",
+  "reportUndefinedVariable": "error",
+  "reportUnusedImport": "error"
+}

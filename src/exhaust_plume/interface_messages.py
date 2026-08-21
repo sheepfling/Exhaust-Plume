@@ -7,7 +7,7 @@ from enum import Enum
 from functools import total_ordering
 from math import nan
 from pprint import pformat
-from typing import Any, ClassVar, Dict, Mapping, Optional
+from typing import Any, ClassVar, Dict, Mapping, Optional, Union
 
 from numpy import allclose, arcsin, arctan2, array, asarray, eye, full_like, isclose, isfinite, isnan, ndarray, rad2deg, trace, zeros
 from numpy.linalg import norm

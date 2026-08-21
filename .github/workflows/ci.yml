@@ -19,6 +19,16 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
       - run: python -m pip install --upgrade pip
-      - run: python -m pip install -e '.[test]'
+      - run: python -m pip install -e '.[test,quality]'
+      - run: python -m ruff check .
+      - run: python -m pyright
       - run: python -m pytest
       - run: python -m build
+      - name: Install and exercise the built wheel
+        run: |
+          smoke_env="$RUNNER_TEMP/exhaust-plume-smoke-${{ matrix.python-version }}"
+          python -m venv "$smoke_env"
+          "$smoke_env/bin/python" -m pip install --upgrade pip
+          "$smoke_env/bin/python" -m pip install dist/*.whl
+          cd "$RUNNER_TEMP"
+          "$smoke_env/bin/python" "$GITHUB_WORKSPACE/tests/installed_smoke.py"

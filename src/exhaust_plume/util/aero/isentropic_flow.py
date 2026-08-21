@@ -18,7 +18,7 @@ Modern Compressible Flow: With Historical Perspective 3rd Edition
 from __future__ import annotations
 
 import warnings
-from typing import TypeVar, Union
+from typing import TypeVar, Union, cast
 
 from numpy import asarray, ndarray, sqrt
 
@@ -116,9 +116,9 @@ def calcIsentropicMachFromTemperature(*, static_temperature: T, total_temperatur
     mach = mach.reshape(shp)
   #
   if isinstance(total_temperature_arr, float):
-    return float(mach)
+    return cast(T, float(mach))
   ##
-  return mach
+  return cast(T, mach)
 ##
 
 #######################################
@@ -131,7 +131,7 @@ def calcIsentropicTotalStaticDensityRatio(*, mach: T, gamma: Union[float, T]) ->
   $ \frac{ρ_0}{ρ} = \left(1 + \frac{γ-1}{2} M^2\right)^{1/\left(γ-1\right)} $
   """
   rhoTotal_div_rhoStatic = calcIsentropicTotalStaticTemperatureRatio(mach=mach, gamma=gamma)**(1. / (gamma - 1))
-  return rhoTotal_div_rhoStatic
+  return cast(T, rhoTotal_div_rhoStatic)
 ##
 
 
@@ -166,9 +166,9 @@ def calcIsentropicTotalDensity(*, mach: T, static_density: T, gamma: Union[float
   ##
   total_density = static_density_arr * rhoTotal_div_rhoStatic
   if isinstance(mach, float):
-    return float(total_density)
+    return cast(T, float(total_density))
   ##
-  return total_density
+  return cast(T, total_density)
 ##
 
 
@@ -208,7 +208,7 @@ def calcIsentropicTotalStaticPressureRatio(*, mach: T, gamma: Union[float, T]) -
   $ \frac{p_0}{p} = \left(1 + \frac{γ - 1}{2} mach^2\right)^{γ / \left(γ - 1\right)} $
   """
   pTotal_div_pStatic = (1 + ((gamma - 1) / 2) * mach**2)**((gamma) / (gamma - 1))  # Pa
-  return pTotal_div_pStatic
+  return cast(T, pTotal_div_pStatic)
 ##
 
 

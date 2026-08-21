@@ -16,6 +16,7 @@ dependencies = [
 
 [project.optional-dependencies]
 plot = ["matplotlib", "mpmath", "sympy"]
+quality = ["pyright", "ruff"]
 test = ["pytest", "build", "matplotlib"]
 
 [project.scripts]
@@ -33,3 +34,11 @@ version = {attr = "exhaust_plume.constants.VERSION"}
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 200
+extend-exclude = ["build", "dist", "legacy"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]

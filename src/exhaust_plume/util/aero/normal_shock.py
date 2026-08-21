@@ -9,7 +9,7 @@ Modern Compressible Flow: With Historical Perspective 3rd Edition
 """
 from __future__ import annotations
 
-from typing import TypeVar, Union
+from typing import TypeVar, Union, cast
 
 from numpy import ndarray, sqrt
 
@@ -39,7 +39,7 @@ def calcNormalShockMach(*, mach: T, gamma: Union[float, T]) -> T:
   M2 = mach**2.
   mach_downstream2 = (1 + a * M2) / (gamma * M2 - a)
   mach_downstream = sqrt(mach_downstream2)
-  return mach_downstream
+  return cast(T, mach_downstream)
 ##
 
 

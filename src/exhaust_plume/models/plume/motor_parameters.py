@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, fields
-from typing import TypeVar, Union
+from typing import TypeVar, Union, cast
 
 from numpy import isclose, isfinite, ndarray, pi, sqrt
 
@@ -110,7 +110,7 @@ def calcAreaThroatGivenMassFlowRateTotalTemperaturePressure(mdot_kgps: T,
   """
   R_specific_m2ps2K = calcSpecificGasConstant(molar_mass_kg=molar_mass_kg)
   Astar = (mdot_kgps / total_pressure_Pa) * sqrt(total_temperature_K * R_specific_m2ps2K / gamma) * ((gamma + 1) / 2.)**((gamma + 1) / (gamma - 1))
-  return Astar
+  return cast(T, Astar)
 ##
 
 
