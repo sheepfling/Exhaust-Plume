@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 from exhaust_plume.models.plume.curved_plume import (
+    ActuatorDiskWakeField,
     AmbientState,
     AmbientStateField,
+    AmbientVelocityField,
+    CompositeVelocityField,
     ConstantDensityFreeJetExactSolution,
     ConstantDensityMixtureThermodynamics,
     ConstantEntrainment,
@@ -22,6 +25,8 @@ from exhaust_plume.models.plume.curved_plume import (
     MixtureThermodynamics,
     OrthogonalUniformCrossflowExactSolution,
     UniformAmbientField,
+    UniformVelocityField,
+    VelocityAugmentedAmbientField,
     ZeroCurvedPlumeSourceTermModel,
     calculateConstantDensityFreeJetExact,
     calculateOrthogonalUniformCrossflowExact,
@@ -40,8 +45,11 @@ from exhaust_plume.util.aero.flow_state import FlowState
 from exhaust_plume.util.aero.oblique_shock import ObliqueShockState
 
 __all__ = (
+    'ActuatorDiskWakeField',
     'AmbientState',
     'AmbientStateField',
+    'AmbientVelocityField',
+    'CompositeVelocityField',
     'ConstantDensityFreeJetExactSolution',
     'ConstantDensityMixtureThermodynamics',
     'ConstantEntrainment',
@@ -63,6 +71,8 @@ __all__ = (
     'ObliqueShockState',
     'OrthogonalUniformCrossflowExactSolution',
     'UniformAmbientField',
+    'UniformVelocityField',
+    'VelocityAugmentedAmbientField',
     'ZeroCurvedPlumeSourceTermModel',
     'ZoneCoordinates',
     'ZoneResult',
