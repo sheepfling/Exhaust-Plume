@@ -10,6 +10,7 @@ Modern Compressible Flow: With Historical Perspective 3rd Edition
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import cached_property
 from typing import List, Optional, TypeVar, Union
 
 from numpy import arctan, deg2rad, inf, isclose, nan, ndarray, rad2deg, sqrt
@@ -19,8 +20,7 @@ from exhaust_plume.log.log import getCleanLogger
 from exhaust_plume.util.aero.constants import MAX_ITER_DEFAULT
 from exhaust_plume.util.aero.flow_state import FlowState
 from exhaust_plume.util.aero.isentropic_flow import calcIsentropicMachFromPressure, calcIsentropicTotalStaticDensityRatio, calcIsentropicTotalStaticPressureRatio, calcIsentropicTotalStaticTemperatureRatio
-from exhaust_plume.util.cached_property import cached_property
-from exhaust_plume.util.numpy_util import ATOL_DEFAULT, RTOL_DEFAULT
+from exhaust_plume.util.numeric import ATOL_DEFAULT, RTOL_DEFAULT
 
 __all__ = (
     'calcIsentropicPmPressure',

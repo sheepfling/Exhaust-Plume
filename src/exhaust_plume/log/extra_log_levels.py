@@ -2,7 +2,7 @@
 # DOCME
 from __future__ import annotations
 
-import logging.config
+import logging
 from logging import CRITICAL, DEBUG, ERROR, INFO, NOTSET, WARNING
 from typing import Dict, Optional
 

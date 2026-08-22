@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import ClassVar, List
 from unittest import TestCase, main as ut_main
 
+from matplotlib.figure import Figure as FigureType
 from numpy.random import exponential, uniform
 
 from exhaust_plume.log.extra_log_levels import NOTSET
@@ -11,7 +12,6 @@ from exhaust_plume.log.log import configureLogging, getCleanLogger, getLogger, g
 from exhaust_plume.models.plume.motor_parameters import EngineParameters
 from exhaust_plume.util.atmosphere.constants import MOLAR_MASS_DRY_AIR_kg
 from exhaust_plume.util.physical_constants import PASCAL_PER_ATM
-from exhaust_plume.util.plot_types import FigureType
 
 ######################################
 log = getCleanLogger(__name__)

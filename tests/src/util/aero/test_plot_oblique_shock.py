@@ -5,13 +5,13 @@ from typing import ClassVar, List, Sequence, Union
 from unittest import TestCase, main as ut_main
 
 import matplotlib
+from matplotlib.figure import Figure as FigureType
 from matplotlib import pyplot as plt
 from numpy import linspace, meshgrid, ndarray
 
 from exhaust_plume.log.extra_log_levels import NOTSET
 from exhaust_plume.log.log import configureLogging, getCleanLogger, getLogger, getRootLogger
 from exhaust_plume.util.aero.oblique_shock import calcShockObliqueAngle
-from exhaust_plume.util.plot_types import FigureType
 
 ######################################
 log = getCleanLogger(__name__)

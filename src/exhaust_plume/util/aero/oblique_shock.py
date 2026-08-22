@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass
+from functools import cached_property
 from typing import Optional, TypeVar, Union, cast
 
 from numpy import arccos, arctan, cos, deg2rad, isclose, ndarray, pi, rad2deg, sin, sqrt, tan
@@ -22,8 +23,7 @@ from exhaust_plume.log.log import getCleanLogger
 from exhaust_plume.util.aero.constants import MAX_ITER_DEFAULT
 from exhaust_plume.util.aero.flow_state import FlowState
 from exhaust_plume.util.aero.normal_shock import calcNormalShockMach, calcNormalShockStaticDensity, calcNormalShockStaticPressure, calcNormalShockStaticTemperature
-from exhaust_plume.util.cached_property import cached_property
-from exhaust_plume.util.numpy_util import ATOL_DEFAULT, RTOL_DEFAULT
+from exhaust_plume.util.numeric import ATOL_DEFAULT, RTOL_DEFAULT
 
 __all__ = (
     'calcShockObliqueAngle',

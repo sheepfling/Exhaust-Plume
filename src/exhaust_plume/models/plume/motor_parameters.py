@@ -2,17 +2,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, fields
+from functools import cached_property
 from typing import TypeVar, Union, cast
 
 from numpy import isclose, isfinite, ndarray, pi, sqrt
 
-from exhaust_plume.log.log import getCleanLogger
 from exhaust_plume.util.aero.constants import MAX_ITER_DEFAULT
 from exhaust_plume.util.aero.ideal_gas import calcDensityFromSpecificVolume, calcIdealGasSpecificVolumeFromPressureSpecificWork, calcIdealGasSpecificWorkFromMolarMassTemperature, calcSpecificGasConstant
 from exhaust_plume.util.aero.isentropic_flow import calcIsentropicStaticDensity, calcIsentropicStaticPressure, calcIsentropicStaticTemperature
 from exhaust_plume.util.atmosphere.constants import MOLAR_MASS_DRY_AIR_kg
-from exhaust_plume.util.cached_property import cached_property
-from exhaust_plume.util.numpy_util import ATOL_DEFAULT, RTOL_DEFAULT
+from exhaust_plume.util.numeric import ATOL_DEFAULT, RTOL_DEFAULT
 
 __all__ = (
     'calcAreaThroatGivenMassFlowRateTotalTemperaturePressure',
@@ -20,8 +19,6 @@ __all__ = (
     'EngineParameters',
 )
 ###########################################
-log = getCleanLogger(__name__)
-
 T = TypeVar('T', float, ndarray)
 
 

@@ -10,24 +10,20 @@ Modern Compressible Flow: With Historical Perspective 3rd Edition
 from __future__ import annotations
 
 from dataclasses import dataclass, fields
+from functools import cached_property
 
 from numpy import deg2rad, ndarray
 
-from exhaust_plume.log.log import getCleanLogger
 from exhaust_plume.util.aero.isentropic_flow import calcIsentropicTotalDensity, calcIsentropicTotalPressure, calcIsentropicTotalTemperature
 from exhaust_plume.util.aero.misc import calcMachAngle
 from exhaust_plume.util.aero.speed_of_sound import calculateSpeedOfSoundInGas
-from exhaust_plume.util.cached_property import cached_property
-from exhaust_plume.util.dataclass_util import dataclassIsClose, dataclassIsEqual
-from exhaust_plume.util.numpy_util import ATOL_DEFAULT, EQUAL_NAN_DEFAULT, RTOL_DEFAULT
+from exhaust_plume.util.comparison import dataclassIsClose, dataclassIsEqual
+from exhaust_plume.util.numeric import ATOL_DEFAULT, EQUAL_NAN_DEFAULT, RTOL_DEFAULT
 
 __all__ = (
     'FlowState',
 )
 ###########################################
-log = getCleanLogger(__name__)
-
-
 @dataclass(frozen=True)
 class FlowState:
   mach: float  # number

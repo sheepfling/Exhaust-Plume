@@ -1,7 +1,6 @@
 {
   "include": [
-    "src/exhaust_plume/models/plume",
-    "src/exhaust_plume/util/aero"
+    "src/exhaust_plume"
   ],
   "exclude": [
     "build",

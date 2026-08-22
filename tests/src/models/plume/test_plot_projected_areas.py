@@ -5,13 +5,13 @@ from typing import ClassVar, List, Mapping, Sequence
 from unittest import TestCase, main as ut_main
 
 import matplotlib
+from matplotlib.figure import Figure as FigureType
 from matplotlib import pyplot as plt
 from numpy import asarray, linspace, pi, rad2deg
 
 from exhaust_plume.log.extra_log_levels import NOTSET
 from exhaust_plume.log.log import configureLogging, getCleanLogger, getLogger, getRootLogger
 from exhaust_plume.models.plume.projected_areas import calcPolarExclusionAngle, calculateRevolvedProjectedAreas
-from exhaust_plume.util.plot_types import FigureType
 
 ######################################
 log = getCleanLogger(__name__)

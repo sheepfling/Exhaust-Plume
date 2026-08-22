@@ -6,19 +6,13 @@ from __future__ import annotations
 import warnings
 from typing import TypeVar, Union
 
-from numpy import arccos, array, asarray, clip, concatenate, cos, einsum, ndarray, newaxis, pi, sin, tan
-
-from exhaust_plume.log.log import getCleanLogger
-from exhaust_plume.util.numpy_util import makeReadOnly
+from numpy import arccos, asarray, clip, concatenate, cos, einsum, ndarray, newaxis, sin, tan
 
 __all__ = (
     'calculateRevolvedProjectedAreas',
 )
 ###########################################
-log = getCleanLogger(__name__)
-
 T = TypeVar('T', ndarray, float)
-_a_pi_2 = makeReadOnly(array([[2 * pi, 2]]))
 
 
 def calculateRevolvedProjectedAreas(

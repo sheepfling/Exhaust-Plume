@@ -10,6 +10,7 @@ Modern Compressible Flow: With Historical Perspective 3rd Edition
 from __future__ import annotations
 
 from dataclasses import dataclass, fields
+from functools import cached_property
 from enum import Enum, auto as getAutoEnumValue
 from numbers import Integral
 from typing import Any, ClassVar, Dict, List, Sequence, Tuple, Union
@@ -17,7 +18,6 @@ from typing import Any, ClassVar, Dict, List, Sequence, Tuple, Union
 from numpy import argmax, argmin, asarray, cos, eye, full, isfinite, isnan, nan, nanmax, ndarray, polyfit, polyval, ptp, repeat, roots, sin, tan, vstack
 from numpy.linalg import pinv
 
-from exhaust_plume.log.log import getCleanLogger
 from exhaust_plume.util.aero.constants import MAX_ITER_DEFAULT
 from exhaust_plume.util.aero.expansion_fan import ExpansionFanState
 from exhaust_plume.util.aero.flow_state import FlowState
@@ -25,15 +25,11 @@ from exhaust_plume.util.aero.ideal_gas import calcDensityFromSpecificVolume, cal
 from exhaust_plume.util.aero.isentropic_flow import calcIsentropicStaticDensity, calcIsentropicStaticPressure, calcIsentropicStaticTemperature
 from exhaust_plume.util.aero.oblique_shock import ObliqueShockState
 from exhaust_plume.util.atmosphere.constants import MOLAR_MASS_DRY_AIR_kg
-from exhaust_plume.util.cached_property import cached_property
-from exhaust_plume.util.dataclass_util import dataclassIsClose, dataclassIsEqual
-from exhaust_plume.util.numpy_util import ATOL_DEFAULT, EQUAL_NAN_DEFAULT, RTOL_DEFAULT, makeReadOnly, unitize
+from exhaust_plume.util.comparison import dataclassIsClose, dataclassIsEqual
+from exhaust_plume.util.numeric import ATOL_DEFAULT, EQUAL_NAN_DEFAULT, RTOL_DEFAULT, makeReadOnly, unitize
 from exhaust_plume.util.physical_constants import ATM_PER_PASCAL
 
 ###########################################
-log = getCleanLogger(__name__)
-
-
 def _validate_positive_finite(name: str, value: float) -> None:
   try:
     value_float = float(value)
@@ -320,8 +316,7 @@ class ZoneResult(FlowState):
 def printPrettyTableZones(zones: Sequence[Union[ZoneResult, ObliqueShockState, ExpansionFanState, FlowState]],
                           title: str,
                           p_amtos: float) -> None:
-  from exhaust_plume.log.terminal_colormaps import PiYG as tc_PiYG, RdBu as tc_RdBu, hot as tc_hot, jet as tc_jet, rainbow as tc_rainbow, terrain as tc_terrain
-  from exhaust_plume.util.pretty_table import ColumnColorOption, ColumnSortOrder, PrettyTable
+  from exhaust_plume.util.pretty_table import PrettyTable
 
   lods = []
   keys = [
@@ -373,21 +368,6 @@ def printPrettyTableZones(zones: Sequence[Union[ZoneResult, ObliqueShockState, E
       title=title,
       show_border=True,
       show_row_index=False,
-      column_fg_colormaps={
-          'Type': ColumnColorOption(cmap=tc_rainbow, order=ColumnSortOrder.Descending),
-          'Label': ColumnColorOption(cmap=tc_rainbow, order=ColumnSortOrder.Descending),
-          'Plume': ColumnColorOption(cmap=tc_rainbow, order=ColumnSortOrder.Descending),
-          'Group': ColumnColorOption(cmap=tc_rainbow, order=ColumnSortOrder.Descending),
-          '#': ColumnColorOption(cmap=tc_rainbow, order=ColumnSortOrder.Descending),
-          'Static Temp': ColumnColorOption(cmap=tc_jet, order=ColumnSortOrder.Ascending),
-          'Mach': ColumnColorOption(cmap=tc_PiYG, order=ColumnSortOrder.Descending),
-          'Static P/Atmos': ColumnColorOption(cmap=tc_RdBu, order=ColumnSortOrder.Descending),
-          'Beta': ColumnColorOption(cmap=tc_terrain, order=ColumnSortOrder.Descending),
-          'Theta': ColumnColorOption(cmap=tc_terrain, order=ColumnSortOrder.Descending),
-          'Energy %': ColumnColorOption(cmap=lambda N: tc_hot(N + 1)[1:], order=ColumnSortOrder.Ascending),
-          'Total Pressure %': ColumnColorOption(cmap=tc_RdBu, order=ColumnSortOrder.Descending),
-          'Total Density %': ColumnColorOption(cmap=tc_RdBu, order=ColumnSortOrder.Descending),
-      },
   )
   print(pt.get_string(show_header=True, show_row_index=False))
 ##

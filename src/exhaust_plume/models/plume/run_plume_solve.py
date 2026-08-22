@@ -4,7 +4,7 @@ from __future__ import annotations
 import sys
 from argparse import ArgumentParser, Namespace
 from dataclasses import dataclass, fields
-from typing import TYPE_CHECKING, Any, List, Mapping, Optional, Sequence
+from typing import Any, List, Mapping, Optional, Sequence
 
 from numpy import array, asarray, full, inf, isfinite, linspace, nan, nanmax, nanmin, ndarray, polyval, ptp
 
@@ -12,12 +12,8 @@ from exhaust_plume.log.extra_log_levels import VERBOSE, setDefaultLogLevels
 from exhaust_plume.log.log import configureLogging, getCleanLogger, getLogger
 from exhaust_plume.models.plume.plume_solve import ZoneCoordinates, ZoneResult, ZoneType, calculatePlumeZones, printPrettyTableZones
 from exhaust_plume.util.arg_util import getRangeLimitedType
-from exhaust_plume.util.atmosphere.atmosphere_interpolator_interface import AtmosphereScalarStateInterface
-from exhaust_plume.util.atmosphere.pdas_atmosphere_interpolator import calculateAtmosphereStateFromGeopotentialAltitude
+from exhaust_plume.util.atmosphere.pdas_atmosphere_interpolator import PdasAtmosphereScalarState, calculateAtmosphereStateFromGeopotentialAltitude
 from exhaust_plume.util.physical_constants import PASCAL_PER_ATM
-
-if TYPE_CHECKING:
-  from exhaust_plume.util.plot_util import FigureType
 
 ###########################################
 log = getCleanLogger(__name__)
@@ -94,7 +90,7 @@ class ScriptOptions:
 ##
 
 
-def plotNormalizedZoneValues(zones: Sequence[ZoneResult], atmos_stat: AtmosphereScalarStateInterface, num_plumes: int) -> List[FigureType]:
+def plotNormalizedZoneValues(zones: Sequence[ZoneResult], atmos_stat: PdasAtmosphereScalarState, num_plumes: int) -> List[Any]:
   from matplotlib import pyplot as plt
 
   indices = range(len(zones))
@@ -132,7 +128,7 @@ def plotNormalizedZoneValues(zones: Sequence[ZoneResult], atmos_stat: Atmosphere
 ##
 
 
-def plotTotalPressureDensity(zones: Sequence[ZoneResult], num_plumes: int) -> List[FigureType]:
+def plotTotalPressureDensity(zones: Sequence[ZoneResult], num_plumes: int) -> List[Any]:
   from matplotlib import pyplot as plt
 
   indices = range(len(zones))
@@ -161,7 +157,7 @@ def plotTotalPressureDensity(zones: Sequence[ZoneResult], num_plumes: int) -> Li
 ##
 
 
-def plotSpecificEnergy(zones: Sequence[ZoneResult], num_plumes: int) -> List[FigureType]:
+def plotSpecificEnergy(zones: Sequence[ZoneResult], num_plumes: int) -> List[Any]:
   import matplotlib.ticker as mticker
   from matplotlib import pyplot as plt
 
@@ -178,7 +174,7 @@ def plotSpecificEnergy(zones: Sequence[ZoneResult], num_plumes: int) -> List[Fig
 ##
 
 
-def plotZoneCoordinates2D(zones: Sequence[ZoneResult], extra: Optional[Mapping[str, Any]] = None) -> List[FigureType]:
+def plotZoneCoordinates2D(zones: Sequence[ZoneResult], extra: Optional[Mapping[str, Any]] = None) -> List[Any]:
   from matplotlib import pyplot as plt
 
   figs = []
@@ -222,12 +218,10 @@ def plotZoneCoordinates2D(zones: Sequence[ZoneResult], extra: Optional[Mapping[s
 def plotZoneCoordinates3D(zones: Sequence[ZoneResult],
                           num_plumes: int,
                           colormap_key: str = 'static_temperature', num_rotations: int = 30,
-                          ) -> List[FigureType]:
+                          ) -> List[Any]:
   from matplotlib import pyplot as plt
 
-  from exhaust_plume.util.colormap_util import get_cmap
-  from exhaust_plume.util.mesh.mesh_generation import generateRevolvedMesh
-  from exhaust_plume.util.mesh.mesh_plotting import plotTriangularMeshes
+  from exhaust_plume.models.plume.visualization import generateRevolvedMesh, plotRevolvedMeshes
 
   if not zones:
     return []
@@ -245,11 +239,14 @@ def plotZoneCoordinates3D(zones: Sequence[ZoneResult],
     values.append(getattr(zone, colormap_key))
   ##
 
+  values = array(values)
   normed_values = (values - nanmin(values)) / ptp(values)
-  colors = get_cmap('jet')(normed_values)
+  from matplotlib import colormaps
+
+  colors = colormaps['jet'](normed_values)
 
   fig = plt.figure(figsize=(10, 10))
-  ax, _ = plotTriangularMeshes(
+  ax, _ = plotRevolvedMeshes(
       meshes=meshes,
       face_colors=colors,
       face_kwargs={

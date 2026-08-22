@@ -10,12 +10,10 @@ requires-python = ">=3.10"
 dependencies = [
   "numpy",
   "pyyaml",
-  "scipy",
-  "typing_extensions",
 ]
 
 [project.optional-dependencies]
-plot = ["matplotlib", "mpmath", "sympy"]
+plot = ["matplotlib"]
 quality = ["pyright", "ruff"]
 test = ["pytest", "build", "matplotlib"]
 
