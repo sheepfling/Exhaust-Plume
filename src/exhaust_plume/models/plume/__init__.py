@@ -1,7 +1,32 @@
-"""Core plume model and its flow-state result types."""
+"""Core plume models and their flow-state result types."""
 
 from __future__ import annotations
 
+from exhaust_plume.models.plume.curved_plume import (
+    AmbientState,
+    AmbientStateField,
+    ConstantDensityFreeJetExactSolution,
+    ConstantDensityMixtureThermodynamics,
+    ConstantEntrainment,
+    CurvedPlumeOptions,
+    CurvedPlumeResult,
+    CurvedPlumeSource,
+    CurvedPlumeSourceTermModel,
+    CurvedPlumeSourceTerms,
+    CurvedPlumeStation,
+    CurvedPlumeTermination,
+    DevelopingShearForcedEntrainment,
+    EntrainmentModel,
+    IdealGasMixtureThermodynamics,
+    MixtureState,
+    MixtureThermodynamics,
+    OrthogonalUniformCrossflowExactSolution,
+    UniformAmbientField,
+    ZeroCurvedPlumeSourceTermModel,
+    calculateConstantDensityFreeJetExact,
+    calculateOrthogonalUniformCrossflowExact,
+    solveCurvedPlume,
+)
 from exhaust_plume.models.plume.motor_parameters import EngineParameters
 from exhaust_plume.models.plume.plume_solve import (
     ZoneCoordinates,
@@ -15,13 +40,36 @@ from exhaust_plume.util.aero.flow_state import FlowState
 from exhaust_plume.util.aero.oblique_shock import ObliqueShockState
 
 __all__ = (
+    'AmbientState',
+    'AmbientStateField',
+    'ConstantDensityFreeJetExactSolution',
+    'ConstantDensityMixtureThermodynamics',
+    'ConstantEntrainment',
+    'CurvedPlumeOptions',
+    'CurvedPlumeResult',
+    'CurvedPlumeSource',
+    'CurvedPlumeSourceTermModel',
+    'CurvedPlumeSourceTerms',
+    'CurvedPlumeStation',
+    'CurvedPlumeTermination',
+    'DevelopingShearForcedEntrainment',
     'EngineParameters',
+    'EntrainmentModel',
     'ExpansionFanState',
     'FlowState',
+    'IdealGasMixtureThermodynamics',
+    'MixtureState',
+    'MixtureThermodynamics',
     'ObliqueShockState',
+    'OrthogonalUniformCrossflowExactSolution',
+    'UniformAmbientField',
+    'ZeroCurvedPlumeSourceTermModel',
     'ZoneCoordinates',
     'ZoneResult',
     'ZoneType',
     'calcNozzleExitFlowState',
+    'calculateConstantDensityFreeJetExact',
+    'calculateOrthogonalUniformCrossflowExact',
     'calculatePlumeZones',
+    'solveCurvedPlume',
 )
