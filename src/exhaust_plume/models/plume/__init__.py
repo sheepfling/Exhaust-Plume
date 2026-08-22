@@ -24,12 +24,16 @@ from exhaust_plume.models.plume.curved_plume import (
     MixtureState,
     MixtureThermodynamics,
     OrthogonalUniformCrossflowExactSolution,
+    SweptTubeMesh,
     UniformAmbientField,
     UniformVelocityField,
     VelocityAugmentedAmbientField,
     ZeroCurvedPlumeSourceTermModel,
     calculateConstantDensityFreeJetExact,
     calculateOrthogonalUniformCrossflowExact,
+    calculateRotationMinimizingFrames,
+    generateCurvedPlumeMesh,
+    generateSweptTubeMesh,
     solveCurvedPlume,
 )
 from exhaust_plume.models.plume.motor_parameters import EngineParameters
@@ -70,6 +74,7 @@ __all__ = (
     'MixtureThermodynamics',
     'ObliqueShockState',
     'OrthogonalUniformCrossflowExactSolution',
+    'SweptTubeMesh',
     'UniformAmbientField',
     'UniformVelocityField',
     'VelocityAugmentedAmbientField',
@@ -81,5 +86,8 @@ __all__ = (
     'calculateConstantDensityFreeJetExact',
     'calculateOrthogonalUniformCrossflowExact',
     'calculatePlumeZones',
+    'calculateRotationMinimizingFrames',
+    'generateCurvedPlumeMesh',
+    'generateSweptTubeMesh',
     'solveCurvedPlume',
 )
