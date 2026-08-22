@@ -26,6 +26,12 @@ from exhaust_plume.models.plume.curved_plume_exact import (
     calculateConstantDensityFreeJetExact,
     calculateOrthogonalUniformCrossflowExact,
 )
+from exhaust_plume.models.plume.curved_plume_geometry import (
+    SweptTubeMesh,
+    calculateRotationMinimizingFrames,
+    generateCurvedPlumeMesh,
+    generateSweptTubeMesh,
+)
 from exhaust_plume.models.plume.curved_plume_solver import solveCurvedPlume
 from exhaust_plume.models.plume.curved_plume_state import (
     AmbientState,
@@ -61,11 +67,15 @@ __all__ = (
     'MixtureState',
     'MixtureThermodynamics',
     'OrthogonalUniformCrossflowExactSolution',
+    'SweptTubeMesh',
     'UniformAmbientField',
     'UniformVelocityField',
     'VelocityAugmentedAmbientField',
     'ZeroCurvedPlumeSourceTermModel',
     'calculateConstantDensityFreeJetExact',
     'calculateOrthogonalUniformCrossflowExact',
+    'calculateRotationMinimizingFrames',
+    'generateCurvedPlumeMesh',
+    'generateSweptTubeMesh',
     'solveCurvedPlume',
 )
