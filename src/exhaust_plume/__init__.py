@@ -29,6 +29,7 @@ from exhaust_plume.models.plume import (
     MixtureThermodynamics,
     ObliqueShockState,
     OrthogonalUniformCrossflowExactSolution,
+    SweptTubeMesh,
     UniformAmbientField,
     UniformVelocityField,
     VelocityAugmentedAmbientField,
@@ -40,6 +41,9 @@ from exhaust_plume.models.plume import (
     calculateConstantDensityFreeJetExact,
     calculateOrthogonalUniformCrossflowExact,
     calculatePlumeZones,
+    calculateRotationMinimizingFrames,
+    generateCurvedPlumeMesh,
+    generateSweptTubeMesh,
     solveCurvedPlume,
 )
 
@@ -74,6 +78,7 @@ __all__ = (
     'MixtureThermodynamics',
     'ObliqueShockState',
     'OrthogonalUniformCrossflowExactSolution',
+    'SweptTubeMesh',
     'UniformAmbientField',
     'UniformVelocityField',
     'VelocityAugmentedAmbientField',
@@ -85,5 +90,8 @@ __all__ = (
     'calculateConstantDensityFreeJetExact',
     'calculateOrthogonalUniformCrossflowExact',
     'calculatePlumeZones',
+    'calculateRotationMinimizingFrames',
+    'generateCurvedPlumeMesh',
+    'generateSweptTubeMesh',
     'solveCurvedPlume',
 )
