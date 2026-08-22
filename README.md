@@ -21,6 +21,89 @@ The plume geometry is a method-of-characteristics-style study model with ideal-g
 
 The governing equations and conservation checks are summarized in [`docs/mathematical_model.tex`](docs/mathematical_model.tex).
 
+### Simulation inputs
+
+The core `calculatePlumeZones` call requires the following finite scalar data:
+
+| Input | Units | Constraint | Role |
+| --- | --- | --- | --- |
+| `nozzle_mach` | — | `> 1` | Supersonic exit Mach number |
+| `nozzle_total_temperature` | K | `> 0` | Exit stagnation temperature |
+| `nozzle_total_pressure` | Pa | `> 0` | Exit stagnation pressure |
+| `nozzle_radius` | m | `> 0` | Exit radius for the 2-D geometry seed |
+| `atmospheric_pressure` | Pa | `> 0` | Ambient pressure used for regime selection |
+| `gamma` | — | `> 1` | Constant ratio of specific heats |
+| `num_expansion_lines` | count | `>= 2` | Discrete expansion-fan resolution |
+| `num_compression_lines` | count | `>= 1` | Discrete compression-wave resolution |
+| `num_plumes` | count | `>= 1` | Number of construction passes appended |
+
+The core solver has no defaults. The CLI supplies study defaults and derives
+ambient pressure from geopotential altitude using the packaged layered standard
+atmosphere model. `EngineParameters` is a separate textbook helper for mass
+flow, throat-area, and exit-Mach calculations; it is not currently an alternate
+input object for `calculatePlumeZones`.
+
+### Solver flow
+
+1. Convert total exit conditions to the static exit state with the isentropic
+   relations. The regime is selected from `p_exit > p_atmosphere`.
+2. For an underexpanded exit, calculate discrete Prandtl–Meyer expansion
+   states, reflect their characteristic geometry across the centerline, then
+   apply oblique compression waves toward ambient pressure.
+3. For an overexpanded exit, prepend an oblique-shock pressure-equalization
+   precursor and a centerline compression before applying the reflected
+   construction.
+4. Build 2-D zone polygons from Mach-line and shock-line intersections. The
+   reflected outer boundary is currently a quadratic study approximation.
+5. Return zone flow states, phase metadata, construction points, and the
+   diagnostic boundary fit.
+
+`ZoneType` describes the local relation (`Isentropic`, `ExpansionFan`, or
+`ObliqueShock`); it is not a global regime or solver mode. The full equations,
+phase definitions, coordinate convention, and limitations are in the LaTeX
+model note.
+
+### Outputs and scope
+
+Each `ZoneResult` contains static flow properties, derived total properties,
+`plume_index`, `group_number`, `group_index`, a phase label, `beta`/`theta`
+angles in degrees, a `ZoneType`, and `coordinates.corners_ru` in the right/up
+plane. The `details` mapping currently contains `points` labeled A–K and a
+`plume_fit` diagnostic. Callers should check polygon coordinates for finite
+values because some nonterminal compression subdivisions can still carry
+placeholder geometry.
+
+The active plume model is constant-`gamma` ideal gas. It does not yet model
+species composition, reactions, dissociation, vibrational energy, or
+temperature-dependent specific heats. The broader thermodynamic helpers remain
+available as reference material from the textbook work and are intentionally
+not treated as all belonging to the active plume path.
+
+### Future plume termination
+
+The current solver has no physical plume-end condition. It can continue
+building plausible-looking adiabatic and isentropic regions because those local
+relations do not model entrainment, diffusion, viscous dissipation, or mixing
+with the ambient flow. The plume-count and line-count inputs control
+construction resolution; they do not predict plume lifetime.
+
+Future work should choose and document one termination policy:
+
+- A weak-wave cutoff based on pressure, Mach, turning-angle, and total-pressure
+  changes.
+- An ambient-equilibrium criterion with residual tolerances and persistence
+  over distance.
+- A finite axial or radial study domain reported explicitly as truncation.
+- An entrainment/mixing model that exchanges mass, momentum, and energy with
+  the ambient.
+- A higher-fidelity downstream coupling model for viscous, turbulent, or
+  multispecies effects.
+
+The eventual result contract should report the termination reason, ambient
+residuals, last active wave type, and whether termination was physical or
+domain-imposed. This design is documented as future work only; it is not
+implemented yet.
+
 ## Command-line use
 
 Install the project and run the default study:

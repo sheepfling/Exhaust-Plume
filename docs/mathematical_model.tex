@@ -2,6 +2,7 @@
 
 \usepackage[a4paper,margin=1in]{geometry}
 \usepackage{amsmath,amssymb}
+\usepackage{longtable}
 \usepackage{hyperref}
 
 \title{Mathematical Model for the Exhaust-Plume Study Solver}
@@ -41,6 +42,184 @@ temperature, \(a\) is speed of sound, \(V\) is flow speed, and \(\Mach\) is
 Mach number.  The code uses SI units: pascals, kelvin, kilograms per cubic
 meter, meters, and seconds.  Angles are stored in degrees in the public flow
 state classes and converted to radians for trigonometric operations.
+
+\section{Simulation contract}
+
+The public solver is
+\begin{verbatim}
+calculatePlumeZones(...) -> (zones, details)
+\end{verbatim}
+It accepts scalar inputs and returns a list of immutable zone records plus
+construction diagnostics.  The core function has no implicit defaults: every
+argument below is required.
+
+\begin{longtable}{p{0.30\linewidth}p{0.10\linewidth}p{0.14\linewidth}p{0.34\linewidth}}
+\hline
+Input & Units & Required range & Meaning \\
+\hline
+\texttt{nozzle\_mach} & -- & \(>1\) & Supersonic Mach number at the nozzle exit. \\
+\texttt{nozzle\_total\_temperature} & K & \(>0\) & Exit total (stagnation) temperature \(T_0\). \\
+\texttt{nozzle\_total\_pressure} & Pa & \(>0\) & Exit total (stagnation) pressure \(p_0\). \\
+\texttt{nozzle\_radius} & m & \(>0\) & Radius used to seed the two-dimensional exit geometry. \\
+\texttt{atmospheric\_pressure} & Pa & \(>0\) & Ambient static pressure \(p_a\) used for regime selection and pressure equalization. \\
+\texttt{gamma} & -- & \(>1\) & Constant ratio of specific heats \(C_p/C_v\). \\
+\texttt{num\_expansion\_lines} & count & \(\geq 2\) & Number of discrete expansion-fan states in each expansion sequence. \\
+\texttt{num\_compression\_lines} & count & \(\geq 1\) & Number of discrete compression states in each compression sequence. \\
+\texttt{num\_plumes} & count & \(\geq 1\) & Number of plume-construction passes appended to the result. \\
+\hline
+\end{longtable}
+
+All numeric inputs must be finite.  The command-line wrapper adds a separate
+input layer: it accepts geopotential altitude and converts that altitude to
+\(p_a\) with the atmosphere model described below, and it accepts \(p_0\) in
+atmospheres before converting it to pascals.  Its study defaults are 10 km
+altitude, \(69\) atm total pressure, \(2000\) K total temperature, exit Mach
+\(4.130\), radius \(1\) m, \(\gamma=1.33\), two expansion lines, one
+compression line, and one plume pass.  These wrapper defaults are not defaults
+of the core solver.
+
+The separate \texttt{EngineParameters} record is a textbook-oriented helper.
+It requires mass flow rate, exit radius, total pressure, total temperature,
+\(\gamma\), and molar mass; it derives throat area and exit Mach from those
+quantities.  It is not currently an alternate argument type for
+\texttt{calculatePlumeZones}.  The nozzle-exit helper used by the core solver
+uses the configured dry-air molar mass, while the engine helper can carry an
+explicit molar mass.
+
+\subsection{Flow-state and zone outputs}
+
+Every \texttt{FlowState} contains the primitive state
+
+\[
+  (\Mach, p, T, \rho, \gamma),
+\]
+
+where pressure, temperature, and density are static properties.  It exposes
+derived total pressure, total temperature, total density, Mach-line angle,
+speed of sound, flow speed, and specific total energy.  A \texttt{ZoneResult}
+adds the following metadata:
+
+\begin{longtable}{p{0.30\linewidth}p{0.14\linewidth}p{0.44\linewidth}}
+\hline
+Field & Units & Meaning \\
+\hline
+\texttt{plume\_index} & count & One-based construction-pass identifier. \\
+\texttt{group\_number} & count & One-based physical phase group. \\
+\texttt{group\_index} & count & One-based state index within a phase group. \\
+\texttt{label} & -- & Human-readable phase label. \\
+\texttt{type} & -- & \texttt{Isentropic}, \texttt{ExpansionFan}, or \texttt{ObliqueShock}. \\
+\texttt{beta} & degree & Shock angle; NaN when the zone is not a shock. \\
+\texttt{theta} & degree & Flow-turning angle; NaN when not applicable. \\
+\texttt{coordinates.corners\_ru} & m & Polygon vertices in the two-dimensional right/up plane. \\
+\hline
+\end{longtable}
+
+The second return value, \texttt{details}, currently contains
+\texttt{points}, a mapping from labels \(A\) through \(K\) to two-dimensional
+construction points, and \texttt{plume\_fit}, the coefficient vector for the
+quadratic surrogate used during reflected-boundary intersections.  The fit is
+an implementation diagnostic rather than a stable geometry interchange
+format.  Callers should check coordinates for finite values: intermediate
+subdivisions of a compression sequence may currently carry placeholder NaN
+polygons even when the terminal zone geometry is finite.
+
+\section{Regimes and phase flow}
+
+The exit state is first calculated from \(M_e,T_0,p_0,\gamma\).  The exit
+static pressure is
+\begin{equation}
+  p_e = p_0
+  \left(1+\frac{\gammaa-1}{2}M_e^2\right)^{-\gammaa/(\gammaa-1)}.
+\end{equation}
+The regime is derived from \(p_e\) and \(p_a\); it is not a separate input
+mode and the current public API does not expose a regime enum.
+
+\begin{enumerate}
+  \item If \(p_e>p_a\), the flow is treated as underexpanded.  The solver
+    constructs an initial expansion sequence, reflects that sequence across
+    the centerline, then applies compression waves to return approximately to
+    ambient pressure.
+  \item If \(p_e\leq p_a\), the flow is treated as overexpanded.  The solver
+    first applies an oblique-shock precursor that raises the pressure toward
+    \(p_a\), adds a centerline compression, and feeds the resulting state into
+    the same reflected expansion/compression geometry.
+\end{enumerate}
+
+The phase sequence is therefore:
+
+\begin{description}
+  \item[Exit] Isentropic conversion from total conditions to the nozzle-exit
+    static state.
+  \item[Expansion] Discrete Prandtl--Meyer states divide the turn required to
+    reach the ambient pressure at constant total pressure and temperature.
+  \item[Reflection] The expansion characteristics are reflected across the
+    centerline and evaluated as a second expansion sequence.
+  \item[Compression] Oblique compression waves are divided according to
+    \texttt{num\_compression\_lines}; the final state is solved to the ambient
+    pressure.
+  \item[Centerline] A final compression sequence represents the centerline
+    interaction and closes the study geometry.
+\end{description}
+
+\texttt{ZoneType} identifies the local physical relation, not the global
+regime: an underexpanded or overexpanded result can contain isentropic,
+expansion-fan, and oblique-shock zones.  Increasing the line counts changes
+the discrete resolution of these phase sequences.  Increasing
+\texttt{num\_plumes} appends additional construction passes with successive
+one-based indices; it does not yet model coupled flow between separate
+nozzles.
+
+\section{Geometry contract}
+
+The solver works in a two-dimensional plane with basis vectors
+\[
+  \mathbf{e}_{R}=(1,0), \qquad \mathbf{e}_{U}=(0,1),
+\]
+called right and up by the implementation.  A point is represented as
+\(\mathbf{x}=(x_R,x_U)\) in meters.  A characteristic or shock segment is
+represented parametrically by
+\begin{equation}
+  \mathbf{x}(s)=\mathbf{x}_0+s\mathbf{d}.
+\end{equation}
+For two segments, the intersection parameters satisfy
+\begin{equation}
+  \begin{bmatrix}d_{1R} & -d_{2R}\\ d_{1U} & -d_{2U}\end{bmatrix}
+  \begin{bmatrix}s_1\\s_2\end{bmatrix}
+  = \mathbf{x}_{0,2}-\mathbf{x}_{0,1}.
+\end{equation}
+The implementation evaluates this small system with a pseudoinverse so that
+the construction remains defined for nearly parallel lines.
+
+Reflection across the horizontal centerline uses
+\begin{equation}
+  \mathbf{M}_{\mathrm{reflect}}=
+  \begin{bmatrix}1&0\\0&-1\end{bmatrix}.
+\end{equation}
+The named construction points have the following roles: \(A\) and \(B\) seed
+the outer and centerline edges at the exit; \(C\) and \(D\) mark the first and
+last centerline points of the initial expansion; \(E\) is the first reflected
+intersection; \(F\) and \(G\) locate the outer reflected-boundary surrogate;
+and \(H,I,J,K\) close the compression and centerline regions.  Their exact
+locations are generated from Mach-line, shock-angle, and flow-turning angles,
+not supplied by the user.
+
+The outer reflected boundary is approximated by a quadratic fitted through
+\(A,F,G\).  The fit and subsequent line intersections are deliberately
+identified as a study-model geometry approximation.  The optional visualization
+helper revolves a closed two-dimensional boundary around a supplied three-
+dimensional axis to create a triangular surface mesh; this is display geometry
+only and does not alter the flow state.
+
+For the separate projected-area helper, a frustum-like segment with left and
+right radii \(R_L,R_R\), axial height \(H\), and view aspect \(\alpha\) uses
+\begin{align}
+  \Delta R &= R_L-R_R, \\
+  \phi_0 &= \cos^{-1}\!\left(\operatorname{clip}\left[-\frac{\Delta R}{H}\tan\alpha,-1,1\right]\right), \\
+  A_{\mathrm{proj}} &= (R_L+R_R)\left[\Delta R\,\sin\alpha\,\phi_0
+    + |H|\cos\alpha\,\sin\phi_0\right].
+\end{align}
+This calculation is downstream visualization/analysis and is not part of the
+state solve.
 
 \section{Isentropic relations}
 
@@ -135,6 +314,45 @@ intersections, and a fitted parabola for one reflected slip-line boundary.
 Some intermediate regions are intentionally represented as approximate study
 zones; the method is not a full viscous or reacting-flow solution.
 
+\section{Atmosphere coupling}
+
+The core solver receives atmospheric pressure directly.  The command-line
+runner instead receives geopotential altitude \(h\) and evaluates a layered
+standard-atmosphere model before calling the solver.  Its layer bases are
+
+\[
+  h_b = (0,11,20,32,47,51,71,84.852)\ {\rm km},
+\]
+
+with base temperature, pressure-ratio, and temperature-gradient tables stored
+with the package.  Within a layer with base state \((T_b,p_b)\), lapse rate
+\(\Lambda\), and height increment \(\Delta h\), the implementation uses
+\begin{align}
+  T &= T_b + \Lambda\Delta h, \\
+  \frac{p}{p_b} &= \begin{cases}
+    \left(\dfrac{T_b}{T}\right)^{g/(R\Lambda)}, & \Lambda\ne 0,\\[6pt]
+    \exp\left(-\dfrac{g\Delta h}{R T_b}\right), & \Lambda=0,
+  \end{cases} \\
+  \frac{\rho}{\rho_0} &= \frac{p/p_0}{T/T_0}.
+\end{align}
+
+The last equation uses sea-level reference quantities in the implementation.
+The supported table range is \(0\) to \(84.852\) km.  An altitude outside that
+range is clamped to the nearest table boundary and returned with
+\texttt{is\_valid=False}; it is not silently treated as an in-range physical
+state.
+
+\section{Thermochemistry scope}
+
+The current solver has one constant-\(\gamma\) ideal-gas state and no species
+or reaction state.  It does not yet model exhaust composition, chemical
+reaction source terms, dissociation, vibrational energy, or temperature-
+dependent specific heats.  Molar mass enters the ideal-gas constant in the
+textbook and engine-parameter helpers, but the plume-zone contract does not
+accept a species mixture.  The broader thermodynamic helper functions are
+retained as reference and cohort material; they are not all claims about the
+current plume solver's active physics.
+
 \section{Conservation checks}
 
 The benchmark tests in the repository verify the algebraic relations above.
@@ -147,6 +365,59 @@ streamwise momentum flux, and total enthalpy:
 \end{align}
 For isentropic transformations, the tests verify that converting static
 properties to stagnation properties and back preserves the supplied state.
+
+\section{Future work: finite plume termination}
+
+The current construction does not contain a physical plume termination
+condition.  It repeatedly applies idealized adiabatic and, for the smooth
+wave portions, isentropic state changes.  Those relations preserve total
+temperature and total pressure through each expansion sequence, while the
+geometry builder continues to create another discrete region whenever the
+requested construction pass continues.  Consequently, a calculation can
+produce a sequence of plausible-looking zones without representing the point
+where the exhaust has mixed into the ambient flow.
+
+This is a model boundary, not an iterative solver failure.  Adiabatic
+isentropic relations describe local wave transformations; they do not provide
+entrainment, diffusion, viscous dissipation, turbulent mixing, or a finite
+ambient reservoir by themselves.
+
+Potential termination strategies, in increasing physical complexity, are:
+
+\begin{enumerate}
+  \item \textbf{Weak-wave cutoff.} Stop when the pressure, Mach, turning-angle,
+    and total-pressure changes across the next wave are below prescribed
+    tolerances.  This is the smallest change and is useful for controlling
+    geometric over-generation, but it is a numerical definition of
+    termination rather than a mixing model.
+  \item \textbf{Ambient-equilibrium cutoff.} Stop when a zone or cross-section
+    is sufficiently close to the ambient pressure, temperature, density, and
+    velocity, using dimensionless residuals and a minimum persistence length.
+    The persistence requirement prevents one local crossing of ambient
+    pressure from terminating the plume prematurely.
+  \item \textbf{Finite-domain cutoff.} Define a maximum axial distance or
+    radius of interest and report the plume state at that boundary.  This is
+    appropriate when the study asks for a bounded observation volume, but the
+    boundary must be recorded as a truncation rather than physical
+    equilibration.
+  \item \textbf{Entrainment and mixing model.} Add a shear-layer or integral
+    plume model that exchanges mass, momentum, and energy with the ambient.
+    The plume can then terminate when its cross-section and conserved fluxes
+    approach the ambient mixture within specified tolerances.
+  \item \textbf{Higher-fidelity continuation.} Couple the near-field zone
+    construction to a viscous, turbulent, multispecies, or reacting-flow
+    solver.  This would introduce the mechanisms that the current
+    constant-\(\gamma\) model intentionally omits.
+\end{enumerate}
+
+Before implementation, the project should choose whether plume termination
+means weak waves, thermodynamic equilibrium, a finite study domain, or a
+validated downstream coupling boundary.  The eventual result contract should
+also report a termination reason, the final residuals to ambient, the last
+active wave type, and whether the result ended by physical criterion or by
+domain truncation.  Until that policy is chosen, \texttt{num\_plumes} and the
+line-count inputs should be understood as construction controls, not as a
+prediction of plume lifetime.
 
 \section{Known limits}
 
