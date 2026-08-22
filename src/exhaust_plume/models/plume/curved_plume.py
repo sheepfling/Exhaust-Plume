@@ -2,6 +2,13 @@
 
 from __future__ import annotations
 
+from exhaust_plume.models.plume.curved_plume_ambient import (
+    ActuatorDiskWakeField,
+    AmbientVelocityField,
+    CompositeVelocityField,
+    UniformVelocityField,
+    VelocityAugmentedAmbientField,
+)
 from exhaust_plume.models.plume.curved_plume_closures import (
     ConstantEntrainment,
     CurvedPlumeOptions,
@@ -33,8 +40,11 @@ from exhaust_plume.models.plume.curved_plume_state import (
 )
 
 __all__ = (
+    'ActuatorDiskWakeField',
     'AmbientState',
     'AmbientStateField',
+    'AmbientVelocityField',
+    'CompositeVelocityField',
     'ConstantDensityFreeJetExactSolution',
     'ConstantDensityMixtureThermodynamics',
     'ConstantEntrainment',
@@ -52,6 +62,8 @@ __all__ = (
     'MixtureThermodynamics',
     'OrthogonalUniformCrossflowExactSolution',
     'UniformAmbientField',
+    'UniformVelocityField',
+    'VelocityAugmentedAmbientField',
     'ZeroCurvedPlumeSourceTermModel',
     'calculateConstantDensityFreeJetExact',
     'calculateOrthogonalUniformCrossflowExact',
