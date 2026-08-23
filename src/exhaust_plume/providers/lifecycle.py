@@ -7,7 +7,14 @@ from typing import Protocol, TypeVar, runtime_checkable
 
 from pydantic import Field, field_validator, model_validator
 
-from exhaust_plume.products import CapabilityId, ContractModel, PlumeProduct, Provenance
+from exhaust_plume.products import (
+    CapabilityId,
+    EngineeringFluxSectionProduct,
+    SectionedTubeProduct,
+    SpectralRadiantIntensityProduct,
+    SpectralRayTransferProduct,
+)
+from exhaust_plume.products._base import ContractModel, Provenance
 
 
 class TimeAccessMode(str, Enum):
@@ -29,7 +36,7 @@ class ExecutionBackend(str, Enum):
 
 
 class ProviderDescriptor(ContractModel):
-  """Construction-time provider identity, capabilities, and execution semantics."""
+  """Provider identity, capabilities, and execution semantics."""
 
   provider_id: str = Field(min_length=1)
   provider_version: str = Field(min_length=1)
@@ -96,8 +103,51 @@ class ClosedSessionError(RuntimeError):
 
 
 @runtime_checkable
+class CapabilityBinding(Protocol):
+  """One capability-scoped behavior exposed by a snapshot."""
+
+  @property
+  def capability_id(self) -> CapabilityId:
+    ...
+  ####
+####
+
+
+@runtime_checkable
+class VisualSectionedTubeCapability(CapabilityBinding, Protocol):
+  def getSectionedTube(self) -> SectionedTubeProduct:
+    ...
+  ####
+####
+
+
+@runtime_checkable
+class SpectralRadiantIntensityCapability(CapabilityBinding, Protocol):
+  def getSpectralRadiantIntensity(self) -> SpectralRadiantIntensityProduct:
+    ...
+  ####
+####
+
+
+@runtime_checkable
+class SpectralRayTransferCapability(CapabilityBinding, Protocol):
+  def getSpectralRayTransfer(self) -> SpectralRayTransferProduct:
+    ...
+  ####
+####
+
+
+@runtime_checkable
+class EngineeringFluxSectionCapability(CapabilityBinding, Protocol):
+  def getEngineeringFluxSections(self) -> EngineeringFluxSectionProduct:
+    ...
+  ####
+####
+
+
+@runtime_checkable
 class PlumeSnapshot(Protocol):
-  """Immutable state at one requested time with capability-scoped products."""
+  """Immutable state at one time with capability-scoped behaviors."""
 
   @property
   def descriptor(self) -> ProviderDescriptor:
@@ -119,8 +169,7 @@ class PlumeSnapshot(Protocol):
     ...
   ####
 
-  def getProduct(self, capability: CapabilityId) -> PlumeProduct:
-    """Return one capability-specific product, never a universal plume result."""
+  def resolveCapability(self, capability: CapabilityId) -> CapabilityBinding:
     ...
   ####
 ####
@@ -165,21 +214,21 @@ class PlumeProvider(Protocol):
 ####
 
 
-ProductT = TypeVar('ProductT', bound=PlumeProduct)
+CapabilityT = TypeVar('CapabilityT', bound=CapabilityBinding)
 
 
-def requireProduct(
+def requireCapability(
     snapshot: PlumeSnapshot,
     capability: CapabilityId,
-    product_type: type[ProductT],
-) -> ProductT:
-  """Resolve and type-check one product without implying a universal DTO."""
-  product = snapshot.getProduct(capability)
-  if not isinstance(product, product_type):
+    capability_type: type[CapabilityT],
+) -> CapabilityT:
+  """Resolve and type-check one capability binding."""
+  binding = snapshot.resolveCapability(capability)
+  if not isinstance(binding, capability_type):
     raise TypeError(
-        f'Capability {capability} returned {type(product).__name__}; '
-        f'expected {product_type.__name__}.'
+        f'Capability {capability} resolved to {type(binding).__name__}; '
+        f'expected {capability_type.__name__}.'
     )
   ####
-  return product
+  return binding
 ####
