@@ -9,8 +9,9 @@ description = "Standalone compressible exhaust-plume model"
 requires-python = ">=3.10"
 dependencies = [
     "numpy",
-    "pydantic>=2",
+    "pydantic>=2,<3",
     "pyyaml",
+    "scipy",
 ]
 
 [project.optional-dependencies]

@@ -1,53 +1,49 @@
-"""Core plume models and their flow-state result types."""
+"""Conservative integral model for pressure-matched curved exhaust plumes."""
 
 from __future__ import annotations
 
-from exhaust_plume.models.plume.curved_plume import (
+from exhaust_plume.models.plume.curved_plume_ambient import (
     ActuatorDiskWakeField,
-    AmbientState,
-    AmbientStateField,
     AmbientVelocityField,
     CompositeVelocityField,
-    ConstantDensityFreeJetExactSolution,
-    ConstantDensityMixtureThermodynamics,
+    UniformVelocityField,
+    VelocityAugmentedAmbientField,
+)
+from exhaust_plume.models.plume.curved_plume_closures import (
     ConstantEntrainment,
     CurvedPlumeOptions,
     CurvedPlumeResult,
-    CurvedPlumeSource,
     CurvedPlumeSourceTermModel,
     CurvedPlumeSourceTerms,
-    CurvedPlumeStation,
     CurvedPlumeTermination,
     DevelopingShearForcedEntrainment,
     EntrainmentModel,
-    IdealGasMixtureThermodynamics,
-    MixtureState,
-    MixtureThermodynamics,
-    OrthogonalUniformCrossflowExactSolution,
-    SweptTubeMesh,
-    UniformAmbientField,
-    UniformVelocityField,
-    VelocityAugmentedAmbientField,
     ZeroCurvedPlumeSourceTermModel,
+)
+from exhaust_plume.models.plume.curved_plume_exact import (
+    ConstantDensityFreeJetExactSolution,
+    OrthogonalUniformCrossflowExactSolution,
     calculateConstantDensityFreeJetExact,
     calculateOrthogonalUniformCrossflowExact,
+)
+from exhaust_plume.models.plume.curved_plume_geometry import (
+    SweptTubeMesh,
     calculateRotationMinimizingFrames,
     generateCurvedPlumeMesh,
     generateSweptTubeMesh,
-    solveCurvedPlume,
 )
-from exhaust_plume.models.plume.motor_parameters import EngineParameters
-from exhaust_plume.models.plume.plume_solve import (
-    ZoneCoordinates,
-    ZoneResult,
-    ZoneType,
-    calcNozzleExitFlowState,
-    calculatePlumeZones,
-    calculatePlumeZonesFromExitState,
+from exhaust_plume.models.plume.curved_plume_solver import solveCurvedPlume
+from exhaust_plume.models.plume.curved_plume_state import (
+    AmbientState,
+    AmbientStateField,
+    ConstantDensityMixtureThermodynamics,
+    CurvedPlumeSource,
+    CurvedPlumeStation,
+    IdealGasMixtureThermodynamics,
+    MixtureState,
+    MixtureThermodynamics,
+    UniformAmbientField,
 )
-from exhaust_plume.util.aero.expansion_fan import ExpansionFanState
-from exhaust_plume.util.aero.flow_state import FlowState
-from exhaust_plume.util.aero.oblique_shock import ObliqueShockState
 
 __all__ = (
     'ActuatorDiskWakeField',
@@ -66,28 +62,18 @@ __all__ = (
     'CurvedPlumeStation',
     'CurvedPlumeTermination',
     'DevelopingShearForcedEntrainment',
-    'EngineParameters',
     'EntrainmentModel',
-    'ExpansionFanState',
-    'FlowState',
     'IdealGasMixtureThermodynamics',
     'MixtureState',
     'MixtureThermodynamics',
-    'ObliqueShockState',
     'OrthogonalUniformCrossflowExactSolution',
     'SweptTubeMesh',
     'UniformAmbientField',
     'UniformVelocityField',
     'VelocityAugmentedAmbientField',
     'ZeroCurvedPlumeSourceTermModel',
-    'ZoneCoordinates',
-    'ZoneResult',
-    'ZoneType',
-    'calcNozzleExitFlowState',
     'calculateConstantDensityFreeJetExact',
     'calculateOrthogonalUniformCrossflowExact',
-    'calculatePlumeZones',
-    'calculatePlumeZonesFromExitState',
     'calculateRotationMinimizingFrames',
     'generateCurvedPlumeMesh',
     'generateSweptTubeMesh',
