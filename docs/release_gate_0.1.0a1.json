@@ -1,0 +1,83 @@
+{
+  "gate": "RLS-001",
+  "status": "pass",
+  "run_date": "2026-08-23",
+  "source_baseline": {
+    "branch": "main",
+    "commit": "49d6ffd1839258ce14319e157002005c6d2230e1",
+    "package_version": "0.1.0.a1",
+    "release_tag": "v0.1.0a1",
+    "release_tag_target": "8b37e48b65321403bb3eb4ed0fdfe949dc9f1506"
+  },
+  "local_environment": {
+    "python": "3.12.3",
+    "ruff": "0.15.12",
+    "pyright": "1.1.410",
+    "pytest": "8.4.2",
+    "results": {
+      "ruff": "pass",
+      "pyright": "pass",
+      "pytest": {
+        "status": "pass",
+        "tests_collected": 238,
+        "tests_passed": 238,
+        "warnings": 18
+      }
+    }
+  },
+  "github_actions": {
+    "workflow": "Test",
+    "run_id": 32614071277,
+    "url": "https://github.com/sheepfling/Exhaust-Plume/actions/runs/32614071277",
+    "commit": "49d6ffd1839258ce14319e157002005c6d2230e1",
+    "conclusion": "success",
+    "matrix": {
+      "3.10": "pass",
+      "3.11": "pass",
+      "3.12": "pass",
+      "3.13": "pass"
+    }
+  },
+  "reproducibility": {
+    "schema_generation": "pass",
+    "fixture_generation": "pass",
+    "schema_diff_empty": true,
+    "fixture_diff_empty": true,
+    "command_environment": "PYTHONPATH=src",
+    "asset_inventory": "docs/release_gate_0.1.0a1.sha256"
+  },
+  "package_and_cli": {
+    "sdist_build": "pass",
+    "wheel_build": "pass",
+    "fresh_wheel_install": "pass",
+    "installed_wheel_smoke": "pass",
+    "cli_help": {
+      "exhaust-plume": "pass",
+      "exhaust-plume-visualize": "pass",
+      "exhaust-plume-signature": "pass",
+      "exhaust-plume-validate": "pass"
+    }
+  },
+  "known_warnings": [
+    {
+      "category": "DeprecationWarning",
+      "count": 10,
+      "meaning": "Legacy calculatePlumeZones and num_plumes compatibility names remain exercised by regression and adapter tests."
+    },
+    {
+      "category": "RuntimeWarning",
+      "count": 8,
+      "meaning": "The existing projected-area calculation encounters invalid intermediate values in boundary-angle regression cases."
+    },
+    {
+      "category": "Numerical diagnostic logging",
+      "meaning": "The installed smoke exercises legacy extreme expansion cases that emit expected unattainable-expansion warnings and one pressure-target error log while returning success."
+    }
+  ],
+  "scope_confirmation": {
+    "physics_changes": false,
+    "api_redesign": false,
+    "downstream_packet_work": false,
+    "release_slice_change": "Regenerated four public contract fixtures so checked-in JSON matches the deterministic generator output."
+  }
+}

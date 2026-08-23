@@ -47,7 +47,8 @@
       "provider_version": "1.0.0",
       "configuration_digest_sha256": "fixture-configuration",
       "asset_digests_sha256": [],
-      "parent_result_ids": []
+      "parent_result_ids": [],
+      "metadata": {}
     },
     "warnings": []
   },
