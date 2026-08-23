@@ -73,7 +73,7 @@ def testCapabilityIdRejectsInvalidForms(value: str) -> None:
 
 
 def testSpectralAxisRejectsWrongUnitAndNonmonotonicValues() -> None:
-  with pytest.raises(ValidationError, match='metres'):
+  with pytest.raises(ValidationError, match="coordinate unit 'm'"):
     SpectralAxis(
         kind=SpectralCoordinateKind.WAVELENGTH,
         values=(3.e-6, 4.e-6),
