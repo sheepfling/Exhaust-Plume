@@ -10,12 +10,9 @@ from numpy.typing import ArrayLike
 from exhaust_plume.models.plume.curved_plume_geometry import calculateRotationMinimizingFrames
 from exhaust_plume.products import (
     Aabb3,
-    CapabilityId,
-    ENGINEERING_FLUX_SECTION_V1,
     EngineeringFluxSectionProduct,
     ProductMetadata,
     SectionedTubeProduct,
-    VISUAL_SECTIONED_TUBE_V1,
     VisualFeatureChannel,
 )
 
@@ -49,11 +46,6 @@ class ZoneCoordinatesLike(Protocol):
 
 class ZoneLike(Protocol):
   coordinates: ZoneCoordinatesLike
-####
-
-
-def _metadataForCapability(metadata: ProductMetadata, capability: CapabilityId) -> ProductMetadata:
-  return metadata.model_copy(update={'capability': capability})
 ####
 
 
@@ -106,7 +98,7 @@ def sectionedTubeFromCurvedPlume(
       VisualFeatureChannel(
           name='temperature',
           unit='K',
-          meaning='Integral-model station temperature; not a pixel radiance.',
+          meaning='Integral-model station temperature; not pixel radiance.',
           values=tuple(float(station.temperature_K) for station in result.stations),
       ),
       VisualFeatureChannel(
@@ -134,9 +126,8 @@ def sectionedTubeFromCurvedPlume(
           values=tuple(float(station.exhaust_mass_fraction) for station in result.stations),
       ),
   )
-  product_metadata = _metadataForCapability(metadata, VISUAL_SECTIONED_TUBE_V1)
   return SectionedTubeProduct(
-      metadata=product_metadata,
+      metadata=metadata,
       centerline_m=tuple(tuple(float(value) for value in row) for row in centerline),
       tangents_unit=tuple(tuple(float(value) for value in row) for row in tangents),
       normals_unit=tuple(tuple(float(value) for value in row) for row in normals),
@@ -155,13 +146,12 @@ def engineeringFluxSectionsFromCurvedPlume(
     *,
     metadata: ProductMetadata,
 ) -> EngineeringFluxSectionProduct:
-  """Expose conserved integral quantities without leaking curved solver classes."""
+  """Expose conserved integral quantities without leaking solver classes."""
   if not result.stations:
     raise ValueError('Expected at least one curved-plume station.')
   ####
-  product_metadata = _metadataForCapability(metadata, ENGINEERING_FLUX_SECTION_V1)
   return EngineeringFluxSectionProduct(
-      metadata=product_metadata,
+      metadata=metadata,
       position_m=tuple(
           tuple(float(value) for value in station.position_m)
           for station in result.stations
@@ -175,7 +165,9 @@ def engineeringFluxSectionsFromCurvedPlume(
       stagnation_enthalpy_flow_W=tuple(
           float(station.total_energy_flow_W) for station in result.stations
       ),
-      exhaust_mass_flow_kgps=tuple(float(station.exhaust_mass_flow_kgps) for station in result.stations),
+      exhaust_mass_flow_kgps=tuple(
+          float(station.exhaust_mass_flow_kgps) for station in result.stations
+      ),
   )
 ####
 
@@ -187,9 +179,8 @@ def sectionedTubeFromAxisymmetricZones(
 ) -> SectionedTubeProduct:
   """Derive a coarse visual envelope from private axisymmetric zone vertices.
 
-  This adapter is explicitly a visualization surrogate. It does not expose the
-  zones as a radiative medium and does not claim conservative support between
-  all section samples.
+  This is a visualization surrogate. It does not expose zones as a radiative
+  medium and does not claim conservative support between every sample.
   """
   point_rows: list[tuple[float, float]] = []
   for zone in zones:
@@ -210,7 +201,11 @@ def sectionedTubeFromAxisymmetricZones(
   for axial, radial in point_rows:
     radial_by_axial[axial] = max(radial_by_axial.get(axial, 0.), radial)
   ####
-  sections = tuple(sorted((axial, radial) for axial, radial in radial_by_axial.items() if radial > 0.))
+  sections = tuple(sorted(
+      (axial, radial)
+      for axial, radial in radial_by_axial.items()
+      if radial > 0.
+  ))
   if len(sections) < 2:
     raise ValueError('Expected at least two positive-radius axial sections.')
   ####
@@ -226,9 +221,8 @@ def sectionedTubeFromAxisymmetricZones(
       semi_major_axis_m=radii,
       semi_minor_axis_m=radii,
   )
-  product_metadata = _metadataForCapability(metadata, VISUAL_SECTIONED_TUBE_V1)
   return SectionedTubeProduct(
-      metadata=product_metadata,
+      metadata=metadata,
       centerline_m=tuple(tuple(float(value) for value in row) for row in centerline),
       tangents_unit=tuple(tuple(float(value) for value in row) for row in tangents),
       normals_unit=tuple(tuple(float(value) for value in row) for row in normals),
