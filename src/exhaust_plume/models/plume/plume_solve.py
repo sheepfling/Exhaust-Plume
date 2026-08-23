@@ -14,17 +14,19 @@ from functools import cached_property
 from enum import Enum, auto as getAutoEnumValue
 from numbers import Integral
 from typing import Any, ClassVar, Dict, List, Sequence, Tuple, Union
+from warnings import warn
 
-from numpy import argmax, argmin, asarray, cos, eye, full, isfinite, isnan, nan, nanmax, ndarray, polyfit, polyval, ptp, repeat, roots, sin, tan, vstack
-from numpy.linalg import pinv
+from numpy import argmax, argmin, asarray, cos, eye, full, isfinite, isnan, nan, nanmax, ndarray, polyfit, ptp, repeat, sin, tan, vstack
 
+from exhaust_plume.geometry import Ray2D, intersect_ray_with_parabola, intersect_rays
+from exhaust_plume.geometry.contracts import RayIntersectionStatus
 from exhaust_plume.util.aero.constants import MAX_ITER_DEFAULT
 from exhaust_plume.util.aero.expansion_fan import ExpansionFanState
 from exhaust_plume.util.aero.flow_state import FlowState
-from exhaust_plume.util.aero.ideal_gas import calcDensityFromSpecificVolume, calcIdealGasSpecificVolumeFromPressureSpecificWork, calcIdealGasSpecificWorkFromMolarMassTemperature
-from exhaust_plume.util.aero.isentropic_flow import calcIsentropicStaticDensity, calcIsentropicStaticPressure, calcIsentropicStaticTemperature
 from exhaust_plume.util.aero.oblique_shock import ObliqueShockState
-from exhaust_plume.util.atmosphere.constants import MOLAR_MASS_DRY_AIR_kg
+from exhaust_plume.models.gas.calorically_perfect import CaloricallyPerfectGas
+from exhaust_plume.models.nozzle.contracts import NozzleExitInput, NozzleExitState
+from exhaust_plume.models.nozzle.exit_state import derive_uniform_nozzle_exit
 from exhaust_plume.util.comparison import dataclassIsClose, dataclassIsEqual
 from exhaust_plume.util.numeric import ATOL_DEFAULT, EQUAL_NAN_DEFAULT, RTOL_DEFAULT, makeReadOnly, unitize
 from exhaust_plume.util.physical_constants import ATM_PER_PASCAL
@@ -59,32 +61,33 @@ def _validate_count(name: str, value: int, minimum: int) -> None:
 def calcLineIntersection2d(*,
                            line1_offset: ndarray, line1_direction: ndarray,
                            line2_offset: ndarray, line2_direction: ndarray) -> ndarray:
-  # line1_dir * p1 + line1_offset = line2_dir * p2 + line2_offset
-  line_param = pinv(vstack([line1_direction, -line2_direction]).T) @ (line2_offset - line1_offset)
-  intersection_point = line1_offset + line_param[0] * line1_direction
-  return intersection_point
+  """Legacy point-only wrapper around the validated forward-ray solver."""
+
+  result = intersect_rays(
+      Ray2D(origin=line1_offset, direction=line1_direction),
+      Ray2D(origin=line2_offset, direction=line2_direction),
+  )
+  if result.status is not RayIntersectionStatus.SUCCESS or result.point is None:
+    raise ValueError(f'Unable to calculate a forward line intersection: {result.status.value}. {result.message}')
+  return result.point
 ##
 
 
 def fitParabolaFromPoints2d(points: Sequence[ndarray]) -> ndarray:
-  # returns parameters used to be used in a polyval
+  # Returns coefficients for y = a*x**2 + b*x + c.
   x, y = vstack(points).T
-  p = polyfit(y=y, x=x, deg=2)
+  p = polyfit(x=x, y=y, deg=2)
   return p
 ##
 
 
 def calcLineParabolaIntersection2d(line_offset: ndarray, line_direction: ndarray, parabola_coeff: ndarray) -> ndarray:
-  """ Calculates first intersection with a line and a parabola.
-  Assumes that line direction is not straight up (direction x component !=0)
-  """
-  line_slope = line_direction[1] / line_direction[0]
-  line_coeff = asarray([0., line_slope, -line_slope * line_offset[0] + line_offset[1], ])
-  intersection_x = roots(parabola_coeff - line_coeff)
-  # Get first positive intersection
-  intersection_x = min(intersection_x[intersection_x > 0])
-  intersection_y = polyval(line_coeff, intersection_x)
-  return asarray([intersection_x, intersection_y])
+  """Legacy point-only wrapper for a forward ray/parabola intersection."""
+
+  result = intersect_ray_with_parabola(Ray2D(origin=line_offset, direction=line_direction), parabola_coeff)
+  if not result.is_success or result.point is None:
+    raise ValueError(f'Unable to calculate a forward ray/parabola intersection: {result.status.value}. {result.message}')
+  return result.point
 ##
 
 
@@ -207,6 +210,13 @@ class ZoneResult(FlowState):
   @cached_property
   def static_pressure_atm(self) -> float:
     return self.static_pressure * ATM_PER_PASCAL
+  ##
+
+  @property
+  def cell_index(self) -> int:
+    """Canonical alias for the legacy one-based construction-pass index."""
+
+    return self.plume_index
   ##
 
   def asFlowState(self) -> FlowState:
@@ -524,7 +534,10 @@ def calculateOverExpandedPrecursorZones(zone1: ZoneResult,
   point_A = zone1.coordinates.top_left_corner
   point_B = zone1.coordinates.bottom_left_corner
   height = zone1.coordinates.height
-  point_C = point_B + RIGHT * (height * cos(zone2_os.shock_angle_deg))
+  # The second precursor shock reaches the centerline after the analytic
+  # radial drop relation Δx = R / tan(β), where β is measured from the plume
+  # axis.  Geometry uses radians internally; the legacy state stores degrees.
+  point_C = point_B + RIGHT * (height / tan(zone2_os.shock_angle_rad))
 
   # Adjust zone1's coordinates because now right corner is known
   zone1 = zone1.replace(ZoneCoordinates(vstack([point_A, point_B, point_C])))
@@ -830,30 +843,96 @@ def calcNozzleExitFlowState(mach: float,
                             gamma: float,
                             ) -> FlowState:
   """Calculate the static state at a nozzle exit from total conditions."""
-  _validate_positive_finite('mach', mach)
-  _validate_positive_finite('total_temperature', total_temperature)
-  _validate_positive_finite('total_pressure', total_pressure)
-  _validate_gamma(gamma)
-  total_density = calcDensityFromSpecificVolume(
-      specific_volume_m3pkg=calcIdealGasSpecificVolumeFromPressureSpecificWork(
-          pressure_Pa=total_pressure,
-          specific_work_Jpkg=calcIdealGasSpecificWorkFromMolarMassTemperature(
-              molar_mass_kg=MOLAR_MASS_DRY_AIR_kg,
-              temperature_K=total_temperature,
-          )
-      )
+  state = derive_uniform_nozzle_exit(
+      config=NozzleExitInput(
+          mach=mach,
+          total_temperature_K=total_temperature,
+          total_pressure_Pa=total_pressure,
+          exit_radius_m=1.0,
+      ),
+      gas=CaloricallyPerfectGas.dry_air(gamma=gamma),
   )
-  static_pressure = calcIsentropicStaticPressure(mach=mach, total_pressure=total_pressure, gamma=gamma)
-  static_temperature = calcIsentropicStaticTemperature(mach=mach, total_temperature=total_temperature, gamma=gamma)
-  static_density = calcIsentropicStaticDensity(mach=mach, total_density=total_density, gamma=gamma)
   state = FlowState(
-      mach=mach,
-      static_pressure=static_pressure,
-      static_temperature=static_temperature,
-      static_density=static_density,
-      gamma=gamma,
+      mach=state.mach,
+      static_pressure=state.static_pressure_Pa,
+      static_temperature=state.static_temperature_K,
+      static_density=state.density_kgpm3,
+      gamma=state.gas.gamma,
   )
   return state
+##
+
+
+def calculatePlumeZonesFromExitState(*, exit_state: NozzleExitState,
+                                      atmospheric_pressure: float,
+                                      num_expansion_lines: int,
+                                      num_compression_lines: int,
+                                      num_plumes: int = 1,
+                                      pressure_match_rtol: float = 1.0e-4,
+                                      ) -> Tuple[List[ZoneResult], Dict[str, Any]]:
+  """Construct legacy-compatible zones from an explicit nozzle exit state."""
+
+  _validate_positive_finite('atmospheric_pressure', atmospheric_pressure)
+  _validate_count('num_expansion_lines', num_expansion_lines, minimum=2)
+  _validate_count('num_compression_lines', num_compression_lines, minimum=1)
+  _validate_count('num_plumes', num_plumes, minimum=1)
+  _validate_positive_finite('pressure_match_rtol', pressure_match_rtol)
+  if pressure_match_rtol <= 0.0:
+    raise ValueError(f'Expected `pressure_match_rtol` to be positive. Got:{pressure_match_rtol}')
+  exit_flow = FlowState(
+      mach=exit_state.mach,
+      static_pressure=exit_state.static_pressure_Pa,
+      static_temperature=exit_state.static_temperature_K,
+      static_density=exit_state.density_kgpm3,
+      gamma=exit_state.gas.gamma,
+  )
+  zone1 = ZoneResult.fromFlowState(
+      state=exit_flow,
+      beta=nan,
+      theta=nan,
+      label='Nozzle Exit',
+      coordinates=ZoneCoordinates(vstack([
+          0. * RIGHT,
+          0. * RIGHT,
+          exit_state.radius_m * UP,
+      ])),
+      plume_index=ZoneResult.PLUME_INDEX_START_NUMBER,
+      group_number=ZoneResult.GROUP_NUMBER_START,
+      group_index=ZoneResult.GROUP_INDEX_START,
+  )
+  pressure_residual = (zone1.static_pressure - atmospheric_pressure) / atmospheric_pressure
+  details: Dict[str, Any] = {
+      'solver_diagnostics_v1': {
+          'status': 'converged',
+          'pressure_residual': pressure_residual,
+          'requested_construction_passes': num_plumes,
+      },
+      'regime': 'matched' if abs(pressure_residual) <= pressure_match_rtol else ('underexpanded' if pressure_residual > 0.0 else 'overexpanded'),
+  }
+  if abs(pressure_residual) <= pressure_match_rtol:
+    details['termination'] = 'no_pressure_mismatch'
+    return [zone1], details
+
+  zones: List[ZoneResult] = [zone1]
+  if pressure_residual < 0.0:
+    over_expanded_precursor_zones = calculateOverExpandedPrecursorZones(
+        zone1=zones.pop(),
+        atmospheric_pressure=atmospheric_pressure,
+    )
+    zones.extend(over_expanded_precursor_zones)
+  ##
+  for _ in range(num_plumes):
+    under_exp_zones, extra = calculateUnderExpandedPlumeZones(
+        zone1=zones.pop(),
+        atmospheric_pressure=atmospheric_pressure,
+        num_compression_lines=num_compression_lines,
+        num_expansion_lines=num_expansion_lines,
+    )
+    zones.extend(under_exp_zones)
+    details.update(extra)
+  ##
+  details['termination'] = 'max_cell_limit'
+  return zones, details
 ##
 
 
@@ -867,11 +946,14 @@ def calculatePlumeZones(nozzle_mach: float,
                         num_compression_lines: int,
                         num_plumes: int,
                         ) -> Tuple[List[ZoneResult], Dict[str, Any]]:
-  """Calculate plume zones and construction details for one or more plumes.
+  """Legacy total-condition wrapper for the explicit exit-state solver.
 
-  The current geometry construction requires a supersonic nozzle, at least two
-  expansion lines, and at least one compression line.
+  ``num_plumes`` is retained as a compatibility name for the construction
+  pass safety ceiling.  New callers should use ``solve_shock_cells`` and
+  ``max_cells``.
   """
+
+  warn('calculatePlumeZones and num_plumes are legacy compatibility names; use solve_shock_cells with max_cells', DeprecationWarning, stacklevel=2)
   _validate_positive_finite('nozzle_mach', nozzle_mach)
   if float(nozzle_mach) <= 1.:
     raise ValueError(f'Expected `nozzle_mach` to be greater than 1. Got:{nozzle_mach}')
@@ -883,46 +965,20 @@ def calculatePlumeZones(nozzle_mach: float,
   _validate_count('num_expansion_lines', num_expansion_lines, minimum=2)
   _validate_count('num_compression_lines', num_compression_lines, minimum=1)
   _validate_count('num_plumes', num_plumes, minimum=1)
-  zones = [
-      # Initial zone is isentropic nozzle expansion
-      ZoneResult.fromFlowState(
-          state=calcNozzleExitFlowState(
-              mach=nozzle_mach,
-              total_pressure=nozzle_total_pressure,
-              total_temperature=nozzle_total_temperature,
-              gamma=gamma,
-          ),
-          beta=nan,
-          theta=nan,
-          label='Nozzle Exit',
-          coordinates=ZoneCoordinates(vstack([
-              0. * RIGHT,
-              0. * RIGHT,
-              nozzle_radius * UP,
-          ])),
-          plume_index=ZoneResult.PLUME_INDEX_START_NUMBER,
-          group_number=ZoneResult.GROUP_NUMBER_START,
-          group_index=ZoneResult.GROUP_INDEX_START,
-      )
-  ]
-  if zones[-1].static_pressure <= atmospheric_pressure:
-    over_expanded_precursor_zones = calculateOverExpandedPrecursorZones(
-        zone1=zones.pop(),
-        atmospheric_pressure=atmospheric_pressure,
-    )
-    zones.extend(over_expanded_precursor_zones)
-  ##
-  extra: Dict[str, Any] = {}
-  for plume_index in range(num_plumes):
-    under_exp_zones, extra = calculateUnderExpandedPlumeZones(
-        zone1=zones.pop(),
-        atmospheric_pressure=atmospheric_pressure,
-        num_compression_lines=num_compression_lines,
-        num_expansion_lines=num_expansion_lines,
-    )
-    zones.extend(under_exp_zones)
-  ##
-
-  out = (zones, extra)
-  return out
+  exit_state = derive_uniform_nozzle_exit(
+      config=NozzleExitInput(
+          mach=nozzle_mach,
+          total_temperature_K=nozzle_total_temperature,
+          total_pressure_Pa=nozzle_total_pressure,
+          exit_radius_m=nozzle_radius,
+      ),
+      gas=CaloricallyPerfectGas.dry_air(gamma=gamma),
+  )
+  return calculatePlumeZonesFromExitState(
+      exit_state=exit_state,
+      atmospheric_pressure=atmospheric_pressure,
+      num_expansion_lines=num_expansion_lines,
+      num_compression_lines=num_compression_lines,
+      num_plumes=num_plumes,
+  )
 ##

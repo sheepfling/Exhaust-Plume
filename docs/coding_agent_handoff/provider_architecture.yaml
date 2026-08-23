@@ -1,0 +1,59 @@
+schema_version: "1.0"
+consumer_profiles:
+  signature:
+    required_capabilities:
+      directional-spectral-intensity: 1
+  spatial:
+    minimum_capabilities:
+      spatial-support: 1
+    optional_capabilities:
+      axisymmetric-zone-field: 1
+      centerline-tube-field: 1
+      local-flow-state: 1
+      projected-area: 1
+      spectral-ray-transfer: 1
+      optical-medium: 1
+provider_dimensions:
+  morphology:
+    - straight
+    - curved
+    - rotor-washed
+    - crossflow-deflected
+    - multi-source
+    - general-3d
+  flow_fidelity:
+    - signature-only
+    - empirical
+    - reduced-order-analytical
+    - integral
+    - imported-field
+    - euler-rans-les
+  radiation_fidelity:
+    - none
+    - gray-lte
+    - band
+    - correlated-k
+    - line-by-line-lte
+    - non-lte
+    - particles-scattering
+capabilities:
+  spatial-support: 1
+  axisymmetric-zone-field: 1
+  centerline-tube-field: 1
+  local-flow-state: 1
+  projected-area: 1
+  directional-spectral-intensity: 1
+  spectral-ray-transfer: 1
+  optical-medium: 1
+  scene-radiance-renderer: 1
+  uncertainty: 1
+stable_rules:
+  - provider-specific inputs; generic capability outputs
+  - geometry is optional and may be internal-only
+  - capability is not fidelity
+  - morphology is not fidelity
+  - execution behavior is separate from physics
+  - intrinsic source products exclude range, atmosphere, optics, and detector
+  - source pose is separate from source emission
+  - no silent domain extrapolation
+  - provider chaining uses neutral conservative handoff contracts

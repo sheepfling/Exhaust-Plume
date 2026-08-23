@@ -14,15 +14,17 @@ from __future__ import annotations
 import warnings
 from dataclasses import dataclass
 from functools import cached_property
+from math import isfinite
 from typing import Optional, TypeVar, Union, cast
 
-from numpy import arccos, arctan, cos, deg2rad, isclose, ndarray, pi, rad2deg, sin, sqrt, tan
+from numpy import arccos, arcsin, arctan, asarray, cos, deg2rad, ndarray, pi, rad2deg, sin, sqrt, tan
 
 from exhaust_plume.log.extra_log_levels import VERBOSE
 from exhaust_plume.log.log import getCleanLogger
 from exhaust_plume.util.aero.constants import MAX_ITER_DEFAULT
 from exhaust_plume.util.aero.flow_state import FlowState
 from exhaust_plume.util.aero.normal_shock import calcNormalShockMach, calcNormalShockStaticDensity, calcNormalShockStaticPressure, calcNormalShockStaticTemperature
+from exhaust_plume.util.aero.shock_validity import ShockBranch, ShockSolveStatus, solve_shock_angle, solve_shock_to_pressure
 from exhaust_plume.util.numeric import ATOL_DEFAULT, RTOL_DEFAULT
 
 __all__ = (
@@ -30,6 +32,10 @@ __all__ = (
     'calcWeakShockObliqueAngle',
     'calcStrongShockObliqueAngle',
     'ObliqueShockState',
+    'ShockBranch',
+    'ShockSolveStatus',
+    'solve_shock_angle',
+    'solve_shock_to_pressure',
 )
 ###########################################
 log = getCleanLogger(__name__)
@@ -43,8 +49,10 @@ T = TypeVar('T', float, ndarray)
 def calcShockObliqueAngle(*, theta_deg: T, mach: T, gamma: Union[float, T], delta: float) -> T:
   r""" Calculates Oblique Shock angle
 
-  Theta, input, is the angle in degrees between the horizontal and the ramp
-  Beta, output, is the angle in degrees between the horizontal and the tilted shock waves (for θ=0 no wedge, β=90')
+  Theta, input, is the angle in degrees between the horizontal and the ramp.
+  Beta, output, is the angle in degrees between the horizontal and the tilted
+  shock waves.  For a valid weak zero-turn limit, β is the Mach angle; the
+  strong zero-turn limit is β=90°.
   Delta,
    when delta=0., then it is the strong chock wave
    when delta=1., then it is the weak shock wave
@@ -57,6 +65,22 @@ def calcShockObliqueAngle(*, theta_deg: T, mach: T, gamma: Union[float, T], delt
 
   (4.19) $ \tan\left(β\right) = \frac{mach^2 - 1 + 2λ\cos\left[\left(4πδ+\acos\left(χ\right)\right)/3\right]}{3\left(1+\frac{γ-1}{2}mach^2\right)\tan\left(θ\right)} $
   """
+  # New scalar callers get the branch-aware radians implementation while the
+  # vectorized legacy path below remains available to existing plotting and
+  # exploratory callers.
+  if not isinstance(theta_deg, ndarray) and not isinstance(mach, ndarray) and not isinstance(gamma, ndarray):
+    theta_value = float(theta_deg)
+    mach_value = float(mach)
+    gamma_value = float(gamma)
+    if isfinite(theta_value) and isfinite(mach_value) and isfinite(gamma_value) and mach_value > 1.0 and gamma_value > 1.0 and theta_value >= 0.0:
+      branch = ShockBranch.WEAK if delta == OBLIQUE_DELTA_WEAK else ShockBranch.STRONG
+      solution = solve_shock_angle(theta_rad=float(deg2rad(theta_value)), mach=mach_value, gamma=gamma_value, branch=branch)
+      if solution.status is ShockSolveStatus.ATTACHED and solution.beta_rad is not None:
+        return cast(T, float(rad2deg(solution.beta_rad)))
+      # Preserve the permissive legacy behavior for unattached or otherwise
+      # exploratory scalar inputs; the typed API exposes the structured status.
+    ##
+  ##
   M2 = mach**2
   theta_rad = deg2rad(theta_deg)
   gm12_M2 = ((gamma - 1) / 2) * M2
@@ -75,7 +99,14 @@ def calcShockObliqueAngle(*, theta_deg: T, mach: T, gamma: Union[float, T], delt
   # Check for exact values
   shp = beta.shape
   beta = beta.ravel()
-  beta[theta_rad.ravel() == 0.] = 90.
+  zero_turn = theta_rad.ravel() == 0.
+  if delta == OBLIQUE_DELTA_WEAK:
+    mach_array = asarray(mach).ravel()
+    valid_zero_turn = zero_turn & (mach_array > 1.0)
+    beta[valid_zero_turn] = rad2deg(arcsin(1.0 / mach_array[valid_zero_turn]))
+    beta[zero_turn & ~valid_zero_turn] = 90.
+  else:
+    beta[zero_turn] = 90.
   beta = beta.reshape(shp)
   if isinstance(mach, float):
     beta = float(beta)
@@ -136,7 +167,15 @@ class ObliqueShockState(FlowState):
     """
     gamma = upstream.gamma
     if shock_angle_deg is None:
-      shock_angle_deg = calcWeakShockObliqueAngle(theta_deg=oblique_angle_deg, mach=upstream.mach, gamma=upstream.gamma, )
+      solution = solve_shock_angle(
+          theta_rad=float(deg2rad(oblique_angle_deg)),
+          mach=float(upstream.mach),
+          gamma=float(upstream.gamma),
+          branch=ShockBranch.WEAK,
+      )
+      if solution.status is not ShockSolveStatus.ATTACHED or solution.beta_rad is None:
+        raise ValueError(solution.message or 'The requested turn requires a detached shock')
+      shock_angle_deg = float(rad2deg(solution.beta_rad))
     ##
     mach_normal_up = upstream.mach * sin(deg2rad(shock_angle_deg))  # Eqn 4.7
     mach_normal_downstream = calcNormalShockMach(mach=mach_normal_up, gamma=gamma)
@@ -157,66 +196,22 @@ class ObliqueShockState(FlowState):
   def fromUpstreamStateToEqualizedPressureState(cls, upstream: FlowState, downstream_static_pressure: float,
                                                 rtol: float = RTOL_DEFAULT, atol: float = ATOL_DEFAULT,
                                                 max_iter: int = MAX_ITER_DEFAULT) -> ObliqueShockState:
-    if upstream.static_pressure > downstream_static_pressure:
-      raise ValueError(f'Cannot calculate oblique shock state because downstream pressure:{downstream_static_pressure:g} is lower than current pressure{upstream.static_pressure:g}. Oblique shocks increase pressure')
-    ##
-    max_iter = max(1, max_iter)
-    beta_low_deg = 0.
-    beta_high_deg = 90.
-
-    theta_deg = 0.  # start at zero
-    beta_deg = (beta_low_deg + beta_high_deg) / 2.
-    init_downstream = cls.fromUpstreamState(upstream=upstream, oblique_angle_deg=theta_deg, shock_angle_deg=beta_deg)
-    num_beta_iter = 0
-    for num_beta_iter in range(max_iter):
-      if isclose(init_downstream.static_pressure, downstream_static_pressure, rtol=rtol, atol=atol):
-        break
-      ##
-      if init_downstream.static_pressure > downstream_static_pressure:
-        # Pressure is too high, so increase angle
-        beta_high_deg = beta_deg
-      else:
-        beta_low_deg = beta_deg
-      ##
-      beta_deg = (beta_low_deg + beta_high_deg) / 2.
-      init_downstream = cls.fromUpstreamState(upstream=upstream, oblique_angle_deg=theta_deg, shock_angle_deg=beta_deg)
-    ##
-    if not isclose(init_downstream.static_pressure, downstream_static_pressure, rtol=rtol, atol=atol):
-      log.error(f'Unable to determine oblique shock angle that gets desired pressure. Desired pressure:{downstream_static_pressure}. Got:{init_downstream.static_pressure} after {num_beta_iter} iterations.')
-    ##
-    # Now adjust the oblique angle so that the oblique weak shock aligns with the beta calculated from the first part
-
-    theta_low_deg = 0.
-    theta_high_deg = init_downstream.shock_angle_deg
-    desired_beta_deg = init_downstream.shock_angle_deg
-    theta_deg = (theta_low_deg + theta_high_deg) / 2.
-    weak_beta_deg = calcWeakShockObliqueAngle(theta_deg=theta_deg, mach=upstream.mach, gamma=upstream.gamma)
-    num_theta_iter = 0
-    for num_theta_iter in range(max_iter):
-      if isclose(weak_beta_deg, desired_beta_deg, rtol=rtol, atol=atol):
-        break
-      ##
-      if weak_beta_deg < desired_beta_deg:
-        # calculated beta too low, so increase lower theta range
-        theta_low_deg = theta_deg
-      else:
-        theta_high_deg = theta_deg
-      ##
-      theta_deg = (theta_low_deg + theta_high_deg) / 2.
-      weak_beta_deg = calcWeakShockObliqueAngle(theta_deg=theta_deg, mach=upstream.mach, gamma=upstream.gamma)
-      num_theta_iter += 1
-    ##
-    if not isclose(weak_beta_deg, desired_beta_deg, rtol=rtol, atol=atol):
-      log.error(f'Unable to determine oblique angle that gets desired shock angle. Desired beta:{desired_beta_deg}. Got:{weak_beta_deg} after {num_theta_iter} iterations.')
-    ##
-
-    # Now with correct beta and theta, calculate final downstream state
+    del rtol, atol, max_iter  # retained for the legacy call signature
+    solution = solve_shock_to_pressure(
+        mach=float(upstream.mach),
+        gamma=float(upstream.gamma),
+        upstream_pressure_Pa=float(upstream.static_pressure),
+        target_pressure_Pa=float(downstream_static_pressure),
+        branch=ShockBranch.WEAK,
+    )
+    if solution.status is not ShockSolveStatus.ATTACHED or solution.theta_rad is None or solution.beta_rad is None:
+      raise ValueError(solution.message or f'Unable to construct an attached shock for pressure {downstream_static_pressure:g}')
     final_downstream = cls.fromUpstreamState(
         upstream=upstream,
-        shock_angle_deg=init_downstream.shock_angle_deg,
-        oblique_angle_deg=theta_deg,
+        shock_angle_deg=float(rad2deg(solution.beta_rad)),
+        oblique_angle_deg=float(rad2deg(solution.theta_rad)),
     )
-    log.log(VERBOSE, f'Calculated Oblique shock at pressure in {num_beta_iter} β and {num_theta_iter} θ iterations. Upstream state:{upstream} Desired pressure:{downstream_static_pressure}.')
+    log.log(VERBOSE, f'Calculated oblique shock directly from normal Mach pressure inversion. Upstream state:{upstream} Desired pressure:{downstream_static_pressure}.')
     return final_downstream
   ##
 

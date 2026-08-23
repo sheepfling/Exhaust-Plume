@@ -1,0 +1,136 @@
+{
+  "envelope": {
+    "capability_id": "plume.visual.sectioned-tube@1",
+    "schema_version": "1.0.0",
+    "provider_id": "11111111-1111-1111-1111-111111111111",
+    "session_id": "22222222-2222-2222-2222-222222222222",
+    "snapshot_id": "33333333-3333-3333-3333-333333333333",
+    "content_sha256": "5873bbed96a2b1d6a6e770c372071b7986e0a9f41cfed0a7be6160cd21450ad7",
+    "requested_time_s": 0.0,
+    "actual_time_s": 0.0,
+    "frame": {
+      "frame_id": "aircraft-body",
+      "parent_frame_id": null,
+      "pose_parent_from_frame": {
+        "translation_m": [0.0, 0.0, 0.0],
+        "rotation_xyzw": [0.0, 0.0, 0.0, 1.0]
+      }
+    },
+    "status": "OK",
+    "fidelity": {
+      "model_fidelity": "PRESCRIBED",
+      "validation_level": "VERIFIED",
+      "claim_notes": ["Static visual fixture; not a radiometric source."]
+    },
+    "applicability": {
+      "supported": true,
+      "domain": {"time_model": "static"},
+      "violations": []
+    },
+    "provenance": {
+      "model_id": "prescribed-washed-plume-fixture",
+      "model_version": "1.0.0",
+      "code_revision": "fixture",
+      "configuration_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+      "asset_digests_sha256": []
+    },
+    "derivation": [],
+    "warnings": []
+  },
+  "payload": {
+    "sections": [
+      {
+        "arc_length_m": 0.0,
+        "center_m": [0.0, 0.0, 0.0],
+        "tangent": [1.0, 0.0, -0.0],
+        "normal_1": [0.0, 1.0, 0.0],
+        "normal_2": [0.0, 0.0, 1.0],
+        "semi_axis_1_m": 0.2,
+        "semi_axis_2_m": 0.2
+      },
+      {
+        "arc_length_m": 1.0,
+        "center_m": [1.0, 0.0, -0.1],
+        "tangent": [0.9950041652780258, 0.0, -0.09983341664682815],
+        "normal_1": [0.0, 1.0, 0.0],
+        "normal_2": [0.09983341664682815, 0.0, 0.9950041652780258],
+        "semi_axis_1_m": 0.28,
+        "semi_axis_2_m": 0.28
+      },
+      {
+        "arc_length_m": 2.0,
+        "center_m": [2.0, 0.0, -0.4],
+        "tangent": [0.9800665778412416, 0.0, -0.19866933079506122],
+        "normal_1": [0.0, 1.0, 0.0],
+        "normal_2": [0.19866933079506122, 0.0, 0.9800665778412416],
+        "semi_axis_1_m": 0.36,
+        "semi_axis_2_m": 0.36
+      },
+      {
+        "arc_length_m": 3.0,
+        "center_m": [3.0, 0.0, -0.9],
+        "tangent": [0.955336489125606, 0.0, -0.29552020666133955],
+        "normal_1": [0.0, 1.0, 0.0],
+        "normal_2": [0.29552020666133955, 0.0, 0.955336489125606],
+        "semi_axis_1_m": 0.44,
+        "semi_axis_2_m": 0.44
+      }
+    ],
+    "feature_channels": [
+      {
+        "channel_id": "temperature",
+        "semantic": "temperature",
+        "unit": "K",
+        "association": "SECTION",
+        "component_count": 1,
+        "values": [620.0, 560.0, 500.0, 450.0]
+      },
+      {
+        "channel_id": "exhaust-mass-fraction",
+        "semantic": "exhaust_mass_fraction",
+        "unit": "1",
+        "association": "SECTION",
+        "component_count": 1,
+        "values": [1.0, 0.72, 0.48, 0.31]
+      },
+      {
+        "channel_id": "density",
+        "semantic": "density",
+        "unit": "kg/m^3",
+        "association": "SECTION",
+        "component_count": 1,
+        "values": [0.57, 0.66, 0.76, 0.84]
+      },
+      {
+        "channel_id": "speed",
+        "semantic": "speed",
+        "unit": "m/s",
+        "association": "CENTERLINE",
+        "component_count": 1,
+        "values": [100.0, 78.0, 58.0, 43.0]
+      },
+      {
+        "channel_id": "curvature",
+        "semantic": "curvature",
+        "unit": "1/m",
+        "association": "CENTERLINE",
+        "component_count": 1,
+        "values": [0.0, 0.1, 0.1, 0.1]
+      },
+      {
+        "channel_id": "slenderness",
+        "semantic": "slenderness_ratio",
+        "unit": "1",
+        "association": "CENTERLINE",
+        "component_count": 1,
+        "values": [0.0, 0.028, 0.036, 0.044]
+      }
+    ],
+    "support_definition": {
+      "kind": "ENCLOSED_EXHAUST_MASS_FRACTION",
+      "fraction": 0.95,
+      "threshold": null,
+      "unit": null
+    }
+  }
+}

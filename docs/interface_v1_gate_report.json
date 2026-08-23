@@ -1,0 +1,92 @@
+{
+  "schema_version": "interface-v1-gate-v1",
+  "date": "2026-08-22",
+  "branch": "feature/plume-interface-foundation",
+  "status": "pass",
+  "scope": {
+    "included": [
+      "project-neutral provider/session/immutable-snapshot lifecycle",
+      "capability identities and major-version negotiation",
+      "SI/frame/pose metadata and independent product claims",
+      "structured applicability, provenance, lineage, and sample-status DTOs",
+      "visual sectioned-tube geometry contract",
+      "straight parametric visual provider",
+      "unresolved wavelength-resolved spectral intensity contract",
+      "table-backed directional spectral lookup provider",
+      "resolved wavelength-resolved spectral ray-transfer contract",
+      "JSON Schema export and checked-in valid/invalid fixtures",
+      "deterministic prescribed visual contract provider",
+      "shared visual-provider conformance harness",
+      "state-based first-cell solver boundary",
+      "straight analytical visual provider v0",
+      "matched, mild-underexpanded, and mild-overexpanded first-MVP fixtures",
+      "visual mesh, OBJ, JSON, and optional preview MVP workflow",
+      "canonical signature asset, CSV, and spectral/angular plot MVP workflow",
+      "explicit wavelength, angular, and optional time interpolation policies",
+      "content SHA-256, coordinate-convention, validity-domain, and policy provenance",
+      "varied operating-point and low-ambient-pressure time-slice fixture",
+      "simple straight solver to visual-envelope adapter",
+      "file-driven product CLI entry points",
+      "legacy straight analytical plume compatibility",
+      "explicit circular equivalent-area nozzle geometry and choked-flow invariant",
+      "declared throat, gas, temperature, and atmospheric-to-near-vacuum validity matrix",
+      "signature operating-point metadata and tabulated radiation claim",
+      "validity report JSON/CSV CLI"
+    ],
+    "excluded": [
+      "physical spectral/radiation provider",
+      "resolved spectral ray-transfer provider and FPA raycasting",
+      "CPU/GPU acceleration",
+      "curved or rotor-washed physics providers",
+      "thermochemistry and finite-rate chemistry",
+      "detached-shock, Mach-disk, and nozzle-separation topology",
+      "exact vacuum, rarefied/atomistic flow, and Knudsen-based transport",
+      "nozzle wall-contour, boundary-layer, discharge-coefficient, and non-circular shape corrections",
+      "CFD or experimental physical validation"
+    ]
+  },
+  "verification": {
+    "pytest": {
+      "status": "pass",
+      "tests": 164,
+      "warnings": 17
+    },
+    "ruff": {
+      "status": "pass",
+      "command": "ruff check src tests scripts"
+    },
+    "pyright": {
+      "status": "pass",
+      "errors": 0,
+      "warnings": 0,
+      "informations": 0
+    },
+    "schemas_and_fixtures": {
+      "status": "pass",
+      "schema_models": 8,
+      "valid_product_fixtures": 3,
+      "provider_definition_fixtures": 2,
+      "invalid_product_fixtures": 1,
+      "mvp_asset_fixtures": 4,
+      "mvp_commands": 3
+    },
+    "legacy_compatibility": {
+      "status": "pass",
+      "description": "Existing test suite remains green and legacy contracts remain importable"
+    }
+  },
+  "known_limitations": [
+      "The spectral lookup provider uses supplied table values and does not implement physical spectroscopy or radiation",
+      "The ray-transfer contract remains interface-only and has no provider",
+      "The prescribed visual provider supports explicit geometry only and performs no frame transformation",
+      "The visual preview is a local optional-dependency render and not a browser application",
+      "The signature lookup is axisymmetric in direction cosine and has no azimuthal dependence",
+      "Transport adapters and external service endpoints are not included in this tranche",
+      "The validity envelope is a declared numerical/study boundary, not an external accuracy certification",
+      "Finite near-vacuum cases may be reported outside because the low-order straight solver cannot construct finite zones",
+      "Signature pressure metadata binds an asset to an operating point; it is not pressure interpolation or physical radiation prediction"
+      ,"Time-sliced signature assets are prescribed tabulated lookup data; the low-ambient-pressure fixture is not a rarefied/atomistic transport model"
+      ,"The analytical visual provider is a low-order first-cell engineering approximation; its marginal construction-boundary result is not a conservative plume boundary"
+      ,"The first-MVP pressure fixtures correct classification using static exit pressure while preserving legacy total-pressure examples as regression-only anchors"
+  ]
+}

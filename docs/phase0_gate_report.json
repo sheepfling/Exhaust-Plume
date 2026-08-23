@@ -1,0 +1,66 @@
+{
+  "schema_version": "phase-0-gate-v1",
+  "date": "2026-08-22",
+  "branch": "feature/plume-interface-foundation",
+  "status": "pass",
+  "scope": {
+    "included": [
+      "provider/session/snapshot contracts",
+      "explicit gas/nozzle/ambient state construction",
+      "corrected nozzle and oblique-shock foundation equations",
+      "validated forward-ray and polygon geometry",
+      "matched/underexpanded/overexpanded regime classification",
+      "straight analytical spatial provider",
+      "conservative handoff and frozen straight top-hat continuation"
+    ],
+    "excluded": [
+      "CPU/GPU acceleration",
+      "curved or rotor-washed plume providers",
+      "spectroscopy and radiation",
+      "thermochemistry and finite-rate chemistry",
+      "Mach-disk, nozzle-separation, and detached-shock topology"
+    ]
+  },
+  "verification": {
+    "pytest": {
+      "status": "pass",
+      "tests": 91,
+      "warnings": 17
+    },
+    "ruff": {
+      "status": "pass",
+      "command": "ruff check src tests"
+    },
+    "pyright": {
+      "status": "pass",
+      "errors": 0,
+      "warnings": 0,
+      "informations": 0
+    },
+    "build": {
+      "status": "pass",
+      "command": "python3 -m build --no-isolation",
+      "artifact": "dist/exhaust_plume-0.1.0a0-py3-none-any.whl"
+    },
+    "installed_wheel_smoke": {
+      "status": "pass",
+      "command": "tests/installed_smoke.py",
+      "environment": "temporary wheel install with system site packages"
+    }
+  },
+  "numerical_evidence": {
+    "weak_zero_turn": "beta = asin(1/M)",
+    "strong_zero_turn": "beta = pi/2",
+    "detached_turn": "turn above theta_max returns DETACHED_SHOCK_REQUIRED",
+    "pressure_inversion": "target pressure reconstructed through Mn1 and beta",
+    "precursor_geometry": "delta_x = R/tan(beta_rad)",
+    "matched_flow": "zero cells and NO_PRESSURE_MISMATCH",
+    "forward_ray": "direct 2x2 solve with parameters, condition number, and residual",
+    "closed_zone": "successful canonical zones require finite simple polygons",
+    "straight_continuation": "mass entrainment with constant momentum and ambient enthalpy closure"
+  },
+  "known_warnings": [
+    "legacy calculatePlumeZones emits a targeted DeprecationWarning",
+    "projected_areas.py retains eight pre-existing RuntimeWarnings for degenerate view geometry"
+  ]
+}

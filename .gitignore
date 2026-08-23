@@ -206,6 +206,27 @@ tempCodeRunnerFile.py
 # Ruff stuff:
 .ruff_cache/
 
+# LaTeX intermediates and rendered study documents
+*.aux
+*.bcf
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.lof
+*.lot
+*.nav
+*.out
+*.run.xml
+*.snm
+*.synctex.gz
+*.toc
+*.vrb
+docs/*.pdf
+
+# macOS metadata
+.DS_Store
+
 # PyPI configuration file
 .pypirc
 

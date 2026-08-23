@@ -1,0 +1,64 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "allow_partial_results": {
+      "default": false,
+      "title": "Allow Partial Results",
+      "type": "boolean"
+    },
+    "direction_frame_id": {
+      "minLength": 1,
+      "title": "Direction Frame Id",
+      "type": "string"
+    },
+    "operating_point_id": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Operating Point Id"
+    },
+    "source_to_observer_directions": {
+      "items": {
+        "maxItems": 3,
+        "minItems": 3,
+        "prefixItems": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "number"
+          }
+        ],
+        "type": "array"
+      },
+      "minItems": 1,
+      "title": "Source To Observer Directions",
+      "type": "array"
+    },
+    "wavelengths_m": {
+      "items": {
+        "type": "number"
+      },
+      "minItems": 1,
+      "title": "Wavelengths M",
+      "type": "array"
+    }
+  },
+  "required": [
+    "direction_frame_id",
+    "source_to_observer_directions",
+    "wavelengths_m"
+  ],
+  "title": "SpectralSignatureRequest",
+  "type": "object"
+}

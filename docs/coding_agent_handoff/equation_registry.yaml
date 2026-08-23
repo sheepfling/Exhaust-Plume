@@ -1,0 +1,228 @@
+registry_version: 1
+canonical_units: SI
+canonical_angle_unit: radian
+canonical_spectral_coordinate: wavenumber_per_m
+
+sources:
+  SRC-COMP-001: Anderson Modern Compressible Flow, 3rd edition
+  SRC-NASA-GRC-001: NASA Glenn compressible-flow and rocket mass-flow equations
+  SRC-SHOCKCELL-001: Classical circular-jet shock-cell spacing literature
+  SRC-SHOCKCELL-002: Finite shear-layer and shock-cell decay literature
+  SRC-NASA-JET-001: NASA underexpanded-jet validation datasets
+  SRC-RTE-001: Non-scattering LTE radiative-transfer equation
+  SRC-HITRAN-001: HITRAN definitions and units
+  SRC-HITEMP-001: HITEMP high-temperature line data
+  SRC-HAPI-001: HAPI reference calculations
+  SRC-NASA-IR-001: NASA heated-plume IR validation data
+  SRC-NASA-CEA-001: NASA Chemical Equilibrium with Applications
+  SRC-CANTERA-001: Cantera thermodynamics and kinetics
+
+equations:
+  - id: GAS-001
+    name: mixture_molecular_weight
+    classification: DERIVED
+    sources: [SRC-COMP-001]
+    implementation: exhaust_plume.models.gas.mixtures.molecular_weight_from_mass_fractions
+    tests: [GAS-001-A, GAS-001-B, GAS-001-C]
+    phase: 0
+    validity: ideal-gas mixture with known species molecular weights
+
+  - id: GAS-002
+    name: mixture_specific_gas_constant
+    classification: DERIVED
+    sources: [SRC-COMP-001]
+    implementation: exhaust_plume.models.gas.mixtures.specific_gas_constant
+    tests: [GAS-002-A, GAS-002-B]
+    phase: 0
+    validity: R equals universal gas constant divided by mixture molecular weight
+
+  - id: GAS-003
+    name: ideal_gas_equation
+    classification: GOVERNING
+    sources: [SRC-COMP-001]
+    implementation: exhaust_plume.models.gas.calorically_perfect.density_from_pressure_temperature
+    tests: [GAS-003-A, GAS-003-B]
+    phase: 0
+    validity: thermodynamic ideal gas
+
+  - id: ISO-001
+    name: stagnation_static_temperature_ratio
+    classification: DERIVED
+    sources: [SRC-COMP-001]
+    implementation: exhaust_plume.models.gas.calorically_perfect.total_static_temperature_ratio
+    tests: [ISO-001-A, ISO-001-B, ISO-001-C]
+    phase: 0
+    validity: steady adiabatic calorically perfect flow
+
+  - id: ISO-002
+    name: stagnation_static_pressure_ratio
+    classification: DERIVED
+    sources: [SRC-COMP-001]
+    implementation: exhaust_plume.models.gas.calorically_perfect.total_static_pressure_ratio
+    tests: [ISO-002-A, ISO-002-B, ISO-002-C]
+    phase: 0
+    validity: isentropic calorically perfect flow
+
+  - id: NOZ-001
+    name: area_mach_relation
+    classification: DERIVED
+    sources: [SRC-COMP-001, SRC-NASA-GRC-001]
+    implementation: exhaust_plume.models.nozzle.area_mach.area_ratio
+    tests: [NOZ-001-A, NOZ-001-B, NOZ-001-C, NOZ-001-D]
+    phase: 0
+    validity: quasi-one-dimensional isentropic calorically perfect flow
+
+  - id: NOZ-003
+    name: choked_throat_area
+    classification: DERIVED
+    sources: [SRC-COMP-001, SRC-NASA-GRC-001]
+    implementation: exhaust_plume.models.nozzle.mass_flow.choked_area
+    tests: [NOZ-003-A, NOZ-003-B, NOZ-003-C]
+    phase: 0
+    validity: sonic choked throat
+
+  - id: PM-002
+    name: prandtl_meyer_function
+    classification: DERIVED
+    sources: [SRC-COMP-001]
+    implementation: exhaust_plume.models.shock_cells.prandtl_meyer.prandtl_meyer
+    tests: [PM-002-A, PM-002-B, PM-002-C]
+    phase: 1
+    validity: supersonic calorically perfect simple wave
+
+  - id: MOC-001
+    name: planar_characteristic_slopes
+    classification: DERIVED
+    sources: [SRC-COMP-001]
+    implementation: exhaust_plume.models.shock_cells.planar_characteristics.characteristic_direction
+    tests: [MOC-001-A, MOC-001-B, MOC-001-C]
+    phase: 1
+    validity: steady planar supersonic irrotational flow
+
+  - id: MOC-002
+    name: planar_compatibility_invariants
+    classification: DERIVED
+    sources: [SRC-COMP-001]
+    implementation: exhaust_plume.models.shock_cells.planar_characteristics.solve_interior_state
+    tests: [MOC-002-A, MOC-002-B, MOC-002-C]
+    phase: 1
+    validity: steady planar supersonic irrotational flow
+
+  - id: SHK-001
+    name: theta_beta_m_relation
+    classification: DERIVED
+    sources: [SRC-COMP-001]
+    implementation: exhaust_plume.models.shock_cells.oblique_shock.turn_from_wave_angle
+    tests: [SHK-001-A, SHK-001-B, SHK-001-C]
+    phase: 0
+    validity: attached planar oblique shock
+
+  - id: SHK-006
+    name: shock_total_pressure_ratio
+    classification: DERIVED
+    sources: [SRC-COMP-001]
+    implementation: exhaust_plume.models.shock_cells.normal_shock.total_pressure_ratio
+    tests: [SHK-006-A, SHK-006-B, SHK-006-C]
+    phase: 0
+    validity: adiabatic calorically perfect shock
+
+  - id: GEO-001
+    name: forward_ray_intersection_2d
+    classification: NUMERICAL
+    sources: []
+    implementation: exhaust_plume.models.shock_cells.geometry.intersect_rays_2d
+    tests: [GEO-001-A, GEO-001-B, GEO-001-C, GEO-001-D, GEO-001-E, GEO-001-F]
+    phase: 0
+    validity: nondegenerate finite two-dimensional rays
+
+  - id: CELL-003
+    name: classical_first_cell_spacing
+    classification: CORRELATION
+    sources: [SRC-SHOCKCELL-001]
+    implementation: exhaust_plume.models.shock_cells.correlations.prandtl_cell_spacing
+    tests: [CELL-003-A, CELL-003-B, CELL-003-C]
+    phase: 1
+    validity: nearly adapted uniform circular jet
+
+  - id: TRN-003
+    name: pressure_amplitude_decay
+    classification: CLOSURE
+    sources: [SRC-SHOCKCELL-002]
+    implementation: exhaust_plume.models.shock_cells.train.advance_pressure_amplitude
+    tests: [TRN-003-A, TRN-003-B, TRN-003-C]
+    phase: 2
+    validity: calibrated reduced-order shock train
+    calibration_parameters: [pressure_decay_coefficient]
+
+  - id: MIX-001
+    name: entrainment_mass_rate
+    classification: CLOSURE
+    sources: []
+    implementation: exhaust_plume.models.mixing.entrainment.mass_entrainment_rate
+    tests: [MIX-001-A, MIX-001-B, MIX-001-C]
+    phase: 3
+    validity: calibrated axisymmetric top-hat integral plume
+    calibration_parameters: [entrainment_coefficient]
+
+  - id: MIX-002
+    name: integral_axial_momentum_balance
+    classification: GOVERNING
+    sources: []
+    implementation: exhaust_plume.models.mixing.integral_plume.momentum_flux
+    tests: [MIX-002-A, MIX-002-B, MIX-002-C]
+    phase: 3
+    validity: steady control volume with documented external forces
+
+  - id: RAD-001
+    name: planck_wavenumber_radiance
+    classification: DERIVED
+    sources: [SRC-RTE-001]
+    implementation: exhaust_plume.models.radiation.planck.planck_wavenumber
+    tests: [RAD-001-A, RAD-001-B, RAD-001-C, RAD-001-D]
+    phase: 4
+    validity: equilibrium thermal radiation
+
+  - id: RAD-002
+    name: non_scattering_lte_rte
+    classification: GOVERNING
+    sources: [SRC-RTE-001]
+    implementation: exhaust_plume.models.radiation.radiative_transfer.transport_segments
+    tests: [RAD-002-A, RAD-002-B]
+    phase: 4
+    validity: LTE absorption and emission without scattering
+
+  - id: RAD-003
+    name: uniform_segment_radiance_update
+    classification: DERIVED
+    sources: [SRC-RTE-001]
+    implementation: exhaust_plume.models.radiation.radiative_transfer.transport_uniform_segment
+    tests: [RAD-003-A, RAD-003-B, RAD-003-C, RAD-003-D, RAD-003-E]
+    phase: 4
+    validity: piecewise constant segment properties
+
+  - id: RAD-004
+    name: molecular_mixture_absorption
+    classification: DERIVED
+    sources: [SRC-HITRAN-001, SRC-HITEMP-001, SRC-HAPI-001]
+    implementation: exhaust_plume.models.radiation.spectroscopy.mixture_absorption_coefficient
+    tests: [RAD-004-A, RAD-004-B, RAD-004-C]
+    phase: 5
+    validity: selected line or cross-section model
+
+  - id: CHEM-002
+    name: gibbs_equilibrium
+    classification: GOVERNING
+    sources: [SRC-NASA-CEA-001]
+    implementation: external_adapter
+    tests: [CHEM-002-A, CHEM-002-B, CHEM-002-C]
+    phase: 6
+    validity: specified equilibrium constraints and thermodynamic database
+
+  - id: CHEM-003
+    name: finite_rate_species_source
+    classification: MODEL
+    sources: [SRC-CANTERA-001]
+    implementation: exhaust_plume.models.chemistry.finite_rate.species_source_terms
+    tests: [CHEM-003-A, CHEM-003-B, CHEM-003-C]
+    phase: 6
+    validity: selected chemical mechanism and rate model

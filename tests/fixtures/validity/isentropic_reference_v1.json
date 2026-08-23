@@ -1,0 +1,32 @@
+{
+  "fixture_schema": "plume.isentropic-reference@1",
+  "model": "calorically-perfect-quasi-one-dimensional",
+  "gamma": 1.4,
+  "cases": [
+    {
+      "area_ratio": 2.0,
+      "supersonic_mach": 2.19719812166295,
+      "static_pressure_fraction": 0.09393264573126257,
+      "static_temperature_fraction": 0.5087670956636143
+    },
+    {
+      "area_ratio": 4.0,
+      "supersonic_mach": 2.940179169381736,
+      "static_pressure_fraction": 0.029786962579509288,
+      "static_temperature_fraction": 0.36644389558052226
+    },
+    {
+      "area_ratio": 9.0,
+      "supersonic_mach": 3.806053913256619,
+      "static_pressure_fraction": 0.008557796454692075,
+      "static_temperature_fraction": 0.2565938672099165
+    },
+    {
+      "area_ratio": 25.0,
+      "supersonic_mach": 5.000000000145519,
+      "static_pressure_fraction": 0.0018900383814562669,
+      "static_temperature_fraction": 0.1666666666585823
+    }
+  ],
+  "trust_basis": "analytical isentropic relation regression anchors; not CFD or experiment"
+}

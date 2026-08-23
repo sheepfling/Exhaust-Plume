@@ -1,0 +1,97 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "allow_partial_results": {
+      "default": false,
+      "title": "Allow Partial Results",
+      "type": "boolean"
+    },
+    "quality_profile": {
+      "default": "standard",
+      "minLength": 1,
+      "title": "Quality Profile",
+      "type": "string"
+    },
+    "ray_directions": {
+      "items": {
+        "maxItems": 3,
+        "minItems": 3,
+        "prefixItems": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "number"
+          }
+        ],
+        "type": "array"
+      },
+      "minItems": 1,
+      "title": "Ray Directions",
+      "type": "array"
+    },
+    "ray_frame_id": {
+      "minLength": 1,
+      "title": "Ray Frame Id",
+      "type": "string"
+    },
+    "ray_origins_m": {
+      "items": {
+        "maxItems": 3,
+        "minItems": 3,
+        "prefixItems": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "number"
+          }
+        ],
+        "type": "array"
+      },
+      "minItems": 1,
+      "title": "Ray Origins M",
+      "type": "array"
+    },
+    "ray_t_max_m": {
+      "items": {
+        "type": "number"
+      },
+      "minItems": 1,
+      "title": "Ray T Max M",
+      "type": "array"
+    },
+    "ray_t_min_m": {
+      "items": {
+        "type": "number"
+      },
+      "minItems": 1,
+      "title": "Ray T Min M",
+      "type": "array"
+    },
+    "wavelengths_m": {
+      "items": {
+        "type": "number"
+      },
+      "minItems": 1,
+      "title": "Wavelengths M",
+      "type": "array"
+    }
+  },
+  "required": [
+    "ray_frame_id",
+    "ray_origins_m",
+    "ray_directions",
+    "ray_t_min_m",
+    "ray_t_max_m",
+    "wavelengths_m"
+  ],
+  "title": "SpectralRayTransferRequest",
+  "type": "object"
+}

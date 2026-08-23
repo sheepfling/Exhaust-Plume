@@ -1,0 +1,133 @@
+{
+  "metadata": {
+    "capability": {
+      "name": "plume.visual.sectioned-tube",
+      "major": 1
+    },
+    "result_id": "fixture-visual-result",
+    "request_digest_sha256": "fixture-request",
+    "snapshot": {
+      "snapshot_id": "fixture-snapshot-1",
+      "session_id": "fixture-session-1",
+      "time_s": 0.0,
+      "source_pose": {
+        "frame_id": "world",
+        "translation_m": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_xyzw": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "dynamic_state_digest_sha256": "fixture-dynamic",
+      "ambient_state_digest_sha256": "fixture-ambient",
+      "provider_state_digest_sha256": "fixture-provider",
+      "expires_at_utc": null
+    },
+    "output_frame_id": "world",
+    "claims": {
+      "geometry": "illustrative",
+      "radiation": "appearance_only",
+      "time_model": "steady",
+      "derivation": "native",
+      "consistency": "co_generated"
+    },
+    "applicability": {
+      "status": "inside",
+      "reasons": []
+    },
+    "provenance": {
+      "model_lineage_id": "fixture-lineage",
+      "provider_id": "provider.fixture",
+      "provider_version": "1.0.0",
+      "configuration_digest_sha256": "fixture-configuration",
+      "asset_digests_sha256": [],
+      "parent_result_ids": []
+    },
+    "warnings": []
+  },
+  "sections": [
+    {
+      "arc_length_m": 0.0,
+      "center_m": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "section_to_output_xyzw": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "radius_major_m": 0.5,
+      "radius_minor_m": 0.3
+    },
+    {
+      "arc_length_m": 0.0,
+      "center_m": [
+        1.0,
+        0.1,
+        0.0
+      ],
+      "section_to_output_xyzw": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "radius_major_m": 0.55,
+      "radius_minor_m": 0.32
+    },
+    {
+      "arc_length_m": 2.0,
+      "center_m": [
+        2.0,
+        0.2,
+        0.0
+      ],
+      "section_to_output_xyzw": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "radius_major_m": 0.6,
+      "radius_minor_m": 0.34
+    }
+  ],
+  "channels": {
+    "core_radius_fraction": [
+      1.0,
+      0.75,
+      0.5
+    ],
+    "mixing_weight": [
+      0.0,
+      0.5,
+      1.0
+    ]
+  },
+  "visual_bounds": {
+    "minimum_m": [
+      -0.6,
+      -0.6,
+      -0.6
+    ],
+    "maximum_m": [
+      2.6,
+      0.8,
+      0.6
+    ]
+  },
+  "summary": {
+    "length_m": 2.0,
+    "maximum_radius_m": 0.6,
+    "nominal_divergence_angle_rad": 0.05
+  }
+}

@@ -7,7 +7,7 @@ from itertools import product
 from typing import ClassVar, Optional
 from unittest import TestCase, main as ut_main
 
-from numpy import allclose, deg2rad, inf, isclose, isfinite, linspace, meshgrid, nan, rad2deg
+from numpy import allclose, arcsin, deg2rad, inf, isclose, isfinite, linspace, meshgrid, nan, rad2deg
 from numpy.random import exponential, uniform
 
 from exhaust_plume.log.extra_log_levels import NOTSET
@@ -80,7 +80,8 @@ class TestObliqueShock(TestCase):
       thetas = (0.,)
       for mach, theta, delta in product(machs, thetas, deltas):
         beta = calcShockObliqueAngle(mach=mach, theta_deg=theta, gamma=self.gamma, delta=delta)
-        self.assertEqual(90., beta)
+        expected = 90. if delta == 0. or mach <= 1. else rad2deg(arcsin(1. / mach))
+        self.assertTrue(isclose(expected, beta), f'Unexpected zero-turn shock angle for M={mach}, delta={delta}: {beta}')
       ##
     ##
     with self.subTest('example 4.1,4.2,4.3,4.4,4.5'):

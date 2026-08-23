@@ -1,0 +1,467 @@
+{
+  "$defs": {
+    "ApplicabilityReport": {
+      "additionalProperties": false,
+      "properties": {
+        "reasons": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Reasons",
+          "type": "array"
+        },
+        "status": {
+          "$ref": "#/$defs/ApplicabilityStatus"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "ApplicabilityReport",
+      "type": "object"
+    },
+    "ApplicabilityStatus": {
+      "enum": [
+        "inside",
+        "marginal",
+        "outside"
+      ],
+      "title": "ApplicabilityStatus",
+      "type": "string"
+    },
+    "CapabilityIdentity": {
+      "additionalProperties": false,
+      "description": "A stable dotted capability name and positive major version.",
+      "properties": {
+        "major": {
+          "minimum": 1,
+          "title": "Major",
+          "type": "integer"
+        },
+        "name": {
+          "pattern": "^[a-z][a-z0-9]*(?:\\.[a-z][a-z0-9-]*)+$",
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "major"
+      ],
+      "title": "CapabilityIdentity",
+      "type": "object"
+    },
+    "ConsistencyLevel": {
+      "enum": [
+        "independent",
+        "calibrated",
+        "co_generated"
+      ],
+      "title": "ConsistencyLevel",
+      "type": "string"
+    },
+    "Derivation": {
+      "enum": [
+        "native",
+        "adapted",
+        "tabulated",
+        "surrogate"
+      ],
+      "title": "Derivation",
+      "type": "string"
+    },
+    "GeometryClaim": {
+      "enum": [
+        "not_applicable",
+        "illustrative",
+        "physics_informed",
+        "engineering_approximate",
+        "conservative",
+        "validated"
+      ],
+      "title": "GeometryClaim",
+      "type": "string"
+    },
+    "Pose": {
+      "additionalProperties": false,
+      "description": "Right-handed SI pose with quaternion components ordered ``x,y,z,w``.",
+      "properties": {
+        "frame_id": {
+          "minLength": 1,
+          "title": "Frame Id",
+          "type": "string"
+        },
+        "rotation_xyzw": {
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Rotation Xyzw",
+          "type": "array"
+        },
+        "translation_m": {
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Translation M",
+          "type": "array"
+        }
+      },
+      "required": [
+        "frame_id",
+        "translation_m",
+        "rotation_xyzw"
+      ],
+      "title": "Pose",
+      "type": "object"
+    },
+    "ProductClaims": {
+      "additionalProperties": false,
+      "description": "Independent claim axes; no scalar fidelity label is implied.",
+      "properties": {
+        "consistency": {
+          "$ref": "#/$defs/ConsistencyLevel"
+        },
+        "derivation": {
+          "$ref": "#/$defs/Derivation"
+        },
+        "geometry": {
+          "$ref": "#/$defs/GeometryClaim"
+        },
+        "radiation": {
+          "$ref": "#/$defs/RadiationClaim"
+        },
+        "time_model": {
+          "$ref": "#/$defs/TimeModel"
+        }
+      },
+      "required": [
+        "geometry",
+        "radiation",
+        "time_model",
+        "derivation",
+        "consistency"
+      ],
+      "title": "ProductClaims",
+      "type": "object"
+    },
+    "RadiationClaim": {
+      "enum": [
+        "not_applicable",
+        "appearance_only",
+        "gray_approximate",
+        "spectral_engineering",
+        "tabulated",
+        "validated"
+      ],
+      "title": "RadiationClaim",
+      "type": "string"
+    },
+    "ResultMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "applicability": {
+          "$ref": "#/$defs/ApplicabilityReport"
+        },
+        "capability": {
+          "$ref": "#/$defs/CapabilityIdentity"
+        },
+        "claims": {
+          "$ref": "#/$defs/ProductClaims"
+        },
+        "output_frame_id": {
+          "minLength": 1,
+          "title": "Output Frame Id",
+          "type": "string"
+        },
+        "provenance": {
+          "$ref": "#/$defs/ResultProvenance"
+        },
+        "request_digest_sha256": {
+          "minLength": 1,
+          "title": "Request Digest Sha256",
+          "type": "string"
+        },
+        "result_id": {
+          "minLength": 1,
+          "title": "Result Id",
+          "type": "string"
+        },
+        "snapshot": {
+          "$ref": "#/$defs/SnapshotMetadata"
+        },
+        "warnings": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "capability",
+        "result_id",
+        "request_digest_sha256",
+        "snapshot",
+        "output_frame_id",
+        "claims",
+        "applicability",
+        "provenance"
+      ],
+      "title": "ResultMetadata",
+      "type": "object"
+    },
+    "ResultProvenance": {
+      "additionalProperties": false,
+      "description": "Lineage and asset identity attached to one public result.",
+      "properties": {
+        "asset_digests_sha256": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Asset Digests Sha256",
+          "type": "array"
+        },
+        "configuration_digest_sha256": {
+          "minLength": 1,
+          "title": "Configuration Digest Sha256",
+          "type": "string"
+        },
+        "metadata": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Metadata",
+          "type": "object"
+        },
+        "model_lineage_id": {
+          "minLength": 1,
+          "title": "Model Lineage Id",
+          "type": "string"
+        },
+        "parent_result_ids": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Parent Result Ids",
+          "type": "array"
+        },
+        "provider_id": {
+          "minLength": 1,
+          "title": "Provider Id",
+          "type": "string"
+        },
+        "provider_version": {
+          "minLength": 1,
+          "title": "Provider Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "model_lineage_id",
+        "provider_id",
+        "provider_version",
+        "configuration_digest_sha256"
+      ],
+      "title": "ResultProvenance",
+      "type": "object"
+    },
+    "SampleStatus": {
+      "additionalProperties": false,
+      "description": "Status for one direction or ray when partial evaluation is enabled.",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/SampleStatusCode"
+        },
+        "message": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Message"
+        },
+        "retryable": {
+          "default": false,
+          "title": "Retryable",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "code"
+      ],
+      "title": "SampleStatus",
+      "type": "object"
+    },
+    "SampleStatusCode": {
+      "enum": [
+        "ok",
+        "outside_applicability",
+        "invalid_sample",
+        "backend_failure"
+      ],
+      "title": "SampleStatusCode",
+      "type": "string"
+    },
+    "SnapshotMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "ambient_state_digest_sha256": {
+          "minLength": 1,
+          "title": "Ambient State Digest Sha256",
+          "type": "string"
+        },
+        "dynamic_state_digest_sha256": {
+          "minLength": 1,
+          "title": "Dynamic State Digest Sha256",
+          "type": "string"
+        },
+        "expires_at_utc": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expires At Utc"
+        },
+        "provider_state_digest_sha256": {
+          "minLength": 1,
+          "title": "Provider State Digest Sha256",
+          "type": "string"
+        },
+        "session_id": {
+          "minLength": 1,
+          "title": "Session Id",
+          "type": "string"
+        },
+        "snapshot_id": {
+          "minLength": 1,
+          "title": "Snapshot Id",
+          "type": "string"
+        },
+        "source_pose": {
+          "$ref": "#/$defs/Pose"
+        },
+        "time_s": {
+          "title": "Time S",
+          "type": "number"
+        }
+      },
+      "required": [
+        "snapshot_id",
+        "session_id",
+        "time_s",
+        "source_pose",
+        "dynamic_state_digest_sha256",
+        "ambient_state_digest_sha256",
+        "provider_state_digest_sha256"
+      ],
+      "title": "SnapshotMetadata",
+      "type": "object"
+    },
+    "TimeModel": {
+      "enum": [
+        "steady",
+        "quasi_steady",
+        "prescribed_transient",
+        "solved_transient"
+      ],
+      "title": "TimeModel",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "absolute_standard_uncertainty": {
+      "anyOf": [
+        {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Absolute Standard Uncertainty"
+    },
+    "direction_status": {
+      "items": {
+        "$ref": "#/$defs/SampleStatus"
+      },
+      "minItems": 1,
+      "title": "Direction Status",
+      "type": "array"
+    },
+    "metadata": {
+      "$ref": "#/$defs/ResultMetadata"
+    },
+    "spectral_radiant_intensity": {
+      "items": {
+        "items": {
+          "type": "number"
+        },
+        "type": "array"
+      },
+      "title": "Spectral Radiant Intensity",
+      "type": "array"
+    },
+    "validity_mask": {
+      "items": {
+        "items": {
+          "type": "boolean"
+        },
+        "type": "array"
+      },
+      "title": "Validity Mask",
+      "type": "array"
+    }
+  },
+  "required": [
+    "metadata",
+    "spectral_radiant_intensity",
+    "validity_mask",
+    "direction_status"
+  ],
+  "title": "SpectralSignatureResult",
+  "type": "object"
+}

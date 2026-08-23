@@ -1,0 +1,95 @@
+{
+  "asset_schema": "plume.signature.table-asset@1",
+  "definition": {
+    "frame_id": "source-local",
+    "wavelengths_m": [
+      1.0e-6,
+      2.0e-6
+    ],
+    "direction_cosine_nodes": [
+      -0.5,
+      0.5
+    ],
+    "spectral_radiant_intensity_w_sr_m": [
+      [
+        1.0,
+        2.0
+      ],
+      [
+        2.0,
+        3.0
+      ]
+    ],
+    "absolute_standard_uncertainty_w_sr_m": [
+      [
+        0.1,
+        0.1
+      ],
+      [
+        0.2,
+        0.2
+      ]
+    ],
+    "axis_direction": [
+      1.0,
+      0.0,
+      0.0
+    ],
+    "asset_id": "transient-near-vacuum-signature",
+    "operating_point_id": "low-ambient-pressure",
+    "source_total_pressure_Pa": 500000.0,
+    "source_total_temperature_K": 650.0,
+    "ambient_pressure_Pa": 0.01,
+    "wavelength_interpolation": "linear",
+    "angular_interpolation": "linear",
+    "time_interpolation": "linear",
+    "time_nodes_s": [
+      0.0,
+      1.0
+    ],
+    "spectral_radiant_intensity_w_sr_m_by_time": [
+      [
+        [
+          1.0,
+          2.0
+        ],
+        [
+          2.0,
+          3.0
+        ]
+      ],
+      [
+        [
+          3.0,
+          4.0
+        ],
+        [
+          4.0,
+          5.0
+        ]
+      ]
+    ],
+    "absolute_standard_uncertainty_w_sr_m_by_time": [
+      [
+        [
+          0.1,
+          0.1
+        ],
+        [
+          0.2,
+          0.2
+        ]
+      ],
+      [
+        [
+          0.3,
+          0.3
+        ],
+        [
+          0.4,
+          0.4
+        ]
+      ]
+    ]
+  }
+}

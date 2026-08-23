@@ -8,8 +8,10 @@ dynamic = ["version"]
 description = "Standalone compressible exhaust-plume model"
 requires-python = ">=3.10"
 dependencies = [
-  "numpy",
-  "pyyaml",
+    "numpy",
+    "pydantic>=2,<3",
+    "pyyaml",
+    "scipy",
 ]
 
 [project.optional-dependencies]
@@ -19,6 +21,9 @@ test = ["pytest", "build", "matplotlib"]
 
 [project.scripts]
 exhaust-plume = "exhaust_plume.models.plume.run_plume_solve:main"
+exhaust-plume-visualize = "exhaust_plume.products.visual_cli:main"
+exhaust-plume-signature = "exhaust_plume.products.signature_cli:main"
+exhaust-plume-validate = "exhaust_plume.validation.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

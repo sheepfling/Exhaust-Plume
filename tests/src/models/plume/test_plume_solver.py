@@ -44,7 +44,7 @@ class TestPlumeSolver(TestCase):
     self.assertEqual(len(zones), 9)
     self.assertEqual(zones[0].type, ZoneType.Isentropic)
     self.assertEqual(zones[-1].type, ZoneType.ObliqueShock)
-    self.assertEqual(set(details), {'points', 'plume_fit'})
+    self.assertTrue({'points', 'plume_fit', 'solver_diagnostics_v1', 'regime', 'termination'} <= set(details))
     self.assertTrue(all(isfinite(zone.coordinates.corners_ru).all() for zone in zones))
     assert_allclose(zones[4].static_pressure, PASCAL_PER_ATM, rtol=2.e-5)
     assert_allclose(zones[7].static_pressure, PASCAL_PER_ATM, rtol=2.e-5)

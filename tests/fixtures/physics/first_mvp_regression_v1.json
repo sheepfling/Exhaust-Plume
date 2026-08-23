@@ -1,0 +1,48 @@
+{
+  "schema": "plume.physics.first-mvp-regression@1",
+  "gas": {
+    "gamma": 1.33,
+    "mach": 4.13,
+    "ambient_pressure_Pa": 101325.0,
+    "ambient_temperature_K": 300.0,
+    "total_temperature_K": 900.0,
+    "exit_radius_m": 1.0
+  },
+  "pressure_ratio_cases": [
+    {
+      "id": "matched",
+      "exit_to_ambient_pressure_ratio": 1.0,
+      "expected_regime": "matched"
+    },
+    {
+      "id": "mild-underexpanded",
+      "exit_to_ambient_pressure_ratio": 1.2,
+      "expected_regime": "underexpanded"
+    },
+    {
+      "id": "mild-overexpanded",
+      "exit_to_ambient_pressure_ratio": 0.85,
+      "expected_regime": "overexpanded"
+    },
+    {
+      "id": "strong-overexpanded",
+      "exit_to_ambient_pressure_ratio": 0.1,
+      "expected_regime": "overexpanded",
+      "expected_solver_status": "numerical_failure"
+    }
+  ],
+  "legacy_total_pressure_anchors": [
+    {
+      "id": "legacy-69-atm-total-pressure",
+      "total_pressure_atm": 69.0,
+      "expected_regime_if_stagnation_pressure": "overexpanded",
+      "regression_only": true
+    },
+    {
+      "id": "legacy-50-atm-total-pressure",
+      "total_pressure_atm": 50.0,
+      "expected_regime_if_stagnation_pressure": "overexpanded",
+      "regression_only": true
+    }
+  ]
+}

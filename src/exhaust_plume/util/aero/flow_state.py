@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, fields
 from functools import cached_property
+from warnings import warn
 
 from numpy import deg2rad, ndarray
 
@@ -84,7 +85,60 @@ class FlowState:
   ##
 
   @cached_property
+  def specific_gas_constant_JpkgK(self) -> float:
+    """Infer the explicit gas constant from the complete static state."""
+
+    return self.static_pressure / (self.static_density * self.static_temperature)
+  ##
+
+  @cached_property
+  def specific_gas_work_Jpkg(self) -> float:
+    """Return p/rho, the ideal-gas specific work scale."""
+
+    return self.static_pressure / self.static_density
+  ##
+
+  @cached_property
+  def specific_static_internal_energy_Jpkg(self) -> float:
+    """Return e = c_v T for a calorically-perfect gas."""
+
+    cv = self.specific_gas_constant_JpkgK / (self.gamma - 1.0)
+    return cv * self.static_temperature
+  ##
+
+  @cached_property
+  def specific_static_enthalpy_Jpkg(self) -> float:
+    """Return h = c_p T for a calorically-perfect gas."""
+
+    cp = self.gamma * self.specific_gas_constant_JpkgK / (self.gamma - 1.0)
+    return cp * self.static_temperature
+  ##
+
+  @cached_property
   def specific_total_energy_Jpkg(self) -> float:
+    """Return E = c_v T + u^2/2, the corrected total specific energy."""
+
+    return self.specific_static_internal_energy_Jpkg + self.speed_mps**2 / 2.0
+  ##
+
+  @cached_property
+  def specific_total_enthalpy_Jpkg(self) -> float:
+    """Return h0 = c_p T0 for a calorically-perfect gas."""
+
+    cp = self.gamma * self.specific_gas_constant_JpkgK / (self.gamma - 1.0)
+    return cp * self.total_temperature
+  ##
+
+  @property
+  def legacy_specific_total_energy_Jpkg(self) -> float:
+    """Return the pre-FND-B RT0 value through an explicit compatibility alias."""
+
+    warn(
+        'legacy_specific_total_energy_Jpkg historically returned p0/rho0 = R*T0; '
+        'use specific_total_energy_Jpkg or specific_total_enthalpy_Jpkg instead',
+        DeprecationWarning,
+        stacklevel=2,
+    )
     return self.total_pressure / self.total_density
   ##
 

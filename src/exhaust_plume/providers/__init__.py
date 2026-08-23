@@ -1,0 +1,133 @@
+"""Built-in providers, product adapters, and lifecycle contracts."""
+
+from __future__ import annotations
+
+from exhaust_plume.contracts.snapshot import (
+    PlumeProvider as LegacyPlumeProvider,
+    PlumeSession as LegacyPlumeSession,
+    PlumeSnapshot as LegacyPlumeSnapshot,
+)
+from exhaust_plume.providers.adapters import (
+    engineeringFluxSectionsFromCurvedPlume,
+    sectionedTubeFromAxisymmetricZones,
+    sectionedTubeFromCurvedPlume,
+)
+from exhaust_plume.providers.lifecycle import (
+    CapabilityBinding,
+    ClosedSessionError,
+    EngineeringFluxSectionCapability,
+    ExecutionBackend,
+    PlumeProvider,
+    PlumeSession,
+    PlumeSnapshot,
+    ProviderDescriptor,
+    SessionRequest,
+    SpectralRadiantIntensityCapability,
+    SpectralRayTransferCapability,
+    TimeAccessMode,
+    UnsupportedCapabilityError,
+    VisualSectionedTubeCapability,
+    requireCapability,
+)
+from exhaust_plume.providers.prescribed_visual import (
+    PrescribedVisualConfiguration,
+    PrescribedVisualDefinition,
+    PrescribedVisualProvider,
+    PrescribedVisualSession,
+)
+from exhaust_plume.providers.signature_table import (
+    LookupInterpolationPolicy,
+    SignatureTableConfiguration,
+    SignatureTableDefinition,
+    SignatureTableProvider,
+    SignatureTableSession,
+)
+from exhaust_plume.providers.static import (
+    StaticEngineeringFluxCapability,
+    StaticPlumeProvider,
+    StaticPlumeSession,
+    StaticPlumeSnapshot,
+    StaticRayTransferCapability,
+    StaticSignatureCapability,
+    StaticVisualCapability,
+)
+from exhaust_plume.providers.straight_analytical import (
+    StraightAnalyticalConfiguration,
+    StraightAnalyticalDefinition,
+    StraightAnalyticalOperatingState,
+    StraightAnalyticalPlumeProviderV0,
+    StraightAnalyticalProvider,
+    StraightAnalyticalSession,
+)
+from exhaust_plume.providers.straight_visual import (
+    StraightVisualConfiguration,
+    StraightVisualDefinition,
+    StraightVisualProvider,
+)
+from exhaust_plume.providers.shock_diamond import (
+    ShockCellAnalyticalConfiguration,
+    ShockCellAnalyticalDefinition,
+    ShockCellAnalyticalOperatingState,
+    ShockCellAnalyticalProvider,
+    ShockCellAnalyticalSession,
+    ShockCellConfiguration,
+    ShockCellDefinition,
+    ShockCellOperatingState,
+)
+
+__all__ = (
+    'CapabilityBinding',
+    'ClosedSessionError',
+    'EngineeringFluxSectionCapability',
+    'ExecutionBackend',
+    'LegacyPlumeProvider',
+    'LegacyPlumeSession',
+    'LegacyPlumeSnapshot',
+    'LookupInterpolationPolicy',
+    'PlumeProvider',
+    'PlumeSession',
+    'PlumeSnapshot',
+    'PrescribedVisualConfiguration',
+    'PrescribedVisualDefinition',
+    'PrescribedVisualProvider',
+    'PrescribedVisualSession',
+    'ProviderDescriptor',
+    'SessionRequest',
+    'SignatureTableConfiguration',
+    'SignatureTableDefinition',
+    'SignatureTableProvider',
+    'SignatureTableSession',
+    'SpectralRadiantIntensityCapability',
+    'SpectralRayTransferCapability',
+    'StaticEngineeringFluxCapability',
+    'StaticPlumeProvider',
+    'StaticPlumeSession',
+    'StaticPlumeSnapshot',
+    'StaticRayTransferCapability',
+    'StaticSignatureCapability',
+    'StaticVisualCapability',
+    'StraightAnalyticalConfiguration',
+    'StraightAnalyticalDefinition',
+    'StraightAnalyticalOperatingState',
+    'StraightAnalyticalPlumeProviderV0',
+    'StraightAnalyticalProvider',
+    'StraightAnalyticalSession',
+    'StraightVisualConfiguration',
+    'StraightVisualDefinition',
+    'StraightVisualProvider',
+    'TimeAccessMode',
+    'UnsupportedCapabilityError',
+    'VisualSectionedTubeCapability',
+    'ShockCellAnalyticalConfiguration',
+    'ShockCellAnalyticalDefinition',
+    'ShockCellAnalyticalOperatingState',
+    'ShockCellAnalyticalProvider',
+    'ShockCellAnalyticalSession',
+    'ShockCellConfiguration',
+    'ShockCellDefinition',
+    'ShockCellOperatingState',
+    'engineeringFluxSectionsFromCurvedPlume',
+    'requireCapability',
+    'sectionedTubeFromAxisymmetricZones',
+    'sectionedTubeFromCurvedPlume',
+)
