@@ -23,6 +23,7 @@ from exhaust_plume.api import (
     SnapshotRequest,
     SupportDefinition,
     TubeSection,
+    v1,
 )
 
 
@@ -172,4 +173,18 @@ def test_golden_washed_fixture_round_trips_and_matches_provider_payload() -> Non
   )
   assert product.payload == fixture.payload
   assert product.envelope.content_sha256 == fixture.envelope.content_sha256
+
+
+def test_legacy_prescribed_shell_delegates_to_canonical_snapshot() -> None:
+  snapshot = _provider().create_session().snapshot(SnapshotRequest(time_s=3.0))
+  assert isinstance(snapshot.canonical_snapshot, v1.ProductSnapshot)
+  canonical_result = snapshot.canonical_snapshot.evaluate(
+    v1.VISUAL_SECTIONED_TUBE_V1,
+    v1.VisualSectionedTubeRequest(
+      output_frame_id='aircraft-body',
+      sampling=v1.VisualSampling(maximum_section_count=2),
+    ),
+  )
+  assert canonical_result.metadata.capability == v1.VISUAL_SECTIONED_TUBE_CAPABILITY
+  assert canonical_result.metadata.snapshot.time_s == 3.0
 ####
