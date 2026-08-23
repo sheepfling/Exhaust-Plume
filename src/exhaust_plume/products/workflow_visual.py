@@ -15,7 +15,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Iterable, Mapping, Sequence
 
-from exhaust_plume.contracts import (
+from exhaust_plume.api.v1 import (
   ApplicabilityStatus,
   ConsistencyLevel,
   Derivation,
@@ -24,10 +24,11 @@ from exhaust_plume.contracts import (
   VisualSampling,
   VisualSection,
   VisualSectionedTubeRequest,
+  ProductOutsideApplicabilityError,
+  ProviderConfigurationError,
+  Vector3,
+  VISUAL_SECTIONED_TUBE_V1,
 )
-from exhaust_plume.contracts.common_v1 import Vector3
-from exhaust_plume.contracts.errors import ProductOutsideApplicabilityError, ProviderConfigurationError
-from exhaust_plume.contracts.specs_v1 import VISUAL_SECTIONED_TUBE_V1
 from exhaust_plume.models.gas import CaloricallyPerfectGas
 from exhaust_plume.models.nozzle import AmbientInput, NozzleGeometry, derive_ambient_state, derive_nozzle_exit_from_geometry
 from exhaust_plume.models.shock_cells import ShockCellSolveResult

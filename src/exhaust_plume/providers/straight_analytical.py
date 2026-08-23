@@ -12,7 +12,7 @@ from dataclasses import dataclass, replace
 from math import isfinite
 from typing import Any, Mapping
 
-from exhaust_plume.contracts import (
+from exhaust_plume.api.v1 import (
   ApplicabilityStatus,
   ConsistencyLevel,
   Derivation,
@@ -21,6 +21,9 @@ from exhaust_plume.contracts import (
   InvalidProductRequestError,
   Pose,
   ProductOutsideApplicabilityError,
+  OperatingStateDomainError,
+  ProviderClosedError,
+  ProviderConfigurationError,
   ProviderDescriptor,
   RadiationClaim,
   SessionMetadata,
@@ -31,11 +34,6 @@ from exhaust_plume.contracts import (
   VisualSectionedTubeRequest,
   VisualSectionedTubeResult,
   canonical_digest,
-)
-from exhaust_plume.contracts.errors import (
-  OperatingStateDomainError,
-  ProviderClosedError,
-  ProviderConfigurationError,
 )
 from exhaust_plume.models.nozzle.contracts import AmbientState, NozzleExitState
 from exhaust_plume.models.shock_cells import (

@@ -11,7 +11,7 @@ from math import isfinite
 from types import MappingProxyType
 from typing import Any, Mapping
 
-from exhaust_plume.contracts import (
+from exhaust_plume.api.v1 import (
   ApplicabilityReport,
   ApplicabilityStatus,
   ConsistencyLevel,
@@ -22,6 +22,8 @@ from exhaust_plume.contracts import (
   Pose,
   ProductClaims,
   ProductOutsideApplicabilityError,
+  ProviderClosedError,
+  ProviderConfigurationError,
   ProviderDescriptor,
   RadiationClaim,
   ResultMetadata,
@@ -38,7 +40,6 @@ from exhaust_plume.contracts import (
   Vector3,
   canonical_digest,
 )
-from exhaust_plume.contracts.errors import ProviderClosedError, ProviderConfigurationError
 
 __all__ = (
   'PrescribedVisualConfiguration',

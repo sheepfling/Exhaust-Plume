@@ -8,7 +8,7 @@ from enum import Enum
 from math import exp, isfinite, log, sqrt
 from typing import Any, Mapping
 
-from exhaust_plume.contracts import (
+from exhaust_plume.api.v1 import (
   ApplicabilityReport,
   ApplicabilityStatus,
   ConsistencyLevel,
@@ -18,6 +18,7 @@ from exhaust_plume.contracts import (
   Pose,
   ProductClaims,
   ProductOutsideApplicabilityError,
+  ProviderClosedError,
   ProviderConfigurationError,
   ProviderDescriptor,
   RadiationClaim,
@@ -34,7 +35,6 @@ from exhaust_plume.contracts import (
   Vector3,
   canonical_digest,
 )
-from exhaust_plume.contracts.errors import ProviderClosedError
 
 __all__ = (
   'LookupInterpolationPolicy',

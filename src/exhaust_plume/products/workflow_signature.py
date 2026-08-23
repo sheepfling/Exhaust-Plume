@@ -10,9 +10,13 @@ from math import isfinite
 from pathlib import Path
 from typing import Any
 
-from exhaust_plume.contracts import Pose, SpectralSignatureRequest, SpectralSignatureResult
-from exhaust_plume.contracts.errors import ProviderConfigurationError
-from exhaust_plume.contracts.specs_v1 import SPECTRAL_RADIANT_INTENSITY_V1
+from exhaust_plume.api.v1 import (
+  Pose,
+  ProviderConfigurationError,
+  SpectralSignatureRequest,
+  SpectralSignatureResult,
+  SPECTRAL_RADIANT_INTENSITY_V1,
+)
 from exhaust_plume.providers.signature_table import (
   SignatureTableConfiguration,
   SignatureTableDefinition,

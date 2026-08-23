@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from math import isfinite, pi, tan
 
-from exhaust_plume.contracts import (
+from exhaust_plume.api.v1 import (
   GeometryClaim,
   ProviderConfigurationError,
   ProviderDescriptor,
