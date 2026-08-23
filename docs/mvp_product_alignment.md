@@ -90,6 +90,20 @@ private solver states
 
 The curved-plume adapter preserves the existing rotation-minimizing frame convention and maps station quantities into declared feature channels. Temperature and pressure are diagnostics, not brightness or emissivity.
 
+### Canonical API review witness
+
+`exhaust_plume.api` is the single canonical contract and lifecycle authority.
+The retained `products` and `providers` modules are compatibility and workflow
+surfaces for the already-integrated consumers; new provider-boundary code must
+use the API contracts rather than create another product hierarchy.
+
+The current shock-zone integration is the bounded adapter
+`sectioned_tube_payload_from_axisymmetric_zones(zones)`. It accepts only finite
+axisymmetric polygons, merges coincident axial samples, publishes a straight
+circular `SectionedTubePayload` with `PHYSICAL_ZONE_BOUNDARY` support, and
+publishes no radiance, opacity, species, conservative flux, or optical-medium
+claim. Non-finite placeholder geometry is rejected explicitly.
+
 ### Conservative regime handoff
 
 The only neutral handoff between physical regimes is `PlumeFluxSection`. It
@@ -146,17 +160,10 @@ Where two products make related claims, their agreement must be tested rather th
 
 ```text
 src/exhaust_plume/
+  api/                    # canonical public contracts, lifecycle, adapters
   models/                 # provider-private physics
-  products/               # immutable, versioned data contracts
-    _base.py
-    visual.py
-    signature.py
-    ray_transfer.py
-    supporting.py
-  providers/              # lifecycle, discovery, fixtures, adapters
-    lifecycle.py
-    static.py
-    adapters.py
+  products/               # compatibility workflows and legacy facades
+  providers/              # existing solver/workflow providers and adapters
 ```
 
 This keeps data semantics out of the solver modules while avoiding a disruptive reorganization of the current physics code.
@@ -173,7 +180,7 @@ Implemented:
 - explicit frames, spectral coordinate, direction convention, provenance, fidelity, applicability, lineage, and validity;
 - deterministic static providers for fixtures and consumer integration;
 - curved-plume-to-visual and curved-plume-to-flux adapters;
-- axisymmetric-zone-to-visual surrogate adapter;
+- canonical finite axisymmetric-zone-to-visual surrogate adapter;
 - contract, lifecycle, shape, partial-batch, and adapter tests.
 
 Not implemented in this slice:
