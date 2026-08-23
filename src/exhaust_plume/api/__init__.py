@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from exhaust_plume.api import v1
 from exhaust_plume.api.adapters import sectioned_tube_payload_from_axisymmetric_zones
 from exhaust_plume.api.capabilities import (
     ENGINEERING_FLUX_SECTION_V1,
@@ -115,4 +116,5 @@ __all__ = (
     'ValidationLevel',
     'calculate_content_sha256',
     'sectioned_tube_payload_from_axisymmetric_zones',
+    'v1',
 )
