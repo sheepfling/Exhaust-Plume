@@ -15,6 +15,7 @@ from exhaust_plume.products import (
     SectionedTubeProduct,
     VisualFeatureChannel,
 )
+from exhaust_plume.products._base import Vector3
 
 
 class CurvedStationLike(Protocol):
@@ -49,6 +50,16 @@ class ZoneLike(Protocol):
 ####
 
 
+def _vector3(value: ArrayLike, *, name: str) -> Vector3:
+  """Normalize one finite ArrayLike as an exactly typed three-vector."""
+  array = np.asarray(value, dtype=float)
+  if array.shape != (3,) or not np.isfinite(array).all():
+    raise ValueError(f'Expected `{name}` to be a finite three-vector. Got:{array.shape}')
+  ####
+  return (float(array[0]), float(array[1]), float(array[2]))
+####
+
+
 def _calculateBounds(
     *,
     centerline_m: np.ndarray,
@@ -64,8 +75,8 @@ def _calculateBounds(
   minimum = np.min(centerline_m - extents, axis=0)
   maximum = np.max(centerline_m + extents, axis=0)
   return Aabb3(
-      minimum_m=tuple(float(value) for value in minimum),
-      maximum_m=tuple(float(value) for value in maximum),
+      minimum_m=_vector3(minimum, name='minimum bounds'),
+      maximum_m=_vector3(maximum, name='maximum bounds'),
   )
 ####
 
@@ -128,10 +139,10 @@ def sectionedTubeFromCurvedPlume(
   )
   return SectionedTubeProduct(
       metadata=metadata,
-      centerline_m=tuple(tuple(float(value) for value in row) for row in centerline),
-      tangents_unit=tuple(tuple(float(value) for value in row) for row in tangents),
-      normals_unit=tuple(tuple(float(value) for value in row) for row in normals),
-      binormals_unit=tuple(tuple(float(value) for value in row) for row in binormals),
+      centerline_m=tuple(_vector3(row, name='centerline') for row in centerline),
+      tangents_unit=tuple(_vector3(row, name='tangent') for row in tangents),
+      normals_unit=tuple(_vector3(row, name='normal') for row in normals),
+      binormals_unit=tuple(_vector3(row, name='binormal') for row in binormals),
       semi_major_axis_m=tuple(float(value) for value in radii),
       semi_minor_axis_m=tuple(float(value) for value in radii),
       bounds=bounds,
@@ -153,13 +164,13 @@ def engineeringFluxSectionsFromCurvedPlume(
   return EngineeringFluxSectionProduct(
       metadata=metadata,
       position_m=tuple(
-          tuple(float(value) for value in station.position_m)
+          _vector3(station.position_m, name='station position')
           for station in result.stations
       ),
       area_m2=tuple(float(station.area_m2) for station in result.stations),
       mass_flow_kgps=tuple(float(station.mass_flow_kgps) for station in result.stations),
       momentum_flux_N=tuple(
-          tuple(float(value) for value in station.momentum_flux_N)
+          _vector3(station.momentum_flux_N, name='station momentum flux')
           for station in result.stations
       ),
       stagnation_enthalpy_flow_W=tuple(
@@ -223,10 +234,10 @@ def sectionedTubeFromAxisymmetricZones(
   )
   return SectionedTubeProduct(
       metadata=metadata,
-      centerline_m=tuple(tuple(float(value) for value in row) for row in centerline),
-      tangents_unit=tuple(tuple(float(value) for value in row) for row in tangents),
-      normals_unit=tuple(tuple(float(value) for value in row) for row in normals),
-      binormals_unit=tuple(tuple(float(value) for value in row) for row in binormals),
+      centerline_m=tuple(_vector3(row, name='centerline') for row in centerline),
+      tangents_unit=tuple(_vector3(row, name='tangent') for row in tangents),
+      normals_unit=tuple(_vector3(row, name='normal') for row in normals),
+      binormals_unit=tuple(_vector3(row, name='binormal') for row in binormals),
       semi_major_axis_m=tuple(float(value) for value in radii),
       semi_minor_axis_m=tuple(float(value) for value in radii),
       bounds=bounds,
