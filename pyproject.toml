@@ -17,7 +17,7 @@ dependencies = [
 [project.optional-dependencies]
 plot = ["matplotlib"]
 quality = ["pyright", "ruff"]
-test = ["pytest", "build", "matplotlib"]
+test = ["pytest", "build", "matplotlib", "jsonschema>=4"]
 
 [project.scripts]
 exhaust-plume = "exhaust_plume.models.plume.run_plume_solve:main"

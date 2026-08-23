@@ -23,6 +23,7 @@ jobs:
       - run: python -m ruff check .
       - run: python -m pyright
       - run: python -m pytest
+      - run: PYTHONPATH=src python scripts/check_public_contract_assets.py
       - run: python -m build
       - name: Install and exercise the built wheel
         run: |
