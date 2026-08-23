@@ -1,23 +1,21 @@
-"""Deterministic static providers used for fixtures and conformance tests."""
+"""Deterministic static providers for fixtures and conformance tests."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from math import isfinite
-from types import MappingProxyType, TracebackType
-from typing import Mapping, Protocol
+from typing import Mapping
 
 from exhaust_plume.products import (
     CapabilityId,
-    ProductMetadata,
     ENGINEERING_FLUX_SECTION_V1,
     EngineeringFluxSectionProduct,
     OPTICAL_SPECTRAL_RAY_TRANSFER_V1,
     SIGNATURE_SPECTRAL_RADIANT_INTENSITY_V1,
+    SectionedTubeProduct,
     SpectralRadiantIntensityProduct,
     SpectralRayTransferProduct,
     VISUAL_SECTIONED_TUBE_V1,
-    SectionedTubeProduct,
 )
 from exhaust_plume.providers.lifecycle import (
     CapabilityBinding,
@@ -31,24 +29,13 @@ from exhaust_plume.providers.lifecycle import (
 )
 
 
-class StaticCapabilityBinding(CapabilityBinding, Protocol):
-  """Static binding that owns one immutable product metadata record."""
-
-  @property
-  def product_metadata(self) -> ProductMetadata:
-    ...
-  ####
-####
-
-
 @dataclass(frozen=True)
 class StaticVisualCapability:
   product: SectionedTubeProduct
 
   @property
-  def product_metadata(self) -> ProductMetadata:
+  def product_metadata(self):
     return self.product.metadata
-  ####
 
   @property
   def capability_id(self) -> CapabilityId:
@@ -66,9 +53,8 @@ class StaticSignatureCapability:
   product: SpectralRadiantIntensityProduct
 
   @property
-  def product_metadata(self) -> ProductMetadata:
+  def product_metadata(self):
     return self.product.metadata
-  ####
 
   @property
   def capability_id(self) -> CapabilityId:
@@ -86,9 +72,8 @@ class StaticRayTransferCapability:
   product: SpectralRayTransferProduct
 
   @property
-  def product_metadata(self) -> ProductMetadata:
+  def product_metadata(self):
     return self.product.metadata
-  ####
 
   @property
   def capability_id(self) -> CapabilityId:
@@ -106,9 +91,8 @@ class StaticEngineeringFluxCapability:
   product: EngineeringFluxSectionProduct
 
   @property
-  def product_metadata(self) -> ProductMetadata:
+  def product_metadata(self):
     return self.product.metadata
-  ####
 
   @property
   def capability_id(self) -> CapabilityId:
@@ -123,12 +107,10 @@ class StaticEngineeringFluxCapability:
 
 @dataclass(frozen=True)
 class StaticPlumeSnapshot:
-  """Immutable capability mapping at one deterministic time."""
-
   descriptor: ProviderDescriptor
   snapshot_id: str
   time_s: float
-  _bindings: Mapping[CapabilityId, StaticCapabilityBinding] = field(repr=False)
+  _bindings: Mapping[CapabilityId, CapabilityBinding] = field(repr=False)
 
   def __post_init__(self) -> None:
     if not self.snapshot_id:
@@ -151,23 +133,18 @@ class StaticPlumeSnapshot:
     ####
     for capability, binding in bindings.items():
       if binding.capability_id != capability:
-        raise ValueError(
-            f'Binding identity {binding.capability_id} does not match its map key {capability}.'
-        )
+        raise ValueError(f'Binding identity {binding.capability_id} does not match {capability}.')
       ####
-      metadata = binding.product_metadata
-      if metadata.capability != capability:
-        raise ValueError(
-            f'Product capability {metadata.capability} does not match its binding {capability}.'
-        )
-      ####
-      if metadata.snapshot_id != self.snapshot_id or metadata.time_s != self.time_s:
+      metadata = getattr(binding, 'product_metadata', None)
+      if metadata is not None and (
+          metadata.snapshot_id != self.snapshot_id or metadata.time_s != self.time_s
+      ):
         raise ValueError(
             'Static product metadata must match the owning snapshot identifier and time.'
         )
       ####
     ####
-    object.__setattr__(self, '_bindings', MappingProxyType(bindings))
+    object.__setattr__(self, '_bindings', bindings)
   ####
 
   @property
@@ -190,8 +167,6 @@ class StaticPlumeSnapshot:
 
 @dataclass
 class StaticPlumeSession:
-  """Session that returns one immutable static snapshot."""
-
   descriptor: ProviderDescriptor
   _snapshot: StaticPlumeSnapshot
   _is_closed: bool = False
@@ -206,9 +181,7 @@ class StaticPlumeSession:
       raise ClosedSessionError('Cannot obtain a snapshot from a closed session.')
     ####
     if self.descriptor.time_access_mode is TimeAccessMode.STATIC and time_s != self._snapshot.time_s:
-      raise ValueError(
-          f'Static provider only supports time {self._snapshot.time_s}. Got:{time_s}'
-      )
+      raise ValueError(f'Static provider only supports time {self._snapshot.time_s}. Got:{time_s}')
     ####
     return self._snapshot
   ####
@@ -224,12 +197,7 @@ class StaticPlumeSession:
     return self
   ####
 
-  def __exit__(
-      self,
-      exc_type: type[BaseException] | None,
-      exc: BaseException | None,
-      traceback: TracebackType | None,
-  ) -> None:
+  def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:
     del exc_type, exc, traceback
     self.close()
   ####
@@ -238,10 +206,8 @@ class StaticPlumeSession:
 
 @dataclass(frozen=True)
 class StaticPlumeProvider:
-  """Prescribed capability provider for fixtures and consumer integration."""
-
   descriptor: ProviderDescriptor
-  binding_by_capability: Mapping[CapabilityId, StaticCapabilityBinding] = field(repr=False)
+  binding_by_capability: Mapping[CapabilityId, CapabilityBinding] = field(repr=False)
   snapshot_id: str = 'static-snapshot'
   time_s: float = 0.
 
@@ -250,7 +216,7 @@ class StaticPlumeProvider:
       raise ValueError('StaticPlumeProvider requires TimeAccessMode.STATIC.')
     ####
     bindings = dict(self.binding_by_capability)
-    object.__setattr__(self, 'binding_by_capability', MappingProxyType(bindings))
+    object.__setattr__(self, 'binding_by_capability', bindings)
     StaticPlumeSnapshot(
         descriptor=self.descriptor,
         snapshot_id=self.snapshot_id,
@@ -265,10 +231,7 @@ class StaticPlumeProvider:
       backend = self.descriptor.supported_backends[0]
     ####
     if backend not in self.descriptor.supported_backends:
-      raise ValueError(
-          f'Backend {backend.value!r} is not supported by provider '
-          f'{self.descriptor.provider_id!r}.'
-      )
+      raise ValueError(f'Backend {backend.value!r} is not supported.')
     ####
     snapshot = StaticPlumeSnapshot(
         descriptor=self.descriptor,

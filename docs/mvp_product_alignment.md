@@ -2,7 +2,17 @@
 
 ## Status
 
-This document is the implementation boundary map for the first product-contract slice. The contracts in `exhaust_plume.products` are an **API-review witness**, not a declaration that the v1 schemas are frozen. The formal freeze still requires the baseline, consumer inventory, conformance harness, and review gate described by the executable program plan.
+This document is the implementation boundary map for the integrated MVP
+product and curved-kernel work packets. The strict public boundary is
+`exhaust_plume.api`; the DTOs in `exhaust_plume.products` remain a compatibility
+and adapter surface, not a declaration that the v1 schemas are frozen. The
+formal freeze still requires the baseline, consumer inventory, conformance
+harness, and review gate described by the executable program plan.
+
+The open curved-kernel, product-alignment, and product-contract branches have
+been combined on the integration branch. The integration retains the existing
+visual/signature workflows under compatibility modules and does not infer
+radiometry from geometry.
 
 ## One lifecycle, independent products
 
@@ -167,17 +177,14 @@ Not implemented in this slice:
 - atmosphere, optics, detector, particles, non-LTE, CFD, or GPU execution;
 - a network/sidecar transport protocol.
 
-## Merge and follow-on order
+## Follow-on order after branch integration
 
-1. Review this contract witness against actual consumers and integration code.
-2. Add deterministic JSON fixtures and a reusable conformance harness.
-3. Hold the formal API freeze review; revise schemas before widespread provider implementation.
-4. Implement a prescribed visual provider and consumer example.
-5. Wrap corrected analytical zones behind neutral spatial support and field capabilities.
-6. Add exact revolved-zone intervals and gray/LTE ray transfer.
-7. Derive unresolved signature from ray transfer and compare energy closure.
-8. Add direct tabulated signature provider independently.
-9. Add molecular line-by-line reference radiation, then runtime spectral reduction.
-10. Compose near-field shock cells with straight/curved mixing through engineering flux sections.
+1. Hold the formal API-008 compatibility review against real consumers.
+2. Add the `WashedIntegralPlumeProvider` adapter to `exhaust_plume.api`.
+3. Add the shock/nozzle to `PlumeFluxSection` adapter as a bounded change.
+4. Replace the prescribed visual fixture in consumers with the live washed provider.
+5. Add optical transfer only after an independent validated optical field exists.
+6. Derive unresolved intensity from validated transfer or provide it independently
+   through a signature-table provider.
 
 No later fidelity phase may compensate for a failed earlier contract, geometry, conservation, interpolation, or validation gate.

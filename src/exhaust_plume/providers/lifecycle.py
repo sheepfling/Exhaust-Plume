@@ -18,8 +18,6 @@ from exhaust_plume.products._base import ContractModel, Provenance
 
 
 class TimeAccessMode(str, Enum):
-  """Allowed ordering of requested snapshot times."""
-
   STATIC = 'static'
   RANDOM_ACCESS = 'random-access'
   MONOTONIC = 'monotonic'
@@ -27,8 +25,6 @@ class TimeAccessMode(str, Enum):
 
 
 class ExecutionBackend(str, Enum):
-  """Requested execution location."""
-
   AUTO = 'auto'
   CPU = 'cpu'
   GPU = 'gpu'
@@ -36,8 +32,6 @@ class ExecutionBackend(str, Enum):
 
 
 class ProviderDescriptor(ContractModel):
-  """Provider identity, capabilities, and execution semantics."""
-
   provider_id: str = Field(min_length=1)
   provider_version: str = Field(min_length=1)
   display_name: str = Field(min_length=1)
@@ -76,8 +70,6 @@ class ProviderDescriptor(ContractModel):
 
 
 class SessionRequest(ContractModel):
-  """Execution request that creates one provider-owned session."""
-
   backend: ExecutionBackend = ExecutionBackend.AUTO
   deterministic_seed: int | None = None
   context_id: str | None = None
@@ -85,8 +77,6 @@ class SessionRequest(ContractModel):
 
 
 class UnsupportedCapabilityError(LookupError):
-  """Raised when a snapshot does not expose the requested capability."""
-
   def __init__(self, *, provider_id: str, capability: CapabilityId) -> None:
     self.provider_id = provider_id
     self.capability = capability
@@ -104,8 +94,6 @@ class ClosedSessionError(RuntimeError):
 
 @runtime_checkable
 class CapabilityBinding(Protocol):
-  """One capability-scoped behavior exposed by a snapshot."""
-
   @property
   def capability_id(self) -> CapabilityId:
     ...
@@ -147,8 +135,6 @@ class EngineeringFluxSectionCapability(CapabilityBinding, Protocol):
 
 @runtime_checkable
 class PlumeSnapshot(Protocol):
-  """Immutable state at one time with capability-scoped behaviors."""
-
   @property
   def descriptor(self) -> ProviderDescriptor:
     ...
@@ -177,8 +163,6 @@ class PlumeSnapshot(Protocol):
 
 @runtime_checkable
 class PlumeSession(Protocol):
-  """Provider-owned execution context with explicit closure semantics."""
-
   @property
   def descriptor(self) -> ProviderDescriptor:
     ...
@@ -201,8 +185,6 @@ class PlumeSession(Protocol):
 
 @runtime_checkable
 class PlumeProvider(Protocol):
-  """Construction-time provider definition and capability declaration."""
-
   @property
   def descriptor(self) -> ProviderDescriptor:
     ...
@@ -222,7 +204,6 @@ def requireCapability(
     capability: CapabilityId,
     capability_type: type[CapabilityT],
 ) -> CapabilityT:
-  """Resolve and type-check one capability binding."""
   binding = snapshot.resolveCapability(capability)
   if not isinstance(binding, capability_type):
     raise TypeError(

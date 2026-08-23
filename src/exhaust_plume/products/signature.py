@@ -24,8 +24,7 @@ from exhaust_plume.products._base import (
 class SpectralRadiantIntensityProduct(ContractModel):
   """Source-intrinsic unresolved spectral radiant intensity.
 
-  Range loss, an external atmospheric path, optics, and detector response are
-  intentionally excluded from this primary product.
+  Range loss, external atmosphere, optics, and detector response are excluded.
   """
 
   metadata: ProductMetadata
@@ -55,10 +54,7 @@ class SpectralRadiantIntensityProduct(ContractModel):
   @model_validator(mode='after')
   def validateProduct(self) -> SpectralRadiantIntensityProduct:
     if self.metadata.capability != SIGNATURE_SPECTRAL_RADIANT_INTENSITY_V1:
-      raise ValueError(
-          f'Expected capability {SIGNATURE_SPECTRAL_RADIANT_INTENSITY_V1}. '
-          f'Got:{self.metadata.capability}'
-      )
+      raise ValueError(f'Expected capability {SIGNATURE_SPECTRAL_RADIANT_INTENSITY_V1}.')
     ####
     for index, direction in enumerate(self.directions_unit):
       magnitude = sqrt(sum(component * component for component in direction))
@@ -66,16 +62,13 @@ class SpectralRadiantIntensityProduct(ContractModel):
         raise ValueError(f'Direction {index} is not unit length:{magnitude}')
       ####
     ####
-    object.__setattr__(
-        self,
-        'radiant_intensity',
-        validateMatrix(
-            self.radiant_intensity,
-            rows=len(self.directions_unit),
-            columns=len(self.spectral_axis.values),
-            name='radiant_intensity',
-        ),
+    matrix = validateMatrix(
+        self.radiant_intensity,
+        rows=len(self.directions_unit),
+        columns=len(self.spectral_axis.values),
+        name='radiant_intensity',
     )
+    object.__setattr__(self, 'radiant_intensity', matrix)
     if len(self.validity.valid) != len(self.directions_unit):
       raise ValueError('Signature validity must contain one flag per direction.')
     ####

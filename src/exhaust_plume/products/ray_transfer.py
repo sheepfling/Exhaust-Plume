@@ -22,8 +22,6 @@ from exhaust_plume.products._base import (
 
 
 class RayDefinition(ContractModel):
-  """One ray origin and propagation direction in the product frame."""
-
   origin_m: Vector3
   direction_unit: Vector3
 
@@ -51,13 +49,11 @@ class RayDefinition(ContractModel):
 
 
 class SpectralRayTransferProduct(ContractModel):
-  """Resolved plume source radiance and background transmittance.
+  """Resolved source radiance and background transmittance.
 
-  Downstream composition uses
+  Downstream scene composition uses
 
       L_out = L_background * background_transmittance + source_radiance
-
-  for each ray and spectral coordinate.
   """
 
   metadata: ProductMetadata
@@ -74,33 +70,28 @@ class SpectralRayTransferProduct(ContractModel):
   @model_validator(mode='after')
   def validateProduct(self) -> SpectralRayTransferProduct:
     if self.metadata.capability != OPTICAL_SPECTRAL_RAY_TRANSFER_V1:
-      raise ValueError(
-          f'Expected capability {OPTICAL_SPECTRAL_RAY_TRANSFER_V1}. '
-          f'Got:{self.metadata.capability}'
-      )
+      raise ValueError(f'Expected capability {OPTICAL_SPECTRAL_RAY_TRANSFER_V1}.')
     ####
-    shape = (len(self.rays), len(self.spectral_axis.values))
-    object.__setattr__(
-        self,
-        'source_radiance',
-        validateMatrix(
-            self.source_radiance,
-            rows=shape[0],
-            columns=shape[1],
-            name='source_radiance',
-        ),
+    rows = len(self.rays)
+    columns = len(self.spectral_axis.values)
+    source = validateMatrix(
+        self.source_radiance,
+        rows=rows,
+        columns=columns,
+        name='source_radiance',
     )
     transmittance = validateMatrix(
         self.background_transmittance,
-        rows=shape[0],
-        columns=shape[1],
+        rows=rows,
+        columns=columns,
         name='background_transmittance',
     )
     if any(value < 0. or value > 1. for row in transmittance for value in row):
       raise ValueError('Background transmittance must lie in [0, 1].')
     ####
+    object.__setattr__(self, 'source_radiance', source)
     object.__setattr__(self, 'background_transmittance', transmittance)
-    if len(self.validity.valid) != len(self.rays):
+    if len(self.validity.valid) != rows:
       raise ValueError('Ray validity must contain one flag per ray.')
     ####
     return self

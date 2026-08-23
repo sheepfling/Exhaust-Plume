@@ -5,24 +5,28 @@ from __future__ import annotations
 from typing import Iterable, Protocol, Sequence
 
 import numpy as np
-from numpy.typing import ArrayLike
+from numpy.typing import ArrayLike, NDArray
 
 from exhaust_plume.models.plume.curved_plume_geometry import calculateRotationMinimizingFrames
 from exhaust_plume.products import (
     Aabb3,
+    CapabilityId,
+    ENGINEERING_FLUX_SECTION_V1,
     EngineeringFluxSectionProduct,
     ProductMetadata,
     SectionedTubeProduct,
+    VISUAL_SECTIONED_TUBE_V1,
     VisualFeatureChannel,
 )
 from exhaust_plume.products._base import Vector3
+
+FloatArray = NDArray[np.float64]
 
 
 class CurvedStationLike(Protocol):
   position_m: ArrayLike
   tangent: ArrayLike
   radius_m: float
-  area_m2: float
   temperature_K: float
   pressure_Pa: float
   density_kgpm3: float
@@ -51,22 +55,28 @@ class ZoneLike(Protocol):
 
 
 def _vector3(value: ArrayLike, *, name: str) -> Vector3:
-  """Normalize one finite ArrayLike as an exactly typed three-vector."""
   array = np.asarray(value, dtype=float)
-  if array.shape != (3,) or not np.isfinite(array).all():
-    raise ValueError(f'Expected `{name}` to be a finite three-vector. Got:{array.shape}')
-  ####
+  if array.shape != (3,) or not bool(np.isfinite(array).all()):
+    raise ValueError(f'{name} must be a finite three-vector.')
   return (float(array[0]), float(array[1]), float(array[2]))
+####
+
+
+def _metadataForCapability(
+    metadata: ProductMetadata,
+    capability: CapabilityId,
+) -> ProductMetadata:
+  return metadata.model_copy(update={'capability': capability})
 ####
 
 
 def _calculateBounds(
     *,
-    centerline_m: np.ndarray,
-    normals: np.ndarray,
-    binormals: np.ndarray,
-    semi_major_axis_m: np.ndarray,
-    semi_minor_axis_m: np.ndarray,
+    centerline_m: FloatArray,
+    normals: FloatArray,
+    binormals: FloatArray,
+    semi_major_axis_m: FloatArray,
+    semi_minor_axis_m: FloatArray,
 ) -> Aabb3:
   extents = np.sqrt(
       (semi_major_axis_m[:, np.newaxis] * normals) ** 2
@@ -75,8 +85,8 @@ def _calculateBounds(
   minimum = np.min(centerline_m - extents, axis=0)
   maximum = np.max(centerline_m + extents, axis=0)
   return Aabb3(
-      minimum_m=_vector3(minimum, name='minimum bounds'),
-      maximum_m=_vector3(maximum, name='maximum bounds'),
+      minimum_m=_vector3(minimum, name='bounds minimum'),
+      maximum_m=_vector3(maximum, name='bounds maximum'),
   )
 ####
 
@@ -87,7 +97,7 @@ def sectionedTubeFromCurvedPlume(
     metadata: ProductMetadata,
     initial_normal: ArrayLike | None = None,
 ) -> SectionedTubeProduct:
-  """Derive the visual MVP product from a curved integral-plume result."""
+  """Derive a visual-only product from a curved integral-plume result."""
   if len(result.stations) < 2:
     raise ValueError('Expected at least two curved-plume stations.')
   ####
@@ -107,38 +117,30 @@ def sectionedTubeFromCurvedPlume(
   )
   channels = (
       VisualFeatureChannel(
-          name='temperature',
-          unit='K',
+          name='temperature', unit='K',
           meaning='Integral-model station temperature; not pixel radiance.',
           values=tuple(float(station.temperature_K) for station in result.stations),
       ),
       VisualFeatureChannel(
-          name='pressure',
-          unit='Pa',
-          meaning='Integral-model station static pressure.',
+          name='pressure', unit='Pa', meaning='Integral-model static pressure.',
           values=tuple(float(station.pressure_Pa) for station in result.stations),
       ),
       VisualFeatureChannel(
-          name='density',
-          unit='kg m^-3',
-          meaning='Integral-model station mixture density.',
+          name='density', unit='kg m^-3', meaning='Integral-model mixture density.',
           values=tuple(float(station.density_kgpm3) for station in result.stations),
       ),
       VisualFeatureChannel(
-          name='speed',
-          unit='m s^-1',
-          meaning='Integral-model station centerline speed.',
+          name='speed', unit='m s^-1', meaning='Integral-model centerline speed.',
           values=tuple(float(station.speed_mps) for station in result.stations),
       ),
       VisualFeatureChannel(
-          name='exhaust-mass-fraction',
-          unit='1',
+          name='exhaust-mass-fraction', unit='1',
           meaning='Source-origin exhaust mass fraction used as a mixing diagnostic.',
           values=tuple(float(station.exhaust_mass_fraction) for station in result.stations),
       ),
   )
   return SectionedTubeProduct(
-      metadata=metadata,
+      metadata=_metadataForCapability(metadata, VISUAL_SECTIONED_TUBE_V1),
       centerline_m=tuple(_vector3(row, name='centerline') for row in centerline),
       tangents_unit=tuple(_vector3(row, name='tangent') for row in tangents),
       normals_unit=tuple(_vector3(row, name='normal') for row in normals),
@@ -162,23 +164,19 @@ def engineeringFluxSectionsFromCurvedPlume(
     raise ValueError('Expected at least one curved-plume station.')
   ####
   return EngineeringFluxSectionProduct(
-      metadata=metadata,
+      metadata=_metadataForCapability(metadata, ENGINEERING_FLUX_SECTION_V1),
       position_m=tuple(
           _vector3(station.position_m, name='station position')
           for station in result.stations
       ),
-      area_m2=tuple(float(station.area_m2) for station in result.stations),
+      area_m2=tuple(float(station.radius_m) ** 2 * np.pi for station in result.stations),
       mass_flow_kgps=tuple(float(station.mass_flow_kgps) for station in result.stations),
       momentum_flux_N=tuple(
-          _vector3(station.momentum_flux_N, name='station momentum flux')
+          _vector3(station.momentum_flux_N, name='momentum flux')
           for station in result.stations
       ),
-      stagnation_enthalpy_flow_W=tuple(
-          float(station.total_energy_flow_W) for station in result.stations
-      ),
-      exhaust_mass_flow_kgps=tuple(
-          float(station.exhaust_mass_flow_kgps) for station in result.stations
-      ),
+      total_energy_flow_W=tuple(float(station.total_energy_flow_W) for station in result.stations),
+      exhaust_mass_flow_kgps=tuple(float(station.exhaust_mass_flow_kgps) for station in result.stations),
   )
 ####
 
@@ -190,8 +188,8 @@ def sectionedTubeFromAxisymmetricZones(
 ) -> SectionedTubeProduct:
   """Derive a coarse visual envelope from private axisymmetric zone vertices.
 
-  This is a visualization surrogate. It does not expose zones as a radiative
-  medium and does not claim conservative support between every sample.
+  The result is not a radiative medium and does not claim conservative support
+  between every sample.
   """
   point_rows: list[tuple[float, float]] = []
   for zone in zones:
@@ -233,7 +231,7 @@ def sectionedTubeFromAxisymmetricZones(
       semi_minor_axis_m=radii,
   )
   return SectionedTubeProduct(
-      metadata=metadata,
+      metadata=_metadataForCapability(metadata, VISUAL_SECTIONED_TUBE_V1),
       centerline_m=tuple(_vector3(row, name='centerline') for row in centerline),
       tangents_unit=tuple(_vector3(row, name='tangent') for row in tangents),
       normals_unit=tuple(_vector3(row, name='normal') for row in normals),
@@ -242,6 +240,5 @@ def sectionedTubeFromAxisymmetricZones(
       semi_minor_axis_m=tuple(float(value) for value in radii),
       bounds=bounds,
       geometry_role='visualization',
-      feature_channels=(),
   )
 ####

@@ -5,7 +5,7 @@ from __future__ import annotations
 from argparse import ArgumentParser
 from pathlib import Path
 
-from exhaust_plume.products.visual import (
+from exhaust_plume.products.workflow_visual import (
   build_sectioned_tube_mesh,
   evaluate_visual_definition,
   load_straight_visual_definition,

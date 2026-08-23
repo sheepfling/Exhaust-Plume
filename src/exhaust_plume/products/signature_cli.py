@@ -5,7 +5,7 @@ from __future__ import annotations
 from argparse import ArgumentParser
 from pathlib import Path
 
-from exhaust_plume.products.signature import (
+from exhaust_plume.products.workflow_signature import (
   evaluate_signature_table_asset,
   load_signature_table_asset,
   load_spectral_signature_request,

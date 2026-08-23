@@ -1,8 +1,8 @@
 """Versioned product DTOs plus compatibility workflows.
 
-The immutable product contracts are independent from the older local workflow
-helpers.  Both remain importable while consumers move to the strict
-``exhaust_plume.api`` boundary.
+The strict product contracts are independent from the older local
+visualization and signature workflow helpers. Both remain importable while
+consumers migrate to ``exhaust_plume.api``.
 """
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""Visual sectioned-tube and conservative-support plume products."""
+"""Visual and conservative-support plume products."""
 
 from __future__ import annotations
 
@@ -14,14 +14,11 @@ from exhaust_plume.products._base import (
     SPATIAL_CONSERVATIVE_SUPPORT_V1,
     VISUAL_SECTIONED_TUBE_V1,
     Vector3,
-    normalizeFiniteSequence,
     normalizeVector3,
 )
 
 
 class VisualFeatureChannel(ContractModel):
-  """One named station-wise visual or diagnostic channel."""
-
   name: str = Field(min_length=1)
   unit: str = Field(min_length=1)
   meaning: str = Field(min_length=1)
@@ -31,7 +28,11 @@ class VisualFeatureChannel(ContractModel):
   @field_validator('values', mode='before')
   @classmethod
   def normalizeValues(cls, value: object) -> tuple[float, ...]:
-    values = normalizeFiniteSequence(value, name='feature-channel value')
+    try:
+      values = tuple(float(item) for item in value)  # type: ignore[arg-type]
+    except (TypeError, ValueError) as exc:
+      raise ValueError('Expected finite feature-channel values.') from exc
+    ####
     if any(not isfinite(item) for item in values):
       raise ValueError('Feature-channel values must be finite.')
     ####
@@ -41,18 +42,13 @@ class VisualFeatureChannel(ContractModel):
 
 
 class ConservativeSupportProduct(ContractModel):
-  """Conservative spatial support independent of visual rendering geometry."""
-
   metadata: ProductMetadata
   bounds: Aabb3
 
   @model_validator(mode='after')
   def validateCapability(self) -> ConservativeSupportProduct:
     if self.metadata.capability != SPATIAL_CONSERVATIVE_SUPPORT_V1:
-      raise ValueError(
-          f'Expected capability {SPATIAL_CONSERVATIVE_SUPPORT_V1}. '
-          f'Got:{self.metadata.capability}'
-      )
+      raise ValueError(f'Expected capability {SPATIAL_CONSERVATIVE_SUPPORT_V1}.')
     ####
     return self
   ####
@@ -60,11 +56,9 @@ class ConservativeSupportProduct(ContractModel):
 
 
 class SectionedTubeProduct(ContractModel):
-  """Centerline sections for visualization, support, and coarse scene composition.
+  """Centerline sections for visualization or declared support.
 
-  The product is intentionally not a radiometric claim. Named feature channels
-  may carry provider-derived quantities, but every channel declares its unit
-  and surrogate meaning.
+  This product never implies radiometric truth by itself.
   """
 
   metadata: ProductMetadata
@@ -79,11 +73,7 @@ class SectionedTubeProduct(ContractModel):
   feature_channels: tuple[VisualFeatureChannel, ...] = ()
 
   @field_validator(
-      'centerline_m',
-      'tangents_unit',
-      'normals_unit',
-      'binormals_unit',
-      mode='before',
+      'centerline_m', 'tangents_unit', 'normals_unit', 'binormals_unit', mode='before',
   )
   @classmethod
   def normalizeVectors(cls, value: object) -> tuple[Vector3, ...]:
@@ -97,7 +87,11 @@ class SectionedTubeProduct(ContractModel):
   @field_validator('semi_major_axis_m', 'semi_minor_axis_m', mode='before')
   @classmethod
   def normalizeAxes(cls, value: object) -> tuple[float, ...]:
-    values = normalizeFiniteSequence(value, name='section axis')
+    try:
+      values = tuple(float(item) for item in value)  # type: ignore[arg-type]
+    except (TypeError, ValueError) as exc:
+      raise ValueError('Expected finite section axes.') from exc
+    ####
     if any(not isfinite(item) or item <= 0. for item in values):
       raise ValueError('Section axes must be finite and positive.')
     ####
@@ -107,10 +101,7 @@ class SectionedTubeProduct(ContractModel):
   @model_validator(mode='after')
   def validateProduct(self) -> SectionedTubeProduct:
     if self.metadata.capability != VISUAL_SECTIONED_TUBE_V1:
-      raise ValueError(
-          f'Expected capability {VISUAL_SECTIONED_TUBE_V1}. '
-          f'Got:{self.metadata.capability}'
-      )
+      raise ValueError(f'Expected capability {VISUAL_SECTIONED_TUBE_V1}.')
     ####
     count = len(self.centerline_m)
     for name, values in (
@@ -121,17 +112,13 @@ class SectionedTubeProduct(ContractModel):
         ('semi_minor_axis_m', self.semi_minor_axis_m),
     ):
       if len(values) != count:
-        raise ValueError(f'Expected `{name}` to have {count} entries. Got:{len(values)}')
+        raise ValueError(f'Expected `{name}` to have {count} entries.')
       ####
     ####
     for index, (tangent, normal, binormal) in enumerate(
         zip(self.tangents_unit, self.normals_unit, self.binormals_unit)
     ):
-      for name, vector in (
-          ('tangent', tangent),
-          ('normal', normal),
-          ('binormal', binormal),
-      ):
+      for name, vector in (('tangent', tangent), ('normal', normal), ('binormal', binormal)):
         magnitude = sqrt(sum(component * component for component in vector))
         if not isclose(magnitude, 1., rel_tol=1.e-7, abs_tol=1.e-9):
           raise ValueError(f'Section {index} {name} is not unit length:{magnitude}')
@@ -158,10 +145,7 @@ class SectionedTubeProduct(ContractModel):
     ####
     for channel in self.feature_channels:
       if len(channel.values) != count:
-        raise ValueError(
-            f'Feature channel {channel.name!r} has {len(channel.values)} values; '
-            f'expected {count}.'
-        )
+        raise ValueError(f'Feature channel {channel.name!r} must have {count} values.')
       ####
     ####
     for index, (center, normal, binormal, major, minor) in enumerate(zip(
@@ -176,12 +160,10 @@ class SectionedTubeProduct(ContractModel):
           for axis in range(3)
       )
       for axis in range(3):
-        minimum = center[axis] - extents[axis]
-        maximum = center[axis] + extents[axis]
-        if minimum < self.bounds.minimum_m[axis] - 1.e-9:
+        if center[axis] - extents[axis] < self.bounds.minimum_m[axis] - 1.e-9:
           raise ValueError(f'Bounds do not enclose section {index} minimum on axis {axis}.')
         ####
-        if maximum > self.bounds.maximum_m[axis] + 1.e-9:
+        if center[axis] + extents[axis] > self.bounds.maximum_m[axis] + 1.e-9:
           raise ValueError(f'Bounds do not enclose section {index} maximum on axis {axis}.')
         ####
       ####

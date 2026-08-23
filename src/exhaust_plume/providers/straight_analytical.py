@@ -283,7 +283,7 @@ class _StraightAnalyticalEvaluator:
         raise ProductOutsideApplicabilityError(
           'analytical first-cell solution did not produce a finite closed zone'
         )
-      from exhaust_plume.products.visual import visual_definition_from_zone_results
+      from exhaust_plume.products.workflow_visual import visual_definition_from_zone_results
       visual_definition = visual_definition_from_zone_results(
         self._solution.zones,
         frame_id=self._definition.plume_frame_id,
