@@ -81,8 +81,8 @@ def main() -> None:
     compile(source, str(resource), 'exec')
   assert any(resource.name.endswith('.yaml') for resource in package_resources), 'Packaged YAML resources were not discovered.'
 
-  assert exhaust_plume.__version__ == '0.1.0.a1'
-  assert distribution.version == '0.1.0a1'
+  assert exhaust_plume.__version__ == '0.1.0.a2.dev0'
+  assert distribution.version == '0.1.0a2.dev0'
   requirements = tuple(distribution.requires or ())
   unconditional_plot_requirements = tuple(
       requirement for requirement in requirements
