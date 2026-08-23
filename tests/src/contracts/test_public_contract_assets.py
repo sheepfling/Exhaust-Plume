@@ -33,6 +33,7 @@ def _generated_asset_paths(root: Path) -> tuple[Path, ...]:
       root / 'schemas/public_contract_manifest_v1.json',
     ]
   )
+####
 
 
 def test_checked_in_schemas_match_model_generation() -> None:
@@ -40,6 +41,8 @@ def test_checked_in_schemas_match_model_generation() -> None:
     schema_path = SCHEMA_ROOT / f'{name}.schema.json'
     assert schema_path.exists()
     assert json.loads(schema_path.read_text(encoding='utf-8')) == model.model_json_schema()
+  ####
+####
 
 
 def test_checked_in_valid_fixtures_round_trip() -> None:
@@ -52,6 +55,7 @@ def test_checked_in_valid_fixtures_round_trip() -> None:
   VersionedSpectralRayTransferResult.model_validate_json(
     (FIXTURE_ROOT / 'spectral_ray_transfer_v1.json').read_text(encoding='utf-8')
   )
+####
 
 
 def test_checked_in_invalid_fixture_is_rejected() -> None:
@@ -59,6 +63,8 @@ def test_checked_in_invalid_fixture_is_rejected() -> None:
     VisualSectionedTubeResult.model_validate_json(
       (FIXTURE_ROOT / 'invalid_visual_nonmonotonic.json').read_text(encoding='utf-8')
     )
+  ####
+####
 
 
 def test_manifest_records_one_capability_registry_and_asset_digests() -> None:
@@ -81,6 +87,8 @@ def test_manifest_records_one_capability_registry_and_asset_digests() -> None:
   for record in (*manifest['schemas'], *manifest['fixtures']):
     asset_path = ROOT / ('schemas' if record['file'].endswith('.schema.json') else 'fixtures/contracts') / record['file']
     assert hashlib.sha256(asset_path.read_bytes()).hexdigest() == record['sha256']
+  ####
+####
 
 
 def test_checked_in_v1_assets_match_the_0_1_0a1_wire_baseline() -> None:
@@ -89,9 +97,13 @@ def test_checked_in_v1_assets_match_the_0_1_0a1_wire_baseline() -> None:
     digest, relative_path = line.split(maxsplit=1)
     if relative_path.startswith(('schemas/', 'fixtures/contracts/')):
       recorded[relative_path] = digest
+    ####
+  ####
   assert recorded
   for relative_path, digest in recorded.items():
     assert hashlib.sha256((ROOT / relative_path).read_bytes()).hexdigest() == digest
+  ####
+####
 
 
 def test_two_clean_generation_runs_are_byte_identical(tmp_path: Path) -> None:
@@ -116,6 +128,8 @@ def test_two_clean_generation_runs_are_byte_identical(tmp_path: Path) -> None:
       capture_output=True,
       text=True,
     )
+  ####
   first_paths = _generated_asset_paths(generated_roots[0])
   second_paths = _generated_asset_paths(generated_roots[1])
   assert all(first.read_bytes() == second.read_bytes() for first, second in zip(first_paths, second_paths, strict=True))
+####

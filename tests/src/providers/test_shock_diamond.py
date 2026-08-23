@@ -22,6 +22,7 @@ def _operating_state(exit_pressure_ratio: float = 1.1) -> ShockCellAnalyticalOpe
   exit_state = derive_uniform_nozzle_exit(NozzleExitInput(mach=mach, total_pressure_Pa=total_pressure, total_temperature_K=800.0, exit_radius_m=1.0), gas)
   ambient = derive_ambient_state(AmbientInput(pressure_Pa=ambient_pressure, temperature_K=300.0), gas)
   return ShockCellAnalyticalOperatingState(nozzle_exit=exit_state, ambient=ambient)
+####
 
 
 def test_provider_descriptor_advertises_only_straight_spatial_capabilities() -> None:
@@ -33,7 +34,7 @@ def test_provider_descriptor_advertises_only_straight_spatial_capabilities() -> 
       CapabilityId.PROJECTED_AREA,
   }
   assert CapabilityId.DIRECTIONAL_SPECTRAL_INTENSITY not in provider.descriptor.capability_versions
-  ####
+####
 
 
 def test_provider_snapshot_matches_direct_straight_solver_and_has_finite_zones() -> None:
@@ -53,6 +54,7 @@ def test_provider_snapshot_matches_direct_straight_solver_and_has_finite_zones()
   with pytest.raises(UnsupportedCapabilityError):
     snapshot.get_capability(CapabilityId.DIRECTIONAL_SPECTRAL_INTENSITY, 1)
   ####
+####
 
 
 def test_provider_matched_state_has_no_cells_and_close_is_enforced() -> None:
@@ -68,3 +70,4 @@ def test_provider_matched_state_has_no_cells_and_close_is_enforced() -> None:
   with pytest.raises(ProviderClosedError):
     session.snapshot(state)
   ####
+####

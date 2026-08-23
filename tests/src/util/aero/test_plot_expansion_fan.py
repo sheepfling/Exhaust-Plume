@@ -12,7 +12,6 @@ from exhaust_plume.log.extra_log_levels import NOTSET
 from exhaust_plume.log.log import configureLogging, getCleanLogger, getLogger, getRootLogger
 from exhaust_plume.util.aero.expansion_fan import calcPmExpansionAngle, calcPrandtlMeyerAngle
 
-######################################
 log = getCleanLogger(__name__)
 SHOW_PLOTS: bool = False
 
@@ -31,8 +30,8 @@ class TestObliqueShock(TestCase):
       matplotlib.use('Agg')
       cls.num_linear_points = 11
       cls.num_axis_points = 11
-    ##
-  ##
+    ####
+  ####
 
   def test_calculatePrandtlMeyerAngle(self) -> None:
     gamma = 4. / 3.
@@ -48,8 +47,8 @@ class TestObliqueShock(TestCase):
       ax.grid()
       ax.set_title('Prandtl-Meyer Angle')
       self._closeOrAppendFigs([fig, ])
-    ##
-  ##
+    ####
+  ####
 
   def test_calcPmExpansionAngle(self) -> None:
     gamma = 4. / 3.
@@ -75,8 +74,8 @@ class TestObliqueShock(TestCase):
       h.set_label(r'Expansion Angle, $\theta$ [deg]')
       ax.set_title('Prandtl-Meyer Expansion Angle')
       self._closeOrAppendFigs([fig, ])
-    ##
-  ##
+    ####
+  ####
 
   def _closeOrAppendFigs(self, figs: Sequence[FigureType]) -> None:
     if SHOW_PLOTS:
@@ -84,31 +83,29 @@ class TestObliqueShock(TestCase):
     else:
       for fig in figs:
         plt.close(fig)
-      ##
-    ##
-  ##
+      ####
+    ####
+  ####
 
   @classmethod
   def tearDownClass(cls) -> None:
     if SHOW_PLOTS:
       plt.show()
-    ##
+    ####
     for fig in cls.figs:
       plt.close(fig)
-    ##
-  ##
-##
+    ####
+  ####
+####
 
 
 if __name__ == "__main__":
   SHOW_PLOTS = True
-  ####
   # Boilerplate to load log config file when this module is run as main
   if not configureLogging():
     print('Could not configure log')
-  ##
-  log = getLogger(__name__)
   ####
+  log = getLogger(__name__)
   ut_result = ut_main()
   print(ut_result)
-##
+####

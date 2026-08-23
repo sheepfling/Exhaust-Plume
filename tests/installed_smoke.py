@@ -47,13 +47,18 @@ def _walk_resources(resource: Any) -> Iterator[Any]:
       yield from _walk_resources(child)
     else:
       yield child
+    ####
+  ####
+####
 
 
 def _resource_from_parts(root: Any, parts: tuple[str, ...]) -> Any:
   resource = root
   for part in parts:
     resource = resource.joinpath(part)
+  ####
   return resource
+####
 
 
 def main() -> None:
@@ -71,6 +76,8 @@ def main() -> None:
       resource = _resource_from_parts(package_root, parts[1:])
       assert resource.is_file(), f'Package manifest entry is not readable: {distribution_file}'
       resource.read_bytes()
+    ####
+  ####
 
   python_resources = tuple(resource for resource in package_resources if resource.name.endswith('.py'))
   assert python_resources, 'The installed package contains no Python modules.'
@@ -79,6 +86,7 @@ def main() -> None:
     source = resource.read_bytes()
     assert checkout_marker.encode() not in source, f'Embedded checkout path found in {resource}.'
     compile(source, str(resource), 'exec')
+  ####
   assert any(resource.name.endswith('.yaml') for resource in package_resources), 'Packaged YAML resources were not discovered.'
 
   assert exhaust_plume.__version__ == '0.1.0.a2.dev0'
@@ -220,7 +228,11 @@ def main() -> None:
         text=True,
       )
       assert 'usage:' in completed.stdout
+    ####
+  ####
+####
 
 
 if __name__ == '__main__':
   main()
+####

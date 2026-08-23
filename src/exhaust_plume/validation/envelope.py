@@ -41,7 +41,6 @@ __all__ = (
   'write_validity_report_csv',
   'write_validity_report_json',
 )
-###########################################
 
 
 class StudyValidityEnvelope(BaseModel):
@@ -88,26 +87,37 @@ class StudyValidityEnvelope(BaseModel):
     )
     if any(lower >= upper for _, lower, upper in pairs):
       raise ValueError('validity envelope lower bounds must be below upper bounds')
+    ####
     if not self.min_ambient_pressure_Pa <= self.marginal_ambient_pressure_low_Pa < self.max_ambient_pressure_Pa:
       raise ValueError('marginal ambient pressure low bound must lie inside the ambient pressure range')
+    ####
     if not self.min_ambient_pressure_Pa < self.marginal_ambient_pressure_high_Pa <= self.max_ambient_pressure_Pa:
       raise ValueError('marginal ambient pressure high bound must lie inside the ambient pressure range')
+    ####
     if not self.min_exit_mach <= self.marginal_exit_mach_low < self.max_exit_mach:
       raise ValueError('marginal Mach low bound must lie inside the Mach range')
+    ####
     if not self.min_exit_mach < self.marginal_exit_mach_high <= self.max_exit_mach:
       raise ValueError('marginal Mach high bound must lie inside the Mach range')
+    ####
     if not self.min_area_ratio <= self.marginal_area_ratio_low < self.max_area_ratio:
       raise ValueError('marginal area-ratio low bound must lie inside the area-ratio range')
+    ####
     if not self.min_area_ratio < self.marginal_area_ratio_high <= self.max_area_ratio:
       raise ValueError('marginal area-ratio high bound must lie inside the area-ratio range')
+    ####
     if not self.min_exit_to_ambient_pressure_ratio <= self.marginal_pressure_ratio_low < self.max_exit_to_ambient_pressure_ratio:
       raise ValueError('marginal pressure-ratio low bound must lie inside the pressure-ratio range')
+    ####
     if not self.min_exit_to_ambient_pressure_ratio < self.marginal_pressure_ratio_high <= self.max_exit_to_ambient_pressure_ratio:
       raise ValueError('marginal pressure-ratio high bound must lie inside the pressure-ratio range')
+    ####
     if not self.min_gamma <= self.marginal_gamma_low < self.max_gamma:
       raise ValueError('marginal gamma low bound must lie inside the gamma range')
+    ####
     if not self.min_gamma < self.marginal_gamma_high <= self.max_gamma:
       raise ValueError('marginal gamma high bound must lie inside the gamma range')
+    ####
     return self
   ####
 ####
@@ -132,7 +142,6 @@ class NozzleValidityCase(BaseModel):
   compression_characteristics: int = Field(default=1, ge=1)
   max_cells: int = Field(default=1, ge=0)
   pressure_match_rtol: float = Field(default=1.0e-4, gt=0.0)
-  ####
 ####
 
 
@@ -161,7 +170,6 @@ class NozzleCaseAssessment(BaseModel):
   termination_reason: TerminationReason | None = None
   zone_count: int = Field(default=0, ge=0)
   error: str | None = None
-  ####
 ####
 
 
@@ -175,6 +183,7 @@ def _range_reasons(
 ) -> tuple[bool, bool, tuple[str, ...]]:
   if value < minimum or value > maximum:
     return True, False, (f'{label}={value:g} is outside [{minimum:g}, {maximum:g}]',)
+  ####
   marginal = (
     marginal_low is not None and value <= marginal_low
   ) or (
@@ -182,6 +191,7 @@ def _range_reasons(
   )
   if marginal:
     return False, True, (f'{label}={value:g} is in a declared marginal boundary band',)
+  ####
   return False, False, ()
 ####
 
@@ -211,10 +221,14 @@ def _assess_inputs(
       outside.extend(reasons)
     elif is_marginal:
       marginal.extend(reasons)
+    ####
+  ####
   if outside:
     return ApplicabilityStatus.OUTSIDE, tuple(outside + marginal)
+  ####
   if marginal:
     return ApplicabilityStatus.MARGINAL, tuple(marginal)
+  ####
   return ApplicabilityStatus.INSIDE, ()
 ####
 
@@ -260,6 +274,7 @@ def evaluate_nozzle_case(
         reasons=(f'input derivation failed: {caught}',),
         error=str(caught),
     )
+  ####
 
   validity_status, reasons = _assess_inputs(
       case,
@@ -287,6 +302,7 @@ def evaluate_nozzle_case(
     zone_count = len(solved.zones)
   except (ArithmeticError, ValueError) as caught:
     error = str(caught)
+  ####
 
   final_reasons = list(reasons)
   if error is not None:
@@ -302,7 +318,9 @@ def evaluate_nozzle_case(
   elif solver_status is SolverStatus.CONVERGED_AT_BOUNDARY:
     if validity_status is ApplicabilityStatus.INSIDE:
       validity_status = ApplicabilityStatus.MARGINAL
+    ####
     final_reasons.append('result is limited by the requested low-order construction boundary')
+  ####
   return NozzleCaseAssessment(
       **base,
       validity_status=validity_status,
@@ -330,6 +348,7 @@ def evaluate_validity_matrix(
   case_ids = tuple(case.case_id for case in materialized)
   if len(case_ids) != len(set(case_ids)):
     raise ValueError('validity matrix case_id values must be unique')
+  ####
   return tuple(evaluate_nozzle_case(case, envelope=envelope) for case in materialized)
 ####
 
@@ -380,6 +399,8 @@ def default_validity_cases() -> tuple[NozzleValidityCase, ...]:
           ambient_temperature_K=300.0,
           gas=gas,
       ))
+    ####
+  ####
   return tuple(cases)
 ####
 
@@ -457,5 +478,7 @@ def write_validity_report_csv(results: Iterable[NozzleCaseAssessment], path: str
         ' | '.join(result.reasons),
         result.error,
       ))
+    ####
+  ####
   return output
 ####

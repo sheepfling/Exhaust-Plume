@@ -28,24 +28,18 @@ __all__ = (
     'calcIdealGasWorkFromPressureVolume',
     'calcIdealGasVolumeFromPressureWork',
     'calcIdealGasPressureFromVolumeWork',
-    ####
     'calcIdealGasWorkFromMolsTemperature',
     'calcIdealGasMolFromTemperatureWork',
     'calcIdealGasTemperatureFromMolWork',
-    ####
     'calcIdealGasSpecificWorkFromPressureSpecificVolume',
     'calcIdealGasPressureFromSpecificVolumeSpecificWork',
     'calcIdealGasSpecificVolumeFromPressureSpecificWork',
-    ####
     'calcIdealGasSpecificWorkFromMolarMassTemperature',
     'calcIdealGasMolarMassFromTemperatureSpecificWork',
     'calcIdealGasTemperatureFromMolarMassSpecificWork',
-    ####
     'calcDensityFromSpecificVolume',
     'calcSpecificVolumeFromDensity',
-    ####
 )
-###########################################
 log = getCleanLogger(__name__)
 
 T = TypeVar('T', float, ndarray, Union[float, ndarray])
@@ -56,7 +50,7 @@ def calcIdealGasWorkFromPressureVolume(pressure_Pa: T, volume_m3: T) -> T:
   P * V
   """
   return pressure_Pa * volume_m3
-##
+####
 
 
 def calcIdealGasPressureFromVolumeWork(volume_m3: T, work_J: T) -> T:
@@ -66,7 +60,7 @@ def calcIdealGasPressureFromVolumeWork(volume_m3: T, work_J: T) -> T:
   """
   pressure_Pa = work_J / volume_m3
   return pressure_Pa
-##
+####
 
 
 def calcIdealGasVolumeFromPressureWork(pressure_Pa: T, work_J: T) -> T:
@@ -76,7 +70,7 @@ def calcIdealGasVolumeFromPressureWork(pressure_Pa: T, work_J: T) -> T:
   """
   volume_m3 = work_J / pressure_Pa
   return volume_m3
-##
+####
 
 
 def calcIdealGasWorkFromMolsTemperature(n_mol: T, temperature_K: T) -> T:
@@ -84,7 +78,7 @@ def calcIdealGasWorkFromMolsTemperature(n_mol: T, temperature_K: T) -> T:
   n * R * T
   """
   return n_mol * R_GAS_CONSTANT * temperature_K
-##
+####
 
 
 def calcIdealGasMolFromTemperatureWork(temperature_K: T, work_J: T) -> T:
@@ -94,7 +88,7 @@ def calcIdealGasMolFromTemperatureWork(temperature_K: T, work_J: T) -> T:
   """
   n_mol = work_J / (R_GAS_CONSTANT * temperature_K)
   return n_mol
-##
+####
 
 
 def calcIdealGasTemperatureFromMolWork(n_mol: T, work_J: T) -> T:
@@ -104,9 +98,8 @@ def calcIdealGasTemperatureFromMolWork(n_mol: T, work_J: T) -> T:
   """
   temperature_K = work_J / (R_GAS_CONSTANT * n_mol)
   return temperature_K
-##
+####
 
-########################################
 
 
 def calcIdealGasSpecificWorkFromPressureSpecificVolume(pressure_Pa: T, specific_volume_m3pkg: T) -> T:
@@ -114,7 +107,7 @@ def calcIdealGasSpecificWorkFromPressureSpecificVolume(pressure_Pa: T, specific_
   P * (V/m)
   """
   return pressure_Pa * specific_volume_m3pkg
-##
+####
 
 
 def calcIdealGasPressureFromSpecificVolumeSpecificWork(specific_volume_m3pkg: T, specific_work_Jpkg: T) -> T:
@@ -124,7 +117,7 @@ def calcIdealGasPressureFromSpecificVolumeSpecificWork(specific_volume_m3pkg: T,
   """
   pressure_Pa = specific_work_Jpkg / specific_volume_m3pkg
   return pressure_Pa
-##
+####
 
 
 def calcIdealGasSpecificVolumeFromPressureSpecificWork(pressure_Pa: T, specific_work_Jpkg: T) -> T:
@@ -134,7 +127,7 @@ def calcIdealGasSpecificVolumeFromPressureSpecificWork(pressure_Pa: T, specific_
   """
   specific_volume_m3pkg = specific_work_Jpkg / pressure_Pa
   return specific_volume_m3pkg
-##
+####
 
 
 def calcIdealGasSpecificWorkFromMolarMassTemperature(molar_mass_kg: T, temperature_K: T) -> T:
@@ -142,7 +135,7 @@ def calcIdealGasSpecificWorkFromMolarMassTemperature(molar_mass_kg: T, temperatu
   (1/M) * R * T
   """
   return (1. / molar_mass_kg) * R_GAS_CONSTANT * temperature_K
-##
+####
 
 
 def calcIdealGasMolarMassFromTemperatureSpecificWork(temperature_K: T, specific_work_Jpkg: T) -> T:
@@ -153,7 +146,7 @@ def calcIdealGasMolarMassFromTemperatureSpecificWork(temperature_K: T, specific_
   inv_molar_mass_kg = specific_work_Jpkg / (R_GAS_CONSTANT * temperature_K)
   molar_mass_kg = 1. / inv_molar_mass_kg
   return molar_mass_kg
-##
+####
 
 
 def calcIdealGasTemperatureFromMolarMassSpecificWork(molar_mass_kg: T, specific_work_Jpkg: T) -> T:
@@ -164,21 +157,19 @@ def calcIdealGasTemperatureFromMolarMassSpecificWork(molar_mass_kg: T, specific_
   """
   temperature_K = specific_work_Jpkg * molar_mass_kg / (R_GAS_CONSTANT)
   return temperature_K
-##
+####
 
-################
 
 
 def calcDensityFromSpecificVolume(specific_volume_m3pkg: T) -> T:
   return 1. / specific_volume_m3pkg
-##
+####
 
 
 def calcSpecificVolumeFromDensity(density_kgpm3: T) -> T:
   return 1. / density_kgpm3
-##
+####
 
-################
 
 
 def calcSpecificGasConstant(molar_mass_kg: T) -> T:
@@ -187,7 +178,7 @@ def calcSpecificGasConstant(molar_mass_kg: T) -> T:
   """
   specific_gas_R = (R_GAS_CONSTANT / molar_mass_kg)
   return specific_gas_R
-##
+####
 
 
 def calcSpecificHeatPressure(gamma: T, molar_mass_kg: T) -> T:
@@ -199,7 +190,7 @@ def calcSpecificHeatPressure(gamma: T, molar_mass_kg: T) -> T:
   specific_gas_R = calcSpecificGasConstant(molar_mass_kg=molar_mass_kg)
   cp = (gamma / (gamma - 1)) * specific_gas_R
   return cp
-##
+####
 
 
 def calcSpecificHeatVolume(gamma: T, molar_mass_kg: T) -> T:
@@ -211,9 +202,8 @@ def calcSpecificHeatVolume(gamma: T, molar_mass_kg: T) -> T:
   specific_gas_R = calcSpecificGasConstant(molar_mass_kg=molar_mass_kg)
   cv = (1. / (gamma - 1)) * specific_gas_R
   return cv
-##
+####
 
-################
 
 
 def calcIdealGasSpecificEntropyChange(
@@ -226,4 +216,4 @@ def calcIdealGasSpecificEntropyChange(
   cp = calcSpecificHeatPressure(gamma=gamma, molar_mass_kg=molar_mass_kg)
   delta_s = cp * ln(temperature_ratio) - specific_gas_R * ln(pressure_ratio)
   return cast(T, delta_s)
-##
+####

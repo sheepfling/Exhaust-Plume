@@ -10,3 +10,4 @@ def test_script_options_keep_plume_default_and_parse_float_gamma() -> None:
 
   assert options.num_plumes == 3
   assert options.gamma == 1.4
+####

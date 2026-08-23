@@ -37,7 +37,6 @@ __all__ = (
     'solve_shock_angle',
     'solve_shock_to_pressure',
 )
-###########################################
 log = getCleanLogger(__name__)
 
 OBLIQUE_DELTA_WEAK = 1.
@@ -77,10 +76,11 @@ def calcShockObliqueAngle(*, theta_deg: T, mach: T, gamma: Union[float, T], delt
       solution = solve_shock_angle(theta_rad=float(deg2rad(theta_value)), mach=mach_value, gamma=gamma_value, branch=branch)
       if solution.status is ShockSolveStatus.ATTACHED and solution.beta_rad is not None:
         return cast(T, float(rad2deg(solution.beta_rad)))
+      ####
       # Preserve the permissive legacy behavior for unattached or otherwise
       # exploratory scalar inputs; the typed API exposes the structured status.
-    ##
-  ##
+    ####
+  ####
   M2 = mach**2
   theta_rad = deg2rad(theta_deg)
   gm12_M2 = ((gamma - 1) / 2) * M2
@@ -95,7 +95,7 @@ def calcShockObliqueAngle(*, theta_deg: T, mach: T, gamma: Union[float, T], delt
 
     tanb = (M2_m1 + 2 * lamb * cos((4 * pi * delta + arccos(chi)) / 3)) / (3 * (1 + gm12_M2) * tan_th)
     beta = rad2deg(arctan(tanb))
-  ##
+  ####
   # Check for exact values
   shp = beta.shape
   beta = beta.ravel()
@@ -107,20 +107,20 @@ def calcShockObliqueAngle(*, theta_deg: T, mach: T, gamma: Union[float, T], delt
     beta[zero_turn & ~valid_zero_turn] = 90.
   else:
     beta[zero_turn] = 90.
+  ####
   beta = beta.reshape(shp)
   if isinstance(mach, float):
     beta = float(beta)
-  ##
+  ####
   return cast(T, beta)
-##
-
+####
 
 def calcWeakShockObliqueAngle(*, theta_deg: T, mach: T, gamma: Union[float, T]) -> T:
   r""" Weak Oblique Shock
   Eqn. 4.19, 4.20, 4.21 Anderson Modern Compressible Flow 3rd Edition
   """
   return calcShockObliqueAngle(theta_deg=theta_deg, mach=mach, gamma=gamma, delta=OBLIQUE_DELTA_WEAK)
-##
+####
 
 
 def calcStrongShockObliqueAngle(*, theta_deg: T, mach: T, gamma: Union[float, T]) -> T:
@@ -128,7 +128,7 @@ def calcStrongShockObliqueAngle(*, theta_deg: T, mach: T, gamma: Union[float, T]
   Eqn. 4.19, 4.20, 4.21 Anderson Modern Compressible Flow 3rd Edition
   """
   return calcShockObliqueAngle(theta_deg=theta_deg, mach=mach, gamma=gamma, delta=OBLIQUE_DELTA_STRONG)
-##
+####
 
 
 @dataclass(frozen=True)
@@ -138,17 +138,17 @@ class ObliqueShockState(FlowState):
 
   def __post_init__(self) -> None:
     super().__post_init__()
-  ##
+  ####
 
   @cached_property
   def oblique_angle_rad(self) -> float:
     return deg2rad(self.oblique_angle_deg)
-  ##
+  ####
 
   @cached_property
   def shock_angle_rad(self) -> float:
     return deg2rad(self.shock_angle_deg)
-  ##
+  ####
 
   @classmethod
   def fromUpstreamState(cls, upstream: FlowState, oblique_angle_deg: float, shock_angle_deg: Optional[float] = None, ) -> ObliqueShockState:
@@ -175,8 +175,9 @@ class ObliqueShockState(FlowState):
       )
       if solution.status is not ShockSolveStatus.ATTACHED or solution.beta_rad is None:
         raise ValueError(solution.message or 'The requested turn requires a detached shock')
+      ####
       shock_angle_deg = float(rad2deg(solution.beta_rad))
-    ##
+    ####
     mach_normal_up = upstream.mach * sin(deg2rad(shock_angle_deg))  # Eqn 4.7
     mach_normal_downstream = calcNormalShockMach(mach=mach_normal_up, gamma=gamma)
     mach_down = mach_normal_downstream / sin(deg2rad(shock_angle_deg - oblique_angle_deg))  # Eqn 4.12
@@ -190,7 +191,7 @@ class ObliqueShockState(FlowState):
         static_density=calcNormalShockStaticDensity(mach=mach_normal_up, gamma=gamma, static_density=upstream.static_density),
     )
     return out
-  ##
+  ####
 
   @classmethod
   def fromUpstreamStateToEqualizedPressureState(cls, upstream: FlowState, downstream_static_pressure: float,
@@ -206,6 +207,7 @@ class ObliqueShockState(FlowState):
     )
     if solution.status is not ShockSolveStatus.ATTACHED or solution.theta_rad is None or solution.beta_rad is None:
       raise ValueError(solution.message or f'Unable to construct an attached shock for pressure {downstream_static_pressure:g}')
+    ####
     final_downstream = cls.fromUpstreamState(
         upstream=upstream,
         shock_angle_deg=float(rad2deg(solution.beta_rad)),
@@ -213,10 +215,9 @@ class ObliqueShockState(FlowState):
     )
     log.log(VERBOSE, f'Calculated oblique shock directly from normal Mach pressure inversion. Upstream state:{upstream} Desired pressure:{downstream_static_pressure}.')
     return final_downstream
-  ##
+  ####
 
   def __hash__(self) -> int:
     return super().__hash__()
-  ##
-
-##
+  ####
+####

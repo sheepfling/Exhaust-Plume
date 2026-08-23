@@ -36,6 +36,7 @@ def _case(*, ambient_pressure_Pa: float = 101325.0, case_id: str = 'case') -> No
     ambient_temperature_K=300.0,
     gas=CaloricallyPerfectGas.dry_air(gamma=1.4),
   )
+####
 
 
 @pytest.mark.parametrize('ambient_pressure_Pa', default_pressure_sweep())
@@ -48,11 +49,15 @@ def test_pressure_sweep_is_explicit_and_near_vacuum_is_not_silently_valid(ambien
     assert result.solver_status is not None
   else:
     assert result.validity_status in (ApplicabilityStatus.MARGINAL, ApplicabilityStatus.OUTSIDE)
+  ####
+####
 
 
 def test_exact_vacuum_is_rejected_by_continuum_ambient_contract() -> None:
   with pytest.raises(ValidationError):
     AmbientInput(pressure_Pa=0.0, temperature_K=300.0)
+  ####
+####
 
 
 def test_default_matrix_varies_geometry_pressure_gamma_and_temperature() -> None:
@@ -70,17 +75,20 @@ def test_default_matrix_varies_geometry_pressure_gamma_and_temperature() -> None
   assert {result.total_temperature_K for result in results} == {500.0, 800.0, 1500.0}
   assert any(result.validity_status is ApplicabilityStatus.MARGINAL for result in results)
   assert any(result.validity_status is ApplicabilityStatus.OUTSIDE for result in results)
+####
 
 
 def test_validity_matrix_rejects_duplicate_case_ids_and_writes_reports(tmp_path: Path) -> None:
   case = _case(case_id='duplicate')
   with pytest.raises(ValueError, match='unique'):
     evaluate_validity_matrix((case, case))
+  ####
   result = evaluate_nozzle_case(case)
   json_path = write_validity_report_json((result,), tmp_path / 'validity.json')
   csv_path = write_validity_report_csv((result,), tmp_path / 'validity.csv')
   assert 'plume.study-validity-report@1' in json_path.read_text(encoding='utf-8')
   assert csv_path.read_text(encoding='utf-8').count('\n') == 2
+####
 
 
 def test_custom_envelope_can_make_a_boundary_explicit() -> None:
@@ -91,3 +99,4 @@ def test_custom_envelope_can_make_a_boundary_explicit() -> None:
   )
   result = evaluate_nozzle_case(_case(ambient_pressure_Pa=101325.0), envelope=envelope)
   assert result.validity_status in (ApplicabilityStatus.MARGINAL, ApplicabilityStatus.OUTSIDE)
+####

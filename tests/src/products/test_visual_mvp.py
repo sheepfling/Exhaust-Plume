@@ -47,6 +47,7 @@ def test_visual_mvp_exports_deterministic_mesh_and_result(tmp_path: Path) -> Non
   assert load_straight_visual_definition(write_straight_visual_asset(definition, tmp_path / 'asset.json')) == definition
   obj_path = write_visual_obj(mesh, tmp_path / 'mesh.obj')
   assert obj_path.read_text(encoding='utf-8').startswith('# plume.visual.triangle-mesh@1')
+####
 
 
 def test_visual_mvp_renders_preview_with_optional_plot_dependency(tmp_path: Path) -> None:
@@ -57,6 +58,7 @@ def test_visual_mvp_renders_preview_with_optional_plot_dependency(tmp_path: Path
   result = evaluate_visual_definition(definition)
   preview = render_visual_preview(result, tmp_path / 'preview.png')
   assert preview.read_bytes().startswith(b'\x89PNG')
+####
 
 
 def test_visual_mvp_adapts_simple_straight_solver_result() -> None:
@@ -92,6 +94,7 @@ def test_visual_mvp_adapts_simple_straight_solver_result() -> None:
   assert result.metadata.claims.geometry.value == 'engineering_approximate'
   assert result.metadata.claims.derivation.value == 'adapted'
   assert result.metadata.applicability.status.value == 'marginal'
+####
 
 
 def test_visual_mvp_runs_explicit_geometry_path_and_rejects_near_vacuum_failure() -> None:
@@ -122,6 +125,8 @@ def test_visual_mvp_runs_explicit_geometry_path_and_rejects_near_vacuum_failure(
       gas=CaloricallyPerfectGas.dry_air(),
       section_count=8,
     )
+  ####
+####
 
 
 def test_visual_mvp_does_not_render_a_failed_or_empty_solver_result() -> None:
@@ -142,3 +147,5 @@ def test_visual_mvp_does_not_render_a_failed_or_empty_solver_result() -> None:
   ))
   with pytest.raises(ProductOutsideApplicabilityError):
     evaluate_shock_cell_visual(solved, section_count=8)
+  ####
+####

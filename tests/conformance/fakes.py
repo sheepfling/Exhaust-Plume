@@ -21,7 +21,7 @@ _POSE = v1.Pose(
 def _load_result(filename: str, result_type: type[Any]) -> Any:
   payload = (ROOT / 'fixtures' / 'contracts' / filename).read_text(encoding='utf-8')
   return result_type.model_validate(json.loads(payload))
-  ####
+####
 
 
 def _request_frame(request: v1.ApiModel) -> str:
@@ -29,8 +29,10 @@ def _request_frame(request: v1.ApiModel) -> str:
     frame_id = getattr(request, field_name, None)
     if frame_id is not None:
       return frame_id
-  raise AssertionError(f'fixture request has no frame identity: {type(request).__name__}')
+    ####
   ####
+  raise AssertionError(f'fixture request has no frame identity: {type(request).__name__}')
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,6 +59,7 @@ class _FixtureEvaluator:
     })
     return self.result.model_copy(update={'metadata': metadata})
   ####
+####
 
 
 class _FixtureSession:
@@ -103,6 +106,7 @@ class _FixtureSession:
   ) -> v1.ProductSnapshot:
     if self._closed:
       raise ProviderClosedError('fixture session is closed')
+    ####
     dynamic_digest = v1.canonical_digest(dynamic_state)
     ambient_digest = v1.canonical_digest(ambient_state)
     snapshot_metadata = v1.SnapshotMetadata(
@@ -130,12 +134,14 @@ class _FixtureSession:
         provider_id=self._provider_id,
         provider_version=self._provider_version,
       )
+    ####
     return v1.ImmutableProductSnapshot(metadata=snapshot_metadata, _evaluators=evaluators)
   ####
 
   def close(self) -> None:
     self._closed = True
   ####
+####
 
 
 class _FixtureProvider:
@@ -172,6 +178,7 @@ class _FixtureProvider:
       result=self._result,
     )
   ####
+####
 
 
 class FakeVisualOnlyProvider(_FixtureProvider):

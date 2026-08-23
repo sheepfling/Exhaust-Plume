@@ -15,7 +15,6 @@ from exhaust_plume.util.arg_util import getRangeLimitedType
 from exhaust_plume.util.atmosphere.pdas_atmosphere_interpolator import PdasAtmosphereScalarState, calculateAtmosphereStateFromGeopotentialAltitude
 from exhaust_plume.util.physical_constants import PASCAL_PER_ATM
 
-###########################################
 log = getCleanLogger(__name__)
 
 @dataclass(frozen=True)
@@ -70,6 +69,7 @@ class ScriptOptions:
         '--gamma', type=getRangeLimitedType(typ=float, min_val=0., max_val=None, min_is_valid=False),
         default=defaults.gamma, help='Gas gamma (γ=Cp/Cv)')
     return parser
+  ####
 
   @classmethod
   def fromNamespace(cls, args: Namespace) -> ScriptOptions:
@@ -86,8 +86,8 @@ class ScriptOptions:
         nozzle_pressure_atm=float(args.nozzle_pressure_atm),
     )
     return out
-  ##
-##
+  ####
+####
 
 
 def plotNormalizedZoneValues(zones: Sequence[ZoneResult], atmos_stat: PdasAtmosphereScalarState, num_plumes: int) -> List[Any]:
@@ -116,16 +116,16 @@ def plotNormalizedZoneValues(zones: Sequence[ZoneResult], atmos_stat: PdasAtmosp
     fig, ax = plt.subplots(1, 1)
     for name, value in name2value.items():
       ax.plot(indices, value / nanmax(value), label=name)
-    ##
+    ####
     ax.set_xlabel('Region Index')
     ax.set_ylabel('Atmosphere Normalized Values / Max')
     ax.grid()
     ax.legend()
     ax.set_title(f'Normalized Region {group_name} Parameters for {num_plumes} Plumes')
     figs.append(fig)
-  ##
+  ####
   return figs
-##
+####
 
 
 def plotTotalPressureDensity(zones: Sequence[ZoneResult], num_plumes: int) -> List[Any]:
@@ -151,10 +151,10 @@ def plotTotalPressureDensity(zones: Sequence[ZoneResult], num_plumes: int) -> Li
     ax.set_ylabel(name, color=color)
     ax.tick_params(axis='y', color=color, labelcolor=color)
     ax.grid()
-  ##
+  ####
   ax0.set_title(f'Total Pressure & Density for {num_plumes} Plumes')
   return [fig, ]
-##
+####
 
 
 def plotSpecificEnergy(zones: Sequence[ZoneResult], num_plumes: int) -> List[Any]:
@@ -171,7 +171,7 @@ def plotSpecificEnergy(zones: Sequence[ZoneResult], num_plumes: int) -> List[Any
   ax.grid()
   ax.set_title(f'Specific Energy for {num_plumes} Plumes')
   return [fig, ]
-##
+####
 
 
 def plotZoneCoordinates2D(zones: Sequence[ZoneResult], extra: Optional[Mapping[str, Any]] = None) -> List[Any]:
@@ -181,20 +181,20 @@ def plotZoneCoordinates2D(zones: Sequence[ZoneResult], extra: Optional[Mapping[s
   fig, ax = plt.subplots(1, 1)
   if extra is None:
     extra = {}
-  ##
+  ####
   for zone in zones:
     c = zone.coordinates.corners_ru
     if not all(isfinite(c).ravel()):
       continue
-    ##
+    ####
     idx = [*range(len(c)), 0]
     ax.plot(c[idx, 0], c[idx, 1], '--', label=f'{zone.label} {zone.plume_index},{zone.group_index}')
-  ##
+  ####
   if 'points' in extra:
     extra_points: Mapping[str, ndarray] = extra['points']
     for name, point in extra_points.items():
       ax.plot(point[0], point[1], '.', label=f'{name}')
-    ##
+    ####
     if 'plume_fit' in extra:
       point_A = extra_points['A']
       point_F = extra_points['F']
@@ -204,15 +204,15 @@ def plotZoneCoordinates2D(zones: Sequence[ZoneResult], extra: Optional[Mapping[s
       p: ndarray = extra['plume_fit']
       y = polyval(p, x)
       ax.plot(x, y, label='Plume Fit', markersize=25)
-    ###
-  ##
+    ####
+  ####
   ax.set_xlabel('Right')
   ax.set_ylabel('Up')
   ax.grid()
   ax.legend()
   figs.append(fig)
   return figs
-##
+####
 
 
 def plotZoneCoordinates3D(zones: Sequence[ZoneResult],
@@ -225,19 +225,19 @@ def plotZoneCoordinates3D(zones: Sequence[ZoneResult],
 
   if not zones:
     return []
-  ##
+  ####
   figs = []
   meshes = []
   values = []
   if not hasattr(zones[0], colormap_key):
     log.error(f'Colormap key:{colormap_key!r} is not a field of {type(zones[0])}. Valid values are {[f.name for f in fields(zones[0])]}')
     return []
-  ##
+  ####
   for zone in zones:
     mesh = generateRevolvedMesh(zone.coordinates.corners_ru, axis=asarray([1., 0., 0.]), num_rotations=num_rotations)
     meshes.append(mesh)
     values.append(getattr(zone, colormap_key))
-  ##
+  ####
 
   values = array(values)
   normed_values = (values - nanmin(values)) / ptp(values)
@@ -257,13 +257,13 @@ def plotZoneCoordinates3D(zones: Sequence[ZoneResult],
   ax.set_title(f'{num_plumes} Plumes Regions ' + ' '.join(s.capitalize() for s in colormap_key.lower().split('_')))
   figs.append(fig)
   return figs
-##
+####
 
 
 def main() -> None:
   if not configureLogging():
     print('Could not configure logging')
-  ##
+  ####
 
   parser = ArgumentParser()
   parser = ScriptOptions.addArgumentsToParser(parser)
@@ -272,7 +272,7 @@ def main() -> None:
 
   if unknown:
     log.warning(f'Unknown arguments passed to sript:{unknown}')
-  ##
+  ####
 
   opts = ScriptOptions.fromNamespace(args)
   log.debug(f'Parsed options:{opts}')
@@ -332,13 +332,13 @@ def main() -> None:
     for f in fields(ZoneResult):
       if 'static' not in f.name:
         continue
-      ##
+      ####
       figs.extend(plotZoneCoordinates3D(
           zones=out_zones, num_rotations=20, num_plumes=opts.num_plumes,
           colormap_key=f.name,
       ))
-    ##
-  ##
+    ####
+  ####
 
   if figs:
     from matplotlib import pyplot as plt
@@ -347,11 +347,11 @@ def main() -> None:
     for fig in figs:
       if fig is not None:
         continue
-      ##
+      ####
       plt.close(fig)
-    ##
-  ##
-##
+    ####
+  ####
+####
 
 
 if __name__ == "__main__":
@@ -359,4 +359,4 @@ if __name__ == "__main__":
   log = getLogger(__name__)
   log.log(VERBOSE, f'argv {sys.argv[1:]}')
   main()
-##
+####

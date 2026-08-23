@@ -65,11 +65,11 @@ def get_product_capability_spec(
       raise UnsupportedProductVersionError(
         f'unsupported major version for {identity.name}: {identity.major}'
       ) from error
+    ####
     raise UnsupportedProductCapabilityError(
       f'unsupported capability: {identity.wire_id}'
     ) from error
   ####
-####
 ####
 
 __all__ = (
@@ -79,4 +79,3 @@ __all__ = (
   'VISUAL_SECTIONED_TUBE_V1',
   'get_product_capability_spec',
 )
-####

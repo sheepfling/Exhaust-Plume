@@ -19,7 +19,7 @@ class PlumeMorphology(str, Enum):
   CROSSFLOW_DEFLECTED = 'crossflow-deflected'
   MULTI_SOURCE = 'multi-source'
   GENERAL_3D = 'general-3d'
-  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,7 +35,7 @@ class ProviderFidelity:
   radiation_model: str
   environmental_coupling: str
   validation_level: str
-  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,21 +49,26 @@ class ProviderApplicability:
   def __post_init__(self) -> None:
     if not self.summary:
       raise ValueError('applicability summary must not be empty')
+    ####
     normalized: dict[str, tuple[float | None, float | None]] = {}
     for name, bound in self.bounds.items():
       if len(bound) != 2:
         raise ValueError(f'applicability bound `{name}` must have two values')
+      ####
       lower, upper = bound
       if lower is not None and not isfinite(lower):
         raise ValueError(f'applicability lower bound `{name}` must be finite')
+      ####
       if upper is not None and not isfinite(upper):
         raise ValueError(f'applicability upper bound `{name}` must be finite')
+      ####
       if lower is not None and upper is not None and lower > upper:
         raise ValueError(f'applicability lower bound `{name}` exceeds upper bound')
+      ####
       normalized[name] = (lower, upper)
+    ####
     object.__setattr__(self, 'bounds', MappingProxyType(normalized))
     object.__setattr__(self, 'supported_species', tuple(self.supported_species))
-    ####
   ####
 ####
 
@@ -87,16 +92,20 @@ class PlumeProviderDescriptor:
   def __post_init__(self) -> None:
     if not self.provider_id or not self.provider_version:
       raise ValueError('provider_id and provider_version must not be empty')
+    ####
     if self.core_contract_major_version < 1:
       raise ValueError('core_contract_major_version must be positive')
+    ####
     normalized: dict[CapabilityId, int] = {}
     for capability_id, major_version in self.capability_versions.items():
       if not isinstance(capability_id, CapabilityId):
         raise TypeError('capability_versions keys must be CapabilityId values')
+      ####
       if major_version < 1:
         raise ValueError(f'capability major version must be positive: {capability_id}')
+      ####
       normalized[capability_id] = int(major_version)
-    object.__setattr__(self, 'capability_versions', MappingProxyType(normalized))
     ####
+    object.__setattr__(self, 'capability_versions', MappingProxyType(normalized))
   ####
 ####

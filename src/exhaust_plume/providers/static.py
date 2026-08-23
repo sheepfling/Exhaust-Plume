@@ -36,6 +36,7 @@ class StaticVisualCapability:
   @property
   def product_metadata(self):
     return self.product.metadata
+  ####
 
   @property
   def capability_id(self) -> CapabilityId:
@@ -55,6 +56,7 @@ class StaticSignatureCapability:
   @property
   def product_metadata(self):
     return self.product.metadata
+  ####
 
   @property
   def capability_id(self) -> CapabilityId:
@@ -74,6 +76,7 @@ class StaticRayTransferCapability:
   @property
   def product_metadata(self):
     return self.product.metadata
+  ####
 
   @property
   def capability_id(self) -> CapabilityId:
@@ -93,6 +96,7 @@ class StaticEngineeringFluxCapability:
   @property
   def product_metadata(self):
     return self.product.metadata
+  ####
 
   @property
   def capability_id(self) -> CapabilityId:

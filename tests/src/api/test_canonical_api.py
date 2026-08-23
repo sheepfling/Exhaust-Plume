@@ -42,6 +42,7 @@ def test_public_import_inventory_resolves(module_name: str) -> None:
   assert public_names
   assert len(public_names) == len(set(public_names))
   assert all(hasattr(module, name) for name in public_names)
+####
 
 
 def test_v1_facade_is_aliases_not_a_second_wire_model_tree() -> None:
@@ -58,6 +59,7 @@ def test_v1_facade_is_aliases_not_a_second_wire_model_tree() -> None:
   assert v1.VISUAL_SECTIONED_TUBE_V1 is contracts.VISUAL_SECTIONED_TUBE_V1
   assert v1.SPECTRAL_RADIANT_INTENSITY_V1 is contracts.SPECTRAL_RADIANT_INTENSITY_V1
   assert v1.SPECTRAL_RAY_TRANSFER_V1 is contracts.SPECTRAL_RAY_TRANSFER_V1
+####
 
 
 def test_canonical_registry_owns_primary_and_supporting_identities() -> None:
@@ -72,8 +74,11 @@ def test_canonical_registry_owns_primary_and_supporting_identities() -> None:
   assert v1.get_product_capability_spec('plume.visual.sectioned-tube@1') is v1.VISUAL_SECTIONED_TUBE_V1
   with pytest.raises(v1.UnsupportedProductVersionError):
     v1.get_product_capability_spec('plume.visual.sectioned-tube@2')
+  ####
   with pytest.raises(v1.UnsupportedProductCapabilityError):
     v1.get_product_capability_spec('plume.product.unknown@1')
+  ####
+####
 
 
 @pytest.mark.parametrize(
@@ -108,6 +113,7 @@ def test_v1_facade_round_trips_checked_in_golden_fixtures(
   assert v1.canonical_digest(canonical.model_dump(mode='json')) == v1.canonical_digest(
     wire.model_dump(mode='json')
   )
+####
 
 
 def test_v1_facade_preserves_structured_rejection_for_invalid_fixture() -> None:
@@ -115,6 +121,8 @@ def test_v1_facade_preserves_structured_rejection_for_invalid_fixture() -> None:
     v1.VisualSectionedTubeResult.model_validate_json(
       (FIXTURE_ROOT / 'invalid_visual_nonmonotonic.json').read_text(encoding='utf-8')
     )
+  ####
+####
 
 
 def test_existing_visual_consumer_runs_through_canonical_namespace() -> None:
@@ -159,6 +167,7 @@ def test_existing_visual_consumer_runs_through_canonical_namespace() -> None:
   assert isinstance(result, v1.VisualSectionedTubeResult)
   assert result.metadata.capability == v1.VISUAL_SECTIONED_TUBE_CAPABILITY
   assert result.sections[-1].arc_length_m == 1.0
+####
 
 
 def test_lifecycle_adapters_round_trip_canonical_result_and_request() -> None:
@@ -214,6 +223,8 @@ def test_lifecycle_adapters_round_trip_canonical_result_and_request() -> None:
     def get_product(self, request: ProductRequest) -> object:
       assert request == legacy_request
       return result
+    ####
+  ####
 
   canonical_snapshot = v1.LegacySnapshotCanonicalAdapter(
     snapshot=_LegacySnapshot(),
@@ -222,6 +233,7 @@ def test_lifecycle_adapters_round_trip_canonical_result_and_request() -> None:
   )
   round_tripped = canonical_snapshot.evaluate(v1.VISUAL_SECTIONED_TUBE_V1, typed_request)
   assert round_tripped is result
+####
 
 
 def test_error_adapters_preserve_structured_context_and_equivalent_code() -> None:
@@ -246,6 +258,7 @@ def test_error_adapters_preserve_structured_context_and_equivalent_code() -> Non
   assert restored.provider_id == provider_id
   assert restored.session_id == session_id
   assert restored.snapshot_id == snapshot_id
+####
 
 
 def test_root_contract_imports_remain_compatible() -> None:
@@ -253,3 +266,4 @@ def test_root_contract_imports_remain_compatible() -> None:
   assert exhaust_plume.SpectralSignatureResult is v1.SpectralSignatureResult
   assert exhaust_plume.VersionedSpectralRayTransferResult is v1.VersionedSpectralRayTransferResult
   assert api.v1 is v1
+####

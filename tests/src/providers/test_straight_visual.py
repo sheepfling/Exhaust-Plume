@@ -33,6 +33,7 @@ def _snapshot():
     dynamic_state={},
     ambient_state={},
   )
+####
 
 
 def test_straight_visual_provider_emits_deterministic_straight_sections() -> None:
@@ -54,6 +55,7 @@ def test_straight_visual_provider_emits_deterministic_straight_sections() -> Non
   assert first.metadata.provenance.provider_id == 'visual.straight-parametric'
   assert first.channels['core_radius_fraction'][0] > 0.0
   assert first.channels['opacity_weight'] == (1.0, 1.0, 1.0)
+####
 
 
 def test_straight_visual_definition_rejects_nonphysical_terminal_radius() -> None:
@@ -65,3 +67,5 @@ def test_straight_visual_definition_rejects_nonphysical_terminal_radius() -> Non
       initial_radius_minor_m=0.1,
       divergence_angle_rad=-0.7,
     )
+  ####
+####

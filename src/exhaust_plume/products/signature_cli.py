@@ -52,10 +52,14 @@ def main(argv: list[str] | None = None) -> int:
   )
   if not args.no_plots:
     outputs += render_signature_plots(definition, request, result, output_dir)
+  ####
   for output in outputs:
     print(output)
+  ####
   return 0
+####
 
 
 if __name__ == '__main__':
   raise SystemExit(main())
+####

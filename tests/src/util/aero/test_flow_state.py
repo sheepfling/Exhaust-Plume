@@ -29,7 +29,6 @@ def test_specific_energy_and_enthalpy_identities() -> None:
   assert state.specific_total_enthalpy_Jpkg == pytest.approx(
       state.specific_static_enthalpy_Jpkg + state.speed_mps**2 / 2.0
   )
-  ####
 ####
 
 
@@ -37,7 +36,7 @@ def test_legacy_energy_alias_reports_old_meaning() -> None:
   state = _state()
   with pytest.warns(DeprecationWarning, match='historically returned'):
     legacy_value = state.legacy_specific_total_energy_Jpkg
+  ####
   assert legacy_value == pytest.approx(state.total_pressure / state.total_density)
   assert legacy_value != pytest.approx(state.specific_total_energy_Jpkg)
-  ####
 ####

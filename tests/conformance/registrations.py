@@ -56,6 +56,7 @@ class ProviderRegistration:
   def is_registered(self) -> bool:
     return self.fixture_factory is not None
   ####
+####
 
 
 CURRENT_PROVIDER_SYMBOLS = (
@@ -85,7 +86,7 @@ def _visual_definition() -> PrescribedVisualDefinition:
     sections=sections,
     channels={'mixing_weight': (0.0, 0.25, 0.75, 1.0)},
   )
-  ####
+####
 
 
 def _visual_case() -> ProductConformanceCase:
@@ -98,7 +99,7 @@ def _visual_case() -> ProductConformanceCase:
     ),
     expected_frame_id='source-local',
   )
-  ####
+####
 
 
 def _snapshot_from_standard_session(session: v1.ProductSession, time_s: float) -> v1.ProductSnapshot:
@@ -108,7 +109,7 @@ def _snapshot_from_standard_session(session: v1.ProductSession, time_s: float) -
     dynamic_state={},
     ambient_state={},
   )
-  ####
+####
 
 
 def _prescribed_fixture() -> ProviderFixture:
@@ -123,7 +124,7 @@ def _prescribed_fixture() -> ProviderFixture:
       v1.SPECTRAL_RAY_TRANSFER_CAPABILITY,
     ),
   )
-  ####
+####
 
 
 def _straight_visual_fixture() -> ProviderFixture:
@@ -154,7 +155,7 @@ def _straight_visual_fixture() -> ProviderFixture:
       v1.SPECTRAL_RAY_TRANSFER_CAPABILITY,
     ),
   )
-  ####
+####
 
 
 def _analytical_state() -> object:
@@ -185,7 +186,7 @@ def _analytical_state() -> object:
   )
   from exhaust_plume.providers import StraightAnalyticalOperatingState
   return StraightAnalyticalOperatingState(nozzle_exit=exit_state, ambient=ambient)
-  ####
+####
 
 
 def _analytical_snapshot(session: v1.ProductSession, time_s: float) -> v1.ProductSnapshot:
@@ -195,7 +196,7 @@ def _analytical_snapshot(session: v1.ProductSession, time_s: float) -> v1.Produc
     dynamic_state={'operating_state': _analytical_state()},
     ambient_state={},
   )
-  ####
+####
 
 
 def _analytical_fixture() -> ProviderFixture:
@@ -224,7 +225,7 @@ def _analytical_fixture() -> ProviderFixture:
     ),
     probe_times_s=(0.0,),
   )
-  ####
+####
 
 
 def _signature_definition() -> SignatureTableDefinition:
@@ -243,7 +244,7 @@ def _signature_definition() -> SignatureTableDefinition:
       (0.15, 0.15, 0.15),
     ),
   )
-  ####
+####
 
 
 def _signature_case() -> ProductConformanceCase:
@@ -266,7 +267,7 @@ def _signature_case() -> ProductConformanceCase:
     ),
     partial_invalid_indices=(0,),
   )
-  ####
+####
 
 
 def _engineering_section() -> PlumeFluxSection:
@@ -282,7 +283,7 @@ def _engineering_section() -> PlumeFluxSection:
     characteristic_radius_m=0.5,
     provider_metadata={'fixture': 'api-009'},
   )
-  ####
+####
 
 
 def _signature_fixture() -> ProviderFixture:
@@ -298,7 +299,7 @@ def _signature_fixture() -> ProviderFixture:
     ),
     engineering_sections=(_engineering_section(),),
   )
-  ####
+####
 
 
 def _fake_visual_fixture() -> ProviderFixture:
@@ -320,7 +321,7 @@ def _fake_visual_fixture() -> ProviderFixture:
       v1.SPECTRAL_RAY_TRANSFER_CAPABILITY,
     ),
   )
-  ####
+####
 
 
 def _fake_signature_fixture() -> ProviderFixture:
@@ -343,7 +344,7 @@ def _fake_signature_fixture() -> ProviderFixture:
       v1.SPECTRAL_RAY_TRANSFER_CAPABILITY,
     ),
   )
-  ####
+####
 
 
 def _fake_ray_fixture() -> ProviderFixture:
@@ -369,7 +370,7 @@ def _fake_ray_fixture() -> ProviderFixture:
       v1.SPECTRAL_RADIANT_INTENSITY_CAPABILITY,
     ),
   )
-  ####
+####
 
 
 def _failure_fixture() -> ProviderFixture:
@@ -380,7 +381,7 @@ def _failure_fixture() -> ProviderFixture:
     snapshot_factory=_snapshot_from_standard_session,
     products=(_visual_case(),),
   )
-  ####
+####
 
 
 PROVIDER_REGISTRATION_TABLE = (
@@ -414,17 +415,17 @@ def registered_provider_fixtures() -> tuple[ProviderFixture, ...]:
     for registration in PROVIDER_REGISTRATION_TABLE
     if registration.fixture_factory is not None
   )
-  ####
+####
 
 
 def fake_provider_fixtures() -> tuple[ProviderFixture, ...]:
   return (_fake_visual_fixture(), _fake_signature_fixture(), _fake_ray_fixture())
-  ####
+####
 
 
 def failure_provider_fixture() -> ProviderFixture:
   return _failure_fixture()
-  ####
+####
 
 
 __all__ = (

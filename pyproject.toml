@@ -18,6 +18,16 @@ dependencies = [
 plot = ["matplotlib"]
 quality = ["pyright", "ruff"]
 test = ["pytest", "build", "matplotlib", "jsonschema>=4"]
+dev = [
+    "build",
+    "jsonschema>=4",
+    "matplotlib",
+    "pyright",
+    "pytest",
+    "rumdl>=0.2.49,<0.3",
+    "ruff",
+    "scope-markers>=0.0.1a0; python_version >= '3.11'",
+]
 
 [project.scripts]
 exhaust-plume = "exhaust_plume.models.plume.run_plume_solve:main"
@@ -35,6 +45,7 @@ where = ["src"]
 version = {attr = "exhaust_plume.constants.VERSION"}
 
 [tool.pytest.ini_options]
+addopts = "-ra -p no:cacheprovider"
 pythonpath = ["src"]
 testpaths = ["tests"]
 

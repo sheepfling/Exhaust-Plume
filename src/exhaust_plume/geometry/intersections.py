@@ -16,7 +16,6 @@ from exhaust_plume.geometry.contracts import (
 )
 
 __all__ = ("intersect_ray_with_parabola", "intersect_rays")
-###########################################
 
 
 def intersect_rays(ray_a: Ray2D, ray_b: Ray2D, *, condition_limit: float = 1.0e10, parameter_tolerance: float = 1.0e-10) -> RayIntersectionResult:
@@ -29,18 +28,23 @@ def intersect_rays(ray_a: Ray2D, ray_b: Ray2D, *, condition_limit: float = 1.0e1
 
   if not isfinite(condition_limit) or condition_limit <= 1.0:
     raise ValueError("condition_limit must be finite and greater than one")
+  ####
   if not isfinite(parameter_tolerance) or parameter_tolerance < 0.0:
     raise ValueError("parameter_tolerance must be finite and non-negative")
+  ####
   matrix = np.column_stack((ray_a.direction, -ray_b.direction))
   right_hand_side = ray_b.origin - ray_a.origin
   determinant = float(np.linalg.det(matrix))
   if determinant == 0.0:
     return RayIntersectionResult(RayIntersectionStatus.PARALLEL, None, None, None, determinant, float("inf"), float("inf"), "Ray directions are parallel")
+  ####
   condition_number = float(np.linalg.cond(matrix))
   if not isfinite(condition_number):
     return RayIntersectionResult(RayIntersectionStatus.PARALLEL, None, None, None, determinant, condition_number, float("inf"), "Ray directions are parallel")
+  ####
   if condition_number > condition_limit:
     return RayIntersectionResult(RayIntersectionStatus.ILL_CONDITIONED, None, None, None, determinant, condition_number, float("inf"), "Ray intersection is ill-conditioned")
+  ####
   parameters = np.linalg.solve(matrix, right_hand_side)
   parameter_a = float(parameters[0])
   parameter_b = float(parameters[1])
@@ -60,9 +64,10 @@ def intersect_rays(ray_a: Ray2D, ray_b: Ray2D, *, condition_limit: float = 1.0e1
   else:
     status = RayIntersectionStatus.SUCCESS
     message = ""
+  ####
   point = (point_a + point_b) / 2.0
   return RayIntersectionResult(status, point if status is RayIntersectionStatus.SUCCESS else None, parameter_a, parameter_b, determinant, condition_number, residual / scale, message)
-  ####
+####
 
 
 def intersect_ray_with_parabola(ray: Ray2D, parabola_coeff: Any, *, parameter_tolerance: float = 1.0e-10) -> ParabolaIntersectionResult:
@@ -76,8 +81,10 @@ def intersect_ray_with_parabola(ray: Ray2D, parabola_coeff: Any, *, parameter_to
   coefficients = np.asarray(parabola_coeff, dtype=float)
   if coefficients.shape != (3,) or not np.isfinite(coefficients).all():
     raise ValueError("parabola_coeff must contain three finite coefficients")
+  ####
   if not isfinite(parameter_tolerance) or parameter_tolerance < 0.0:
     raise ValueError("parameter_tolerance must be finite and non-negative")
+  ####
   a, b, c = (float(value) for value in coefficients)
   x0, y0 = (float(value) for value in ray.origin)
   dx, dy = (float(value) for value in ray.direction)
@@ -88,19 +95,23 @@ def intersect_ray_with_parabola(ray: Ray2D, parabola_coeff: Any, *, parameter_to
   if abs(quadratic) <= 1.0e-15:
     if abs(linear) <= 1.0e-15:
       return ParabolaIntersectionResult(ParabolaIntersectionStatus.DEGENERATE, None, None, tuple(), float("inf"), "Ray is coincident with or does not cross the parabola")
+    ####
     roots = (-constant / linear,)
   else:
     roots_array = np.roots(np.asarray([quadratic, linear, constant], dtype=float))
     if not np.isreal(roots_array).all():
       return ParabolaIntersectionResult(ParabolaIntersectionStatus.NO_REAL_ROOT, None, None, tuple(), float("inf"), "Ray has no real parabola intersection")
+    ####
     roots = tuple(float(root.real) for root in roots_array)
+  ####
   ordered_roots = tuple(sorted(roots))
   forward_roots = tuple(root for root in ordered_roots if root >= -parameter_tolerance)
   if not forward_roots:
     return ParabolaIntersectionResult(ParabolaIntersectionStatus.NO_FORWARD_ROOT, None, None, ordered_roots, float("inf"), "All parabola intersections are behind the ray")
+  ####
   parameter = max(0.0, forward_roots[0])
   point = ray.origin + parameter * ray.direction
   x, y = (float(value) for value in point)
   residual = abs(y - (a * x**2 + b * x + c)) / max(1.0, hypot(x, y))
   return ParabolaIntersectionResult(ParabolaIntersectionStatus.SUCCESS, point, parameter, ordered_roots, residual)
-  ####
+####

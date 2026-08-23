@@ -19,25 +19,24 @@ from exhaust_plume.util.aero.flow_state import FlowState
 from exhaust_plume.util.aero.isentropic_flow import (calcIsentropicStaticDensity, calcIsentropicTotalPressure, calcIsentropicTotalStaticPressureRatio, calcIsentropicTotalStaticTemperatureRatio, calcIsentropicTotalTemperature)
 from exhaust_plume.util.aero.misc import calcMachAngle
 
-######################################
 log = getCleanLogger(__name__)
 
 
 def random_ExpansionFanState(N: Optional[int] = 0, gamma: float = 1.4) -> ExpansionFanState:
   if N is None:
     N = int(exponential() + 1)
-  ##
+  ####
   if N == 0:
     def converter(x):
       return float(x)
-    ##
+    ####
     shp = tuple()
   else:
     def converter(x):
       return x
-    ##
+    ####
     shp = (N,)
-  ##
+  ####
   mach = converter(exponential(size=shp) + 1)
   turn_deg = converter(uniform(size=shp, low=0., high=15., ))  # conservative
   out = ExpansionFanState(
@@ -50,7 +49,7 @@ def random_ExpansionFanState(N: Optional[int] = 0, gamma: float = 1.4) -> Expans
       static_density=converter(exponential(size=shp)),
   )
   return out
-##
+####
 
 
 class TestExpansionFan(TestCase):
@@ -64,7 +63,7 @@ class TestExpansionFan(TestCase):
     cls.figs = []
     root_logger = getRootLogger(log)
     root_logger.setLevel(NOTSET)
-  ##
+  ####
 
   def test_calculatePrandtlMeyerAngle(self) -> None:
     gamma = 4. / 3.
@@ -73,8 +72,8 @@ class TestExpansionFan(TestCase):
     with self.subTest('plot PM angle'):
       machs = linspace(mach_min, mach_max, self.num_linear_points)
       calcPrandtlMeyerAngle(mach=machs, gamma=gamma)
-    ##
-  ##
+    ####
+  ####
 
   def test_calcPmExpansionAngle(self) -> None:
     gamma = 4. / 3.
@@ -90,8 +89,8 @@ class TestExpansionFan(TestCase):
           mach_downstream=m_down,
           gamma=gamma,
       )
-    ##
-  ##
+    ####
+  ####
 
   def test_Example4_13(self) -> None:
     M1 = 1.5
@@ -257,9 +256,9 @@ class TestExpansionFan(TestCase):
                         f'Expected values {f.name!r} to be close:'
                         f'\nExpected:{v_expected}'
                         f'\nGot     :{v_got}')
-      ##
-    ##
-  ##
+      ####
+    ####
+  ####
 
   def testDunder(self) -> None:
     for monte, scalar in product(range(self.num_monte), (False, True,)):
@@ -269,15 +268,15 @@ class TestExpansionFan(TestCase):
       else:
         self.assertNotIsInstance(data.mach, float)
         self.assertTrue(len(data.mach) > 0)
-      ##
+      ####
       hash_val = hash(data)
       self.assertIsInstance(hash_val, int)
       self.assertEqual(hash_val, hash(data))
       repr_val = repr(data)
       self.assertIsInstance(repr_val, str)
       self.assertEqual(repr_val, repr(data))
-    ##
-  ##
+    ####
+  ####
 
   def test_properties(self) -> None:
     for monte, scalar in product(range(self.num_monte), (False, True,)):
@@ -288,8 +287,8 @@ class TestExpansionFan(TestCase):
 
       self.assertTrue(allclose(data.mach_line_rad, deg2rad(data.mach_line_deg)))
       self.assertTrue(allclose(rad2deg(data.mach_line_rad), data.mach_line_deg))
-    ##
-  ##
+    ####
+  ####
 
   def testPickleCycle(self) -> None:
     for monte, scalar in product(range(self.num_monte), (False, True,)):
@@ -299,20 +298,18 @@ class TestExpansionFan(TestCase):
                       f'Expected data to be equal:'
                       f'\nGot     :{post_pickle}'
                       f'\nExpected:{data}')
-    ##
-  ##
+    ####
+  ####
+####
 
-##
 
 
 if __name__ == "__main__":
-  ####
   # Boilerplate to load log config file when this module is run as main
   if not configureLogging():
     print('Could not configure log')
-  ##
-  log = getLogger(__name__)
   ####
+  log = getLogger(__name__)
   ut_result = ut_main()
   print(ut_result)
-##
+####

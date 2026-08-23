@@ -221,14 +221,19 @@ zones, details = calculatePlumeZones(
 ## Development
 
 ```bash
-python -m pip install -e '.[test,quality]'
-python -m pytest
-python -m ruff check .
-python -m pyright
-python -m build
+python -m pip install -e '.[dev]'
+python -m scripts.ci
 ```
 
-The scientific API only requires the dependencies listed under `[project].dependencies`. Install the `plot` extra for the command-line runner and graphical output.
+The single CI entry point runs the tests, Ruff, scope-marker validation,
+Markdown linting with rumdl, Pyright, deterministic public-asset checks, and
+an isolated wheel-install smoke test. Use `python -m scripts.ci` before
+opening a pull request. Add `--fix` to `scripts.check_scope_markers` or
+`scripts.check_rumdl` when applying their safe formatting fixes.
+
+The scientific API only requires the dependencies listed under
+`[project].dependencies`. Install the `plot` extra for the command-line runner
+and graphical output.
 
 Ruff checks the complete source and test tree. Pyright checks the focused solver and aerodynamic modules listed in [`pyrightconfig.json`](pyrightconfig.json).
 

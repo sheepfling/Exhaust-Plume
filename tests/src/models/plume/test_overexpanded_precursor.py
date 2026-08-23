@@ -29,4 +29,4 @@ def test_overexpanded_precursor_centerline_uses_radial_drop_relation() -> None:
   assert_allclose(point_c[1], point_b[1])
   assert_allclose(point_c[0] - point_b[0], radius / tan(beta_rad), rtol=1.0e-10)
   assert all(isfinite(zone.coordinates.corners_ru).all() for zone in zones)
-  ####
+####

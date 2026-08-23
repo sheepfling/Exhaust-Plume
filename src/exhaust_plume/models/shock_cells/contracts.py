@@ -26,7 +26,6 @@ __all__ = (
     "SolverStatus",
     "TerminationReason",
 )
-###########################################
 
 
 class SolverStatus(str, Enum):
@@ -36,7 +35,7 @@ class SolverStatus(str, Enum):
   OUTSIDE_MODEL_VALIDITY = "outside_model_validity"
   PARTIAL_RESULT = "partial_result"
   NUMERICAL_FAILURE = "numerical_failure"
-  ####
+####
 
 
 class ShockCellSolveConfig(BaseModel):
@@ -57,6 +56,7 @@ class ShockCellSolveConfig(BaseModel):
   def exit(self) -> NozzleExitState:
     return self.exit_state
   ####
+####
 
 
 @dataclass(frozen=True)
@@ -68,7 +68,7 @@ class FlowTransition:
   upstream: FlowState
   downstream: FlowState
   geometry_status: GeometryStatus
-  ####
+####
 
 
 @dataclass(frozen=True)
@@ -86,9 +86,12 @@ class ShockSegment:
       value = np.array(getattr(self, name), dtype=float, copy=True)
       if value.shape != (2,) or not np.isfinite(value).all():
         raise ValueError(f"{name} must be a finite point with shape (2,)")
+      ####
       value.flags.writeable = False
       object.__setattr__(self, name, value)
+    ####
   ####
+####
 
 
 @dataclass(frozen=True)
@@ -106,28 +109,34 @@ class ClosedZone:
     vertices = np.array(self.vertices_xr_m, dtype=float, copy=True)
     if vertices.ndim != 2 or vertices.shape[1] != 2 or len(vertices) < 3 or not np.isfinite(vertices).all():
       raise ValueError("ClosedZone vertices must be a finite array with shape (N, 2), N >= 3")
+    ####
     if self.geometry_status is not GeometryStatus.VALID:
       raise ValueError("A successful ClosedZone must have geometry_status=GeometryStatus.VALID")
+    ####
     from exhaust_plume.geometry.polygons import validate_polygon
     polygon_status = validate_polygon(vertices)
     if not polygon_status.is_valid:
       raise ValueError(f"ClosedZone polygon is not valid: {polygon_status.status.value}")
+    ####
     vertices.flags.writeable = False
     object.__setattr__(self, "vertices_xr_m", vertices)
     if self.composition_mass_fractions is not None:
       composition = np.array(self.composition_mass_fractions, dtype=float, copy=True)
       if composition.ndim != 1 or not np.isfinite(composition).all():
         raise ValueError("composition_mass_fractions must be finite and one-dimensional")
+      ####
       composition.flags.writeable = False
       object.__setattr__(self, "composition_mass_fractions", composition)
+    ####
   ####
+####
 
 
 @dataclass(frozen=True)
 class ShockCell:
   cell_index: int
   zones: tuple[ClosedZone, ...]
-  ####
+####
 
 
 @dataclass(frozen=True)
@@ -149,6 +158,7 @@ class ShockCellSolveResult:
   def zones(self) -> tuple[ClosedZone, ...]:
     return tuple(zone for cell in self.cells for zone in cell.zones)
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -206,3 +216,4 @@ class AnalyticalFirstCellSolution:
   def details(self) -> Mapping[str, Any]:
     return self.result.details
   ####
+####

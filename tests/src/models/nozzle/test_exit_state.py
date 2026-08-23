@@ -36,7 +36,6 @@ def test_uniform_nozzle_exit_derives_static_state_and_mass_flow() -> None:
   assert state.mass_flow_rate_kgps == pytest.approx(
       state.density_kgpm3 * state.axial_velocity_mps * state.area_m2
   )
-  ####
 ####
 
 
@@ -55,6 +54,7 @@ def test_supplied_mass_flow_must_match_derived_value() -> None:
 def test_nozzle_input_rejects_non_supersonic_or_nonpositive_values() -> None:
   with pytest.raises(ValidationError):
     NozzleExitInput(mach=1.0, total_pressure_Pa=1.0e5, total_temperature_K=300.0, exit_radius_m=0.1)
+  ####
   with pytest.raises(ValidationError):
     NozzleExitInput(mach=2.0, total_pressure_Pa=0.0, total_temperature_K=300.0, exit_radius_m=0.1)
   ####
@@ -77,7 +77,6 @@ def test_ambient_state_uses_explicit_gas_and_retains_altitude_metadata() -> None
   assert state.velocity_xyz_mps == (12.0, 0.0, 0.0)
   assert state.geopotential_altitude_m == 1000.0
   assert state.species_mass_fractions == gas.species_mass_fractions
-  ####
 ####
 
 
@@ -99,5 +98,4 @@ def test_legacy_nozzle_wrapper_matches_explicit_dry_air_contract() -> None:
   assert legacy.static_pressure == pytest.approx(explicit.static_pressure_Pa)
   assert legacy.static_temperature == pytest.approx(explicit.static_temperature_K)
   assert legacy.static_density == pytest.approx(explicit.density_kgpm3)
-  ####
 ####

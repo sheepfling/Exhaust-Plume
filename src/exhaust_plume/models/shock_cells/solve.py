@@ -19,7 +19,6 @@ from exhaust_plume.models.shock_cells.regime import ExpansionRegime, classify_ex
 from exhaust_plume.util.aero.flow_state import FlowState
 
 __all__ = ("solve_first_cell_from_exit_state", "solve_shock_cells")
-###########################################
 
 
 def _flow_from_exit_state(exit_state: NozzleExitState) -> FlowState:
@@ -30,7 +29,7 @@ def _flow_from_exit_state(exit_state: NozzleExitState) -> FlowState:
       static_density=exit_state.density_kgpm3,
       gamma=exit_state.gas.gamma,
   )
-  ####
+####
 
 
 def _closed_zones(legacy_zones: list[Any], cell_index: int) -> tuple[ClosedZone, ...]:
@@ -40,14 +39,16 @@ def _closed_zones(legacy_zones: list[Any], cell_index: int) -> tuple[ClosedZone,
     validation = validate_polygon(vertices)
     if not validation.is_valid:
       continue
+    ####
     out.append(ClosedZone(
         zone_id=f"cell-{cell_index}-zone-{index + 1}",
         cell_index=cell_index,
         vertices_xr_m=vertices,
         flow=zone.asFlowState(),
     ))
-  return tuple(out)
   ####
+  return tuple(out)
+####
 
 
 def solve_shock_cells(config: ShockCellSolveConfig) -> ShockCellSolveResult:
@@ -73,9 +74,11 @@ def solve_shock_cells(config: ShockCellSolveConfig) -> ShockCellSolveResult:
   if regime is ExpansionRegime.MATCHED:
     base_details["termination"] = TerminationReason.NO_PRESSURE_MISMATCH.value
     return ShockCellSolveResult(regime, (), SolverStatus.CONVERGED, TerminationReason.NO_PRESSURE_MISMATCH, exit_state, ambient, pressure_residual, base_details)
+  ####
   if config.max_cells == 0:
     base_details["termination"] = TerminationReason.MAX_CELL_LIMIT.value
     return ShockCellSolveResult(regime, (), SolverStatus.CONVERGED_AT_BOUNDARY, TerminationReason.MAX_CELL_LIMIT, exit_state, ambient, pressure_residual, base_details)
+  ####
 
   from exhaust_plume.models.plume.plume_solve import calculatePlumeZonesFromExitState
   try:
@@ -93,6 +96,7 @@ def solve_shock_cells(config: ShockCellSolveConfig) -> ShockCellSolveResult:
         "message": str(exc),
     }
     return ShockCellSolveResult(regime, (), SolverStatus.NUMERICAL_FAILURE, TerminationReason.NUMERICAL_FAILURE, exit_state, ambient, pressure_residual, base_details)
+  ####
   zones = _closed_zones(legacy_zones, cell_index=1)
   base_details.update(legacy_details)
   base_details["termination"] = TerminationReason.MAX_CELL_LIMIT.value
@@ -103,6 +107,7 @@ def solve_shock_cells(config: ShockCellSolveConfig) -> ShockCellSolveResult:
         "message": "No finite simple closed zones were produced",
     }
     return ShockCellSolveResult(regime, (), SolverStatus.OUTSIDE_MODEL_VALIDITY, TerminationReason.NUMERICAL_FAILURE, exit_state, ambient, pressure_residual, base_details)
+  ####
   cell = ShockCell(cell_index=1, zones=zones)
   base_details["solver_diagnostics_v1"] = {
       **base_details["solver_diagnostics_v1"],
@@ -110,7 +115,7 @@ def solve_shock_cells(config: ShockCellSolveConfig) -> ShockCellSolveResult:
       "closed_zone_count": len(zones),
   }
   return ShockCellSolveResult(regime, (cell,), SolverStatus.CONVERGED_AT_BOUNDARY, TerminationReason.MAX_CELL_LIMIT, exit_state, ambient, pressure_residual, base_details)
-  ####
+####
 
 
 def solve_first_cell_from_exit_state(
@@ -131,5 +136,6 @@ def solve_first_cell_from_exit_state(
     settings = ShockCellSolveConfig(exit=exit_state, ambient=ambient_state)
   elif settings.exit_state != exit_state or settings.ambient != ambient_state:
     raise ValueError('first-cell settings must use the supplied exit and ambient states')
-  return AnalyticalFirstCellSolution(result=solve_shock_cells(settings))
   ####
+  return AnalyticalFirstCellSolution(result=solve_shock_cells(settings))
+####

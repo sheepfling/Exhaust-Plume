@@ -31,6 +31,7 @@ def _states(exit_pressure_ratio: float):
   )
   ambient = derive_ambient_state(AmbientInput(pressure_Pa=ambient_pressure, temperature_K=300.0), gas)
   return exit_state, ambient
+####
 
 
 def test_classification_uses_dimensionless_residual_and_tolerance() -> None:
@@ -43,7 +44,7 @@ def test_classification_uses_dimensionless_residual_and_tolerance() -> None:
   over, _ = _states(0.9)
   assert classify_expansion_regime(under, ambient) is ExpansionRegime.UNDEREXPANDED
   assert classify_expansion_regime(over, ambient) is ExpansionRegime.OVEREXPANDED
-  ####
+####
 
 
 def test_matched_flow_returns_no_cells() -> None:
@@ -54,7 +55,7 @@ def test_matched_flow_returns_no_cells() -> None:
   assert result.cells == ()
   assert result.status is SolverStatus.CONVERGED
   assert result.termination_reason is TerminationReason.NO_PRESSURE_MISMATCH
-  ####
+####
 
 
 def test_zero_cell_safety_limit_returns_no_cells_for_mismatch() -> None:
@@ -64,7 +65,7 @@ def test_zero_cell_safety_limit_returns_no_cells_for_mismatch() -> None:
   assert result.regime is ExpansionRegime.UNDEREXPANDED
   assert result.cells == ()
   assert result.termination_reason is TerminationReason.MAX_CELL_LIMIT
-  ####
+####
 
 
 def test_nonmatched_foundation_result_uses_cell_index_and_finite_closed_zones() -> None:
@@ -76,4 +77,4 @@ def test_nonmatched_foundation_result_uses_cell_index_and_finite_closed_zones() 
   assert result.zones
   assert all(zone.cell_index == 1 for zone in result.zones)
   assert all(zone.vertices_xr_m.flags.writeable is False for zone in result.zones)
-  ####
+####

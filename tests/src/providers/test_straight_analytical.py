@@ -39,6 +39,7 @@ ROOT = Path(__file__).resolve().parents[3]
 
 def _fixture() -> dict:
   return json.loads((ROOT / 'tests/fixtures/physics/first_mvp_regression_v1.json').read_text(encoding='utf-8'))
+####
 
 
 def _state(exit_to_ambient_pressure_ratio: float) -> StraightAnalyticalOperatingState:
@@ -65,6 +66,7 @@ def _state(exit_to_ambient_pressure_ratio: float) -> StraightAnalyticalOperating
     gas,
   )
   return StraightAnalyticalOperatingState(nozzle_exit=exit_state, ambient=ambient)
+####
 
 
 def _request(*, maximum_axial_extent_m: float | None = 8.0) -> VisualSectionedTubeRequest:
@@ -76,12 +78,14 @@ def _request(*, maximum_axial_extent_m: float | None = 8.0) -> VisualSectionedTu
     ),
     requested_channels=('core_radius_fraction', 'opacity_weight'),
   )
+####
 
 
 def _snapshot(ratio: float):
   provider = StraightAnalyticalProvider()
   session = provider.create_session(definition=StraightAnalyticalDefinition(nozzle_radius_m=1.0))
   return provider, session, session.snapshot(_state(ratio))
+####
 
 
 def test_analytical_provider_advertises_visual_only_common_capability() -> None:
@@ -89,6 +93,7 @@ def test_analytical_provider_advertises_visual_only_common_capability() -> None:
   assert provider.descriptor.supported_capabilities == (VISUAL_SECTIONED_TUBE_CAPABILITY,)
   assert provider.descriptor.provider_id == 'plume.straight-analytical'
   assert provider.descriptor.deterministic is True
+####
 
 
 def test_first_cell_boundary_uses_physically_classified_pressure_ratios() -> None:
@@ -101,6 +106,7 @@ def test_first_cell_boundary_uses_physically_classified_pressure_ratios() -> Non
   assert solution.regime.value == 'underexpanded'
   assert solution.zones
   assert solution.status is SolverStatus.CONVERGED_AT_BOUNDARY
+####
 
 
 @pytest.mark.parametrize('ratio, expected_regime', ((1.0, 'matched'), (1.2, 'underexpanded'), (0.85, 'overexpanded')))
@@ -120,17 +126,22 @@ def test_provider_returns_matched_underexpanded_and_overexpanded_visuals(
     assert {section.radius_major_m for section in result.sections} == {1.0}
   else:
     assert result.summary.length_m <= 8.0 + 1.0e-12
+  ####
+####
 
 
 def test_matched_flow_requires_an_explicit_visual_axial_domain() -> None:
   _, _, snapshot = _snapshot(1.0)
   with pytest.raises(InvalidProductRequestError, match='maximum_axial_extent_m'):
     snapshot.evaluate(VISUAL_SECTIONED_TUBE_V1, _request(maximum_axial_extent_m=None))
+  ####
+####
 
 
 def test_analytical_provider_runs_the_reusable_conformance_harness() -> None:
   def snapshot_factory():
     return _snapshot(1.2)[2]
+  ####
 
   provider = StraightAnalyticalProvider()
   report = run_visual_provider_conformance(provider.descriptor, snapshot_factory, _request())
@@ -141,12 +152,15 @@ def test_analytical_provider_runs_the_reusable_conformance_harness() -> None:
     'plume.signature.spectral-radiant-intensity@1',
     'plume.optical.spectral-ray-transfer@1',
   }
+####
 
 
 def test_analytical_provider_rejects_strong_overexpanded_state_structurally() -> None:
   _, _, snapshot = _snapshot(0.1)
   with pytest.raises(ProductOutsideApplicabilityError, match='outside the visual provider applicability domain'):
     snapshot.evaluate(VISUAL_SECTIONED_TUBE_V1, _request())
+  ####
+####
 
 
 def test_analytical_provider_enforces_definition_and_session_boundaries() -> None:
@@ -158,6 +172,9 @@ def test_analytical_provider_enforces_definition_and_session_boundaries() -> Non
   )
   with pytest.raises(OperatingStateDomainError, match='radius'):
     session.snapshot(wrong_state)
+  ####
   session.close()
   with pytest.raises(ProviderClosedError):
     session.snapshot(_state(1.0))
+  ####
+####

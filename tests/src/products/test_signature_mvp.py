@@ -45,6 +45,7 @@ def test_signature_mvp_loads_queries_and_exports(tmp_path: Path) -> None:
   assert csv_path.read_text(encoding='utf-8').count('\n') == 10
   round_trip = write_signature_table_asset(definition, tmp_path / 'asset.json')
   assert load_signature_table_asset(round_trip) == definition
+####
 
 
 def test_signature_mvp_renders_spectral_and_angular_views(tmp_path: Path) -> None:
@@ -62,6 +63,7 @@ def test_signature_mvp_renders_spectral_and_angular_views(tmp_path: Path) -> Non
     'signature_heatmap.png',
   )
   assert all(path.read_bytes().startswith(b'\x89PNG') for path in paths)
+####
 
 
 def test_signature_mvp_supports_time_slices_and_explicit_operating_points() -> None:
@@ -91,3 +93,5 @@ def test_signature_mvp_supports_time_slices_and_explicit_operating_points() -> N
       configuration=SignatureTableConfiguration(time_model=TimeModel.PRESCRIBED_TRANSIENT),
       time_s=0.5,
     )
+  ####
+####

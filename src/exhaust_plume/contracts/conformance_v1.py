@@ -27,7 +27,6 @@ __all__ = (
   'VisualProviderConformanceReport',
   'run_visual_provider_conformance',
 )
-####
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,10 +57,12 @@ def run_visual_provider_conformance(
 
   if VISUAL_SECTIONED_TUBE_V1.capability not in descriptor.supported_capabilities:
     raise AssertionError('provider descriptor must advertise visual sectioned-tube v1')
+  ####
   first_snapshot = snapshot_factory()
   second_snapshot = snapshot_factory()
   if not first_snapshot.supports(VISUAL_SECTIONED_TUBE_V1.capability):
     raise AssertionError('snapshot must advertise the descriptor visual capability')
+  ####
   first_result = first_snapshot.evaluate(VISUAL_SECTIONED_TUBE_V1, request)
   second_result = second_snapshot.evaluate(VISUAL_SECTIONED_TUBE_V1, request)
   first_serialized = first_result.model_dump(mode='json')
@@ -69,6 +70,7 @@ def run_visual_provider_conformance(
   deterministic = first_serialized == second_serialized
   if not deterministic:
     raise AssertionError('steady visual provider serialization must be deterministic')
+  ####
   unsupported: list[str] = []
   spectral_requests = (
     (
@@ -100,6 +102,8 @@ def run_visual_provider_conformance(
       unsupported.append(wire_id)
     else:
       raise AssertionError(f'visual-only provider unexpectedly served {wire_id}')
+    ####
+  ####
   return VisualProviderConformanceReport(
     provider_id=descriptor.provider_id,
     capability_wire_id=VISUAL_SECTIONED_TUBE_V1.capability.wire_id,

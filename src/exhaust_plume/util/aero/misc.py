@@ -18,7 +18,6 @@ from exhaust_plume.log.log import getCleanLogger
 __all__ = (
     'calcMachAngle',
 )
-###########################################
 log = getCleanLogger(__name__)
 
 T = TypeVar('T', float, ndarray)
@@ -36,7 +35,7 @@ def calcMachAngle(mach: T) -> T:
   mu_deg[mach_arr == 1.] = 90
   if isinstance(mach, float):
     return float(mu_deg[0])
-  ##
+  ####
   mu_deg = mu_deg.reshape(shp)
   return mu_deg
-##
+####

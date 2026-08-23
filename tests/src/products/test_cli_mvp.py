@@ -20,6 +20,7 @@ def test_visual_cli_writes_file_driven_outputs(tmp_path: Path) -> None:
   assert (output_dir / 'visual_result.json').is_file()
   assert (output_dir / 'visual_mesh.json').is_file()
   assert (output_dir / 'visual_mesh.obj').is_file()
+####
 
 
 def test_signature_cli_writes_file_driven_outputs(tmp_path: Path) -> None:
@@ -32,6 +33,7 @@ def test_signature_cli_writes_file_driven_outputs(tmp_path: Path) -> None:
   ]) == 0
   assert (output_dir / 'signature_result.json').is_file()
   assert (output_dir / 'signature_result.csv').is_file()
+####
 
 
 def test_signature_cli_accepts_prescribed_time_slices(tmp_path: Path) -> None:
@@ -46,6 +48,7 @@ def test_signature_cli_accepts_prescribed_time_slices(tmp_path: Path) -> None:
   ]) == 0
   assert (output_dir / 'signature_result.json').is_file()
   assert (output_dir / 'signature_result.csv').is_file()
+####
 
 
 def test_validity_cli_writes_pressure_matrix_outputs(tmp_path: Path) -> None:
@@ -53,3 +56,4 @@ def test_validity_cli_writes_pressure_matrix_outputs(tmp_path: Path) -> None:
   assert validity_main(['--output-dir', str(output_dir)]) == 0
   assert (output_dir / 'validity_report.json').is_file()
   assert (output_dir / 'validity_report.csv').is_file()
+####

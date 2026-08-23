@@ -12,3 +12,4 @@ def test_interface_v1_gate_report_is_generic_and_scope_bounded() -> None:
   assert report['verification']['schemas_and_fixtures']['status'] == 'pass'
   assert 'physical spectral/radiation provider' in report['scope']['excluded']
   assert 'CPU/GPU acceleration' in report['scope']['excluded']
+####

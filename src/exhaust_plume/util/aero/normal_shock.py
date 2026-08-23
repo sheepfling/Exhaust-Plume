@@ -24,7 +24,6 @@ __all__ = (
     'calcNormalShockStaticTemperature',
     'calcNormalShockStaticTemperatureRatio',
 )
-###########################################
 log = getCleanLogger(__name__)
 
 T = TypeVar('T', float, ndarray)
@@ -40,7 +39,7 @@ def calcNormalShockMach(*, mach: T, gamma: Union[float, T]) -> T:
   mach_downstream2 = (1 + a * M2) / (gamma * M2 - a)
   mach_downstream = sqrt(mach_downstream2)
   return cast(T, mach_downstream)
-##
+####
 
 
 def calcNormalShockStaticDensityRatio(*, mach: T, gamma: Union[float, T]) -> T:
@@ -52,7 +51,7 @@ def calcNormalShockStaticDensityRatio(*, mach: T, gamma: Union[float, T]) -> T:
   M2 = mach**2
   rho2_div_rho1 = ((gamma + 1) * M2) / (2 + (gamma - 1) * M2)
   return rho2_div_rho1
-##
+####
 
 
 def calcNormalShockStaticPressureRatio(*, mach: T, gamma: Union[float, T]) -> T:
@@ -63,7 +62,7 @@ def calcNormalShockStaticPressureRatio(*, mach: T, gamma: Union[float, T]) -> T:
   """
   P2_div_P1 = 1 + ((2 * gamma) / (gamma + 1)) * (mach**2 - 1)
   return P2_div_P1
-##
+####
 
 
 def calcNormalShockStaticTemperatureRatio(*, mach: T, gamma: Union[float, T]) -> T:
@@ -75,7 +74,7 @@ def calcNormalShockStaticTemperatureRatio(*, mach: T, gamma: Union[float, T]) ->
   rho2_div_rho1 = calcNormalShockStaticDensityRatio(mach=mach, gamma=gamma)
   T2_div_T1 = P2_div_P1 / rho2_div_rho1
   return T2_div_T1
-##
+####
 
 
 def calcNormalShockStaticPressure(*, mach: T, static_pressure: T, gamma: Union[float, T]) -> T:
@@ -86,7 +85,7 @@ def calcNormalShockStaticPressure(*, mach: T, static_pressure: T, gamma: Union[f
   P2_div_P1 = calcNormalShockStaticPressureRatio(mach=mach, gamma=gamma)
   P2 = P2_div_P1 * static_pressure
   return P2
-##
+####
 
 
 def calcNormalShockStaticTemperature(*, mach: T, static_temperature: T, gamma: Union[float, T]) -> T:
@@ -97,7 +96,7 @@ def calcNormalShockStaticTemperature(*, mach: T, static_temperature: T, gamma: U
   T2_div_T1 = calcNormalShockStaticTemperatureRatio(mach=mach, gamma=gamma)
   T2 = static_temperature * T2_div_T1
   return T2
-##
+####
 
 
 def calcNormalShockStaticDensity(*, mach: T, static_density: T, gamma: Union[float, T]) -> T:
@@ -109,4 +108,4 @@ def calcNormalShockStaticDensity(*, mach: T, static_density: T, gamma: Union[flo
   rho2_div_rho1 = calcNormalShockStaticDensityRatio(mach=mach, gamma=gamma)
   rho2 = static_density * rho2_div_rho1
   return rho2
-##
+####

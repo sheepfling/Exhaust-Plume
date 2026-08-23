@@ -29,18 +29,15 @@ __all__ = (
     'calcIsentropicStaticPressure',
     'calcIsentropicTotalPressure',
     'calcIsentropicMachFromPressure',
-    ####
     'calcIsentropicTotalStaticTemperatureRatio',
     'calcIsentropicStaticTemperature',
     'calcIsentropicTotalTemperature',
     'calcIsentropicMachFromTemperature',
-    ####
     'calcIsentropicTotalStaticDensityRatio',
     'calcIsentropicStaticDensity',
     'calcIsentropicTotalDensity',
     'calcIsentropicMachFromDensity',
 )
-###########################################
 log = getCleanLogger(__name__)
 
 T = TypeVar('T', float, ndarray)
@@ -55,7 +52,7 @@ def calcIsentropicTotalStaticTemperatureRatio(*, mach: T, gamma: Union[float, T]
   """
   Ttotal_div_Tstatic = (1 + ((gamma - 1) / 2) * mach**2)
   return Ttotal_div_Tstatic
-##
+####
 
 
 def calcIsentropicStaticTemperature(*, mach: T, total_temperature: T, gamma: Union[float, T]) -> T:
@@ -68,7 +65,7 @@ def calcIsentropicStaticTemperature(*, mach: T, total_temperature: T, gamma: Uni
   Ttotal_div_Tstatic = calcIsentropicTotalStaticTemperatureRatio(mach=mach, gamma=gamma)
   static_temperature = total_temperature / Ttotal_div_Tstatic
   return static_temperature
-##
+####
 
 
 def calcIsentropicTotalTemperature(*, mach: T, static_temperature: T, gamma: Union[float, T]) -> T:
@@ -86,13 +83,13 @@ def calcIsentropicTotalTemperature(*, mach: T, static_temperature: T, gamma: Uni
     Ttotal_div_Tstatic = Ttotal_div_Tstatic.ravel()
     Ttotal_div_Tstatic[static0_lgc] = 0.
     Ttotal_div_Tstatic = Ttotal_div_Tstatic.reshape(shp)
-  ##
+  ####
   total_temperature = static_temperature_arr * Ttotal_div_Tstatic
   if isinstance(mach, float):
     return float(total_temperature)
-  ##
+  ####
   return total_temperature
-##
+####
 
 
 def calcIsentropicMachFromTemperature(*, static_temperature: T, total_temperature: T, gamma: Union[float, T]) -> T:
@@ -106,7 +103,7 @@ def calcIsentropicMachFromTemperature(*, static_temperature: T, total_temperatur
   with warnings.catch_warnings():
     warnings.filterwarnings('ignore', category=RuntimeWarning)
     mach2 = ((total_temperature_arr / static_temperature) - 1) * (2. / (gamma - 1))
-  ##
+  ####
   mach = sqrt(mach2)
   total0_lgc = (total_temperature_arr == 0.).ravel()
   if any(total0_lgc):
@@ -114,14 +111,14 @@ def calcIsentropicMachFromTemperature(*, static_temperature: T, total_temperatur
     mach = mach.ravel()
     mach[total0_lgc] = 0.
     mach = mach.reshape(shp)
+  ####
   #
   if isinstance(total_temperature_arr, float):
     return cast(T, float(mach))
-  ##
+  ####
   return cast(T, mach)
-##
+####
 
-#######################################
 
 
 def calcIsentropicTotalStaticDensityRatio(*, mach: T, gamma: Union[float, T]) -> T:
@@ -132,7 +129,7 @@ def calcIsentropicTotalStaticDensityRatio(*, mach: T, gamma: Union[float, T]) ->
   """
   rhoTotal_div_rhoStatic = calcIsentropicTotalStaticTemperatureRatio(mach=mach, gamma=gamma)**(1. / (gamma - 1))
   return cast(T, rhoTotal_div_rhoStatic)
-##
+####
 
 
 def calcIsentropicStaticDensity(*, mach: T, total_density: T, gamma: Union[float, T]) -> T:
@@ -145,7 +142,7 @@ def calcIsentropicStaticDensity(*, mach: T, total_density: T, gamma: Union[float
   rhoTotal_div_rhoStatic = calcIsentropicTotalStaticDensityRatio(mach=mach, gamma=gamma)
   static_density = total_density / rhoTotal_div_rhoStatic
   return static_density
-##
+####
 
 
 def calcIsentropicTotalDensity(*, mach: T, static_density: T, gamma: Union[float, T]) -> T:
@@ -163,13 +160,13 @@ def calcIsentropicTotalDensity(*, mach: T, static_density: T, gamma: Union[float
     rhoTotal_div_rhoStatic = rhoTotal_div_rhoStatic.ravel()
     rhoTotal_div_rhoStatic[static0_lgc] = 0.
     rhoTotal_div_rhoStatic = rhoTotal_div_rhoStatic.reshape(shp)
-  ##
+  ####
   total_density = static_density_arr * rhoTotal_div_rhoStatic
   if isinstance(mach, float):
     return cast(T, float(total_density))
-  ##
+  ####
   return cast(T, total_density)
-##
+####
 
 
 def calcIsentropicMachFromDensity(*, static_density: T, total_density: T, gamma: Union[float, T]) -> T:
@@ -183,7 +180,7 @@ def calcIsentropicMachFromDensity(*, static_density: T, total_density: T, gamma:
   with warnings.catch_warnings():
     warnings.filterwarnings('ignore', category=RuntimeWarning)
     r = (total_density_arr / static_density)**((gamma - 1))
-  ##
+  ####
   mach = sqrt(2. * (r - 1) / (gamma - 1))
   total0_lgc = (total_density_arr == 0.).ravel()
   if any(total0_lgc):
@@ -191,14 +188,13 @@ def calcIsentropicMachFromDensity(*, static_density: T, total_density: T, gamma:
     mach = mach.ravel()
     mach[total0_lgc] = 0.
     mach = mach.reshape(shp)
-  ##
+  ####
   if isinstance(static_density, float):
     return float(mach)
-  ##
+  ####
   return mach
-##
+####
 
-#######################################
 
 
 def calcIsentropicTotalStaticPressureRatio(*, mach: T, gamma: Union[float, T]) -> T:
@@ -209,7 +205,7 @@ def calcIsentropicTotalStaticPressureRatio(*, mach: T, gamma: Union[float, T]) -
   """
   pTotal_div_pStatic = (1 + ((gamma - 1) / 2) * mach**2)**((gamma) / (gamma - 1))  # Pa
   return cast(T, pTotal_div_pStatic)
-##
+####
 
 
 def calcIsentropicStaticPressure(*, mach: T, total_pressure: T, gamma: Union[float, T]) -> T:
@@ -221,7 +217,7 @@ def calcIsentropicStaticPressure(*, mach: T, total_pressure: T, gamma: Union[flo
   pTotal_div_pStatic = calcIsentropicTotalStaticPressureRatio(mach=mach, gamma=gamma)
   p_static = total_pressure / pTotal_div_pStatic
   return p_static
-##
+####
 
 
 def calcIsentropicTotalPressure(*, mach: T, static_pressure: T, gamma: Union[float, T]) -> T:
@@ -238,13 +234,13 @@ def calcIsentropicTotalPressure(*, mach: T, static_pressure: T, gamma: Union[flo
     pTotal_div_pStatic = pTotal_div_pStatic.ravel()
     pTotal_div_pStatic[static0_lgc] = 0.
     pTotal_div_pStatic = pTotal_div_pStatic.reshape(shp)
-  ##
+  ####
   p_total = static_pressure_arr * pTotal_div_pStatic
   if isinstance(mach, float):
     return float(p_total)
-  ##
+  ####
   return p_total
-##
+####
 
 
 def calcIsentropicMachFromPressure(*, static_pressure: T, total_pressure: T, gamma: Union[float, T]) -> T:
@@ -267,7 +263,7 @@ def calcIsentropicMachFromPressure(*, static_pressure: T, total_pressure: T, gam
   with warnings.catch_warnings():
     warnings.filterwarnings('ignore', category=RuntimeWarning)
     r = (total_pressure_arr / static_pressure)**((gamma - 1) / gamma)
-  ##
+  ####
   mach2 = 2. * (r - 1) / (gamma - 1)
   mach = sqrt(mach2)
   total0_lgc = (total_pressure_arr == 0.).ravel()
@@ -276,9 +272,10 @@ def calcIsentropicMachFromPressure(*, static_pressure: T, total_pressure: T, gam
     mach = mach.ravel()
     mach[total0_lgc] = 0.
     mach = mach.reshape(shp)
+  ####
   #
   if isinstance(static_pressure, float):
     return float(mach)
-  ##
+  ####
   return mach
-##
+####

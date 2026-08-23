@@ -31,6 +31,7 @@ class EngineeringFluxSectionProduct(ContractModel):
     """Compatibility name for the neutral total-energy-flow field."""
 
     return self.total_energy_flow_W
+  ####
 
   @field_validator('position_m', 'momentum_flux_N', mode='before')
   @classmethod

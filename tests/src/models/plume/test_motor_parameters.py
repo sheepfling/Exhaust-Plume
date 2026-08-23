@@ -13,7 +13,6 @@ from exhaust_plume.models.plume.motor_parameters import EngineParameters
 from exhaust_plume.util.atmosphere.constants import MOLAR_MASS_DRY_AIR_kg
 from exhaust_plume.util.physical_constants import PASCAL_PER_ATM
 
-######################################
 log = getCleanLogger(__name__)
 
 
@@ -27,7 +26,7 @@ def random_EngineParameters() -> EngineParameters:
       molar_mass_kg=(1 + exponential()) * MOLAR_MASS_DRY_AIR_kg,
   )
   return out
-##
+####
 
 
 class TestEngineParameters(TestCase):
@@ -38,7 +37,7 @@ class TestEngineParameters(TestCase):
   def setUpClass(cls) -> None:
     root_logger = getRootLogger(log)
     root_logger.setLevel(NOTSET)
-  ##
+  ####
 
   def test_properties(self) -> None:
     for monte in range(self.num_monte):
@@ -49,27 +48,25 @@ class TestEngineParameters(TestCase):
       if area_exit_div_area_throat < 1.:
         with self.assertRaises(ValueError):
           data.exit_mach  # noqa
-        ##
+        ####
         continue
-      ##
+      ####
       self.assertLess(1., data.exit_mach)
       self.assertLess(data.static_density_kpgs, data.total_density_kgps)
       self.assertLess(data.static_temperature_K, data.total_temperature_K)
       self.assertLess(data.static_density_kpgs, data.total_density_kgps)
-    ##
-  ##
-##
+    ####
+  ####
+####
 
 
 if __name__ == "__main__":
   SHOW_PLOTS = True
-  ####
   # Boilerplate to load log config file when this module is run as main
   if not configureLogging():
     print('Could not configure log')
-  ##
-  log = getLogger(__name__)
   ####
+  log = getLogger(__name__)
   ut_result = ut_main()
   print(ut_result)
-##
+####

@@ -25,14 +25,12 @@ __all__ = (
   'ThroatShape',
   'derive_nozzle_exit_from_geometry',
 )
-###########################################
 
 
 class ThroatShape(str, Enum):
   """Geometric families understood by the equivalent-area solver."""
 
   CIRCULAR = 'circular'
-  ####
 ####
 
 
@@ -40,7 +38,6 @@ class NozzleGeometryFamily(str, Enum):
   """Supported geometry abstraction, not a resolved wall-profile model."""
 
   CIRCULAR_QUASI_1D = 'circular-quasi-1d'
-  ####
 ####
 
 
@@ -57,7 +54,6 @@ class ThroatConfiguration(BaseModel):
   area_m2: float = Field(gt=0.0)
   shape: ThroatShape = ThroatShape.CIRCULAR
   profile_id: str = Field(default='ideal-circular-sonic-throat', min_length=1)
-  ####
 
   @property
   def equivalent_radius_m(self) -> float:
@@ -84,10 +80,13 @@ class NozzleGeometry(BaseModel):
   def validate_area_order(self) -> NozzleGeometry:
     if self.exit_area_m2 <= self.throat.area_m2:
       raise ValueError('exit_area_m2 must be greater than throat.area_m2 for a supersonic branch')
+    ####
     if self.family is not NozzleGeometryFamily.CIRCULAR_QUASI_1D:
       raise ValueError(f'unsupported nozzle geometry family: {self.family.value}')
+    ####
     if self.throat.shape is not ThroatShape.CIRCULAR or self.exit_shape is not ThroatShape.CIRCULAR:
       raise ValueError('the active nozzle solver supports circular equivalent-area sections only')
+    ####
     return self
   ####
 
@@ -128,9 +127,11 @@ def derive_nozzle_exit_from_geometry(
 
   if not isclose(flow_angle_rad, 0.0, abs_tol=1.0e-12):
     raise ValueError('quasi-one-dimensional geometry derivation requires a zero exit flow angle')
+  ####
   branch = MachBranch(branch)
   if branch is not MachBranch.SUPERSONIC:
     raise ValueError('the active nozzle geometry derivation requires the supersonic branch')
+  ####
   mach = solve_mach_from_area_ratio(geometry.area_ratio, gas.gamma, branch)
   state = derive_uniform_nozzle_exit(
       NozzleExitInput(
@@ -158,5 +159,6 @@ def derive_nozzle_exit_from_geometry(
         'derived exit mass flow is inconsistent with the configured choked throat: '
         f'exit={state.mass_flow_rate_kgps}, throat={choked_mass_flow_rate}'
     )
+  ####
   return state
 ####

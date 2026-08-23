@@ -13,7 +13,6 @@ from exhaust_plume.log.extra_log_levels import NOTSET
 from exhaust_plume.log.log import configureLogging, getCleanLogger, getLogger, getRootLogger
 from exhaust_plume.util.aero.oblique_shock import calcShockObliqueAngle
 
-######################################
 log = getCleanLogger(__name__)
 
 SHOW_PLOTS: bool = False
@@ -45,13 +44,13 @@ def plotObliqueAngleContourDelta(mach_min: float, mach_max: float,
     title_str += ' (Weak)'
   elif delta == 0.:
     title_str += ' (Strong)'
-  ##
+  ####
   title_str += rf' $\delta={delta:.1f}$'
   h = plt.colorbar(h_contours, ax=ax)
   h.set_label(r'Oblique Shock Angle, $\beta$ [deg]')
   ax.set_title(title_str)
   return fig
-##
+####
 
 
 class TestPlotObliqueShock(TestCase):
@@ -68,8 +67,8 @@ class TestPlotObliqueShock(TestCase):
       matplotlib.use('Agg')
       cls.num_linear_points = 11
       cls.num_axis_points = 11
-    ##
-  ##
+    ####
+  ####
 
   def test_calcObliqueAngle(self) -> None:
     gamma = 4 / 3.
@@ -95,9 +94,9 @@ class TestPlotObliqueShock(TestCase):
             levels=levels,
         )
         self._closeOrAppendFigs([fig, ])
-      ##
-    ##
-  ##
+      ####
+    ####
+  ####
 
   def _closeOrAppendFigs(self, figs: Sequence[FigureType]) -> None:
     if SHOW_PLOTS:
@@ -105,31 +104,29 @@ class TestPlotObliqueShock(TestCase):
     else:
       for fig in figs:
         plt.close(fig)
-      ##
-    ##
-  ##
+      ####
+    ####
+  ####
 
   @classmethod
   def tearDownClass(cls) -> None:
     if SHOW_PLOTS:
       plt.show()
-    ##
+    ####
     for fig in cls.figs:
       plt.close(fig)
-    ##
-  ##
-##
+    ####
+  ####
+####
 
 
 if __name__ == "__main__":
   SHOW_PLOTS = True
-  ####
   # Boilerplate to load log config file when this module is run as main
   if not configureLogging():
     print('Could not configure log')
-  ##
-  log = getLogger(__name__)
   ####
+  log = getLogger(__name__)
   ut_result = ut_main()
   print(ut_result)
-##
+####

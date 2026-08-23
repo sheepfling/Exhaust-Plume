@@ -43,7 +43,6 @@ __all__ = (
   'SignatureTableProvider',
   'SignatureTableSession',
 )
-####
 
 
 TableMatrix = tuple[tuple[float, ...], ...]
@@ -57,16 +56,19 @@ class LookupInterpolationPolicy(str, Enum):
   LOG_LINEAR = 'log-linear'
   NEAREST = 'nearest'
   EXACT_ONLY = 'exact-only'
-  ####
+####
 
 
 def _validate_axis(values: tuple[float, ...], field_name: str, *, minimum_count: int = 2) -> None:
   if len(values) < minimum_count:
     raise ProviderConfigurationError(f'{field_name} requires at least {minimum_count} values')
+  ####
   if not all(isfinite(value) for value in values):
     raise ProviderConfigurationError(f'{field_name} must contain finite values')
+  ####
   if any(next_value <= value for value, next_value in zip(values, values[1:])):
     raise ProviderConfigurationError(f'{field_name} must be strictly increasing')
+  ####
 ####
 
 
@@ -82,28 +84,35 @@ def _coerce_policy(
     raise ProviderConfigurationError(
       f'{field_name} must be one of: {allowed_values}'
     ) from error
+  ####
   if policy not in allowed:
     allowed_values = ', '.join(item.value for item in allowed)
     raise ProviderConfigurationError(
       f'{field_name} must be one of: {allowed_values}'
     )
+  ####
   return policy
+####
 
 
 def _validate_asset_sha256(value: str | None) -> None:
   if value is None:
     return
+  ####
   if len(value) != 64 or any(character not in '0123456789abcdefABCDEF' for character in value):
     raise ProviderConfigurationError('asset_sha256 must be a 64-character hexadecimal digest')
+  ####
 ####
 
 
 def _validate_unit_vector(value: Vector3, field_name: str) -> None:
   if not all(isfinite(component) for component in value):
     raise ProviderConfigurationError(f'{field_name} must be finite')
+  ####
   norm = sqrt(sum(component * component for component in value))
   if abs(norm - 1.0) > 1.0e-6:
     raise ProviderConfigurationError(f'{field_name} must be unit length')
+  ####
 ####
 
 
@@ -133,10 +142,12 @@ class SignatureTableDefinition:
   def __post_init__(self) -> None:
     if not self.frame_id or not self.asset_id or not self.operating_point_id:
       raise ProviderConfigurationError('signature table frame_id, asset_id, and operating_point_id must not be empty')
+    ####
     _validate_axis(self.wavelengths_m, 'wavelengths_m')
     _validate_axis(self.direction_cosine_nodes, 'direction_cosine_nodes')
     if self.direction_cosine_nodes[0] < -1.0 or self.direction_cosine_nodes[-1] > 1.0:
       raise ProviderConfigurationError('direction cosine nodes must lie in [-1, 1]')
+    ####
     _validate_unit_vector(self.axis_direction, 'axis_direction')
     wavelength_interpolation = _coerce_policy(
       self.wavelength_interpolation,
@@ -169,6 +180,7 @@ class SignatureTableDefinition:
     time_nodes = tuple(float(value) for value in self.time_nodes_s)
     if time_nodes:
       _validate_axis(time_nodes, 'time_nodes_s', minimum_count=1)
+    ####
     for field_name, value in (
         ('source_total_pressure_Pa', self.source_total_pressure_Pa),
         ('source_total_temperature_K', self.source_total_temperature_K),
@@ -176,6 +188,8 @@ class SignatureTableDefinition:
     ):
       if value is not None and (not isfinite(value) or value <= 0.0):
         raise ProviderConfigurationError(f'{field_name} must be finite and positive when supplied')
+      ####
+    ####
     expected_shape = (len(self.direction_cosine_nodes), len(self.wavelengths_m))
     _validate_matrix(self.spectral_radiant_intensity_w_sr_m, expected_shape, 'spectral_radiant_intensity_w_sr_m')
     if self.absolute_standard_uncertainty_w_sr_m is not None:
@@ -184,6 +198,7 @@ class SignatureTableDefinition:
         expected_shape,
         'absolute_standard_uncertainty_w_sr_m',
       )
+    ####
     normalized_intensity = _readonly_matrix(self.spectral_radiant_intensity_w_sr_m)
     normalized_uncertainty = (
       _readonly_matrix(self.absolute_standard_uncertainty_w_sr_m)
@@ -205,6 +220,7 @@ class SignatureTableDefinition:
         raise ProviderConfigurationError(
           'spectral_radiant_intensity_w_sr_m_by_time is required when time_nodes_s is supplied'
         )
+      ####
       _validate_tensor(
         normalized_intensity_by_time,
         (len(time_nodes), *expected_shape),
@@ -214,11 +230,13 @@ class SignatureTableDefinition:
         raise ProviderConfigurationError(
           'spectral_radiant_intensity_w_sr_m must equal the first time slice'
         )
+      ####
       if normalized_uncertainty_by_time is not None:
         if normalized_uncertainty is None:
           raise ProviderConfigurationError(
             'absolute_standard_uncertainty_w_sr_m is required when time-sliced uncertainty is supplied'
           )
+        ####
         _validate_tensor(
           normalized_uncertainty_by_time,
           (len(time_nodes), *expected_shape),
@@ -228,10 +246,13 @@ class SignatureTableDefinition:
           raise ProviderConfigurationError(
             'absolute_standard_uncertainty_w_sr_m must equal the first time-sliced uncertainty'
           )
+        ####
+      ####
     elif normalized_intensity_by_time is not None or normalized_uncertainty_by_time is not None:
       raise ProviderConfigurationError(
         'time_nodes_s is required when time-sliced table values are supplied'
       )
+    ####
     _validate_asset_sha256(self.asset_sha256)
     object.__setattr__(self, 'wavelengths_m', tuple(float(value) for value in self.wavelengths_m))
     object.__setattr__(self, 'direction_cosine_nodes', tuple(float(value) for value in self.direction_cosine_nodes))
@@ -264,11 +285,13 @@ class SignatureTableConfiguration:
   def __post_init__(self) -> None:
     if not self.provider_id or not self.provider_version:
       raise ProviderConfigurationError('signature table provider identity must not be empty')
+    ####
     try:
       object.__setattr__(self, 'radiation_claim', RadiationClaim(self.radiation_claim))
       object.__setattr__(self, 'time_model', TimeModel(self.time_model))
     except (TypeError, ValueError) as error:
       raise ProviderConfigurationError('signature table claims must use supported contract enum values') from error
+    ####
   ####
 ####
 
@@ -280,8 +303,10 @@ def _validate_matrix(
 ) -> None:
   if len(matrix) != expected_shape[0] or any(len(row) != expected_shape[1] for row in matrix):
     raise ProviderConfigurationError(f'{field_name} must have shape {expected_shape}')
+  ####
   if any(not isfinite(value) or value < 0.0 for row in matrix for value in row):
     raise ProviderConfigurationError(f'{field_name} must be finite and nonnegative')
+  ####
 ####
 
 
@@ -292,8 +317,10 @@ def _validate_tensor(
 ) -> None:
   if len(tensor) != expected_shape[0]:
     raise ProviderConfigurationError(f'{field_name} must have shape {expected_shape}')
+  ####
   for matrix in tensor:
     _validate_matrix(matrix, expected_shape[1:], field_name)
+  ####
 ####
 
 
@@ -323,46 +350,57 @@ def _interpolate_1d(
       raise ProductOutsideApplicabilityError(
         f'{axis_name} requires an exact table node'
       ) from error
+    ####
     return values[exact_index]
+  ####
 
   outside_domain = value < nodes[0] or value > nodes[-1]
   if outside_domain and not allow_extrapolation:
     raise ProductOutsideApplicabilityError(f'{axis_name} is outside the table domain')
+  ####
 
   if policy is LookupInterpolationPolicy.NEAREST:
     nearest_index = min(range(len(nodes)), key=lambda index: (abs(nodes[index] - value), index))
     return values[nearest_index]
+  ####
 
   if value <= nodes[0]:
     lower_index = 0
     upper_index = 1
     if value == nodes[0]:
       return values[0]
+    ####
   elif value >= nodes[-1]:
     if value > nodes[-1] and not allow_extrapolation:
       raise ProductOutsideApplicabilityError('lookup value is above the table domain')
+    ####
     if value == nodes[-1]:
       return values[-1]
+    ####
     lower_index = len(nodes) - 2
     upper_index = len(nodes) - 1
   else:
     upper_index = bisect_right(nodes, value)
     lower_index = upper_index - 1
+  ####
   fraction = (value - nodes[lower_index]) / (nodes[upper_index] - nodes[lower_index])
   if policy is LookupInterpolationPolicy.LOG_LINEAR:
     if any(item <= 0.0 for item in (values[lower_index], values[upper_index])):
       raise ProviderConfigurationError(
         f'log-linear interpolation requires strictly positive {axis_name} values'
       )
+    ####
     return exp(
       log(values[lower_index])
       + fraction * (log(values[upper_index]) - log(values[lower_index]))
     )
+  ####
   interpolated = values[lower_index] + fraction * (values[upper_index] - values[lower_index])
   if not isfinite(interpolated) or interpolated < 0.0:
     raise ProductOutsideApplicabilityError(
       f'{axis_name} interpolation produced a negative or non-finite value'
     )
+  ####
   return interpolated
 ####
 
@@ -419,8 +457,10 @@ def _interpolate_time_table(
       angular_policy=definition.angular_interpolation,
       allow_extrapolation=allow_extrapolation,
     )
+  ####
   if matrix_by_time is None:
     raise ProviderConfigurationError('time-varying signature table is missing time slices')
+  ####
   values_by_time = tuple(
     _interpolate_table(
       direction_cosine,
@@ -448,6 +488,7 @@ def _semantic_definition_digest(definition: SignatureTableDefinition) -> str:
   payload = asdict(definition)
   payload.pop('asset_sha256', None)
   return canonical_digest(payload)
+####
 
 
 def _descriptor(configuration: SignatureTableConfiguration) -> ProviderDescriptor:
@@ -490,13 +531,16 @@ class SignatureTableProvider:
   ) -> 'SignatureTableSession':
     if not isinstance(definition, SignatureTableDefinition):
       raise ProviderConfigurationError('definition must be SignatureTableDefinition')
+    ####
     selected_configuration = configuration or self._configuration
     if selected_configuration != self._configuration:
       raise ProviderConfigurationError('session configuration must match provider configuration')
+    ####
     if definition.time_nodes_s and selected_configuration.time_model is TimeModel.STEADY:
       raise ProviderConfigurationError(
         'time-varying signature tables require time_model=prescribed_transient'
       )
+    ####
     return SignatureTableSession(self._descriptor, definition, selected_configuration)
   ####
 ####
@@ -508,6 +552,7 @@ class _SignatureTableEvaluator:
     self._configuration = configuration
     self._definition_digest = _semantic_definition_digest(definition)
     self._asset_digest = definition.asset_sha256 or self._definition_digest
+  ####
 
   def _provenance_metadata(self) -> dict[str, str]:
     definition = self._definition
@@ -540,21 +585,25 @@ class _SignatureTableEvaluator:
         f'signature table supports direction frame {self._definition.frame_id!r}, '
         f'not {request.direction_frame_id!r}'
       )
+    ####
     if request.operating_point_id is not None and request.operating_point_id != self._definition.operating_point_id:
       raise ProductOutsideApplicabilityError(
         f'signature table supports operating point {self._definition.operating_point_id!r}, '
         f'not {request.operating_point_id!r}'
       )
+    ####
     wavelength_extrapolation = any(
         wavelength < self._definition.wavelengths_m[0] or wavelength > self._definition.wavelengths_m[-1]
         for wavelength in request.wavelengths_m
     )
     if wavelength_extrapolation and not self._configuration.allow_extrapolation:
       raise ProductOutsideApplicabilityError('requested wavelengths are outside the table domain')
+    ####
     if self._definition.wavelength_interpolation is LookupInterpolationPolicy.EXACT_ONLY and any(
         wavelength not in self._definition.wavelengths_m for wavelength in request.wavelengths_m
     ):
       raise ProductOutsideApplicabilityError('requested wavelengths require exact table nodes')
+    ####
     time_extrapolation = bool(
       self._definition.time_nodes_s
       and (
@@ -564,9 +613,12 @@ class _SignatureTableEvaluator:
     )
     if time_extrapolation and not self._configuration.allow_extrapolation:
       raise ProductOutsideApplicabilityError('snapshot time is outside the temporal table domain')
+    ####
     if self._definition.time_nodes_s and self._definition.time_interpolation is LookupInterpolationPolicy.EXACT_ONLY:
       if snapshot.time_s not in self._definition.time_nodes_s:
         raise ProductOutsideApplicabilityError('snapshot time requires an exact table node')
+      ####
+    ####
     direction_cosines = tuple(
       sum(direction[axis] * self._definition.axis_direction[axis] for axis in range(3))
       for direction in request.source_to_observer_directions
@@ -595,9 +647,11 @@ class _SignatureTableEvaluator:
         raise ProductOutsideApplicabilityError(
           f'{len(invalid_indices)} requested directions are outside the angular table domain'
         )
+      ####
       raise ProductOutsideApplicabilityError(
         f'{len(invalid_indices)} requested directions require exact angular table nodes'
       )
+    ####
     invalid_set = set(invalid_indices)
     values: list[tuple[float, ...]] = []
     validity: list[tuple[bool, ...]] = []
@@ -614,13 +668,16 @@ class _SignatureTableEvaluator:
           status_message = 'direction cosine does not match an exact lookup node'
         else:
           status_message = 'direction cosine is outside the lookup domain'
+        ####
         statuses.append(SampleStatus(
           code=SampleStatusCode.OUTSIDE_APPLICABILITY,
           message=status_message,
         ))
         if self._definition.absolute_standard_uncertainty_w_sr_m is not None:
           uncertainties.append(tuple(0.0 for _ in request.wavelengths_m))
+        ####
         continue
+      ####
       values.append(tuple(
         _interpolate_time_table(
           direction_cosine,
@@ -648,13 +705,17 @@ class _SignatureTableEvaluator:
           )
           for wavelength_m in request.wavelengths_m
         ))
+      ####
+    ####
     request_digest = canonical_digest(request)
     extrapolation_used = wavelength_extrapolation or angular_extrapolation or time_extrapolation
     applicability_reasons: list[str] = []
     if invalid_indices:
       applicability_reasons.append('one or more directions were outside the lookup domain')
+    ####
     if extrapolation_used:
       applicability_reasons.append('explicit extrapolation was used')
+    ####
     metadata = ResultMetadata(
       capability=SPECTRAL_RADIANT_INTENSITY_CAPABILITY,
       result_id=canonical_digest({'snapshot': snapshot.snapshot_id, 'request': request_digest})[:24],
@@ -735,8 +796,10 @@ class SignatureTableSession:
   ) -> ImmutableProductSnapshot:
     if self._closed:
       raise ProviderClosedError('signature table session is closed')
+    ####
     if not isfinite(time_s):
       raise ProviderConfigurationError('time_s must be finite')
+    ####
     dynamic_digest = canonical_digest(dynamic_state)
     ambient_digest = canonical_digest(ambient_state)
     provider_digest = _semantic_definition_digest(self._definition)
@@ -766,3 +829,4 @@ class SignatureTableSession:
   def close(self) -> None:
     self._closed = True
   ####
+####

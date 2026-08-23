@@ -1,0 +1,7 @@
+[global]
+# Preserve the repository's intentionally long scientific/code-example lines.
+line-length = 200
+respect-gitignore = true
+
+[per-file-ignores]
+"README.md" = ["MD013"]

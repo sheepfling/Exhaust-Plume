@@ -9,21 +9,21 @@ from enum import Enum
 class TimeAccessMode(str, Enum):
   RANDOM_ACCESS = 'random-access'
   MONOTONIC_FORWARD = 'monotonic-forward'
-  ####
+####
 
 
 class ConcurrencyMode(str, Enum):
   SERIAL = 'serial'
   REENTRANT = 'reentrant'
   BATCHED = 'batched'
-  ####
+####
 
 
 class SnapshotRetention(str, Enum):
   INDEPENDENT = 'independent'
   UNTIL_NEXT_SNAPSHOT = 'until-next-snapshot'
   UNTIL_SESSION_CLOSE = 'until-session-close'
-  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,8 +42,10 @@ class ProviderExecutionProfile:
   def __post_init__(self) -> None:
     if not self.preferred_device:
       raise ValueError('preferred_device must not be empty')
+    ####
     if self.maximum_direction_batch_size is not None and self.maximum_direction_batch_size < 1:
       raise ValueError('maximum_direction_batch_size must be positive when supplied')
+    ####
     if self.supports_direction_batching and self.maximum_direction_batch_size == 0:
       raise ValueError('direction batching cannot have a zero maximum size')
     ####

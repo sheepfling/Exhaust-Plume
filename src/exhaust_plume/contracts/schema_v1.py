@@ -23,7 +23,6 @@ PUBLIC_CONTRACT_MODELS: tuple[tuple[str, Type[BaseModel]], ...] = (
   ('spectral_ray_transfer_v1', SpectralRayTransferRequest),
   ('spectral_ray_transfer_result_v1', SpectralRayTransferResult),
 )
-####
 
 
 def export_public_schemas(directory: str | Path) -> tuple[Path, ...]:
@@ -39,9 +38,9 @@ def export_public_schemas(directory: str | Path) -> tuple[Path, ...]:
       encoding='utf-8',
     )
     generated.append(path)
+  ####
   return tuple(generated)
 ####
 
 
 __all__ = ('PUBLIC_CONTRACT_MODELS', 'export_public_schemas')
-####

@@ -173,6 +173,7 @@ def test_golden_washed_fixture_round_trips_and_matches_provider_payload() -> Non
   )
   assert product.payload == fixture.payload
   assert product.envelope.content_sha256 == fixture.envelope.content_sha256
+####
 
 
 def test_legacy_prescribed_shell_delegates_to_canonical_snapshot() -> None:

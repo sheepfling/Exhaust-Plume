@@ -23,6 +23,7 @@ ROOT = Path(__file__).resolve().parents[4]
 
 def _fixture() -> dict:
   return json.loads((ROOT / 'tests/fixtures/physics/first_mvp_regression_v1.json').read_text(encoding='utf-8'))
+####
 
 
 def _states(total_pressure_Pa: float) -> tuple:
@@ -45,6 +46,7 @@ def _states(total_pressure_Pa: float) -> tuple:
     gas,
   )
   return exit_state, ambient
+####
 
 
 def test_first_mvp_pressure_ratio_fixture_classifies_from_static_exit_pressure() -> None:
@@ -57,6 +59,8 @@ def test_first_mvp_pressure_ratio_fixture_classifies_from_static_exit_pressure()
     total_pressure = values['gas']['ambient_pressure_Pa'] * case['exit_to_ambient_pressure_ratio'] * total_to_ambient
     exit_state, ambient = _states(total_pressure)
     assert classify_expansion_regime(exit_state, ambient).value == case['expected_regime']
+  ####
+####
 
 
 def test_first_mvp_strong_overexpanded_case_returns_structured_failure() -> None:
@@ -69,6 +73,7 @@ def test_first_mvp_strong_overexpanded_case_returns_structured_failure() -> None
   assert result.regime is ExpansionRegime.OVEREXPANDED
   assert result.status is SolverStatus.NUMERICAL_FAILURE
   assert result.details['solver_diagnostics_v1']['status'] == 'numerical_failure'
+####
 
 
 def test_legacy_total_pressure_anchors_are_regression_only_and_not_relabelled() -> None:
@@ -77,3 +82,5 @@ def test_legacy_total_pressure_anchors_are_regression_only_and_not_relabelled() 
     exit_state, ambient = _states(case['total_pressure_atm'] * 101325.0)
     assert classify_expansion_regime(exit_state, ambient) is ExpansionRegime.OVEREXPANDED
     assert case['regression_only'] is True
+  ####
+####

@@ -25,6 +25,7 @@ def _matched_inputs() -> tuple[CaloricallyPerfectGas, PlumeFluxSection, object]:
   exit_state = derive_uniform_nozzle_exit(NozzleExitInput(mach=mach, total_pressure_Pa=total_pressure, total_temperature_K=800.0, exit_radius_m=1.0), gas)
   ambient = derive_ambient_state(AmbientInput(pressure_Pa=ambient_pressure, temperature_K=300.0), gas)
   return gas, PlumeFluxSection.from_nozzle_exit(exit_state, ambient_pressure_Pa=ambient_pressure), ambient
+####
 
 
 def test_pressure_matched_zero_entrainment_preserves_conserved_state() -> None:
@@ -42,7 +43,7 @@ def test_pressure_matched_zero_entrainment_preserves_conserved_state() -> None:
   assert result.states[-1].velocity_mps == pytest.approx(result.states[0].velocity_mps)
   assert result.conservation_residuals["momentum_relative"] == pytest.approx(0.0)
   assert result.conservation_residuals["total_enthalpy_relative"] == pytest.approx(0.0)
-  ####
+####
 
 
 def test_entrainment_increases_mass_and_reduces_velocity() -> None:
@@ -58,7 +59,7 @@ def test_entrainment_increases_mass_and_reduces_velocity() -> None:
   assert result.states[-1].velocity_mps < result.states[0].velocity_mps
   assert abs(result.conservation_residuals["momentum_relative"]) < 1.0e-12
   assert abs(result.conservation_residuals["total_enthalpy_relative"]) < 1.0e-12
-  ####
+####
 
 
 def test_integral_continuation_rejects_pressure_mismatch() -> None:
@@ -82,3 +83,4 @@ def test_integral_continuation_rejects_pressure_mismatch() -> None:
         config=IntegralStraightConfiguration(max_axial_distance_m=1.0, step_m=1.0),
     )
   ####
+####

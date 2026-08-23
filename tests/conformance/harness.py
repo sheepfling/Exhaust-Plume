@@ -36,7 +36,7 @@ class ProductConformanceCase:
   expected_frame_id: str
   partial_request: v1.ApiModel | None = None
   partial_invalid_indices: tuple[int, ...] = ()
-  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,7 +51,7 @@ class ProviderFixture:
   unsupported_capabilities: tuple[v1.CapabilityIdentity, ...] = ()
   probe_times_s: tuple[float, ...] = (0.0, 1.0)
   engineering_sections: tuple[PlumeFluxSection, ...] = ()
-  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,7 +70,7 @@ class ConformanceReport:
   partial_batch_checked: bool
   engineering_sections_checked: int
   passed: bool = True
-  ####
+####
 
 
 def run_provider_conformance(fixture: ProviderFixture) -> ConformanceReport:
@@ -78,6 +78,7 @@ def run_provider_conformance(fixture: ProviderFixture) -> ConformanceReport:
 
   if not fixture.products:
     raise AssertionError(f'{fixture.name} must declare at least one product request')
+  ####
   provider = fixture.provider_factory()
   descriptor = provider.descriptor
   expected_capabilities = tuple(product.capability.capability for product in fixture.products)
@@ -88,6 +89,7 @@ def run_provider_conformance(fixture: ProviderFixture) -> ConformanceReport:
       f'{fixture.name} descriptor capabilities {sorted(advertised_wire_ids)!r} do not match '
       f'fixture products {sorted(expected_wire_ids)!r}'
     )
+  ####
 
   session = fixture.session_factory(provider)
   assert session.metadata.provider_id == descriptor.provider_id
@@ -104,6 +106,9 @@ def run_provider_conformance(fixture: ProviderFixture) -> ConformanceReport:
         raise AssertionError(
           f'{fixture.name} advertises {capability.wire_id} but its snapshot does not support it'
         )
+      ####
+    ####
+  ####
 
   snapshot = snapshots[0]
   immutable_snapshot = _assert_snapshot_immutability(snapshot)
@@ -127,6 +132,8 @@ def run_provider_conformance(fixture: ProviderFixture) -> ConformanceReport:
       )
       _assert_partial_semantics(partial, product.partial_invalid_indices)
       partial_batch_checked = True
+    ####
+  ####
 
   if descriptor.deterministic:
     fresh_provider = fixture.provider_factory()
@@ -136,6 +143,8 @@ def run_provider_conformance(fixture: ProviderFixture) -> ConformanceReport:
       fresh_result = _evaluate_and_check(fresh_snapshot, product, fresh_provider.descriptor)
       first_result = _evaluate_and_check(snapshot, product, descriptor)
       assert first_result.model_dump(mode='json') == fresh_result.model_dump(mode='json')
+    ####
+  ####
 
   unsupported_checked: list[str] = []
   unsupported_versions_checked: list[str] = []
@@ -144,7 +153,9 @@ def run_provider_conformance(fixture: ProviderFixture) -> ConformanceReport:
     specification = v1.get_product_capability_spec(capability)
     with pytest.raises(UnsupportedProductCapabilityError):
       snapshot.evaluate(specification, _default_request(specification))
+    ####
     unsupported_checked.append(capability.wire_id)
+  ####
 
   for product in fixture.products:
     capability = product.capability.capability
@@ -156,14 +167,18 @@ def run_provider_conformance(fixture: ProviderFixture) -> ConformanceReport:
     )
     with pytest.raises(UnsupportedProductVersionError):
       snapshot.evaluate(unsupported_specification, product.request)
+    ####
     unsupported_versions_checked.append(unsupported_version.wire_id)
+  ####
 
   session.close()
   with pytest.raises(ProviderClosedError):
     fixture.snapshot_factory(session, fixture.probe_times_s[0])
+  ####
 
   for section in fixture.engineering_sections:
     assert_engineering_flux_section(section)
+  ####
 
   return ConformanceReport(
     provider_name=fixture.name,
@@ -178,7 +193,7 @@ def run_provider_conformance(fixture: ProviderFixture) -> ConformanceReport:
     partial_batch_checked=partial_batch_checked,
     engineering_sections_checked=len(fixture.engineering_sections),
   )
-  ####
+####
 
 
 def _assert_snapshot_immutability(snapshot: v1.ProductSnapshot) -> bool:
@@ -189,9 +204,10 @@ def _assert_snapshot_immutability(snapshot: v1.ProductSnapshot) -> bool:
     pass
   else:
     raise AssertionError('canonical snapshots must reject metadata mutation')
+  ####
   assert snapshot.metadata.model_dump(mode='json') == before
   return True
-  ####
+####
 
 
 def _evaluate_and_check(
@@ -205,6 +221,7 @@ def _evaluate_and_check(
       f'{descriptor.provider_id} returned {type(result).__name__} for '
       f'{product.capability.capability.wire_id}; expected {product.capability.result_type.__name__}'
     )
+  ####
   assert result.metadata.capability == product.capability.capability
   assert result.metadata.snapshot == snapshot.metadata
   assert result.metadata.output_frame_id == product.expected_frame_id
@@ -212,7 +229,7 @@ def _evaluate_and_check(
   assert result.metadata.provenance.provider_version == descriptor.provider_version
   _assert_product_result(result, product.request)
   return result
-  ####
+####
 
 
 def _assert_product_result(result: Any, request: v1.ApiModel) -> None:
@@ -224,7 +241,9 @@ def _assert_product_result(result: Any, request: v1.ApiModel) -> None:
     )
     for values in result.channels.values():
       assert len(values) == len(result.sections)
+    ####
     return
+  ####
   if isinstance(result, v1.SpectralSignatureResult):
     direction_count = len(result.spectral_radiant_intensity)
     wavelength_count = len(request.wavelengths_m)  # type: ignore[attr-defined]
@@ -233,6 +252,7 @@ def _assert_product_result(result: Any, request: v1.ApiModel) -> None:
     assert len(result.direction_status) == direction_count
     assert len(result.validity_mask) == direction_count
     return
+  ####
   if isinstance(result, v1.VersionedSpectralRayTransferResult):
     ray_count = len(request.ray_origins_m)  # type: ignore[attr-defined]
     wavelength_count = len(request.wavelengths_m)  # type: ignore[attr-defined]
@@ -244,11 +264,14 @@ def _assert_product_result(result: Any, request: v1.ApiModel) -> None:
       if status.code is v1.SampleStatusCode.OK:
         assert all(result.validity_mask[index])
         continue
+      ####
       assert not result.hit_mask[index]
       assert not any(result.validity_mask[index])
+    ####
     return
-  raise AssertionError(f'no canonical product checks registered for {type(result).__name__}')
   ####
+  raise AssertionError(f'no canonical product checks registered for {type(result).__name__}')
+####
 
 
 def _assert_partial_semantics(result: Any, invalid_indices: tuple[int, ...]) -> None:
@@ -262,7 +285,10 @@ def _assert_partial_semantics(result: Any, invalid_indices: tuple[int, ...]) -> 
       else:
         assert status.code is v1.SampleStatusCode.OK
         assert all(result.validity_mask[index])
+      ####
+    ####
     return
+  ####
   if isinstance(result, v1.VersionedSpectralRayTransferResult):
     invalid = set(invalid_indices)
     for index, status in enumerate(result.ray_status):
@@ -271,9 +297,12 @@ def _assert_partial_semantics(result: Any, invalid_indices: tuple[int, ...]) -> 
         assert not result.hit_mask[index]
       else:
         assert status.code is v1.SampleStatusCode.OK
+      ####
+    ####
     return
-  raise AssertionError(f'partial results are not defined for {type(result).__name__}')
   ####
+  raise AssertionError(f'partial results are not defined for {type(result).__name__}')
+####
 
 
 def _default_request(specification: v1.CapabilitySpec[Any, Any]) -> v1.ApiModel:
@@ -282,12 +311,14 @@ def _default_request(specification: v1.CapabilitySpec[Any, Any]) -> v1.ApiModel:
       output_frame_id='source-local',
       sampling=v1.VisualSampling(maximum_section_count=2),
     )
+  ####
   if specification is v1.SPECTRAL_RADIANT_INTENSITY_V1:
     return v1.SpectralSignatureRequest(
       direction_frame_id='source-local',
       source_to_observer_directions=((0.0, 1.0, 0.0),),
       wavelengths_m=(1.0e-6,),
     )
+  ####
   if specification is v1.SPECTRAL_RAY_TRANSFER_V1:
     return v1.SpectralRayTransferRequest(
       ray_frame_id='source-local',
@@ -297,8 +328,9 @@ def _default_request(specification: v1.CapabilitySpec[Any, Any]) -> v1.ApiModel:
       ray_t_max_m=(1.0,),
       wavelengths_m=(1.0e-6,),
     )
-  raise AssertionError(f'no default request for {specification.capability.wire_id}')
   ####
+  raise AssertionError(f'no default request for {specification.capability.wire_id}')
+####
 
 
 def assert_engineering_flux_section(section: PlumeFluxSection) -> None:
@@ -318,7 +350,7 @@ def assert_engineering_flux_section(section: PlumeFluxSection) -> None:
   assert section.pressure_Pa > 0.0
   assert section.characteristic_radius_m > 0.0
   assert all(rate >= 0.0 for _, rate in section.species_mass_flow_rates_kg_s)
-  ####
+####
 
 
 __all__ = (

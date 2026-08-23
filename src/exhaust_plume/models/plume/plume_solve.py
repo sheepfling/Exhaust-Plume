@@ -31,31 +31,31 @@ from exhaust_plume.util.comparison import dataclassIsClose, dataclassIsEqual
 from exhaust_plume.util.numeric import ATOL_DEFAULT, EQUAL_NAN_DEFAULT, RTOL_DEFAULT, makeReadOnly, unitize
 from exhaust_plume.util.physical_constants import ATM_PER_PASCAL
 
-###########################################
 def _validate_positive_finite(name: str, value: float) -> None:
   try:
     value_float = float(value)
   except (TypeError, ValueError) as exc:
     raise ValueError(f'Expected `{name}` to be a finite positive number. Got:{value}') from exc
+  ####
   if not isfinite(value_float) or value_float <= 0.:
     raise ValueError(f'Expected `{name}` to be a finite positive number. Got:{value}')
-  ##
-##
+  ####
+####
 
 
 def _validate_gamma(gamma: float) -> None:
   _validate_positive_finite('gamma', gamma)
   if float(gamma) <= 1.:
     raise ValueError(f'Expected `gamma` to be greater than 1. Got:{gamma}')
-  ##
-##
+  ####
+####
 
 
 def _validate_count(name: str, value: int, minimum: int) -> None:
   if isinstance(value, bool) or not isinstance(value, Integral) or value < minimum:
     raise ValueError(f'Expected `{name}` to be an integer greater than or equal to {minimum}. Got:{value}')
-  ##
-##
+  ####
+####
 
 
 def calcLineIntersection2d(*,
@@ -69,8 +69,9 @@ def calcLineIntersection2d(*,
   )
   if result.status is not RayIntersectionStatus.SUCCESS or result.point is None:
     raise ValueError(f'Unable to calculate a forward line intersection: {result.status.value}. {result.message}')
+  ####
   return result.point
-##
+####
 
 
 def fitParabolaFromPoints2d(points: Sequence[ndarray]) -> ndarray:
@@ -78,7 +79,7 @@ def fitParabolaFromPoints2d(points: Sequence[ndarray]) -> ndarray:
   x, y = vstack(points).T
   p = polyfit(x=x, y=y, deg=2)
   return p
-##
+####
 
 
 def calcLineParabolaIntersection2d(line_offset: ndarray, line_direction: ndarray, parabola_coeff: ndarray) -> ndarray:
@@ -87,8 +88,9 @@ def calcLineParabolaIntersection2d(line_offset: ndarray, line_direction: ndarray
   result = intersect_ray_with_parabola(Ray2D(origin=line_offset, direction=line_direction), parabola_coeff)
   if not result.is_success or result.point is None:
     raise ValueError(f'Unable to calculate a forward ray/parabola intersection: {result.status.value}. {result.message}')
+  ####
   return result.point
-##
+####
 
 
 RIGHT, UP = makeReadOnly(eye(2))
@@ -100,7 +102,7 @@ class ZoneType(Enum):
   Isentropic = getAutoEnumValue()
   ObliqueShock = getAutoEnumValue()
   ExpansionFan = getAutoEnumValue()
-##
+####
 
 
 @dataclass
@@ -112,27 +114,27 @@ class ZoneCoordinates:
       v = getattr(self, f.name)
       if isinstance(v, ndarray):
         v.flags.writeable = False
-      ##
-    ##
+      ####
+    ####
     if len(self.corners_ru.shape) != 2 or self.corners_ru.shape[-1] != 2:
       raise ValueError(f'Expected corners to shape:(...,2). Got:{self.corners_ru.shape}')
-    ##
-  ##
+    ####
+  ####
 
   @cached_property
   def center(self) -> ndarray:
     return self.corners_ru.mean(axis=0)
-  ##
+  ####
 
   @cached_property
   def width(self) -> float:
     return ptp(self.corners_ru[..., 0])
-  ##
+  ####
 
   @cached_property
   def height(self) -> float:
     return ptp(self.corners_ru[..., 1])
-  ##
+  ####
 
   @cached_property
   def top_left_corner(self) -> ndarray:
@@ -141,8 +143,8 @@ class ZoneCoordinates:
       return out_corners[argmin(out_corners[..., 0]), ...]
     else:
       return out_corners[0, ...]
-    ##
-  ##
+    ####
+  ####
 
   @cached_property
   def top_right_corner(self) -> ndarray:
@@ -151,8 +153,8 @@ class ZoneCoordinates:
       return out_corners[argmax(out_corners[..., 0]), ...]
     else:
       return out_corners[0, ...]
-    ##
-  ##
+    ####
+  ####
 
   @cached_property
   def bottom_left_corner(self) -> ndarray:
@@ -161,8 +163,8 @@ class ZoneCoordinates:
       return out_corners[argmin(out_corners[..., 0]), ...]
     else:
       return out_corners[0, ...]
-    ##
-  ##
+    ####
+  ####
 
   @cached_property
   def bottom_right_corner(self) -> ndarray:
@@ -171,25 +173,25 @@ class ZoneCoordinates:
       return out_corners[argmax(out_corners[..., 0]), ...]
     else:
       return out_corners[0, ...]
-    ##
-  ##
+    ####
+  ####
 
   def isClose(self, other: object, rtol: float = RTOL_DEFAULT, atol: float = ATOL_DEFAULT, equal_nan: bool = EQUAL_NAN_DEFAULT) -> bool:
     return dataclassIsClose(self, other, rtol=rtol, atol=atol, equal_nan=equal_nan)
-  ##
+  ####
 
   def __eq__(self, other: object) -> bool:
     return dataclassIsEqual(self, other)
-  ##
+  ####
 
   def __hash__(self) -> int:
     tup = tuple(x.data.tobytes() if isinstance(x, ndarray) else x for x in (
         getattr(self, f.name) for f in fields(self)
     ))
     return hash(tup)
-  ##
+  ####
+####
 
-##
 
 
 @dataclass(frozen=True)
@@ -210,14 +212,14 @@ class ZoneResult(FlowState):
   @cached_property
   def static_pressure_atm(self) -> float:
     return self.static_pressure * ATM_PER_PASCAL
-  ##
+  ####
 
   @property
   def cell_index(self) -> int:
     """Canonical alias for the legacy one-based construction-pass index."""
 
     return self.plume_index
-  ##
+  ####
 
   def asFlowState(self) -> FlowState:
     out = FlowState(
@@ -228,7 +230,7 @@ class ZoneResult(FlowState):
         static_density=self.static_density,
     )
     return out
-  ##
+  ####
 
   def replace(self, coordinates: ZoneCoordinates) -> ZoneResult:
     out = ZoneResult(
@@ -247,7 +249,7 @@ class ZoneResult(FlowState):
         static_density=self.static_density,
     )
     return out
-  ##
+  ####
 
   def asObliqueShockState(self) -> ObliqueShockState:
     out = ObliqueShockState(
@@ -260,7 +262,7 @@ class ZoneResult(FlowState):
         static_density=self.static_density,
     )
     return out
-  ##
+  ####
 
   @classmethod
   def fromFlowState(cls,
@@ -276,7 +278,7 @@ class ZoneResult(FlowState):
       typ = ZoneType.ExpansionFan
     else:
       typ = ZoneType.Isentropic
-    ##
+    ####
     out = ZoneResult(
         label=label,
         plume_index=plume_index,
@@ -293,7 +295,7 @@ class ZoneResult(FlowState):
         static_density=state.static_density,
     )
     return out
-  ##
+  ####
 
   @classmethod
   def fromExpansionFan(cls, state: ExpansionFanState, label: str,
@@ -305,7 +307,7 @@ class ZoneResult(FlowState):
         plume_index=plume_index, label=label, group_index=group_index, group_number=group_number,
         beta=nan, theta=state.turn_deg,
     )
-  ##
+  ####
 
   @classmethod
   def fromObliqueShockState(cls, state: ObliqueShockState, label: str,
@@ -318,9 +320,9 @@ class ZoneResult(FlowState):
         plume_index=plume_index, label=label, group_index=group_index, group_number=group_number,
         beta=state.shock_angle_deg, theta=state.oblique_angle_deg,
     )
-  ##
+  ####
+####
 
-##
 
 
 def printPrettyTableZones(zones: Sequence[Union[ZoneResult, ObliqueShockState, ExpansionFanState, FlowState]],
@@ -358,13 +360,13 @@ def printPrettyTableZones(zones: Sequence[Union[ZoneResult, ObliqueShockState, E
       theta = z.oblique_angle_deg
     elif isinstance(z, ExpansionFanState):
       theta = z.turn_deg
-    ##
+    ####
     if beta is not None and not isnan(beta):
       data['Beta'] = f'{beta:#4.4g}'
-    ##
+    ####
     if theta is not None and not isnan(theta):
       data['Theta'] = f'{theta:#4.4g}'
-    ##
+    ####
     data['Static P/Atmos'] = None if isnan(z.static_pressure) else f'{z.static_pressure / p_amtos:f}'
     data['Static Temp'] = None if isnan(z.static_temperature) else f'{z.static_temperature:#4.4g}'
     data['Mach'] = None if isnan(z.mach) else f'{z.mach:#4.4g}'
@@ -372,7 +374,7 @@ def printPrettyTableZones(zones: Sequence[Union[ZoneResult, ObliqueShockState, E
     data['Total Pressure %'] = None if isnan(z.total_pressure) else f'{z.total_pressure / max_total_pressure * 100.:#6.2f}'
     data['Total Density %'] = None if isnan(z.total_density) else f'{z.total_density / max_total_density * 100.:#6.2f}'
     lods.append(data)
-  ##
+  ####
   pt = PrettyTable(
       list_of_dicts=lods,
       title=title,
@@ -380,7 +382,7 @@ def printPrettyTableZones(zones: Sequence[Union[ZoneResult, ObliqueShockState, E
       show_row_index=False,
   )
   print(pt.get_string(show_header=True, show_row_index=False))
-##
+####
 
 
 def calculateOverExpandedPrecursorStates(zone1: FlowState,
@@ -401,7 +403,7 @@ def calculateOverExpandedPrecursorStates(zone1: FlowState,
 
   out = (zone2_os, zone3_os,)
   return out
-##
+####
 
 
 def calculateUnderExpandedPlumeStates_Expansion(
@@ -435,11 +437,11 @@ def calculateUnderExpandedPlumeStates_Expansion(
         rtol=rtol, atol=atol, max_iter=max_iter,
     ))
     prev_state = zone3_efs[-1]
-  ##
+  ####
 
   out = (zone2_efs, zone3_efs,)
   return out
-##
+####
 
 
 def calculateUnderExpandedPlumeStates_Compression(
@@ -464,7 +466,7 @@ def calculateUnderExpandedPlumeStates_Compression(
         oblique_angle_deg=expansion_angle_deg,
     ))
     prev_state = zone4_oss[-1]
-  ##
+  ####
 
   zone4_oss.append(ObliqueShockState.fromUpstreamStateToEqualizedPressureState(
       upstream=prev_state,
@@ -480,11 +482,11 @@ def calculateUnderExpandedPlumeStates_Compression(
         oblique_angle_deg=expansion_angle_deg,
     ))
     prev_state = zone5_oss[-1]
-  ##
+  ####
 
   out = (zone4_oss, zone5_oss,)
   return out
-##
+####
 
 
 def calculateUnderExpandedPlumeStates(
@@ -513,7 +515,7 @@ def calculateUnderExpandedPlumeStates(
 
   out = (zone2_efs, zone3_efs, zone4_oss, zone5_oss,)
   return out
-##
+####
 
 
 def calculateOverExpandedPrecursorZones(zone1: ZoneResult,
@@ -583,7 +585,7 @@ def calculateOverExpandedPrecursorZones(zone1: ZoneResult,
       zone3,
   ]
   return zones
-##
+####
 
 
 def calculateUnderExpandedPlumeZones(
@@ -622,7 +624,7 @@ def calculateUnderExpandedPlumeZones(
         ]))
     ))
     cumulative_turn_rad += zone_ef.turn_rad
-  ##
+  ####
 
   # Adjust Zone1 now that right point is known
   zone1 = zone1.replace(ZoneCoordinates(vstack([
@@ -708,7 +710,7 @@ def calculateUnderExpandedPlumeZones(
     else:
       # TODO[plume] not great, because last region is incomplete
       points.append((reflection_slip_intersection_points[i] @ RIGHT) * RIGHT)
-    ##
+    ####
 
     zone3s.append(ZoneResult.fromExpansionFan(
         state=zone_ef,
@@ -718,7 +720,7 @@ def calculateUnderExpandedPlumeZones(
         group_index=i + ZoneResult.GROUP_INDEX_START,
         coordinates=ZoneCoordinates(vstack(points)),
     ))
-  ##
+  ####
 
   # TODO[improvement]: Can fail  in the case of low mach <1.1
   point_H = calcLineIntersection2d(
@@ -772,7 +774,7 @@ def calculateUnderExpandedPlumeZones(
     else:
       label = 'Reflected Expansion Compression'
       coordinates = ZoneCoordinates(full((3, 2), nan))
-    ##
+    ####
     zone4s.append(ZoneResult.fromObliqueShockState(
         state=zone4_os,
         label=label,
@@ -781,7 +783,7 @@ def calculateUnderExpandedPlumeZones(
         group_index=i + ZoneResult.GROUP_INDEX_START,
         coordinates=coordinates,
     ))
-  ##
+  ####
 
   zone5_group_number = zone4s[-1].group_number + 1
   zone5s = []
@@ -796,7 +798,7 @@ def calculateUnderExpandedPlumeZones(
     else:
       label = 'Centerline Compression'
       coordinates = ZoneCoordinates(full((3, 2), nan))
-    ##
+    ####
     zone5s.append(ZoneResult.fromObliqueShockState(
         state=zone5_os,
         label=label,
@@ -805,7 +807,7 @@ def calculateUnderExpandedPlumeZones(
         group_index=i + ZoneResult.GROUP_INDEX_START,
         coordinates=coordinates,
     ))
-  ##
+  ####
 
   zones = [
       zone1,
@@ -834,7 +836,7 @@ def calculateUnderExpandedPlumeZones(
 
   out = (zones, extra,)
   return out
-##
+####
 
 
 def calcNozzleExitFlowState(mach: float,
@@ -860,7 +862,7 @@ def calcNozzleExitFlowState(mach: float,
       gamma=state.gas.gamma,
   )
   return state
-##
+####
 
 
 def calculatePlumeZonesFromExitState(*, exit_state: NozzleExitState,
@@ -879,6 +881,7 @@ def calculatePlumeZonesFromExitState(*, exit_state: NozzleExitState,
   _validate_positive_finite('pressure_match_rtol', pressure_match_rtol)
   if pressure_match_rtol <= 0.0:
     raise ValueError(f'Expected `pressure_match_rtol` to be positive. Got:{pressure_match_rtol}')
+  ####
   exit_flow = FlowState(
       mach=exit_state.mach,
       static_pressure=exit_state.static_pressure_Pa,
@@ -912,6 +915,7 @@ def calculatePlumeZonesFromExitState(*, exit_state: NozzleExitState,
   if abs(pressure_residual) <= pressure_match_rtol:
     details['termination'] = 'no_pressure_mismatch'
     return [zone1], details
+  ####
 
   zones: List[ZoneResult] = [zone1]
   if pressure_residual < 0.0:
@@ -920,7 +924,7 @@ def calculatePlumeZonesFromExitState(*, exit_state: NozzleExitState,
         atmospheric_pressure=atmospheric_pressure,
     )
     zones.extend(over_expanded_precursor_zones)
-  ##
+  ####
   for _ in range(num_plumes):
     under_exp_zones, extra = calculateUnderExpandedPlumeZones(
         zone1=zones.pop(),
@@ -930,10 +934,10 @@ def calculatePlumeZonesFromExitState(*, exit_state: NozzleExitState,
     )
     zones.extend(under_exp_zones)
     details.update(extra)
-  ##
+  ####
   details['termination'] = 'max_cell_limit'
   return zones, details
-##
+####
 
 
 def calculatePlumeZones(nozzle_mach: float,
@@ -957,6 +961,7 @@ def calculatePlumeZones(nozzle_mach: float,
   _validate_positive_finite('nozzle_mach', nozzle_mach)
   if float(nozzle_mach) <= 1.:
     raise ValueError(f'Expected `nozzle_mach` to be greater than 1. Got:{nozzle_mach}')
+  ####
   _validate_positive_finite('nozzle_total_temperature', nozzle_total_temperature)
   _validate_positive_finite('nozzle_total_pressure', nozzle_total_pressure)
   _validate_positive_finite('nozzle_radius', nozzle_radius)
@@ -981,4 +986,4 @@ def calculatePlumeZones(nozzle_mach: float,
       num_compression_lines=num_compression_lines,
       num_plumes=num_plumes,
   )
-##
+####

@@ -31,7 +31,6 @@ __all__ = (
     'calcPmExpansionAngle',
     'calcPrandtlMeyerAngle',
 )
-###########################################
 log = getCleanLogger(__name__)
 
 T = TypeVar('T', float, ndarray)
@@ -51,7 +50,7 @@ def calcPrandtlMeyerAngle(*, mach: float, gamma: Union[float, T]) -> T:
   b = sqrt(mach**2 - 1)
   nu = a * arctan(b / a) - arctan(b)
   return rad2deg(nu)
-##
+####
 
 
 def calcPmExpansionAngle(*, mach_upstream: float, mach_downstream: float, gamma: Union[float, T]) -> T:
@@ -62,7 +61,7 @@ def calcPmExpansionAngle(*, mach_upstream: float, mach_downstream: float, gamma:
   """
   theta = calcPrandtlMeyerAngle(mach=mach_downstream, gamma=gamma) - calcPrandtlMeyerAngle(mach=mach_upstream, gamma=gamma)
   return theta
-##
+####
 
 
 def calcPmDownstreamMach(*,
@@ -83,12 +82,12 @@ def calcPmDownstreamMach(*,
   nu_desired = nu
   if nu_desired <= initial_nu:
     raise ValueError(f'Decreasing angle, expected an increase. Got Desired:{nu} [deg] - Start:{initial_nu} [deg] <= 0.')
-  ##
+  ####
   nu_inf = calcPrandtlMeyerAngle(mach=inf, gamma=gamma)
   if nu_desired > nu_inf:
     log.warning(f'Desired nu:{nu_desired} is not attainable. It is greater than mach=∞ nu={nu_inf}. Returning inf')
     return inf
-  ##
+  ####
   max_iter = max(1, max_iter)
   # Search upwards first for high mach
   mach_high = mach_initial * max_mach_search_scale
@@ -97,9 +96,9 @@ def calcPmDownstreamMach(*,
     nu = calcPrandtlMeyerAngle(mach=mach_high, gamma=gamma)
     if nu_desired <= nu:
       break
-    ##
+    ####
     mach_high *= max_mach_search_scale
-  ##
+  ####
   mach_low = 0.
   mach = mach_initial
   nu = initial_nu
@@ -107,21 +106,21 @@ def calcPmDownstreamMach(*,
   for num_refine_iter in range(max_iter):
     if isclose(nu_desired, nu, rtol=rtol, atol=atol):
       break
-    ##
+    ####
     mach = (mach_low + mach_high) / 2.
     nu = calcPrandtlMeyerAngle(mach=mach, gamma=gamma)
     if nu_desired < nu:
       mach_high = mach
     else:
       mach_low = mach
-    ##
-  ##
+    ####
+  ####
   log.log(TRACE, f'Calculated PM^-1(ν={nu:g}, γ) = mach:{mach:g} in {num_high_iter} upper mach search and {num_refine_iter} refinement iterations')
   if not isclose(nu_desired, nu, rtol=rtol, atol=atol):
     raise ValueError(f'Unable to calculate Prandtl-Meyer mach number given initial_mach:{mach_initial}, desired angle:{nu}, start_angle:{initial_nu}, within the tolerance:{tol} and max iterations:{max_iter}')
-  ##
+  ####
   return mach
-##
+####
 
 
 def calcIsentropicPmTemperatureRatio(*, M1: T, M2: T, gamma: Union[float, T]) -> T:
@@ -138,7 +137,7 @@ def calcIsentropicPmTemperatureRatio(*, M1: T, M2: T, gamma: Union[float, T]) ->
       calcIsentropicTotalStaticTemperatureRatio(mach=M2, gamma=gamma)
   )
   return T2_div_T1
-##
+####
 
 
 def calcIsentropicPmTemperature(*, M1: T, M2: T, static_temperature1: float, gamma: Union[float, T]) -> T:
@@ -153,7 +152,7 @@ def calcIsentropicPmTemperature(*, M1: T, M2: T, static_temperature1: float, gam
   T2_div_T1 = calcIsentropicPmTemperatureRatio(M1=M1, M2=M2, gamma=gamma)
   T2 = static_temperature1 * T2_div_T1
   return T2
-##
+####
 
 
 def calcIsentropicPmPressureRatio(*, M1: T, M2: T, gamma: Union[float, T]) -> T:
@@ -170,7 +169,7 @@ def calcIsentropicPmPressureRatio(*, M1: T, M2: T, gamma: Union[float, T]) -> T:
       calcIsentropicTotalStaticPressureRatio(mach=M2, gamma=gamma)
   )
   return p2_div_p1
-##
+####
 
 
 def calcIsentropicPmPressure(*, M1: T, M2: T, static_pressure1: float, gamma: Union[float, T]) -> T:
@@ -185,7 +184,7 @@ def calcIsentropicPmPressure(*, M1: T, M2: T, static_pressure1: float, gamma: Un
   p2_div_p1 = calcIsentropicPmPressureRatio(M1=M1, M2=M2, gamma=gamma)
   p2 = p2_div_p1 * static_pressure1
   return p2
-##
+####
 
 
 def calcIsentropicPmDensityRatio(*, M1: T, M2: T, gamma: Union[float, T]) -> T:
@@ -197,7 +196,7 @@ def calcIsentropicPmDensityRatio(*, M1: T, M2: T, gamma: Union[float, T]) -> T:
       calcIsentropicTotalStaticDensityRatio(mach=M2, gamma=gamma)
   )
   return rho2_div_rho1
-##
+####
 
 
 def calcIsentropicPmDensity(*, M1: T, M2: T, static_density1: float, gamma: Union[float, T]) -> T:
@@ -207,7 +206,7 @@ def calcIsentropicPmDensity(*, M1: T, M2: T, static_density1: float, gamma: Unio
   rho2_div_rho1 = calcIsentropicPmDensityRatio(M1=M1, M2=M2, gamma=gamma)
   rho2 = rho2_div_rho1 * static_density1
   return rho2
-##
+####
 
 
 @dataclass(frozen=True)
@@ -217,17 +216,17 @@ class ExpansionFanState(FlowState):
 
   def __post_init__(self) -> None:
     super().__post_init__()
-  ##
+  ####
 
   @cached_property
   def turn_rad(self) -> float:
     return deg2rad(self.turn_deg)
-  ##
+  ####
 
   @cached_property
   def upstream_mach_line_rad(self) -> float:
     return deg2rad(self.upstream_mach_line_deg)
-  ##
+  ####
 
   @classmethod
   def fromTurnedUpstreamState(cls, upstream: FlowState,
@@ -238,7 +237,7 @@ class ExpansionFanState(FlowState):
                               ) -> ExpansionFanState:
     if nu_start is None:
       nu_start = calcPrandtlMeyerAngle(mach=upstream.mach, gamma=upstream.gamma)
-    ##
+    ####
     mach = calcPmDownstreamMach(
         mach_initial=upstream.mach,
         nu=nu_start + turn_deg,
@@ -258,7 +257,7 @@ class ExpansionFanState(FlowState):
         static_density=calcIsentropicPmDensity(M1=upstream.mach, M2=mach, gamma=upstream.gamma, static_density1=upstream.static_density, ),
     )
     return out
-  ##
+  ####
 
   @classmethod
   def fromUpstreamStateToEqualizedPressureState(cls, upstream: FlowState,
@@ -269,10 +268,10 @@ class ExpansionFanState(FlowState):
     if upstream.static_pressure < downstream_static_pressure:
       raise ValueError(f'Cannot calculate expansion fan state because downstream pressure:{downstream_static_pressure:g} is greater than current pressure{upstream.static_pressure:g}.'
                        f' Expansion fan decreases pressure')
-    ##
+    ####
     if num_fan_lines < 1:
       raise ValueError(f'Number of lines must be greater than or equal to 1. Got:{num_fan_lines}')
-    ##
+    ####
     max_iter = max(1, max_iter)
     final_mach_downstream = calcIsentropicMachFromPressure(
         static_pressure=downstream_static_pressure,
@@ -305,7 +304,7 @@ class ExpansionFanState(FlowState):
           turn_deg=turn_deg,
       ))
       nu_start += turn_deg
-    ##
+    ####
     # Discard initial fan, keep middle fans, last fan will be adjusted to get equal pressure
     fans = fans[1:]
 
@@ -330,7 +329,7 @@ class ExpansionFanState(FlowState):
     for num_iter in range(max_iter):
       if isclose(eq_pressure_fan.static_pressure, downstream_static_pressure, rtol=rtol, atol=atol):
         break
-      ##
+      ####
       # log.debug(f'{num_iter}: {eq_pressure_fan.static_pressure - downstream_static_pressure:#8.4g}; {turn_deg}∈[{min_turn_deg},{max_turn_deg}]')
       delta_p = eq_pressure_fan.static_pressure - downstream_static_pressure
       if prev_delta_p == delta_p:
@@ -349,10 +348,10 @@ class ExpansionFanState(FlowState):
           max_turn_deg = turn_deg
         else:
           min_turn_deg = turn_deg
-        ##
+        ####
         turn_deg = (min_turn_deg + max_turn_deg) / 2.
         prev_delta_p = delta_p
-      ##
+      ####
       eq_pressure_fan = ExpansionFanState.fromTurnedUpstreamState(
           upstream=last_fan,
           nu_start=nu_start,
@@ -360,19 +359,19 @@ class ExpansionFanState(FlowState):
           rtol=final_ef_rtol,
           atol=final_ef_atol,
       )
-    ##
+    ####
     if not isclose(eq_pressure_fan.static_pressure, downstream_static_pressure, rtol=rtol, atol=atol):
       log.error(f'Unable to determine expansion fan that gets desired pressure. Desired pressure:{downstream_static_pressure}. Got:{eq_pressure_fan.static_pressure} after {num_iter} iterations.')
-    ##
+    ####
     log.log(VERBOSE, f'Calculated {num_fan_lines} Expansion fan lines to equalized pressure in {num_iter} iterations. Upstream state:{upstream}.'
                      f' Final pressure:{eq_pressure_fan.static_pressure:g}. Desired pressure:{downstream_static_pressure:g}.'
                      f' (Δ {eq_pressure_fan.static_pressure - downstream_static_pressure:g}) '
             )
     fans.append(eq_pressure_fan)
     return fans
-  ##
+  ####
 
   def __hash__(self) -> int:
     return super().__hash__()
-  ##
-##
+  ####
+####

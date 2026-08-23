@@ -21,7 +21,7 @@ class LodProfile(str, Enum):
   PREVIEW = 'preview'
   STANDARD = 'standard'
   DETAILED = 'detailed'
-  ####
+####
 
 
 class VisualChannelId(str, Enum):
@@ -32,7 +32,7 @@ class VisualChannelId(str, Enum):
   SHOCK_WEIGHT = 'shock_weight'
   SHOCK_PHASE_RAD = 'shock_phase_rad'
   TURBULENCE_WEIGHT = 'turbulence_weight'
-  ####
+####
 
 
 class VisualSampling(ApiModel):
@@ -46,6 +46,7 @@ class VisualSampling(ApiModel):
   def validate_finite_limits(cls, value: float | None) -> float | None:
     if value is not None and not isfinite(value):
       raise ValueError('visual sampling limits must be finite')
+    ####
     return value
   ####
 ####
@@ -60,7 +61,6 @@ _NORMALIZED_CHANNELS = frozenset({
   VisualChannelId.SHOCK_WEIGHT.value,
   VisualChannelId.TURBULENCE_WEIGHT.value,
 })
-####
 
 
 class VisualSectionedTubeRequest(ApiModel):
@@ -74,8 +74,10 @@ class VisualSectionedTubeRequest(ApiModel):
   def validate_channel_names(cls, value: tuple[str, ...]) -> tuple[str, ...]:
     if len(value) != len(set(value)):
       raise ValueError('requested channels must be unique')
+    ####
     if any(not _CHANNEL_NAME.fullmatch(channel) for channel in value):
       raise ValueError('channel names must use lowercase letters, digits, underscores, or hyphens')
+    ####
     return value
   ####
 ####
@@ -101,9 +103,11 @@ class VisualSection(ApiModel):
     )
     if not all(isfinite(value) for value in values):
       raise ValueError('visual section values must be finite')
+    ####
     norm = sqrt(sum(component * component for component in self.section_to_output_xyzw))
     if abs(norm - 1.0) > 1.0e-6:
       raise ValueError('section quaternion must be unit length')
+    ####
     return self
   ####
 ####
@@ -118,8 +122,10 @@ class VisualBounds(ApiModel):
     values = (*self.minimum_m, *self.maximum_m)
     if not all(isfinite(value) for value in values):
       raise ValueError('visual bounds must be finite')
+    ####
     if any(high < low for low, high in zip(self.minimum_m, self.maximum_m, strict=True)):
       raise ValueError('visual bounds maximum must be greater than or equal to minimum')
+    ####
     return self
   ####
 ####
@@ -135,8 +141,10 @@ class VisualTubeSummary(ApiModel):
     values = (self.length_m, self.maximum_radius_m)
     if not all(isfinite(value) for value in values):
       raise ValueError('visual summary values must be finite')
+    ####
     if self.nominal_divergence_angle_rad is not None and not isfinite(self.nominal_divergence_angle_rad):
       raise ValueError('nominal_divergence_angle_rad must be finite')
+    ####
     return self
   ####
 ####
@@ -159,9 +167,11 @@ class VisualSectionedTubeResult(ApiModel):
   def validate_sections_and_channels(self) -> 'VisualSectionedTubeResult':
     if self.metadata.capability != VISUAL_SECTIONED_TUBE_CAPABILITY:
       raise ValueError('visual result metadata must identify plume.visual.sectioned-tube@1')
+    ####
     arc_lengths = [section.arc_length_m for section in self.sections]
     if any(next_value <= value for value, next_value in zip(arc_lengths, arc_lengths[1:])):
       raise ValueError('section arc lengths must be strictly increasing')
+    ####
     for first, second in zip(self.sections, self.sections[1:]):
       dot = sum(left * right for left, right in zip(
         first.section_to_output_xyzw,
@@ -170,33 +180,47 @@ class VisualSectionedTubeResult(ApiModel):
       ))
       if dot < 0.0:
         raise ValueError('neighboring quaternions must use a continuous sign convention')
+      ####
+    ####
     section_count = len(self.sections)
     for channel_name, channel_values in self.channels.items():
       if not _CHANNEL_NAME.fullmatch(channel_name):
         raise ValueError('channel names must use lowercase letters, digits, underscores, or hyphens')
+      ####
       if len(channel_values) != section_count:
         raise ValueError(f'channel {channel_name!r} length must equal section count')
+      ####
       if not all(isfinite(value) for value in channel_values):
         raise ValueError(f'channel {channel_name!r} must contain finite values')
+      ####
       if channel_name in _NORMALIZED_CHANNELS and any(value < 0.0 or value > 1.0 for value in channel_values):
         raise ValueError(f'normalized channel {channel_name!r} must be within [0, 1]')
+      ####
+    ####
     final_arc_length = self.sections[-1].arc_length_m
     if self.summary.length_m + 1.0e-9 < final_arc_length:
       raise ValueError('summary length must contain the final arc-length station')
+    ####
     actual_max_radius = max(
       max(section.radius_major_m, section.radius_minor_m)
       for section in self.sections
     )
     if self.summary.maximum_radius_m + 1.0e-9 < actual_max_radius:
       raise ValueError('summary maximum radius must contain every section')
+    ####
     if self.visual_bounds is not None:
       for section in self.sections:
         radius = max(section.radius_major_m, section.radius_minor_m)
         for axis in range(3):
           if section.center_m[axis] - radius < self.visual_bounds.minimum_m[axis] - 1.0e-9:
             raise ValueError('visual bounds do not contain a section cross-section')
+          ####
           if section.center_m[axis] + radius > self.visual_bounds.maximum_m[axis] + 1.0e-9:
             raise ValueError('visual bounds do not contain a section cross-section')
+          ####
+        ####
+      ####
+    ####
     return self
   ####
 ####
@@ -207,7 +231,6 @@ class VisualSectionedTubeResult(ApiModel):
 VisualTubeRequest = VisualSectionedTubeRequest
 VisualTubeSection = VisualSection
 VisualTubeResult = VisualSectionedTubeResult
-####
 
 
 __all__ = (
@@ -224,4 +247,3 @@ __all__ = (
   'VisualTubeSection',
   'VisualTubeSummary',
 )
-####

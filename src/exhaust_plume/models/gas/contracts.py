@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 class GasModelKind(str, Enum):
   CALORICALLY_PERFECT = 'calorically-perfect'
-  ####
+####
 
 
 class SpeciesMassFraction(BaseModel):
@@ -19,7 +19,7 @@ class SpeciesMassFraction(BaseModel):
 
   species: str = Field(min_length=1)
   mass_fraction: float = Field(ge=0.0, le=1.0)
-  ####
+####
 
 
 class FrozenMixtureConfig(BaseModel):
@@ -35,10 +35,13 @@ class FrozenMixtureConfig(BaseModel):
     names = tuple(item.species for item in self.species_mass_fractions)
     if len(names) != len(set(names)):
       raise ValueError('species_mass_fractions must not contain duplicate species')
+    ####
     if self.species_mass_fractions:
       total = sum(item.mass_fraction for item in self.species_mass_fractions)
       if abs(total - 1.0) > self.normalization_tolerance:
         raise ValueError(f'species mass fractions must sum to one; got {total}')
+      ####
+    ####
     return self
   ####
 ####
@@ -63,4 +66,3 @@ class GasPropertiesConfig(BaseModel):
 
 
 GasProperties = GasPropertiesConfig
-####

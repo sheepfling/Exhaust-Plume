@@ -13,7 +13,6 @@ from exhaust_plume.util.aero.normal_shock import (
     calcNormalShockMach, calcNormalShockStaticDensity, calcNormalShockStaticDensityRatio, calcNormalShockStaticPressure, calcNormalShockStaticPressureRatio, calcNormalShockStaticTemperature, calcNormalShockStaticTemperatureRatio,
 )
 
-######################################
 log = getCleanLogger(__name__)
 
 # Selected entries from Table A.2
@@ -36,7 +35,7 @@ class TestNormalShock(TestCase):
   def setUpClass(cls) -> None:
     root_logger = getRootLogger(log)
     root_logger.setLevel(NOTSET)
-  ##
+  ####
 
   def test_Example35(self) -> None:
     m1 = 3.
@@ -75,7 +74,7 @@ class TestNormalShock(TestCase):
                     f'Expected values to be close'
                     f'\nGot     :{m2}'
                     f'\nExpected:{expected_m2}')
-  ##
+  ####
 
   def test_TableA2(self) -> None:
     with self.subTest('pressure ratio'):
@@ -87,8 +86,8 @@ class TestNormalShock(TestCase):
                         f'Should to be close for mach:{mach:#.4g}:'
                         f'\nGot     :{pressure_ratio:#.4g}'
                         f'\nExpected:{expected_pressure_ratio:#.4g}')
-      ##
-    ##
+      ####
+    ####
     with self.subTest('temperature ratio'):
       for row in table_a2:
         mach = row['mach']
@@ -98,8 +97,8 @@ class TestNormalShock(TestCase):
                         f'Should to be close for mach:{mach:#.4g}:'
                         f'\nGot     :{temperature_ratio:#.4g}'
                         f'\nExpected:{expected_temperature_ratio:#.4g}')
-      ##
-    ##
+      ####
+    ####
     with self.subTest('density ratio'):
       for row in table_a2:
         mach = row['mach']
@@ -109,8 +108,8 @@ class TestNormalShock(TestCase):
                         f'Should to be close for mach:{mach:#.4g}:'
                         f'\nGot     :{density_ratio:#.4g}'
                         f'\nExpected:{expected_density_ratio:#.4g}')
-      ##
-    ##
+      ####
+    ####
     with self.subTest('downstream mach'):
       for row in table_a2:
         mach = row['mach']
@@ -120,9 +119,9 @@ class TestNormalShock(TestCase):
                         f'Should to be close for mach:{mach:#.4g}:'
                         f'\nGot     :{mach2:#.4g}'
                         f'\nExpected:{expected_mach2:#.4g}')
-      ##
-    ##
-  ##
+      ####
+    ####
+  ####
 
   def test_monte(self) -> None:
     for monte in range(self.num_monte):
@@ -155,19 +154,17 @@ class TestNormalShock(TestCase):
       rho_down = calcNormalShockStaticDensity(mach=mach, gamma=self.gamma, static_density=rho_up)
       calc_rho_ratio = rho_down / rho_up
       self.assertTrue(isclose(expected_rho_ratio, calc_rho_ratio))
-    ##
-  ##
-##
+    ####
+  ####
+####
 
 
 if __name__ == "__main__":
-  ####
   # Boilerplate to load log config file when this module is run as main
   if not configureLogging():
     print('Could not configure log')
-  ##
-  log = getLogger(__name__)
   ####
+  log = getLogger(__name__)
   ut_result = ut_main()
   print(ut_result)
-##
+####

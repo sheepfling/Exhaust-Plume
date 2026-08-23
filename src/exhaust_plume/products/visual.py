@@ -197,4 +197,6 @@ def __getattr__(name: str) -> object:
     from exhaust_plume.products import workflow_visual
 
     return getattr(workflow_visual, name)
+  ####
   raise AttributeError(f'module {__name__!r} has no attribute {name!r}')
+####

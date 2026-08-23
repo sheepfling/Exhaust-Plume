@@ -16,7 +16,7 @@ class NozzleStateSourceKind(str, Enum):
   CEA_FROZEN = 'cea-frozen'
   CEA_EQUILIBRIUM = 'cea-equilibrium'
   PROFILED_EXIT = 'profiled-exit'
-  ####
+####
 
 
 class NozzleExitInput(BaseModel):
@@ -32,7 +32,7 @@ class NozzleExitInput(BaseModel):
   mass_flow_rate_kg_per_s: float | None = Field(default=None, gt=0.0)
   exit_profile_id: str | None = None
   nozzle_solution_validated: bool = False
-  ####
+####
 
 
 class NozzleExitState(BaseModel):
@@ -58,6 +58,7 @@ class NozzleExitState(BaseModel):
   def validate_species(self) -> NozzleExitState:
     if self.species_mass_fractions != self.gas.species_mass_fractions:
       raise ValueError('state species_mass_fractions must match gas species_mass_fractions')
+    ####
     return self
   ####
 
@@ -97,7 +98,7 @@ class AmbientInput(BaseModel):
   velocity_z_m_per_s: float = 0.0
   species_mass_fractions: tuple[SpeciesMassFraction, ...] = ()
   geopotential_altitude_m: float | None = None
-  ####
+####
 
 
 class AmbientState(BaseModel):
@@ -116,6 +117,7 @@ class AmbientState(BaseModel):
   def validate_velocity(self) -> AmbientState:
     if len(self.velocity_xyz_mps) != 3:
       raise ValueError('velocity_xyz_mps must have three components')
+    ####
     return self
   ####
 ####

@@ -20,3 +20,4 @@ def test_provider_definition_fixtures_construct_product_inputs() -> None:
   table = SignatureTableDefinition(**table_payload)
   assert straight.base_section_count == 9
   assert table.direction_cosine_nodes == (-0.5, 0.0, 0.5)
+####

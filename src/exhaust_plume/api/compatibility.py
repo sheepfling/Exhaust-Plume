@@ -50,6 +50,7 @@ def canonical_capability_from_legacy_request(request: LegacyProductRequest) -> C
     raise UnsupportedProductVersionError(
       f'capability {identity.wire_id} and schema {request.schema_version} have different majors'
     )
+  ####
   return identity
 ####
 
@@ -103,10 +104,12 @@ class CanonicalSnapshotLegacyAdapter:
       raise UnsupportedProductCapabilityError(
         f'no bound canonical request for {identity.wire_id}'
       ) from error
+    ####
     if capability_spec.capability != identity:
       raise ContractViolationError(
         f'bound capability {capability_spec.capability.wire_id} does not match {identity.wire_id}'
       )
+    ####
     return self.snapshot.evaluate(capability_spec, typed_request)
   ####
 ####
@@ -129,6 +132,7 @@ class LegacySnapshotCanonicalAdapter:
     identities = tuple(capability.wire_id for capability in self.supported_capabilities)
     if len(identities) != len(set(identities)):
       raise ValueError('supported capability identities must be unique')
+    ####
     object.__setattr__(self, 'supported_capabilities', tuple(self.supported_capabilities))
     object.__setattr__(self, 'result_adapters', dict(self.result_adapters))
   ####
@@ -143,15 +147,18 @@ class LegacySnapshotCanonicalAdapter:
         raise UnsupportedProductVersionError(
           f'unsupported major version for {capability.capability.name}: {capability.capability.major}'
         )
+      ####
       raise UnsupportedProductCapabilityError(
         f'unsupported capability: {capability.capability.wire_id}'
       )
+    ####
     try:
       adapter = self.result_adapters[capability.capability.wire_id]
     except KeyError as error:
       raise ContractViolationError(
         f'no result adapter registered for {capability.capability.wire_id}'
       ) from error
+    ####
     raw_result = self.snapshot.get_product(legacy_request_from_capability(capability))
     result = adapter(raw_result)
     if not isinstance(result, capability.result_type):
@@ -159,6 +166,7 @@ class LegacySnapshotCanonicalAdapter:
         f'legacy result adapter returned {type(result).__name__}; '
         f'expected {capability.result_type.__name__}'
       )
+    ####
     del request
     return result
   ####
@@ -249,6 +257,7 @@ def canonical_error_from_legacy(error: PlumeApiError) -> ApiError:
   details = dict(error.details)
   if error.session_id is not None:
     details.setdefault('session_id', str(error.session_id))
+  ####
   return ApiError(
     code=_LEGACY_TO_CANONICAL_ERROR[error.code],
     message=error.message,
@@ -287,6 +296,7 @@ def _uuid_or_none(value: str) -> Any:
     return UUID(value)
   except (ValueError, AttributeError):
     return None
+  ####
 ####
 
 

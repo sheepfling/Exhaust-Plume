@@ -21,22 +21,29 @@ class RevolvedMesh:
     faces = np.asarray(self.faces, dtype=int)
     if vertices.ndim != 2 or vertices.shape[1] != 3:
       raise ValueError(f'Expected vertices to have shape (N, 3), got {vertices.shape}.')
+    ####
     if faces.ndim != 2 or faces.shape[1] != 3:
       raise ValueError(f'Expected faces to have shape (N, 3), got {faces.shape}.')
+    ####
     if faces.size and (np.min(faces) < 0 or np.max(faces) >= len(vertices)):
       raise ValueError('Mesh faces contain an invalid vertex index.')
+    ####
     vertices.flags.writeable = False
     faces.flags.writeable = False
     object.__setattr__(self, 'vertices', vertices)
     object.__setattr__(self, 'faces', faces)
+  ####
 
   @property
   def min(self) -> ndarray:
     return self.vertices.min(axis=0)
+  ####
 
   @property
   def max(self) -> ndarray:
     return self.vertices.max(axis=0)
+  ####
+####
 
 
 def _rotation_matrix(axis: ndarray, angle_rad: float) -> ndarray:
@@ -49,6 +56,7 @@ def _rotation_matrix(axis: ndarray, angle_rad: float) -> ndarray:
       (y * x * one_minus_c + z * s, c + y * y * one_minus_c, y * z * one_minus_c - x * s),
       (z * x * one_minus_c - y * s, z * y * one_minus_c + x * s, c + z * z * one_minus_c),
   ))
+####
 
 
 def generateRevolvedMesh(points: ndarray, axis: ndarray, num_rotations: int) -> RevolvedMesh:
@@ -57,16 +65,21 @@ def generateRevolvedMesh(points: ndarray, axis: ndarray, num_rotations: int) -> 
   axis = np.asarray(axis, dtype=float)
   if points.ndim != 2 or points.shape[1] not in (2, 3):
     raise ValueError(f'Expected points to have shape (N, 2) or (N, 3), got {points.shape}.')
+  ####
   if axis.shape != (3,):
     raise ValueError(f'Expected axis to have shape (3,), got {axis.shape}.')
+  ####
   if len(points) < 2 or num_rotations < 3:
     raise ValueError('A revolved mesh needs at least two boundary points and three rotations.')
+  ####
   axis_norm = np.linalg.norm(axis)
   if not np.isfinite(axis_norm) or axis_norm == 0.0:
     raise ValueError('The revolution axis must be finite and non-zero.')
+  ####
   axis = axis / axis_norm
   if points.shape[1] == 2:
     points = np.column_stack((points, np.zeros(len(points))))
+  ####
 
   rotations = [_rotation_matrix(axis, 2.0 * np.pi * index / num_rotations) for index in range(num_rotations)]
   vertices = np.vstack([points @ rotation.T for rotation in rotations])
@@ -81,7 +94,10 @@ def generateRevolvedMesh(points: ndarray, axis: ndarray, num_rotations: int) -> 
       i2 = next_strip * num_points + point
       i3 = next_strip * num_points + next_point
       faces.extend(((i0, i1, i2), (i1, i3, i2)))
+    ####
+  ####
   return RevolvedMesh(vertices=vertices, faces=np.asarray(faces, dtype=int))
+####
 
 
 def plotRevolvedMeshes(
@@ -93,11 +109,13 @@ def plotRevolvedMeshes(
   """Plot revolved meshes with Matplotlib, importing it only for plot use."""
   if not meshes:
     raise ValueError('No meshes to plot.')
+  ####
   from matplotlib import pyplot as plt
   from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
   if ax is None:
     ax = plt.gcf().add_subplot(111, projection='3d')
+  ####
   colors = list(face_colors) if face_colors is not None else ['#DEDBEF'] * len(meshes)
   kwargs = {'edgecolor': 'black', 'alpha': 0.3, **(face_kwargs or {})}
   plotted = []
@@ -109,6 +127,7 @@ def plotRevolvedMeshes(
     collection = Poly3DCollection(vertices[mesh.faces], facecolor=color, **kwargs)
     ax.add_collection3d(collection)
     plotted.append(collection)
+  ####
   lower = all_vertices.min(axis=0)
   upper = all_vertices.max(axis=0)
   center = (lower + upper) / 2.0
@@ -121,3 +140,4 @@ def plotRevolvedMeshes(
   ax.set_zlabel('Up')
   ax.set_box_aspect((1.0, 1.0, 1.0))
   return ax, plotted
+####

@@ -19,7 +19,6 @@ __all__ = (
     'calculateSpeedOfSoundInAir',
 )
 
-##############################################
 log = getCleanLogger(__name__)
 
 T = TypeVar('T', float, ndarray)
@@ -34,4 +33,4 @@ def calculateSpeedOfSoundInAir(pressure_Pa: T, density_kgpm3: T, adiabatic_index
       density_kgpm3=density_kgpm3,
       adiabatic_index=adiabatic_index,
   )
-##
+####

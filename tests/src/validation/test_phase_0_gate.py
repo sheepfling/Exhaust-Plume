@@ -15,4 +15,4 @@ def test_phase_0_gate_report_is_machine_readable_and_scope_bounded() -> None:
   assert "CPU/GPU acceleration" in report["scope"]["excluded"]
   assert "spectroscopy and radiation" in report["scope"]["excluded"]
   assert "thermochemistry and finite-rate chemistry" in report["scope"]["excluded"]
-  ####
+####

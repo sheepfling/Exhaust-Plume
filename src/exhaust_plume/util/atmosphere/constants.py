@@ -17,7 +17,6 @@ __all__ = (
     'ADIABATIC_INDEX_DRY_AIR_NTP',
     'MOLAR_MASS_DRY_AIR_kg',
 )
-#################################
 
 
 # Adiabatic index is ratio of Cp / Cv, where

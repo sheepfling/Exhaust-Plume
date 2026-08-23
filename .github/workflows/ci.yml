@@ -1,4 +1,4 @@
-name: Test
+name: CI
 
 on:
   push:
@@ -8,6 +8,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ['3.10', '3.11', '3.12', '3.13']
     env:
@@ -18,18 +19,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-      - run: python -m pip install --upgrade pip
-      - run: python -m pip install -e '.[test,quality]'
-      - run: python -m ruff check .
-      - run: python -m pyright
-      - run: python -m pytest
-      - run: PYTHONPATH=src python scripts/check_public_contract_assets.py
-      - run: python -m build
-      - name: Install and exercise the built wheel
-        run: |
-          smoke_env="$RUNNER_TEMP/exhaust-plume-smoke-${{ matrix.python-version }}"
-          python -m venv "$smoke_env"
-          "$smoke_env/bin/python" -m pip install --upgrade pip
-          "$smoke_env/bin/python" -m pip install dist/*.whl
-          cd "$RUNNER_TEMP"
-          "$smoke_env/bin/python" "$GITHUB_WORKSPACE/tests/installed_smoke.py"
+      - name: Install development dependencies
+        run: python -m pip install --editable ".[dev]"
+      - name: Run repository CI
+        run: python -m scripts.ci

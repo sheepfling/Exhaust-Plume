@@ -123,6 +123,7 @@ class PrescribedSectionedTubeProvider:
     provider_id = self.provider_id
     if provider_id is None:
       raise RuntimeError('provider_id was not initialized')
+    ####
     return PrescribedVisualProvider(PrescribedVisualConfiguration(
       provider_id=str(provider_id),
       provider_version=self.provenance.model_version,

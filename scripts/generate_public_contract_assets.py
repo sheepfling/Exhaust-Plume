@@ -43,6 +43,7 @@ def _write_fixtures(directory: Path) -> tuple[Path, ...]:
     path = directory / name
     path.write_text(builder().model_dump_json(indent=2) + '\n', encoding='utf-8')
     generated.append(path)
+  ####
   invalid_visual = _visual_fixture().model_dump(mode='json')
   invalid_visual['sections'][1]['arc_length_m'] = 0.0
   invalid_path = directory / 'invalid_visual_nonmonotonic.json'
@@ -77,6 +78,7 @@ def _capability_manifest() -> list[dict[str, Any]]:
       'result_schema_id': result_schema,
       'wire_id': identity.wire_id,
     })
+  ####
   return records
 ####
 
@@ -165,7 +167,10 @@ def main() -> None:
       manifest_path=arguments.manifest,
   ):
     print(path)
+  ####
+####
 
 
 if __name__ == '__main__':
   main()
+####

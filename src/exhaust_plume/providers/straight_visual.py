@@ -25,7 +25,6 @@ __all__ = (
   'StraightVisualDefinition',
   'StraightVisualProvider',
 )
-####
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,6 +41,7 @@ class StraightVisualDefinition:
   def __post_init__(self) -> None:
     if not self.frame_id:
       raise ProviderConfigurationError('straight visual frame_id must not be empty')
+    ####
     for field_name, value in (
       ('length_m', self.length_m),
       ('initial_radius_major_m', self.initial_radius_major_m),
@@ -50,20 +50,27 @@ class StraightVisualDefinition:
     ):
       if not isfinite(value):
         raise ProviderConfigurationError(f'{field_name} must be finite')
+      ####
+    ####
     if self.length_m <= 0.0:
       raise ProviderConfigurationError('length_m must be positive')
+    ####
     if self.initial_radius_major_m <= 0.0 or self.initial_radius_minor_m <= 0.0:
       raise ProviderConfigurationError('initial radii must be positive')
+    ####
     if not (-pi / 4.0 < self.divergence_angle_rad < pi / 4.0):
       raise ProviderConfigurationError('divergence_angle_rad must be between -pi/4 and pi/4')
+    ####
     if isinstance(self.base_section_count, bool) or self.base_section_count < 2:
       raise ProviderConfigurationError('base_section_count must be an integer >= 2')
+    ####
     final_scale = 1.0 + self.length_m * tan(self.divergence_angle_rad) / min(
       self.initial_radius_major_m,
       self.initial_radius_minor_m,
     )
     if final_scale <= 0.0:
       raise ProviderConfigurationError('divergence causes a non-positive terminal radius')
+    ####
   ####
 
   def to_prescribed_definition(self) -> PrescribedVisualDefinition:
@@ -113,6 +120,7 @@ class StraightVisualConfiguration:
   def __post_init__(self) -> None:
     if not self.provider_id or not self.provider_version:
       raise ProviderConfigurationError('straight visual provider identity must not be empty')
+    ####
   ####
 ####
 
@@ -144,9 +152,11 @@ class StraightVisualProvider:
   ) -> PrescribedVisualSession:
     if not isinstance(definition, StraightVisualDefinition):
       raise ProviderConfigurationError('definition must be StraightVisualDefinition')
+    ####
     selected_configuration = configuration or self._configuration
     if selected_configuration != self._configuration:
       raise ProviderConfigurationError('session configuration must match provider configuration')
+    ####
     return self._delegate.create_session(
       definition=definition.to_prescribed_definition(),
       configuration=PrescribedVisualConfiguration(

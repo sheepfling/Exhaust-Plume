@@ -20,8 +20,8 @@ class PlumeProvenance:
   def __post_init__(self) -> None:
     if not self.provider_id or not self.provider_version:
       raise ValueError('provenance provider identity must not be empty')
+    ####
     object.__setattr__(self, 'source_references', tuple(self.source_references))
     object.__setattr__(self, 'metadata', MappingProxyType(dict(self.metadata)))
-    ####
   ####
 ####

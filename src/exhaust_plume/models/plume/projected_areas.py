@@ -11,7 +11,6 @@ from numpy import arccos, asarray, clip, concatenate, cos, einsum, ndarray, newa
 __all__ = (
     'calculateRevolvedProjectedAreas',
 )
-###########################################
 T = TypeVar('T', ndarray, float)
 
 
@@ -43,7 +42,7 @@ def calculateRevolvedProjectedAreas(
   normal_aspect_rad = asarray(normal_aspect_rad, 'float')
   if len(normal_aspect_rad.shape) == 0:
     normal_aspect_rad = normal_aspect_rad.reshape((1,))
-  ##
+  ####
   normal_aspect_rad = normal_aspect_rad[:, newaxis, ...]
   # (N views, 1)
 
@@ -61,7 +60,7 @@ def calculateRevolvedProjectedAreas(
 
   total_A_proj = einsum('...ij,...ij->...', view, dA)
   return total_A_proj
-##
+####
 
 
 def calcPolarExclusionAngle(R_left: Union[float, ndarray], R_right: Union[float, ndarray],
@@ -80,7 +79,7 @@ def calcPolarExclusionAngle(R_left: Union[float, ndarray], R_right: Union[float,
   with warnings.catch_warnings():
     warnings.filterwarnings('ignore', category=RuntimeWarning)
     Ax_div_Az = dR / H  # (Ax=dR/L); (Az=H/L); (Ax/Az=(dR/L)/(H/L)=dR/H)
-  ##
+  ####
   phi0 = arccos(clip(-(Ax_div_Az) * tan(normal_aspect_rad), -1, 1))
   return phi0
-##
+####

@@ -25,7 +25,7 @@ def test_zero_turn_uses_branch_specific_limits() -> None:
   assert strong.status is ShockSolveStatus.ATTACHED
   assert weak.beta_rad == pytest.approx(asin(1.0 / 3.0))
   assert strong.beta_rad == pytest.approx(pi / 2.0)
-  ####
+####
 
 
 def test_theta_beta_mach_residual_and_branch_ordering() -> None:
@@ -38,7 +38,7 @@ def test_theta_beta_mach_residual_and_branch_ordering() -> None:
   assert weak.residual == pytest.approx(0.0, abs=1.0e-12)
   assert strong.residual == pytest.approx(0.0, abs=1.0e-12)
   assert theta_beta_mach_residual(theta_rad=0.2, beta_rad=weak.beta_rad, mach=3.0, gamma=1.4) == pytest.approx(0.0, abs=1.0e-12)
-  ####
+####
 
 
 def test_maximum_attached_turn_is_a_local_maximum() -> None:
@@ -55,7 +55,7 @@ def test_maximum_attached_turn_is_a_local_maximum() -> None:
   assert peak.beta_rad is not None
   assert below.beta_rad is not None
   assert below.beta_rad < peak.beta_rad
-  ####
+####
 
 
 def test_turn_above_attached_limit_is_structured_detached_result() -> None:
@@ -64,7 +64,7 @@ def test_turn_above_attached_limit_is_structured_detached_result() -> None:
 
   assert result.status is ShockSolveStatus.DETACHED_SHOCK_REQUIRED
   assert result.beta_rad is None
-  ####
+####
 
 
 def test_target_pressure_inversion_uses_normal_mach_and_beta() -> None:
@@ -86,7 +86,7 @@ def test_target_pressure_inversion_uses_normal_mach_and_beta() -> None:
   assert result.beta_rad is not None
   assert result.residual == pytest.approx(0.0, abs=1.0e-12)
   assert calculate_oblique_shock_pressure_ratio(mach=mach, beta_rad=result.beta_rad, gamma=gamma) == pytest.approx(result.pressure_ratio)
-  ####
+####
 
 
 def test_pressure_validity_and_weak_only_policy() -> None:
@@ -128,7 +128,7 @@ def test_pressure_validity_and_weak_only_policy() -> None:
       weak_only=True,
   )
   assert weak_only.status is ShockSolveStatus.STRONG_BRANCH_REQUIRED
-  ####
+####
 
 
 def test_downstream_state_conserves_total_temperature_and_loses_total_pressure() -> None:
@@ -144,4 +144,4 @@ def test_downstream_state_conserves_total_temperature_and_loses_total_pressure()
   assert downstream.total_temperature == pytest.approx(upstream.total_temperature, rel=1.0e-10)
   assert downstream.total_pressure < upstream.total_pressure
   assert downstream.static_pressure > upstream.static_pressure
-  ####
+####

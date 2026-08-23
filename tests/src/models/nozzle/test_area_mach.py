@@ -15,7 +15,6 @@ def test_sonic_area_ratio_is_one() -> None:
   assert calc_area_mach_ratio(1.0, 1.4) == pytest.approx(1.0)
   assert solve_mach_from_area_ratio(1.0, 1.4, MachBranch.SUBSONIC) == 1.0
   assert solve_mach_from_area_ratio(1.0, 1.4, MachBranch.SUPERSONIC) == 1.0
-  ####
 ####
 
 
@@ -25,13 +24,13 @@ def test_area_mach_round_trip_on_both_branches(mach: float) -> None:
   branch = MachBranch.SUBSONIC if mach < 1.0 else MachBranch.SUPERSONIC
   recovered = solve_mach_from_area_ratio(area_ratio, 1.4, branch)
   assert recovered == pytest.approx(mach, rel=1.0e-8, abs=1.0e-10)
-  ####
 ####
 
 
 def test_area_ratio_requires_explicitly_valid_branch_domain() -> None:
   with pytest.raises(ValueError):
     solve_mach_from_area_ratio(0.99, 1.4, MachBranch.SUPERSONIC)
+  ####
   with pytest.raises(ValueError):
     calc_area_mach_ratio(0.0, 1.4)
   ####
@@ -60,5 +59,4 @@ def test_choked_area_and_mass_flow_are_inverses() -> None:
       specific_gas_constant_JpkgK=R,
   )
   assert reconstructed == pytest.approx(mass_flow, rel=1.0e-12)
-  ####
 ####

@@ -34,19 +34,19 @@ from exhaust_plume.contracts import (
 @dataclass(frozen=True, slots=True)
 class _FixtureDefinition:
   name: str = 'fixture'
-  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
 class _FixtureConfiguration:
   scale: float = 1.0
-  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
 class _FixtureOperatingState:
   epoch_s: float = 0.0
-  ####
+####
 
 
 def _descriptor(*capability_ids: CapabilityId, retention: SnapshotRetention = SnapshotRetention.INDEPENDENT) -> PlumeProviderDescriptor:
@@ -123,7 +123,7 @@ class _SpatialOnlyCapability:
   support: SpatialSupport
   capability_id: CapabilityId = CapabilityId.SPATIAL_SUPPORT
   major_version: int = 1
-  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -146,18 +146,19 @@ class _FixtureSession:
   def __init__(self, snapshot: PlumeSnapshot) -> None:
     self._snapshot = snapshot
     self._closed = False
-    ####
+  ####
 
   def snapshot(self, operating_state: _FixtureOperatingState) -> PlumeSnapshot:
     if self._closed:
       raise ProviderClosedError('fixture session closed')
+    ####
     assert operating_state.epoch_s >= 0
     return self._snapshot
   ####
 
   def close(self) -> None:
     self._closed = True
-    ####
+  ####
 ####
 
 
@@ -227,15 +228,16 @@ class _InvalidatableSnapshot:
   def __init__(self, snapshot: PlumeSnapshot) -> None:
     self._snapshot = snapshot
     self._valid = True
-    ####
+  ####
 
   def invalidate(self) -> None:
     self._valid = False
-    ####
+  ####
 
   def get_capability(self, capability_id: CapabilityId, major_version: int) -> object:
     if not self._valid:
       raise SnapshotInvalidatedError('fixture snapshot was invalidated by the next snapshot')
+    ####
     return self._snapshot.get_capability(capability_id, major_version)
   ####
 ####
@@ -266,7 +268,6 @@ def test_signature_only_provider_does_not_advertise_geometry() -> None:
   capability = snapshot.get_capability(CapabilityId.DIRECTIONAL_SPECTRAL_INTENSITY, 1)
   assert capability.capability_id is CapabilityId.DIRECTIONAL_SPECTRAL_INTENSITY
   assert CapabilityId.SPATIAL_SUPPORT not in snapshot.capabilities
-  ####
 ####
 
 
@@ -295,8 +296,10 @@ def test_signature_query_validates_and_defensively_copies_arrays() -> None:
   assert not query.source_to_observer_direction_plume.flags.writeable
   with pytest.raises(ValueError):
     query.wavelength_m[0] = 1.0
+  ####
   with pytest.raises(SpectralDomainError):
     DirectionalSpectralIntensityQuery(np.array([4.0e-6, 2.0e-6]), query.source_to_observer_direction_plume)
+  ####
   with pytest.raises(AngularDomainError):
     DirectionalSpectralIntensityQuery(query.wavelength_m, np.array([[1.0, 0.0, 0.1]]))
   ####
@@ -311,7 +314,6 @@ def test_deterministic_signature_and_axisymmetric_directional_symmetry() -> None
   result_b = capability.evaluate(_signature_query())
   np.testing.assert_array_equal(result_a.spectral_radiant_intensity_w_sr_m, result_b.spectral_radiant_intensity_w_sr_m)
   np.testing.assert_array_equal(result_a.spectral_radiant_intensity_w_sr_m[0], result_a.spectral_radiant_intensity_w_sr_m[1])
-  ####
 ####
 
 
@@ -323,7 +325,6 @@ def test_rich_provider_ray_transfer_and_snapshot_provenance() -> None:
   np.testing.assert_array_equal(result.source_spectral_radiance_w_sr_m, np.full((1, 2), 2.0))
   np.testing.assert_array_equal(result.background_transmittance, np.full((1, 2), 0.5))
   assert snapshot.provenance.calibration_id == 'fixture-calibration-v1'
-  ####
 ####
 
 
@@ -335,7 +336,6 @@ def test_ray_miss_returns_zero_source_and_unit_transmittance() -> None:
   )
   np.testing.assert_array_equal(result.source_spectral_radiance_w_sr_m, np.zeros((1, 2)))
   np.testing.assert_array_equal(result.background_transmittance, np.ones((1, 2)))
-  ####
 ####
 
 
@@ -346,7 +346,6 @@ def test_rich_to_simple_fixture_equivalence() -> None:
   ray = snapshot.get_capability(CapabilityId.SPECTRAL_RAY_TRANSFER, 1).transfer(_ray_query())
   orthographic_integral = ray.source_spectral_radiance_w_sr_m[:, 0] * 1.0
   np.testing.assert_allclose(signature.spectral_radiant_intensity_w_sr_m[:, 0], np.full(2, orthographic_integral[0]))
-  ####
 ####
 
 
@@ -384,7 +383,6 @@ def test_descriptor_separates_morphology_fidelity_and_execution() -> None:
   assert descriptor.fidelity.flow_model == 'fixture'
   assert descriptor.execution.preferred_device == 'cpu'
   assert descriptor.execution.deterministic
-  ####
 ####
 
 

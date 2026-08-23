@@ -17,7 +17,6 @@ __all__ = (
     "RayIntersectionResult",
     "RayIntersectionStatus",
 )
-###########################################
 
 
 class GeometryStatus(str, Enum):
@@ -40,7 +39,7 @@ class GeometryStatus(str, Enum):
   ZERO_AREA = "zero_area"
   INVALID_WINDING = "invalid_winding"
   OUTSIDE_DOMAIN = "outside_domain"
-  ####
+####
 
 
 class RayIntersectionStatus(str, Enum):
@@ -52,7 +51,7 @@ class RayIntersectionStatus(str, Enum):
   BEHIND_FIRST_RAY = GeometryStatus.BEHIND_FIRST_RAY.value
   BEHIND_SECOND_RAY = GeometryStatus.BEHIND_SECOND_RAY.value
   BEHIND_RAY = GeometryStatus.BEHIND_RAY.value
-  ####
+####
 
 
 class ParabolaIntersectionStatus(str, Enum):
@@ -61,7 +60,7 @@ class ParabolaIntersectionStatus(str, Enum):
   DEGENERATE = GeometryStatus.DEGENERATE.value
   NO_REAL_ROOT = GeometryStatus.NO_REAL_ROOT.value
   NO_FORWARD_ROOT = GeometryStatus.NO_FORWARD_ROOT.value
-  ####
+####
 
 
 @dataclass(frozen=True)
@@ -76,17 +75,21 @@ class Ray2D:
     direction = np.array(self.direction, dtype=float, copy=True)
     if origin.shape != (2,) or direction.shape != (2,):
       raise ValueError(f"Ray origin and direction must each have shape (2,); got {origin.shape} and {direction.shape}")
+    ####
     if not np.isfinite(origin).all() or not np.isfinite(direction).all():
       raise ValueError("Ray origin and direction must be finite")
+    ####
     norm = float(np.linalg.norm(direction))
     if norm == 0.0:
       raise ValueError("Ray direction must be non-zero")
+    ####
     direction /= norm
     origin.flags.writeable = False
     direction.flags.writeable = False
     object.__setattr__(self, "origin", origin)
     object.__setattr__(self, "direction", direction)
   ####
+####
 
 
 @dataclass(frozen=True)
@@ -107,6 +110,7 @@ class RayIntersectionResult:
       point = np.array(self.point, dtype=float, copy=True)
       point.flags.writeable = False
       object.__setattr__(self, "point", point)
+    ####
   ####
 
   @property
@@ -123,6 +127,7 @@ class RayIntersectionResult:
   def t2(self) -> Optional[float]:
     return self.parameter_b
   ####
+####
 
 
 @dataclass(frozen=True)
@@ -141,12 +146,14 @@ class ParabolaIntersectionResult:
       point = np.array(self.point, dtype=float, copy=True)
       point.flags.writeable = False
       object.__setattr__(self, "point", point)
+    ####
   ####
 
   @property
   def is_success(self) -> bool:
     return self.status is ParabolaIntersectionStatus.SUCCESS
   ####
+####
 
 
 class PolygonValidationResult:
@@ -158,6 +165,7 @@ class PolygonValidationResult:
     self.status = status
     self.signed_area = signed_area
     self.message = message
+  ####
 
   @property
   def is_valid(self) -> bool:
@@ -167,3 +175,4 @@ class PolygonValidationResult:
   def __repr__(self) -> str:
     return f"PolygonValidationResult(status={self.status!r}, signed_area={self.signed_area!r}, message={self.message!r})"
   ####
+####

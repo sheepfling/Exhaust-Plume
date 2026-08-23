@@ -47,7 +47,6 @@ __all__ = (
   'PrescribedVisualProvider',
   'PrescribedVisualSession',
 )
-####
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,11 +60,14 @@ class PrescribedVisualDefinition:
   def __post_init__(self) -> None:
     if not self.frame_id:
       raise ProviderConfigurationError('visual definition frame_id must not be empty')
+    ####
     if len(self.sections) < 2:
       raise ProviderConfigurationError('visual definition requires at least two sections')
+    ####
     arc_lengths = [section.arc_length_m for section in self.sections]
     if any(next_value <= value for value, next_value in zip(arc_lengths, arc_lengths[1:])):
       raise ProviderConfigurationError('visual definition section arc lengths must be strictly increasing')
+    ####
     normalized_channels: dict[str, tuple[float, ...]] = {}
     for channel_name, values in self.channels.items():
       if not channel_name or any(
@@ -73,11 +75,15 @@ class PrescribedVisualDefinition:
           for character in channel_name
       ):
         raise ProviderConfigurationError(f'invalid visual channel name: {channel_name}')
+      ####
       if len(values) != len(self.sections):
         raise ProviderConfigurationError(f'visual channel {channel_name!r} length must equal section count')
+      ####
       if not all(isfinite(value) for value in values):
         raise ProviderConfigurationError(f'visual channel {channel_name!r} must be finite')
+      ####
       normalized_channels[channel_name] = tuple(float(value) for value in values)
+    ####
     object.__setattr__(self, 'sections', tuple(self.sections))
     object.__setattr__(self, 'channels', MappingProxyType(normalized_channels))
   ####
@@ -100,6 +106,7 @@ class PrescribedVisualConfiguration:
   def __post_init__(self) -> None:
     if not self.provider_id or not self.provider_version:
       raise ProviderConfigurationError('visual provider identity must not be empty')
+    ####
   ####
 ####
 
@@ -140,9 +147,11 @@ class PrescribedVisualProvider:
   ) -> 'PrescribedVisualSession':
     if not isinstance(definition, PrescribedVisualDefinition):
       raise ProviderConfigurationError('definition must be PrescribedVisualDefinition')
+    ####
     selected_configuration = configuration or self._configuration
     if selected_configuration != self._configuration:
       raise ProviderConfigurationError('session configuration must match provider configuration')
+    ####
     return PrescribedVisualSession(self._descriptor, definition, selected_configuration)
   ####
 ####
@@ -183,9 +192,11 @@ def _evaluate_prescribed_definition(
       f'prescribed visual provider supports output frame {definition.frame_id!r}, '
       f'not {request.output_frame_id!r}'
     )
+  ####
   unsupported = tuple(channel for channel in request.requested_channels if channel not in definition.channels)
   if unsupported:
     raise InvalidProductRequestError(f'unsupported visual channels: {unsupported}')
+  ####
   sections = _sample_sections(definition.sections, request.sampling.maximum_section_count)
   selected_indices = _sample_indices(len(definition.sections), len(sections))
   channels = {
@@ -235,11 +246,13 @@ def _evaluate_prescribed_definition(
       maximum_radius_m=maximum_radius,
     ),
   )
+####
 
 
 def _sample_indices(total_count: int, selected_count: int) -> tuple[int, ...]:
   if selected_count >= total_count:
     return tuple(range(total_count))
+  ####
   indices = tuple(round(index * (total_count - 1) / (selected_count - 1)) for index in range(selected_count))
   return tuple(int(index) for index in indices)
 ####
@@ -307,8 +320,10 @@ class PrescribedVisualSession:
   ) -> ImmutableProductSnapshot:
     if self._closed:
       raise ProviderClosedError('prescribed visual session is closed')
+    ####
     if not isfinite(time_s):
       raise ProviderConfigurationError('time_s must be finite')
+    ####
     dynamic_digest = canonical_digest(dynamic_state)
     ambient_digest = canonical_digest(ambient_state)
     provider_digest = canonical_digest({
@@ -341,3 +356,4 @@ class PrescribedVisualSession:
   def close(self) -> None:
     self._closed = True
   ####
+####

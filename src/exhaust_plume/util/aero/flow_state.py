@@ -24,7 +24,6 @@ from exhaust_plume.util.numeric import ATOL_DEFAULT, EQUAL_NAN_DEFAULT, RTOL_DEF
 __all__ = (
     'FlowState',
 )
-###########################################
 @dataclass(frozen=True)
 class FlowState:
   mach: float  # number
@@ -38,37 +37,37 @@ class FlowState:
       v = getattr(self, f.name)
       if isinstance(v, ndarray):
         v.flags.writeable = False
-      ##
-    ##
-  ##
+      ####
+    ####
+  ####
 
   @cached_property
   def total_pressure(self) -> float:
     p_total = calcIsentropicTotalPressure(mach=self.mach, static_pressure=self.static_pressure, gamma=self.gamma)
     return p_total
-  ##
+  ####
 
   @cached_property
   def total_temperature(self) -> float:
     T_total = calcIsentropicTotalTemperature(mach=self.mach, static_temperature=self.static_temperature, gamma=self.gamma)
     return T_total
-  ##
+  ####
 
   @cached_property
   def total_density(self) -> float:
     rho_total = calcIsentropicTotalDensity(mach=self.mach, static_density=self.static_density, gamma=self.gamma)
     return rho_total
-  ##
+  ####
 
   @cached_property
   def mach_line_deg(self) -> float:
     return calcMachAngle(self.mach)
-  ##
+  ####
 
   @cached_property
   def mach_line_rad(self) -> float:
     return deg2rad(self.mach_line_deg)
-  ##
+  ####
 
   @cached_property
   def speed_of_sound_mps(self) -> float:
@@ -77,26 +76,26 @@ class FlowState:
         density_kgpm3=self.static_density,
         adiabatic_index=self.gamma,
     )
-  ##
+  ####
 
   @cached_property
   def speed_mps(self) -> float:
     return self.mach * self.speed_of_sound_mps
-  ##
+  ####
 
   @cached_property
   def specific_gas_constant_JpkgK(self) -> float:
     """Infer the explicit gas constant from the complete static state."""
 
     return self.static_pressure / (self.static_density * self.static_temperature)
-  ##
+  ####
 
   @cached_property
   def specific_gas_work_Jpkg(self) -> float:
     """Return p/rho, the ideal-gas specific work scale."""
 
     return self.static_pressure / self.static_density
-  ##
+  ####
 
   @cached_property
   def specific_static_internal_energy_Jpkg(self) -> float:
@@ -104,7 +103,7 @@ class FlowState:
 
     cv = self.specific_gas_constant_JpkgK / (self.gamma - 1.0)
     return cv * self.static_temperature
-  ##
+  ####
 
   @cached_property
   def specific_static_enthalpy_Jpkg(self) -> float:
@@ -112,14 +111,14 @@ class FlowState:
 
     cp = self.gamma * self.specific_gas_constant_JpkgK / (self.gamma - 1.0)
     return cp * self.static_temperature
-  ##
+  ####
 
   @cached_property
   def specific_total_energy_Jpkg(self) -> float:
     """Return E = c_v T + u^2/2, the corrected total specific energy."""
 
     return self.specific_static_internal_energy_Jpkg + self.speed_mps**2 / 2.0
-  ##
+  ####
 
   @cached_property
   def specific_total_enthalpy_Jpkg(self) -> float:
@@ -127,7 +126,7 @@ class FlowState:
 
     cp = self.gamma * self.specific_gas_constant_JpkgK / (self.gamma - 1.0)
     return cp * self.total_temperature
-  ##
+  ####
 
   @property
   def legacy_specific_total_energy_Jpkg(self) -> float:
@@ -140,20 +139,20 @@ class FlowState:
         stacklevel=2,
     )
     return self.total_pressure / self.total_density
-  ##
+  ####
 
   def isClose(self, other: object, rtol: float = RTOL_DEFAULT, atol: float = ATOL_DEFAULT, equal_nan: bool = EQUAL_NAN_DEFAULT) -> bool:
     return dataclassIsClose(self, other, rtol=rtol, atol=atol, equal_nan=equal_nan)
-  ##
+  ####
 
   def __eq__(self, other: object) -> bool:
     return dataclassIsEqual(self, other)
-  ##
+  ####
 
   def __hash__(self) -> int:
     tup = tuple(x.data.tobytes() if isinstance(x, ndarray) else x for x in (
         getattr(self, f.name) for f in fields(self)
     ))
     return hash(tup)
-  ##
-##
+  ####
+####

@@ -16,7 +16,6 @@ __all__ = (
     'calcMachGivenAreaRatioGamma',
     'EngineParameters',
 )
-###########################################
 
 
 def calcMachGivenAreaRatioGamma(
@@ -38,7 +37,7 @@ def calcMachGivenAreaRatioGamma(
       atol=atol,
       max_iter=max_iter,
   )
-##
+####
 
 
 def calcAreaThroatGivenMassFlowRateTotalTemperaturePressure(
@@ -58,7 +57,7 @@ def calcAreaThroatGivenMassFlowRateTotalTemperaturePressure(
       gamma=gamma,
       specific_gas_constant_JpkgK=specific_gas_constant_JpkgK,
   )
-##
+####
 
 
 @dataclass(frozen=True)
@@ -75,17 +74,17 @@ class EngineParameters:
       v = getattr(self, f.name)
       if v is None or v <= 0 or not isfinite(v):
         raise ValueError(f'Expected `{f.name}` to be positive. Got:{v}')
-      ##
-    ##
+      ####
+    ####
     if self.gamma <= 1.:
       raise ValueError(f'Expected `gamma` to be greater than 1. Got:{self.gamma}')
-    ##
-  ##
+    ####
+  ####
 
   @cached_property
   def exit_area_m2(self) -> float:
     return pi * self.exit_radius_m**2.
-  ##
+  ####
 
   @cached_property
   def throat_area_m2(self) -> float:
@@ -96,7 +95,7 @@ class EngineParameters:
         molar_mass_kg=self.molar_mass_kg,
         gamma=self.gamma,
     )
-  ##
+  ####
 
   @cached_property
   def exit_mach(self) -> float:
@@ -105,20 +104,20 @@ class EngineParameters:
         area_exit=self.exit_area_m2,
         gamma=self.gamma,
     )
-  ##
+  ####
 
   @cached_property
   def total_density_kgpm3(self) -> float:
     specific_gas_constant_JpkgK = calcSpecificGasConstant(molar_mass_kg=self.molar_mass_kg)
     return self.total_pressure_Pa / (specific_gas_constant_JpkgK * self.total_temperature_K)
-  ##
+  ####
 
   @cached_property
   def total_density_kgps(self) -> float:
     """Compatibility alias for the old unit-inaccurate property name."""
 
     return self.total_density_kgpm3
-  ##
+  ####
 
   @cached_property
   def static_pressure_Pa(self) -> float:
@@ -127,7 +126,7 @@ class EngineParameters:
         total_pressure=self.total_pressure_Pa,
         gamma=self.gamma,
     )
-  ##
+  ####
 
   @cached_property
   def static_temperature_K(self) -> float:
@@ -136,7 +135,7 @@ class EngineParameters:
         total_temperature=self.total_temperature_K,
         gamma=self.gamma,
     )
-  ##
+  ####
 
   @cached_property
   def static_density_kgpm3(self) -> float:
@@ -145,12 +144,12 @@ class EngineParameters:
         total_density=self.total_density_kgpm3,
         gamma=self.gamma,
     )
-  ##
+  ####
 
   @cached_property
   def static_density_kpgs(self) -> float:
     """Compatibility alias for the old unit-inaccurate property name."""
 
     return self.static_density_kgpm3
-  ##
-##
+  ####
+####

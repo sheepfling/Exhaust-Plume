@@ -19,14 +19,12 @@ Vector3: TypeAlias = tuple[float, float, float]
 QuaternionXyzw: TypeAlias = tuple[float, float, float, float]
 MatrixFloat: TypeAlias = tuple[tuple[float, ...], ...]
 MatrixBool: TypeAlias = tuple[tuple[bool, ...], ...]
-####
 
 
 class ApiModel(BaseModel):
   """Immutable, closed DTO base used at the public interface boundary."""
 
   model_config = ConfigDict(extra='forbid', frozen=True)
-  ####
 ####
 
 
@@ -50,10 +48,12 @@ class CapabilityIdentity(ApiModel):
     name, separator, major_text = value.rpartition('@')
     if not separator or not name or not major_text:
       raise ValueError('capability ID must contain a name and @<major>')
+    ####
     try:
       major = int(major_text)
     except ValueError as error:
       raise ValueError('capability major version must be an integer') from error
+    ####
     return cls(name=name, major=major)
   ####
 ####
@@ -66,7 +66,7 @@ class GeometryClaim(str, Enum):
   ENGINEERING_APPROXIMATE = 'engineering_approximate'
   CONSERVATIVE = 'conservative'
   VALIDATED = 'validated'
-  ####
+####
 
 
 class RadiationClaim(str, Enum):
@@ -76,7 +76,7 @@ class RadiationClaim(str, Enum):
   SPECTRAL_ENGINEERING = 'spectral_engineering'
   TABULATED = 'tabulated'
   VALIDATED = 'validated'
-  ####
+####
 
 
 class TimeModel(str, Enum):
@@ -84,7 +84,7 @@ class TimeModel(str, Enum):
   QUASI_STEADY = 'quasi_steady'
   PRESCRIBED_TRANSIENT = 'prescribed_transient'
   SOLVED_TRANSIENT = 'solved_transient'
-  ####
+####
 
 
 class Derivation(str, Enum):
@@ -92,21 +92,21 @@ class Derivation(str, Enum):
   ADAPTED = 'adapted'
   TABULATED = 'tabulated'
   SURROGATE = 'surrogate'
-  ####
+####
 
 
 class ConsistencyLevel(str, Enum):
   INDEPENDENT = 'independent'
   CALIBRATED = 'calibrated'
   CO_GENERATED = 'co_generated'
-  ####
+####
 
 
 class ApplicabilityStatus(str, Enum):
   INSIDE = 'inside'
   MARGINAL = 'marginal'
   OUTSIDE = 'outside'
-  ####
+####
 
 
 class ErrorCode(str, Enum):
@@ -119,7 +119,7 @@ class ErrorCode(str, Enum):
   RESOURCE_EXHAUSTED = 'resource_exhausted'
   BACKEND_FAILURE = 'backend_failure'
   CANCELLED = 'cancelled'
-  ####
+####
 
 
 class SampleStatusCode(str, Enum):
@@ -127,7 +127,7 @@ class SampleStatusCode(str, Enum):
   OUTSIDE_APPLICABILITY = 'outside_applicability'
   INVALID_SAMPLE = 'invalid_sample'
   BACKEND_FAILURE = 'backend_failure'
-  ####
+####
 
 
 class SampleStatus(ApiModel):
@@ -136,7 +136,6 @@ class SampleStatus(ApiModel):
   code: SampleStatusCode
   message: str | None = None
   retryable: bool = False
-  ####
 ####
 
 
@@ -152,6 +151,7 @@ class Pose(ApiModel):
   def validate_translation(cls, value: Vector3) -> Vector3:
     if not all(isfinite(component) for component in value):
       raise ValueError('translation_m must contain finite values')
+    ####
     return value
   ####
 
@@ -160,9 +160,11 @@ class Pose(ApiModel):
   def validate_rotation(cls, value: QuaternionXyzw) -> QuaternionXyzw:
     if not all(isfinite(component) for component in value):
       raise ValueError('rotation_xyzw must contain finite values')
+    ####
     norm = sqrt(sum(component * component for component in value))
     if abs(norm - 1.0) > 1.0e-6:
       raise ValueError('rotation_xyzw must be unit length')
+    ####
     return value
   ####
 ####
@@ -176,14 +178,12 @@ class ProductClaims(ApiModel):
   time_model: TimeModel
   derivation: Derivation
   consistency: ConsistencyLevel
-  ####
 ####
 
 
 class ApplicabilityReport(ApiModel):
   status: ApplicabilityStatus
   reasons: tuple[str, ...] = ()
-  ####
 ####
 
 
@@ -225,6 +225,7 @@ class ProviderDescriptor(ApiModel):
     wire_ids = [capability.wire_id for capability in self.supported_capabilities]
     if len(wire_ids) != len(set(wire_ids)):
       raise ValueError('supported capabilities must be unique')
+    ####
     return self
   ####
 ####
@@ -235,7 +236,6 @@ class SessionMetadata(ApiModel):
   provider_id: str = Field(min_length=1)
   provider_version: str = Field(min_length=1)
   configuration_digest_sha256: str = Field(min_length=1)
-  ####
 ####
 
 
@@ -254,6 +254,7 @@ class SnapshotMetadata(ApiModel):
   def validate_time(cls, value: float) -> float:
     if not isfinite(value):
       raise ValueError('time_s must be finite')
+    ####
     return value
   ####
 ####
@@ -269,7 +270,6 @@ class ResultMetadata(ApiModel):
   applicability: ApplicabilityReport
   provenance: ResultProvenance
   warnings: tuple[str, ...] = ()
-  ####
 ####
 
 
@@ -304,14 +304,19 @@ def canonical_digest(value: Any) -> str:
 def _jsonable(value: Any) -> Any:
   if isinstance(value, BaseModel):
     return _jsonable(value.model_dump(mode='python'))
+  ####
   if isinstance(value, Enum):
     return value.value
+  ####
   if is_dataclass(value):
     return {field.name: _jsonable(getattr(value, field.name)) for field in fields(value)}
+  ####
   if isinstance(value, Mapping):
     return {str(key): _jsonable(item) for key, item in value.items()}
+  ####
   if isinstance(value, (tuple, list)):
     return [_jsonable(item) for item in value]
+  ####
   return value
 ####
 
@@ -321,9 +326,11 @@ def validate_rectangular_matrix(matrix: tuple[tuple[Any, ...], ...], field_name:
 
   if not matrix or not matrix[0]:
     raise ValueError(f'{field_name} must be a non-empty matrix')
+  ####
   width = len(matrix[0])
   if any(len(row) != width for row in matrix):
     raise ValueError(f'{field_name} must be rectangular')
+  ####
   return len(matrix), width
 ####
 
@@ -356,4 +363,3 @@ __all__ = (
   'canonical_digest',
   'validate_rectangular_matrix',
 )
-####

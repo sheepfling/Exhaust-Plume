@@ -23,7 +23,6 @@ __all__ = (
     "solve_shock_to_pressure",
     "theta_beta_mach_residual",
 )
-###########################################
 
 
 class ShockBranch(str, Enum):
@@ -31,7 +30,7 @@ class ShockBranch(str, Enum):
 
   WEAK = "weak"
   STRONG = "strong"
-  ####
+####
 
 
 class ShockSolveStatus(str, Enum):
@@ -43,7 +42,7 @@ class ShockSolveStatus(str, Enum):
   PRESSURE_ABOVE_NORMAL_SHOCK_LIMIT = "pressure_above_normal_shock_limit"
   STRONG_BRANCH_REQUIRED = "strong_branch_required"
   WEAK_BRANCH_REQUIRED = "weak_branch_required"
-  ####
+####
 
 
 @dataclass(frozen=True)
@@ -62,6 +61,7 @@ class ShockAngleSolution:
   def is_attached(self) -> bool:
     return self.status is ShockSolveStatus.ATTACHED
   ####
+####
 
 
 @dataclass(frozen=True)
@@ -84,19 +84,22 @@ class ShockPressureSolution:
   def is_attached(self) -> bool:
     return self.status is ShockSolveStatus.ATTACHED
   ####
+####
 
 
 def _validate_mach_gamma(mach: float, gamma: float) -> None:
   if not isfinite(mach) or mach <= 1.0:
     raise ValueError(f"Oblique shocks require a finite upstream Mach number > 1; got {mach!r}")
+  ####
   if not isfinite(gamma) or gamma <= 1.0:
     raise ValueError(f"Oblique shocks require a finite gamma > 1; got {gamma!r}")
   ####
+####
 
 
 def _mach_angle_rad(mach: float) -> float:
   return asin(1.0 / mach)
-  ####
+####
 
 
 def calculate_oblique_shock_pressure_ratio(*, mach: float, beta_rad: float, gamma: float) -> float:
@@ -105,11 +108,13 @@ def calculate_oblique_shock_pressure_ratio(*, mach: float, beta_rad: float, gamm
   _validate_mach_gamma(mach, gamma)
   if not isfinite(beta_rad) or not 0.0 < beta_rad <= pi / 2.0:
     raise ValueError(f"Shock angle must be in (0, pi/2]; got {beta_rad!r}")
+  ####
   normal_mach = mach * sin(beta_rad)
   if normal_mach < 1.0:
     raise ValueError("An attached oblique shock must have a normal Mach component >= 1")
-  return calculate_normal_shock_pressure_ratio(mach=normal_mach, gamma=gamma)
   ####
+  return calculate_normal_shock_pressure_ratio(mach=normal_mach, gamma=gamma)
+####
 
 
 def calculate_normal_shock_pressure_ratio(*, mach: float, gamma: float) -> float:
@@ -117,17 +122,19 @@ def calculate_normal_shock_pressure_ratio(*, mach: float, gamma: float) -> float
 
   if not isfinite(mach) or mach < 1.0:
     raise ValueError(f"Normal-shock Mach number must be finite and >= 1; got {mach!r}")
+  ####
   if not isfinite(gamma) or gamma <= 1.0:
     raise ValueError(f"Normal shocks require a finite gamma > 1; got {gamma!r}")
-  return 1.0 + (2.0 * gamma / (gamma + 1.0)) * (mach**2 - 1.0)
   ####
+  return 1.0 + (2.0 * gamma / (gamma + 1.0)) * (mach**2 - 1.0)
+####
 
 
 def _theta_from_beta(beta_rad: float, mach: float, gamma: float) -> float:
   numerator = 2.0 / tan(beta_rad) * (mach**2 * sin(beta_rad)**2 - 1.0)
   denominator = mach**2 * (gamma + cos(2.0 * beta_rad)) + 2.0
   return atan(numerator / denominator)
-  ####
+####
 
 
 def theta_beta_mach_residual(*, theta_rad: float, beta_rad: float, mach: float, gamma: float) -> float:
@@ -142,8 +149,9 @@ def theta_beta_mach_residual(*, theta_rad: float, beta_rad: float, mach: float, 
   _validate_mach_gamma(mach, gamma)
   if not isfinite(theta_rad) or not isfinite(beta_rad):
     raise ValueError("Shock angles and turns must be finite")
-  return tan(theta_rad) - 2.0 / tan(beta_rad) * (mach**2 * sin(beta_rad)**2 - 1.0) / (mach**2 * (gamma + cos(2.0 * beta_rad)) + 2.0)
   ####
+  return tan(theta_rad) - 2.0 / tan(beta_rad) * (mach**2 * sin(beta_rad)**2 - 1.0) / (mach**2 * (gamma + cos(2.0 * beta_rad)) + 2.0)
+####
 
 
 def _beta_at_max_attached_turn(*, mach: float, gamma: float) -> tuple[float, float]:
@@ -187,16 +195,18 @@ def _beta_at_max_attached_turn(*, mach: float, gamma: float) -> tuple[float, flo
       f2 = f1
       x1 = right - golden * (right - left)
       f1 = _theta_from_beta(x1, mach, gamma)
+    ####
+  ####
   beta_peak = (left + right) / 2.0
   return beta_peak, _theta_from_beta(beta_peak, mach, gamma)
-  ####
+####
 
 
 def calculate_max_attached_turn(*, mach: float, gamma: float) -> float:
   """Return the maximum attached positive turn in radians."""
 
   return _beta_at_max_attached_turn(mach=mach, gamma=gamma)[1]
-  ####
+####
 
 
 def _bisect_beta(*, theta_rad: float, mach: float, gamma: float, branch: ShockBranch, beta_peak: float, theta_max_rad: float) -> float:
@@ -207,21 +217,26 @@ def _bisect_beta(*, theta_rad: float, mach: float, gamma: float, branch: ShockBr
   else:
     lower = beta_peak
     upper = pi / 2.0
+  ####
   lower_value = _theta_from_beta(lower, mach, gamma) - theta_rad
   if abs(theta_rad - theta_max_rad) <= 1.0e-13:
     return beta_peak
+  ####
   for _ in range(160):
     middle = (lower + upper) / 2.0
     middle_value = _theta_from_beta(middle, mach, gamma) - theta_rad
     if abs(middle_value) <= 1.0e-14:
       return middle
+    ####
     if lower_value * middle_value <= 0.0:
       upper = middle
     else:
       lower = middle
       lower_value = middle_value
-  return (lower + upper) / 2.0
+    ####
   ####
+  return (lower + upper) / 2.0
+####
 
 
 def solve_shock_angle(*, theta_rad: float, mach: float, gamma: float, branch: ShockBranch = ShockBranch.WEAK) -> ShockAngleSolution:
@@ -230,6 +245,7 @@ def solve_shock_angle(*, theta_rad: float, mach: float, gamma: float, branch: Sh
   _validate_mach_gamma(mach, gamma)
   if not isfinite(theta_rad) or theta_rad < 0.0:
     raise ValueError(f"Turn angle must be finite and non-negative; got {theta_rad!r}")
+  ####
   beta_peak, theta_max = _beta_at_max_attached_turn(mach=mach, gamma=gamma)
   tolerance = max(1.0e-12, theta_max * 1.0e-10)
   if theta_rad > theta_max + tolerance:
@@ -242,12 +258,14 @@ def solve_shock_angle(*, theta_rad: float, mach: float, gamma: float, branch: Sh
         residual=None,
         message=f"Requested turn {theta_rad:g} rad exceeds attached maximum {theta_max:g} rad",
     )
+  ####
   if theta_rad == 0.0:
     beta = _mach_angle_rad(mach) if branch is ShockBranch.WEAK else pi / 2.0
   elif theta_rad >= theta_max - tolerance:
     beta = beta_peak
   else:
     beta = _bisect_beta(theta_rad=theta_rad, mach=mach, gamma=gamma, branch=branch, beta_peak=beta_peak, theta_max_rad=theta_max)
+  ####
   residual = theta_beta_mach_residual(theta_rad=theta_rad, beta_rad=beta, mach=mach, gamma=gamma)
   return ShockAngleSolution(
       status=ShockSolveStatus.ATTACHED,
@@ -257,7 +275,7 @@ def solve_shock_angle(*, theta_rad: float, mach: float, gamma: float, branch: Sh
       theta_max_rad=theta_max,
       residual=residual,
   )
-  ####
+####
 
 
 def solve_shock_to_pressure(*, mach: float, gamma: float, upstream_pressure_Pa: float, target_pressure_Pa: float,
@@ -273,8 +291,10 @@ def solve_shock_to_pressure(*, mach: float, gamma: float, upstream_pressure_Pa: 
   _validate_mach_gamma(mach, gamma)
   if not isfinite(upstream_pressure_Pa) or upstream_pressure_Pa <= 0.0:
     raise ValueError("Upstream pressure must be finite and positive")
+  ####
   if not isfinite(target_pressure_Pa) or target_pressure_Pa <= 0.0:
     raise ValueError("Target pressure must be finite and positive")
+  ####
   beta_peak, theta_max = _beta_at_max_attached_turn(mach=mach, gamma=gamma)
   max_pressure_ratio = calculate_normal_shock_pressure_ratio(mach=mach, gamma=gamma)
   pressure_ratio = target_pressure_Pa / upstream_pressure_Pa
@@ -293,6 +313,7 @@ def solve_shock_to_pressure(*, mach: float, gamma: float, upstream_pressure_Pa: 
         residual=None,
         message="An attached compression shock cannot reduce static pressure",
     )
+  ####
   if pressure_ratio > max_pressure_ratio + pressure_tolerance:
     return ShockPressureSolution(
         status=ShockSolveStatus.PRESSURE_ABOVE_NORMAL_SHOCK_LIMIT,
@@ -307,6 +328,7 @@ def solve_shock_to_pressure(*, mach: float, gamma: float, upstream_pressure_Pa: 
         residual=None,
         message=f"Target pressure ratio {pressure_ratio:g} exceeds normal-shock limit {max_pressure_ratio:g}",
     )
+  ####
 
   pressure_ratio = min(max(1.0, pressure_ratio), max_pressure_ratio)
   normal_mach_squared = 1.0 + (pressure_ratio - 1.0) * (gamma + 1.0) / (2.0 * gamma)
@@ -327,6 +349,7 @@ def solve_shock_to_pressure(*, mach: float, gamma: float, upstream_pressure_Pa: 
         residual=None,
         message="The requested pressure requires the strong attached branch",
     )
+  ####
   if branch is ShockBranch.STRONG and actual_branch is ShockBranch.WEAK:
     return ShockPressureSolution(
         status=ShockSolveStatus.WEAK_BRANCH_REQUIRED,
@@ -341,6 +364,7 @@ def solve_shock_to_pressure(*, mach: float, gamma: float, upstream_pressure_Pa: 
         residual=None,
         message="The requested pressure lies on the weak attached branch",
     )
+  ####
   theta = _theta_from_beta(beta, mach, gamma)
   residual = theta_beta_mach_residual(theta_rad=theta, beta_rad=beta, mach=mach, gamma=gamma)
   return ShockPressureSolution(
@@ -355,4 +379,4 @@ def solve_shock_to_pressure(*, mach: float, gamma: float, upstream_pressure_Pa: 
       theta_max_rad=theta_max,
       residual=residual,
   )
-  ####
+####

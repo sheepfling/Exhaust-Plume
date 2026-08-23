@@ -54,6 +54,7 @@ class CaloricallyPerfectGas(GasPropertiesConfig):
 
     if pressure_Pa <= 0.0 or temperature_K <= 0.0:
       raise ValueError('pressure_Pa and temperature_K must be positive')
+    ####
     return pressure_Pa / (self.specific_gas_constant_JpkgK * temperature_K)
   ####
 
@@ -62,6 +63,7 @@ class CaloricallyPerfectGas(GasPropertiesConfig):
 
     if temperature_K <= 0.0:
       raise ValueError('temperature_K must be positive')
+    ####
     return sqrt(self.gamma * self.specific_gas_constant_JpkgK * temperature_K)
   ####
 
@@ -70,6 +72,7 @@ class CaloricallyPerfectGas(GasPropertiesConfig):
 
     if mach <= 0.0:
       raise ValueError('mach must be positive')
+    ####
     return mach * self.sound_speed_mps(temperature_K)
   ####
 
@@ -78,6 +81,7 @@ class CaloricallyPerfectGas(GasPropertiesConfig):
 
     if mach < 0.0 or total_temperature_K <= 0.0:
       raise ValueError('mach must be nonnegative and total_temperature_K positive')
+    ####
     return total_temperature_K / (1.0 + (self.gamma - 1.0) * mach**2 / 2.0)
   ####
 
@@ -86,6 +90,7 @@ class CaloricallyPerfectGas(GasPropertiesConfig):
 
     if mach < 0.0 or static_temperature_K <= 0.0:
       raise ValueError('mach must be nonnegative and static_temperature_K positive')
+    ####
     return static_temperature_K * (1.0 + (self.gamma - 1.0) * mach**2 / 2.0)
   ####
 
@@ -94,6 +99,7 @@ class CaloricallyPerfectGas(GasPropertiesConfig):
 
     if mach < 0.0 or total_pressure_Pa <= 0.0:
       raise ValueError('mach must be nonnegative and total_pressure_Pa positive')
+    ####
     factor = 1.0 + (self.gamma - 1.0) * mach**2 / 2.0
     return total_pressure_Pa / factor**(self.gamma / (self.gamma - 1.0))
   ####
@@ -103,6 +109,7 @@ class CaloricallyPerfectGas(GasPropertiesConfig):
 
     if mach < 0.0 or static_pressure_Pa <= 0.0:
       raise ValueError('mach must be nonnegative and static_pressure_Pa positive')
+    ####
     factor = 1.0 + (self.gamma - 1.0) * mach**2 / 2.0
     return static_pressure_Pa * factor**(self.gamma / (self.gamma - 1.0))
   ####

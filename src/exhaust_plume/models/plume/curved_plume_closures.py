@@ -50,7 +50,6 @@ class CurvedPlumeSourceTermModel(Protocol):
   ) -> CurvedPlumeSourceTerms:
     """Return external source terms per unit centerline length."""
     ...
-  ####
 ####
 
 
@@ -84,7 +83,6 @@ class EntrainmentModel(Protocol):
   ) -> float:
     """Return entrained ambient mass per unit centerline length."""
     ...
-  ####
 ####
 
 

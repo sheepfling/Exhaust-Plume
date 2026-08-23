@@ -28,7 +28,6 @@ class AmbientVelocityField(Protocol):
   def sampleVelocity(self, position_m: FloatArray) -> FloatArray:
     """Return the velocity contribution at ``position_m`` in m/s."""
     ...
-  ####
 ####
 
 

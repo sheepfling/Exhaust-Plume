@@ -22,7 +22,7 @@ class CapabilityId(str, Enum):
   OPTICAL_MEDIUM = 'optical-medium'
   SCENE_RADIANCE_RENDERER = 'scene-radiance-renderer'
   UNCERTAINTY = 'uncertainty'
-  ####
+####
 
 
 CAPABILITY_MAJOR_VERSIONS: Mapping[CapabilityId, int] = MappingProxyType({
@@ -105,4 +105,3 @@ __all__ = (
     'SUPPORTING_CAPABILITY_IDENTITIES',
     'VISUAL_SECTIONED_TUBE_CAPABILITY',
 )
-####

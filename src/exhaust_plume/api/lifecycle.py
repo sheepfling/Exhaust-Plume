@@ -45,21 +45,17 @@ class PlumeSnapshot(Protocol):
   @property
   def snapshot_id(self) -> UUID:
     ...
-  ####
 
   @property
   def requested_time_s(self) -> float:
     ...
-  ####
 
   @property
   def actual_time_s(self) -> float:
     ...
-  ####
 
   def get_product(self, request: ProductRequest) -> ProductResult:
     ...
-  ####
 ####
 
 
@@ -68,15 +64,12 @@ class PlumeSession(Protocol):
   @property
   def session_id(self) -> UUID:
     ...
-  ####
 
   def snapshot(self, request: SnapshotRequest) -> PlumeSnapshot:
     ...
-  ####
 
   def close(self) -> None:
     ...
-  ####
 ####
 
 
@@ -85,9 +78,7 @@ class PlumeProvider(Protocol):
   @property
   def descriptor(self) -> ProviderDescriptor:
     ...
-  ####
 
   def create_session(self) -> PlumeSession:
     ...
-  ####
 ####

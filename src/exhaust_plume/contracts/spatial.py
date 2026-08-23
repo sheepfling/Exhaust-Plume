@@ -27,17 +27,21 @@ class SpatialSupport:
     maximum = tuple(float(value) for value in self.plume_frame_aabb_max_m)
     if len(minimum) != 3 or len(maximum) != 3:
       raise ValueError('spatial support bounds must contain three coordinates')
+    ####
     if any(not isfinite(value) for value in (*minimum, *maximum)):
       raise ValueError('spatial support bounds must be finite')
+    ####
     if any(lower > upper for lower, upper in zip(minimum, maximum)):
       raise ValueError('spatial support minimum must not exceed maximum')
+    ####
     if not isfinite(self.characteristic_extent_m) or self.characteristic_extent_m <= 0:
       raise ValueError('characteristic_extent_m must be positive and finite')
+    ####
     if not self.support_definition:
       raise ValueError('support_definition must not be empty')
+    ####
     object.__setattr__(self, 'plume_frame_aabb_min_m', minimum)
     object.__setattr__(self, 'plume_frame_aabb_max_m', maximum)
-    ####
   ####
 ####
 
@@ -60,11 +64,14 @@ class AxisymmetricZone:
     polygon = np.array(self.polygon_xr_m, dtype=float, copy=True)
     if not self.zone_id or polygon.ndim != 2 or polygon.shape[1] != 2 or len(polygon) < 3 or not np.isfinite(polygon).all():
       raise ValueError('axisymmetric zone requires a non-empty ID and finite polygon shape (N, 2)')
+    ####
     if self.geometry_status is not GeometryStatus.VALID:
       raise ValueError('axisymmetric zone geometry must be valid')
+    ####
     from exhaust_plume.geometry.polygons import validate_polygon
     if not validate_polygon(polygon).is_valid:
       raise ValueError('axisymmetric zone polygon must be simple and non-degenerate')
+    ####
     for name, value in (
         ('static_pressure_Pa', self.static_pressure_Pa),
         ('static_temperature_K', self.static_temperature_K),
@@ -73,13 +80,18 @@ class AxisymmetricZone:
     ):
       if not isfinite(value) or (name != 'mach' and value <= 0.0):
         raise ValueError(f'{name} must be finite and positive')
+      ####
+    ####
     if self.mach < 0.0:
       raise ValueError('mach must be finite and non-negative')
+    ####
     if self.cell_index < 0:
       raise ValueError('cell_index must be non-negative')
+    ####
     polygon.flags.writeable = False
     object.__setattr__(self, 'polygon_xr_m', polygon)
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,7 +107,9 @@ class AxisymmetricZoneField:
     object.__setattr__(self, 'zones', tuple(self.zones))
     if not self.axis_definition:
       raise ValueError('axis_definition must not be empty')
+    ####
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,6 +124,9 @@ class ProjectedAreaCapability:
   def __post_init__(self) -> None:
     if not isfinite(self.reference_area_m2) or self.reference_area_m2 <= 0.0:
       raise ValueError('reference_area_m2 must be finite and positive')
+    ####
     if self.closed_zone_count < 0:
       raise ValueError('closed_zone_count must be non-negative')
+    ####
   ####
+####

@@ -23,6 +23,8 @@ def _assert_same_bytes(expected_root: Path, generated_root: Path, relative_paths
     generated = generated_root / relative_path
     if expected.read_bytes() != generated.read_bytes():
       raise AssertionError(f'generated public asset differs: {relative_path}')
+    ####
+  ####
 ####
 
 
@@ -33,6 +35,7 @@ def _validate_assets(root: Path) -> None:
   }
   for schema in schemas.values():
     Draft202012Validator.check_schema(schema)
+  ####
   valid_fixtures = (
     (
       'visual_sectioned_tube_v1.json',
@@ -47,6 +50,8 @@ def _validate_assets(root: Path) -> None:
     Draft202012Validator(schema).validate(value)
     if model is not None:
       model.model_validate(value)
+    ####
+  ####
   invalid = json.loads(
     (root / 'fixtures/contracts/invalid_visual_nonmonotonic.json').read_text(encoding='utf-8')
   )
@@ -55,8 +60,10 @@ def _validate_assets(root: Path) -> None:
   except ValueError as error:
     if 'strictly increasing' not in str(error):
       raise AssertionError('invalid fixture failed for an unexpected reason') from error
+    ####
   else:
     raise AssertionError('invalid visual fixture unexpectedly validated')
+  ####
 ####
 
 
@@ -80,8 +87,11 @@ def main() -> None:
     )
     _assert_same_bytes(ROOT, generated_root, relative_paths)
     _validate_assets(generated_root)
+  ####
   print('canonical public schemas, fixtures, and manifest are deterministic and valid')
+####
 
 
 if __name__ == '__main__':
   main()
+####

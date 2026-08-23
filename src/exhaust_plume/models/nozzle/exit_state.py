@@ -22,6 +22,7 @@ def derive_uniform_nozzle_exit(config: NozzleExitInput, gas: CaloricallyPerfectG
   axial_velocity_mps = velocity_mps * cos(config.flow_angle_rad)
   if axial_velocity_mps <= 0.0:
     raise ValueError('flow_angle_rad must produce positive axial velocity')
+  ####
   mass_flow_rate_kgps = density_kgpm3 * axial_velocity_mps * (3.141592653589793 * config.exit_radius_m**2)
   if config.mass_flow_rate_kg_per_s is not None and not isclose(
       config.mass_flow_rate_kg_per_s,
@@ -32,6 +33,7 @@ def derive_uniform_nozzle_exit(config: NozzleExitInput, gas: CaloricallyPerfectG
     raise ValueError(
         f'supplied mass flow {config.mass_flow_rate_kg_per_s} does not match derived mass flow {mass_flow_rate_kgps}'
     )
+  ####
   return NozzleExitState(
       static_pressure_Pa=static_pressure_Pa,
       static_temperature_K=static_temperature_K,

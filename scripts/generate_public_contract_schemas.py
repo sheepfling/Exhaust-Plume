@@ -11,7 +11,10 @@ def main() -> None:
   arguments = parser.parse_args()
   for path in export_public_schemas(arguments.directory):
     print(path)
+  ####
+####
 
 
 if __name__ == '__main__':
   main()
+####

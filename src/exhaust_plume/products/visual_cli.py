@@ -43,10 +43,14 @@ def main(argv: list[str] | None = None) -> int:
   )
   if not args.no_preview:
     outputs += (render_visual_preview(result, output_dir / 'visual_preview.png', channel=args.channel, radial_segments=args.ring_segments),)
+  ####
   for output in outputs:
     print(output)
+  ####
   return 0
+####
 
 
 if __name__ == '__main__':
   raise SystemExit(main())
+####

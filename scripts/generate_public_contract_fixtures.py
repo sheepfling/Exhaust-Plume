@@ -44,6 +44,7 @@ def _snapshot() -> SnapshotMetadata:
     ambient_state_digest_sha256='fixture-ambient',
     provider_state_digest_sha256='fixture-provider',
   )
+####
 
 
 def _metadata(capability: object, result_id: str, *, radiometric: bool) -> ResultMetadata:
@@ -68,6 +69,7 @@ def _metadata(capability: object, result_id: str, *, radiometric: bool) -> Resul
       configuration_digest_sha256='fixture-configuration',
     ),
   )
+####
 
 
 def _visual_fixture() -> VisualSectionedTubeResult:
@@ -107,6 +109,7 @@ def _visual_fixture() -> VisualSectionedTubeResult:
     ),
     summary=VisualTubeSummary(length_m=2.0, maximum_radius_m=0.6, nominal_divergence_angle_rad=0.05),
   )
+####
 
 
 def _signature_fixture() -> SpectralSignatureResult:
@@ -120,6 +123,7 @@ def _signature_fixture() -> SpectralSignatureResult:
     ),
     absolute_standard_uncertainty=((0.1, 0.05), (0.08, 0.04)),
   )
+####
 
 
 def _ray_fixture() -> VersionedSpectralRayTransferResult:
@@ -136,6 +140,7 @@ def _ray_fixture() -> VersionedSpectralRayTransferResult:
     optical_depth=((0.0, 0.0), (1.3862943611198906, 0.6931471805599453)),
     plume_intersection_t_m=(None, (2.0, 4.0)),
   )
+####
 
 
 def main() -> None:
@@ -153,13 +158,16 @@ def main() -> None:
     path = output_directory / name
     path.write_text(model.model_dump_json(indent=2) + '\n', encoding='utf-8')
     print(path)
+  ####
   invalid_visual = _visual_fixture().model_dump(mode='json')
   invalid_visual['sections'][1]['arc_length_m'] = 0.0
   invalid_path = output_directory / 'invalid_visual_nonmonotonic.json'
   import json
   invalid_path.write_text(json.dumps(invalid_visual, indent=2) + '\n', encoding='utf-8')
   print(invalid_path)
+####
 
 
 if __name__ == '__main__':
   main()
+####

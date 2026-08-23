@@ -57,6 +57,7 @@ def _snapshot_metadata() -> SnapshotMetadata:
     ambient_state_digest_sha256='ambient',
     provider_state_digest_sha256='provider',
   )
+####
 
 
 def _result_metadata(capability: CapabilityIdentity) -> ResultMetadata:
@@ -81,6 +82,7 @@ def _result_metadata(capability: CapabilityIdentity) -> ResultMetadata:
       configuration_digest_sha256='configuration',
     ),
   )
+####
 
 
 def _visual_result() -> VisualSectionedTubeResult:
@@ -109,6 +111,7 @@ def _visual_result() -> VisualSectionedTubeResult:
     ),
     summary=VisualTubeSummary(length_m=1.0, maximum_radius_m=0.6),
   )
+####
 
 
 def test_capability_identity_is_parseable_and_digest_is_stable() -> None:
@@ -116,6 +119,7 @@ def test_capability_identity_is_parseable_and_digest_is_stable() -> None:
   assert capability == VISUAL_SECTIONED_TUBE_CAPABILITY
   assert capability.wire_id == 'plume.visual.sectioned-tube@1'
   assert canonical_digest({'b': 2, 'a': 1}) == canonical_digest({'a': 1, 'b': 2})
+####
 
 
 def test_visual_contract_validates_geometry_and_channels() -> None:
@@ -133,6 +137,7 @@ def test_visual_contract_validates_geometry_and_channels() -> None:
       sections=(result.sections[0], result.sections[0]),
       summary=result.summary,
     )
+  ####
   with pytest.raises(ValueError, match='normalized channel'):
     VisualSectionedTubeResult(
       metadata=result.metadata,
@@ -140,6 +145,8 @@ def test_visual_contract_validates_geometry_and_channels() -> None:
       channels={'mixing_weight': (0.0, 2.0)},
       summary=result.summary,
     )
+  ####
+####
 
 
 def test_signature_contract_requires_neutral_placeholders_for_failed_rows() -> None:
@@ -163,6 +170,8 @@ def test_signature_contract_requires_neutral_placeholders_for_failed_rows() -> N
       validity_mask=((False, False),),
       direction_status=(SampleStatus(code=SampleStatusCode.OUTSIDE_APPLICABILITY),),
     )
+  ####
+####
 
 
 def test_ray_contract_distinguishes_valid_miss_from_failed_sample() -> None:
@@ -193,6 +202,8 @@ def test_ray_contract_distinguishes_valid_miss_from_failed_sample() -> None:
       ray_status=(SampleStatus(code=SampleStatusCode.OK),),
       hit_mask=(False,),
     )
+  ####
+####
 
 
 def test_immutable_snapshot_dispatches_by_capability_and_version() -> None:
@@ -200,6 +211,8 @@ def test_immutable_snapshot_dispatches_by_capability_and_version() -> None:
     def evaluate(self, request: VisualSectionedTubeRequest, snapshot: SnapshotMetadata) -> VisualSectionedTubeResult:
       assert request.output_frame_id == snapshot.source_pose.frame_id
       return _visual_result()
+    ####
+  ####
 
   snapshot = ImmutableProductSnapshot(
     metadata=_snapshot_metadata(),
@@ -226,6 +239,7 @@ def test_immutable_snapshot_dispatches_by_capability_and_version() -> None:
       ray_t_max_m=(1.0,),
       wavelengths_m=(2.0e-6,),
     ))
+  ####
   with pytest.raises(UnsupportedProductVersionError):
     snapshot.evaluate(
       CapabilitySpec(
@@ -238,6 +252,7 @@ def test_immutable_snapshot_dispatches_by_capability_and_version() -> None:
         sampling=VisualSampling(maximum_section_count=2),
       ),
     )
+  ####
   with pytest.raises(InvalidProductRequestError):
     snapshot.evaluate(  # type: ignore[arg-type]
       CapabilitySpec(
@@ -247,6 +262,8 @@ def test_immutable_snapshot_dispatches_by_capability_and_version() -> None:
       ),
       request='not-a-request',
     )
+  ####
+####
 
 
 def test_session_metadata_is_a_distinct_lifecycle_object() -> None:
@@ -257,9 +274,11 @@ def test_session_metadata_is_a_distinct_lifecycle_object() -> None:
     configuration_digest_sha256='configuration',
   )
   assert metadata.provider_id == 'provider.fixture'
+####
 
 
 def test_public_capability_constants_are_separate_products() -> None:
   assert VISUAL_SECTIONED_TUBE_CAPABILITY != SPECTRAL_RADIANT_INTENSITY_CAPABILITY
   assert SPECTRAL_RADIANT_INTENSITY_CAPABILITY != SPECTRAL_RAY_TRANSFER_CAPABILITY
   assert SPECTRAL_RAY_TRANSFER_V1.capability == SPECTRAL_RAY_TRANSFER_CAPABILITY
+####

@@ -23,6 +23,7 @@ class TestPlumeSolver(TestCase):
         num_compression_lines=1,
         num_plumes=1,
     )
+  ####
 
   def test_nozzle_exit_state_preserves_total_conditions(self) -> None:
     state = calcNozzleExitFlowState(
@@ -37,6 +38,7 @@ class TestPlumeSolver(TestCase):
     assert_allclose(state.total_pressure, 69. * PASCAL_PER_ATM, rtol=1.e-12)
     self.assertGreater(state.static_temperature, 0.)
     self.assertGreater(state.static_pressure, 0.)
+  ####
 
   def test_underexpanded_plume_has_finite_geometry_and_pressure_equalization(self) -> None:
     zones, details = self.calculate(total_pressure_atm=69.)
@@ -48,6 +50,7 @@ class TestPlumeSolver(TestCase):
     self.assertTrue(all(isfinite(zone.coordinates.corners_ru).all() for zone in zones))
     assert_allclose(zones[4].static_pressure, PASCAL_PER_ATM, rtol=2.e-5)
     assert_allclose(zones[7].static_pressure, PASCAL_PER_ATM, rtol=2.e-5)
+  ####
 
   def test_overexpanded_plume_adds_precursor_shocks(self) -> None:
     zones, _ = self.calculate(total_pressure_atm=50.)
@@ -56,6 +59,7 @@ class TestPlumeSolver(TestCase):
     self.assertEqual(zones[1].type, ZoneType.ObliqueShock)
     self.assertEqual(zones[2].type, ZoneType.ObliqueShock)
     self.assertTrue(all(isfinite(zone.coordinates.corners_ru).all() for zone in zones))
+  ####
 
   def test_invalid_plume_inputs_fail_early(self) -> None:
     parameters = dict(
@@ -81,6 +85,8 @@ class TestPlumeSolver(TestCase):
         invalid = {**parameters, name: value}
         with self.assertRaises(ValueError):
           calculatePlumeZones(**invalid)
-        ##
-      ##
-    ##
+        ####
+      ####
+    ####
+  ####
+####

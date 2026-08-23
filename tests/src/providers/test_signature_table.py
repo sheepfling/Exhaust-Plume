@@ -37,6 +37,7 @@ def _definition() -> SignatureTableDefinition:
       (0.15, 0.15, 0.15),
     ),
   )
+####
 
 
 def _snapshot(
@@ -56,6 +57,7 @@ def _snapshot(
     dynamic_state={},
     ambient_state={},
   )
+####
 
 
 def test_signature_table_interpolates_angle_and_wavelength_axes() -> None:
@@ -72,6 +74,7 @@ def test_signature_table_interpolates_angle_and_wavelength_axes() -> None:
   assert result.metadata.provenance.asset_digests_sha256
   assert result.metadata.provenance.provider_id == 'signature.table-lookup'
   assert result.metadata.claims.radiation is RadiationClaim.TABULATED
+####
 
 
 def test_signature_table_preserves_axisymmetric_direction_convention() -> None:
@@ -86,6 +89,7 @@ def test_signature_table_preserves_axisymmetric_direction_convention() -> None:
   result = _snapshot().evaluate(SPECTRAL_RADIANT_INTENSITY_V1, request)
   assert result.spectral_radiant_intensity[0] == result.spectral_radiant_intensity[1]
   assert result.metadata.provenance.metadata['coordinate_convention'].startswith('direction cosine')
+####
 
 
 def test_signature_table_honors_explicit_interpolation_policies() -> None:
@@ -119,6 +123,8 @@ def test_signature_table_honors_explicit_interpolation_policies() -> None:
       source_to_observer_directions=((-0.5, 3**0.5 / 2.0, 0.0),),
       wavelengths_m=(1.5e-6,),
     ))
+  ####
+####
 
 
 def test_signature_table_interpolates_optional_time_axis() -> None:
@@ -159,8 +165,11 @@ def test_signature_table_interpolates_optional_time_axis() -> None:
       SPECTRAL_RADIANT_INTENSITY_V1,
       request,
     )
+  ####
   with pytest.raises(ProviderConfigurationError, match='prescribed_transient'):
     _snapshot(definition)
+  ####
+####
 
 
 def test_signature_table_rejects_extrapolation_by_default() -> None:
@@ -170,6 +179,8 @@ def test_signature_table_rejects_extrapolation_by_default() -> None:
       source_to_observer_directions=((1.0, 0.0, 0.0),),
       wavelengths_m=(2.0e-6,),
     ))
+  ####
+####
 
 
 def test_signature_table_binds_an_optional_operating_point_id() -> None:
@@ -180,12 +191,15 @@ def test_signature_table_binds_an_optional_operating_point_id() -> None:
       source_to_observer_directions=((0.0, 1.0, 0.0),),
       wavelengths_m=(2.0e-6,),
     ))
+  ####
   with pytest.raises(ProductOutsideApplicabilityError, match='outside the table'):
     _snapshot().evaluate(SPECTRAL_RADIANT_INTENSITY_V1, SpectralSignatureRequest(
       direction_frame_id='source-local',
       source_to_observer_directions=((0.0, 1.0, 0.0),),
       wavelengths_m=(4.0e-6,),
     ))
+  ####
+####
 
 
 def test_signature_table_supports_explicit_partial_direction_results() -> None:
@@ -201,6 +215,7 @@ def test_signature_table_supports_explicit_partial_direction_results() -> None:
   assert result.spectral_radiant_intensity[0] == (0.0,)
   assert result.direction_status[1].code is SampleStatusCode.OK
   assert result.metadata.applicability.status.value == 'marginal'
+####
 
 
 def test_signature_table_validates_frame_and_lifetime() -> None:
@@ -221,6 +236,7 @@ def test_signature_table_validates_frame_and_lifetime() -> None:
       source_to_observer_directions=((0.0, 1.0, 0.0),),
       wavelengths_m=(2.0e-6,),
     ))
+  ####
   session.close()
   with pytest.raises(ProviderClosedError):
     session.create_snapshot(
@@ -233,6 +249,7 @@ def test_signature_table_validates_frame_and_lifetime() -> None:
       dynamic_state={},
       ambient_state={},
     )
+  ####
   from exhaust_plume.providers import SignatureTableConfiguration
   extrapolating_snapshot = SignatureTableProvider(
     SignatureTableConfiguration(allow_extrapolation=True),
@@ -254,3 +271,4 @@ def test_signature_table_validates_frame_and_lifetime() -> None:
   assert extrapolated.spectral_radiant_intensity == ((5.0,),)
   assert extrapolated.metadata.warnings == ('explicit table extrapolation enabled',)
   assert extrapolated.metadata.applicability.status.value == 'marginal'
+####

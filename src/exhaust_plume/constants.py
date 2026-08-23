@@ -5,7 +5,6 @@ __all__ = (
     'MODULE_NAME',
     'VERSION',
 )
-######################################
 
 MODULE_NAME = 'exhaust_plume'
 VERSION = '0.1.0.a2.dev0'

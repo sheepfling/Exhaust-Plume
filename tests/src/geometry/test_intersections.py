@@ -25,7 +25,7 @@ def test_orthogonal_forward_rays_and_common_origin() -> None:
   assert origin.status is RayIntersectionStatus.SUCCESS
   assert origin.parameter_a == pytest.approx(0.0)
   assert origin.parameter_b == pytest.approx(0.0)
-  ####
+####
 
 
 def test_parallel_and_ill_conditioned_rays_are_not_finite_successes() -> None:
@@ -42,7 +42,7 @@ def test_parallel_and_ill_conditioned_rays_are_not_finite_successes() -> None:
   )
   assert near_parallel.status is RayIntersectionStatus.ILL_CONDITIONED
   assert near_parallel.point is None
-  ####
+####
 
 
 def test_intersection_behind_each_ray_is_reported() -> None:
@@ -57,7 +57,7 @@ def test_intersection_behind_each_ray_is_reported() -> None:
       Ray2D(origin=[0.0, 0.0], direction=[1.0, 0.0]),
   )
   assert behind_second.status is RayIntersectionStatus.BEHIND_SECOND_RAY
-  ####
+####
 
 
 def test_intersection_scales_with_geometry() -> None:
@@ -75,7 +75,7 @@ def test_intersection_scales_with_geometry() -> None:
   assert base.point is not None
   np.testing.assert_allclose(scaled.point, base.point * 1000.0)
   assert scaled.condition_number == pytest.approx(base.condition_number)
-  ####
+####
 
 
 def test_parabola_selects_smallest_forward_parameter() -> None:
@@ -88,4 +88,4 @@ def test_parabola_selects_smallest_forward_parameter() -> None:
   assert result.point is not None
   np.testing.assert_allclose(result.point, [-2.0, 4.0])
   assert result.residual < 1.0e-12
-  ####
+####

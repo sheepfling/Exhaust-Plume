@@ -24,6 +24,7 @@ def _geometry(area_ratio: float, throat_area_m2: float = 1.0e-2) -> NozzleGeomet
     throat=ThroatConfiguration(area_m2=throat_area_m2),
     exit_area_m2=throat_area_m2 * area_ratio,
   )
+####
 
 
 @pytest.mark.parametrize('area_ratio', (2.0, 4.0, 9.0, 25.0))
@@ -49,6 +50,7 @@ def test_geometry_derivation_round_trips_area_ratio_and_choked_mass_flow(area_ra
   )
   assert state.mass_flow_rate_kgps == pytest.approx(throat_mass_flow, rel=2.0e-8)
   assert state.source_kind.value == 'derived-isentropic'
+####
 
 
 def test_geometry_rejects_non_supersonic_area_order_and_nonzero_turn() -> None:
@@ -57,6 +59,7 @@ def test_geometry_rejects_non_supersonic_area_order_and_nonzero_turn() -> None:
       throat=ThroatConfiguration(area_m2=1.0),
       exit_area_m2=1.0,
     )
+  ####
   with pytest.raises(ValueError, match='zero exit flow angle'):
     derive_nozzle_exit_from_geometry(
       _geometry(4.0),
@@ -65,6 +68,7 @@ def test_geometry_rejects_non_supersonic_area_order_and_nonzero_turn() -> None:
       gas=CaloricallyPerfectGas.dry_air(),
       flow_angle_rad=0.01,
     )
+  ####
   with pytest.raises(ValueError, match='supersonic branch'):
     derive_nozzle_exit_from_geometry(
       _geometry(4.0),
@@ -73,6 +77,8 @@ def test_geometry_rejects_non_supersonic_area_order_and_nonzero_turn() -> None:
       gas=CaloricallyPerfectGas.dry_air(),
       branch=MachBranch.SUBSONIC,
     )
+  ####
+####
 
 
 def test_isentropic_reference_fixture_regresses_independent_relations() -> None:
@@ -88,3 +94,5 @@ def test_isentropic_reference_fixture_regresses_independent_relations() -> None:
     assert mach == pytest.approx(reference['supersonic_mach'], rel=1.0e-8)
     assert gas.static_pressure_from_total(mach, 1.0) == pytest.approx(reference['static_pressure_fraction'], rel=1.0e-8)
     assert gas.static_temperature_from_total(mach, 1.0) == pytest.approx(reference['static_temperature_fraction'], rel=1.0e-8)
+  ####
+####

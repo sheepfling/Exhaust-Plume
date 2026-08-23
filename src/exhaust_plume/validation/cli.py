@@ -23,7 +23,9 @@ def main(argv: list[str] | None = None) -> int:
   write_validity_report_csv(results, args.output_dir / 'validity_report.csv')
   print(f'Wrote {len(results)} validity cases to {args.output_dir}')
   return 0
+####
 
 
 if __name__ == '__main__':
   raise SystemExit(main())
+####

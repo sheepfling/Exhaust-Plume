@@ -19,11 +19,9 @@ __all__ = (
     'TRACE',
     'TRACE_EXTRA',
     'NOTSET',
-    ###
     'getNameFromLevel',
     'setDefaultLogLevels',
 )
-#############################
 
 # Initial desired levels, but if already defined by logger then these are updated to whatever already exists.
 STATUS = max(1, logging.DEBUG - 1)
@@ -49,8 +47,8 @@ def getNameFromLevel(level: int) -> Optional[str]:
     return _level2name[level]
   except KeyError:
     return None
-  ##
-##
+  ####
+####
 
 
 def setDefaultLogLevels() -> None:
@@ -76,7 +74,7 @@ def setDefaultLogLevels() -> None:
       'TRACE_EXTRA': TRACE_EXTRA,
   })
   _createExtraLevels(override_existing=True)
-##
+####
 
 
 def _createExtraLevels(override_existing: bool = False) -> None:
@@ -89,11 +87,11 @@ def _createExtraLevels(override_existing: bool = False) -> None:
     else:
       # already exists, so update
       _name2level[name] = logging_level
-    ##
-  ##
+    ####
+  ####
   # Re-adjust _level2name
   _level2name.update({level: name for name, level in _name2level.items()})
-##
+####
 
 
 _createExtraLevels()

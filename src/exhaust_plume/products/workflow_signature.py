@@ -41,6 +41,7 @@ def _load_json(path: str | Path) -> dict[str, Any]:
   payload = json.loads(Path(path).read_text(encoding='utf-8'))
   if not isinstance(payload, dict):
     raise ValueError(f'{path} must contain a JSON object')
+  ####
   return payload
 ####
 
@@ -53,17 +54,22 @@ def load_signature_table_asset(path: str | Path) -> SignatureTableDefinition:
   payload = json.loads(raw_bytes.decode('utf-8'))
   if not isinstance(payload, dict):
     raise ValueError(f'{path} must contain a JSON object')
+  ####
   if 'definition' in payload:
     schema = payload.get('asset_schema')
     if schema is not None and schema != _SIGNATURE_ASSET_SCHEMA:
       raise ValueError(f'unsupported signature asset schema: {schema}')
+    ####
     payload = payload['definition']
   elif 'asset_schema' in payload:
     schema = payload.pop('asset_schema')
     if schema != _SIGNATURE_ASSET_SCHEMA:
       raise ValueError(f'unsupported signature asset schema: {schema}')
+    ####
+  ####
   if not isinstance(payload, dict):
     raise ValueError('signature table definition must be a JSON object')
+  ####
   definition_payload = dict(payload)
   definition_payload.pop('asset_sha256', None)
   definition = SignatureTableDefinition(**definition_payload)
@@ -76,6 +82,7 @@ def write_signature_table_asset(definition: SignatureTableDefinition, path: str 
 
   if not isinstance(definition, SignatureTableDefinition):
     raise ProviderConfigurationError('definition must be SignatureTableDefinition')
+  ####
   output = Path(path)
   output.parent.mkdir(parents=True, exist_ok=True)
   definition_payload = asdict(definition)
@@ -97,13 +104,17 @@ def load_spectral_signature_request(path: str | Path) -> SpectralSignatureReques
     schema = payload.get('request_schema')
     if schema is not None and schema != _SIGNATURE_REQUEST_SCHEMA:
       raise ValueError(f'unsupported signature request schema: {schema}')
+    ####
     payload = payload['request']
   elif 'request_schema' in payload:
     schema = payload.pop('request_schema')
     if schema != _SIGNATURE_REQUEST_SCHEMA:
       raise ValueError(f'unsupported signature request schema: {schema}')
+    ####
+  ####
   if not isinstance(payload, dict):
     raise ValueError('signature request must be a JSON object')
+  ####
   return SpectralSignatureRequest(**payload)
 ####
 
@@ -119,8 +130,10 @@ def evaluate_signature_table_asset(
 
   if not isinstance(definition, SignatureTableDefinition):
     raise ProviderConfigurationError('definition must be SignatureTableDefinition')
+  ####
   if not isinstance(request, SpectralSignatureRequest):
     raise ProviderConfigurationError('request must be SpectralSignatureRequest')
+  ####
   provider = SignatureTableProvider(configuration)
   session = provider.create_session(definition=definition)
   snapshot = session.create_snapshot(
@@ -137,6 +150,7 @@ def evaluate_signature_table_asset(
     return snapshot.evaluate(SPECTRAL_RADIANT_INTENSITY_V1, request)
   finally:
     session.close()
+  ####
 ####
 
 
@@ -166,6 +180,7 @@ def write_signature_result_csv(
 
   if len(result.spectral_radiant_intensity) != len(request.source_to_observer_directions):
     raise ValueError('signature result and request direction counts do not match')
+  ####
   output = Path(path)
   output.parent.mkdir(parents=True, exist_ok=True)
   direction_cosines = _direction_cosines(definition, request)
@@ -200,6 +215,9 @@ def write_signature_result_csv(
           result.direction_status[direction_index].code.value,
           uncertainty_row[wavelength_index],
         ))
+      ####
+    ####
+  ####
   return output
 ####
 
@@ -209,6 +227,7 @@ def _matplotlib():
     from matplotlib import pyplot as plt
   except ImportError as error:
     raise RuntimeError('signature plots require the optional plot dependency: pip install .[plot]') from error
+  ####
   return plt
 ####
 
@@ -239,6 +258,8 @@ def render_signature_plots(
       lower = tuple(value - error if isfinite(value) else float('nan') for value, error in zip(values, uncertainty, strict=True))
       upper = tuple(value + error if isfinite(value) else float('nan') for value, error in zip(values, uncertainty, strict=True))
       spectrum_axes.fill_between(wavelengths_um, lower, upper, alpha=0.12)
+    ####
+  ####
   spectrum_axes.set_title('Spectral radiant intensity')
   spectrum_axes.set_xlabel('Wavelength [μm]')
   spectrum_axes.set_ylabel('Jλ [W sr⁻¹ m⁻¹]')
@@ -255,6 +276,7 @@ def render_signature_plots(
     angular_wavelength_indices = tuple(range(len(request.wavelengths_m)))
   else:
     angular_wavelength_indices = tuple(dict.fromkeys((0, len(request.wavelengths_m) // 2, len(request.wavelengths_m) - 1)))
+  ####
   for wavelength_index in angular_wavelength_indices:
     angular_axes.plot(
       tuple(direction_cosines[index] for index in sorted_indices),
@@ -262,6 +284,7 @@ def render_signature_plots(
       marker='o',
       label=f'{wavelengths_um[wavelength_index]:g} μm',
     )
+  ####
   angular_axes.set_title('Angular signature lookup')
   angular_axes.set_xlabel('Direction cosine to source axis [1]')
   angular_axes.set_ylabel('Jλ [W sr⁻¹ m⁻¹]')

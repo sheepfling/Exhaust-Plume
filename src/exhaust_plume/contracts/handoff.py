@@ -10,7 +10,6 @@ from typing import Mapping
 from exhaust_plume.models.nozzle.contracts import NozzleExitState
 
 __all__ = ("PlumeFluxSection",)
-###########################################
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,11 +33,14 @@ class PlumeFluxSection:
     momentum = tuple(float(value) for value in self.momentum_flux_plume_n)
     if len(center) != 3 or len(normal) != 3 or len(momentum) != 3:
       raise ValueError("center, normal, and momentum vectors must have three components")
+    ####
     if any(not isfinite(value) for value in (*center, *normal, *momentum)):
       raise ValueError("handoff vectors must be finite")
+    ####
     normal_norm = sqrt(sum(value**2 for value in normal))
     if not isfinite(normal_norm) or normal_norm <= 0.0 or abs(normal_norm - 1.0) > 1.0e-8:
       raise ValueError("normal_plume must be a finite unit vector")
+    ####
     for name, value in (
         ("area_m2", self.area_m2),
         ("mass_flow_kg_s", self.mass_flow_kg_s),
@@ -48,9 +50,12 @@ class PlumeFluxSection:
     ):
       if not isfinite(value) or value <= 0.0:
         raise ValueError(f"{name} must be finite and positive")
+      ####
+    ####
     species = tuple((str(name), float(rate)) for name, rate in self.species_mass_flow_rates_kg_s)
     if any(not name or not isfinite(rate) or rate < 0.0 for name, rate in species):
       raise ValueError("species mass-flow rates must be finite and non-negative")
+    ####
     object.__setattr__(self, "center_plume_m", center)
     object.__setattr__(self, "normal_plume", normal)
     object.__setattr__(self, "momentum_flux_plume_n", momentum)
@@ -69,6 +74,7 @@ class PlumeFluxSection:
 
     if not isfinite(ambient_pressure_Pa) or ambient_pressure_Pa <= 0.0:
       raise ValueError("ambient_pressure_Pa must be finite and positive")
+    ####
     gas = exit_state.gas
     area = pi * exit_state.radius_m**2
     speed = exit_state.velocity_mps
@@ -94,3 +100,4 @@ class PlumeFluxSection:
         provider_metadata={"source": "uniform-nozzle-exit", "gamma": str(gas.gamma)},
     )
   ####
+####

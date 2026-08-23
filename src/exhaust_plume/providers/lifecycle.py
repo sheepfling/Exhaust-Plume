@@ -97,7 +97,6 @@ class CapabilityBinding(Protocol):
   @property
   def capability_id(self) -> CapabilityId:
     ...
-  ####
 ####
 
 
@@ -105,7 +104,6 @@ class CapabilityBinding(Protocol):
 class VisualSectionedTubeCapability(CapabilityBinding, Protocol):
   def getSectionedTube(self) -> SectionedTubeProduct:
     ...
-  ####
 ####
 
 
@@ -113,7 +111,6 @@ class VisualSectionedTubeCapability(CapabilityBinding, Protocol):
 class SpectralRadiantIntensityCapability(CapabilityBinding, Protocol):
   def getSpectralRadiantIntensity(self) -> SpectralRadiantIntensityProduct:
     ...
-  ####
 ####
 
 
@@ -121,7 +118,6 @@ class SpectralRadiantIntensityCapability(CapabilityBinding, Protocol):
 class SpectralRayTransferCapability(CapabilityBinding, Protocol):
   def getSpectralRayTransfer(self) -> SpectralRayTransferProduct:
     ...
-  ####
 ####
 
 
@@ -129,7 +125,6 @@ class SpectralRayTransferCapability(CapabilityBinding, Protocol):
 class EngineeringFluxSectionCapability(CapabilityBinding, Protocol):
   def getEngineeringFluxSections(self) -> EngineeringFluxSectionProduct:
     ...
-  ####
 ####
 
 
@@ -138,26 +133,21 @@ class PlumeSnapshot(Protocol):
   @property
   def descriptor(self) -> ProviderDescriptor:
     ...
-  ####
 
   @property
   def snapshot_id(self) -> str:
     ...
-  ####
 
   @property
   def time_s(self) -> float:
     ...
-  ####
 
   @property
   def capabilities(self) -> tuple[CapabilityId, ...]:
     ...
-  ####
 
   def resolveCapability(self, capability: CapabilityId) -> CapabilityBinding:
     ...
-  ####
 ####
 
 
@@ -166,20 +156,16 @@ class PlumeSession(Protocol):
   @property
   def descriptor(self) -> ProviderDescriptor:
     ...
-  ####
 
   @property
   def is_closed(self) -> bool:
     ...
-  ####
 
   def snapshot(self, time_s: float) -> PlumeSnapshot:
     ...
-  ####
 
   def close(self) -> None:
     ...
-  ####
 ####
 
 
@@ -188,11 +174,9 @@ class PlumeProvider(Protocol):
   @property
   def descriptor(self) -> ProviderDescriptor:
     ...
-  ####
 
   def createSession(self, request: SessionRequest = SessionRequest()) -> PlumeSession:
     ...
-  ####
 ####
 
 

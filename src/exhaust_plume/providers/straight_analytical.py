@@ -56,7 +56,6 @@ __all__ = (
   'StraightAnalyticalProvider',
   'StraightAnalyticalSession',
 )
-####
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,9 +68,12 @@ class StraightAnalyticalDefinition:
   def __post_init__(self) -> None:
     if not isfinite(self.nozzle_radius_m) or self.nozzle_radius_m <= 0.0:
       raise ProviderConfigurationError('nozzle_radius_m must be finite and positive')
+    ####
     if not self.plume_frame_id:
       raise ProviderConfigurationError('plume_frame_id must not be empty')
+    ####
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,15 +97,21 @@ class StraightAnalyticalConfiguration:
   def __post_init__(self) -> None:
     if not self.provider_id or not self.provider_version:
       raise ProviderConfigurationError('analytical provider identity must not be empty')
+    ####
     if isinstance(self.num_expansion_lines, bool) or self.num_expansion_lines < 2:
       raise ProviderConfigurationError('num_expansion_lines must be an integer >= 2')
+    ####
     if isinstance(self.num_compression_lines, bool) or self.num_compression_lines < 1:
       raise ProviderConfigurationError('num_compression_lines must be an integer >= 1')
+    ####
     if isinstance(self.maximum_construction_passes, bool) or self.maximum_construction_passes < 0:
       raise ProviderConfigurationError('maximum_construction_passes must be an integer >= 0')
+    ####
     if not isfinite(self.pressure_match_rtol) or self.pressure_match_rtol <= 0.0:
       raise ProviderConfigurationError('pressure_match_rtol must be finite and positive')
+    ####
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -122,7 +130,9 @@ class StraightAnalyticalOperatingState:
   def __post_init__(self) -> None:
     if not isfinite(self.time_s):
       raise OperatingStateDomainError('time_s must be finite')
+    ####
   ####
+####
 
 
 def _descriptor(configuration: StraightAnalyticalConfiguration) -> ProviderDescriptor:
@@ -173,6 +183,7 @@ def _matched_definition(
 ) -> PrescribedVisualDefinition:
   if not isfinite(extent_m) or extent_m <= 0.0:
     raise InvalidProductRequestError('matched visual output requires a finite positive maximum_axial_extent_m')
+  ####
   sections = tuple(
     VisualSection(
       arc_length_m=extent_m * index / (section_count - 1),
@@ -243,6 +254,7 @@ class _StraightAnalyticalEvaluator:
         f'analytical visual provider supports output frame {self._definition.plume_frame_id!r}, '
         f'not {request.output_frame_id!r}'
       )
+    ####
     if self._solution.status in {
         SolverStatus.INVALID_INPUT,
         SolverStatus.NUMERICAL_FAILURE,
@@ -253,6 +265,7 @@ class _StraightAnalyticalEvaluator:
         'analytical first-cell solution is outside the visual provider applicability domain: '
         f'{diagnostics}'
       )
+    ####
 
     if self._solution.regime.value == 'matched':
       extent_m = request.sampling.maximum_axial_extent_m
@@ -260,6 +273,7 @@ class _StraightAnalyticalEvaluator:
         raise InvalidProductRequestError(
           'matched analytical visual output requires sampling.maximum_axial_extent_m'
         )
+      ####
       visual_definition = _matched_definition(
         self._solution.exit_state,
         extent_m,
@@ -281,6 +295,7 @@ class _StraightAnalyticalEvaluator:
         raise ProductOutsideApplicabilityError(
           'analytical first-cell solution did not produce a finite closed zone'
         )
+      ####
       from exhaust_plume.products.workflow_visual import visual_definition_from_zone_results
       visual_definition = visual_definition_from_zone_results(
         self._solution.zones,
@@ -299,6 +314,7 @@ class _StraightAnalyticalEvaluator:
           'geometry is an engineering-approximate display envelope and is not a conservative plume boundary',
         ),
       )
+    ####
     return _evaluate_prescribed_definition(
       visual_definition,
       visual_configuration,
@@ -330,9 +346,11 @@ class StraightAnalyticalPlumeProviderV0:
   ) -> StraightAnalyticalSession:
     if not isinstance(definition, StraightAnalyticalDefinition):
       raise ProviderConfigurationError('definition must be StraightAnalyticalDefinition')
+    ####
     selected_configuration = configuration or self._configuration
     if selected_configuration != self._configuration:
       raise ProviderConfigurationError('session configuration must match provider configuration')
+    ####
     return StraightAnalyticalSession(self._descriptor, definition, selected_configuration)
   ####
 ####
@@ -371,15 +389,20 @@ class StraightAnalyticalSession:
   def _validate_operating_state(self, operating_state: StraightAnalyticalOperatingState) -> None:
     if not isinstance(operating_state, StraightAnalyticalOperatingState):
       raise OperatingStateDomainError('operating_state must be StraightAnalyticalOperatingState')
+    ####
     if not isinstance(operating_state.nozzle_exit, NozzleExitState):
       raise OperatingStateDomainError('operating_state.nozzle_exit must be NozzleExitState')
+    ####
     if not isinstance(operating_state.ambient, AmbientState):
       raise OperatingStateDomainError('operating_state.ambient must be AmbientState')
+    ####
     radius_tolerance = max(1.0e-12, self._definition.nozzle_radius_m * 1.0e-10)
     if abs(operating_state.nozzle_exit.radius_m - self._definition.nozzle_radius_m) > radius_tolerance:
       raise OperatingStateDomainError('operating-state nozzle radius does not match the provider definition')
+    ####
     if abs(operating_state.nozzle_exit.flow_angle_rad) > 1.0e-12:
       raise OperatingStateDomainError('straight axisymmetric provider requires zero exit flow angle')
+    ####
   ####
 
   def snapshot(
@@ -390,6 +413,7 @@ class StraightAnalyticalSession:
   ) -> ImmutableProductSnapshot:
     if self._closed:
       raise ProviderClosedError('straight analytical session is closed')
+    ####
     self._validate_operating_state(operating_state)
     settings = ShockCellSolveConfig(
       exit=operating_state.nozzle_exit,
@@ -453,6 +477,7 @@ class StraightAnalyticalSession:
   ) -> ImmutableProductSnapshot:
     if not isfinite(time_s):
       raise ProviderConfigurationError('time_s must be finite')
+    ####
     operating_state = dynamic_state.get('operating_state')
     if operating_state is None:
       nozzle_exit = dynamic_state.get('nozzle_exit')
@@ -461,24 +486,28 @@ class StraightAnalyticalSession:
         raise ProviderConfigurationError(
           "dynamic_state must contain 'nozzle_exit' and ambient_state must contain 'ambient'"
         )
+      ####
       operating_state = StraightAnalyticalOperatingState(
         nozzle_exit=nozzle_exit,
         ambient=ambient,
         time_s=time_s,
       )
+    ####
     if not isinstance(operating_state, StraightAnalyticalOperatingState):
       raise ProviderConfigurationError(
         "dynamic_state must contain a StraightAnalyticalOperatingState under 'operating_state'"
       )
+    ####
     if abs(operating_state.time_s - time_s) > 1.0e-12:
       operating_state = replace(operating_state, time_s=time_s)
+    ####
     return self.snapshot(operating_state, source_pose=source_pose)
   ####
 
   def close(self) -> None:
     self._closed = True
   ####
+####
 
 
 StraightAnalyticalProvider = StraightAnalyticalPlumeProviderV0
-####

@@ -51,15 +51,19 @@ class PdasAtmosphereScalarState:
 
   def getIsValid(self) -> bool:
     return self.is_valid
+  ####
 
   def getDensity_kgpm3(self) -> float:
     return self.density_kgpm3
+  ####
 
   def getTemperature_K(self) -> float:
     return self.temperature_K
+  ####
 
   def getPressure_Pa(self) -> float:
     return self.pressure_Pa
+  ####
 
   @cached_property
   def speed_of_sound_mps(self) -> float:
@@ -68,9 +72,12 @@ class PdasAtmosphereScalarState:
         density_kgpm3=self.density_kgpm3,
         adiabatic_index=ADIABATIC_INDEX_DRY_AIR_NTP,
     ))
+  ####
 
   def replace(self, **changes: object) -> 'PdasAtmosphereScalarState':
     return replace(self, **changes)
+  ####
+####
 
 
 @dataclass(frozen=True)
@@ -85,15 +92,19 @@ class PdasAtmosphereArrayState:
 
   def getIsValid(self) -> ndarray:
     return self.is_valid
+  ####
 
   def getDensity_kgpm3(self) -> ndarray:
     return self.density_kgpm3
+  ####
 
   def getTemperature_K(self) -> ndarray:
     return self.temperature_K
+  ####
 
   def getPressure_Pa(self) -> ndarray:
     return self.pressure_Pa
+  ####
 
   @cached_property
   def speed_of_sound_mps(self) -> ndarray:
@@ -102,6 +113,8 @@ class PdasAtmosphereArrayState:
         density_kgpm3=self.density_kgpm3,
         adiabatic_index=ADIABATIC_INDEX_DRY_AIR_NTP,
     )
+  ####
+####
 
 
 class PdasAtmosphericInterpolator:
@@ -117,14 +130,17 @@ class PdasAtmosphericInterpolator:
     lengths = {len(height_table_km), len(pressures_unitless), len(temperatures_K), len(temperature_gradients_K_per_km)}
     if len(lengths) != 1:
       raise ValueError('Atmosphere lookup tables must have equal lengths.')
+    ####
     if len(height_table_km) < 2:
       raise ValueError('Atmosphere lookup requires at least two layers.')
+    ####
     self._heights_km = tuple(float(value) for value in height_table_km)
     self._pressures = tuple(float(value) for value in pressures_unitless)
     self._temperatures_K = tuple(float(value) for value in temperatures_K)
     self._gradients = tuple(float(value) for value in temperature_gradients_K_per_km)
     self._min_height_m = self._heights_km[0] * 1.0e3
     self._max_height_m = self._heights_km[-1] * 1.0e3
+  ####
 
   @overload
   def calculateAtmosphereStateFromGeopotentialAltitude(self, geopotential_alt_m: float) -> PdasAtmosphereScalarState:
@@ -138,6 +154,7 @@ class PdasAtmosphericInterpolator:
     values = np.asarray(geopotential_alt_m, dtype=float)
     if values.ndim == 0:
       return self._calculate_scalar(float(values))
+    ####
     states = [self._calculate_scalar(float(value)) for value in values.ravel()]
     shape = values.shape
     return PdasAtmosphereArrayState(
@@ -147,12 +164,15 @@ class PdasAtmosphericInterpolator:
         temperature_K=np.asarray([state.temperature_K for state in states]).reshape(shape),
         pressure_Pa=np.asarray([state.pressure_Pa for state in states]).reshape(shape),
     )
+  ####
 
   def _calculate_scalar(self, altitude_m: float) -> PdasAtmosphereScalarState:
     if altitude_m < self._min_height_m:
       return self._calculate_scalar(self._min_height_m).replace(is_valid=False, geopotential_altitude_m=altitude_m)
+    ####
     if altitude_m > self._max_height_m:
       return self._calculate_scalar(self._max_height_m).replace(is_valid=False, geopotential_altitude_m=altitude_m)
+    ####
 
     altitude_km = altitude_m * 1.0e-3
     layer = min(bisect_right(self._heights_km, altitude_km) - 1, len(self._heights_km) - 1)
@@ -167,6 +187,7 @@ class PdasAtmosphericInterpolator:
       pressure_ratio *= np.exp(-_GMR_K_PER_KM * delta_height_km / base_temperature_K)
     else:
       pressure_ratio *= (base_temperature_K / local_temperature_K) ** (_GMR_K_PER_KM / gradient_K_per_km)
+    ####
     density_ratio = pressure_ratio / theta
     return PdasAtmosphereScalarState(
         is_valid=bool(np.isfinite(local_temperature_K) and np.isfinite(pressure_ratio)),
@@ -175,6 +196,8 @@ class PdasAtmosphericInterpolator:
         temperature_K=float(theta * _TEMPERATURE_SEA_LEVEL_K),
         pressure_Pa=float(pressure_ratio * _PRESSURE_SEA_LEVEL_PA),
     )
+  ####
+####
 
 
 _DEFAULT_INTERPOLATOR = PdasAtmosphericInterpolator()
@@ -192,3 +215,4 @@ def calculateAtmosphereStateFromGeopotentialAltitude(geopotential_altitude_m: nd
 
 def calculateAtmosphereStateFromGeopotentialAltitude(geopotential_altitude_m: FloatOrArray) -> Union[PdasAtmosphereScalarState, PdasAtmosphereArrayState]:
   return _DEFAULT_INTERPOLATOR.calculateAtmosphereStateFromGeopotentialAltitude(geopotential_alt_m=geopotential_altitude_m)
+####

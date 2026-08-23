@@ -23,7 +23,6 @@ RequestT = TypeVar('RequestT', bound=ApiModel)
 ResultT = TypeVar('ResultT', bound=ApiModel)
 EvaluatorRequestT = TypeVar('EvaluatorRequestT', bound=ApiModel, contravariant=True)
 EvaluatorResultT = TypeVar('EvaluatorResultT', bound=ApiModel, covariant=True)
-####
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,14 +32,12 @@ class CapabilitySpec(Generic[RequestT, ResultT]):
   capability: CapabilityIdentity
   request_type: type[RequestT]
   result_type: type[ResultT]
-  ####
 ####
 
 
 class CapabilityEvaluator(Protocol[EvaluatorRequestT, EvaluatorResultT]):
   def evaluate(self, request: EvaluatorRequestT, snapshot: SnapshotMetadata) -> EvaluatorResultT:
     ...
-  ####
 ####
 
 
@@ -49,15 +46,12 @@ class ProductSnapshot(Protocol):
   @property
   def metadata(self) -> SnapshotMetadata:
     ...
-  ####
 
   def supports(self, capability: CapabilityIdentity) -> bool:
     ...
-  ####
 
   def evaluate(self, capability: CapabilitySpec[RequestT, ResultT], request: RequestT) -> ResultT:
     ...
-  ####
 ####
 
 
@@ -66,7 +60,6 @@ class ProductSession(Protocol):
   @property
   def metadata(self) -> SessionMetadata:
     ...
-  ####
 
   def create_snapshot(
       self,
@@ -77,11 +70,9 @@ class ProductSession(Protocol):
       ambient_state: Mapping[str, Any],
   ) -> ProductSnapshot:
     ...
-  ####
 
   def close(self) -> None:
     ...
-  ####
 ####
 
 
@@ -90,7 +81,6 @@ class ProductProvider(Protocol):
   @property
   def descriptor(self) -> ProviderDescriptor:
     ...
-  ####
 
   def create_session(
       self,
@@ -99,7 +89,6 @@ class ProductProvider(Protocol):
       configuration: Mapping[str, Any],
   ) -> ProductSession:
     ...
-  ####
 ####
 
 
@@ -124,17 +113,21 @@ class ImmutableProductSnapshot:
         raise UnsupportedProductVersionError(
             f'unsupported major version for {capability.capability.name}: {capability.capability.major}'
         )
+      ####
       raise UnsupportedProductCapabilityError(f'unsupported capability: {capability.capability.wire_id}')
+    ####
     if not isinstance(request, capability.request_type):
       raise InvalidProductRequestError(
           f'{capability.capability.wire_id} requires {capability.request_type.__name__}'
       )
+    ####
     result = self._evaluators[capability.capability].evaluate(request, self.metadata)
     if not isinstance(result, capability.result_type):
       raise TypeError(
           f'{capability.capability.wire_id} evaluator returned {type(result).__name__}, '
           f'expected {capability.result_type.__name__}'
       )
+    ####
     return result
   ####
 ####
@@ -143,7 +136,6 @@ class ImmutableProductSnapshot:
 VISUAL_SECTIONED_TUBE_V1: CapabilitySpec[Any, Any]
 SPECTRAL_RADIANT_INTENSITY_V1: CapabilitySpec[Any, Any]
 SPECTRAL_RAY_TRANSFER_V1: CapabilitySpec[Any, Any]
-####
 
 
 __all__ = (
@@ -156,4 +148,3 @@ __all__ = (
   'RequestT',
   'ResultT',
 )
-####

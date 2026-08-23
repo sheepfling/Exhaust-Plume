@@ -41,6 +41,7 @@ class TestConservation(TestCase):
     assert_allclose(calcIsentropicTotalPressure(mach=mach, static_pressure=static_pressure, gamma=self.gamma), total_pressure, rtol=1.e-12)
     assert_allclose(calcIsentropicTotalTemperature(mach=mach, static_temperature=static_temperature, gamma=self.gamma), total_temperature, rtol=1.e-12)
     assert_allclose(calcIsentropicTotalDensity(mach=mach, static_density=static_density, gamma=self.gamma), total_density, rtol=1.e-12)
+  ####
 
   def test_normal_shock_conserves_mass_momentum_and_energy(self) -> None:
     mach1 = 3.
@@ -61,6 +62,7 @@ class TestConservation(TestCase):
     assert_allclose(density1 * speed1, density2 * speed2, rtol=1.e-12)
     assert_allclose(pressure1 + density1 * speed1**2, pressure2 + density2 * speed2**2, rtol=1.e-12)
     assert_allclose(cp * temperature1 + speed1**2 / 2., cp * temperature2 + speed2**2 / 2., rtol=1.e-12)
+  ####
 
   def test_oblique_shock_conserves_normal_mass_flux_and_total_enthalpy(self) -> None:
     mach1 = 3.
@@ -94,3 +96,5 @@ class TestConservation(TestCase):
     assert_allclose(cp * temperature1 + speed1**2 / 2., cp * downstream.static_temperature + speed2**2 / 2., rtol=1.e-12)
     self.assertTrue(isclose(downstream.shock_angle_deg, 32.2404, rtol=1.e-4))
     self.assertTrue(isclose(downstream.static_pressure, pressure1 * 2.82156, rtol=1.e-4))
+  ####
+####

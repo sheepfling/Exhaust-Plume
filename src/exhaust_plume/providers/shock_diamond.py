@@ -42,7 +42,6 @@ __all__ = (
     "ShockCellAnalyticalSession",
     "ShockCellOperatingState",
 )
-###########################################
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,9 +52,12 @@ class ShockCellAnalyticalDefinition:
   def __post_init__(self) -> None:
     if not isfinite(self.nozzle_radius_m) or self.nozzle_radius_m <= 0.0:
       raise ProviderConfigurationError("nozzle_radius_m must be finite and positive")
+    ####
     if not self.plume_frame_id:
       raise ProviderConfigurationError("plume_frame_id must not be empty")
+    ####
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,13 +72,18 @@ class ShockCellAnalyticalConfiguration:
   def __post_init__(self) -> None:
     if isinstance(self.num_expansion_lines, bool) or self.num_expansion_lines < 2:
       raise ProviderConfigurationError("num_expansion_lines must be an integer >= 2")
+    ####
     if isinstance(self.num_compression_lines, bool) or self.num_compression_lines < 1:
       raise ProviderConfigurationError("num_compression_lines must be an integer >= 1")
+    ####
     if isinstance(self.maximum_construction_passes, bool) or self.maximum_construction_passes < 0:
       raise ProviderConfigurationError("maximum_construction_passes must be an integer >= 0")
+    ####
     if not isfinite(self.pressure_match_rtol) or self.pressure_match_rtol <= 0.0:
       raise ProviderConfigurationError("pressure_match_rtol must be finite and positive")
+    ####
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,7 +100,9 @@ class ShockCellAnalyticalOperatingState:
   def __post_init__(self) -> None:
     if not isfinite(self.time_s):
       raise OperatingStateDomainError("time_s must be finite")
+    ####
   ####
+####
 
 
 ShockCellDefinition = ShockCellAnalyticalDefinition
@@ -141,6 +150,7 @@ def _descriptor() -> PlumeProviderDescriptor:
           bounds={"mach": (1.0, None), "gamma": (1.0, None), "flow_angle_rad": (-pi / 6.0, pi / 6.0)},
       ),
   )
+####
 
 
 class ShockCellAnalyticalProvider:
@@ -158,10 +168,13 @@ class ShockCellAnalyticalProvider:
   def create_session(self, definition: ShockCellAnalyticalDefinition, configuration: ShockCellAnalyticalConfiguration) -> ShockCellAnalyticalSession:
     if not isinstance(definition, ShockCellAnalyticalDefinition):
       raise ProviderConfigurationError("definition must be ShockCellAnalyticalDefinition")
+    ####
     if not isinstance(configuration, ShockCellAnalyticalConfiguration):
       raise ProviderConfigurationError("configuration must be ShockCellAnalyticalConfiguration")
+    ####
     return ShockCellAnalyticalSession(self._descriptor, definition, configuration)
   ####
+####
 
 
 class ShockCellAnalyticalSession:
@@ -181,8 +194,10 @@ class ShockCellAnalyticalSession:
 
     if self._closed:
       raise ProviderClosedError("shock-cell analytical session is closed")
+    ####
     if not isinstance(operating_state, ShockCellAnalyticalOperatingState):
       raise OperatingStateDomainError("operating_state must be ShockCellAnalyticalOperatingState")
+    ####
     return PlumeFluxSection.from_nozzle_exit(
         operating_state.nozzle_exit,
         ambient_pressure_Pa=operating_state.ambient.pressure_Pa,
@@ -192,12 +207,16 @@ class ShockCellAnalyticalSession:
   def snapshot(self, operating_state: ShockCellAnalyticalOperatingState) -> PlumeSnapshot:
     if self._closed:
       raise ProviderClosedError("shock-cell analytical session is closed")
+    ####
     if not isinstance(operating_state, ShockCellAnalyticalOperatingState):
       raise OperatingStateDomainError("operating_state must be ShockCellAnalyticalOperatingState")
+    ####
     if abs(operating_state.nozzle_exit.radius_m - self._definition.nozzle_radius_m) > max(1.0e-12, self._definition.nozzle_radius_m * 1.0e-10):
       raise OperatingStateDomainError("operating-state nozzle radius does not match the provider definition")
+    ####
     if abs(operating_state.nozzle_exit.flow_angle_rad) > pi / 6.0:
       raise OperatingStateDomainError("exit flow angle is outside the straight-provider applicability domain")
+    ####
     result = solve_shock_cells(ShockCellSolveConfig(
         exit=operating_state.nozzle_exit,
         ambient=operating_state.ambient,
@@ -210,6 +229,7 @@ class ShockCellAnalyticalSession:
     ))
     if result.status is SolverStatus.NUMERICAL_FAILURE or result.status is SolverStatus.OUTSIDE_MODEL_VALIDITY:
       raise OperatingStateDomainError(str(result.details.get("solver_diagnostics_v1", "analytical solver failed")))
+    ####
     zones = tuple(
         AxisymmetricZone(
             zone_id=zone.zone_id,
@@ -265,6 +285,7 @@ class ShockCellAnalyticalSession:
           support_definition="no-pressure-mismatch exit-plane support",
           is_conservative=True,
       )
+    ####
     points = [zone.polygon_xr_m for zone in zones]
     import numpy as np
     all_points = np.vstack(points)
@@ -279,3 +300,4 @@ class ShockCellAnalyticalSession:
         is_conservative=True,
     )
   ####
+####

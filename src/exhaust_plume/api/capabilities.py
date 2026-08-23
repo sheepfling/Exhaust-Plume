@@ -50,4 +50,3 @@ __all__ = (
     'SUPPORTING_CAPABILITY_IDS',
     'VISUAL_SECTIONED_TUBE_V1',
 )
-####

@@ -58,6 +58,7 @@ def _vector3(value: ArrayLike, *, name: str) -> Vector3:
   array = np.asarray(value, dtype=float)
   if array.shape != (3,) or not bool(np.isfinite(array).all()):
     raise ValueError(f'{name} must be a finite three-vector.')
+  ####
   return (float(array[0]), float(array[1]), float(array[2]))
 ####
 

@@ -37,6 +37,7 @@ def _definition() -> PrescribedVisualDefinition:
     sections=sections,
     channels={'mixing_weight': (0.0, 0.25, 0.75, 1.0)},
   )
+####
 
 
 def test_prescribed_provider_uses_one_immutable_snapshot_for_visual_evaluation() -> None:
@@ -66,6 +67,7 @@ def test_prescribed_provider_uses_one_immutable_snapshot_for_visual_evaluation()
   assert result.channels['mixing_weight'] == (0.0, 1.0)
   assert result.metadata.snapshot.snapshot_id == snapshot.metadata.snapshot_id
   assert result.metadata.capability == VISUAL_SECTIONED_TUBE_CAPABILITY
+####
 
 
 def test_prescribed_provider_rejects_unsupported_frame_and_channel() -> None:
@@ -88,6 +90,7 @@ def test_prescribed_provider_rejects_unsupported_frame_and_channel() -> None:
         sampling=VisualSampling(maximum_section_count=2),
       ),
     )
+  ####
   with pytest.raises(ValueError, match='unsupported visual channels'):
     snapshot.evaluate(
       VISUAL_SECTIONED_TUBE_V1,
@@ -97,6 +100,8 @@ def test_prescribed_provider_rejects_unsupported_frame_and_channel() -> None:
         requested_channels=('unknown_channel',),
       ),
     )
+  ####
+####
 
 
 def test_prescribed_provider_closes_session() -> None:
@@ -113,6 +118,8 @@ def test_prescribed_provider_closes_session() -> None:
       dynamic_state={},
       ambient_state={},
     )
+  ####
+####
 
 
 def test_prescribed_provider_passes_the_shared_visual_conformance_harness() -> None:
@@ -130,6 +137,7 @@ def test_prescribed_provider_passes_the_shared_visual_conformance_harness() -> N
       dynamic_state={},
       ambient_state={},
     )
+  ####
 
   report = run_visual_provider_conformance(
     provider.descriptor,
@@ -142,3 +150,4 @@ def test_prescribed_provider_passes_the_shared_visual_conformance_harness() -> N
   )
   assert report.passed is True
   assert report.section_count == 3
+####

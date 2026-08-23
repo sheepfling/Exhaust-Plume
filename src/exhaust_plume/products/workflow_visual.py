@@ -73,31 +73,43 @@ class VisualMesh:
   def __post_init__(self) -> None:
     if not self.frame_id:
       raise ValueError('mesh frame_id must not be empty')
+    ####
     if self.section_count < 2:
       raise ValueError('mesh section_count must be at least two')
+    ####
     if not self.vertices:
       raise ValueError('mesh must contain vertices')
+    ####
     if len(self.faces) != len(self.face_section_indices):
       raise ValueError('mesh faces and face_section_indices must have matching lengths')
+    ####
     normalized_vertices: list[Vector3] = []
     for vertex in self.vertices:
       if len(vertex) != 3 or not all(isfinite(value) for value in vertex):
         raise ValueError('mesh vertices must be finite 3-vectors')
+      ####
       normalized_vertices.append((float(vertex[0]), float(vertex[1]), float(vertex[2])))
+    ####
     normalized_faces: list[tuple[int, int, int]] = []
     for face in self.faces:
       if len(face) != 3 or any(index < 0 or index >= len(normalized_vertices) for index in face):
         raise ValueError('mesh faces must contain valid vertex indices')
+      ####
       normalized_faces.append((int(face[0]), int(face[1]), int(face[2])))
+    ####
     normalized_channels: dict[str, tuple[float, ...]] = {}
     for channel_name, values in self.section_channels.items():
       if len(values) != self.section_count:
         raise ValueError(f'mesh channel {channel_name!r} must have one value per section')
+      ####
       if not all(isfinite(value) for value in values):
         raise ValueError(f'mesh channel {channel_name!r} must be finite')
+      ####
       normalized_channels[channel_name] = tuple(float(value) for value in values)
+    ####
     if any(index < 0 or index >= self.section_count for index in self.face_section_indices):
       raise ValueError('mesh face section indices must reference sections')
+    ####
     object.__setattr__(self, 'vertices', tuple(normalized_vertices))
     object.__setattr__(self, 'faces', tuple(normalized_faces))
     object.__setattr__(self, 'face_section_indices', tuple(int(index) for index in self.face_section_indices))
@@ -162,6 +174,7 @@ def build_sectioned_tube_mesh(
 
   if radial_segments < 3:
     raise ValueError('radial_segments must be at least three')
+  ####
   sections = tuple(result.sections)
   vertices: list[Vector3] = []
   faces: list[tuple[int, int, int]] = []
@@ -180,6 +193,8 @@ def build_sectioned_tube_mesh(
         section.center_m[1] + offset[1],
         section.center_m[2] + offset[2],
       ))
+    ####
+  ####
   for section_index in range(len(sections) - 1):
     first_ring = section_index * radial_segments
     second_ring = (section_index + 1) * radial_segments
@@ -191,6 +206,8 @@ def build_sectioned_tube_mesh(
       d = second_ring + next_index
       faces.extend(((a, c, b), (b, c, d)))
       face_section_indices.extend((section_index, section_index))
+    ####
+  ####
   if cap_ends:
     start_center = len(vertices)
     vertices.append((
@@ -212,6 +229,8 @@ def build_sectioned_tube_mesh(
       face_section_indices.append(0)
       faces.append((end_center, last_ring + radial_index, last_ring + next_index))
       face_section_indices.append(len(sections) - 1)
+    ####
+  ####
   return VisualMesh(
     frame_id=result.metadata.output_frame_id,
     section_count=len(sections),
@@ -227,6 +246,7 @@ def _load_json(path: str | Path) -> dict[str, Any]:
   payload = json.loads(Path(path).read_text(encoding='utf-8'))
   if not isinstance(payload, dict):
     raise ValueError(f'{path} must contain a JSON object')
+  ####
   return payload
 ####
 
@@ -239,13 +259,17 @@ def load_straight_visual_definition(path: str | Path) -> StraightVisualDefinitio
     schema = payload.get('asset_schema')
     if schema is not None and schema != _VISUAL_ASSET_SCHEMA:
       raise ValueError(f'unsupported visual asset schema: {schema}')
+    ####
     payload = payload['definition']
   elif 'asset_schema' in payload:
     schema = payload.pop('asset_schema')
     if schema != _VISUAL_ASSET_SCHEMA:
       raise ValueError(f'unsupported visual asset schema: {schema}')
+    ####
+  ####
   if not isinstance(payload, dict):
     raise ValueError('visual definition must be a JSON object')
+  ####
   return StraightVisualDefinition(**payload)
 ####
 
@@ -255,6 +279,7 @@ def write_straight_visual_asset(definition: StraightVisualDefinition, path: str 
 
   if not isinstance(definition, StraightVisualDefinition):
     raise ProviderConfigurationError('definition must be StraightVisualDefinition')
+  ####
   output = Path(path)
   output.parent.mkdir(parents=True, exist_ok=True)
   payload = {
@@ -312,9 +337,11 @@ def render_visual_preview(
     from mpl_toolkits.mplot3d.art3d import Poly3DCollection
   except ImportError as error:
     raise RuntimeError('visual previews require the optional plot dependency: pip install .[plot]') from error
+  ####
   mesh = build_sectioned_tube_mesh(result, radial_segments=radial_segments)
   if channel is not None and channel not in mesh.section_channels:
     raise ValueError(f'visual channel is not present: {channel}')
+  ####
   output = Path(path)
   output.parent.mkdir(parents=True, exist_ok=True)
   figure = plt.figure(figsize=(8.0, 6.0))
@@ -331,6 +358,7 @@ def render_visual_preview(
     maximum = max(values)
     normalizer = Normalize(vmin=minimum, vmax=maximum if maximum > minimum else minimum + 1.0)
     colors = [plt.get_cmap('viridis')(normalizer(values[index])) for index in mesh.face_section_indices]
+  ####
   collection = Poly3DCollection(polygons, facecolor=colors, edgecolor='none', alpha=0.82)
   axes.add_collection3d(collection)
   lower = mesh.minimum_m
@@ -347,6 +375,7 @@ def render_visual_preview(
   axes.set_title(title)
   if channel is not None:
     figure.colorbar(plt.cm.ScalarMappable(norm=normalizer, cmap='viridis'), ax=axes, label=channel)
+  ####
   figure.tight_layout()
   figure.savefig(output, dpi=140)
   plt.close(figure)
@@ -375,6 +404,7 @@ def evaluate_visual_definition(
     default_count = len(definition.sections)
   else:
     raise ProviderConfigurationError('definition must be a supported visual definition')
+  ####
   snapshot = session.create_snapshot(
     time_s=time_s,
     source_pose=Pose(
@@ -396,6 +426,7 @@ def evaluate_visual_definition(
     )
   finally:
     session.close()
+  ####
 ####
 
 
@@ -415,10 +446,12 @@ def evaluate_shock_cell_visual(
         'simple straight visual geometry is unavailable because the source solver '
         f'reported {result.status.value}'
     )
+  ####
   if not result.zones:
     raise ProductOutsideApplicabilityError(
         'simple straight visual geometry requires at least one finite solved zone'
     )
+  ####
 
   definition = visual_definition_from_shock_cells(
     result,
@@ -508,9 +541,11 @@ def _zone_vertices(zone: Any) -> tuple[tuple[float, float], ...]:
     raw_vertices = zone.coordinates.corners_ru
   else:
     raise ProviderConfigurationError('zone does not expose x/r vertices')
+  ####
   vertices = tuple((float(vertex[0]), float(vertex[1])) for vertex in raw_vertices)
   if len(vertices) < 3 or not all(isfinite(value) for vertex in vertices for value in vertex):
     raise ProviderConfigurationError('zone vertices must be finite polygons')
+  ####
   return vertices
 ####
 
@@ -523,12 +558,16 @@ def _radius_at_x(vertices: tuple[tuple[float, float], ...], x_value: float, tole
     if abs(x1 - x0) <= tolerance:
       if abs(x_value - x0) <= tolerance:
         candidates.extend((abs(r0), abs(r1)))
+      ####
       continue
+    ####
     lower = min(x0, x1) - tolerance
     upper = max(x0, x1) + tolerance
     if lower <= x_value <= upper:
       fraction = (x_value - x0) / (x1 - x0)
       candidates.append(abs(r0 + fraction * (r1 - r0)))
+    ####
+  ####
   return max(candidates) if candidates else None
 ####
 
@@ -545,23 +584,29 @@ def visual_definition_from_zone_results(
 
   if len(zones) == 0:
     raise ProviderConfigurationError('at least one finite zone is required')
+  ####
   if section_count < 2:
     raise ProviderConfigurationError('section_count must be at least two')
+  ####
   if not isfinite(minimum_radius_m) or minimum_radius_m <= 0.0:
     raise ProviderConfigurationError('minimum_radius_m must be finite and positive')
+  ####
   if maximum_axial_extent_m is not None and (
       not isfinite(maximum_axial_extent_m) or maximum_axial_extent_m <= 0.0
   ):
     raise ProviderConfigurationError('maximum_axial_extent_m must be finite and positive')
+  ####
   polygon_list = tuple(_zone_vertices(zone) for zone in zones)
   x_values = tuple(value for polygon in polygon_list for value, _ in polygon)
   start_x = min(x_values)
   end_x = max(x_values)
   if maximum_axial_extent_m is not None:
     end_x = min(end_x, start_x + maximum_axial_extent_m)
+  ####
   span = end_x - start_x
   if not isfinite(span) or span <= 0.0:
     raise ProviderConfigurationError('zone geometry must span a positive axial distance')
+  ####
   tolerance = max(1.0e-10, span * 1.0e-9)
   characteristic_x = _unique_sorted(
     (
@@ -577,6 +622,7 @@ def visual_definition_from_zone_results(
       characteristic_x[index]
       for index in _sample_station_indices(len(characteristic_x), section_count)
     )
+  ####
   uniform_x = tuple(start_x + span * index / (section_count - 1) for index in range(section_count))
   regular_x = tuple(
     value for value in uniform_x
@@ -592,9 +638,11 @@ def visual_definition_from_zone_results(
       regular_x[index]
       for index in _sample_station_indices(len(regular_x), remaining)
     )
+  ####
   station_x = _unique_sorted((*characteristic_x, *selected_regular), tolerance)
   if len(station_x) < 2:
     raise ProviderConfigurationError('zone geometry must produce at least two axial stations')
+  ####
   radii: list[float] = []
   for station in station_x:
     candidates = tuple(
@@ -605,7 +653,9 @@ def visual_definition_from_zone_results(
     )
     if not candidates:
       raise ProviderConfigurationError(f'zone geometry has no cross-section at x={station}')
+    ####
     radii.append(max(candidates))
+  ####
   maximum_radius = max(radii)
   floor = max(minimum_radius_m, maximum_radius * 1.0e-6)
   normalized_radii = tuple(max(radius, floor) for radius in radii)
@@ -636,6 +686,8 @@ def _unique_sorted(values: Iterable[float], tolerance: float) -> tuple[float, ..
   for value in ordered:
     if not unique or abs(value - unique[-1]) > tolerance:
       unique.append(value)
+    ####
+  ####
   return tuple(unique)
 ####
 
@@ -643,8 +695,10 @@ def _unique_sorted(values: Iterable[float], tolerance: float) -> tuple[float, ..
 def _sample_station_indices(total_count: int, selected_count: int) -> tuple[int, ...]:
   if selected_count <= 0:
     return ()
+  ####
   if selected_count >= total_count:
     return tuple(range(total_count))
+  ####
   return tuple(
     int(round(index * (total_count - 1) / (selected_count - 1)))
     for index in range(selected_count)
@@ -664,6 +718,7 @@ def visual_definition_from_shock_cells(
 
   if not isinstance(result, ShockCellSolveResult):
     raise ProviderConfigurationError('result must be ShockCellSolveResult')
+  ####
   return visual_definition_from_zone_results(
     result.zones,
     frame_id=frame_id,
