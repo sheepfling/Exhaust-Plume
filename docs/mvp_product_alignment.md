@@ -90,6 +90,16 @@ private solver states
 
 The curved-plume adapter preserves the existing rotation-minimizing frame convention and maps station quantities into declared feature channels. Temperature and pressure are diagnostics, not brightness or emissivity.
 
+### Conservative regime handoff
+
+The only neutral handoff between physical regimes is `PlumeFluxSection`. It
+preserves mass flow, vector momentum including the residual pressure-thrust
+term, total energy flow, species mass flow, static and ambient pressure, the
+pressure-match residual, cross-section moments, provenance, applicability, and
+uncertainty. Provider-private shock zones, characteristic constructions,
+centerline station classes, CFD cells, and rendering meshes do not cross this
+boundary.
+
 ## Legitimate derivation graph
 
 Allowed downward derivations:
