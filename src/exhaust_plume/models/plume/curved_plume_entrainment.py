@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import exp, hypot, pi, sqrt
+from math import expm1, hypot, pi, sqrt
 
 import numpy as np
 
@@ -76,10 +76,13 @@ class DevelopingShearForcedEntrainment:
   ####
 
   def calculateDevelopmentFactor(self, arc_length_m: float) -> float:
-    _validateNonnegativeFinite('arc_length_m', arc_length_m)
-    factor = 1. - (
+    arc_length = _validateNonnegativeFinite('arc_length_m', arc_length_m)
+    if arc_length == 0.:
+      return self.initial_development_fraction
+    ####
+    factor = self.initial_development_fraction + (
         1. - self.initial_development_fraction
-    ) * exp(-arc_length_m / self.development_length_m)
+    ) * (-expm1(-arc_length / self.development_length_m))
     return float(factor)
   ####
 
@@ -151,6 +154,21 @@ class DevelopingShearForcedEntrainment:
         source=source,
     )
     return components.total_mass_rate_kgpspm
+  ####
+
+  def calculateMassEntrainmentPerLength(
+      self,
+      *,
+      arc_length_m: float,
+      station: CurvedPlumeStation,
+      source: CurvedPlumeSource,
+  ) -> float:
+    """Implement the common entrainment protocol used by the solver."""
+    return self.calculateEntrainmentRate(
+        arc_length_m=arc_length_m,
+        station=station,
+        source=source,
+    )
   ####
 ####
 
