@@ -1,0 +1,82 @@
+{
+  "report_id": "exhaust-plume-api-v1-freeze-report",
+  "status": "accepted",
+  "release_target": "0.1.0a2",
+  "reviewed_head_sha": "282fe02",
+  "base_sha": "49d6ffd",
+  "authority": {
+    "public_import": "exhaust_plume.api.v1",
+    "wire_models": "exhaust_plume.contracts.*_v1",
+    "schema_manifest": "schemas/public_contract_freeze_v1.json",
+    "fixture_generator": "scripts/generate_public_contract_assets.py",
+    "drift_check": "scripts/check_public_contract_assets.py"
+  },
+  "capability_versions": {
+    "primary": [
+      "plume.visual.sectioned-tube@1",
+      "plume.signature.spectral-radiant-intensity@1",
+      "plume.optical.spectral-ray-transfer@1"
+    ],
+    "supporting": [
+      "plume.engineering.flux-section@1",
+      "plume.spatial.support@1",
+      "plume.spatial.local-field@1",
+      "plume.spatial.axisymmetric-zone-field@1",
+      "plume.spatial.projected-area@1",
+      "plume.image.spectral-radiance@1"
+    ]
+  },
+  "lifecycle": {
+    "sequence": "ProductProvider -> ProductSession -> ProductSnapshot -> one typed product",
+    "snapshot": "immutable and independently readable",
+    "time": "requested time is retained in snapshot metadata; provider applicability controls domains",
+    "frames": "named right-handed SI frames; quaternions are (x, y, z, w)",
+    "failures": "unsupported capability, unsupported major, invalid request, and applicability are distinct typed failures"
+  },
+  "product_boundaries": {
+    "visual": "sectioned geometry and feature channels; no implied spectral or optical capability",
+    "signature": "unresolved source spectral radiant intensity; no atmosphere, optics, detector, or pixel claim",
+    "ray_transfer": "resolved source radiance and background transmittance with explicit hit/miss semantics",
+    "engineering": "conservative handoff quantities remain separate from rendering and radiometry"
+  },
+  "provider_conformance": {
+    "registered_providers": [
+      "PrescribedVisualProvider",
+      "StraightVisualProvider",
+      "StraightAnalyticalProvider",
+      "SignatureTableProvider"
+    ],
+    "waived_providers": {
+      "StaticPlumeProvider": "legacy providers.lifecycle ABI; no canonical ProductSession adapter yet",
+      "ShockCellAnalyticalProvider": "legacy spatial capability ABI; solver-private spatial products remain out of this freeze"
+    },
+    "negative_fixtures": [
+      "fake descriptor-mismatch provider",
+      "fake visual-only provider",
+      "fake signature-only provider",
+      "fake ray-transfer provider"
+    ]
+  },
+  "evidence": {
+    "pytest": "270 passed, 18 warnings",
+    "ruff": "passed",
+    "pyright": "0 errors, 0 warnings, 0 informations",
+    "public_asset_drift_and_draft_2020_12": "passed",
+    "build": "exhaust_plume-0.1.0a2.dev0.tar.gz and exhaust_plume-0.1.0a2.dev0-py3-none-any.whl built",
+    "installed_wheel_smoke": "tests/installed_smoke.py passed",
+    "wire_baseline": "checked-in v1 schema and fixture digests match the 0.1.0a1 release-gate inventory"
+  },
+  "compatibility": {
+    "legacy_prescribed_api": "retained as a UUID/envelope compatibility shell backed by the canonical prescribed provider",
+    "root_exports": "retained and covered by import inventory tests",
+    "removal_horizon": "no earlier than 0.2.0 after a new major-version migration review"
+  },
+  "deferred_without_v1_meaning_change": [
+    "finite shock-train provider integration",
+    "washed integral provider integration",
+    "gray/spectral physical optical field",
+    "ray intersection provider",
+    "CPU/GPU acceleration",
+    "FPA raycasting"
+  ]
+}

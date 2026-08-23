@@ -1,0 +1,135 @@
+{
+  "freeze_id": "exhaust-plume-public-contract-freeze-v1",
+  "freeze_status": "accepted",
+  "source_manifest": "schemas/public_contract_manifest_v1.json",
+  "source_manifest_sha256": "4f91c6891a19f71ea6ff3952801092d345c9908afef47823e557f3a6b790594e",
+  "schema_dialect": "https://json-schema.org/draft/2020-12/schema",
+  "capabilities": [
+    {
+      "wire_id": "plume.visual.sectioned-tube@1",
+      "major": 1,
+      "request_schema_id": "visual_sectioned_tube_v1",
+      "result_schema_id": "visual_sectioned_tube_result_v1",
+      "status": "frozen"
+    },
+    {
+      "wire_id": "plume.signature.spectral-radiant-intensity@1",
+      "major": 1,
+      "request_schema_id": "spectral_signature_v1",
+      "result_schema_id": "spectral_signature_result_v1",
+      "status": "frozen"
+    },
+    {
+      "wire_id": "plume.optical.spectral-ray-transfer@1",
+      "major": 1,
+      "request_schema_id": "spectral_ray_transfer_v1",
+      "result_schema_id": "spectral_ray_transfer_result_v1",
+      "status": "frozen"
+    },
+    {
+      "wire_id": "plume.engineering.flux-section@1",
+      "major": 1,
+      "request_schema_id": null,
+      "result_schema_id": null,
+      "status": "frozen"
+    },
+    {
+      "wire_id": "plume.spatial.support@1",
+      "major": 1,
+      "request_schema_id": null,
+      "result_schema_id": null,
+      "status": "frozen"
+    },
+    {
+      "wire_id": "plume.spatial.local-field@1",
+      "major": 1,
+      "request_schema_id": null,
+      "result_schema_id": null,
+      "status": "frozen"
+    },
+    {
+      "wire_id": "plume.spatial.axisymmetric-zone-field@1",
+      "major": 1,
+      "request_schema_id": null,
+      "result_schema_id": null,
+      "status": "frozen"
+    },
+    {
+      "wire_id": "plume.spatial.projected-area@1",
+      "major": 1,
+      "request_schema_id": null,
+      "result_schema_id": null,
+      "status": "frozen"
+    },
+    {
+      "wire_id": "plume.image.spectral-radiance@1",
+      "major": 1,
+      "request_schema_id": null,
+      "result_schema_id": null,
+      "status": "frozen"
+    }
+  ],
+  "assets": [
+    {
+      "path": "schemas/provider_descriptor_v1.schema.json",
+      "sha256": "65ce5ba549f825be335cc1cf7649865a959ab2bfb77b75b96eb258c18721d69a"
+    },
+    {
+      "path": "schemas/result_metadata_v1.schema.json",
+      "sha256": "4ab4bda8afcb7788ba8c8147aa09447195d36f03ab6b666f75582b70fcfe8adb"
+    },
+    {
+      "path": "schemas/visual_sectioned_tube_v1.schema.json",
+      "sha256": "da5628c436ff8a52e912e6d30ac993cacf912dcacca2547381409ec686a84b13"
+    },
+    {
+      "path": "schemas/visual_sectioned_tube_result_v1.schema.json",
+      "sha256": "f841472a04aa5d5af141b549984ca4027bfebe3b458f847bc7a28f38bfab0d99"
+    },
+    {
+      "path": "schemas/spectral_signature_v1.schema.json",
+      "sha256": "8b1856779c5cf00d6b111793b4053ab52855bb3e631e4f6e91aabe330a637325"
+    },
+    {
+      "path": "schemas/spectral_signature_result_v1.schema.json",
+      "sha256": "7bfd325e1d25ba5f4e1443672928d47e2dbbf2b8c5649377d776377749ae532a"
+    },
+    {
+      "path": "schemas/spectral_ray_transfer_v1.schema.json",
+      "sha256": "e14e732ac9900ccb3aa793e1be9264bd817e1bc8f2f0387942ec71310ded22e0"
+    },
+    {
+      "path": "schemas/spectral_ray_transfer_result_v1.schema.json",
+      "sha256": "68889b98e5e5bef17b80c6a314c32d1ae622110e8ce938b2b8eeb4799a44273a"
+    },
+    {
+      "path": "fixtures/contracts/visual_sectioned_tube_v1.json",
+      "sha256": "06b321505533d7b4e9b70b8826f81b8098e76503a5de6c83e0e51146607eed3d"
+    },
+    {
+      "path": "fixtures/contracts/spectral_signature_v1.json",
+      "sha256": "4dad83ad70f0106711cafdc04944f0d45748ab2b2a27da75158c8e762fd40f9b"
+    },
+    {
+      "path": "fixtures/contracts/spectral_ray_transfer_v1.json",
+      "sha256": "bcc291e34c386caff94737d89571e1b1d26dc7be6ef459b77929f55f846120ba"
+    },
+    {
+      "path": "fixtures/contracts/invalid_visual_nonmonotonic.json",
+      "sha256": "a0d6dfc661bad7a5ee42365488ff38c794115fbce7e0c7eea01311c6909cd084"
+    }
+  ],
+  "compatibility_baseline": {
+    "release": "0.1.0a1",
+    "release_gate_sha256_file": "docs/release_gate_0.1.0a1.sha256",
+    "release_gate_sha256": "5a5b62978850c1148ec64f30505bf3fb54969203962b7816f24f0b2e906eb1e9"
+  },
+  "scope": {
+    "visual_geometry_independent_from_signature": true,
+    "signature_independent_from_ray_transfer": true,
+    "engineering_handoff_neutral": true,
+    "cpu_gpu_acceleration": "deferred",
+    "fpa_raycasting": "deferred",
+    "new_physics": "deferred"
+  }
+}
