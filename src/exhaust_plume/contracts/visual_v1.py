@@ -9,17 +9,13 @@ from typing import Mapping
 
 from pydantic import Field, field_validator, model_validator
 
+from exhaust_plume.contracts.capability import VISUAL_SECTIONED_TUBE_CAPABILITY
 from exhaust_plume.contracts.common_v1 import (
   ApiModel,
-  CapabilityIdentity,
   QuaternionXyzw,
   ResultMetadata,
   Vector3,
 )
-
-VISUAL_SECTIONED_TUBE_CAPABILITY = CapabilityIdentity(name='plume.visual.sectioned-tube', major=1)
-####
-
 
 class LodProfile(str, Enum):
   PREVIEW = 'preview'

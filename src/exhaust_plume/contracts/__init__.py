@@ -2,7 +2,23 @@
 
 from __future__ import annotations
 
-from exhaust_plume.contracts.capability import CAPABILITY_MAJOR_VERSIONS, CapabilityId
+from exhaust_plume.contracts.capability import (
+  CAPABILITY_MAJOR_VERSIONS,
+  CANONICAL_CAPABILITY_IDENTITIES,
+  CANONICAL_CAPABILITY_REGISTRY,
+  CapabilityId,
+  ENGINEERING_FLUX_SECTION_CAPABILITY,
+  IMAGE_SPECTRAL_RADIANCE_CAPABILITY,
+  PRIMARY_CAPABILITY_IDENTITIES,
+  SIGNATURE_SPECTRAL_RADIANT_INTENSITY_CAPABILITY,
+  SPATIAL_AXISYMMETRIC_ZONE_FIELD_CAPABILITY,
+  SPATIAL_LOCAL_FIELD_CAPABILITY,
+  SPATIAL_PROJECTED_AREA_CAPABILITY,
+  SPATIAL_SUPPORT_CAPABILITY,
+  SPECTRAL_RAY_TRANSFER_CAPABILITY,
+  SUPPORTING_CAPABILITY_IDENTITIES,
+  VISUAL_SECTIONED_TUBE_CAPABILITY,
+)
 from exhaust_plume.contracts.descriptor import (
     PlumeMorphology,
     PlumeProviderDescriptor,
@@ -74,7 +90,6 @@ from exhaust_plume.contracts.lifecycle_v1 import (
   ProductSnapshot,
 )
 from exhaust_plume.contracts.ray_transfer_v1 import (
-  SPECTRAL_RAY_TRANSFER_CAPABILITY,
   SpectralRayTransferRequest,
   SpectralRayTransferResult as VersionedSpectralRayTransferResult,
 )
@@ -91,9 +106,11 @@ from exhaust_plume.contracts.signature_v1 import (
 )
 from exhaust_plume.contracts.schema_v1 import PUBLIC_CONTRACT_MODELS, export_public_schemas
 from exhaust_plume.contracts.specs_v1 import (
+  PRIMARY_PRODUCT_CAPABILITY_SPECS,
   SPECTRAL_RADIANT_INTENSITY_V1,
   SPECTRAL_RAY_TRANSFER_V1,
   VISUAL_SECTIONED_TUBE_V1,
+  get_product_capability_spec,
 )
 from exhaust_plume.contracts.snapshot import (
     PlumeCapability,
@@ -106,7 +123,6 @@ from exhaust_plume.contracts.snapshot import (
 from exhaust_plume.contracts.spatial import AxisymmetricZone, AxisymmetricZoneField, ProjectedAreaCapability, SpatialSupport
 from exhaust_plume.contracts.visual_v1 import (
   LodProfile,
-  VISUAL_SECTIONED_TUBE_CAPABILITY,
   VisualBounds,
   VisualChannelId,
   VisualSampling,
@@ -128,6 +144,8 @@ __all__ = (
   'ApplicabilityReport',
   'ApplicabilityStatus',
   'CAPABILITY_MAJOR_VERSIONS',
+  'CANONICAL_CAPABILITY_IDENTITIES',
+  'CANONICAL_CAPABILITY_REGISTRY',
   'CapabilityId',
   'CapabilityIdentity',
   'CapabilityEvaluator',
@@ -137,10 +155,12 @@ __all__ = (
   'ConsistencyLevel',
   'ContractViolationError',
   'Derivation',
+  'ENGINEERING_FLUX_SECTION_CAPABILITY',
   'DirectionalSpectralIntensityQuery',
   'DirectionalSpectralIntensityResult',
   'ErrorCode',
   'GeometryClaim',
+  'IMAGE_SPECTRAL_RADIANCE_CAPABILITY',
   'ImmutableProductSnapshot',
   'InvalidProductRequestError',
   'LodProfile',
@@ -166,6 +186,8 @@ __all__ = (
   'ProductSnapshot',
   'ProductSnapshotExpiredError',
   'ProductClaims',
+  'PRIMARY_PRODUCT_CAPABILITY_SPECS',
+  'PRIMARY_CAPABILITY_IDENTITIES',
   'PublicContractError',
   'ProjectedAreaCapability',
   'PUBLIC_CONTRACT_MODELS',
@@ -182,6 +204,7 @@ __all__ = (
   'SpatialDomainError',
   'SpatialSupport',
   'SPECTRAL_RADIANT_INTENSITY_CAPABILITY',
+  'SIGNATURE_SPECTRAL_RADIANT_INTENSITY_CAPABILITY',
   'SPECTRAL_RADIANT_INTENSITY_V1',
   'SPECTRAL_RAY_TRANSFER_CAPABILITY',
   'SPECTRAL_RAY_TRANSFER_V1',
@@ -213,8 +236,14 @@ __all__ = (
   'VisualTubeResult',
   'VisualTubeSection',
   'VisualTubeSummary',
+  'SPATIAL_AXISYMMETRIC_ZONE_FIELD_CAPABILITY',
+  'SPATIAL_LOCAL_FIELD_CAPABILITY',
+  'SPATIAL_PROJECTED_AREA_CAPABILITY',
+  'SPATIAL_SUPPORT_CAPABILITY',
+  'SUPPORTING_CAPABILITY_IDENTITIES',
   'VisualProviderConformanceReport',
   'run_visual_provider_conformance',
   'canonical_digest',
   'export_public_schemas',
+  'get_product_capability_spec',
 )

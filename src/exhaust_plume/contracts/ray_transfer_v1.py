@@ -6,22 +6,15 @@ from math import isfinite, sqrt
 
 from pydantic import Field, model_validator
 
+from exhaust_plume.contracts.capability import SPECTRAL_RAY_TRANSFER_CAPABILITY
 from exhaust_plume.contracts.common_v1 import (
   ApiModel,
-  CapabilityIdentity,
   MatrixBool,
   MatrixFloat,
   ResultMetadata,
   SampleStatus,
   validate_rectangular_matrix,
 )
-
-SPECTRAL_RAY_TRANSFER_CAPABILITY = CapabilityIdentity(
-  name='plume.optical.spectral-ray-transfer',
-  major=1,
-)
-####
-
 
 class SpectralRayTransferRequest(ApiModel):
   ray_frame_id: str = Field(min_length=1)

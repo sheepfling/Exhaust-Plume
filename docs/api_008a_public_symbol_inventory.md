@@ -1,6 +1,6 @@
-# API-008A public symbol inventory
+# API-008A/008B public symbol inventory
 
-This inventory is generated from each package's declared `__all__` on the API-008A branch. The import-inventory test verifies that every listed symbol resolves. The legacy surfaces remain listed so compatibility coverage is explicit.
+This inventory is generated from each package's declared `__all__` on the post-a1 implementation branch. The import-inventory test verifies that every listed symbol resolves. The legacy surfaces remain listed so compatibility coverage is explicit.
 
 ## `exhaust_plume.api` (53 symbols)
 
@@ -58,7 +58,7 @@ This inventory is generated from each package's declared `__all__` on the API-00
 - `sectioned_tube_payload_from_axisymmetric_zones`
 - `v1`
 
-## `exhaust_plume.api.v1` (98 symbols)
+## `exhaust_plume.api.v1` (119 symbols)
 
 - `AngularDomainError`
 - `ApiError`
@@ -68,22 +68,30 @@ This inventory is generated from each package's declared `__all__` on the API-00
 - `AxisymmetricZone`
 - `AxisymmetricZoneField`
 - `CAPABILITY_MAJOR_VERSIONS`
+- `CANONICAL_CAPABILITY_IDENTITIES`
+- `CANONICAL_CAPABILITY_REGISTRY`
 - `CapabilityEvaluator`
 - `CapabilityIdentity`
 - `CapabilitySpec`
 - `CapabilityVersionMismatchError`
 - `CapabilityId`
+- `CanonicalSessionLegacyAdapter`
+- `CanonicalSnapshotLegacyAdapter`
 - `ConcurrencyMode`
 - `ConsistencyLevel`
 - `ContractViolationError`
 - `Derivation`
 - `DirectionalSpectralIntensityQuery`
 - `DirectionalSpectralIntensityResult`
+- `ENGINEERING_FLUX_SECTION_CAPABILITY`
 - `ErrorCode`
 - `GeometryClaim`
+- `IMAGE_SPECTRAL_RADIANCE_CAPABILITY`
 - `ImmutableProductSnapshot`
 - `InvalidProductRequestError`
 - `LodProfile`
+- `LegacySessionCanonicalAdapter`
+- `LegacySnapshotCanonicalAdapter`
 - `OperatingStateDomainError`
 - `PlumeCapability`
 - `PlumeFluxSection`
@@ -109,6 +117,8 @@ This inventory is generated from each package's declared `__all__` on the API-00
 - `ProviderFidelity`
 - `ProjectedAreaCapability`
 - `PublicContractError`
+- `PRIMARY_CAPABILITY_IDENTITIES`
+- `PRIMARY_PRODUCT_CAPABILITY_SPECS`
 - `RadiationClaim`
 - `RadiometrySpectralRayTransferResult`
 - `ResultMetadata`
@@ -131,6 +141,11 @@ This inventory is generated from each package's declared `__all__` on the API-00
 - `SpectralRayTransferResult`
 - `SpectralSignatureRequest`
 - `SpectralSignatureResult`
+- `SPATIAL_AXISYMMETRIC_ZONE_FIELD_CAPABILITY`
+- `SPATIAL_LOCAL_FIELD_CAPABILITY`
+- `SPATIAL_PROJECTED_AREA_CAPABILITY`
+- `SPATIAL_SUPPORT_CAPABILITY`
+- `SUPPORTING_CAPABILITY_IDENTITIES`
 - `TemporalDomainError`
 - `TerminationReason`
 - `TerminationReport`
@@ -155,11 +170,17 @@ This inventory is generated from each package's declared `__all__` on the API-00
 - `VisualTubeSection`
 - `VisualTubeSummary`
 - `canonical_digest`
+- `canonical_capability_from_legacy_request`
+- `canonical_error_from_legacy`
+- `canonical_spec_from_legacy_request`
 - `export_public_schemas`
 - `PUBLIC_CONTRACT_MODELS`
 - `run_visual_provider_conformance`
+- `get_product_capability_spec`
+- `legacy_error_from_canonical`
+- `legacy_request_from_capability`
 
-## `exhaust_plume.contracts` (97 symbols)
+## `exhaust_plume.contracts` (110 symbols)
 
 - `AngularDomainError`
 - `ApiError`
@@ -169,6 +190,8 @@ This inventory is generated from each package's declared `__all__` on the API-00
 - `ApplicabilityReport`
 - `ApplicabilityStatus`
 - `CAPABILITY_MAJOR_VERSIONS`
+- `CANONICAL_CAPABILITY_IDENTITIES`
+- `CANONICAL_CAPABILITY_REGISTRY`
 - `CapabilityId`
 - `CapabilityIdentity`
 - `CapabilityEvaluator`
@@ -178,10 +201,12 @@ This inventory is generated from each package's declared `__all__` on the API-00
 - `ConsistencyLevel`
 - `ContractViolationError`
 - `Derivation`
+- `ENGINEERING_FLUX_SECTION_CAPABILITY`
 - `DirectionalSpectralIntensityQuery`
 - `DirectionalSpectralIntensityResult`
 - `ErrorCode`
 - `GeometryClaim`
+- `IMAGE_SPECTRAL_RADIANCE_CAPABILITY`
 - `ImmutableProductSnapshot`
 - `InvalidProductRequestError`
 - `LodProfile`
@@ -207,6 +232,8 @@ This inventory is generated from each package's declared `__all__` on the API-00
 - `ProductSnapshot`
 - `ProductSnapshotExpiredError`
 - `ProductClaims`
+- `PRIMARY_PRODUCT_CAPABILITY_SPECS`
+- `PRIMARY_CAPABILITY_IDENTITIES`
 - `PublicContractError`
 - `ProjectedAreaCapability`
 - `PUBLIC_CONTRACT_MODELS`
@@ -223,6 +250,7 @@ This inventory is generated from each package's declared `__all__` on the API-00
 - `SpatialDomainError`
 - `SpatialSupport`
 - `SPECTRAL_RADIANT_INTENSITY_CAPABILITY`
+- `SIGNATURE_SPECTRAL_RADIANT_INTENSITY_CAPABILITY`
 - `SPECTRAL_RADIANT_INTENSITY_V1`
 - `SPECTRAL_RAY_TRANSFER_CAPABILITY`
 - `SPECTRAL_RAY_TRANSFER_V1`
@@ -254,10 +282,16 @@ This inventory is generated from each package's declared `__all__` on the API-00
 - `VisualTubeResult`
 - `VisualTubeSection`
 - `VisualTubeSummary`
+- `SPATIAL_AXISYMMETRIC_ZONE_FIELD_CAPABILITY`
+- `SPATIAL_LOCAL_FIELD_CAPABILITY`
+- `SPATIAL_PROJECTED_AREA_CAPABILITY`
+- `SPATIAL_SUPPORT_CAPABILITY`
+- `SUPPORTING_CAPABILITY_IDENTITIES`
 - `VisualProviderConformanceReport`
 - `run_visual_provider_conformance`
 - `canonical_digest`
 - `export_public_schemas`
+- `get_product_capability_spec`
 
 ## `exhaust_plume.products` (47 symbols)
 

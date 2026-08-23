@@ -6,10 +6,10 @@ from math import isfinite, sqrt
 
 from pydantic import Field, model_validator
 
+from exhaust_plume.contracts.capability import SIGNATURE_SPECTRAL_RADIANT_INTENSITY_CAPABILITY
 from exhaust_plume.contracts.common_v1 import (
   ApiModel,
   ApplicabilityReport,
-  CapabilityIdentity,
   MatrixBool,
   MatrixFloat,
   ResultMetadata,
@@ -18,12 +18,7 @@ from exhaust_plume.contracts.common_v1 import (
   validate_rectangular_matrix,
 )
 
-SPECTRAL_RADIANT_INTENSITY_CAPABILITY = CapabilityIdentity(
-  name='plume.signature.spectral-radiant-intensity',
-  major=1,
-)
-####
-
+SPECTRAL_RADIANT_INTENSITY_CAPABILITY = SIGNATURE_SPECTRAL_RADIANT_INTENSITY_CAPABILITY
 
 class SpectralSignatureRequest(ApiModel):
   direction_frame_id: str = Field(min_length=1)

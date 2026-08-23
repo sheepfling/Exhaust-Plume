@@ -2,12 +2,19 @@ from __future__ import annotations
 
 import importlib
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 
 import exhaust_plume
 from exhaust_plume import api, contracts
-from exhaust_plume.api import v1
+from exhaust_plume.api import (
+  PlumeApiError,
+  PlumeErrorCode,
+  ProductRequest,
+  SnapshotRequest,
+  v1,
+)
 from exhaust_plume.providers.prescribed_visual import (
   PrescribedVisualDefinition,
   PrescribedVisualProvider,
@@ -51,6 +58,22 @@ def test_v1_facade_is_aliases_not_a_second_wire_model_tree() -> None:
   assert v1.VISUAL_SECTIONED_TUBE_V1 is contracts.VISUAL_SECTIONED_TUBE_V1
   assert v1.SPECTRAL_RADIANT_INTENSITY_V1 is contracts.SPECTRAL_RADIANT_INTENSITY_V1
   assert v1.SPECTRAL_RAY_TRANSFER_V1 is contracts.SPECTRAL_RAY_TRANSFER_V1
+
+
+def test_canonical_registry_owns_primary_and_supporting_identities() -> None:
+  assert len(v1.CANONICAL_CAPABILITY_REGISTRY) == 9
+  assert tuple(v1.CANONICAL_CAPABILITY_REGISTRY) == tuple(
+    capability.wire_id for capability in v1.CANONICAL_CAPABILITY_IDENTITIES
+  )
+  assert tuple(v1.PRIMARY_CAPABILITY_IDENTITIES) == tuple(
+    v1.CANONICAL_CAPABILITY_REGISTRY[capability.wire_id]
+    for capability in v1.PRIMARY_CAPABILITY_IDENTITIES
+  )
+  assert v1.get_product_capability_spec('plume.visual.sectioned-tube@1') is v1.VISUAL_SECTIONED_TUBE_V1
+  with pytest.raises(v1.UnsupportedProductVersionError):
+    v1.get_product_capability_spec('plume.visual.sectioned-tube@2')
+  with pytest.raises(v1.UnsupportedProductCapabilityError):
+    v1.get_product_capability_spec('plume.product.unknown@1')
 
 
 @pytest.mark.parametrize(
@@ -136,6 +159,93 @@ def test_existing_visual_consumer_runs_through_canonical_namespace() -> None:
   assert isinstance(result, v1.VisualSectionedTubeResult)
   assert result.metadata.capability == v1.VISUAL_SECTIONED_TUBE_CAPABILITY
   assert result.sections[-1].arc_length_m == 1.0
+
+
+def test_lifecycle_adapters_round_trip_canonical_result_and_request() -> None:
+  definition = PrescribedVisualDefinition(
+    frame_id='world',
+    sections=(
+      v1.VisualSection(
+        arc_length_m=0.0,
+        center_m=(0.0, 0.0, 0.0),
+        section_to_output_xyzw=(0.0, 0.0, 0.0, 1.0),
+        radius_major_m=0.25,
+        radius_minor_m=0.20,
+      ),
+      v1.VisualSection(
+        arc_length_m=1.0,
+        center_m=(1.0, 0.0, 0.0),
+        section_to_output_xyzw=(0.0, 0.0, 0.0, 1.0),
+        radius_major_m=0.30,
+        radius_minor_m=0.24,
+      ),
+    ),
+  )
+  source_pose = v1.Pose(
+    frame_id='world',
+    translation_m=(0.0, 0.0, 0.0),
+    rotation_xyzw=(0.0, 0.0, 0.0, 1.0),
+  )
+  typed_request = v1.VisualSectionedTubeRequest(
+    output_frame_id='world',
+    sampling=v1.VisualSampling(maximum_section_count=2),
+  )
+  canonical_session = PrescribedVisualProvider().create_session(definition=definition)
+  legacy_session = v1.CanonicalSessionLegacyAdapter(
+    session=canonical_session,
+    source_pose=source_pose,
+    dynamic_state={},
+    ambient_state={},
+    bound_requests={
+      v1.VISUAL_SECTIONED_TUBE_CAPABILITY.wire_id: (
+        v1.VISUAL_SECTIONED_TUBE_V1,
+        typed_request,
+      ),
+    },
+  )
+  legacy_request = v1.legacy_request_from_capability(v1.VISUAL_SECTIONED_TUBE_V1)
+  assert isinstance(legacy_request, ProductRequest)
+  assert v1.canonical_capability_from_legacy_request(legacy_request) == v1.VISUAL_SECTIONED_TUBE_CAPABILITY
+  legacy_snapshot = legacy_session.snapshot(SnapshotRequest(time_s=0.0))
+  result = legacy_snapshot.get_product(legacy_request)
+  assert isinstance(result, v1.VisualSectionedTubeResult)
+
+  class _LegacySnapshot:
+    def get_product(self, request: ProductRequest) -> object:
+      assert request == legacy_request
+      return result
+
+  canonical_snapshot = v1.LegacySnapshotCanonicalAdapter(
+    snapshot=_LegacySnapshot(),
+    supported_capabilities=(v1.VISUAL_SECTIONED_TUBE_CAPABILITY,),
+    result_adapters={v1.VISUAL_SECTIONED_TUBE_CAPABILITY.wire_id: lambda value: value},
+  )
+  round_tripped = canonical_snapshot.evaluate(v1.VISUAL_SECTIONED_TUBE_V1, typed_request)
+  assert round_tripped is result
+
+
+def test_error_adapters_preserve_structured_context_and_equivalent_code() -> None:
+  provider_id = uuid4()
+  session_id = uuid4()
+  snapshot_id = uuid4()
+  legacy = PlumeApiError(
+    PlumeErrorCode.CAPABILITY_NOT_SUPPORTED,
+    'visual capability is unavailable',
+    details={'requested': 'plume.visual.sectioned-tube@1'},
+    provider_id=provider_id,
+    session_id=session_id,
+    snapshot_id=snapshot_id,
+  )
+  canonical = v1.canonical_error_from_legacy(legacy)
+  assert canonical.code is v1.ErrorCode.UNSUPPORTED_CAPABILITY
+  assert canonical.provider_id == str(provider_id)
+  assert canonical.snapshot_id == str(snapshot_id)
+  assert canonical.details['session_id'] == str(session_id)
+  restored = v1.legacy_error_from_canonical(canonical)
+  assert restored.code is PlumeErrorCode.CAPABILITY_NOT_SUPPORTED
+  assert restored.provider_id == provider_id
+  assert restored.session_id == session_id
+  assert restored.snapshot_id == snapshot_id
 
 
 def test_root_contract_imports_remain_compatible() -> None:
