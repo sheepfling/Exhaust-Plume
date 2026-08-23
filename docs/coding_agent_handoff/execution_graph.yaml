@@ -1,0 +1,513 @@
+schema_version: '4.0'
+handoff_version: 4
+project: Exhaust-Plume
+repository: sheepfling/Exhaust-Plume
+source_branch: feature/initial-work
+authoritative_plan: 34_comprehensive_work_plan.md
+authoritative_machine_plan: work_plan.yaml
+rules:
+  one_packet_at_a_time: true
+  downstream_requires_dependency_gate: true
+  provider_semantics_before_provider_implementations: true
+  governing_equations_before_calibration: true
+  calibration_validation_split_required: true
+  no_silent_model_fallback: true
+  no_network_access_in_tests: true
+  internal_units: SI
+  internal_angles: radians
+milestones:
+- id: M0
+  title: architecture and repository baseline
+  depends_on: []
+  work_ids: []
+  gate: no unresolved decision blocks provider contracts or foundation corrections
+- id: M1
+  title: provider contract foundation
+  depends_on:
+  - M0
+  work_ids:
+  - I0
+  gate: fake signature and spatial providers pass lifecycle and capability conformance
+- id: M2
+  title: corrected foundation and exit-state boundary
+  depends_on:
+  - M0
+  work_ids:
+  - I1
+  - FND-A
+  - FND-B
+  - FND-C
+  - FND-D
+  - FND-E
+  - FND-F
+  gate: Phase 0 equation, conservation, geometry, quality, and compatibility evidence passes
+- id: M3
+  title: ShockCellAnalyticalProvider wrapper
+  depends_on:
+  - M1
+  - M2
+  work_ids:
+  - I2
+  gate: provider and direct solver agree and invalid geometry is not exported
+- id: M4
+  title: validated first shock cell
+  depends_on:
+  - M3
+  work_ids:
+  - MOC-A
+  - MOC-B
+  - MOC-C
+  - MOC-D
+  - MOC-E
+  - MOC-F
+  gate: compatibility, centerline, boundary, topology, convergence, and external-reference evidence passes
+- id: M5
+  title: finite coherent shock train
+  depends_on:
+  - M4
+  work_ids:
+  - TRN-001
+  - TRN-002
+  - TRN-003
+  - TRN-004
+  - TRN-005
+  - TRN-006
+  - TRN-007
+  - TRN-008
+  - TRN-009
+  gate: calibration/validation split and physical-versus-safety termination evidence passes
+- id: M6
+  title: conservative provider handoff
+  depends_on:
+  - M5
+  work_ids:
+  - I3
+  gate: mass, momentum, enthalpy, and species fluxes close
+- id: M7
+  title: straight integral mixing provider
+  depends_on:
+  - M6
+  work_ids:
+  - MIX-001
+  - MIX-002
+  - MIX-003
+  - MIX-004
+  - MIX-005
+  - MIX-006
+  gate: mass, momentum, enthalpy, species, profile, and endpoint evidence passes
+- id: M8
+  title: gray radiative transfer
+  depends_on:
+  - M7
+  work_ids:
+  - I4
+  - RAD-001
+  - RAD-002
+  - RAD-003
+  - RAD-004
+  - RAD-005
+  - RAD-006
+  gate: analytic slab/chord/limit and refinement tests pass
+- id: M9
+  title: far-field signature and consumer integration
+  depends_on:
+  - M8
+  work_ids:
+  - I5
+  - I7
+  gate: resolved-to-unresolved equivalence and consumer swap tests pass
+- id: M10
+  title: direct SignatureTableProvider
+  depends_on:
+  - M1
+  work_ids:
+  - I6
+  gate: signature consumer swaps providers without geometry assumptions
+- id: M11
+  title: molecular spectral radiation
+  depends_on:
+  - M8
+  - M9
+  work_ids:
+  - SPC-001
+  - SPC-002
+  - SPC-003
+  - SPC-004
+  - SPC-005
+  - SPC-006
+  - SPC-007
+  gate: spectral units, interpolation, refinement, and external validation pass
+- id: M12
+  title: curved or washed integral provider
+  depends_on:
+  - M6
+  - M7
+  work_ids:
+  - CURV-DESIGN
+  - CURV-IMPLEMENT
+  gate: straight-limit, transform, frame, conservation, and applicability tests pass
+- id: M13
+  title: thermochemistry and particles
+  depends_on:
+  - M7
+  - M11
+  work_ids:
+  - CHEM-001
+  - CHEM-002
+  - CHEM-003
+  - CHEM-004
+  - CHEM-005
+  - CHEM-006
+  - CHEM-007
+  - CHEM-008
+  gate: elemental, energy, frozen/equilibrium/rate, and zero-loading limits pass
+- id: M14
+  title: imported field provider
+  depends_on:
+  - M1
+  work_ids:
+  - I8
+  gate: unit/frame/interpolation/provenance and neutral-field equivalence tests pass
+- id: M15
+  title: GPU transient or general-3D provider
+  depends_on:
+  - M1
+  work_ids:
+  - I9
+  gate: accelerated results preserve capability semantics and execution conformance
+work_nodes:
+- id: I0
+  title: provider contract foundation
+  depends_on:
+  - M0
+  milestone: M1
+- id: FND-A
+  title: explicit gas and nozzle contracts
+  depends_on:
+  - M0
+  milestone: M2
+- id: FND-B
+  title: corrected nozzle equations and energy naming
+  depends_on:
+  - FND-A
+  milestone: M2
+- id: FND-C
+  title: oblique-shock branches and validity
+  depends_on:
+  - FND-B
+  milestone: M2
+- id: FND-D
+  title: geometry primitives and precursor correction
+  depends_on:
+  - FND-B
+  milestone: M2
+- id: FND-E
+  title: regime, result separation, and compatibility
+  depends_on:
+  - FND-C
+  - FND-D
+  milestone: M2
+- id: FND-F
+  title: foundation quality gate
+  depends_on:
+  - FND-E
+  milestone: M2
+- id: I1
+  title: corrected exit-state core boundary
+  depends_on:
+  - I0
+  - FND-F
+  milestone: M2
+- id: I2
+  title: ShockCellAnalyticalProvider wrapper
+  depends_on:
+  - I0
+  - I1
+  milestone: M3
+- id: MOC-A
+  title: characteristic primitives and PM inverse
+  depends_on:
+  - I2
+  milestone: M4
+- id: MOC-B
+  title: interior and centerline point solvers
+  depends_on:
+  - MOC-A
+  milestone: M4
+- id: MOC-C
+  title: ambient-pressure free boundary
+  depends_on:
+  - MOC-B
+  milestone: M4
+- id: MOC-D
+  title: underexpanded first-cell assembly
+  depends_on:
+  - MOC-C
+  milestone: M4
+- id: MOC-E
+  title: overexpanded first-cell assembly
+  depends_on:
+  - MOC-C
+  milestone: M4
+- id: MOC-F
+  title: correlation, convergence, and validation gate
+  depends_on:
+  - MOC-D
+  - MOC-E
+  milestone: M4
+- id: TRN-001
+  title: shock-train calibration contract
+  depends_on:
+  - MOC-F
+  milestone: M5
+- id: TRN-002
+  title: coherent-core diameter model
+  depends_on:
+  - TRN-001
+  milestone: M5
+- id: TRN-003
+  title: pressure-amplitude decay
+  depends_on:
+  - TRN-002
+  milestone: M5
+- id: TRN-004
+  title: local cell-spacing continuation
+  depends_on:
+  - TRN-002
+  milestone: M5
+- id: TRN-005
+  title: reduced-order downstream cell geometry
+  depends_on:
+  - TRN-003
+  - TRN-004
+  milestone: M5
+- id: TRN-006
+  title: physical and safety termination
+  depends_on:
+  - TRN-005
+  milestone: M5
+- id: TRN-007
+  title: shock-train result and diagnostics
+  depends_on:
+  - TRN-006
+  milestone: M5
+- id: TRN-008
+  title: calibration sensitivity and uncertainty
+  depends_on:
+  - TRN-007
+  milestone: M5
+- id: TRN-009
+  title: separate calibration and validation
+  depends_on:
+  - TRN-008
+  milestone: M5
+- id: I3
+  title: conservative PlumeFluxSection handoff
+  depends_on:
+  - TRN-009
+  milestone: M6
+- id: MIX-001
+  title: conserved integral-state contracts
+  depends_on:
+  - I3
+  milestone: M7
+- id: MIX-002
+  title: top-hat entrainment ODE
+  depends_on:
+  - MIX-001
+  milestone: M7
+- id: MIX-003
+  title: thermodynamic state recovery
+  depends_on:
+  - MIX-002
+  milestone: M7
+- id: MIX-004
+  title: mixing termination events
+  depends_on:
+  - MIX-003
+  milestone: M7
+- id: MIX-005
+  title: top-hat axisymmetric field reconstruction
+  depends_on:
+  - MIX-004
+  milestone: M7
+- id: MIX-006
+  title: flux-preserving Gaussian profiles
+  depends_on:
+  - MIX-005
+  milestone: M7
+- id: I4
+  title: ray-transfer infrastructure
+  depends_on:
+  - MIX-006
+  milestone: M8
+- id: RAD-001
+  title: spectral units and Planck function
+  depends_on:
+  - I4
+  milestone: M8
+- id: RAD-002
+  title: axisymmetric ray geometry
+  depends_on:
+  - RAD-001
+  milestone: M8
+- id: RAD-003
+  title: exact gray-gas segment transport
+  depends_on:
+  - RAD-002
+  milestone: M8
+- id: RAD-004
+  title: spectral image and area integration
+  depends_on:
+  - RAD-003
+  milestone: M8
+- id: RAD-005
+  title: angular signature sweep
+  depends_on:
+  - RAD-004
+  milestone: M8
+- id: RAD-006
+  title: IR-domain termination
+  depends_on:
+  - RAD-005
+  milestone: M8
+- id: I5
+  title: FarFieldFromRays adapter
+  depends_on:
+  - RAD-006
+  milestone: M9
+- id: I7
+  title: consumer radiometric adapter
+  depends_on:
+  - I5
+  milestone: M9
+- id: I6
+  title: SignatureTableProvider
+  depends_on:
+  - I0
+  milestone: M10
+- id: SPC-001
+  title: cross-section generator
+  depends_on:
+  - RAD-006
+  milestone: M11
+- id: SPC-002
+  title: cross-section storage and interpolation
+  depends_on:
+  - SPC-001
+  milestone: M11
+- id: SPC-003
+  title: mixture absorption
+  depends_on:
+  - SPC-002
+  milestone: M11
+- id: SPC-004
+  title: molecular transport in images
+  depends_on:
+  - SPC-003
+  milestone: M11
+- id: SPC-005
+  title: atmospheric path interface
+  depends_on:
+  - SPC-004
+  milestone: M11
+- id: SPC-006
+  title: detector response model
+  depends_on:
+  - SPC-005
+  milestone: M11
+- id: SPC-007
+  title: heated-plume IR validation
+  depends_on:
+  - SPC-006
+  milestone: M11
+- id: CURV-DESIGN
+  title: curved-plume physics and ambient-flow design
+  depends_on:
+  - I3
+  - MIX-001
+  milestone: M12
+- id: CURV-IMPLEMENT
+  title: CurvedIntegralPlumeProvider
+  depends_on:
+  - CURV-DESIGN
+  - MIX-006
+  milestone: M12
+- id: CHEM-001
+  title: species and mixture contracts
+  depends_on:
+  - MIX-006
+  - SPC-007
+  milestone: M13
+- id: CHEM-002
+  title: CEA boundary-state adapter
+  depends_on:
+  - CHEM-001
+  milestone: M13
+- id: CHEM-003
+  title: thermally perfect mixture properties
+  depends_on:
+  - CHEM-002
+  milestone: M13
+- id: CHEM-004
+  title: frozen variable-property expansion/shock solve
+  depends_on:
+  - CHEM-003
+  milestone: M13
+- id: CHEM-005
+  title: equilibrium reference path
+  depends_on:
+  - CHEM-004
+  milestone: M13
+- id: CHEM-006
+  title: finite-rate integral afterburning
+  depends_on:
+  - CHEM-005
+  milestone: M13
+- id: CHEM-007
+  title: particle population and thermal model
+  depends_on:
+  - CHEM-006
+  milestone: M13
+- id: CHEM-008
+  title: particle absorption and scattering
+  depends_on:
+  - CHEM-007
+  milestone: M13
+- id: I8
+  title: ImportedFieldProvider
+  depends_on:
+  - I0
+  milestone: M14
+- id: I9
+  title: GPU transient/general-3D provider
+  depends_on:
+  - I0
+  milestone: M15
+immediate_queue:
+- M0
+- M1
+- FND-A
+- FND-B
+- FND-C
+- FND-D
+- FND-E
+- FND-F
+- M3
+- MOC-A
+parallel_paths:
+  direct_signature:
+  - M1
+  - M10
+  curved_plume:
+  - M6
+  - M7
+  - M12
+  imported_field:
+  - M1
+  - M14
+  gpu_transient:
+  - M1
+  - M15
+  validation_governance:
+  - W10

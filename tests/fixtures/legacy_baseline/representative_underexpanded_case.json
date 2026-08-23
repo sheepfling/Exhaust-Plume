@@ -1,0 +1,41 @@
+{
+  "case_id": "legacy-underexpanded-m4p13",
+  "input_schema": "legacy-calculatePlumeZones-v0",
+  "model_level": "inviscid-planar-constant-gamma-study-model",
+  "classification": "legacy_anchor",
+  "inputs": {
+    "nozzle_mach": 4.13,
+    "nozzle_total_temperature_K": 2000.0,
+    "nozzle_total_pressure_Pa": 6997425.0,
+    "nozzle_radius_m": 1.0,
+    "atmospheric_pressure_Pa": 101325.0,
+    "gamma": 1.33,
+    "num_expansion_lines": 2,
+    "num_compression_lines": 1,
+    "num_plumes": 1
+  },
+  "output_summary": {
+    "package_version": "0.1.0.a0",
+    "zone_count": 9,
+    "zone_types": [
+      "Isentropic",
+      "ObliqueShock",
+      "ObliqueShock",
+      "ExpansionFan",
+      "ExpansionFan",
+      "ExpansionFan",
+      "ExpansionFan",
+      "ObliqueShock",
+      "ObliqueShock"
+    ],
+    "last_zone_mach": 2.474708638586581,
+    "last_zone_static_pressure_Pa": 253058.81028661662,
+    "last_zone_static_temperature_K": 994.751119261631,
+    "last_zone_geometry_all_finite": true,
+    "detail_keys": [
+      "plume_fit",
+      "points"
+    ]
+  },
+  "trust_basis": "reproducible legacy output from the current testable branch; not physical validation"
+}

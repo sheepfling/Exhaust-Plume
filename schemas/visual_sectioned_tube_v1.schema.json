@@ -1,0 +1,88 @@
+{
+  "$defs": {
+    "LodProfile": {
+      "enum": [
+        "preview",
+        "standard",
+        "detailed"
+      ],
+      "title": "LodProfile",
+      "type": "string"
+    },
+    "VisualSampling": {
+      "additionalProperties": false,
+      "properties": {
+        "lod_profile": {
+          "$ref": "#/$defs/LodProfile",
+          "default": "standard"
+        },
+        "maximum_axial_extent_m": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maximum Axial Extent M"
+        },
+        "maximum_chord_error_m": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maximum Chord Error M"
+        },
+        "maximum_section_count": {
+          "minimum": 2,
+          "title": "Maximum Section Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "maximum_section_count"
+      ],
+      "title": "VisualSampling",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "include_visual_bounds": {
+      "default": true,
+      "title": "Include Visual Bounds",
+      "type": "boolean"
+    },
+    "output_frame_id": {
+      "minLength": 1,
+      "title": "Output Frame Id",
+      "type": "string"
+    },
+    "requested_channels": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Requested Channels",
+      "type": "array"
+    },
+    "sampling": {
+      "$ref": "#/$defs/VisualSampling"
+    }
+  },
+  "required": [
+    "output_frame_id",
+    "sampling"
+  ],
+  "title": "VisualSectionedTubeRequest",
+  "type": "object"
+}

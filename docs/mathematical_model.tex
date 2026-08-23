@@ -40,8 +40,9 @@ The gas is modeled as calorically perfect with constant ratio of specific heats
 Here \(p\) is static pressure, \(\rho\) is density, \(T\) is static
 temperature, \(a\) is speed of sound, \(V\) is flow speed, and \(\Mach\) is
 Mach number.  The code uses SI units: pascals, kelvin, kilograms per cubic
-meter, meters, and seconds.  Angles are stored in degrees in the public flow
-state classes and converted to radians for trigonometric operations.
+meter, meters, and seconds.  Legacy public flow-state angles are stored in
+degrees; corrected shock-validity and geometry interfaces use radians as their
+canonical angle units.
 
 \section{Simulation contract}
 
@@ -82,9 +83,9 @@ The separate \texttt{EngineParameters} record is a textbook-oriented helper.
 It requires mass flow rate, exit radius, total pressure, total temperature,
 \(\gamma\), and molar mass; it derives throat area and exit Mach from those
 quantities.  It is not currently an alternate argument type for
-\texttt{calculatePlumeZones}.  The nozzle-exit helper used by the core solver
-uses the configured dry-air molar mass, while the engine helper can carry an
-explicit molar mass.
+\texttt{calculatePlumeZones}.  The nozzle-exit helper uses an explicit gas
+constant (R=R_u/W); the legacy total-condition wrapper supplies dry air
+explicitly for compatibility.
 
 \subsection{Flow-state and zone outputs}
 
@@ -131,19 +132,45 @@ static pressure is
   p_e = p_0
   \left(1+\frac{\gammaa-1}{2}M_e^2\right)^{-\gammaa/(\gammaa-1)}.
 \end{equation}
-The regime is derived from \(p_e\) and \(p_a\); it is not a separate input
-mode and the current public API does not expose a regime enum.
+The dimensionless pressure residual is
+\begin{equation}
+  r_p=\frac{p_e-p_a}{p_a}.
+\end{equation}
+The new API exposes an explicit regime enum.  When \(|r_p|\leq\epsilon_p\),
+the result is \texttt{matched} and no shock cells are constructed.  Positive
+and negative residuals are \texttt{underexpanded} and \texttt{overexpanded},
+respectively.
 
 \begin{enumerate}
   \item If \(p_e>p_a\), the flow is treated as underexpanded.  The solver
     constructs an initial expansion sequence, reflects that sequence across
     the centerline, then applies compression waves to return approximately to
     ambient pressure.
-  \item If \(p_e\leq p_a\), the flow is treated as overexpanded.  The solver
+  \item If \(p_e<p_a\) outside the matching tolerance, the flow is treated as overexpanded.  The solver
     first applies an oblique-shock precursor that raises the pressure toward
     \(p_a\), adds a centerline compression, and feeds the resulting state into
     the same reflected expansion/compression geometry.
 \end{enumerate}
+
+\section{Oblique-shock validity}
+
+For an upstream Mach number \(M>1\), the corrected solver uses the residual
+\begin{equation}
+ f(\beta)=\tan\theta-2\cot\beta\frac{M^2\sin^2\beta-1}
+ {M^2(\gamma+\cos 2\beta)+2}.
+\end{equation}
+The weak and strong branches are solved on bounded intervals separated by the
+maximum attached turn.  Their exact zero-turn limits are
+\begin{equation}
+ \beta_{\mathrm{weak}}(0)=\sin^{-1}(1/M),
+ \qquad
+ \beta_{\mathrm{strong}}(0)=\pi/2.
+\end{equation}
+Turns above
+\(\theta_{\max}=\max_{\mu<\beta<\pi/2}\theta(M,\beta,\gamma)\)
+return a structured detached-shock status.  Target-pressure construction is
+performed through \(M_{n1}=M\sin\beta\), with the normal-shock pressure-ratio
+limit checked before a state is returned.
 
 The phase sequence is therefore:
 
@@ -187,8 +214,9 @@ For two segments, the intersection parameters satisfy
   \begin{bmatrix}s_1\\s_2\end{bmatrix}
   = \mathbf{x}_{0,2}-\mathbf{x}_{0,1}.
 \end{equation}
-The implementation evaluates this small system with a pseudoinverse so that
-the construction remains defined for nearly parallel lines.
+The corrected implementation evaluates this small system with a direct
+two-by-two solve, reports determinant, condition number, forward parameters,
+and residual, and does not return a pseudoinverse point for a failed ray.
 
 Reflection across the horizontal centerline uses
 \begin{equation}
@@ -202,6 +230,12 @@ intersection; \(F\) and \(G\) locate the outer reflected-boundary surrogate;
 and \(H,I,J,K\) close the compression and centerline regions.  Their exact
 locations are generated from Mach-line, shock-angle, and flow-turning angles,
 not supplied by the user.
+
+For the overexpanded precursor, the centerline reach uses the shock angle in
+radians and the analytic radial-drop relation
+\begin{equation}
+  \Delta x=\frac{R}{\tan\beta}.
+\end{equation}
 
 The outer reflected boundary is approximated by a quadratic fitted through
 \(A,F,G\).  The fit and subsequent line intersections are deliberately

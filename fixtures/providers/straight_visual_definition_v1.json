@@ -1,0 +1,8 @@
+{
+  "frame_id": "source-local",
+  "length_m": 4.0,
+  "initial_radius_major_m": 0.5,
+  "initial_radius_minor_m": 0.25,
+  "divergence_angle_rad": 0.05,
+  "base_section_count": 9
+}

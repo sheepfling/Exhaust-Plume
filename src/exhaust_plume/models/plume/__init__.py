@@ -9,6 +9,7 @@ from exhaust_plume.models.plume.plume_solve import (
     ZoneType,
     calcNozzleExitFlowState,
     calculatePlumeZones,
+    calculatePlumeZonesFromExitState,
 )
 from exhaust_plume.util.aero.expansion_fan import ExpansionFanState
 from exhaust_plume.util.aero.flow_state import FlowState
@@ -24,4 +25,5 @@ __all__ = (
     'ZoneType',
     'calcNozzleExitFlowState',
     'calculatePlumeZones',
+    'calculatePlumeZonesFromExitState',
 )

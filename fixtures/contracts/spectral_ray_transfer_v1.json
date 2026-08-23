@@ -1,0 +1,117 @@
+{
+  "metadata": {
+    "capability": {
+      "name": "plume.optical.spectral-ray-transfer",
+      "major": 1
+    },
+    "result_id": "fixture-ray-result",
+    "request_digest_sha256": "fixture-request",
+    "snapshot": {
+      "snapshot_id": "fixture-snapshot-1",
+      "session_id": "fixture-session-1",
+      "time_s": 0.0,
+      "source_pose": {
+        "frame_id": "world",
+        "translation_m": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_xyzw": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "dynamic_state_digest_sha256": "fixture-dynamic",
+      "ambient_state_digest_sha256": "fixture-ambient",
+      "provider_state_digest_sha256": "fixture-provider",
+      "expires_at_utc": null
+    },
+    "output_frame_id": "world",
+    "claims": {
+      "geometry": "not_applicable",
+      "radiation": "spectral_engineering",
+      "time_model": "steady",
+      "derivation": "native",
+      "consistency": "co_generated"
+    },
+    "applicability": {
+      "status": "inside",
+      "reasons": []
+    },
+    "provenance": {
+      "model_lineage_id": "fixture-lineage",
+      "provider_id": "provider.fixture",
+      "provider_version": "1.0.0",
+      "configuration_digest_sha256": "fixture-configuration",
+      "asset_digests_sha256": [],
+      "parent_result_ids": []
+    },
+    "warnings": []
+  },
+  "source_spectral_radiance": [
+    [
+      0.0,
+      0.0
+    ],
+    [
+      2.0,
+      1.0
+    ]
+  ],
+  "background_transmittance": [
+    [
+      1.0,
+      1.0
+    ],
+    [
+      0.25,
+      0.5
+    ]
+  ],
+  "validity_mask": [
+    [
+      true,
+      true
+    ],
+    [
+      true,
+      true
+    ]
+  ],
+  "ray_status": [
+    {
+      "code": "ok",
+      "message": null,
+      "retryable": false
+    },
+    {
+      "code": "ok",
+      "message": null,
+      "retryable": false
+    }
+  ],
+  "hit_mask": [
+    false,
+    true
+  ],
+  "optical_depth": [
+    [
+      0.0,
+      0.0
+    ],
+    [
+      1.3862943611198906,
+      0.6931471805599453
+    ]
+  ],
+  "plume_intersection_t_m": [
+    null,
+    [
+      2.0,
+      4.0
+    ]
+  ]
+}

@@ -1,0 +1,297 @@
+schema_version: '1.0'
+handoff_version: 4
+project: Exhaust-Plume
+repository: sheepfling/Exhaust-Plume
+source_branch: feature/initial-work
+authoritative_plan: 34_comprehensive_work_plan.md
+principles:
+- provider-specific inputs and generic capability outputs
+- signature and spatial consumer profiles share one provider lifecycle
+- morphology and fidelity are metadata, not API hierarchies
+- geometry is optional
+- physical termination is distinct from safety truncation
+- no silent extrapolation, fallback, or fabricated capability
+- SI units and radians internally
+- one corrected core serves legacy and provider APIs
+consumer_profiles:
+  signature:
+    minimum_capability: directional-spectral-intensity
+    intrinsic_quantity: spectral radiant intensity
+  spatial_physical:
+    capabilities:
+    - spatial-support
+    - axisymmetric-zone-field
+    - centerline-tube-field
+    - local-flow-state
+    - optical-medium
+    - spectral-ray-transfer
+critical_path:
+- M0
+- M1
+- M2
+- M3
+- M4
+- M5
+- M6
+- M7
+- M8
+- M9
+- M11
+- M13
+parallel_paths:
+  direct_signature:
+  - M1
+  - M10
+  curved_plume:
+  - M6
+  - M7
+  - M12
+  imported_field:
+  - M1
+  - M14
+  gpu_transient:
+  - M1
+  - M15
+  validation_governance:
+  - W10
+milestones:
+- id: M0
+  title: architecture and repository baseline
+  depends_on: []
+  deliverables:
+  - approved ADR set
+  - capability registry v1
+  - source baseline
+  gate: no unresolved decision blocks provider contracts or foundation corrections
+- id: M1
+  title: provider contract foundation
+  depends_on:
+  - M0
+  work_ids:
+  - I0
+  deliverables:
+  - provider/session/snapshot protocols
+  - descriptor/applicability/execution/provenance
+  - conformance harness
+  gate: fake signature and spatial providers pass lifecycle and capability conformance
+- id: M2
+  title: corrected foundation and exit-state boundary
+  depends_on:
+  - M0
+  work_ids:
+  - I1
+  - FND-A
+  - FND-B
+  - FND-C
+  - FND-D
+  - FND-E
+  - FND-F
+  deliverables:
+  - explicit gas and nozzle contracts
+  - corrected equations
+  - robust shock/geometry/regime results
+  - legacy wrapper
+  gate: Phase 0 equation, conservation, geometry, quality, and compatibility evidence
+    passes
+- id: M3
+  title: ShockCellAnalyticalProvider wrapper
+  depends_on:
+  - M1
+  - M2
+  work_ids:
+  - I2
+  deliverables:
+  - spatial-support
+  - axisymmetric-zone-field
+  - projected-area
+  gate: provider and direct solver agree and invalid geometry is not exported
+- id: M4
+  title: validated first shock cell
+  depends_on:
+  - M3
+  work_ids:
+  - MOC-A
+  - MOC-B
+  - MOC-C
+  - MOC-D
+  - MOC-E
+  - MOC-F
+  deliverables:
+  - planar MOC
+  - free boundary
+  - under/overexpanded first cells
+  - convergence and validation report
+  gate: compatibility, centerline, boundary, topology, convergence, and external-reference
+    evidence passes
+- id: M5
+  title: finite coherent shock train
+  depends_on:
+  - M4
+  work_ids:
+  - TRN-001
+  - TRN-002
+  - TRN-003
+  - TRN-004
+  - TRN-005
+  - TRN-006
+  - TRN-007
+  - TRN-008
+  - TRN-009
+  deliverables:
+  - calibrated cell continuation
+  - physical termination
+  - uncertainty
+  gate: calibration/validation split and physical-versus-safety termination evidence
+    passes
+- id: M6
+  title: conservative provider handoff
+  depends_on:
+  - M5
+  work_ids:
+  - I3
+  deliverables:
+  - PlumeFluxSection v1
+  - shock-to-flux adapter
+  - conservation tests
+  gate: mass, momentum, enthalpy, and species fluxes close
+- id: M7
+  title: straight integral mixing provider
+  depends_on:
+  - M6
+  work_ids:
+  - MIX-001
+  - MIX-002
+  - MIX-003
+  - MIX-004
+  - MIX-005
+  - MIX-006
+  deliverables:
+  - IntegralStraightPlumeProvider
+  - entrainment ODE
+  - tube/local-state fields
+  gate: mass, momentum, enthalpy, species, profile, and endpoint evidence passes
+- id: M8
+  title: gray radiative transfer
+  depends_on:
+  - M7
+  work_ids:
+  - I4
+  - RAD-001
+  - RAD-002
+  - RAD-003
+  - RAD-004
+  - RAD-005
+  - RAD-006
+  deliverables:
+  - gray optical adapter
+  - spectral-ray-transfer
+  - radiance images
+  gate: analytic slab/chord/limit and refinement tests pass
+- id: M9
+  title: far-field signature and consumer integration
+  depends_on:
+  - M8
+  work_ids:
+  - I5
+  - I7
+  deliverables:
+  - FarFieldFromRays
+  - directional-spectral-intensity
+  - consumer source adapter
+  gate: resolved-to-unresolved equivalence and consumer swap tests pass
+- id: M10
+  title: direct SignatureTableProvider
+  depends_on:
+  - M1
+  work_ids:
+  - I6
+  deliverables:
+  - table provider
+  - versioned asset schema
+  - interpolation/domain tests
+  gate: signature consumer swaps providers without geometry assumptions
+- id: M11
+  title: molecular spectral radiation
+  depends_on:
+  - M8
+  - M9
+  work_ids:
+  - SPC-001
+  - SPC-002
+  - SPC-003
+  - SPC-004
+  - SPC-005
+  - SPC-006
+  - SPC-007
+  deliverables:
+  - spectral assets
+  - molecular optical model
+  - atmosphere and detector interfaces
+  - validation report
+  gate: spectral units, interpolation, refinement, and external validation pass
+- id: M12
+  title: curved or washed integral provider
+  depends_on:
+  - M6
+  - M7
+  work_ids:
+  - CURV-DESIGN
+  - CURV-IMPLEMENT
+  deliverables:
+  - approved curved physics
+  - CurvedIntegralPlumeProvider
+  - ambient-flow service
+  - curved field/ray support
+  gate: straight-limit, transform, frame, conservation, and applicability tests pass
+- id: M13
+  title: thermochemistry and particles
+  depends_on:
+  - M7
+  - M11
+  work_ids:
+  - CHEM-001
+  - CHEM-002
+  - CHEM-003
+  - CHEM-004
+  - CHEM-005
+  - CHEM-006
+  - CHEM-007
+  - CHEM-008
+  deliverables:
+  - CEA adapter
+  - thermally-perfect and finite-rate models
+  - particle thermal/optical models
+  gate: elemental, energy, frozen/equilibrium/rate, and zero-loading limits pass
+- id: M14
+  title: imported field provider
+  depends_on:
+  - M1
+  work_ids:
+  - I8
+  deliverables:
+  - ImportedFieldProvider
+  - field asset schema
+  - local/spatial capabilities
+  gate: unit/frame/interpolation/provenance and neutral-field equivalence tests pass
+- id: M15
+  title: GPU transient or general-3D provider
+  depends_on:
+  - M1
+  work_ids:
+  - I9
+  deliverables:
+  - execution-profile implementation
+  - batching
+  - snapshot lifetime/checkpoint behavior
+  gate: accelerated results preserve capability semantics and execution conformance
+immediate_queue:
+- M0
+- M1
+- FND-A
+- FND-B
+- FND-C
+- FND-D
+- FND-E
+- FND-F
+- M3
+- MOC-A

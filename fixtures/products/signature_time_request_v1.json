@@ -1,0 +1,18 @@
+{
+  "request_schema": "plume.signature.request@1",
+  "request": {
+    "direction_frame_id": "source-local",
+    "operating_point_id": "low-ambient-pressure",
+    "source_to_observer_directions": [
+      [
+        0.0,
+        1.0,
+        0.0
+      ]
+    ],
+    "wavelengths_m": [
+      1.5e-6
+    ],
+    "allow_partial_results": false
+  }
+}

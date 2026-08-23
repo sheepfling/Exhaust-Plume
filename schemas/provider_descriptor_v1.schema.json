@@ -1,0 +1,113 @@
+{
+  "$defs": {
+    "CapabilityIdentity": {
+      "additionalProperties": false,
+      "description": "A stable dotted capability name and positive major version.",
+      "properties": {
+        "major": {
+          "minimum": 1,
+          "title": "Major",
+          "type": "integer"
+        },
+        "name": {
+          "pattern": "^[a-z][a-z0-9]*(?:\\.[a-z][a-z0-9-]*)+$",
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "major"
+      ],
+      "title": "CapabilityIdentity",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Provider discovery metadata independent of implementation details.",
+  "properties": {
+    "configuration_schema_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Configuration Schema Id"
+    },
+    "deterministic": {
+      "default": true,
+      "title": "Deterministic",
+      "type": "boolean"
+    },
+    "dynamic_state_schema_id": {
+      "minLength": 1,
+      "title": "Dynamic State Schema Id",
+      "type": "string"
+    },
+    "maximum_batch_size": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Maximum Batch Size"
+    },
+    "notes": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Notes",
+      "type": "array"
+    },
+    "provider_definition_schema_id": {
+      "minLength": 1,
+      "title": "Provider Definition Schema Id",
+      "type": "string"
+    },
+    "provider_id": {
+      "minLength": 1,
+      "title": "Provider Id",
+      "type": "string"
+    },
+    "provider_version": {
+      "minLength": 1,
+      "title": "Provider Version",
+      "type": "string"
+    },
+    "supported_capabilities": {
+      "items": {
+        "$ref": "#/$defs/CapabilityIdentity"
+      },
+      "minItems": 1,
+      "title": "Supported Capabilities",
+      "type": "array"
+    },
+    "supported_morphologies": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Supported Morphologies",
+      "type": "array"
+    }
+  },
+  "required": [
+    "provider_id",
+    "provider_version",
+    "supported_capabilities",
+    "provider_definition_schema_id",
+    "dynamic_state_schema_id"
+  ],
+  "title": "ProviderDescriptor",
+  "type": "object"
+}

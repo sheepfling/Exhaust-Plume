@@ -1,0 +1,28 @@
+{
+  "frame_id": "source-local",
+  "wavelengths_m": [
+    1.0e-6,
+    2.0e-6,
+    3.0e-6
+  ],
+  "direction_cosine_nodes": [
+    -0.5,
+    0.0,
+    0.5
+  ],
+  "spectral_radiant_intensity_w_sr_m": [
+    [0.5, 1.5, 2.5],
+    [1.0, 2.0, 3.0],
+    [1.5, 2.5, 3.5]
+  ],
+  "absolute_standard_uncertainty_w_sr_m": [
+    [0.05, 0.05, 0.05],
+    [0.1, 0.1, 0.1],
+    [0.15, 0.15, 0.15]
+  ],
+  "axis_direction": [1.0, 0.0, 0.0],
+  "asset_id": "fixture-signature-table",
+  "wavelength_interpolation": "linear",
+  "angular_interpolation": "linear",
+  "time_interpolation": "linear"
+}
