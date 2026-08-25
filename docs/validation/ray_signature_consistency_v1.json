@@ -1,0 +1,39 @@
+{
+  "report_id": "exhaust-plume-ray-signature-consistency-v1",
+  "schema_version": "plume.validation-report@1",
+  "source_commit": "dfc568e",
+  "reproduction": {
+    "command": "python3 scripts/validate_product_lanes.py --output product-lane-report.json",
+    "lane_id": "ray-to-signature-consistency-v1",
+    "adapter_id": "plume.adapter.far-field-from-rays",
+    "ray_provider_id": "plume.gray-ray-transfer"
+  },
+  "local_status": "synthetic-gate-passed-external-comparison-pending",
+  "input_product_id": "plume.optical.spectral-ray-transfer@1",
+  "output_product_id": "plume.signature.spectral-radiant-intensity@1",
+  "operator": {
+    "name": "orthographic_projected_area_sum",
+    "equation": "J_lambda(direction) = sum(L_lambda(ray) * projected_area(ray))",
+    "area_units": "m^2 projected image-plane cell area",
+    "background_term": "excluded; intrinsic plume source radiance only"
+  },
+  "analytic_cases": {
+    "projected_area_integration": "passed",
+    "miss_group_zero_source": "passed",
+    "wavelength_grid_identity": "passed",
+    "snapshot_lineage_parent_result_id": "passed",
+    "deterministic_serialization": "passed",
+    "partial_direction_boundary": "passed"
+  },
+  "claims": {
+    "derivation": "adapted",
+    "consistency": "co_generated",
+    "radiation": "gray_approximate",
+    "external_claim_accepted": false
+  },
+  "claim_ceiling": "Synthetic orthographic ray-to-signature consistency only; no experimental signature, atmosphere, detector, image, or FPA claim.",
+  "external_validation": {
+    "status": "pending",
+    "reason": "Recovered sensor-space comparisons still require explicit line-of-sight, band, and path operators plus the unresolved external operator namespace crosswalk."
+  }
+}

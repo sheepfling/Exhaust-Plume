@@ -70,6 +70,14 @@ Its straight-cylinder analytic gate passes; the curved-support refinement is
 recorded as nonmonotonic geometry-only evidence and is not promoted into the
 provider claim.
 
+The ray-to-signature operator is recorded separately in
+[`ray_signature_consistency_v1.json`](ray_signature_consistency_v1.json). It
+passes synthetic projected-area, miss, wavelength-grid, and snapshot-lineage
+checks, but does not convert the gray ray provider into an externally validated
+signature provider. The focal-plane-array boundary is recorded in
+[`fpa_boundary_validation_v1.json`](fpa_boundary_validation_v1.json); it has no
+provider and makes no image, detector, noise, or detection claim.
+
 The intake gate is a prerequisite for external validation claims. Corpus
 integrity tests are not product validation: repository contract tests and
 physics regressions must still be run through the named VIS, SIG, and future

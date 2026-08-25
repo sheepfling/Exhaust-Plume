@@ -20,9 +20,20 @@ provider. The curved-support interval refinement is retained as a
 nonmonotonic geometry diagnostic and does not expand the provider’s morphology
 or claim ceiling.
 
-The basic and signature lanes are deliberately independent. A comparison to a
-higher-fidelity solver may produce a residual report, but it must not modify
-the basic provider's configuration, training data, or claim ceiling.
+The resolved-to-unresolved operator evidence is recorded in
+[`ray_signature_consistency_v1.json`](ray_signature_consistency_v1.json). It
+validates synthetic projected-area summation, ray misses, wavelength-grid
+identity, and parent snapshot lineage. It is an adapted, gray-approximate
+signature result and remains below the external-validation claim ceiling. The
+FPA boundary evidence is recorded in
+[`fpa_boundary_validation_v1.json`](fpa_boundary_validation_v1.json); the
+downstream lane has no provider ID and no detector or image claim.
+
+The basic and signature lanes are deliberately independent. The ray-to-signature
+adapter consumes a resolved ray result without changing either upstream
+provider. A comparison to a higher-fidelity solver may produce a residual
+report, but it must not modify the basic provider's configuration, training
+data, or claim ceiling.
 
 ## Release gates
 
@@ -96,9 +107,10 @@ python3 scripts/validate_provider_comparisons.py \
 ```
 
 This command currently passes the VIS provider/conformance cases, SIG table
-interpolation cases, and the negative FPA-advertisement boundary check. Its
-report intentionally remains `release_ready: false` until external
-measurement-operator comparisons and the operator crosswalk are complete.
+interpolation cases, the synthetic ray-to-signature operator checks, and the
+negative FPA-advertisement boundary check. Its report intentionally remains
+`release_ready: false` until external measurement-operator comparisons and the
+operator crosswalk are complete.
 
 The missing external archive is a release blocker, not a reason to weaken the
 fidelity boundaries or synthesize replacement measurements.

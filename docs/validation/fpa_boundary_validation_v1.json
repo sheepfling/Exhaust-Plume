@@ -1,0 +1,41 @@
+{
+  "report_id": "exhaust-plume-fpa-boundary-validation-v1",
+  "schema_version": "plume.validation-report@1",
+  "source_commit": "dfc568e",
+  "reproduction": {
+    "command": "python3 scripts/validate_product_lanes.py --output product-lane-report.json",
+    "lane_id": "focal-plane-array-v1"
+  },
+  "status": "boundary-valid-not-implemented",
+  "provider_ids": [],
+  "upstream": {
+    "ray_provider_ids": [
+      "plume.gray-ray-transfer"
+    ],
+    "ray_signature_adapter_id": "plume.adapter.far-field-from-rays",
+    "ray_external_validation": "pending"
+  },
+  "required_contracts": [
+    "plume.optical.spectral-ray-transfer@1",
+    "camera-and-optics-contract",
+    "detector-response-contract",
+    "pixel-exposure-integration",
+    "noise-and-digitization-policy"
+  ],
+  "negative_boundary_checks": {
+    "fpa_provider_advertised": false,
+    "image_capability_advertised": false,
+    "detector_counts_claimed": false,
+    "noise_claimed": false,
+    "detection_claimed": false
+  },
+  "claim_ceiling": "No FPA image, detector count, noise, or detection claim.",
+  "release_status": {
+    "accepted_external_claim": false,
+    "blockers": [
+      "validated ray-transfer comparison is pending",
+      "camera/optics and detector contracts are not implemented",
+      "pixel exposure, noise, and digitization policies are not implemented"
+    ]
+  }
+}
