@@ -28,10 +28,12 @@ from exhaust_plume.models.moc.fan import (
 from exhaust_plume.models.moc.compression import (
   MocCompressionResult,
   MocLipShockResult,
+  MocShockToCenterlineResult,
   MocTurnCompressionResult,
   solve_overexpanded_lip_shock,
   solve_attached_compression_to_pressure,
   solve_attached_compression_to_turn,
+  solve_attached_shock_to_centerline,
 )
 from exhaust_plume.models.moc.boundary import (
   MocFreeBoundaryPointResult,
@@ -56,6 +58,7 @@ __all__ = (
   'MocExpansionFanResult',
   'MocCompressionResult',
   'MocLipShockResult',
+  'MocShockToCenterlineResult',
   'MocTurnCompressionResult',
   'MocFreeBoundaryResult',
   'MocFreeBoundaryPointResult',
@@ -74,6 +77,7 @@ __all__ = (
   'solve_underexpanded_expansion_fan',
   'solve_attached_compression_to_pressure',
   'solve_attached_compression_to_turn',
+  'solve_attached_shock_to_centerline',
   'solve_overexpanded_lip_shock',
   'solve_ambient_pressure_free_boundary',
   'solve_ambient_pressure_free_boundary_point',

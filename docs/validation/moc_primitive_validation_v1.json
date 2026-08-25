@@ -130,7 +130,24 @@
         0.1311919616792816
       ],
       "closure_status": "open",
-      "shock_closure": "not_assembled"
+      "shock_closure": "candidate-open-cell",
+      "shock_closure_candidate": {
+        "status": "converged",
+        "shock_status": "attached",
+        "shock_start_m": [
+          0.784604140253512,
+          0.1311919616792816
+        ],
+        "shock_end_m": [
+          0.8922526018896758,
+          0.0
+        ],
+        "shock_angle_rad": -0.8836549193642591,
+        "geometry_residual_m": 0.0,
+        "downstream_mach": 1.9526869005729972,
+        "downstream_pressure_Pa": 254454.8124733928,
+        "topology_status": "not_assembled"
+      }
     },
     "fan_resolution_probe": {
       "status": "diagnostic-only-open-mesh",

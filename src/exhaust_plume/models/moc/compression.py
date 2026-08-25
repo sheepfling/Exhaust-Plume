@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import isfinite, sin, sqrt, tan
+from math import cos, isfinite, sin, sqrt, tan
 
-from exhaust_plume.models.moc.primitives import MocPrimitiveStatus
+from exhaust_plume.models.moc.primitives import CharacteristicState, MocPrimitiveStatus
 from exhaust_plume.models.nozzle.contracts import AmbientState, NozzleExitState
 from exhaust_plume.util.aero.shock_validity import (
   ShockBranch,
@@ -19,9 +19,11 @@ __all__ = (
   'MocCompressionResult',
   'MocLipShockResult',
   'MocTurnCompressionResult',
+  'MocShockToCenterlineResult',
   'solve_overexpanded_lip_shock',
   'solve_attached_compression_to_pressure',
   'solve_attached_compression_to_turn',
+  'solve_attached_shock_to_centerline',
 )
 
 
@@ -84,6 +86,36 @@ class MocTurnCompressionResult:
   pressure_ratio: float | None
   turn_residual: float | None
   beta_rad: float | None
+  downstream_mach: float | None
+  downstream_pressure_Pa: float | None
+  message: str = ''
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocPrimitiveStatus.CONVERGED
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocShockToCenterlineResult:
+  """Boundary-side attached-shock segment reaching a target symmetry line.
+
+  This result closes only the shock segment geometry and downstream state. It
+  is intentionally not a complete first-cell assembly: neighboring
+  characteristic zones and their topology remain separate acceptance gates.
+  """
+
+  status: MocPrimitiveStatus
+  shock_status: ShockSolveStatus | None
+  compression: MocTurnCompressionResult | None
+  upstream_mach: float
+  upstream_pressure_Pa: float
+  target_centerline_y_m: float
+  target_centerline_flow_angle_rad: float
+  shock_start_m: tuple[float, float] | None
+  shock_end_m: tuple[float, float] | None
+  shock_angle_rad: float | None
+  geometry_residual_m: float | None
   downstream_mach: float | None
   downstream_pressure_Pa: float | None
   message: str = ''
@@ -269,6 +301,155 @@ def solve_attached_compression_to_turn(
     beta_rad=beta,
     downstream_mach=downstream_mach,
     downstream_pressure_Pa=downstream_pressure,
+  )
+####
+
+
+def solve_attached_shock_to_centerline(
+  upstream: CharacteristicState,
+  *,
+  upstream_pressure_Pa: float,
+  target_centerline_y_m: float = 0.0,
+  target_centerline_flow_angle_rad: float = 0.0,
+  branch: ShockBranch = ShockBranch.WEAK,
+) -> MocShockToCenterlineResult:
+  """Construct an attached compression segment from a boundary to symmetry.
+
+  The required compression turn is taken from the upstream flow angle to the
+  target centerline flow angle.  The weak/strong attached branch is solved
+  first; the shock line is then selected on the downstream-forward side that
+  reaches the target ``y`` coordinate.  No neighboring MOC cell is inferred.
+  """
+
+  if not isfinite(upstream_pressure_Pa) or upstream_pressure_Pa <= 0.0:
+    raise ValueError('upstream_pressure_Pa must be finite and positive')
+  if not isfinite(target_centerline_y_m):
+    raise ValueError('target_centerline_y_m must be finite')
+  if not isfinite(target_centerline_flow_angle_rad):
+    raise ValueError('target_centerline_flow_angle_rad must be finite')
+  if target_centerline_y_m >= upstream.y_m:
+    return MocShockToCenterlineResult(
+      status=MocPrimitiveStatus.OUTSIDE_DOMAIN,
+      shock_status=None,
+      compression=None,
+      upstream_mach=upstream.mach,
+      upstream_pressure_Pa=float(upstream_pressure_Pa),
+      target_centerline_y_m=float(target_centerline_y_m),
+      target_centerline_flow_angle_rad=float(target_centerline_flow_angle_rad),
+      shock_start_m=None,
+      shock_end_m=None,
+      shock_angle_rad=None,
+      geometry_residual_m=None,
+      downstream_mach=None,
+      downstream_pressure_Pa=None,
+      message='target symmetry line must be below the upstream boundary point',
+    )
+  ####
+  target_turn = float(target_centerline_flow_angle_rad) - upstream.theta_rad
+  if target_turn <= 0.0:
+    return MocShockToCenterlineResult(
+      status=MocPrimitiveStatus.OUTSIDE_DOMAIN,
+      shock_status=None,
+      compression=None,
+      upstream_mach=upstream.mach,
+      upstream_pressure_Pa=float(upstream_pressure_Pa),
+      target_centerline_y_m=float(target_centerline_y_m),
+      target_centerline_flow_angle_rad=float(target_centerline_flow_angle_rad),
+      shock_start_m=None,
+      shock_end_m=None,
+      shock_angle_rad=None,
+      geometry_residual_m=None,
+      downstream_mach=None,
+      downstream_pressure_Pa=None,
+      message='target symmetry flow angle does not require a positive compression turn',
+    )
+  ####
+  compression = solve_attached_compression_to_turn(
+    upstream_mach=upstream.mach,
+    gamma=upstream.gamma,
+    upstream_pressure_Pa=float(upstream_pressure_Pa),
+    target_turn_rad=target_turn,
+    branch=branch,
+  )
+  if not compression.converged or compression.beta_rad is None:
+    return MocShockToCenterlineResult(
+      status=compression.status,
+      shock_status=compression.shock_status,
+      compression=compression,
+      upstream_mach=upstream.mach,
+      upstream_pressure_Pa=float(upstream_pressure_Pa),
+      target_centerline_y_m=float(target_centerline_y_m),
+      target_centerline_flow_angle_rad=float(target_centerline_flow_angle_rad),
+      shock_start_m=None,
+      shock_end_m=None,
+      shock_angle_rad=None,
+      geometry_residual_m=None,
+      downstream_mach=compression.downstream_mach,
+      downstream_pressure_Pa=compression.downstream_pressure_Pa,
+      message=compression.message,
+    )
+  ####
+  shock_angle = upstream.theta_rad - compression.beta_rad
+  shock_sine = sin(shock_angle)
+  if shock_sine >= 0.0:
+    return MocShockToCenterlineResult(
+      status=MocPrimitiveStatus.GEOMETRY_FAILURE,
+      shock_status=compression.shock_status,
+      compression=compression,
+      upstream_mach=upstream.mach,
+      upstream_pressure_Pa=float(upstream_pressure_Pa),
+      target_centerline_y_m=float(target_centerline_y_m),
+      target_centerline_flow_angle_rad=float(target_centerline_flow_angle_rad),
+      shock_start_m=(upstream.x_m, upstream.y_m),
+      shock_end_m=None,
+      shock_angle_rad=shock_angle,
+      geometry_residual_m=None,
+      downstream_mach=compression.downstream_mach,
+      downstream_pressure_Pa=compression.downstream_pressure_Pa,
+      message='attached shock orientation does not reach the target symmetry line downstream',
+    )
+  shock_parameter = (float(target_centerline_y_m) - upstream.y_m) / shock_sine
+  shock_end = (
+    upstream.x_m + shock_parameter * cos(shock_angle),
+    upstream.y_m + shock_parameter * shock_sine,
+  )
+  geometry_residual = shock_end[1] - float(target_centerline_y_m)
+  if (
+    not isfinite(shock_parameter)
+    or shock_parameter <= 0.0
+    or not all(isfinite(value) for value in shock_end)
+    or shock_end[0] <= upstream.x_m
+  ):
+    return MocShockToCenterlineResult(
+      status=MocPrimitiveStatus.GEOMETRY_FAILURE,
+      shock_status=compression.shock_status,
+      compression=compression,
+      upstream_mach=upstream.mach,
+      upstream_pressure_Pa=float(upstream_pressure_Pa),
+      target_centerline_y_m=float(target_centerline_y_m),
+      target_centerline_flow_angle_rad=float(target_centerline_flow_angle_rad),
+      shock_start_m=(upstream.x_m, upstream.y_m),
+      shock_end_m=shock_end,
+      shock_angle_rad=shock_angle,
+      geometry_residual_m=geometry_residual,
+      downstream_mach=compression.downstream_mach,
+      downstream_pressure_Pa=compression.downstream_pressure_Pa,
+      message='attached shock segment does not reach a forward finite endpoint',
+    )
+  return MocShockToCenterlineResult(
+    status=MocPrimitiveStatus.CONVERGED,
+    shock_status=compression.shock_status,
+    compression=compression,
+    upstream_mach=upstream.mach,
+    upstream_pressure_Pa=float(upstream_pressure_Pa),
+    target_centerline_y_m=float(target_centerline_y_m),
+    target_centerline_flow_angle_rad=float(target_centerline_flow_angle_rad),
+    shock_start_m=(upstream.x_m, upstream.y_m),
+    shock_end_m=shock_end,
+    shock_angle_rad=shock_angle,
+    geometry_residual_m=geometry_residual,
+    downstream_mach=compression.downstream_mach,
+    downstream_pressure_Pa=compression.downstream_pressure_Pa,
   )
 ####
 

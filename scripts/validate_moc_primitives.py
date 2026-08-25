@@ -24,6 +24,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   prandtl_meyer_angle_rad,
   solve_attached_compression_to_pressure,
   solve_attached_compression_to_turn,
+  solve_attached_shock_to_centerline,
   solve_ambient_pressure_free_boundary,
   solve_ambient_pressure_free_boundary_point,
   solve_reflected_free_boundary,
@@ -99,6 +100,14 @@ def build_moc_primitive_report() -> dict[str, Any]:
     fan,
     fan_exit,
     fan_ambient,
+  )
+  shock_closure = (
+    solve_attached_shock_to_centerline(
+      reflected_boundary.boundary_states[-1],
+      upstream_pressure_Pa=fan_ambient.pressure_Pa,
+    )
+    if reflected_boundary.boundary_states
+    else None
   )
   overexpanded_exit = derive_uniform_nozzle_exit(
     NozzleExitInput(
@@ -289,7 +298,22 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'first_boundary_point_m': reflected_boundary.boundary_points_m[0] if reflected_boundary.boundary_points_m else None,
       'last_boundary_point_m': reflected_boundary.boundary_points_m[-1] if reflected_boundary.boundary_points_m else None,
       'closure_status': 'open',
-      'shock_closure': 'not_assembled',
+      'shock_closure': 'candidate-open-cell',
+      'shock_closure_candidate': (
+        {
+          'status': shock_closure.status.value,
+          'shock_status': shock_closure.shock_status.value if shock_closure.shock_status is not None else None,
+          'shock_start_m': shock_closure.shock_start_m,
+          'shock_end_m': shock_closure.shock_end_m,
+          'shock_angle_rad': shock_closure.shock_angle_rad,
+          'geometry_residual_m': shock_closure.geometry_residual_m,
+          'downstream_mach': shock_closure.downstream_mach,
+          'downstream_pressure_Pa': shock_closure.downstream_pressure_Pa,
+          'topology_status': 'not_assembled',
+        }
+        if shock_closure is not None
+        else None
+      ),
     },
     'fan_resolution_probe': {
       'status': 'diagnostic-only-open-mesh',
@@ -392,6 +416,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'message': reflected_boundary.message,
       }
     ] if not reflected_boundary.converged else []),
+    *([
+      {
+        'case': 'shock_closure_candidate',
+        'status': shock_closure.status.value,
+        'message': shock_closure.message,
+      }
+    ] if shock_closure is not None and not shock_closure.converged else []),
   ]
   ####
   return {
