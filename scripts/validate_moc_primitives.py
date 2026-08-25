@@ -262,6 +262,9 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'pressure_ratio': turn_compression.pressure_ratio,
       'downstream_pressure_Pa': turn_compression.downstream_pressure_Pa,
       'downstream_mach': turn_compression.downstream_mach,
+      'upstream_total_pressure_Pa': turn_compression.upstream_total_pressure_Pa,
+      'downstream_total_pressure_Pa': turn_compression.downstream_total_pressure_Pa,
+      'total_pressure_ratio': turn_compression.total_pressure_ratio,
       'detached_turn_failure': {
         'status': turn_compression_limit_case.status.value,
         'shock_status': turn_compression_limit_case.shock_status.value,
@@ -330,6 +333,8 @@ def build_moc_primitive_report() -> dict[str, Any]:
           'geometry_residual_m': shock_closure.geometry_residual_m,
           'downstream_mach': shock_closure.downstream_mach,
           'downstream_pressure_Pa': shock_closure.downstream_pressure_Pa,
+          'downstream_total_pressure_Pa': shock_closure.downstream_total_pressure_Pa,
+          'total_pressure_ratio': shock_closure.total_pressure_ratio,
           'topology_status': 'not_assembled',
         }
         if shock_closure is not None
@@ -489,7 +494,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
     'failures': failures,
     'next_gates': [
       'physical free-boundary/compression geometry closure; pressure-state and open-mesh primitives remain insufficient',
-      'post-shock characteristic zone and downstream total-pressure bookkeeping',
+      'post-shock characteristic zone continuation and complete downstream bookkeeping',
       'grid/refinement convergence for the assembled reflected zone and mild attached-overexpanded cases',
       'independent measurement-operator comparison before provider integration',
     ],

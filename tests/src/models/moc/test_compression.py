@@ -87,6 +87,14 @@ def test_attached_turn_compression_reconstructs_supersonic_downstream_state() ->
   assert result.downstream_pressure_Pa is not None and result.downstream_pressure_Pa > 100000.0
   assert result.pressure_ratio is not None and result.pressure_ratio > 1.0
   assert result.turn_residual == pytest.approx(0.0, abs=1.0e-12)
+  assert result.upstream_total_pressure_Pa is not None
+  assert result.downstream_total_pressure_Pa is not None
+  assert result.total_pressure_ratio is not None
+  assert result.upstream_total_pressure_Pa > result.upstream_pressure_Pa
+  assert result.downstream_total_pressure_Pa < result.upstream_total_pressure_Pa
+  assert result.total_pressure_ratio == pytest.approx(
+    result.downstream_total_pressure_Pa / result.upstream_total_pressure_Pa,
+  )
 
 
 def test_turn_compression_rejects_a_detached_turn() -> None:
@@ -129,6 +137,11 @@ def test_attached_shock_to_centerline_returns_forward_candidate_segment() -> Non
   assert result.geometry_residual_m == pytest.approx(0.0, abs=1.0e-12)
   assert result.downstream_mach is not None and result.downstream_mach > 1.0
   assert result.downstream_pressure_Pa is not None and result.downstream_pressure_Pa > 101325.0
+  assert result.compression is not None
+  assert result.compression.upstream_total_pressure_Pa is not None
+  assert result.downstream_total_pressure_Pa is not None
+  assert result.total_pressure_ratio is not None and result.total_pressure_ratio < 1.0
+  assert result.downstream_total_pressure_Pa < result.compression.upstream_total_pressure_Pa
 
 
 def test_shock_to_centerline_rejects_noncompressive_target() -> None:

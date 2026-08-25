@@ -27,6 +27,14 @@ __all__ = (
 )
 
 
+def _isentropic_total_pressure(*, static_pressure_Pa: float, mach: float, gamma: float) -> float:
+  """Recover total pressure from a calorically-perfect static state."""
+
+  factor = 1.0 + 0.5 * (gamma - 1.0) * mach**2
+  return static_pressure_Pa * factor**(gamma / (gamma - 1.0))
+####
+
+
 @dataclass(frozen=True, slots=True)
 class MocCompressionResult:
   """Attached-shock pressure inversion with a supersonic downstream check."""
@@ -89,6 +97,9 @@ class MocTurnCompressionResult:
   downstream_mach: float | None
   downstream_pressure_Pa: float | None
   message: str = ''
+  upstream_total_pressure_Pa: float | None = None
+  downstream_total_pressure_Pa: float | None = None
+  total_pressure_ratio: float | None = None
 
   @property
   def converged(self) -> bool:
@@ -123,7 +134,21 @@ class MocShockToCenterlineResult:
   @property
   def converged(self) -> bool:
     return self.status is MocPrimitiveStatus.CONVERGED
-####
+  ####
+
+  @property
+  def downstream_total_pressure_Pa(self) -> float | None:
+    """Return the candidate post-shock total pressure, when available."""
+
+    return None if self.compression is None else self.compression.downstream_total_pressure_Pa
+  ####
+
+  @property
+  def total_pressure_ratio(self) -> float | None:
+    """Return ``p0,downstream / p0,upstream`` for the candidate shock."""
+
+    return None if self.compression is None else self.compression.total_pressure_ratio
+  ####
 
 
 def solve_overexpanded_lip_shock(
@@ -219,6 +244,11 @@ def solve_attached_compression_to_turn(
   if not isinstance(branch, ShockBranch):
     raise ValueError('branch must be a ShockBranch')
   ####
+  upstream_total_pressure = _isentropic_total_pressure(
+    static_pressure_Pa=float(upstream_pressure_Pa),
+    mach=float(upstream_mach),
+    gamma=float(gamma),
+  )
   solution = solve_shock_angle(
     theta_rad=float(target_turn_rad),
     mach=float(upstream_mach),
@@ -239,6 +269,9 @@ def solve_attached_compression_to_turn(
       beta_rad=solution.beta_rad,
       downstream_mach=None,
       downstream_pressure_Pa=None,
+      upstream_total_pressure_Pa=upstream_total_pressure,
+      downstream_total_pressure_Pa=None,
+      total_pressure_ratio=None,
       message=solution.message,
     )
   ####
@@ -259,6 +292,20 @@ def solve_attached_compression_to_turn(
   )
   turn_residual = solution.residual
   downstream_pressure = float(upstream_pressure_Pa) * pressure_ratio
+  downstream_total_pressure = (
+    _isentropic_total_pressure(
+      static_pressure_Pa=downstream_pressure,
+      mach=downstream_mach,
+      gamma=float(gamma),
+    )
+    if isfinite(downstream_mach) and downstream_mach > 0.0
+    else None
+  )
+  total_pressure_ratio = (
+    downstream_total_pressure / upstream_total_pressure
+    if downstream_total_pressure is not None
+    else None
+  )
   if (
     not isfinite(downstream_mach)
     or downstream_mach <= 1.0
@@ -282,6 +329,9 @@ def solve_attached_compression_to_turn(
       beta_rad=beta,
       downstream_mach=downstream_mach,
       downstream_pressure_Pa=downstream_pressure,
+      upstream_total_pressure_Pa=upstream_total_pressure,
+      downstream_total_pressure_Pa=downstream_total_pressure,
+      total_pressure_ratio=total_pressure_ratio,
       message=(
         'attached compression state is not supersonic downstream'
         if not isfinite(downstream_mach) or downstream_mach <= 1.0
@@ -301,6 +351,9 @@ def solve_attached_compression_to_turn(
     beta_rad=beta,
     downstream_mach=downstream_mach,
     downstream_pressure_Pa=downstream_pressure,
+    upstream_total_pressure_Pa=upstream_total_pressure,
+    downstream_total_pressure_Pa=downstream_total_pressure,
+    total_pressure_ratio=total_pressure_ratio,
   )
 ####
 
