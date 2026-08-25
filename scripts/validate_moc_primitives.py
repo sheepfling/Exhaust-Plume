@@ -21,7 +21,10 @@ from exhaust_plume.models.moc import (  # noqa: E402
   interior_characteristic_point,
   inverse_prandtl_meyer_angle_rad,
   prandtl_meyer_angle_rad,
+  solve_underexpanded_expansion_fan,
 )
+from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput  # noqa: E402
+from exhaust_plume.models.nozzle.exit_state import derive_ambient_state, derive_uniform_nozzle_exit  # noqa: E402
 
 
 def build_moc_primitive_report() -> dict[str, Any]:
@@ -64,6 +67,25 @@ def build_moc_primitive_report() -> dict[str, Any]:
     minus_source,
     CharacteristicFamily.MINUS,
   )
+  gas = CaloricallyPerfectGas.dry_air()
+  fan_exit = derive_uniform_nozzle_exit(
+    NozzleExitInput(
+      mach=2.0,
+      total_pressure_Pa=2.0e6,
+      total_temperature_K=900.0,
+      exit_radius_m=0.05,
+    ),
+    gas,
+  )
+  fan_ambient = derive_ambient_state(
+    AmbientInput(pressure_Pa=101325.0, temperature_K=300.0),
+    gas,
+  )
+  fan = solve_underexpanded_expansion_fan(
+    fan_exit,
+    fan_ambient,
+    characteristic_count=8,
+  )
   geometry_results = {
     'interior': {
       'status': interior.status.value,
@@ -77,6 +99,14 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'invariant_residual_minus': centerline.invariant_residual_minus,
       'geometry_residual': centerline.geometry_residual,
       'point_m': centerline.point_m,
+    },
+    'underexpanded_fan_foundation': {
+      'status': fan.status.value,
+      'cell_count': len(fan.cells),
+      'centerline_point_count': len(fan.centerline_points_m),
+      'terminal_pressure_residual': fan.terminal_pressure_residual,
+      'terminal_turn_rad': fan.terminal_turn_rad,
+      'closure_status': 'open',
     },
   }
   failures = [
@@ -95,12 +125,19 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'message': centerline.message,
       }
     ] if not centerline.converged else []),
+    *([
+      {
+        'case': 'underexpanded_fan_foundation',
+        'status': fan.status.value,
+        'message': fan.message,
+      }
+    ] if not fan.converged else []),
   ]
   ####
   return {
-    'report_id': 'exhaust-plume-moc-primitive-validation-v1',
+    'report_id': 'exhaust-plume-moc-foundation-validation-v1',
     'model_fidelity': 'planar-moc-primitives',
-    'status': 'primitive-gate-passed-provider-integration-pending' if not failures else 'primitive-gate-failed',
+    'status': 'fan-foundation-gate-passed-first-cell-closure-pending' if not failures else 'moc-foundation-gate-failed',
     'claim_status': 'not_accepted',
     'provider_integration': 'not_started',
     'low_fidelity_promotion_detected': False,
@@ -115,7 +152,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
     'geometry_cases': geometry_results,
     'failures': failures,
     'next_gates': [
-      'planar expansion-fan and ambient-pressure free-boundary assembler',
+      'ambient-pressure free-boundary and compression closure; the current fan remains open',
       'closed-zone topology validation',
       'grid/refinement convergence on underexpanded and mild attached-overexpanded cases',
       'independent measurement-operator comparison before provider integration',
@@ -132,7 +169,7 @@ def main(argv: list[str] | None = None) -> int:
   if args.output is not None:
     args.output.write_text(serialized, encoding='utf-8')
   print(serialized, end='')
-  return 0 if report['status'] == 'primitive-gate-passed-provider-integration-pending' else 1
+  return 0 if report['status'] == 'fan-foundation-gate-passed-first-cell-closure-pending' else 1
 
 
 if __name__ == '__main__':

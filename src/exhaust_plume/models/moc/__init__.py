@@ -20,12 +20,19 @@ from exhaust_plume.models.moc.primitives import (
   prandtl_meyer_angle_rad,
   supersonic_mach_from_stagnation_pressure_ratio,
 )
+from exhaust_plume.models.moc.fan import (
+  MocExpansionFanCell,
+  MocExpansionFanResult,
+  solve_underexpanded_expansion_fan,
+)
 
 __all__ = (
   'CharacteristicFamily',
   'CharacteristicPointResult',
   'CharacteristicState',
   'MocPrimitiveStatus',
+  'MocExpansionFanCell',
+  'MocExpansionFanResult',
   'ScalarRootResult',
   'centerline_characteristic_point',
   'characteristic_invariants',
@@ -35,4 +42,5 @@ __all__ = (
   'maximum_prandtl_meyer_angle_rad',
   'prandtl_meyer_angle_rad',
   'supersonic_mach_from_stagnation_pressure_ratio',
+  'solve_underexpanded_expansion_fan',
 )

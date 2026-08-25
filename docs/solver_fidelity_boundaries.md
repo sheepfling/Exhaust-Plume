@@ -12,7 +12,7 @@ applicability, validation evidence, and complexity ceiling.
 
 | Lane | Status | Current role | Allowed primary product | Explicit non-claims |
 | --- | --- | --- | --- | --- |
-| `planar-moc-primitives-v1` | primitive-validated; provider pending | Standalone planar characteristic states, scalar inversions, and compatibility residuals | None yet; future MOC first-cell provider only after topology/convergence gates | No public visual, signature, optical, detector, or FPA claim; no axisymmetric or reacting-flow claim |
+| `planar-moc-primitives-v1` | foundation validated; provider pending | Standalone planar characteristic states, scalar inversions, compatibility residuals, and an open underexpanded fan mesh | None yet; future MOC first-cell provider only after closure/topology/convergence gates | No public visual, signature, optical, detector, or FPA claim; no axisymmetric or reacting-flow claim |
 | `shock-cell-basic-v1` | active | Fast, steady, straight, low-order shock-cell construction | `plume.visual.sectioned-tube@1`; supporting spatial/engineering handoffs where explicitly advertised | No physical signature, ray transfer, detector image, mixing, chemistry, radiation, or curved/washed flow |
 | `shock-cell-reduced-order-v1` | experimental | One resolved first cell plus explicitly calibrated, scaled downstream shock-train continuation | `plume.visual.sectioned-tube@1` through `plume.shock-train-reduced-order` | No resolved downstream MOC claim, spectral signature, ray transfer, detector image, FPA, or unvalidated universal closure |
 | `signature-table-mvp-v1` | active | Independent unresolved spectral lookup | `plume.signature.spectral-radiant-intensity@1` | No solved flow, geometry reconstruction, atmosphere, optics, detector, or focal-plane array |
@@ -29,11 +29,12 @@ is a governance artifact; it does not create a second product contract.
 The first high-fidelity tranche is isolated in
 [`moc_first_cell_contract_v1.md`](moc_first_cell_contract_v1.md) and
 [`validation/moc_primitive_validation_v1.json`](validation/moc_primitive_validation_v1.json).
-Its 15 Mach/gamma round trips plus interior and centerline compatibility
-fixtures pass with finite residuals. This is numerical-foundation evidence,
-not a validated first-cell or product-provider result. The existing basic and
-reduced-order visual lanes remain unchanged until a separate MOC assembler
-passes topology, refinement, and measurement-operator gates.
+Its 15 Mach/gamma round trips, interior and centerline compatibility fixtures,
+and 8-cell open underexpanded fan pass with finite residuals. This is
+numerical-foundation evidence, not a closed first-cell or product-provider
+result. The existing basic and reduced-order visual lanes remain unchanged
+until a separate MOC assembler passes free-boundary closure, topology,
+refinement, and measurement-operator gates.
 
 ## What is done for the basic solver
 

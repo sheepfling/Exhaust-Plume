@@ -14,8 +14,12 @@ The implementation in `exhaust_plume.models.moc` currently provides:
 - Mach angle and planar `K+ = theta - nu`, `K- = theta + nu` invariants;
 - compatible interior characteristic points from one `C+` and one `C-` ray;
 - centerline compatibility with an exact `theta = 0` boundary state;
+- an open, triangular underexpanded expansion-fan mesh from the nozzle lip to
+  ambient-pressure axis intersections;
 - structured scalar, invariant, and forward-ray geometry residuals.
 
+The fan mesh is intentionally open: it does not close the compression side,
+solve a free-boundary/shock endpoint, or claim a physical Mach-disk location.
 No public provider is wired to these primitives yet. The module does not claim
 axisymmetric, reacting, viscous, or experimentally validated plume physics.
 
@@ -67,8 +71,8 @@ do not authorize replacing the basic provider or accepting a product claim.
 
 ## Next gates before provider integration
 
-1. Add a planar expansion-fan/free-boundary assembler with closed-zone
-   topology checks.
+1. Close the ambient-pressure free boundary and compression side, with
+   explicit topology and shock-endpoint semantics.
 2. Demonstrate grid/refinement convergence for underexpanded and mild attached
    overexpanded reference cases.
 3. Compare an independent cold-jet case through an explicit measurement

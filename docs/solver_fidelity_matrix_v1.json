@@ -18,7 +18,7 @@
         "mixing": "none",
         "thermochemistry": "not_solved",
         "radiation": "none",
-        "validation": "24 primitive cases; first-cell assembly and external comparison pending"
+        "validation": "15 scalar cases plus interior/centerline compatibility and an 8-cell open fan; first-cell closure and external comparison pending"
       },
       "claim_ceiling": "Planar scalar/characteristic compatibility diagnostics only; no public visual, signature, optical, or FPA claim",
       "complexity_policy": "isolated high-fidelity foundation; cannot replace the basic solver before topology, convergence, and measurement gates pass"
