@@ -1,0 +1,30 @@
+0.1.0a2:
+  required_packets:
+  - A1-000
+  - A1-010
+  - A1-011
+  - A1-020
+  - A1-030
+  - A1-040
+  - A1-050
+  - A1-060
+  claims:
+  - live washed visual geometry
+  - verified analytical conservation
+  - loopback canonical transport
+  - no physical spectral claim
+0.1.0a3:
+  required_packets:
+  - A1-070
+  - A1-071
+  - A1-080
+  - A1-081
+  claims:
+  - composite shock-to-mixing
+  - verified gray ray transfer
+post-a3:
+  required_packets:
+  - A1-090
+  - A1-091
+  claims:
+  - calibrated or validated only per evidence
