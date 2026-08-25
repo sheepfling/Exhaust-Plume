@@ -3,7 +3,7 @@
   "schema_version": "plume.release-freeze@1",
   "branch": "work/validation-and-completion",
   "base_main_commit": "dd4d57611ba940c8fc4a9721d4b3464b6bbd7848",
-  "head_commit": "38ee61ce7a1897ab6d2d08136c2543c9edd47775",
+  "head_commit": "b996fdda07f76c20be11bf40d9653941d3eeff3b",
   "completion_requirement_audit": "completion_requirement_audit_v1.json",
   "remote_publish_status": "validation-completion-branch-not-pushed; PRs-5-6-7-merged",
   "remote_pr_audit": {
@@ -35,7 +35,7 @@
   "repository_quality": {
     "pytest": {
       "status": "passed",
-      "tests_passed": 421,
+      "tests_passed": 422,
       "warnings": 18
     },
     "ruff": "passed",
@@ -44,7 +44,7 @@
     "public_schema_fixture_determinism": "passed",
       "fresh_wheel_build_and_installed_smoke": "passed",
       "wheel_package_version": "0.1.0a2.dev0",
-    "wheel_sha256": "831d3a6fa66c1f0e4f7da9499b6ae5f46d35b5ec32288c6c8c6e3b9f9e6d58bd",
+    "wheel_sha256": "ccce1d1abe4c765bea8716a3a399d6e23322154deaad6efa57857bb51250b70b",
     "first_cell_phase_1_report": "first_cell_phase_1_report.md",
     "first_cell_correlation_status": "diagnostic-passed-physical-closure-pending",
     "committed_measurement_operator_count": 21,
@@ -58,7 +58,7 @@
     "ray_to_signature": "passed-synthetic-external-pending",
     "focal_plane_array": "boundary-validated-downstream",
     "focal_plane_array_operator": "passed-deterministic-expected-electron-and-ADC-adapters",
-    "planar_moc_foundation": "passed-local-foundation-open-closure-pending",
+    "planar_moc_foundation": "passed-local-foundation-open-interface-and-closure-pending",
     "first_cell_correlation": "passed-local-diagnostic-physical-length-pending"
   },
   "validation_corpus": {
@@ -119,7 +119,8 @@
     "reduced-order shock-train closure has no disjoint calibration/validation split or train-cell measurement operator",
     "separately named MVP alignment archive is not yet verified",
     "planar MOC first-cell closure and external reference comparison are not complete",
+    "fan/reflected characteristic interface reconciliation is not complete",
     "first-cell correlation has no accepted physical solver-length comparison while shock closure remains open"
   ],
-  "scope_boundary": "The completion branch contains bounded providers, an experimental calibrated reduced-order shock-train lane, an isolated planar MOC foundation with an open fan, reflected free-boundary march, a 44-cell connected open characteristic zone, a boundary-side attached shock candidate, fully-expanded and first-cell correlation diagnostics, local residuals, explicit fidelity ceilings, analytic/synthetic validation, and reproducible evidence. It does not claim a closed MOC first cell or full thermochemical, curved-flow, sensor-space, or focal-plane-array validation."
+  "scope_boundary": "The completion branch contains bounded providers, an experimental calibrated reduced-order shock-train lane, an isolated planar MOC foundation with an open fan, reflected free-boundary march, a 44-cell connected open characteristic zone, an explicitly blocked fan/reflected grid interface, a boundary-side attached shock candidate, fully-expanded and first-cell correlation diagnostics, local residuals, explicit fidelity ceilings, analytic/synthetic validation, and reproducible evidence. It does not claim a closed MOC first cell or full thermochemical, curved-flow, sensor-space, or focal-plane-array validation."
 }
