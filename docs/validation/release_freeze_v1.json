@@ -3,7 +3,7 @@
   "schema_version": "plume.release-freeze@1",
   "branch": "work/validation-and-completion",
   "base_main_commit": "dd4d57611ba940c8fc4a9721d4b3464b6bbd7848",
-  "head_commit": "7bca128df848d0a5975274cbb4df6ebc5f489af4",
+  "head_commit": "c3bb4f89891185453166447eb8537dc209c03d3f",
   "completion_requirement_audit": "completion_requirement_audit_v1.json",
   "remote_publish_status": "validation-completion-branch-not-pushed; PRs-5-6-7-merged",
   "remote_pr_audit": {
