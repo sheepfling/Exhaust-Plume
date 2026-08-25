@@ -1,0 +1,6 @@
+source_role,file_name,sha256,bytes,notes
+mvp_product_plan,Plume MVP Interface Planning.txt,645bd105ef85fa5a14208c9e2f917db88a17eb6fe538793491c9b8458ce9aabd,7579,Defines the three independently versioned MVP products and common lifecycle.
+physics_work_plan,Research Diamond Plumes.txt,fa510255db7a6a4b7740feda4c170d9bb6e3d8aed78615f77aa6070ee8f87243,13758,"Defines conservative handoffs, ray-to-signature identity, and validation gates."
+validation_corpus_zip,plume_validation_data_v7.zip,f7c62b6fe954cbfc6a6747005bc7be62f68f89522d88c97964d8a1366c189f7a,5365085,Version 7 source-centric validation corpus.
+validation_inventory,plume_validation_corpus_inventory_v7.csv,133c6946eab66cdee564c372133a52388b3bd5896b72e008e3dd2f4b9e7f43fb,13424,Version 7 machine-readable product inventory.
+benchmark_definitions,benchmark_definitions.json,61b6ca853e738335c37001ee640f462b710d822278b703900fadc7fc9531638f,16273,Sixteen source benchmark definitions used by this overlay.

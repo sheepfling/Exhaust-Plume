@@ -1,0 +1,6 @@
+level,name,definition,allowed_claim_language
+0,none_or_not_acquired,"No usable evidence for this product claim, or the source is not yet acquired.",No validation claim.
+1,upstream_context,"Applicability, boundary-state, component, or model-input evidence only.",Informed by or consistent with the source; product not validated.
+2,indirect_feature_or_envelope,"A proxy, relative shape, band result, feature, or envelope constrains part of the product.",Externally baselined for the named feature/envelope only.
+3,quantitative_after_measurement_operator,Provider output is transformed through an explicit experiment-equivalent operator and quantitatively scored.,"Quantitatively validated for the named observable, operator, and domain."
+4,direct_native_product_observable,"The experiment directly measures the same product quantity with matching semantics, units, and coordinates.",Directly validated for the named product quantity and domain.
