@@ -587,7 +587,7 @@ def build_unimplemented_boundaries(providers: Mapping[str, Any]) -> list[dict[st
       'claim_status': 'not_accepted',
       'required_prerequisites': [
         'source radiance and transmittance separation',
-        'sensor-space comparison operators',
+        'provider-bound sensor-space comparison scenario and accepted metrics',
       ],
     },
     {
@@ -646,7 +646,7 @@ def build_provider_comparison_preflight(path: Path) -> dict[str, Any]:
     operator_executions=operator_executions,
   )
   report.update({
-    'status': 'comparisons-recorded-pending-implementation',
+    'status': 'comparisons-recorded-pending-provider-bindings',
     'providers': providers,
     'corpus_observations': observations,
     'operator_executions': operator_executions,
@@ -672,7 +672,7 @@ def main(argv: list[str] | None = None) -> int:
   if args.output is not None:
     args.output.write_text(serialized, encoding='utf-8')
   print(serialized, end='')
-  return 0 if report['status'] == 'comparisons-recorded-pending-implementation' else 1
+  return 0 if report['status'] == 'comparisons-recorded-pending-provider-bindings' else 1
 
 
 if __name__ == '__main__':
