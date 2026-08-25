@@ -122,10 +122,13 @@ accept any of the ten product comparisons.
 ## Working branch
 
 The clean completion work is isolated on `work/validation-and-completion`,
-created from the integrated local `main`. The original dirty feature worktree
-is intentionally left untouched; its changes will be audited and ported in
-bounded commits after this branch's gates identify which changes belong to an
-active lane.
+created from the integrated local `main`. The original dirty
+`feature/post-a1-implementation` worktree remains intentionally untouched.
+The bounded provider, solver-boundary, and validation changes recorded here
+are already committed on this completion branch; future higher-fidelity work
+must branch from an explicitly accepted lane rather than mutate the basic
+provider in place. Remote PRs #5, #6, and #7 are merged into remote `main`,
+while this completion branch remains local and has not been pushed.
 
 The branch checks are:
 
