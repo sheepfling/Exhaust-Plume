@@ -172,7 +172,7 @@
       "all current provider-specific external comparisons remain blocked by missing provider-bound measurement-space outputs, physical scenario assets, or accepted product-specific measurement-operator mappings",
       "reduced-order shock-train closure has no disjoint calibration/validation split or train-cell measurement operator",
       "separately named MVP alignment archive is not yet verified",
-      "planar MOC first-cell closure and external reference comparison are not complete",
+      "planar MOC first-cell closure is not complete; the CJ-UEJ external reference comparison is quantified diagnostic evidence only and remains not accepted",
       "first-cell correlation has no accepted physical solver-length comparison while shock closure remains open",
       "provider comparison preflight is not externally accepted"
     ],

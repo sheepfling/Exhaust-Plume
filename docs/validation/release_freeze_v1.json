@@ -35,7 +35,7 @@
   "repository_quality": {
     "pytest": {
       "status": "passed",
-      "tests_passed": 425,
+      "tests_passed": 429,
       "warnings": 18
     },
     "ruff": "passed",
@@ -47,6 +47,7 @@
     "wheel_sha256": "ec67f9eb39d4d4964d6e604e2a1ba919a081008a551bb55b1352aa274037149c",
     "first_cell_phase_1_report": "first_cell_phase_1_report.md",
     "first_cell_correlation_status": "diagnostic-passed-physical-closure-pending",
+    "moc_cj_uej_component_diagnostic": "partial-component-evidence-not-accepted",
     "committed_measurement_operator_count": 21,
     "known_installed_smoke_diagnostics": "legacy expansion-fan warnings and one expected unattainable pressure-target error log; smoke exited successfully"
   },
@@ -100,6 +101,8 @@
     "report": "cj_uej_component_validation_v1.json",
     "status": "partial_component_evidence",
     "claim_status": "not_accepted",
+    "moc_component_report": "moc_cj_uej_component_validation_v1.json",
+    "moc_component_status": "partial_component_evidence-not_accepted",
     "operator_crosswalk": "semantic-match-reviewed-for-cj-uej-component-only",
     "physical_shock_train_resolved": false,
     "shock_train_report": "shock_train_component_validation_v1.json",
@@ -119,7 +122,7 @@
     "all current provider-specific external comparisons remain blocked by missing provider-bound measurement-space outputs, physical scenario assets, or accepted product-specific measurement-operator mappings",
     "reduced-order shock-train closure has no disjoint calibration/validation split or train-cell measurement operator",
     "separately named MVP alignment archive is not yet verified",
-    "planar MOC first-cell closure and external reference comparison are not complete",
+    "planar MOC first-cell closure is not complete; the CJ-UEJ external reference comparison is quantified diagnostic evidence only and remains not accepted",
     "first-cell correlation has no accepted physical solver-length comparison while shock closure remains open"
   ],
   "scope_boundary": "The completion branch contains bounded providers, an experimental calibrated reduced-order shock-train lane, an isolated planar MOC foundation with an open fan, reflected free-boundary march, a 44-cell connected open characteristic zone with a shared averaged-characteristic fan/reflected interface, a boundary-side attached shock candidate, fully-expanded and first-cell correlation diagnostics, scoped local lane-release records, local residuals, explicit fidelity ceilings, analytic/synthetic validation, and reproducible evidence. It does not claim a closed MOC first cell or full thermochemical, curved-flow, sensor-space, or focal-plane-array validation."

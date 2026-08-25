@@ -165,6 +165,17 @@ The provider-specific visual, signature, ray/optical, and FPA comparisons
 also remain pending their measurement-space outputs and scenario/operator
 bindings.
 
+The same archive is now exercised by a separate open-MOC component diagnostic,
+[`moc_cj_uej_component_validation_v1.json`](moc_cj_uej_component_validation_v1.json).
+With the explicit `M=1.000001`, `T0=300 K`, and `gamma=1.4` adapter, the planar
+fan/reflected-boundary construction supports `x/D=0.000707..0.339888` and
+overlaps 10 of the 19 centerline LDV-derived Mach points. The resulting
+diagnostic is RMSE `0.0657723`, normalized RMSE `0.2114230`, and
+digitization-uncertainty-weighted RMSE `4.38482`; refinement at `N=16,32,64`
+remains finite and open. These numbers are not a first-cell or VIS validation
+claim: the open mesh has no physical shock closure or post-shock continuation,
+and the source case does not supply a disjoint closure validation set.
+
 ## Validity failures and open gates
 
 - Strong or detached overexpanded cases are not forced through the mild
@@ -183,7 +194,7 @@ bindings.
 ## Quality and performance evidence
 
 After the current completion-branch updates, the repository suite reports
-`425 passed, 18 warnings`.
+`429 passed, 18 warnings`.
 Ruff and Pyright both pass. The full suite wall time was 12.90 s in the
 isolated completion worktree. The focused MOC resolution sweep completed in
 under 0.6 s including interpreter startup; solver-only timing and peak memory

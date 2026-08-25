@@ -140,6 +140,16 @@ recorded in
 equation, matched-flow, scaling, and open-lattice diagnostic checks, but keeps
 the physical first-cell and external-reference gates open.
 
+The recovered CJ-UEJ Mach trace is also run through the standalone planar-MOC
+component diagnostic in
+[`moc_cj_uej_component_validation_v1.json`](moc_cj_uej_component_validation_v1.json).
+It uses the declared centerline probe operator, records the explicit near-sonic
+choked-nozzle adapter, and reports a 10/19 (52.6%) open-MOC support overlap with
+RMSE 0.06577 and uncertainty-weighted RMSE 4.3848. This is quantitative
+supporting evidence only: the comparison remains `not_accepted` because the
+mesh has no physical shock closure, the source has no independent closure split,
+and the observed Mach trace is author-derived.
+
 The current branch-level freeze is recorded in
 [`release_freeze_v1.json`](release_freeze_v1.json). It captures the current
 local quality and installed-wheel checks, including the first-cell tranche,

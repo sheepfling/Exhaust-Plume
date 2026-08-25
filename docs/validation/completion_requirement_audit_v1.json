@@ -197,7 +197,18 @@
         },
         "mesh_topology": "connected-one-boundary-cycle-no-nonmanifold-edges-and-zero-area-coverage-residual",
         "physical_first_cell": "not_assembled",
-        "external_reference_comparison": "pending",
+        "external_reference_comparison": "quantified-diagnostic-not-accepted",
+        "moc_component_report": "moc_cj_uej_component_validation_v1.json",
+        "moc_component_centerline_mach": {
+          "comparison_status": "quantified-diagnostic",
+          "coverage_fraction": 0.5263157894736842,
+          "predicted_count": 10,
+          "observed_count": 19,
+          "rmse": 0.06577231737437406,
+          "nrmse_by_observed_range": 0.21142303229006337,
+          "digitization_uncertainty_weighted_rmse": 4.3848211582916035,
+          "claim_status": "not_accepted"
+        },
         "first_cell_correlation_report": "first_cell_phase_1_report.md",
         "fully_expanded_diagnostic": {
           "status": "passed-local-diagnostic",
@@ -217,7 +228,7 @@
         "blockers": [
           "post-shock characteristic continuation and physical shock closure are not assembled",
           "the reflected-zone 4/8/16 resolution probe is diagnostic rather than convergence acceptance",
-          "no independent planar MOC reference family is bound to the provider lane"
+          "the CJ-UEJ centerline comparison is supporting diagnostic evidence only; no independent planar MOC reference family is bound to the provider lane"
         ]
       }
     },
@@ -225,7 +236,7 @@
       "requirement_id": "repository-release-quality",
       "status": "verified",
       "evidence": {
-        "pytest_passed": 425,
+        "pytest_passed": 429,
         "ruff": "passed",
         "pyright": "passed",
         "installed_wheel_smoke": "passed",
