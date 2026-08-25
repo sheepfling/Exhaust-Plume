@@ -1,7 +1,7 @@
 {
   "report_id": "exhaust-plume-completion-requirement-audit-v1",
   "schema_version": "plume.completion-requirement-audit@1",
-  "source_commit": "20b1ccce0fe87727d98050d89cc0818091839ada",
+  "source_commit": "be1f02e",
   "branch": "work/validation-and-completion",
   "base_main_commit": "dd4d57611ba940c8fc4a9721d4b3464b6bbd7848",
   "requirements": [
@@ -225,7 +225,7 @@
       "requirement_id": "repository-release-quality",
       "status": "verified",
       "evidence": {
-        "pytest_passed": 423,
+        "pytest_passed": 425,
         "ruff": "passed",
         "pyright": "passed",
         "installed_wheel_smoke": "passed",

@@ -183,7 +183,7 @@ bindings.
 ## Quality and performance evidence
 
 After the current completion-branch updates, the repository suite reports
-`423 passed, 18 warnings`.
+`425 passed, 18 warnings`.
 Ruff and Pyright both pass. The full suite wall time was 12.90 s in the
 isolated completion worktree. The focused MOC resolution sweep completed in
 under 0.6 s including interpreter startup; solver-only timing and peak memory
