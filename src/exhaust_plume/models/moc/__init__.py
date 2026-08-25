@@ -25,6 +25,15 @@ from exhaust_plume.models.moc.fan import (
   MocExpansionFanResult,
   solve_underexpanded_expansion_fan,
 )
+from exhaust_plume.models.moc.compression import (
+  MocCompressionResult,
+  solve_attached_compression_to_pressure,
+)
+from exhaust_plume.models.moc.topology import (
+  MocTopologyResult,
+  MocTopologyStatus,
+  validate_moc_mesh,
+)
 
 __all__ = (
   'CharacteristicFamily',
@@ -33,6 +42,9 @@ __all__ = (
   'MocPrimitiveStatus',
   'MocExpansionFanCell',
   'MocExpansionFanResult',
+  'MocCompressionResult',
+  'MocTopologyResult',
+  'MocTopologyStatus',
   'ScalarRootResult',
   'centerline_characteristic_point',
   'characteristic_invariants',
@@ -43,4 +55,6 @@ __all__ = (
   'prandtl_meyer_angle_rad',
   'supersonic_mach_from_stagnation_pressure_ratio',
   'solve_underexpanded_expansion_fan',
+  'solve_attached_compression_to_pressure',
+  'validate_moc_mesh',
 )

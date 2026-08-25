@@ -16,12 +16,15 @@ if str(REPO_ROOT / 'src') not in sys.path:
 from exhaust_plume.models.moc import (  # noqa: E402
   CharacteristicFamily,
   CharacteristicState,
+  MocTopologyStatus,
   MocPrimitiveStatus,
   centerline_characteristic_point,
   interior_characteristic_point,
   inverse_prandtl_meyer_angle_rad,
   prandtl_meyer_angle_rad,
+  solve_attached_compression_to_pressure,
   solve_underexpanded_expansion_fan,
+  validate_moc_mesh,
 )
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput  # noqa: E402
 from exhaust_plume.models.nozzle.exit_state import derive_ambient_state, derive_uniform_nozzle_exit  # noqa: E402
@@ -86,6 +89,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
     fan_ambient,
     characteristic_count=8,
   )
+  fan_topology = validate_moc_mesh(fan.cells)
+  compression = solve_attached_compression_to_pressure(
+    upstream_mach=2.0,
+    gamma=1.4,
+    upstream_pressure_Pa=100000.0,
+    target_pressure_Pa=180000.0,
+  )
   geometry_results = {
     'interior': {
       'status': interior.status.value,
@@ -107,6 +117,18 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'terminal_pressure_residual': fan.terminal_pressure_residual,
       'terminal_turn_rad': fan.terminal_turn_rad,
       'closure_status': 'open',
+      'topology_status': fan_topology.status.value,
+      'boundary_edge_count': fan_topology.boundary_edge_count,
+      'boundary_component_count': fan_topology.boundary_component_count,
+      'forms_closed_zone': fan_topology.forms_closed_zone,
+    },
+    'attached_compression_foundation': {
+      'status': compression.status.value,
+      'shock_status': compression.shock_status.value,
+      'pressure_residual': compression.pressure_residual,
+      'theta_rad': compression.theta_rad,
+      'beta_rad': compression.beta_rad,
+      'downstream_mach': compression.downstream_mach,
     },
   }
   failures = [
@@ -132,12 +154,30 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'message': fan.message,
       }
     ] if not fan.converged else []),
+    *([
+      {
+        'case': 'fan_topology',
+        'status': fan_topology.status.value,
+        'message': fan_topology.message,
+      }
+    ] if (
+      fan_topology.status is not MocTopologyStatus.OPEN
+      or not fan_topology.forms_closed_zone
+      or fan_topology.nonmanifold_edge_count
+    ) else []),
+    *([
+      {
+        'case': 'attached_compression_foundation',
+        'status': compression.status.value,
+        'message': compression.message,
+      }
+    ] if not compression.converged else []),
   ]
   ####
   return {
     'report_id': 'exhaust-plume-moc-foundation-validation-v1',
     'model_fidelity': 'planar-moc-primitives',
-    'status': 'fan-foundation-gate-passed-first-cell-closure-pending' if not failures else 'moc-foundation-gate-failed',
+    'status': 'fan-compression-foundation-gate-passed-closure-pending' if not failures else 'moc-foundation-gate-failed',
     'claim_status': 'not_accepted',
     'provider_integration': 'not_started',
     'low_fidelity_promotion_detected': False,
@@ -152,8 +192,8 @@ def build_moc_primitive_report() -> dict[str, Any]:
     'geometry_cases': geometry_results,
     'failures': failures,
     'next_gates': [
-      'ambient-pressure free-boundary and compression closure; the current fan remains open',
-      'closed-zone topology validation',
+      'physical free-boundary/compression geometry closure; pressure-state and open-mesh primitives remain insufficient',
+      'first-cell assembly with reflected-centerline and shock-endpoint semantics',
       'grid/refinement convergence on underexpanded and mild attached-overexpanded cases',
       'independent measurement-operator comparison before provider integration',
     ],
@@ -169,7 +209,7 @@ def main(argv: list[str] | None = None) -> int:
   if args.output is not None:
     args.output.write_text(serialized, encoding='utf-8')
   print(serialized, end='')
-  return 0 if report['status'] == 'fan-foundation-gate-passed-first-cell-closure-pending' else 1
+  return 0 if report['status'] == 'fan-compression-foundation-gate-passed-closure-pending' else 1
 
 
 if __name__ == '__main__':

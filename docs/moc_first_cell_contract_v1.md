@@ -16,6 +16,10 @@ The implementation in `exhaust_plume.models.moc` currently provides:
 - centerline compatibility with an exact `theta = 0` boundary state;
 - an open, triangular underexpanded expansion-fan mesh from the nozzle lip to
   ambient-pressure axis intersections;
+- an attached-compression pressure inversion with weak/strong branch status
+  and a supersonic-downstream check;
+- mesh connectivity diagnostics that distinguish a topologically bounded
+  polygon from an unresolved physical boundary;
 - structured scalar, invariant, and forward-ray geometry residuals.
 
 The fan mesh is intentionally open: it does not close the compression side,
@@ -72,7 +76,8 @@ do not authorize replacing the basic provider or accepting a product claim.
 ## Next gates before provider integration
 
 1. Close the ambient-pressure free boundary and compression side, with
-   explicit topology and shock-endpoint semantics.
+   explicit shock-endpoint semantics; the current pressure primitive does not
+   choose a location.
 2. Demonstrate grid/refinement convergence for underexpanded and mild attached
    overexpanded reference cases.
 3. Compare an independent cold-jet case through an explicit measurement

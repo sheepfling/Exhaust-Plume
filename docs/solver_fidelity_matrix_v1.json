@@ -8,7 +8,7 @@
   "lanes": [
     {
       "lane_id": "planar-moc-primitives-v1",
-      "status": "primitive-validated-provider-pending",
+      "status": "foundation-validated-provider-pending",
       "provider_ids": [],
       "target_capabilities": [],
       "focal_plane_array": "not_supported",
@@ -18,7 +18,7 @@
         "mixing": "none",
         "thermochemistry": "not_solved",
         "radiation": "none",
-        "validation": "15 scalar cases plus interior/centerline compatibility and an 8-cell open fan; first-cell closure and external comparison pending"
+        "validation": "15 scalar cases, compatibility, an 8-cell open fan, attached-compression inversion, and topology checks; physical first-cell closure and external comparison pending"
       },
       "claim_ceiling": "Planar scalar/characteristic compatibility diagnostics only; no public visual, signature, optical, or FPA claim",
       "complexity_policy": "isolated high-fidelity foundation; cannot replace the basic solver before topology, convergence, and measurement gates pass"
