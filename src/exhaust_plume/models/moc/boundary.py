@@ -11,18 +11,23 @@ from exhaust_plume.geometry.contracts import RayIntersectionStatus, Ray2D
 from exhaust_plume.geometry.intersections import intersect_rays
 from exhaust_plume.models.moc.primitives import (
   CharacteristicFamily,
+  CharacteristicPointResult,
   CharacteristicState,
   MocPrimitiveStatus,
+  centerline_characteristic_point,
   prandtl_meyer_angle_rad,
   supersonic_mach_from_stagnation_pressure_ratio,
 )
+from exhaust_plume.models.moc.fan import MocExpansionFanResult
 from exhaust_plume.models.nozzle.contracts import AmbientState, NozzleExitState
 
 __all__ = (
   'MocFreeBoundaryPointResult',
   'MocFreeBoundaryResult',
+  'MocReflectedBoundaryResult',
   'solve_ambient_pressure_free_boundary_point',
   'solve_ambient_pressure_free_boundary',
+  'solve_reflected_free_boundary',
 )
 
 
@@ -59,6 +64,31 @@ class MocFreeBoundaryResult:
   pressure_residual: float | None
   tangent_residual: float | None
   points_m: tuple[tuple[float, float], ...]
+  message: str = ''
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocPrimitiveStatus.CONVERGED
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedBoundaryResult:
+  """A reflected centerline march to an ambient-pressure boundary.
+
+  The returned boundary is an open first-cell foundation.  It contains the
+  centerline compatibility states and the pressure-matched boundary points,
+  but it deliberately does not infer a compression-shock endpoint or a
+  closed physical cell.
+  """
+
+  status: MocPrimitiveStatus
+  seed_boundary_state: CharacteristicState | None
+  centerline_results: tuple[CharacteristicPointResult, ...]
+  centerline_states: tuple[CharacteristicState, ...]
+  point_results: tuple[MocFreeBoundaryPointResult, ...]
+  boundary_states: tuple[CharacteristicState, ...]
+  boundary_points_m: tuple[tuple[float, float], ...]
   message: str = ''
 
   @property
@@ -244,6 +274,180 @@ def solve_ambient_pressure_free_boundary_point(
       if status is MocPrimitiveStatus.CONVERGED
       else 'free-boundary pressure residual exceeded tolerance'
     ),
+  )
+####
+
+
+def solve_reflected_free_boundary(
+  fan: MocExpansionFanResult,
+  exit_state: NozzleExitState,
+  ambient: AmbientState,
+  *,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  pressure_tolerance: float = 1.0e-10,
+  maximum_iterations: int = 16,
+) -> MocReflectedBoundaryResult:
+  """March reflected ``C+`` characteristics to an ambient-pressure boundary.
+
+  Each source state in the open lip fan is first brought to the centerline
+  with ``theta = 0``.  Its compatible reflected ``C+`` characteristic is then
+  intersected with the previous pressure-matched boundary tangent.  The
+  sequence is a reusable first-cell boundary foundation; no shock location or
+  physical termination is inferred from the last point.
+  """
+
+  if not fan.converged:
+    return MocReflectedBoundaryResult(
+      status=fan.status,
+      seed_boundary_state=None,
+      centerline_results=(),
+      centerline_states=(),
+      point_results=(),
+      boundary_states=(),
+      boundary_points_m=(),
+      message=f'lip fan is not converged: {fan.message}',
+    )
+  if exit_state.static_pressure_Pa <= ambient.pressure_Pa:
+    return MocReflectedBoundaryResult(
+      status=MocPrimitiveStatus.OUTSIDE_DOMAIN,
+      seed_boundary_state=None,
+      centerline_results=(),
+      centerline_states=(),
+      point_results=(),
+      boundary_states=(),
+      boundary_points_m=(),
+      message='reflected free-boundary march requires an underexpanded exit state',
+    )
+  if not isfinite(position_tolerance_m) or position_tolerance_m <= 0.0:
+    raise ValueError('position_tolerance_m must be finite and positive')
+  if not isfinite(invariant_tolerance) or invariant_tolerance <= 0.0:
+    raise ValueError('invariant_tolerance must be finite and positive')
+  if not isfinite(pressure_tolerance) or pressure_tolerance <= 0.0:
+    raise ValueError('pressure_tolerance must be finite and positive')
+  if isinstance(maximum_iterations, bool) or maximum_iterations < 1:
+    raise ValueError('maximum_iterations must be a positive integer')
+  if not fan.states:
+    return MocReflectedBoundaryResult(
+      status=MocPrimitiveStatus.INVALID_INPUT,
+      seed_boundary_state=None,
+      centerline_results=(),
+      centerline_states=(),
+      point_results=(),
+      boundary_states=(),
+      boundary_points_m=(),
+      message='lip fan contains no characteristic states',
+    )
+  ####
+  if (
+    abs(fan.exit_pressure_Pa - float(exit_state.static_pressure_Pa))
+    > pressure_tolerance * max(abs(fan.exit_pressure_Pa), abs(float(exit_state.static_pressure_Pa)), 1.0)
+    or abs(fan.ambient_pressure_Pa - float(ambient.pressure_Pa))
+    > pressure_tolerance * max(abs(fan.ambient_pressure_Pa), abs(float(ambient.pressure_Pa)), 1.0)
+  ):
+    return MocReflectedBoundaryResult(
+      status=MocPrimitiveStatus.INVALID_INPUT,
+      seed_boundary_state=None,
+      centerline_results=(),
+      centerline_states=(),
+      point_results=(),
+      boundary_states=(),
+      boundary_points_m=(),
+      message='fan, exit state, and ambient pressure contracts do not match',
+    )
+  ####
+  gamma = float(exit_state.gas.gamma)
+  if any(abs(state.gamma - gamma) > invariant_tolerance for state in fan.states):
+    return MocReflectedBoundaryResult(
+      status=MocPrimitiveStatus.INVALID_INPUT,
+      seed_boundary_state=None,
+      centerline_results=(),
+      centerline_states=(),
+      point_results=(),
+      boundary_states=(),
+      boundary_points_m=(),
+      message='lip fan and exit state must use the same gamma',
+    )
+  ####
+  terminal = fan.states[-1]
+  seed_boundary = CharacteristicState(
+    x_m=0.0,
+    y_m=float(exit_state.radius_m),
+    theta_rad=terminal.theta_rad,
+    mach=terminal.mach,
+    gamma=gamma,
+  )
+  previous_boundary = seed_boundary
+  centerline_results: list[CharacteristicPointResult] = []
+  centerline_states: list[CharacteristicState] = []
+  point_results: list[MocFreeBoundaryPointResult] = []
+  boundary_states: list[CharacteristicState] = []
+  boundary_points: list[tuple[float, float]] = []
+  for index, source in enumerate(fan.states):
+    centerline_result = centerline_characteristic_point(
+      source,
+      CharacteristicFamily.MINUS,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+    )
+    centerline_results.append(centerline_result)
+    if not centerline_result.converged or centerline_result.state is None:
+      return MocReflectedBoundaryResult(
+        status=centerline_result.status,
+        seed_boundary_state=seed_boundary,
+        centerline_results=tuple(centerline_results),
+        centerline_states=tuple(centerline_states),
+        point_results=tuple(point_results),
+        boundary_states=tuple(boundary_states),
+        boundary_points_m=tuple(boundary_points),
+        message=f'centerline reflection source {index} failed: {centerline_result.message}',
+      )
+    centerline_states.append(centerline_result.state)
+    point_result = solve_ambient_pressure_free_boundary_point(
+      centerline_result.state,
+      previous_boundary,
+      CharacteristicFamily.PLUS,
+      total_pressure_Pa=float(exit_state.total_pressure_Pa),
+      ambient_pressure_Pa=float(ambient.pressure_Pa),
+      position_tolerance_m=position_tolerance_m,
+      pressure_tolerance=pressure_tolerance,
+      maximum_iterations=maximum_iterations,
+    )
+    point_results.append(point_result)
+    if not point_result.converged or point_result.state is None or point_result.point_m is None:
+      return MocReflectedBoundaryResult(
+        status=point_result.status,
+        seed_boundary_state=seed_boundary,
+        centerline_results=tuple(centerline_results),
+        centerline_states=tuple(centerline_states),
+        point_results=tuple(point_results),
+        boundary_states=tuple(boundary_states),
+        boundary_points_m=tuple(boundary_points),
+        message=f'reflected free-boundary point {index} failed: {point_result.message}',
+      )
+    if point_result.point_m[0] <= previous_boundary.x_m + position_tolerance_m:
+      return MocReflectedBoundaryResult(
+        status=MocPrimitiveStatus.GEOMETRY_FAILURE,
+        seed_boundary_state=seed_boundary,
+        centerline_results=tuple(centerline_results),
+        centerline_states=tuple(centerline_states),
+        point_results=tuple(point_results),
+        boundary_states=tuple(boundary_states),
+        boundary_points_m=tuple(boundary_points),
+        message=f'reflected free-boundary point {index} is not strictly downstream',
+      )
+    boundary_states.append(point_result.state)
+    boundary_points.append(point_result.point_m)
+    previous_boundary = point_result.state
+  ####
+  return MocReflectedBoundaryResult(
+    status=MocPrimitiveStatus.CONVERGED,
+    seed_boundary_state=seed_boundary,
+    centerline_results=tuple(centerline_results),
+    centerline_states=tuple(centerline_states),
+    point_results=tuple(point_results),
+    boundary_states=tuple(boundary_states),
+    boundary_points_m=tuple(boundary_points),
   )
 ####
 

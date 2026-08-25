@@ -9,6 +9,8 @@ from exhaust_plume.models.moc import (
   MocPrimitiveStatus,
   solve_ambient_pressure_free_boundary,
   solve_ambient_pressure_free_boundary_point,
+  solve_reflected_free_boundary,
+  solve_underexpanded_expansion_fan,
 )
 from exhaust_plume.models.nozzle.exit_state import derive_ambient_state, derive_uniform_nozzle_exit
 
@@ -81,3 +83,26 @@ def test_free_boundary_point_marches_a_characteristic_with_pressure_matching() -
   assert result.point_m[0] > incoming.x_m
   assert result.pressure_residual == pytest.approx(0.0, abs=1.0e-12)
   assert result.tangent_residual == pytest.approx(0.0, abs=1.0e-12)
+
+
+def test_reflected_free_boundary_march_preserves_centerline_and_boundary_contracts() -> None:
+  exit_state, ambient = _states()
+  fan = solve_underexpanded_expansion_fan(exit_state, ambient, characteristic_count=8)
+
+  result = solve_reflected_free_boundary(fan, exit_state, ambient)
+
+  assert result.converged
+  assert result.seed_boundary_state is not None
+  assert len(result.centerline_results) == 9
+  assert len(result.centerline_states) == 9
+  assert len(result.point_results) == 9
+  assert len(result.boundary_states) == 9
+  assert len(result.boundary_points_m) == 9
+  assert all(state.theta_rad == pytest.approx(0.0, abs=1.0e-12) for state in result.centerline_states)
+  assert all(point.converged for point in result.point_results)
+  assert all(
+    right[0] > left[0]
+    for left, right in zip(result.boundary_points_m, result.boundary_points_m[1:])
+  )
+  assert all(point.pressure_residual == pytest.approx(0.0, abs=1.0e-12) for point in result.point_results)
+  assert all(point.tangent_residual == pytest.approx(0.0, abs=1.0e-12) for point in result.point_results)

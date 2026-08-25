@@ -114,6 +114,24 @@
         "iterations": 2
       }
     },
+    "reflected_free_boundary_foundation": {
+      "status": "converged",
+      "centerline_point_count": 9,
+      "boundary_point_count": 9,
+      "maximum_absolute_pressure_residual": 1.4361623714154308e-16,
+      "maximum_absolute_tangent_residual": 0.0,
+      "maximum_absolute_geometry_residual": 1.1443916996305594e-16,
+      "first_boundary_point_m": [
+        0.3208196965944915,
+        0.13522533819055232
+      ],
+      "last_boundary_point_m": [
+        0.784604140253512,
+        0.1311919616792816
+      ],
+      "closure_status": "open",
+      "shock_closure": "not_assembled"
+    },
     "fan_resolution_probe": {
       "status": "diagnostic-only-open-mesh",
       "cases": [
@@ -123,7 +141,13 @@
           "cell_count": 4,
           "first_axis_x_m": 0.08660254037833885,
           "last_axis_x_m": 0.36465229919149933,
-          "terminal_pressure_residual": 1.4361623714154308e-16
+          "terminal_pressure_residual": 1.4361623714154308e-16,
+          "reflected_boundary_status": "converged",
+          "reflected_boundary_point_count": 5,
+          "reflected_boundary_last_point_m": [
+            0.7851177464791419,
+            0.1313524110491443
+          ]
         },
         {
           "characteristic_count": 8,
@@ -131,7 +155,13 @@
           "cell_count": 8,
           "first_axis_x_m": 0.08660254037833885,
           "last_axis_x_m": 0.36465229919149933,
-          "terminal_pressure_residual": 1.4361623714154308e-16
+          "terminal_pressure_residual": 1.4361623714154308e-16,
+          "reflected_boundary_status": "converged",
+          "reflected_boundary_point_count": 9,
+          "reflected_boundary_last_point_m": [
+            0.784604140253512,
+            0.1311919616792816
+          ]
         },
         {
           "characteristic_count": 16,
@@ -139,7 +169,13 @@
           "cell_count": 16,
           "first_axis_x_m": 0.08660254037833885,
           "last_axis_x_m": 0.36465229919149933,
-          "terminal_pressure_residual": 1.4361623714154308e-16
+          "terminal_pressure_residual": 1.4361623714154308e-16,
+          "reflected_boundary_status": "converged",
+          "reflected_boundary_point_count": 17,
+          "reflected_boundary_last_point_m": [
+            0.7844690209945763,
+            0.131149750742438
+          ]
         }
       ]
     }

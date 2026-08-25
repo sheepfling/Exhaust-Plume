@@ -36,8 +36,10 @@ from exhaust_plume.models.moc.compression import (
 from exhaust_plume.models.moc.boundary import (
   MocFreeBoundaryPointResult,
   MocFreeBoundaryResult,
+  MocReflectedBoundaryResult,
   solve_ambient_pressure_free_boundary_point,
   solve_ambient_pressure_free_boundary,
+  solve_reflected_free_boundary,
 )
 from exhaust_plume.models.moc.topology import (
   MocTopologyResult,
@@ -57,6 +59,7 @@ __all__ = (
   'MocTurnCompressionResult',
   'MocFreeBoundaryResult',
   'MocFreeBoundaryPointResult',
+  'MocReflectedBoundaryResult',
   'MocTopologyResult',
   'MocTopologyStatus',
   'ScalarRootResult',
@@ -74,5 +77,6 @@ __all__ = (
   'solve_overexpanded_lip_shock',
   'solve_ambient_pressure_free_boundary',
   'solve_ambient_pressure_free_boundary_point',
+  'solve_reflected_free_boundary',
   'validate_moc_mesh',
 )

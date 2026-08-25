@@ -26,6 +26,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_attached_compression_to_turn,
   solve_ambient_pressure_free_boundary,
   solve_ambient_pressure_free_boundary_point,
+  solve_reflected_free_boundary,
   solve_overexpanded_lip_shock,
   solve_underexpanded_expansion_fan,
   validate_moc_mesh,
@@ -94,6 +95,11 @@ def build_moc_primitive_report() -> dict[str, Any]:
     fan_ambient,
     characteristic_count=8,
   )
+  reflected_boundary = solve_reflected_free_boundary(
+    fan,
+    fan_exit,
+    fan_ambient,
+  )
   overexpanded_exit = derive_uniform_nozzle_exit(
     NozzleExitInput(
       mach=2.0,
@@ -160,6 +166,11 @@ def build_moc_primitive_report() -> dict[str, Any]:
       fan_ambient,
       characteristic_count=resolution,
     )
+    refined_reflected_boundary = solve_reflected_free_boundary(
+      refined_fan,
+      fan_exit,
+      fan_ambient,
+    )
     resolution_probe.append({
       'characteristic_count': resolution,
       'status': refined_fan.status.value,
@@ -167,6 +178,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'first_axis_x_m': refined_fan.centerline_points_m[0][0] if refined_fan.centerline_points_m else None,
       'last_axis_x_m': refined_fan.centerline_points_m[-1][0] if refined_fan.centerline_points_m else None,
       'terminal_pressure_residual': refined_fan.terminal_pressure_residual,
+      'reflected_boundary_status': refined_reflected_boundary.status.value,
+      'reflected_boundary_point_count': len(refined_reflected_boundary.boundary_points_m),
+      'reflected_boundary_last_point_m': (
+        refined_reflected_boundary.boundary_points_m[-1]
+        if refined_reflected_boundary.boundary_points_m
+        else None
+      ),
     })
   geometry_results = {
     'interior': {
@@ -251,6 +269,27 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'geometry_residual': boundary_point.geometry_residual,
         'iterations': boundary_point.iterations,
       },
+    },
+    'reflected_free_boundary_foundation': {
+      'status': reflected_boundary.status.value,
+      'centerline_point_count': len(reflected_boundary.centerline_states),
+      'boundary_point_count': len(reflected_boundary.boundary_points_m),
+      'maximum_absolute_pressure_residual': max(
+        (abs(point.pressure_residual) for point in reflected_boundary.point_results if point.pressure_residual is not None),
+        default=None,
+      ),
+      'maximum_absolute_tangent_residual': max(
+        (abs(point.tangent_residual) for point in reflected_boundary.point_results if point.tangent_residual is not None),
+        default=None,
+      ),
+      'maximum_absolute_geometry_residual': max(
+        (abs(point.geometry_residual) for point in reflected_boundary.point_results if point.geometry_residual is not None),
+        default=None,
+      ),
+      'first_boundary_point_m': reflected_boundary.boundary_points_m[0] if reflected_boundary.boundary_points_m else None,
+      'last_boundary_point_m': reflected_boundary.boundary_points_m[-1] if reflected_boundary.boundary_points_m else None,
+      'closure_status': 'open',
+      'shock_closure': 'not_assembled',
     },
     'fan_resolution_probe': {
       'status': 'diagnostic-only-open-mesh',
@@ -346,6 +385,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'message': boundary_point.message,
       }
     ] if not boundary_point.converged else []),
+    *([
+      {
+        'case': 'reflected_free_boundary_foundation',
+        'status': reflected_boundary.status.value,
+        'message': reflected_boundary.message,
+      }
+    ] if not reflected_boundary.converged else []),
   ]
   ####
   return {
