@@ -155,7 +155,14 @@ def build_lane_release_manifest() -> dict[str, Any]:
   return {
     'report_id': 'exhaust-plume-lane-release-manifest-v1',
     'schema_version': 'plume.lane-release-manifest@1',
-    'source_commit': release_freeze.get('head_commit'),
+    # A release freeze may receive documentation-only provenance refreshes
+    # after the code and wheel evidence are produced. Keep the manifest tied
+    # to the validated code tranche while retaining the actual branch HEAD in
+    # the freeze record.
+    'source_commit': release_freeze.get(
+      'validated_code_commit',
+      release_freeze.get('head_commit'),
+    ),
     'wheel_sha256': release_freeze.get('repository_quality', {}).get('wheel_sha256'),
     'release_policy': {
       'local_release_definition': 'versioned lane evidence plus an explicit claim ceiling; it is not an external validation claim',

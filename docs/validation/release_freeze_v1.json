@@ -3,7 +3,9 @@
   "schema_version": "plume.release-freeze@1",
   "branch": "work/validation-and-completion",
   "base_main_commit": "dd4d57611ba940c8fc4a9721d4b3464b6bbd7848",
-  "head_commit": "c3bb4f89891185453166447eb8537dc209c03d3f",
+  "head_commit": "7810695feafd8570cf9a359937b9f89c05366250",
+  "validated_code_commit": "c3bb4f89891185453166447eb8537dc209c03d3f",
+  "validated_code_commit_note": "The checked source and wheel evidence were produced at the latest code-bearing commit; HEAD is a documentation-only provenance refresh.",
   "completion_requirement_audit": "completion_requirement_audit_v1.json",
   "remote_publish_status": "validation-completion-branch-not-pushed; PRs-5-6-7-merged",
   "remote_pr_audit": {
@@ -35,7 +37,7 @@
   "repository_quality": {
     "pytest": {
       "status": "passed",
-      "tests_passed": 438,
+      "tests_passed": 439,
       "warnings": 18
     },
     "ruff": "passed",

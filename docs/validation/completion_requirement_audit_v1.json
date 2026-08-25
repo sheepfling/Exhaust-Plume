@@ -2,6 +2,8 @@
   "report_id": "exhaust-plume-completion-requirement-audit-v1",
   "schema_version": "plume.completion-requirement-audit@1",
   "source_commit": "c3bb4f89891185453166447eb8537dc209c03d3f",
+  "head_commit": "7810695feafd8570cf9a359937b9f89c05366250",
+  "head_commit_note": "HEAD is a documentation-only provenance refresh after the validated code tranche.",
   "branch": "work/validation-and-completion",
   "base_main_commit": "dd4d57611ba940c8fc4a9721d4b3464b6bbd7848",
   "requirements": [
@@ -236,7 +238,7 @@
       "requirement_id": "repository-release-quality",
       "status": "verified",
       "evidence": {
-        "pytest_passed": 438,
+        "pytest_passed": 439,
         "ruff": "passed",
         "pyright": "passed",
         "installed_wheel_smoke": "passed",

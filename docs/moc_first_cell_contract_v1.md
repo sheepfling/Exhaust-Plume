@@ -53,6 +53,21 @@ downstream total-pressure bookkeeping closes across the full plume cell.
 No public provider is wired to these primitives yet. The module does not claim
 axisymmetric, reacting, viscous, or experimentally validated plume physics.
 
+## External source review
+
+The NASA-CR-169257 underexpanded-jet study is useful as a topology warning,
+not as a bound validation fixture for this repository. It covers Mach 1.4 and
+2.1 convergent-nozzle jets and describes the higher-pressure case as having
+intercepting compression waves connected by a normal shock or Riemann-wave
+region. That behavior is consistent with keeping shock coalescence and
+post-shock continuation as explicit implementation gates rather than closing
+the current open lattice with a single geometric segment. The report is source
+context only here; no digitized NASA flowfield or independent MOC solution is
+accepted as a provider-bound reference in this branch.
+
+Source: [NASA NTRS record 19820022412](https://ntrs.nasa.gov/citations/19820022412)
+and its public report [NASA-CR-169257 PDF](https://ntrs.nasa.gov/api/citations/19820022412/downloads/19820022412.pdf).
+
 ## State and units
 
 The independent plane is `(x, y)` in metres, with `+x` downstream and

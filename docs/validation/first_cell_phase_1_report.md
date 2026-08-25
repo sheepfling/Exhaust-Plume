@@ -194,8 +194,8 @@ and the source case does not supply a disjoint closure validation set.
 ## Quality and performance evidence
 
 After the current completion-branch updates, the repository suite reports
-`438 passed, 18 warnings`.
-Ruff and Pyright both pass. The full suite wall time was 13.69 s in the
+`439 passed, 18 warnings`.
+Ruff and Pyright both pass. The full suite wall time was 13.60 s in the
 isolated completion worktree. The focused MOC resolution sweep completed in
 under 0.6 s including interpreter startup; solver-only timing and peak memory
 were not instrumented and are intentionally not presented as benchmark
