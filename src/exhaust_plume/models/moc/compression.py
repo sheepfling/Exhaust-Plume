@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import isfinite, sin, sqrt
+from math import isfinite, sin, sqrt, tan
 
 from exhaust_plume.models.moc.primitives import MocPrimitiveStatus
+from exhaust_plume.models.nozzle.contracts import AmbientState, NozzleExitState
 from exhaust_plume.util.aero.shock_validity import (
   ShockBranch,
   ShockSolveStatus,
@@ -15,6 +16,8 @@ from exhaust_plume.util.aero.shock_validity import (
 
 __all__ = (
   'MocCompressionResult',
+  'MocLipShockResult',
+  'solve_overexpanded_lip_shock',
   'solve_attached_compression_to_pressure',
 )
 
@@ -39,6 +42,86 @@ class MocCompressionResult:
   @property
   def converged(self) -> bool:
     return self.status is MocPrimitiveStatus.CONVERGED
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocLipShockResult:
+  """An overexpanded lip shock and its first centerline intersection."""
+
+  status: MocPrimitiveStatus
+  shock: MocCompressionResult | None
+  shock_start_m: tuple[float, float] | None
+  centerline_point_m: tuple[float, float] | None
+  message: str = ''
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocPrimitiveStatus.CONVERGED
+####
+
+
+def solve_overexpanded_lip_shock(
+  exit_state: NozzleExitState,
+  ambient: AmbientState,
+  *,
+  branch: ShockBranch = ShockBranch.WEAK,
+) -> MocLipShockResult:
+  """Solve a mild attached overexpanded lip shock to ambient pressure.
+
+  The shock is only marched from the nozzle lip to its first centerline
+  intersection.  Downstream characteristic continuation, separation, and
+  shock-train closure remain separate operations.
+  """
+
+  if exit_state.static_pressure_Pa >= ambient.pressure_Pa:
+    return MocLipShockResult(
+      status=MocPrimitiveStatus.OUTSIDE_DOMAIN,
+      shock=None,
+      shock_start_m=None,
+      centerline_point_m=None,
+      message='lip-shock primitive requires an overexpanded exit state',
+    )
+  shock = solve_attached_compression_to_pressure(
+    upstream_mach=exit_state.mach,
+    gamma=exit_state.gas.gamma,
+    upstream_pressure_Pa=exit_state.static_pressure_Pa,
+    target_pressure_Pa=ambient.pressure_Pa,
+    branch=branch,
+  )
+  if not shock.converged or shock.beta_rad is None:
+    return MocLipShockResult(
+      status=shock.status,
+      shock=shock,
+      shock_start_m=None,
+      centerline_point_m=None,
+      message=shock.message,
+    )
+  beta = shock.beta_rad
+  tangent = tan(beta)
+  if not isfinite(tangent) or tangent <= 0.0:
+    return MocLipShockResult(
+      status=MocPrimitiveStatus.GEOMETRY_FAILURE,
+      shock=shock,
+      shock_start_m=None,
+      centerline_point_m=None,
+      message='attached lip shock has no finite forward centerline intersection',
+    )
+  centerline_x = float(exit_state.radius_m) / tangent
+  if not isfinite(centerline_x) or centerline_x <= 0.0:
+    return MocLipShockResult(
+      status=MocPrimitiveStatus.GEOMETRY_FAILURE,
+      shock=shock,
+      shock_start_m=None,
+      centerline_point_m=None,
+      message='attached lip shock centerline intersection is not forward',
+    )
+  return MocLipShockResult(
+    status=MocPrimitiveStatus.CONVERGED,
+    shock=shock,
+    shock_start_m=(0.0, float(exit_state.radius_m)),
+    centerline_point_m=(centerline_x, 0.0),
+  )
 ####
 
 

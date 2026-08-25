@@ -4,8 +4,11 @@ import pytest
 
 from exhaust_plume.models.moc import (
   MocPrimitiveStatus,
+  solve_overexpanded_lip_shock,
   solve_attached_compression_to_pressure,
 )
+from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput
+from exhaust_plume.models.nozzle.exit_state import derive_ambient_state, derive_uniform_nozzle_exit
 from exhaust_plume.util.aero.shock_validity import ShockBranch, ShockSolveStatus
 
 
@@ -62,3 +65,52 @@ def test_compression_reports_pressure_above_normal_shock_limit() -> None:
 
   assert result.status is MocPrimitiveStatus.OUTSIDE_DOMAIN
   assert result.shock_status is ShockSolveStatus.PRESSURE_ABOVE_NORMAL_SHOCK_LIMIT
+
+
+def test_mild_overexpanded_lip_shock_reaches_the_centerline() -> None:
+  gas = CaloricallyPerfectGas.dry_air()
+  exit_state = derive_uniform_nozzle_exit(
+    NozzleExitInput(
+      mach=2.0,
+      total_pressure_Pa=300000.0,
+      total_temperature_K=900.0,
+      exit_radius_m=0.05,
+    ),
+    gas,
+  )
+  ambient = derive_ambient_state(
+    AmbientInput(pressure_Pa=101325.0, temperature_K=300.0),
+    gas,
+  )
+
+  result = solve_overexpanded_lip_shock(exit_state, ambient)
+
+  assert result.converged
+  assert result.shock_start_m == (0.0, 0.05)
+  assert result.centerline_point_m is not None
+  assert result.centerline_point_m[0] > 0.0
+  assert result.shock is not None
+  assert result.shock.downstream_mach is not None
+  assert result.shock.downstream_mach > 1.0
+
+
+def test_lip_shock_rejects_an_underexpanded_exit() -> None:
+  gas = CaloricallyPerfectGas.dry_air()
+  exit_state = derive_uniform_nozzle_exit(
+    NozzleExitInput(
+      mach=2.0,
+      total_pressure_Pa=2000000.0,
+      total_temperature_K=900.0,
+      exit_radius_m=0.05,
+    ),
+    gas,
+  )
+  ambient = derive_ambient_state(
+    AmbientInput(pressure_Pa=101325.0, temperature_K=300.0),
+    gas,
+  )
+
+  result = solve_overexpanded_lip_shock(exit_state, ambient)
+
+  assert result.status is MocPrimitiveStatus.OUTSIDE_DOMAIN
+  assert result.shock is None

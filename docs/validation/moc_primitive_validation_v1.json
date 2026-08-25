@@ -67,6 +67,20 @@
         "shock_status": "pressure_above_normal_shock_limit"
       }
     },
+    "mild_overexpanded_lip_shock_foundation": {
+      "status": "converged",
+      "shock_status": "attached",
+      "shock_start_m": [
+        0.0,
+        0.05
+      ],
+      "centerline_point_m": [
+        0.040654191734541496,
+        0.0
+      ],
+      "downstream_mach": 1.2814386005871115,
+      "closure_status": "open"
+    },
     "ambient_pressure_free_boundary_foundation": {
       "status": "converged",
       "terminal_mach": 2.592983004690484,
@@ -74,7 +88,18 @@
       "pressure_residual": 1.4361623714154308e-16,
       "tangent_residual": 0.0,
       "extent_m": 0.2,
-      "closure_status": "open"
+      "closure_status": "open",
+      "march_point": {
+        "status": "converged",
+        "point_m": [
+          0.11190938930437913,
+          0.0646109160397299
+        ],
+        "pressure_residual": 1.4361623714154308e-16,
+        "tangent_residual": 0.0,
+        "geometry_residual": 1.3877787807814457e-17,
+        "iterations": 2
+      }
     },
     "fan_resolution_probe": {
       "status": "diagnostic-only-open-mesh",

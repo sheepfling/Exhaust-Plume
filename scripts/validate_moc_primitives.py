@@ -24,6 +24,8 @@ from exhaust_plume.models.moc import (  # noqa: E402
   prandtl_meyer_angle_rad,
   solve_attached_compression_to_pressure,
   solve_ambient_pressure_free_boundary,
+  solve_ambient_pressure_free_boundary_point,
+  solve_overexpanded_lip_shock,
   solve_underexpanded_expansion_fan,
   validate_moc_mesh,
 )
@@ -91,6 +93,16 @@ def build_moc_primitive_report() -> dict[str, Any]:
     fan_ambient,
     characteristic_count=8,
   )
+  overexpanded_exit = derive_uniform_nozzle_exit(
+    NozzleExitInput(
+      mach=2.0,
+      total_pressure_Pa=300000.0,
+      total_temperature_K=900.0,
+      exit_radius_m=0.05,
+    ),
+    gas,
+  )
+  overexpanded_lip_shock = solve_overexpanded_lip_shock(overexpanded_exit, fan_ambient)
   fan_topology = validate_moc_mesh(fan.cells)
   compression = solve_attached_compression_to_pressure(
     upstream_mach=2.0,
@@ -108,6 +120,25 @@ def build_moc_primitive_report() -> dict[str, Any]:
     fan_exit,
     fan_ambient,
     extent_m=0.2,
+  )
+  boundary_point = solve_ambient_pressure_free_boundary_point(
+    CharacteristicState(
+      x_m=0.0,
+      y_m=0.0,
+      theta_rad=0.0,
+      mach=2.0,
+      gamma=1.4,
+    ),
+    CharacteristicState(
+      x_m=0.0,
+      y_m=0.05,
+      theta_rad=0.0,
+      mach=2.0,
+      gamma=1.4,
+    ),
+    CharacteristicFamily.PLUS,
+    total_pressure_Pa=2.0e6,
+    ambient_pressure_Pa=101325.0,
   )
   resolution_probe = []
   for resolution in (4, 8, 16):
@@ -162,6 +193,22 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'shock_status': compression_limit_case.shock_status.value,
       },
     },
+    'mild_overexpanded_lip_shock_foundation': {
+      'status': overexpanded_lip_shock.status.value,
+      'shock_status': (
+        overexpanded_lip_shock.shock.shock_status.value
+        if overexpanded_lip_shock.shock is not None
+        else None
+      ),
+      'shock_start_m': overexpanded_lip_shock.shock_start_m,
+      'centerline_point_m': overexpanded_lip_shock.centerline_point_m,
+      'downstream_mach': (
+        overexpanded_lip_shock.shock.downstream_mach
+        if overexpanded_lip_shock.shock is not None
+        else None
+      ),
+      'closure_status': 'open',
+    },
     'ambient_pressure_free_boundary_foundation': {
       'status': free_boundary.status.value,
       'terminal_mach': free_boundary.terminal_mach,
@@ -170,6 +217,14 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'tangent_residual': free_boundary.tangent_residual,
       'extent_m': 0.2,
       'closure_status': 'open',
+      'march_point': {
+        'status': boundary_point.status.value,
+        'point_m': boundary_point.point_m,
+        'pressure_residual': boundary_point.pressure_residual,
+        'tangent_residual': boundary_point.tangent_residual,
+        'geometry_residual': boundary_point.geometry_residual,
+        'iterations': boundary_point.iterations,
+      },
     },
     'fan_resolution_probe': {
       'status': 'diagnostic-only-open-mesh',
@@ -229,11 +284,25 @@ def build_moc_primitive_report() -> dict[str, Any]:
     ) else []),
     *([
       {
+        'case': 'mild_overexpanded_lip_shock_foundation',
+        'status': overexpanded_lip_shock.status.value,
+        'message': overexpanded_lip_shock.message,
+      }
+    ] if not overexpanded_lip_shock.converged else []),
+    *([
+      {
         'case': 'ambient_pressure_free_boundary_foundation',
         'status': free_boundary.status.value,
         'message': free_boundary.message,
       }
     ] if not free_boundary.converged else []),
+    *([
+      {
+        'case': 'ambient_pressure_free_boundary_point',
+        'status': boundary_point.status.value,
+        'message': boundary_point.message,
+      }
+    ] if not boundary_point.converged else []),
   ]
   ####
   return {

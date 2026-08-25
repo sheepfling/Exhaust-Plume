@@ -30,12 +30,13 @@ The first high-fidelity tranche is isolated in
 [`moc_first_cell_contract_v1.md`](moc_first_cell_contract_v1.md) and
 [`validation/moc_primitive_validation_v1.json`](validation/moc_primitive_validation_v1.json).
 Its 15 Mach/gamma round trips, interior and centerline compatibility fixtures,
-8-cell open underexpanded fan, attached-compression inversion, local
-ambient-pressure tangent residual, and mesh topology checks pass with finite
-residuals. This is numerical-foundation evidence, not a closed first-cell or
-product-provider result. The existing basic and reduced-order visual lanes
-remain unchanged until a separate MOC assembler passes physical
-free-boundary/compression closure, refinement, and measurement-operator gates.
+8-cell open underexpanded fan, attached and mild-overexpanded lip-compression
+branches, local ambient-pressure tangent residual, and mesh topology checks
+pass with finite residuals. This is numerical-foundation evidence, not a
+closed first-cell or product-provider result. The existing basic and
+reduced-order visual lanes remain unchanged until a separate MOC assembler
+passes physical free-boundary/compression closure, refinement, and
+measurement-operator gates.
 
 ## What is done for the basic solver
 

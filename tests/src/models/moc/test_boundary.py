@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import pytest
+
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput
 from exhaust_plume.models.moc import (
+  CharacteristicFamily,
+  CharacteristicState,
   MocPrimitiveStatus,
   solve_ambient_pressure_free_boundary,
+  solve_ambient_pressure_free_boundary_point,
 )
 from exhaust_plume.models.nozzle.exit_state import derive_ambient_state, derive_uniform_nozzle_exit
 
@@ -44,3 +49,35 @@ def test_free_boundary_does_not_accept_overexpanded_exit() -> None:
 
   assert result.status is MocPrimitiveStatus.OUTSIDE_DOMAIN
   assert not result.points_m
+
+
+def test_free_boundary_point_marches_a_characteristic_with_pressure_matching() -> None:
+  incoming = CharacteristicState(
+    x_m=0.0,
+    y_m=0.0,
+    theta_rad=0.0,
+    mach=2.0,
+    gamma=1.4,
+  )
+  previous_boundary = CharacteristicState(
+    x_m=0.0,
+    y_m=0.05,
+    theta_rad=0.0,
+    mach=2.0,
+    gamma=1.4,
+  )
+
+  result = solve_ambient_pressure_free_boundary_point(
+    incoming,
+    previous_boundary,
+    CharacteristicFamily.PLUS,
+    total_pressure_Pa=2.0e6,
+    ambient_pressure_Pa=101325.0,
+  )
+
+  assert result.converged
+  assert result.state is not None
+  assert result.point_m is not None
+  assert result.point_m[0] > incoming.x_m
+  assert result.pressure_residual == pytest.approx(0.0, abs=1.0e-12)
+  assert result.tangent_residual == pytest.approx(0.0, abs=1.0e-12)

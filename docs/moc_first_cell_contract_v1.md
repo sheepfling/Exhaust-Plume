@@ -18,6 +18,8 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   ambient-pressure axis intersections;
 - an attached-compression pressure inversion with weak/strong branch status
   and a supersonic-downstream check;
+- a mild-overexpanded lip-shock branch with an explicit first centerline
+  intersection and rejection of unsupported pressure ratios;
 - a local ambient-pressure tangent segment with explicit finite extent,
   pressure residual, and tangent residual;
 - mesh connectivity diagnostics that distinguish a topologically bounded
