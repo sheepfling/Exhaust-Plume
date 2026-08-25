@@ -62,6 +62,16 @@ from exhaust_plume.api.prescribed import (
     PrescribedSectionedTubeSession,
     PrescribedSectionedTubeSnapshot,
 )
+from exhaust_plume.api.visualization import (
+    SectionedTubeChannelLine,
+    SectionedTubeGeometrySeries,
+    SectionedTubeLineData,
+    SectionedTubeRenderMesh,
+    build_sectioned_tube_render_mesh,
+    extract_sectioned_tube_channel_lines,
+    extract_sectioned_tube_geometry,
+    extract_sectioned_tube_line_data,
+)
 
 __all__ = (
     'ENGINEERING_FLUX_SECTION_V1',
@@ -103,6 +113,10 @@ __all__ = (
     'ResultStatus',
     'SectionedTubePayload',
     'SectionedTubeResult',
+    'SectionedTubeChannelLine',
+    'SectionedTubeGeometrySeries',
+    'SectionedTubeLineData',
+    'SectionedTubeRenderMesh',
     'SnapshotRequest',
     'SpeciesMassFlow',
     'SpectralRadiantIntensityPayload',
@@ -115,6 +129,10 @@ __all__ = (
     'TubeSection',
     'ValidationLevel',
     'calculate_content_sha256',
+    'build_sectioned_tube_render_mesh',
+    'extract_sectioned_tube_channel_lines',
+    'extract_sectioned_tube_geometry',
+    'extract_sectioned_tube_line_data',
     'sectioned_tube_payload_from_axisymmetric_zones',
     'v1',
 )
