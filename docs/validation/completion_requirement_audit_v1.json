@@ -236,11 +236,11 @@
       "requirement_id": "repository-release-quality",
       "status": "verified",
       "evidence": {
-        "pytest_passed": 432,
+        "pytest_passed": 434,
         "ruff": "passed",
         "pyright": "passed",
         "installed_wheel_smoke": "passed",
-        "wheel_sha256": "81df663b3b26823e6ffb4c436270b9f69e15d63eacf64fd63c8a3231564b4cec",
+        "wheel_sha256": "deb35e0fc7ba618368cd1a416555107e2fc4c276c0aa13b540055f6df697251c",
         "first_cell_convergence_test": "passed-diagnostic-open-lattice-only"
       }
     }

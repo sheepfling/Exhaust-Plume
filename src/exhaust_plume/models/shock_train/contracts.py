@@ -13,8 +13,10 @@ from exhaust_plume.models.shock_cells.contracts import ClosedZone
 
 __all__ = (
   'SHOCK_TRAIN_CALIBRATION_PARAMETER_NAMES',
+  'CalibrationValidationSplitStatus',
   'GeometryFidelity',
   'ShockCellMetrics',
+  'ShockTrainCalibrationValidationSplit',
   'ShockTrainCalibration',
   'ShockTrainCell',
   'ShockTrainResult',
@@ -38,6 +40,80 @@ class GeometryFidelity(str, Enum):
 
   RESOLVED_FIRST_CELL = 'resolved-first-cell'
   SCALED_REDUCED_ORDER = 'scaled-reduced-order'
+####
+
+
+class CalibrationValidationSplitStatus(str, Enum):
+  """Acceptance state for an empirical closure case split."""
+
+  READY = 'disjoint-ready'
+  BLOCKED_INSUFFICIENT_CASES = 'blocked-insufficient-disjoint-cases'
+####
+
+
+def _case_id_tuple(name: str, values: tuple[str, ...]) -> tuple[str, ...]:
+  normalized = tuple(values)
+  if any(not isinstance(value, str) or not value for value in normalized):
+    raise ValueError(f'{name} must contain nonempty strings')
+  if len(normalized) != len(set(normalized)):
+    raise ValueError(f'{name} must not contain duplicate case IDs')
+  return normalized
+####
+
+
+@dataclass(frozen=True, slots=True)
+class ShockTrainCalibrationValidationSplit:
+  """Explicit case-role assignment for empirical shock-train closure.
+
+  ``unassigned_case_ids`` keeps recovered or candidate cases visible without
+  allowing them to silently serve as both calibration and validation data.
+  A split is ready only when both assigned sets are nonempty and disjoint.
+  """
+
+  calibration_case_ids: tuple[str, ...] = ()
+  validation_case_ids: tuple[str, ...] = ()
+  unassigned_case_ids: tuple[str, ...] = ()
+
+  def __post_init__(self) -> None:
+    calibration = _case_id_tuple('calibration_case_ids', self.calibration_case_ids)
+    validation = _case_id_tuple('validation_case_ids', self.validation_case_ids)
+    unassigned = _case_id_tuple('unassigned_case_ids', self.unassigned_case_ids)
+    if set(calibration) & set(validation):
+      raise ValueError('calibration_case_ids and validation_case_ids must be disjoint')
+    if (set(calibration) | set(validation)) & set(unassigned):
+      raise ValueError('unassigned_case_ids must not overlap assigned case IDs')
+    object.__setattr__(self, 'calibration_case_ids', calibration)
+    object.__setattr__(self, 'validation_case_ids', validation)
+    object.__setattr__(self, 'unassigned_case_ids', unassigned)
+    ####
+  ####
+
+  @property
+  def status(self) -> CalibrationValidationSplitStatus:
+    if self.calibration_case_ids and self.validation_case_ids:
+      return CalibrationValidationSplitStatus.READY
+    return CalibrationValidationSplitStatus.BLOCKED_INSUFFICIENT_CASES
+  ####
+
+  @property
+  def accepted(self) -> bool:
+    return self.status is CalibrationValidationSplitStatus.READY
+  ####
+
+  def as_report(self, *, reason: str | None = None) -> dict[str, Any]:
+    report: dict[str, Any] = {
+      'status': self.status.value,
+      'accepted': self.accepted,
+      'calibration_cases': len(self.calibration_case_ids),
+      'validation_cases': len(self.validation_case_ids),
+      'unassigned_cases': len(self.unassigned_case_ids),
+      'calibration_case_ids': list(self.calibration_case_ids),
+      'validation_case_ids': list(self.validation_case_ids),
+      'unassigned_case_ids': list(self.unassigned_case_ids),
+    }
+    if reason is not None:
+      report['reason'] = reason
+    return report
 ####
 
 

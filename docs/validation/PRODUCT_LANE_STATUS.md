@@ -119,9 +119,11 @@ The reduced-order shock-train component has its own evidence record in
 It records the explicit closure seed, physical/safety termination behavior,
 cell-fidelity counts, corpus feature context, and sensitivity sweep. The
 calibration/validation split is blocked because the recovered archive contains
-one benchmark case. The solver now exposes an explicit covariance-parameter
-order and a finite-difference output-uncertainty diagnostic, but the engineering
-seed contains no calibrated covariance artifact, so the uncertainty result is
+one benchmark case, which the machine-checked split contract keeps explicitly
+unassigned rather than reusing as both calibration and validation. The solver
+now exposes an explicit covariance-parameter order and a finite-difference
+output-uncertainty diagnostic, but the engineering seed contains no calibrated
+covariance artifact, so the uncertainty result is
 `not-available-no-calibration-covariance`. The closure and the visual lane
 therefore remain experimental and `not_accepted`.
 

@@ -14,9 +14,16 @@
   },
   "benchmark_id": "CJ-UEJ-001",
   "calibration_validation_split": {
+    "accepted": false,
+    "calibration_case_ids": [],
     "calibration_cases": 0,
-    "reason": "the recovered archive provides one benchmark case, not a disjoint closure split",
-    "status": "blocked",
+    "reason": "the recovered archive provides one gasdynamic precursor case, not a disjoint closure calibration/validation split",
+    "status": "blocked-insufficient-disjoint-cases",
+    "unassigned_case_ids": [
+      "CJ-UEJ-001"
+    ],
+    "unassigned_cases": 1,
+    "validation_case_ids": [],
     "validation_cases": 0
   },
   "case": {

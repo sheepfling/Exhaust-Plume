@@ -14,8 +14,10 @@ from exhaust_plume import (
 from exhaust_plume.contracts.termination import TerminationReason
 from exhaust_plume.models.shock_cells import ShockCellSolveConfig, solve_shock_cells
 from exhaust_plume.models.shock_train import (
+  CalibrationValidationSplitStatus,
   GeometryFidelity,
   ShockTrainCalibration,
+  ShockTrainCalibrationValidationSplit,
   ShockTrainStatus,
   ShockTrainTerminationPolicy,
   propagate_shock_train_covariance,
@@ -247,3 +249,34 @@ def test_covariance_propagation_without_covariance_is_explicitly_unavailable() -
 def test_covariance_requires_explicit_parameter_order() -> None:
   with pytest.raises(ValueError, match='covariance_parameter_names'):
     replace(_calibration(), covariance_parameter_names=None)
+
+
+def test_calibration_validation_split_requires_disjoint_assigned_cases() -> None:
+  split = ShockTrainCalibrationValidationSplit(
+    calibration_case_ids=('calibration-001',),
+    validation_case_ids=('validation-001',),
+    unassigned_case_ids=('candidate-001',),
+  )
+
+  assert split.status is CalibrationValidationSplitStatus.READY
+  assert split.accepted is True
+  report = split.as_report()
+  assert report['calibration_cases'] == 1
+  assert report['validation_cases'] == 1
+  assert report['unassigned_cases'] == 1
+
+  with pytest.raises(ValueError, match='must be disjoint'):
+    ShockTrainCalibrationValidationSplit(
+      calibration_case_ids=('same-case',),
+      validation_case_ids=('same-case',),
+    )
+
+
+def test_calibration_validation_split_keeps_single_candidate_unassigned() -> None:
+  split = ShockTrainCalibrationValidationSplit(
+    unassigned_case_ids=('CJ-UEJ-001',),
+  )
+
+  assert split.status is CalibrationValidationSplitStatus.BLOCKED_INSUFFICIENT_CASES
+  assert split.accepted is False
+  assert split.as_report()['unassigned_case_ids'] == ['CJ-UEJ-001']

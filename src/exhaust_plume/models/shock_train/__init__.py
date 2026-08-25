@@ -2,7 +2,9 @@
 
 from exhaust_plume.models.shock_train.contracts import (
   SHOCK_TRAIN_CALIBRATION_PARAMETER_NAMES,
+  CalibrationValidationSplitStatus,
   GeometryFidelity,
+  ShockTrainCalibrationValidationSplit,
   ShockCellMetrics,
   ShockTrainCalibration,
   ShockTrainCell,
@@ -19,7 +21,9 @@ from exhaust_plume.models.shock_train.sensitivity import (
 
 __all__ = (
   'GeometryFidelity',
+  'CalibrationValidationSplitStatus',
   'SHOCK_TRAIN_CALIBRATION_PARAMETER_NAMES',
+  'ShockTrainCalibrationValidationSplit',
   'ShockCellMetrics',
   'ShockTrainCalibration',
   'ShockTrainCell',

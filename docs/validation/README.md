@@ -148,6 +148,11 @@ counts only as perturbation observations. The recovered engineering seed has no
 calibrated covariance artifact, so its report records uncertainty propagation
 as unavailable rather than inventing parameter error bars.
 
+Its calibration/validation split is also machine-checked: assigned case IDs
+must be nonempty and disjoint, while recovered candidates remain explicitly
+`unassigned`. The recovered archive contains one `CJ-UEJ-001` gasdynamic
+precursor candidate, so it cannot satisfy the closure split by itself.
+
 The recovered CJ-UEJ Mach trace is also run through the standalone planar-MOC
 component diagnostic in
 [`moc_cj_uej_component_validation_v1.json`](moc_cj_uej_component_validation_v1.json).

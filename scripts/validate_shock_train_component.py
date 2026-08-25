@@ -20,6 +20,7 @@ if str(REPO_ROOT / 'src') not in sys.path:
   sys.path.insert(0, str(REPO_ROOT / 'src'))
 
 from exhaust_plume.models.shock_train import (  # noqa: E402
+  ShockTrainCalibrationValidationSplit,
   ShockTrainCalibration,
   ShockTrainTerminationPolicy,
   propagate_shock_train_covariance,
@@ -117,12 +118,9 @@ def build_shock_train_component_report(corpus_path: Path) -> dict[str, Any]:
     'validation_status': 'blocked-invalid-corpus',
     'claim_status': 'not_accepted',
     'release_ready': False,
-    'calibration_validation_split': {
-      'status': 'blocked',
-      'calibration_cases': 0,
-      'validation_cases': 0,
-      'reason': 'the recovered archive provides one benchmark case, not a disjoint closure split',
-    },
+    'calibration_validation_split': ShockTrainCalibrationValidationSplit().as_report(
+      reason='the recovered archive has not yet been verified',
+    ),
   }
   if preflight.get('status') != 'preflight-valid-pending-release-gates':
     report['errors'] = list(preflight.get('errors', ()))
@@ -132,6 +130,15 @@ def build_shock_train_component_report(corpus_path: Path) -> dict[str, Any]:
     metadata = _read_json(archive_file, 'data/cj_uej_001_metadata.json')
     profile_rows = _read_csv(archive_file, 'data/cj_uej_001_profiles.csv')
   case = metadata['case']
+  split = ShockTrainCalibrationValidationSplit(
+    unassigned_case_ids=(BENCHMARK_ID,),
+  )
+  report['calibration_validation_split'] = split.as_report(
+    reason=(
+      'the recovered archive provides one gasdynamic precursor case, not a '
+      'disjoint closure calibration/validation split'
+    ),
+  )
   diameter_m = float(case['exit_diameter_m'])
   first_cell, model_case = _case_from_metadata(
     metadata,
