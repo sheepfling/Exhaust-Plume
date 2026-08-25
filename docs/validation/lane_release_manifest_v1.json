@@ -1,0 +1,182 @@
+{
+  "checks": {
+    "all_active_lanes_have_local_release_evidence": true,
+    "fpa_provider_guard_passed": true,
+    "low_fidelity_promotion_detected": false,
+    "provider_preflight_release_ready": false
+  },
+  "lanes": [
+    {
+      "advertised_capabilities": [],
+      "claim_ceiling": "Planar scalar/characteristic compatibility diagnostics only; no public visual, signature, optical, or FPA claim",
+      "complexity_policy": "isolated high-fidelity foundation; cannot replace the basic solver before topology, convergence, and measurement gates pass",
+      "external_validation_status": "not-applicable",
+      "forbidden_capabilities": [],
+      "lane_id": "planar-moc-primitives-v1",
+      "local_release_ready": false,
+      "local_release_status": "not-released-validation-pending",
+      "matrix_status": "foundation-validated-provider-pending",
+      "product_report_status": null,
+      "promotion_guard": {
+        "advertised_disjoint_from_forbidden": true,
+        "low_fidelity_promotion_detected": false
+      },
+      "provider_ids": []
+    },
+    {
+      "advertised_capabilities": [
+        "plume.visual.sectioned-tube@1"
+      ],
+      "claim_ceiling": "Engineering-approximate straight visual geometry and named display features only.",
+      "complexity_policy": "frozen-ceiling; higher fidelity requires a new lane",
+      "external_validation_status": "pending",
+      "forbidden_capabilities": [
+        "plume.signature.spectral-radiant-intensity@1",
+        "plume.optical.spectral-ray-transfer@1",
+        "plume.image.spectral-radiance@1"
+      ],
+      "lane_id": "shock-cell-basic-v1",
+      "local_release_ready": true,
+      "local_release_status": "scoped-local-release",
+      "matrix_status": "active",
+      "product_report_status": "passed",
+      "promotion_guard": {
+        "advertised_disjoint_from_forbidden": true,
+        "low_fidelity_promotion_detected": false
+      },
+      "provider_ids": [
+        "plume.straight-analytical",
+        "plume.shock-cell-analytical"
+      ]
+    },
+    {
+      "advertised_capabilities": [
+        "plume.signature.spectral-radiant-intensity@1"
+      ],
+      "claim_ceiling": "Versioned table and interpolation behavior only; no intrinsic physical validation claim.",
+      "complexity_policy": "independent provider; no shock-cell backfill",
+      "external_validation_status": "pending",
+      "forbidden_capabilities": [
+        "plume.visual.sectioned-tube@1",
+        "plume.optical.spectral-ray-transfer@1",
+        "plume.image.spectral-radiance@1"
+      ],
+      "lane_id": "signature-table-mvp-v1",
+      "local_release_ready": true,
+      "local_release_status": "scoped-local-release",
+      "matrix_status": "active",
+      "product_report_status": "passed",
+      "promotion_guard": {
+        "advertised_disjoint_from_forbidden": true,
+        "low_fidelity_promotion_detected": false
+      },
+      "provider_ids": [
+        "signature.table-lookup"
+      ]
+    },
+    {
+      "advertised_capabilities": [
+        "plume.visual.sectioned-tube@1"
+      ],
+      "claim_ceiling": null,
+      "complexity_policy": "separate experimental lane; does not mutate the frozen basic solver ceiling",
+      "external_validation_status": "not-applicable",
+      "forbidden_capabilities": [
+        "plume.signature.spectral-radiant-intensity@1",
+        "plume.optical.spectral-ray-transfer@1",
+        "plume.image.spectral-radiance@1"
+      ],
+      "lane_id": "shock-cell-reduced-order-v1",
+      "local_release_ready": false,
+      "local_release_status": "not-released-validation-pending",
+      "matrix_status": "experimental",
+      "product_report_status": null,
+      "promotion_guard": {
+        "advertised_disjoint_from_forbidden": true,
+        "low_fidelity_promotion_detected": false
+      },
+      "provider_ids": [
+        "plume.shock-train-reduced-order"
+      ]
+    },
+    {
+      "advertised_capabilities": [],
+      "claim_ceiling": null,
+      "complexity_policy": null,
+      "external_validation_status": "not-applicable",
+      "forbidden_capabilities": [],
+      "lane_id": "washed-integral-v1",
+      "local_release_ready": false,
+      "local_release_status": "planned",
+      "matrix_status": "planned",
+      "product_report_status": null,
+      "promotion_guard": {
+        "advertised_disjoint_from_forbidden": true,
+        "low_fidelity_promotion_detected": false
+      },
+      "provider_ids": []
+    },
+    {
+      "advertised_capabilities": [
+        "plume.optical.spectral-ray-transfer@1"
+      ],
+      "claim_ceiling": "Homogeneous gray transfer through a straight constant-radius support only; no chemistry, atmosphere, detector, or FPA claim.",
+      "complexity_policy": "straight homogeneous transfer ceiling; curved/path/chemistry fidelity requires a new provider lane",
+      "external_validation_status": "pending",
+      "forbidden_capabilities": [
+        "plume.signature.spectral-radiant-intensity@1",
+        "plume.image.spectral-radiance@1"
+      ],
+      "lane_id": "optical-transfer-v1",
+      "local_release_ready": true,
+      "local_release_status": "scoped-local-release",
+      "matrix_status": "active",
+      "product_report_status": "passed",
+      "promotion_guard": {
+        "advertised_disjoint_from_forbidden": true,
+        "low_fidelity_promotion_detected": false
+      },
+      "provider_ids": [
+        "plume.gray-ray-transfer"
+      ]
+    },
+    {
+      "advertised_capabilities": [],
+      "claim_ceiling": "Deterministic expected-electron and expected-ADC-count adapters only; no externally validated FPA image, measured detector-count, noise-realization, or detection claim.",
+      "complexity_policy": null,
+      "external_validation_status": "not-recorded",
+      "forbidden_capabilities": [],
+      "lane_id": "focal-plane-array-v1",
+      "local_release_ready": true,
+      "local_release_status": "scoped-downstream-boundary",
+      "matrix_status": "validated-downstream",
+      "product_report_status": "boundary-validated-downstream",
+      "promotion_guard": {
+        "advertised_disjoint_from_forbidden": true,
+        "low_fidelity_promotion_detected": false
+      },
+      "provider_ids": []
+    }
+  ],
+  "release_policy": {
+    "external_validation_required_for_product_claim": true,
+    "fpa_is_downstream_adapter_only_until_provider_validation": true,
+    "local_release_definition": "versioned lane evidence plus an explicit claim ceiling; it is not an external validation claim",
+    "low_fidelity_promotion_forbidden": true
+  },
+  "report_id": "exhaust-plume-lane-release-manifest-v1",
+  "schema_version": "plume.lane-release-manifest@1",
+  "source_commit": "20b1ccce0fe87727d98050d89cc0818091839ada",
+  "umbrella_release": {
+    "blockers": [
+      "all current provider-specific external comparisons remain blocked by missing provider-bound measurement-space outputs, physical scenario assets, or accepted product-specific measurement-operator mappings",
+      "reduced-order shock-train closure has no disjoint calibration/validation split or train-cell measurement operator",
+      "separately named MVP alignment archive is not yet verified",
+      "planar MOC first-cell closure and external reference comparison are not complete",
+      "first-cell correlation has no accepted physical solver-length comparison while shock closure remains open",
+      "provider comparison preflight is not externally accepted"
+    ],
+    "release_ready": false
+  },
+  "wheel_sha256": "ec67f9eb39d4d4964d6e604e2a1ba919a081008a551bb55b1352aa274037149c"
+}
