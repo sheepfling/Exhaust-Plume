@@ -236,11 +236,11 @@
       "requirement_id": "repository-release-quality",
       "status": "verified",
       "evidence": {
-        "pytest_passed": 434,
+        "pytest_passed": 438,
         "ruff": "passed",
         "pyright": "passed",
         "installed_wheel_smoke": "passed",
-        "wheel_sha256": "deb35e0fc7ba618368cd1a416555107e2fc4c276c0aa13b540055f6df697251c",
+        "wheel_sha256": "44fcd511f158b44ff33719791584a2a8e384a5fdd370f455eba2c8156cd1f15f",
         "first_cell_convergence_test": "passed-diagnostic-open-lattice-only"
       }
     }
@@ -248,7 +248,7 @@
   "release_ready": false,
   "release_blockers": [
     "provider-bound VIS/SIG/RAY comparisons are not accepted",
-    "reduced-order shock-train calibration lacks a disjoint validation case and train-cell measurement operator",
+    "reduced-order shock-train calibration lacks a disjoint validation case; its pressure-extrema spacing mapping is diagnostic-only and does not identify physical train cells",
     "separately named plume_mvp_validation_alignment_v1.zip is not verified",
     "planar MOC first-cell closure and external reference comparison are not complete",
     "first-cell correlation has no accepted physical solver-length comparison while shock closure remains open"

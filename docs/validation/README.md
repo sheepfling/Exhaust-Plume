@@ -153,6 +153,14 @@ must be nonempty and disjoint, while recovered candidates remain explicitly
 `unassigned`. The recovered archive contains one `CJ-UEJ-001` gasdynamic
 precursor candidate, so it cannot satisfy the closure split by itself.
 
+The reduced-order report also records the internal
+`op.reduce.pressure-extrema-spacing` diagnostic. It compares same-phase
+pressure-extrema spacing with the overlapping reduced-order cell-length
+prefix, carries axial digitization uncertainty when available, and never fits
+an axial origin or assigns extrema to physical cell centers. It remains
+`diagnostic-only` and `not_accepted`; it does not replace the missing disjoint
+calibration/validation split or establish a train-cell measurement operator.
+
 The recovered CJ-UEJ Mach trace is also run through the standalone planar-MOC
 component diagnostic in
 [`moc_cj_uej_component_validation_v1.json`](moc_cj_uej_component_validation_v1.json).

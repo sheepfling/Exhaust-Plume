@@ -69,6 +69,12 @@ from exhaust_plume.validation.sensor_operators import (
   integrate_bandpass_detector_rows,
   integrate_los_fov_spectrum,
 )
+from exhaust_plume.validation.shock_train_comparisons import (
+  SHOCK_TRAIN_PRESSURE_EXTREMA_SPACING_OPERATOR_ID,
+  PressureExtremum,
+  ShockTrainSpacingComparison,
+  compare_shock_train_pressure_extrema_spacing,
+)
 from exhaust_plume.validation.visual_comparisons import (
   MACH_DISK_FEATURE_OPERATOR_ID,
   MachDiskPressureComparison,
@@ -108,6 +114,9 @@ __all__ = (
   'SPECTRAL_SAMPLING_OPERATOR_ID',
   'SampledSpectrum',
   'SensorFovSpectrum',
+  'SHOCK_TRAIN_PRESSURE_EXTREMA_SPACING_OPERATOR_ID',
+  'PressureExtremum',
+  'ShockTrainSpacingComparison',
   'SENSOR_SPACE_SPECTRAL_RADIANCE_UNITS',
   'INTRINSIC_SPECTRAL_RADIANT_INTENSITY_UNITS',
   'RELATIVE_SPECTRAL_SHAPE_UNITS',
@@ -132,6 +141,7 @@ __all__ = (
   'compare_peak_normalized_spectral_shape',
   'compare_declared_peak_normalized_spectral_shape',
   'compare_mach_disk_pressure_relation',
+  'compare_shock_train_pressure_extrema_spacing',
   'peak_normalize_spectral_rows',
   'sample_spectral_rows',
   'write_validity_report_csv',

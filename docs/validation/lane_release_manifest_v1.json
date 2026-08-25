@@ -170,7 +170,7 @@
   "umbrella_release": {
     "blockers": [
       "all current provider-specific external comparisons remain blocked by missing provider-bound measurement-space outputs, physical scenario assets, or accepted product-specific measurement-operator mappings",
-      "reduced-order shock-train closure has no disjoint calibration/validation split or train-cell measurement operator",
+      "reduced-order shock-train closure has no disjoint calibration/validation split; its pressure-extrema spacing mapping is diagnostic-only and does not identify physical train cells",
       "separately named MVP alignment archive is not yet verified",
       "planar MOC first-cell closure is not complete; the CJ-UEJ external reference comparison is quantified diagnostic evidence only and remains not accepted",
       "first-cell correlation has no accepted physical solver-length comparison while shock closure remains open",
@@ -178,5 +178,5 @@
     ],
     "release_ready": false
   },
-  "wheel_sha256": "deb35e0fc7ba618368cd1a416555107e2fc4c276c0aa13b540055f6df697251c"
+  "wheel_sha256": "44fcd511f158b44ff33719791584a2a8e384a5fdd370f455eba2c8156cd1f15f"
 }

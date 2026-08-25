@@ -2,7 +2,7 @@
   "acceptance_blockers": [
     "No disjoint calibration and validation cases are present for the closure coefficients.",
     "The source is convergent/choked while the current first-cell contract uses an explicit near-sonic M>1 adapter.",
-    "Observed pressure extrema are not a validated measurement operator for reduced-order cell centers or spacing.",
+    "The pressure-extrema spacing operator is diagnostic-only; it does not identify reduced-order cell centers, and no independent calibration/validation split is available.",
     "The engineering seed supplies no calibrated parameter covariance; output uncertainty propagation is available only when a covariance-bearing calibration artifact is supplied.",
     "The provider advertises visual geometry only and cannot promote this evidence to signature, ray, or FPA claims."
   ],
@@ -43,7 +43,141 @@
   "corpus_status": "preflight-valid-pending-release-gates",
   "observed_pressure_feature_context": {
     "claim_status": "not_accepted",
-    "comparison_status": "context-only; pressure probes do not identify reduced-order train cells",
+    "comparison_status": "diagnostic-only; same-phase pressure-extrema spacing does not identify reduced-order train cells",
+    "measurement_operator": {
+      "claim_status": "not_accepted",
+      "operator_id": "op.reduce.pressure-extrema-spacing",
+      "phase_comparisons": {
+        "maximum": {
+          "claim_status": "not_accepted",
+          "matched_spacing_count": 5,
+          "metrics": {
+            "rmse_over_D": 0.045592951940181786,
+            "uncertainty_weighted_rmse": 1.0746361830404965
+          },
+          "model_cell_count": 24,
+          "model_spacing_over_D": [
+            0.7749932878845341,
+            0.737024631946709,
+            0.6924306268881807,
+            0.6500382583164441,
+            0.6096585615644541,
+            0.571118832368054,
+            0.5342606809384106,
+            0.49893830540007195,
+            0.4650169449080719,
+            0.4323714757269953,
+            0.40088511430393153,
+            0.3704481892499088,
+            0.3409569378430983,
+            0.31231226961087455,
+            0.28441841467782825,
+            0.2571813275812337,
+            0.23050662608487918,
+            0.2042966587057209,
+            0.1784458890871755,
+            0.15283281655584316,
+            0.12730404527197103,
+            0.10163785280836561,
+            0.07544125372523813,
+            0.047730145656428184
+          ],
+          "observed_extrema_count": 6,
+          "observed_spacing_count": 5,
+          "observed_spacing_over_D": [
+            0.7244870449999999,
+            0.6577009194000001,
+            0.6576899500000002,
+            0.6577006147,
+            0.5927817118999998
+          ],
+          "observed_spacing_uncertainty_over_D": [
+            0.042426406871192854,
+            0.042426406871192854,
+            0.042426406871192854,
+            0.042426406871192854,
+            0.042426406871192854
+          ],
+          "operator_id": "op.reduce.pressure-extrema-spacing",
+          "phase_kind": "maximum",
+          "reason": "only the overlapping prefix of same-phase pressure-extrema spacing and reduced-order cell lengths was compared; this diagnostic does not identify physical reduced-order train cells or establish a validated shock-cell measurement operator",
+          "spacing_residuals_over_D": [
+            0.0505062428845342,
+            0.07932371254670889,
+            0.0347406768881805,
+            -0.007662356383555835,
+            0.01687684966445424
+          ],
+          "status": "partial-diagnostic"
+        },
+        "minimum": {
+          "claim_status": "not_accepted",
+          "matched_spacing_count": 6,
+          "metrics": {
+            "rmse_over_D": 0.04632771541066454,
+            "uncertainty_weighted_rmse": 1.0919547241253804
+          },
+          "model_cell_count": 24,
+          "model_spacing_over_D": [
+            0.7749932878845341,
+            0.737024631946709,
+            0.6924306268881807,
+            0.6500382583164441,
+            0.6096585615644541,
+            0.571118832368054,
+            0.5342606809384106,
+            0.49893830540007195,
+            0.4650169449080719,
+            0.4323714757269953,
+            0.40088511430393153,
+            0.3704481892499088,
+            0.3409569378430983,
+            0.31231226961087455,
+            0.28441841467782825,
+            0.2571813275812337,
+            0.23050662608487918,
+            0.2042966587057209,
+            0.1784458890871755,
+            0.15283281655584316,
+            0.12730404527197103,
+            0.10163785280836561,
+            0.07544125372523813,
+            0.047730145656428184
+          ],
+          "observed_extrema_count": 7,
+          "observed_spacing_count": 6,
+          "observed_spacing_over_D": [
+            0.7235584612,
+            0.6577006147,
+            0.6586287414,
+            0.6576911689,
+            0.6577201157000001,
+            0.5918228100999996
+          ],
+          "observed_spacing_uncertainty_over_D": [
+            0.042426406871192854,
+            0.042426406871192854,
+            0.042426406871192854,
+            0.042426406871192854,
+            0.042426406871192854,
+            0.042426406871192854
+          ],
+          "operator_id": "op.reduce.pressure-extrema-spacing",
+          "phase_kind": "minimum",
+          "reason": "only the overlapping prefix of same-phase pressure-extrema spacing and reduced-order cell lengths was compared; this diagnostic does not identify physical reduced-order train cells or establish a validated shock-cell measurement operator",
+          "spacing_residuals_over_D": [
+            0.05143482668453414,
+            0.07932401724670901,
+            0.03380188548818064,
+            -0.007652910583555883,
+            -0.048061554135546025,
+            -0.020703977731945544
+          ],
+          "status": "partial-diagnostic"
+        }
+      },
+      "status": "diagnostic-only"
+    },
     "observed_extrema": [
       {
         "kind": "minimum",

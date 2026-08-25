@@ -27,6 +27,11 @@ from exhaust_plume.models.shock_train import (  # noqa: E402
   solve_shock_train,
   sweep_shock_train_parameter,
 )
+from exhaust_plume.validation import (  # noqa: E402
+  SHOCK_TRAIN_PRESSURE_EXTREMA_SPACING_OPERATOR_ID,
+  PressureExtremum,
+  compare_shock_train_pressure_extrema_spacing,
+)
 
 try:
   from scripts.validate_cj_uej_component import (  # noqa: E402
@@ -156,11 +161,37 @@ def build_shock_train_component_report(corpus_path: Path) -> dict[str, Any]:
     {
       'x_over_D': float(row['x_over_D']),
       'observed': float(row['value']),
+      'x_digitization_uncertainty_over_D': float(
+        row['x_digitization_uncertainty_over_D']
+      ),
     }
     for row in profile_rows
     if row.get('profile_id') == 'centerline' and row.get('observable') == 'static_pressure_ratio'
   ]
   observed_extrema = _local_extrema(pressure_rows)
+  x_uncertainty_by_position = {
+    float(row['x_over_D']): float(row['x_digitization_uncertainty_over_D'])
+    for row in pressure_rows
+  }
+  observed_pressure_extrema = tuple(
+    PressureExtremum(
+      kind=str(extremum['kind']),
+      x_over_D=float(extremum['x_over_D']),
+      x_uncertainty_over_D=x_uncertainty_by_position.get(
+        float(extremum['x_over_D'])
+      ),
+    )
+    for extremum in observed_extrema
+  )
+  phase_spacing_comparisons = {
+    phase_kind: compare_shock_train_pressure_extrema_spacing(
+      tuple(cell.metrics.length_m for cell in result.cells),
+      diameter_m,
+      observed_pressure_extrema,
+      phase_kind=phase_kind,
+    ).as_report()
+    for phase_kind in ('minimum', 'maximum')
+  }
   observed_spacing = [
     float(current['x_over_D']) - float(previous['x_over_D'])
     for previous, current in zip(observed_extrema, observed_extrema[1:])
@@ -206,7 +237,16 @@ def build_shock_train_component_report(corpus_path: Path) -> dict[str, Any]:
       'profile_id': 'centerline',
       'observed_extrema': observed_extrema,
       'observed_extrema_spacing_over_D': observed_spacing,
-      'comparison_status': 'context-only; pressure probes do not identify reduced-order train cells',
+      'comparison_status': (
+        'diagnostic-only; same-phase pressure-extrema spacing does not '
+        'identify reduced-order train cells'
+      ),
+      'measurement_operator': {
+        'operator_id': SHOCK_TRAIN_PRESSURE_EXTREMA_SPACING_OPERATOR_ID,
+        'status': 'diagnostic-only',
+        'claim_status': 'not_accepted',
+        'phase_comparisons': phase_spacing_comparisons,
+      },
       'claim_status': 'not_accepted',
     },
     'sensitivity': [
@@ -227,7 +267,7 @@ def build_shock_train_component_report(corpus_path: Path) -> dict[str, Any]:
     'acceptance_blockers': [
       'No disjoint calibration and validation cases are present for the closure coefficients.',
       'The source is convergent/choked while the current first-cell contract uses an explicit near-sonic M>1 adapter.',
-      'Observed pressure extrema are not a validated measurement operator for reduced-order cell centers or spacing.',
+      'The pressure-extrema spacing operator is diagnostic-only; it does not identify reduced-order cell centers, and no independent calibration/validation split is available.',
       'The engineering seed supplies no calibrated parameter covariance; output uncertainty propagation is available only when a covariance-bearing calibration artifact is supplied.',
       'The provider advertises visual geometry only and cannot promote this evidence to signature, ray, or FPA claims.',
     ],

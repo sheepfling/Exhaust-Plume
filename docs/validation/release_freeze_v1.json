@@ -35,7 +35,7 @@
   "repository_quality": {
     "pytest": {
       "status": "passed",
-      "tests_passed": 434,
+      "tests_passed": 438,
       "warnings": 18
     },
     "ruff": "passed",
@@ -44,7 +44,7 @@
     "public_schema_fixture_determinism": "passed",
       "fresh_wheel_build_and_installed_smoke": "passed",
       "wheel_package_version": "0.1.0a2.dev0",
-    "wheel_sha256": "deb35e0fc7ba618368cd1a416555107e2fc4c276c0aa13b540055f6df697251c",
+    "wheel_sha256": "44fcd511f158b44ff33719791584a2a8e384a5fdd370f455eba2c8156cd1f15f",
     "first_cell_phase_1_report": "first_cell_phase_1_report.md",
     "first_cell_correlation_status": "diagnostic-passed-physical-closure-pending",
     "moc_cj_uej_component_diagnostic": "partial-component-evidence-not-accepted",
@@ -120,7 +120,7 @@
   "release_ready": false,
   "release_blockers": [
     "all current provider-specific external comparisons remain blocked by missing provider-bound measurement-space outputs, physical scenario assets, or accepted product-specific measurement-operator mappings",
-    "reduced-order shock-train closure has no disjoint calibration/validation split or train-cell measurement operator",
+    "reduced-order shock-train closure has no disjoint calibration/validation split; its pressure-extrema spacing mapping is diagnostic-only and does not identify physical train cells",
     "separately named MVP alignment archive is not yet verified",
     "planar MOC first-cell closure is not complete; the CJ-UEJ external reference comparison is quantified diagnostic evidence only and remains not accepted",
     "first-cell correlation has no accepted physical solver-length comparison while shock closure remains open"
