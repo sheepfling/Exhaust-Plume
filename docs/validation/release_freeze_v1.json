@@ -3,12 +3,12 @@
   "schema_version": "plume.release-freeze@1",
   "branch": "work/validation-and-completion",
   "base_main_commit": "dd4d57611ba940c8fc4a9721d4b3464b6bbd7848",
-  "head_commit": "8529fcc45afc36e15f23e8d6f07e7b972f565745",
+  "head_commit": "0afbbc6a18b4112bf28040def23e763fa8ae7229",
   "remote_publish_status": "local-only-not-pushed-or-merged",
   "repository_quality": {
     "pytest": {
       "status": "passed",
-      "tests_passed": 344,
+      "tests_passed": 349,
       "warnings": 18
     },
     "ruff": "passed",
@@ -16,7 +16,7 @@
     "public_schema_fixture_determinism": "passed",
       "fresh_wheel_build_and_installed_smoke": "passed",
       "wheel_package_version": "0.1.0a2.dev0",
-      "wheel_sha256": "6f0bf5cde5a3223e820d49ce3e971cf3bb218dca1042bcaf8e3da31dd2507d76",
+      "wheel_sha256": "9f9454a2e46430ec942a72455ad13092cdc75bfed4f894fd76544613233619f4",
     "known_installed_smoke_diagnostics": "legacy expansion-fan warnings and one expected unattainable pressure-target error log; smoke exited successfully"
   },
   "product_lanes": {
@@ -37,7 +37,13 @@
     "source_corpus_tests_status": "passed-from-isolated-archive-extraction",
     "provider_comparison_report": "provider_comparison_preflight_v1.json",
     "gate_eligible_comparison_mappings": 10,
-    "gate_eligible_comparison_status": "all-blocked-not-accepted"
+    "gate_eligible_comparison_status": "all-blocked-not-accepted",
+    "spectral_shape_probe": {
+      "status": "diagnostic-only-no-accepted-claims",
+      "no_overlap_mappings": 4,
+      "partial_overlap_diagnostic_mappings": 2,
+      "not_executed_mappings": 4
+    }
   },
   "component_validation": {
     "benchmark_id": "CJ-UEJ-001",
