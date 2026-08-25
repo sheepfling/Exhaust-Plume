@@ -1,9 +1,9 @@
 {
   "report_id": "exhaust-plume-completion-requirement-audit-v1",
   "schema_version": "plume.completion-requirement-audit@1",
-  "source_commit": "e877b2c3031e4737f1865bddd2984fe88d833449",
-  "head_commit": "11cd0e3f87ac5f1cedc9d5c541ea4e4341427d85",
-  "head_commit_note": "The evidence snapshot follows the prescribed post-shock-continuation code tranche; this ledger refresh is documentation-only.",
+  "source_commit": "b16f550b42331491430b18fcdbaf9275125e8b54",
+  "head_commit": "b16f550b42331491430b18fcdbaf9275125e8b54",
+  "head_commit_note": "The evidence snapshot includes the Visualization/Signature lane validation hardening recorded at b16f550.",
   "branch": "work/validation-and-completion",
   "base_main_commit": "dd4d57611ba940c8fc4a9721d4b3464b6bbd7848",
   "requirements": [
@@ -250,11 +250,11 @@
       "requirement_id": "repository-release-quality",
       "status": "verified",
       "evidence": {
-        "pytest_passed": 442,
+        "pytest_passed": 444,
         "ruff": "passed",
         "pyright": "passed",
         "installed_wheel_smoke": "passed-reproducible-offline-wheel",
-        "wheel_sha256": "cd8ef007985ff77b93a7defaf39b307d78f834c77f85715f0bd4543267e4b430",
+        "wheel_sha256": "c6a9109dccb92fa7755d07d03fd7bb07dc82642de0eb8abb59c66a09c0228bf1",
         "wheel_reproducibility": {
           "source_date_epoch": 1787670925,
           "independent_build_count": 2,

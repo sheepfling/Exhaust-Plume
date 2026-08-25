@@ -166,7 +166,7 @@
   },
   "report_id": "exhaust-plume-lane-release-manifest-v1",
   "schema_version": "plume.lane-release-manifest@1",
-  "source_commit": "e877b2c3031e4737f1865bddd2984fe88d833449",
+  "source_commit": "b16f550b42331491430b18fcdbaf9275125e8b54",
   "umbrella_release": {
     "blockers": [
       "all current provider-specific external comparisons remain blocked by missing provider-bound measurement-space outputs, physical scenario assets, or accepted product-specific measurement-operator mappings",
@@ -178,5 +178,5 @@
     ],
     "release_ready": false
   },
-  "wheel_sha256": "cd8ef007985ff77b93a7defaf39b307d78f834c77f85715f0bd4543267e4b430"
+  "wheel_sha256": "c6a9109dccb92fa7755d07d03fd7bb07dc82642de0eb8abb59c66a09c0228bf1"
 }
