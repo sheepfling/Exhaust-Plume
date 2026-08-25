@@ -3,12 +3,12 @@
   "schema_version": "plume.release-freeze@1",
   "branch": "work/validation-and-completion",
   "base_main_commit": "dd4d57611ba940c8fc4a9721d4b3464b6bbd7848",
-  "head_commit": "a8741ed4064fadbe8cd7a87e102342292f621b2b",
+  "head_commit": "8529fcc45afc36e15f23e8d6f07e7b972f565745",
   "remote_publish_status": "local-only-not-pushed-or-merged",
   "repository_quality": {
     "pytest": {
       "status": "passed",
-      "tests_passed": 339,
+      "tests_passed": 344,
       "warnings": 18
     },
     "ruff": "passed",
@@ -16,7 +16,7 @@
     "public_schema_fixture_determinism": "passed",
       "fresh_wheel_build_and_installed_smoke": "passed",
       "wheel_package_version": "0.1.0a2.dev0",
-      "wheel_sha256": "fec89c13cd9210a36fbeafeb607e4d30feb0371c902b4a394eef6d56e05ff6b9",
+      "wheel_sha256": "6f0bf5cde5a3223e820d49ce3e971cf3bb218dca1042bcaf8e3da31dd2507d76",
     "known_installed_smoke_diagnostics": "legacy expansion-fan warnings and one expected unattainable pressure-target error log; smoke exited successfully"
   },
   "product_lanes": {
@@ -25,7 +25,8 @@
     "signature": "passed-local-external-pending",
     "optical": "passed-analytic-external-pending",
     "ray_to_signature": "passed-synthetic-external-pending",
-    "focal_plane_array": "boundary-valid-not-implemented"
+    "focal_plane_array": "boundary-valid-not-implemented",
+    "focal_plane_array_operator": "passed-deterministic-source-only-adapter"
   },
   "validation_corpus": {
     "archive_sha256": "79c2a34dd4c43bd976ceb8773fdccd78a2592d903bf03ca57c2aef82f882e9aa",

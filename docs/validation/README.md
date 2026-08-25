@@ -92,7 +92,7 @@ detection claim.
 
 The branch-level freeze is recorded in
 [`release_freeze_v1.json`](release_freeze_v1.json). It captures the current
-339-test, Ruff, Pyright, deterministic-asset, and installed-wheel checks while keeping
+344-test, Ruff, Pyright, deterministic-asset, and installed-wheel checks while keeping
 `release_ready` false until the external gates close.
 
 The intake gate is a prerequisite for external validation claims. Corpus

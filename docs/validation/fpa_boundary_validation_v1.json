@@ -1,7 +1,7 @@
 {
   "report_id": "exhaust-plume-fpa-boundary-validation-v1",
   "schema_version": "plume.validation-report@1",
-  "source_commit": "dfc568e",
+  "source_commit": "8529fcc45afc36e15f23e8d6f07e7b972f565745",
   "reproduction": {
     "command": "python3 scripts/validate_product_lanes.py --output product-lane-report.json",
     "lane_id": "focal-plane-array-v1"
