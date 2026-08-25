@@ -58,7 +58,7 @@
     "ray_to_signature": "passed-synthetic-external-pending",
     "focal_plane_array": "boundary-validated-downstream",
     "focal_plane_array_operator": "passed-deterministic-expected-electron-and-ADC-adapters",
-    "planar_moc_foundation": "passed-local-foundation-open-interface-and-closure-pending",
+    "planar_moc_foundation": "passed-local-foundation-shared-interface-open-and-closure-pending",
     "first_cell_correlation": "passed-local-diagnostic-physical-length-pending"
   },
   "validation_corpus": {
@@ -119,8 +119,7 @@
     "reduced-order shock-train closure has no disjoint calibration/validation split or train-cell measurement operator",
     "separately named MVP alignment archive is not yet verified",
     "planar MOC first-cell closure and external reference comparison are not complete",
-    "fan/reflected characteristic interface reconciliation is not complete",
     "first-cell correlation has no accepted physical solver-length comparison while shock closure remains open"
   ],
-  "scope_boundary": "The completion branch contains bounded providers, an experimental calibrated reduced-order shock-train lane, an isolated planar MOC foundation with an open fan, reflected free-boundary march, a 44-cell connected open characteristic zone, an explicitly blocked fan/reflected grid interface, a boundary-side attached shock candidate, fully-expanded and first-cell correlation diagnostics, local residuals, explicit fidelity ceilings, analytic/synthetic validation, and reproducible evidence. It does not claim a closed MOC first cell or full thermochemical, curved-flow, sensor-space, or focal-plane-array validation."
+  "scope_boundary": "The completion branch contains bounded providers, an experimental calibrated reduced-order shock-train lane, an isolated planar MOC foundation with an open fan, reflected free-boundary march, a 44-cell connected open characteristic zone with a shared averaged-characteristic fan/reflected interface, a boundary-side attached shock candidate, fully-expanded and first-cell correlation diagnostics, local residuals, explicit fidelity ceilings, analytic/synthetic validation, and reproducible evidence. It does not claim a closed MOC first cell or full thermochemical, curved-flow, sensor-space, or focal-plane-array validation."
 }

@@ -60,10 +60,9 @@ class MocInterfaceStatus(str, Enum):
 class MocFanReflectedInterfaceResult:
   """Coordinate residuals between the fan grid and reflected march.
 
-  The reflected march solves centerline coordinates with averaged
-  characteristic geometry, while the fan records its lip-ray intersections.
-  These are different geometric constructions and must not be silently
-  identified as shared vertices.
+  The fan and reflected march must expose the same averaged-characteristic
+  compatibility grid before their cells are combined. The fan also retains
+  its direct lip-ray coordinates separately for diagnostic comparison.
   """
 
   status: MocInterfaceStatus
@@ -164,8 +163,8 @@ def validate_fan_reflected_interface(
   """Check whether fan axis vertices match reflected centerline coordinates.
 
   A misaligned result is diagnostic evidence, not a numerical failure of
-  either open primitive.  The caller must resolve the coordinate mismatch
-  with a compatible interface construction before combining their cells.
+  either open primitive. The caller must resolve the coordinate mismatch with
+  a compatible interface construction before combining their cells.
   """
 
   if not isfinite(position_tolerance_m) or position_tolerance_m <= 0.0:
@@ -186,13 +185,34 @@ def validate_fan_reflected_interface(
       position_tolerance_m=position_tolerance_m,
       message=f'reflected free boundary is not converged: {reflected_boundary.message}',
     )
-  if len(fan.centerline_points_m) != len(reflected_boundary.centerline_states):
+  if (
+    len(fan.centerline_points_m) != len(reflected_boundary.centerline_states)
+    or len(fan.centerline_states) != len(fan.centerline_points_m)
+  ):
     return MocFanReflectedInterfaceResult(
       status=MocInterfaceStatus.INVALID_INPUT,
       coordinate_residuals_m=(),
       maximum_coordinate_residual_m=None,
       position_tolerance_m=position_tolerance_m,
       message='fan and reflected centerline arrays have inconsistent lengths',
+    )
+  fan_internal_residual = max(
+    (
+      sqrt(
+        (point[0] - state.x_m) ** 2
+        + (point[1] - state.y_m) ** 2
+      )
+      for point, state in zip(fan.centerline_points_m, fan.centerline_states)
+    ),
+    default=0.0,
+  )
+  if fan_internal_residual > position_tolerance_m:
+    return MocFanReflectedInterfaceResult(
+      status=MocInterfaceStatus.INVALID_INPUT,
+      coordinate_residuals_m=(),
+      maximum_coordinate_residual_m=fan_internal_residual,
+      position_tolerance_m=position_tolerance_m,
+      message='fan centerline states do not reproduce its compatibility grid',
     )
   residuals = tuple(
     sqrt(

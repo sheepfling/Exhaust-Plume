@@ -171,12 +171,13 @@
       "message": ""
     },
     "fan_reflected_interface": {
-      "status": "misaligned",
-      "aligned": false,
-      "maximum_coordinate_residual_m": 0.1405629941238252,
+      "status": "aligned",
+      "aligned": true,
+      "maximum_coordinate_residual_m": 0.0,
+      "lip_ray_vs_compatibility_grid_maximum_residual_m": 0.1405629941238252,
       "position_tolerance_m": 1e-10,
-      "message": "fan lip-ray centerline points and reflected compatibility coordinates are not coincident; an explicit characteristic interface construction is required before combining their cells",
-      "claim_status": "blocked-until-explicit-characteristic-interface-construction"
+      "message": "fan and reflected march share the averaged compatibility grid; direct lip-ray coordinates remain diagnostic",
+      "claim_status": "diagnostic-interface-aligned-physical-closure-pending"
     },
     "fan_resolution_probe": {
       "status": "diagnostic-only-open-mesh",
@@ -185,8 +186,8 @@
           "characteristic_count": 4,
           "status": "converged",
           "cell_count": 4,
-          "first_axis_x_m": 0.08660254037833885,
-          "last_axis_x_m": 0.36465229919149933,
+          "first_axis_x_m": 0.08660254037828635,
+          "last_axis_x_m": 0.22408930506767413,
           "terminal_pressure_residual": 1.4361623714154308e-16,
           "reflected_boundary_status": "converged",
           "reflected_boundary_point_count": 5,
@@ -199,15 +200,15 @@
           "reflected_zone_cell_count": 14,
           "reflected_zone_forms_closed_zone": true,
           "reflected_zone_coverage_area_residual_m2": 0.0,
-          "fan_reflected_interface_status": "misaligned",
-          "fan_reflected_interface_maximum_coordinate_residual_m": 0.1405629941238252
+          "fan_reflected_interface_status": "aligned",
+          "fan_reflected_interface_maximum_coordinate_residual_m": 0.0
         },
         {
           "characteristic_count": 8,
           "status": "converged",
           "cell_count": 8,
-          "first_axis_x_m": 0.08660254037833885,
-          "last_axis_x_m": 0.36465229919149933,
+          "first_axis_x_m": 0.08660254037828635,
+          "last_axis_x_m": 0.22408930506767413,
           "terminal_pressure_residual": 1.4361623714154308e-16,
           "reflected_boundary_status": "converged",
           "reflected_boundary_point_count": 9,
@@ -220,15 +221,15 @@
           "reflected_zone_cell_count": 44,
           "reflected_zone_forms_closed_zone": true,
           "reflected_zone_coverage_area_residual_m2": 0.0,
-          "fan_reflected_interface_status": "misaligned",
-          "fan_reflected_interface_maximum_coordinate_residual_m": 0.1405629941238252
+          "fan_reflected_interface_status": "aligned",
+          "fan_reflected_interface_maximum_coordinate_residual_m": 0.0
         },
         {
           "characteristic_count": 16,
           "status": "converged",
           "cell_count": 16,
-          "first_axis_x_m": 0.08660254037833885,
-          "last_axis_x_m": 0.36465229919149933,
+          "first_axis_x_m": 0.08660254037828635,
+          "last_axis_x_m": 0.22408930506767413,
           "terminal_pressure_residual": 1.4361623714154308e-16,
           "reflected_boundary_status": "converged",
           "reflected_boundary_point_count": 17,
@@ -241,8 +242,8 @@
           "reflected_zone_cell_count": 152,
           "reflected_zone_forms_closed_zone": true,
           "reflected_zone_coverage_area_residual_m2": 0.0,
-          "fan_reflected_interface_status": "misaligned",
-          "fan_reflected_interface_maximum_coordinate_residual_m": 0.1405629941238252
+          "fan_reflected_interface_status": "aligned",
+          "fan_reflected_interface_maximum_coordinate_residual_m": 0.0
         }
       ]
     }
@@ -251,7 +252,6 @@
   "next_gates": [
     "physical free-boundary/compression geometry closure; pressure-state and open-mesh primitives remain insufficient",
     "post-shock characteristic zone continuation and complete downstream bookkeeping",
-    "fan/reflected characteristic interface reconciliation; current lip-ray and averaged-compatibility grids are diagnostic-only and not combinable",
     "grid/refinement convergence for the assembled reflected zone and mild attached-overexpanded cases",
     "independent measurement-operator comparison before provider integration"
   ]

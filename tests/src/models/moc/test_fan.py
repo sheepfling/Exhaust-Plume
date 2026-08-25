@@ -33,18 +33,26 @@ def test_underexpanded_fan_reaches_ambient_pressure_and_validates_cells() -> Non
 
   assert result.converged
   assert len(result.states) == 9
+  assert len(result.centerline_states) == 9
   assert len(result.lip_states) == 9
   assert len(result.centerline_points_m) == 9
+  assert len(result.lip_ray_centerline_points_m) == 9
   assert len(result.cells) == 8
   assert result.terminal_pressure_residual == pytest.approx(0.0, abs=1.0e-12)
   assert all(cell.geometry_status.value == 'valid' for cell in result.cells)
   assert all(state.x_m == pytest.approx(0.0) and state.y_m == pytest.approx(0.05) for state in result.lip_states)
   assert all(state.y_m == pytest.approx(0.0) for state in result.states)
+  assert all(state.theta_rad == pytest.approx(0.0, abs=1.0e-12) for state in result.centerline_states)
+  assert all(
+    state.x_m == pytest.approx(point[0], abs=1.0e-12)
+    for state, point in zip(result.centerline_states, result.centerline_points_m, strict=True)
+  )
   assert all(
     right[0] > left[0]
     for left, right in zip(result.centerline_points_m, result.centerline_points_m[1:])
   )
   assert isclose(result.states[-1].theta_rad - result.states[0].theta_rad, result.terminal_turn_rad)
+  assert result.lip_ray_centerline_points_m[-1][0] > result.centerline_points_m[-1][0]
 
 
 def test_fan_rejects_matched_or_overexpanded_exit() -> None:

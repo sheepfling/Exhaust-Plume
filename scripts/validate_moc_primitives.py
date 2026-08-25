@@ -111,6 +111,20 @@ def build_moc_primitive_report() -> dict[str, Any]:
     fan,
     reflected_boundary,
   )
+  lip_ray_grid_residual = max(
+    (
+      (
+        (lip_point[0] - centerline_point[0]) ** 2
+        + (lip_point[1] - centerline_point[1]) ** 2
+      ) ** 0.5
+      for lip_point, centerline_point in zip(
+        fan.lip_ray_centerline_points_m,
+        fan.centerline_points_m,
+        strict=True,
+      )
+    ),
+    default=0.0,
+  )
   shock_closure = (
     solve_attached_shock_to_centerline(
       reflected_boundary.boundary_states[-1],
@@ -374,9 +388,14 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'status': fan_reflected_interface.status.value,
       'aligned': fan_reflected_interface.aligned,
       'maximum_coordinate_residual_m': fan_reflected_interface.maximum_coordinate_residual_m,
+      'lip_ray_vs_compatibility_grid_maximum_residual_m': lip_ray_grid_residual,
       'position_tolerance_m': fan_reflected_interface.position_tolerance_m,
-      'message': fan_reflected_interface.message,
-      'claim_status': 'blocked-until-explicit-characteristic-interface-construction',
+      'message': (
+        fan_reflected_interface.message
+        if fan_reflected_interface.message
+        else 'fan and reflected march share the averaged compatibility grid; direct lip-ray coordinates remain diagnostic'
+      ),
+      'claim_status': 'diagnostic-interface-aligned-physical-closure-pending',
     },
     'fan_resolution_probe': {
       'status': 'diagnostic-only-open-mesh',
@@ -516,7 +535,6 @@ def build_moc_primitive_report() -> dict[str, Any]:
     'next_gates': [
       'physical free-boundary/compression geometry closure; pressure-state and open-mesh primitives remain insufficient',
       'post-shock characteristic zone continuation and complete downstream bookkeeping',
-      'fan/reflected characteristic interface reconciliation; current lip-ray and averaged-compatibility grids are diagnostic-only and not combinable',
       'grid/refinement convergence for the assembled reflected zone and mild attached-overexpanded cases',
       'independent measurement-operator comparison before provider integration',
     ],

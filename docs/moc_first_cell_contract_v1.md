@@ -15,7 +15,8 @@ The implementation in `exhaust_plume.models.moc` currently provides:
 - compatible interior characteristic points from one `C+` and one `C-` ray;
 - centerline compatibility with an exact `theta = 0` boundary state;
 - an open, triangular underexpanded expansion-fan mesh from the nozzle lip to
-  ambient-pressure axis intersections;
+  averaged-characteristic compatibility axis intersections, with direct
+  lip-ray intersections retained as a separate geometry diagnostic;
 - an attached-compression pressure inversion with weak/strong branch status
   and a supersonic-downstream check;
 - a turn-prescribed attached-compression state solve with weak/strong branch
@@ -34,6 +35,8 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   turn, branch, downstream-state, and forward-endpoint diagnostics;
 - mesh connectivity diagnostics that distinguish a topologically bounded
   polygon from an unresolved physical boundary;
+- a shared averaged-characteristic fan/reflected interface whose combined
+  cells pass connected one-perimeter topology checks;
 - structured scalar, invariant, and forward-ray geometry residuals.
 
 The fan mesh is intentionally open: it does not close the compression side,

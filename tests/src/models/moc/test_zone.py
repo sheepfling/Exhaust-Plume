@@ -10,6 +10,7 @@ from exhaust_plume.models.moc import (
   solve_reflected_free_boundary,
   solve_underexpanded_expansion_fan,
   validate_fan_reflected_interface,
+  validate_moc_mesh,
 )
 from exhaust_plume.models.nozzle.exit_state import derive_ambient_state, derive_uniform_nozzle_exit
 
@@ -53,7 +54,7 @@ def test_reflected_characteristic_zone_assembles_one_open_topological_perimeter(
   assert sum(cell.cell_kind == 'free-boundary-strip' for cell in result.cells) == 8
 
 
-def test_fan_reflected_interface_reports_unresolved_coordinate_mismatch() -> None:
+def test_fan_reflected_interface_reuses_compatibility_grid_and_connects_cells() -> None:
   gas = CaloricallyPerfectGas.dry_air()
   exit_state = derive_uniform_nozzle_exit(
     NozzleExitInput(
@@ -72,9 +73,13 @@ def test_fan_reflected_interface_reports_unresolved_coordinate_mismatch() -> Non
   reflected_boundary = solve_reflected_free_boundary(fan, exit_state, ambient)
 
   result = validate_fan_reflected_interface(fan, reflected_boundary)
+  zone = assemble_reflected_characteristic_zone(fan, reflected_boundary)
+  topology = validate_moc_mesh((*fan.cells, *zone.cells))
 
-  assert result.status is MocInterfaceStatus.MISALIGNED
-  assert not result.aligned
+  assert result.status is MocInterfaceStatus.ALIGNED
+  assert result.aligned
   assert result.maximum_coordinate_residual_m is not None
-  assert result.maximum_coordinate_residual_m > 1.0e-6
-  assert 'explicit characteristic interface construction' in result.message
+  assert result.maximum_coordinate_residual_m == pytest.approx(0.0, abs=1.0e-12)
+  assert topology.connected
+  assert topology.forms_closed_zone
+  assert topology.boundary_component_count == 1

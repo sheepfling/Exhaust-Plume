@@ -87,12 +87,12 @@ all converge for this case at (N=4,8,16). The returned zone is still open
 physically: its `shock_closure_status` is `not_assembled` and its
 `physical_closure_status` is `open`.
 
-The fan/reflected interface is not yet a shared physical grid. The fan stores
-lip-ray centerline intersections while the reflected march solves averaged
-compatibility geometry; the explicit interface check reports a maximum
-coordinate residual of 0.1405629941 m for the canonical N=8 case. The cells
-remain separate diagnostic meshes until a characteristic interface
-construction reconciles those coordinates.
+The fan/reflected interface now uses one shared averaged-characteristic
+compatibility grid. The interface check reports zero residual at the canonical
+N=8 case, and the combined fan plus reflected lattice is connected with one
+topological boundary cycle. The direct lip-ray construction is retained as a
+separate diagnostic; its maximum coordinate difference from the compatibility
+grid is 0.1405629941 m and is not silently substituted for the shared grid.
 
 The boundary-side attached-shock candidate now records a downstream total
 pressure of 1,849,892.35 Pa and a total-pressure ratio of 0.9249462 relative to
@@ -168,9 +168,8 @@ bindings.
   attached topology.
 - No nozzle separation model is claimed.
 - The open reflected characteristic zone is not a closed shock cell.
-- The fan lip-ray grid and reflected averaged-compatibility grid are not
-  coincident; they must not be combined by coordinate snapping or an inferred
-  shared edge.
+- The direct lip-ray grid remains a diagnostic construction and is not
+  substituted for the shared averaged-compatibility grid.
 - The post-shock candidate has no neighboring characteristic continuation.
 - No finite downstream shock train or physical termination is inferred.
 - No independent planar MOC reference family is bound to the current solver.
@@ -197,9 +196,9 @@ and shock closure statuses to remain open.
 
 This report passes the local equation, contract, matched-flow, scaling, and
 open-lattice diagnostic checks. It does **not** pass the Phase 1 release gate.
-The next required tranche is an explicitly reconciled characteristic interface,
-then a physically closed, independently referenced underexpanded first cell
-plus a mild attached overexpanded case, followed by a provider-bound external
-comparison. Until then, the basic visualization and signature products may use
-their existing bounded lanes, while the planar MOC and higher-fidelity
-shock-cell lane remain explicitly experimental and separate.
+The next required tranche is a physically closed, independently referenced
+underexpanded first cell plus a mild attached overexpanded case, followed by a
+provider-bound external comparison. Until then, the basic visualization and
+signature products may use their existing bounded lanes, while the planar MOC
+and higher-fidelity shock-cell lane remain explicitly experimental and
+separate.

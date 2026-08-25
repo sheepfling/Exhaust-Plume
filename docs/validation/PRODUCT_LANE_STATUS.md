@@ -74,11 +74,11 @@ The standalone planar-MOC foundation is recorded in
 reflected characteristic zone now has explicit connected one-perimeter mesh
 evidence and the shock candidate records total-pressure loss, but it remains
 outside the public product lanes until the fan/reflected coordinate interface
-is reconciled, physical compression/shock closure is assembled, post-shock
+is joined to a physically closed compression/shock construction, post-shock
 characteristic continuation is added, and grid/refinement convergence is
-accepted. The current interface check records a 0.1405629941 m canonical
-maximum coordinate residual and explicitly blocks combining the two diagnostic
-meshes by coordinate snapping.
+accepted. The shared averaged-characteristic interface now has zero residual;
+the separate direct lip-ray diagnostic differs by 0.1405629941 m and is not
+promoted into the combined mesh.
 
 The provider-comparison preflight is recorded in
 [`provider_comparison_preflight_v1.json`](provider_comparison_preflight_v1.json).

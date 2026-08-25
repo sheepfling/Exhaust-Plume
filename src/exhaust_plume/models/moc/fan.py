@@ -10,8 +10,10 @@ import numpy as np
 from exhaust_plume.geometry.contracts import GeometryStatus
 from exhaust_plume.geometry.polygons import validate_polygon
 from exhaust_plume.models.moc.primitives import (
+  CharacteristicFamily,
   CharacteristicState,
   MocPrimitiveStatus,
+  centerline_characteristic_point,
   inverse_prandtl_meyer_angle_rad,
   mach_angle_rad,
   prandtl_meyer_angle_rad,
@@ -49,10 +51,14 @@ class MocExpansionFanCell:
 class MocExpansionFanResult:
   """Structured expansion-fan result without a downstream closure claim.
 
-  ``states`` are the centerline-compatible states at the recorded axis
-  intersections. ``lip_states`` retain the same simple-wave states at the
-  nozzle-lip source point so reflected characteristic marches have explicit
-  source geometry.
+  ``states`` are the discretized simple-wave states used for fan-cell
+  interpolation. ``centerline_states`` are the compatibility states obtained
+  by intersecting each lip ``C-`` characteristic with the symmetry line.
+  ``centerline_points_m`` is that averaged-characteristic compatibility grid;
+  ``lip_ray_centerline_points_m`` retains the direct lip-ray intersections as
+  a diagnostic of the two geometric constructions. ``lip_states`` retain the
+  simple-wave states at the nozzle-lip source point so reflected characteristic
+  marches have explicit source geometry.
   """
 
   status: MocPrimitiveStatus
@@ -62,8 +68,10 @@ class MocExpansionFanResult:
   terminal_pressure_residual: float | None
   terminal_turn_rad: float | None
   states: tuple[CharacteristicState, ...]
+  centerline_states: tuple[CharacteristicState, ...]
   lip_states: tuple[CharacteristicState, ...]
   centerline_points_m: tuple[tuple[float, float], ...]
+  lip_ray_centerline_points_m: tuple[tuple[float, float], ...]
   cells: tuple[MocExpansionFanCell, ...]
   message: str = ''
 
@@ -88,8 +96,10 @@ def _invalid(
     terminal_pressure_residual=None,
     terminal_turn_rad=None,
     states=(),
+    centerline_states=(),
     lip_states=(),
     centerline_points_m=(),
+    lip_ray_centerline_points_m=(),
     cells=(),
     message=message,
   )
@@ -166,8 +176,10 @@ def solve_underexpanded_expansion_fan(
   ####
   lip = (0.0, float(exit_state.radius_m))
   states: list[CharacteristicState] = []
+  centerline_states: list[CharacteristicState] = []
   lip_states: list[CharacteristicState] = []
   centerline_points: list[tuple[float, float]] = []
+  lip_ray_centerline_points: list[tuple[float, float]] = []
   for index in range(characteristic_count + 1):
     fraction = index / characteristic_count
     nu = exit_nu + fraction * total_turn
@@ -210,6 +222,7 @@ def solve_underexpanded_expansion_fan(
         status=MocPrimitiveStatus.GEOMETRY_FAILURE,
         message=f'fan characteristic {index} produced a non-forward centerline point',
       )
+    lip_ray_centerline_points.append((x, 0.0))
     states.append(
       CharacteristicState(
         x_m=x,
@@ -219,9 +232,30 @@ def solve_underexpanded_expansion_fan(
         gamma=gamma,
       )
     )
-    centerline_points.append((x, 0.0))
+    centerline_result = centerline_characteristic_point(
+      lip_states[-1],
+      CharacteristicFamily.MINUS,
+      position_tolerance_m=geometric_tolerance_m,
+      invariant_tolerance=pressure_tolerance,
+    )
+    if not centerline_result.converged or centerline_result.state is None or centerline_result.point_m is None:
+      return _invalid(
+        exit_pressure=exit_pressure,
+        ambient_pressure=ambient_pressure,
+        status=centerline_result.status,
+        message=(
+          f'fan centerline compatibility state {index} failed: '
+          f'{centerline_result.message}'
+        ),
+      )
+    centerline_states.append(centerline_result.state)
+    centerline_points.append(centerline_result.point_m)
   ####
-  if any(right[0] - left[0] <= geometric_tolerance_m for left, right in zip(centerline_points, centerline_points[1:])):
+  if any(
+    right[0] - left[0] <= geometric_tolerance_m
+    for points in (centerline_points, lip_ray_centerline_points)
+    for left, right in zip(points, points[1:])
+  ):
     return _invalid(
       exit_pressure=exit_pressure,
       ambient_pressure=ambient_pressure,
@@ -275,8 +309,10 @@ def solve_underexpanded_expansion_fan(
     terminal_pressure_residual=pressure_residual,
     terminal_turn_rad=total_turn,
     states=tuple(states),
+    centerline_states=tuple(centerline_states),
     lip_states=tuple(lip_states),
     centerline_points_m=tuple(centerline_points),
+    lip_ray_centerline_points_m=tuple(lip_ray_centerline_points),
     cells=tuple(cells),
     message=(
       ''
