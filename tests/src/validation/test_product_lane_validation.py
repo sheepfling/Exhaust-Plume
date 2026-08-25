@@ -48,6 +48,7 @@ def test_signature_lane_local_interpolation_acceptance_is_explicitly_table_only(
   report = _run_signature_lane()
   assert report['status'] == 'passed'
   assert report['contract_interpolation_passed'] is True
+  assert report['measurement_space_operators']['sensor_space_probe']['status'] == 'passed'
   assert report['external_comparison']['status'] == 'pending'
 
 
@@ -57,6 +58,7 @@ def test_optical_lane_passes_analytic_gray_transfer_without_promoting_external_c
   assert report['status'] == 'passed'
   assert report['provider_id'] == 'plume.gray-ray-transfer'
   assert report['analytic_slab_and_chord_passed'] is True
+  assert report['sensor_space_operators']['status'] == 'passed'
   assert report['external_comparison']['status'] == 'pending'
 
 

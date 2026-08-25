@@ -84,6 +84,14 @@ pipelines, and explicit non-equivalences without treating the external
 Every entry remains `claim_status: not_accepted` until its provider-bound
 measurement comparison is accepted.
 
+The repository also implements the generic downstream composition primitives
+`op.atmosphere.path-transfer`, `op.sensor.los-fov-spectrum`, and
+`op.sensor.bandpass-detector`. Their synthetic probes verify explicit source
+versus path-radiance semantics, FOV selection and solid-angle weighting,
+response-domain coverage, band integration, and invalid-sample propagation.
+They do not supply a provider-bound flight, hot-fire, atmosphere, or detector
+asset, so they do not by themselves accept an external comparison.
+
 The reproducible local lane run is preserved in
 [`product_lane_validation_v1.json`](product_lane_validation_v1.json). It shows
 independent VIS and SIG contract/operator acceptance, the analytic optical

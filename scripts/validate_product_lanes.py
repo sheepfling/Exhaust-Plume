@@ -48,6 +48,14 @@ from exhaust_plume.validation.fpa_operators import (  # noqa: E402
   FpaPixelGeometry,
   integrate_ray_transfer_to_fpa,
 )
+from exhaust_plume.validation.sensor_operators import (  # noqa: E402
+  ATMOSPHERE_PATH_TRANSFER_OPERATOR_ID,
+  BANDPASS_DETECTOR_OPERATOR_ID,
+  LOS_FOV_SPECTRUM_OPERATOR_ID,
+  apply_atmospheric_path_transfer,
+  integrate_bandpass_detector_rows,
+  integrate_los_fov_spectrum,
+)
 from exhaust_plume.providers import (  # noqa: E402
   GrayRayTransferDefinition,
   GrayRayTransferProvider,
@@ -224,6 +232,62 @@ def _signature_definition() -> SignatureTableDefinition:
   )
 
 
+def _run_sensor_space_operator_probe() -> dict[str, Any]:
+  """Exercise downstream sensor math without inventing an external case."""
+
+  wavelengths = (1.0e-6, 2.0e-6, 3.0e-6)
+  source = ((2.0, 4.0, 6.0), (4.0, 8.0, 12.0))
+  path = apply_atmospheric_path_transfer(
+    wavelengths,
+    source,
+    ((0.5, 0.5, 0.5), (0.25, 0.25, 0.25)),
+    path_radiance=((1.0, 1.0, 1.0), (2.0, 2.0, 2.0)),
+  )
+  fov = integrate_los_fov_spectrum(
+    wavelengths,
+    ((1.0, 0.0, 0.0), (cos(0.2), sin(0.2), 0.0)),
+    path.values,
+    observer_direction=(1.0, 0.0, 0.0),
+    solid_angle_weights_sr=(0.25, 0.75),
+    fov_half_angle_rad=0.3,
+    source_semantics=path.source_semantics,
+  )
+  band = integrate_bandpass_detector_rows(
+    wavelengths,
+    (fov.values,),
+    wavelengths,
+    (0.0, 1.0, 0.0),
+    band_min_m=1.5e-6,
+    band_max_m=2.5e-6,
+    normalized_response=True,
+    response_id='synthetic-bandpass-v1',
+  )
+  passed = (
+    path.values == ((2.0, 3.0, 4.0), (3.0, 4.0, 5.0))
+    and path.validity_mask == ((True, True, True), (True, True, True))
+    and fov.selected_ray_indices == (0, 1)
+    and fov.validity_mask == (True, True, True)
+    and fov.values == (2.75, 3.75, 4.75)
+    and band.validity_mask == (True,)
+    and isclose(band.values[0], 3.75, rel_tol=1.0e-12, abs_tol=1.0e-12)
+  )
+  return {
+    'status': 'passed' if passed else 'failed',
+    'operator_ids': [
+      ATMOSPHERE_PATH_TRANSFER_OPERATOR_ID,
+      LOS_FOV_SPECTRUM_OPERATOR_ID,
+      BANDPASS_DETECTOR_OPERATOR_ID,
+    ],
+    'path_transfer_passed': path.values == ((2.0, 3.0, 4.0), (3.0, 4.0, 5.0)),
+    'los_fov_passed': fov.values == (2.75, 3.75, 4.75) and fov.validity_mask == (True, True, True),
+    'bandpass_passed': band.validity_mask == (True,) and isclose(
+      band.values[0], 3.75, rel_tol=1.0e-12, abs_tol=1.0e-12,
+    ),
+    'scope': 'synthetic downstream operator math only; no external observer, atmosphere, calibration, or detector asset',
+    'claim_status': 'not_accepted',
+  }
+
+
 def _run_signature_lane() -> dict[str, Any]:
   provider = SignatureTableProvider()
   definition = _signature_definition()
@@ -273,6 +337,7 @@ def _run_signature_lane() -> dict[str, Any]:
     1.5e-6,
     2.5e-6,
   )
+  sensor_space = _run_sensor_space_operator_probe()
   measurement_space_operators_passed = (
     sampled.values == ((1.5, 2.5),)
     and sampled.validity_mask == ((True, True),)
@@ -282,6 +347,7 @@ def _run_signature_lane() -> dict[str, Any]:
     and len(band.values) == 1
     and isclose(band.values[0], 2.0e-6, rel_tol=1.0e-12, abs_tol=1.0e-18)
     and band.validity_mask == (True,)
+    and sensor_space['status'] == 'passed'
   )
   return {
     'lane_id': 'signature-table-mvp-v1',
@@ -295,13 +361,15 @@ def _run_signature_lane() -> dict[str, Any]:
         SPECTRAL_SAMPLING_OPERATOR_ID,
         PEAK_NORMALIZATION_OPERATOR_ID,
         BAND_INTEGRATION_OPERATOR_ID,
+        *sensor_space['operator_ids'],
       ],
       'sensor_sampling_passed': sampled.values == ((1.5, 2.5),),
       'peak_normalization_passed': normalized.values == ((0.6, 1.0),),
       'band_integration_passed': len(band.values) == 1 and isclose(
         band.values[0], 2.0e-6, rel_tol=1.0e-12, abs_tol=1.0e-18,
       ),
-      'scope': 'spectral-array reduction only; no line-of-sight, atmosphere, optics, detector, or source calibration',
+      'sensor_space_probe': sensor_space,
+      'scope': 'spectral-array and synthetic downstream sensor-operator math only; no external observer, atmosphere, detector, or source calibration',
     },
     'output_shape': [len(result.spectral_radiant_intensity), len(result.spectral_radiant_intensity[0])],
     'output_units': 'W sr^-1 m^-1',
@@ -316,7 +384,7 @@ def _run_signature_lane() -> dict[str, Any]:
     'asset_source': 'repository synthetic contract fixture',
     'external_comparison': {
       'status': 'pending',
-      'reason': 'Recovered spectral observations are sensor-space or relative-shape products and require explicit LOS, path, detector, and source-calibration operators before comparison to intrinsic J_lambda.'
+      'reason': 'Recovered spectral observations are sensor-space or relative-shape products; generic LOS, path, and bandpass operators now pass synthetic probes, but the signature provider still lacks a corpus-bound observer, source-calibration, and detector scenario.'
     },
     'claim_ceiling': 'Versioned table and interpolation behavior only; no intrinsic physical validation claim.',
   }
@@ -433,6 +501,7 @@ def _run_optical_lane() -> dict[str, Any]:
     for index in (0, 1)
   )
   spectral_refinement_passed = spectral_endpoint_error <= 1.0e-12
+  sensor_space = _run_sensor_space_operator_probe()
   analytic_passed = (
     all(isclose(actual, expected, rel_tol=1.0e-12, abs_tol=1.0e-12) for actual, expected in zip(first.source_spectral_radiance[0], expected_source))
     and all(isclose(actual, expected, rel_tol=1.0e-12, abs_tol=1.0e-12) for actual, expected in zip(first.background_transmittance[0], expected_transmittance))
@@ -472,10 +541,11 @@ def _run_optical_lane() -> dict[str, Any]:
       'source_spectral_radiance_w_m2_sr_m': list(first.source_spectral_radiance[0]),
       'validity_mask': list(first.validity_mask[0]),
     },
+    'sensor_space_operators': sensor_space,
     'radiation_claim': first.metadata.claims.radiation.value,
     'external_comparison': {
       'status': 'pending',
-      'reason': 'The gray provider is analytically validated but the recovered external gates require sensor-space LOS, band, or path operators that are not yet implemented.',
+      'reason': 'The gray provider is analytically validated and generic downstream sensor operators pass synthetic probes, but the recovered external gates still require provider-bound observer, path, band, and scenario assets.',
     },
     'claim_ceiling': 'Homogeneous gray transfer through a straight constant-radius support only; no chemistry, atmosphere, detector, or FPA claim.',
   }
@@ -631,7 +701,7 @@ def _run_cross_product_consistency() -> dict[str, Any]:
     'claim_derivation': first.metadata.claims.derivation.value,
     'external_comparison': {
       'status': 'synthetic-only',
-      'reason': 'The adapter operator is verified against a homogeneous gray ray fixture; recovered sensor-space comparisons remain blocked by missing LOS/path/detector operators, while the exact external namespace remains distinct despite complete scoped semantic review.',
+      'reason': 'The adapter operator and generic sensor-space helpers are verified against homogeneous gray fixtures; recovered comparisons remain blocked by missing provider-bound scenario assets, while the exact external namespace remains distinct despite complete scoped semantic review.',
     },
     'claim_ceiling': 'Synthetic orthographic ray-to-signature consistency only; no experimental signature, atmosphere, detector, image, or FPA claim.',
   }

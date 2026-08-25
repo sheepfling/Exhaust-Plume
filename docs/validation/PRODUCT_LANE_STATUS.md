@@ -114,10 +114,12 @@ component evidence as `ready` and their T2 product evidence as
 `partial_evidence`; all three T0 contract gates are `outside_corpus`, and the
 T3 cross-product gate is `synthetic_only`. Those statuses describe the corpus
 alignment layer. The repository now has deterministic spectral-array
-sampling, peak-normalization, and numeric band-integration helpers, but still
-needs provider-bound LOS/path/detector operators, thresholds, source assets,
-and accepted product-specific measurement-operator mappings before it can
-accept any of the ten product comparisons.
+sampling, peak-normalization, band integration, atmospheric path transfer,
+LOS/FOV integration, and detector-bandpass helpers. These are generic
+downstream operators validated on synthetic fixtures; provider-bound observer,
+path, detector, source, and threshold assets plus accepted product-specific
+measurement mappings are still required before any of the ten comparisons can
+be accepted.
 
 ## Working branch
 

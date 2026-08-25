@@ -422,7 +422,7 @@ def build_comparison_plan(
       required_provider_outputs=['bsuv2_los_fov_sensor_space_radiance'],
       blockers=[
         'the provider asset is a synthetic table fixture, not the BSUV2 operating point',
-        'the current signature lane has no declared line-of-sight and field-of-view measurement operator',
+        'generic LOS/FOV and path-transfer operators are implemented, but the signature-table provider is not bound to the BSUV2 observer, source, or detector scenario',
         'the corpus contains 13 digitized sensor-space markers, not intrinsic J_lambda truth',
         *([crosswalk_blocker] if crosswalk_blocker is not None else []),
       ],
@@ -476,7 +476,7 @@ def build_comparison_plan(
       required_provider_outputs=['band_integrated_radiance', 'formulation_sweep'],
       blockers=[
         'the signature contract emits wavelength-resolved intensity, not the ALSI band-integrated observable',
-        'the local band-integral helper has no detector response or formulation-sweep input to represent the ALSI measurement operator',
+        'generic bandpass integration is implemented, but no ALSI detector-response asset or formulation-sweep provider input is available',
         *([crosswalk_blocker] if crosswalk_blocker is not None else []),
       ],
     ),
@@ -492,7 +492,7 @@ def build_comparison_plan(
       available_provider_outputs=ray_outputs,
       required_provider_outputs=['bsuv2_los_fov_sensor_space_radiance'],
       blockers=[
-        'the gray provider has no BSUV2 plume field, line-of-sight, or field-of-view detector model',
+        'generic LOS/FOV and path-transfer operators are implemented, but the gray provider has no BSUV2 plume field, observer, or calibrated detector scenario',
         'the external observable combines source, path, and sensor effects; the current provider only supplies homogeneous support transfer',
         *([crosswalk_blocker] if crosswalk_blocker is not None else []),
       ],
@@ -509,8 +509,7 @@ def build_comparison_plan(
       available_provider_outputs=ray_outputs,
       required_provider_outputs=['line_of_sight_peak_normalized_spectral_shape'],
       blockers=[
-        'the provider has no EMAP field or path-extinction scenario; spectral sampling and peak normalization are only post-processing helpers',
-        'local spectral reduction operators can only act after a ray/source scenario is available; they do not create the missing EMAP field or path operator',
+        'the provider has no EMAP field or path-extinction scenario; generic LOS/FOV, path-transfer, spectral sampling, and peak-normalization helpers cannot create the missing provider-bound field',
         'the corpus records a normalized source-plus-path shape, not independent source radiance and transmittance',
         *([crosswalk_blocker] if crosswalk_blocker is not None else []),
       ],
@@ -527,8 +526,7 @@ def build_comparison_plan(
       available_provider_outputs=ray_outputs,
       required_provider_outputs=['line_of_sight_peak_normalized_spectral_shape'],
       blockers=[
-        'the gray provider has no EMAP field, path-extinction scenario, or FTIR measurement-volume model',
-        'local spectral reduction operators can only act after a ray/source scenario is available; they do not create the missing field or path operator',
+        'the gray provider has no EMAP field, path-extinction scenario, or FTIR measurement-volume model; generic LOS/FOV and path-transfer helpers cannot create those provider-bound inputs',
         'the FTIR product is a raster envelope and does not separately identify source radiance and transmittance',
         *([crosswalk_blocker] if crosswalk_blocker is not None else []),
       ],
@@ -546,7 +544,7 @@ def build_comparison_plan(
       required_provider_outputs=['surface_detector_band_integrated_flux_time_history'],
       blockers=[
         'the gray provider has no time-dependent source state, surface pose, detector response, or conjugate thermal model',
-        'the local band-integral helper is a spectral-array reduction before detector response, not a Gardon surface operator',
+        'generic bandpass integration is available, but no time-dependent surface pose, Gardon response, or surface-flux provider is implemented',
         'the corpus trace is a digitized published display and is not a per-ray source-radiance truth set',
         *([crosswalk_blocker] if crosswalk_blocker is not None else []),
       ],
@@ -563,7 +561,7 @@ def build_comparison_plan(
       available_provider_outputs=ray_outputs,
       required_provider_outputs=['alsi_band_integrated_radiance_and_projected_power'],
       blockers=[
-        'the provider has no ALSI bandpass, projected-area, or image integration operator',
+        'generic bandpass integration is available, but no ALSI detector response, image integration, or projected-area scenario operator is implemented',
         'the thermal corpus is band-integrated and is not a per-ray source-spectrum truth set',
         *([crosswalk_blocker] if crosswalk_blocker is not None else []),
       ],
