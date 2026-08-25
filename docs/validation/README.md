@@ -32,3 +32,12 @@ archive itself is recovered and independently verified.
 The intake gate is a prerequisite for external validation claims. Repository
 contract tests and synthetic physics regressions may run before it, but they
 must not be reported as validation against the missing corpus.
+
+## Typed claim registry
+
+`exhaust_plume.validation.claims` loads the committed product catalog,
+measurement-operator registry, and evidence-level taxonomy without importing
+or rewriting experimental observations. It provides typed
+`BenchmarkDefinition`, `MeasurementOperatorSpec`, and `ValidationClaim`
+records. Quantitative claims require an explicit operator, uncertainty, and
+provenance; an unacquired evidence level cannot be marked accepted.
