@@ -3,7 +3,7 @@
   "schema_version": "plume.release-freeze@1",
   "branch": "work/validation-and-completion",
   "base_main_commit": "dd4d57611ba940c8fc4a9721d4b3464b6bbd7848",
-  "head_commit": "078d9f289c87fb28b0b29b8e3ebff3c28b27c540",
+  "head_commit": "084f5185c86b56299bd78f3a0485d48702629208",
   "completion_requirement_audit": "completion_requirement_audit_v1.json",
   "remote_publish_status": "validation-completion-branch-not-pushed; PRs-5-6-7-merged",
   "remote_main_commit": "d416cbcb30ee9ff853cac90cb088fcdd79677616",
@@ -27,7 +27,7 @@
   "repository_quality": {
     "pytest": {
       "status": "passed",
-      "tests_passed": 404,
+      "tests_passed": 406,
       "warnings": 18
     },
     "ruff": "passed",
@@ -36,7 +36,7 @@
     "public_schema_fixture_determinism": "passed",
       "fresh_wheel_build_and_installed_smoke": "passed",
       "wheel_package_version": "0.1.0a2.dev0",
-      "wheel_sha256": "b374b564fab25c1a85f05b91fe30fa2e21b2378c65658ff9d7543d591612f88d",
+      "wheel_sha256": "96b8473c194bd5bba1563230d2da2b4ba0809d27e04a83b27c3b54c76d874454",
     "committed_measurement_operator_count": 21,
     "known_installed_smoke_diagnostics": "legacy expansion-fan warnings and one expected unattainable pressure-target error log; smoke exited successfully"
   },

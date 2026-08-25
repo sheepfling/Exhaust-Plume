@@ -1,7 +1,7 @@
 {
   "report_id": "exhaust-plume-completion-requirement-audit-v1",
   "schema_version": "plume.completion-requirement-audit@1",
-  "source_commit": "078d9f289c87fb28b0b29b8e3ebff3c28b27c540",
+  "source_commit": "084f5185c86b56299bd78f3a0485d48702629208",
   "branch": "work/validation-and-completion",
   "base_main_commit": "dd4d57611ba940c8fc4a9721d4b3464b6bbd7848",
   "requirements": [
@@ -130,6 +130,17 @@
         "open_fan_characteristic_counts": [4, 8, 16],
         "free_boundary_pressure_and_tangent_residuals": "passed-local",
         "attached_compression_pressure_residual": 1.6168794698185392e-16,
+        "turn_prescribed_compression": {
+          "attached_status": "converged",
+          "shock_status": "attached",
+          "target_turn_rad": 0.1,
+          "turn_residual": 7.077671781985373e-15,
+          "downstream_mach": 1.7952608120292561,
+          "detached_turn_case": {
+            "status": "outside_domain",
+            "shock_status": "detached_shock_required"
+          }
+        },
         "mesh_topology": "connected-one-boundary-cycle-no-nonmanifold-edges",
         "physical_first_cell": "not_assembled",
         "external_reference_comparison": "pending",
@@ -145,11 +156,11 @@
       "requirement_id": "repository-release-quality",
       "status": "verified",
       "evidence": {
-        "pytest_passed": 404,
+        "pytest_passed": 406,
         "ruff": "passed",
         "pyright": "passed",
         "installed_wheel_smoke": "passed",
-        "wheel_sha256": "b374b564fab25c1a85f05b91fe30fa2e21b2378c65658ff9d7543d591612f88d"
+        "wheel_sha256": "96b8473c194bd5bba1563230d2da2b4ba0809d27e04a83b27c3b54c76d874454"
       }
     }
   ],
