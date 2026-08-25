@@ -2302,9 +2302,22 @@
       ]
     },
     "signature": {
+      "asset_id": "repository-synthetic-signature-contract-fixture-v1",
+      "asset_sha256": "2a35604852b25b7b0efff7def5a4feb142964b23d2e38767e60c5148494ac341",
       "asset_source": "repository synthetic contract fixture",
       "claim_ceiling": "Versioned table and interpolation behavior only; no intrinsic physical validation claim.",
       "lane_id": "signature-table-mvp-v1",
+      "local_contract_invariants": {
+        "all_requested_samples_valid": true,
+        "asset_identity_matches": true,
+        "asset_provenance_present": true,
+        "claim_ceiling_preserved": true,
+        "matrix_shape_matches_request": true,
+        "no_extrapolation_used": true,
+        "reasons": [],
+        "status": "passed",
+        "uncertainty_shape_matches": true
+      },
       "measurement_probe": {
         "direction_unit": [
           0.5,
@@ -2321,6 +2334,13 @@
           2e-06,
           3e-06
         ]
+      },
+      "measurement_space_guard": {
+        "claim_status": "diagnostic-only",
+        "cross_space_status": "blocked-measurement-space-mismatch",
+        "same_space_status": "full-domain-computed",
+        "scope": "measurement-space compatibility gate; no external curve is accepted by this fixture",
+        "status": "passed"
       },
       "measurement_space_operator_ids": [
         "op.sensor.spectral-sampling",
@@ -2346,6 +2366,7 @@
     "visual": {
       "claim_ceiling": "Engineering-approximate straight visual geometry and named display features only.",
       "lane_id": "shock-cell-basic-v1",
+      "local_geometry_invariants": "passed",
       "output_channels": [
         "core_radius_fraction",
         "opacity_weight"

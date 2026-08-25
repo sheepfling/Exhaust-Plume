@@ -47,6 +47,12 @@ from exhaust_plume.validation.measurement_operators import (
   peak_normalize_spectral_rows,
   sample_spectral_rows,
 )
+from exhaust_plume.validation.lane_contracts import (
+  SignatureLaneInvariantReport,
+  VisualLaneInvariantReport,
+  validate_signature_table_result,
+  validate_straight_visual_result,
+)
 from exhaust_plume.validation.spectral_comparisons import (
   DeclaredSpectralShapeComparison,
   INTRINSIC_SPECTRAL_RADIANT_INTENSITY_UNITS,
@@ -102,6 +108,8 @@ __all__ = (
   'FpaPixelGeometry',
   'FpaPixelImage',
   'MeasurementOperatorSpec',
+  'SignatureLaneInvariantReport',
+  'VisualLaneInvariantReport',
   'MACH_DISK_FEATURE_OPERATOR_ID',
   'LOS_FOV_SPECTRUM_OPERATOR_ID',
   'MachDiskPressureComparison',
@@ -142,6 +150,8 @@ __all__ = (
   'compare_declared_peak_normalized_spectral_shape',
   'compare_mach_disk_pressure_relation',
   'compare_shock_train_pressure_extrema_spacing',
+  'validate_signature_table_result',
+  'validate_straight_visual_result',
   'peak_normalize_spectral_rows',
   'sample_spectral_rows',
   'write_validity_report_csv',

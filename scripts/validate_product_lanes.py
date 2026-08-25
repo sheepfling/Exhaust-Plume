@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import asdict
 import json
 from math import cos, exp, isclose, pi, sin
 from pathlib import Path
@@ -29,6 +30,7 @@ from exhaust_plume import (  # noqa: E402
   derive_uniform_nozzle_exit,
 )
 from exhaust_plume.contracts import (  # noqa: E402
+  canonical_digest,
   SpectralSignatureRequest,
   run_visual_provider_conformance,
 )
@@ -59,6 +61,17 @@ from exhaust_plume.validation.sensor_operators import (  # noqa: E402
   apply_atmospheric_path_transfer,
   integrate_bandpass_detector_rows,
   integrate_los_fov_spectrum,
+)
+from exhaust_plume.validation.lane_contracts import (  # noqa: E402
+  validate_signature_table_result,
+  validate_straight_visual_result,
+)
+from exhaust_plume.validation.spectral_comparisons import (  # noqa: E402
+  INTRINSIC_SPECTRAL_RADIANT_INTENSITY_UNITS,
+  RELATIVE_SPECTRAL_SHAPE_UNITS,
+  SpectralCurve,
+  SpectralMeasurementSpace,
+  compare_declared_peak_normalized_spectral_shape,
 )
 from exhaust_plume.providers import (  # noqa: E402
   GrayRayTransferDefinition,
@@ -160,6 +173,7 @@ def _run_visual_lane() -> dict[str, Any]:
   case_summaries: list[dict[str, Any]] = []
   for provider, definition, state_factory, frame_id in provider_specs:
     request = _visual_request(frame_id)
+    provider_case_invariants: list[dict[str, Any]] = []
     for ratio in (1.0, 1.2, 0.85):
       state = state_factory(ratio)
       session = provider.create_session(definition=definition)
@@ -170,6 +184,12 @@ def _run_visual_lane() -> dict[str, Any]:
         ambient_state={},
       )
       result = snapshot.evaluate(VISUAL_SECTIONED_TUBE_V1, request)
+      invariant_report = validate_straight_visual_result(
+        result,
+        request,
+        expected_output_frame_id=frame_id,
+      )
+      provider_case_invariants.append(asdict(invariant_report))
       case_summaries.append({
         'exit_to_ambient_pressure_ratio': ratio,
         'section_count': len(result.sections),
@@ -177,6 +197,7 @@ def _run_visual_lane() -> dict[str, Any]:
         'applicability': result.metadata.applicability.status.value,
         'provider_id': result.metadata.provenance.provider_id,
         'radiation_claim': result.metadata.claims.radiation.value,
+        'local_geometry_invariants': asdict(invariant_report),
       })
 
     conformance = run_visual_provider_conformance(
@@ -196,16 +217,29 @@ def _run_visual_lane() -> dict[str, Any]:
       'contract_conformance': conformance.passed,
       'deterministic_serialization': conformance.deterministic_serialization,
       'output_channels': case_summaries[-1]['output_channels'],
+      'local_geometry_invariants': {
+        'status': 'passed' if all(
+          case['status'] == 'passed' for case in provider_case_invariants
+        ) else 'failed',
+        'cases': provider_case_invariants,
+      },
     })
   all_conformant = all(report['contract_conformance'] for report in provider_reports)
   all_deterministic = all(report['deterministic_serialization'] for report in provider_reports)
+  all_geometry_invariants = all(
+    report['local_geometry_invariants']['status'] == 'passed'
+    for report in provider_reports
+  )
   return {
     'lane_id': 'shock-cell-basic-v1',
     'product_id': VISUAL_SECTIONED_TUBE_V1.capability.wire_id,
     'provider_ids': [report['provider_id'] for report in provider_reports],
-    'status': 'passed' if all_conformant and all_deterministic else 'failed',
+    'status': 'passed' if all(
+      (all_conformant, all_deterministic, all_geometry_invariants)
+    ) else 'failed',
     'contract_conformance': all_conformant,
     'deterministic_serialization': all_deterministic,
+    'local_geometry_invariants': 'passed' if all_geometry_invariants else 'failed',
     'provider_reports': provider_reports,
     'cases': case_summaries,
     'external_comparison': {
@@ -216,21 +250,42 @@ def _run_visual_lane() -> dict[str, Any]:
   }
 
 
-def _signature_definition() -> SignatureTableDefinition:
-  return SignatureTableDefinition(
-    frame_id='source-local',
-    wavelengths_m=(1.0e-6, 2.0e-6, 3.0e-6),
-    direction_cosine_nodes=(-0.5, 0.0, 0.5),
-    spectral_radiant_intensity_w_sr_m=(
+_SIGNATURE_ASSET_ID = 'repository-synthetic-signature-contract-fixture-v1'
+_SIGNATURE_OPERATING_POINT_ID = 'repository-synthetic-contract-fixture'
+
+
+def _signature_asset_payload() -> dict[str, Any]:
+  return {
+    'schema': 'exhaust-plume.signature-table-fixture@1',
+    'asset_id': _SIGNATURE_ASSET_ID,
+    'operating_point_id': _SIGNATURE_OPERATING_POINT_ID,
+    'frame_id': 'source-local',
+    'wavelengths_m': (1.0e-6, 2.0e-6, 3.0e-6),
+    'direction_cosine_nodes': (-0.5, 0.0, 0.5),
+    'spectral_radiant_intensity_w_sr_m': (
       (0.5, 1.5, 2.5),
       (1.0, 2.0, 3.0),
       (1.5, 2.5, 3.5),
     ),
-    absolute_standard_uncertainty_w_sr_m=(
+    'absolute_standard_uncertainty_w_sr_m': (
       (0.05, 0.05, 0.05),
       (0.1, 0.1, 0.1),
       (0.15, 0.15, 0.15),
     ),
+  }
+
+
+def _signature_definition() -> SignatureTableDefinition:
+  payload = _signature_asset_payload()
+  return SignatureTableDefinition(
+    frame_id=payload['frame_id'],
+    wavelengths_m=payload['wavelengths_m'],
+    direction_cosine_nodes=payload['direction_cosine_nodes'],
+    spectral_radiant_intensity_w_sr_m=payload['spectral_radiant_intensity_w_sr_m'],
+    absolute_standard_uncertainty_w_sr_m=payload['absolute_standard_uncertainty_w_sr_m'],
+    asset_id=_SIGNATURE_ASSET_ID,
+    operating_point_id=_SIGNATURE_OPERATING_POINT_ID,
+    asset_sha256=canonical_digest(payload),
     wavelength_interpolation=LookupInterpolationPolicy.LINEAR,
     angular_interpolation=LookupInterpolationPolicy.LINEAR,
   )
@@ -295,6 +350,11 @@ def _run_sensor_space_operator_probe() -> dict[str, Any]:
 def _run_signature_lane() -> dict[str, Any]:
   provider = SignatureTableProvider()
   definition = _signature_definition()
+  request = SpectralSignatureRequest(
+    direction_frame_id='source-local',
+    source_to_observer_directions=((0.5, 3**0.5 / 2.0, 0.0),),
+    wavelengths_m=(1.5e-6, 2.5e-6),
+  )
   snapshot = provider.create_session(definition=definition).create_snapshot(
     time_s=0.0,
     source_pose=Pose(
@@ -307,11 +367,7 @@ def _run_signature_lane() -> dict[str, Any]:
   )
   result = snapshot.evaluate(
     SPECTRAL_RADIANT_INTENSITY_V1,
-    SpectralSignatureRequest(
-      direction_frame_id='source-local',
-      source_to_observer_directions=((0.5, 3**0.5 / 2.0, 0.0),),
-      wavelengths_m=(1.5e-6, 2.5e-6),
-    ),
+    request,
   )
   probe_result = snapshot.evaluate(
     SPECTRAL_RADIANT_INTENSITY_V1,
@@ -323,6 +379,12 @@ def _run_signature_lane() -> dict[str, Any]:
   )
   expected = ((2.0, 3.0),)
   contract_passed = result.spectral_radiant_intensity == expected and all(result.validity_mask[0])
+  invariant_report = validate_signature_table_result(
+    result,
+    request,
+    expected_asset_id=definition.asset_id,
+    expected_asset_sha256=definition.asset_sha256 or '',
+  )
   operator_source_wavelengths = definition.wavelengths_m
   operator_source_values = ((1.0, 2.0, 3.0),)
   sampled = sample_spectral_rows(
@@ -342,6 +404,32 @@ def _run_signature_lane() -> dict[str, Any]:
     2.5e-6,
   )
   sensor_space = _run_sensor_space_operator_probe()
+  intrinsic_curve = SpectralCurve(
+    wavelengths_m=definition.wavelengths_m,
+    values=probe_result.spectral_radiant_intensity[0],
+    measurement_space=SpectralMeasurementSpace.INTRINSIC_RADIANT_INTENSITY,
+    units=INTRINSIC_SPECTRAL_RADIANT_INTENSITY_UNITS,
+    source_semantics='synthetic signature-table fixture output',
+  )
+  relative_curve = SpectralCurve(
+    wavelengths_m=definition.wavelengths_m,
+    values=(1.0 / 3.0, 2.0 / 3.0, 1.0),
+    measurement_space=SpectralMeasurementSpace.RELATIVE_SHAPE,
+    units=RELATIVE_SPECTRAL_SHAPE_UNITS,
+    source_semantics='synthetic normalized diagnostic curve',
+  )
+  measurement_space_mismatch = compare_declared_peak_normalized_spectral_shape(
+    intrinsic_curve,
+    relative_curve,
+  )
+  same_space_shape = compare_declared_peak_normalized_spectral_shape(
+    relative_curve,
+    relative_curve,
+  )
+  measurement_space_guard_passed = (
+    measurement_space_mismatch.status == 'blocked-measurement-space-mismatch'
+    and same_space_shape.status == 'full-domain-computed'
+  )
   measurement_space_operators_passed = (
     sampled.values == ((1.5, 2.5),)
     and sampled.validity_mask == ((True, True),)
@@ -352,13 +440,21 @@ def _run_signature_lane() -> dict[str, Any]:
     and isclose(band.values[0], 2.0e-6, rel_tol=1.0e-12, abs_tol=1.0e-18)
     and band.validity_mask == (True,)
     and sensor_space['status'] == 'passed'
+    and measurement_space_guard_passed
+  )
+  local_validation_passed = (
+    contract_passed
+    and invariant_report.status == 'passed'
+    and measurement_space_operators_passed
+    and measurement_space_guard_passed
   )
   return {
     'lane_id': 'signature-table-mvp-v1',
     'product_id': SPECTRAL_RADIANT_INTENSITY_V1.capability.wire_id,
     'provider_id': provider.descriptor.provider_id,
-    'status': 'passed' if contract_passed and measurement_space_operators_passed else 'failed',
+    'status': 'passed' if local_validation_passed else 'failed',
     'contract_interpolation_passed': contract_passed,
+    'local_contract_invariants': asdict(invariant_report),
     'measurement_space_operators': {
       'status': 'passed' if measurement_space_operators_passed else 'failed',
       'operator_ids': [
@@ -373,6 +469,13 @@ def _run_signature_lane() -> dict[str, Any]:
         band.values[0], 2.0e-6, rel_tol=1.0e-12, abs_tol=1.0e-18,
       ),
       'sensor_space_probe': sensor_space,
+      'measurement_space_guard': {
+        'status': 'passed' if measurement_space_guard_passed else 'failed',
+        'cross_space_status': measurement_space_mismatch.status,
+        'same_space_status': same_space_shape.status,
+        'claim_status': 'diagnostic-only',
+        'scope': 'measurement-space compatibility gate; no external curve is accepted by this fixture',
+      },
       'scope': 'spectral-array and synthetic downstream sensor-operator math only; no external observer, atmosphere, detector, or source calibration',
     },
     'output_shape': [len(result.spectral_radiant_intensity), len(result.spectral_radiant_intensity[0])],
@@ -386,6 +489,8 @@ def _run_signature_lane() -> dict[str, Any]:
     'validity_mask': result.validity_mask,
     'radiation_claim': result.metadata.claims.radiation.value,
     'asset_source': 'repository synthetic contract fixture',
+    'asset_id': definition.asset_id,
+    'asset_sha256': definition.asset_sha256,
     'external_comparison': {
       'status': 'pending',
       'reason': 'Recovered spectral observations are sensor-space or relative-shape products; generic LOS, path, and bandpass operators now pass synthetic probes, but the signature provider still lacks a corpus-bound observer, source-calibration, and detector scenario.'

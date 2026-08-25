@@ -171,6 +171,7 @@ def _local_provider_inventory() -> dict[str, Any]:
       'provider_ids': visual['provider_ids'],
       'output_channels': visual_channels,
       'status': visual['status'],
+      'local_geometry_invariants': visual['local_geometry_invariants'],
       'claim_ceiling': visual['claim_ceiling'],
     },
     'signature': {
@@ -180,9 +181,13 @@ def _local_provider_inventory() -> dict[str, Any]:
       'output_shape': signature['output_shape'],
       'status': signature['status'],
       'asset_source': signature['asset_source'],
+      'asset_id': signature['asset_id'],
+      'asset_sha256': signature['asset_sha256'],
+      'local_contract_invariants': signature['local_contract_invariants'],
       'claim_ceiling': signature['claim_ceiling'],
       'measurement_space_operator_ids': signature['measurement_space_operators']['operator_ids'],
       'measurement_space_operator_status': signature['measurement_space_operators']['status'],
+      'measurement_space_guard': signature['measurement_space_operators']['measurement_space_guard'],
       'wavelength_domain_m': [
         min(signature['wavelengths_m']),
         max(signature['wavelengths_m']),

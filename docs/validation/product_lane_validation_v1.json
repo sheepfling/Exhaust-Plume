@@ -196,6 +196,8 @@
       ]
     },
     "signature": {
+      "asset_id": "repository-synthetic-signature-contract-fixture-v1",
+      "asset_sha256": "2a35604852b25b7b0efff7def5a4feb142964b23d2e38767e60c5148494ac341",
       "asset_source": "repository synthetic contract fixture",
       "claim_ceiling": "Versioned table and interpolation behavior only; no intrinsic physical validation claim.",
       "contract_interpolation_passed": true,
@@ -204,6 +206,17 @@
         "status": "pending"
       },
       "lane_id": "signature-table-mvp-v1",
+      "local_contract_invariants": {
+        "all_requested_samples_valid": true,
+        "asset_identity_matches": true,
+        "asset_provenance_present": true,
+        "claim_ceiling_preserved": true,
+        "matrix_shape_matches_request": true,
+        "no_extrapolation_used": true,
+        "reasons": [],
+        "status": "passed",
+        "uncertainty_shape_matches": true
+      },
       "measurement_probe": {
         "direction_unit": [
           0.5,
@@ -223,6 +236,13 @@
       },
       "measurement_space_operators": {
         "band_integration_passed": true,
+        "measurement_space_guard": {
+          "claim_status": "diagnostic-only",
+          "cross_space_status": "blocked-measurement-space-mismatch",
+          "same_space_status": "full-domain-computed",
+          "scope": "measurement-space compatibility gate; no external curve is accepted by this fixture",
+          "status": "passed"
+        },
         "operator_ids": [
           "op.sensor.spectral-sampling",
           "op.sensor.peak-normalize-spectrum",
@@ -275,6 +295,19 @@
         {
           "applicability": "marginal",
           "exit_to_ambient_pressure_ratio": 1.0,
+          "local_geometry_invariants": {
+            "arc_length_strictly_increasing": true,
+            "axial_extent_respected": true,
+            "channel_lengths_match": true,
+            "claim_ceiling_preserved": true,
+            "finite_positive_geometry": true,
+            "normalized_channels_bounded": true,
+            "reasons": [],
+            "section_count": 16,
+            "section_limit_respected": true,
+            "status": "passed",
+            "straight_axis_centerline": true
+          },
           "output_channels": [
             "core_radius_fraction",
             "opacity_weight"
@@ -286,6 +319,19 @@
         {
           "applicability": "marginal",
           "exit_to_ambient_pressure_ratio": 1.2,
+          "local_geometry_invariants": {
+            "arc_length_strictly_increasing": true,
+            "axial_extent_respected": true,
+            "channel_lengths_match": true,
+            "claim_ceiling_preserved": true,
+            "finite_positive_geometry": true,
+            "normalized_channels_bounded": true,
+            "reasons": [],
+            "section_count": 16,
+            "section_limit_respected": true,
+            "status": "passed",
+            "straight_axis_centerline": true
+          },
           "output_channels": [
             "core_radius_fraction",
             "opacity_weight"
@@ -297,6 +343,19 @@
         {
           "applicability": "marginal",
           "exit_to_ambient_pressure_ratio": 0.85,
+          "local_geometry_invariants": {
+            "arc_length_strictly_increasing": true,
+            "axial_extent_respected": true,
+            "channel_lengths_match": true,
+            "claim_ceiling_preserved": true,
+            "finite_positive_geometry": true,
+            "normalized_channels_bounded": true,
+            "reasons": [],
+            "section_count": 16,
+            "section_limit_respected": true,
+            "status": "passed",
+            "straight_axis_centerline": true
+          },
           "output_channels": [
             "core_radius_fraction",
             "opacity_weight"
@@ -308,6 +367,19 @@
         {
           "applicability": "marginal",
           "exit_to_ambient_pressure_ratio": 1.0,
+          "local_geometry_invariants": {
+            "arc_length_strictly_increasing": true,
+            "axial_extent_respected": true,
+            "channel_lengths_match": true,
+            "claim_ceiling_preserved": true,
+            "finite_positive_geometry": true,
+            "normalized_channels_bounded": true,
+            "reasons": [],
+            "section_count": 16,
+            "section_limit_respected": true,
+            "status": "passed",
+            "straight_axis_centerline": true
+          },
           "output_channels": [
             "core_radius_fraction",
             "opacity_weight"
@@ -319,6 +391,19 @@
         {
           "applicability": "marginal",
           "exit_to_ambient_pressure_ratio": 1.2,
+          "local_geometry_invariants": {
+            "arc_length_strictly_increasing": true,
+            "axial_extent_respected": true,
+            "channel_lengths_match": true,
+            "claim_ceiling_preserved": true,
+            "finite_positive_geometry": true,
+            "normalized_channels_bounded": true,
+            "reasons": [],
+            "section_count": 16,
+            "section_limit_respected": true,
+            "status": "passed",
+            "straight_axis_centerline": true
+          },
           "output_channels": [
             "core_radius_fraction",
             "opacity_weight"
@@ -330,6 +415,19 @@
         {
           "applicability": "marginal",
           "exit_to_ambient_pressure_ratio": 0.85,
+          "local_geometry_invariants": {
+            "arc_length_strictly_increasing": true,
+            "axial_extent_respected": true,
+            "channel_lengths_match": true,
+            "claim_ceiling_preserved": true,
+            "finite_positive_geometry": true,
+            "normalized_channels_bounded": true,
+            "reasons": [],
+            "section_count": 16,
+            "section_limit_respected": true,
+            "status": "passed",
+            "straight_axis_centerline": true
+          },
           "output_channels": [
             "core_radius_fraction",
             "opacity_weight"
@@ -347,6 +445,7 @@
         "status": "pending"
       },
       "lane_id": "shock-cell-basic-v1",
+      "local_geometry_invariants": "passed",
       "product_id": "plume.visual.sectioned-tube@1",
       "provider_ids": [
         "plume.straight-analytical",
@@ -356,6 +455,50 @@
         {
           "contract_conformance": true,
           "deterministic_serialization": true,
+          "local_geometry_invariants": {
+            "cases": [
+              {
+                "arc_length_strictly_increasing": true,
+                "axial_extent_respected": true,
+                "channel_lengths_match": true,
+                "claim_ceiling_preserved": true,
+                "finite_positive_geometry": true,
+                "normalized_channels_bounded": true,
+                "reasons": [],
+                "section_count": 16,
+                "section_limit_respected": true,
+                "status": "passed",
+                "straight_axis_centerline": true
+              },
+              {
+                "arc_length_strictly_increasing": true,
+                "axial_extent_respected": true,
+                "channel_lengths_match": true,
+                "claim_ceiling_preserved": true,
+                "finite_positive_geometry": true,
+                "normalized_channels_bounded": true,
+                "reasons": [],
+                "section_count": 16,
+                "section_limit_respected": true,
+                "status": "passed",
+                "straight_axis_centerline": true
+              },
+              {
+                "arc_length_strictly_increasing": true,
+                "axial_extent_respected": true,
+                "channel_lengths_match": true,
+                "claim_ceiling_preserved": true,
+                "finite_positive_geometry": true,
+                "normalized_channels_bounded": true,
+                "reasons": [],
+                "section_count": 16,
+                "section_limit_respected": true,
+                "status": "passed",
+                "straight_axis_centerline": true
+              }
+            ],
+            "status": "passed"
+          },
           "output_channels": [
             "core_radius_fraction",
             "opacity_weight"
@@ -365,6 +508,50 @@
         {
           "contract_conformance": true,
           "deterministic_serialization": true,
+          "local_geometry_invariants": {
+            "cases": [
+              {
+                "arc_length_strictly_increasing": true,
+                "axial_extent_respected": true,
+                "channel_lengths_match": true,
+                "claim_ceiling_preserved": true,
+                "finite_positive_geometry": true,
+                "normalized_channels_bounded": true,
+                "reasons": [],
+                "section_count": 16,
+                "section_limit_respected": true,
+                "status": "passed",
+                "straight_axis_centerline": true
+              },
+              {
+                "arc_length_strictly_increasing": true,
+                "axial_extent_respected": true,
+                "channel_lengths_match": true,
+                "claim_ceiling_preserved": true,
+                "finite_positive_geometry": true,
+                "normalized_channels_bounded": true,
+                "reasons": [],
+                "section_count": 16,
+                "section_limit_respected": true,
+                "status": "passed",
+                "straight_axis_centerline": true
+              },
+              {
+                "arc_length_strictly_increasing": true,
+                "axial_extent_respected": true,
+                "channel_lengths_match": true,
+                "claim_ceiling_preserved": true,
+                "finite_positive_geometry": true,
+                "normalized_channels_bounded": true,
+                "reasons": [],
+                "section_count": 16,
+                "section_limit_respected": true,
+                "status": "passed",
+                "straight_axis_centerline": true
+              }
+            ],
+            "status": "passed"
+          },
           "output_channels": [
             "core_radius_fraction",
             "opacity_weight"

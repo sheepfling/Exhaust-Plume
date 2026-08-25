@@ -41,6 +41,11 @@ def test_visual_lane_local_acceptance_is_separate_from_external_comparison() -> 
     'plume.shock-cell-analytical',
   ]
   assert {entry['provider_id'] for entry in report['provider_reports']} == set(report['provider_ids'])
+  assert report['local_geometry_invariants'] == 'passed'
+  assert all(
+    entry['local_geometry_invariants']['status'] == 'passed'
+    for entry in report['provider_reports']
+  )
   assert report['external_comparison']['status'] == 'pending'
 
 
@@ -48,7 +53,11 @@ def test_signature_lane_local_interpolation_acceptance_is_explicitly_table_only(
   report = _run_signature_lane()
   assert report['status'] == 'passed'
   assert report['contract_interpolation_passed'] is True
+  assert report['local_contract_invariants']['status'] == 'passed'
+  assert report['asset_sha256']
   assert report['measurement_space_operators']['sensor_space_probe']['status'] == 'passed'
+  assert report['measurement_space_operators']['measurement_space_guard']['status'] == 'passed'
+  assert report['measurement_space_operators']['measurement_space_guard']['cross_space_status'] == 'blocked-measurement-space-mismatch'
   assert report['external_comparison']['status'] == 'pending'
 
 
