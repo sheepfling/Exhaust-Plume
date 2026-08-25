@@ -70,7 +70,10 @@ The provider-comparison preflight is recorded in
 [`provider_comparison_preflight_v1.json`](provider_comparison_preflight_v1.json).
 It confirms that the two visual providers expose only
 `core_radius_fraction` and `opacity_weight`, so the HOTWAKE Mach-disk operator
-cannot be applied. It also keeps BSUV2, EMAP, and ALSI in their declared
+cannot be applied. The visual feature operator now has a branch-aware,
+no-extrapolation comparator, but the 606-point corpus relation supplies no
+explicit branch ID and the providers supply no Mach-disk feature or operating
+branch channel, so its execution is recorded as blocked. It also keeps BSUV2, EMAP, and ALSI in their declared
 sensor-space or band-integrated measurement spaces instead of comparing them
 to the synthetic intrinsic signature table. The gray ray-transfer provider now
 passes the analytic local gate, while its external sensor-space comparison

@@ -69,8 +69,46 @@
         ]
       },
       "operator_execution": {
-        "reason": "visual Mach-disk feature extraction is not a spectral-shape comparison",
-        "status": "not-executed"
+        "available_provider_outputs": [
+          "core_radius_fraction",
+          "opacity_weight"
+        ],
+        "claim_status": "not_accepted",
+        "comparison_method": "branch-aware-no-extrapolation",
+        "missing_provider_outputs": [
+          "mach_disk_position_m",
+          "operating_pressure_or_branch_id"
+        ],
+        "observed_branch_id_field_present": false,
+        "observed_columns": [
+          "benchmark_id",
+          "cluster_index_at_pixel_bin",
+          "combustion_chamber_pressure_bar",
+          "extraction_method",
+          "mach_disk_position_from_nozzle_exit_mm",
+          "measurement_kind",
+          "notes",
+          "point_index",
+          "position_digitization_uncertainty_mm",
+          "pressure_digitization_uncertainty_bar",
+          "run_id",
+          "sensor_description",
+          "series_id",
+          "source_figure",
+          "source_id",
+          "source_pdf_page_1_indexed",
+          "source_pixel_x",
+          "source_pixel_y",
+          "temporal_order_available"
+        ],
+        "observed_point_count": 606,
+        "operator_id": "op.visual.feature-extractor",
+        "reason": "current visual providers do not emit a Mach-disk feature and operating-branch channel",
+        "required_provider_outputs": [
+          "mach_disk_position_m",
+          "operating_pressure_or_branch_id"
+        ],
+        "status": "blocked-missing-provider-feature"
       },
       "product_id": "plume.visual.sectioned-tube@1",
       "provider_ids": [
@@ -1427,8 +1465,46 @@
       "status": "not-executed"
     },
     "VIS-MVP-A-061": {
-      "reason": "visual Mach-disk feature extraction is not a spectral-shape comparison",
-      "status": "not-executed"
+      "available_provider_outputs": [
+        "core_radius_fraction",
+        "opacity_weight"
+      ],
+      "claim_status": "not_accepted",
+      "comparison_method": "branch-aware-no-extrapolation",
+      "missing_provider_outputs": [
+        "mach_disk_position_m",
+        "operating_pressure_or_branch_id"
+      ],
+      "observed_branch_id_field_present": false,
+      "observed_columns": [
+        "benchmark_id",
+        "cluster_index_at_pixel_bin",
+        "combustion_chamber_pressure_bar",
+        "extraction_method",
+        "mach_disk_position_from_nozzle_exit_mm",
+        "measurement_kind",
+        "notes",
+        "point_index",
+        "position_digitization_uncertainty_mm",
+        "pressure_digitization_uncertainty_bar",
+        "run_id",
+        "sensor_description",
+        "series_id",
+        "source_figure",
+        "source_id",
+        "source_pdf_page_1_indexed",
+        "source_pixel_x",
+        "source_pixel_y",
+        "temporal_order_available"
+      ],
+      "observed_point_count": 606,
+      "operator_id": "op.visual.feature-extractor",
+      "reason": "current visual providers do not emit a Mach-disk feature and operating-branch channel",
+      "required_provider_outputs": [
+        "mach_disk_position_m",
+        "operating_pressure_or_branch_id"
+      ],
+      "status": "blocked-missing-provider-feature"
     }
   },
   "operator_reconciliation": {
@@ -1864,5 +1940,47 @@
       ],
       "status": "blocked_upstream_ray_and_external_detector"
     }
-  ]
+  ],
+  "visual_feature_operator": {
+    "available_provider_outputs": [
+      "core_radius_fraction",
+      "opacity_weight"
+    ],
+    "claim_status": "not_accepted",
+    "comparison_method": "branch-aware-no-extrapolation",
+    "missing_provider_outputs": [
+      "mach_disk_position_m",
+      "operating_pressure_or_branch_id"
+    ],
+    "observed_branch_id_field_present": false,
+    "observed_columns": [
+      "benchmark_id",
+      "cluster_index_at_pixel_bin",
+      "combustion_chamber_pressure_bar",
+      "extraction_method",
+      "mach_disk_position_from_nozzle_exit_mm",
+      "measurement_kind",
+      "notes",
+      "point_index",
+      "position_digitization_uncertainty_mm",
+      "pressure_digitization_uncertainty_bar",
+      "run_id",
+      "sensor_description",
+      "series_id",
+      "source_figure",
+      "source_id",
+      "source_pdf_page_1_indexed",
+      "source_pixel_x",
+      "source_pixel_y",
+      "temporal_order_available"
+    ],
+    "observed_point_count": 606,
+    "operator_id": "op.visual.feature-extractor",
+    "reason": "current visual providers do not emit a Mach-disk feature and operating-branch channel",
+    "required_provider_outputs": [
+      "mach_disk_position_m",
+      "operating_pressure_or_branch_id"
+    ],
+    "status": "blocked-missing-provider-feature"
+  }
 }

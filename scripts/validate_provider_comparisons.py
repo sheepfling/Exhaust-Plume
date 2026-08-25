@@ -27,10 +27,12 @@ try:
     _run_visual_lane,
   )
   from exhaust_plume.validation.spectral_comparisons import compare_peak_normalized_spectral_shape
+  from exhaust_plume.validation.visual_comparisons import MACH_DISK_FEATURE_OPERATOR_ID
 except ModuleNotFoundError:  # pragma: no cover - direct script execution
   from validate_external_corpus_alignment import _read_csv, _read_json, preflight_corpus
   from validate_product_lanes import _run_fpa_boundary, _run_optical_lane, _run_signature_lane, _run_visual_lane
   from exhaust_plume.validation.spectral_comparisons import compare_peak_normalized_spectral_shape
+  from exhaust_plume.validation.visual_comparisons import MACH_DISK_FEATURE_OPERATOR_ID
 
 
 VISUAL_PRODUCT = 'plume.visual.sectioned-tube@1'
@@ -215,6 +217,36 @@ def _not_executed(reason: str) -> dict[str, Any]:
   return {
     'status': 'not-executed',
     'reason': reason,
+  }
+
+
+def execute_visual_feature_probe(
+    observations: Mapping[str, Any],
+    providers: Mapping[str, Any],
+) -> dict[str, Any]:
+  """Record whether the visual Mach-disk feature contract can execute."""
+
+  observed = observations['RP-HOTWAKE-001']['mach_disk_relation']
+  available_outputs = list(providers['visual']['output_channels'])
+  required_outputs = ['mach_disk_position_m', 'operating_pressure_or_branch_id']
+  missing_outputs = [output for output in required_outputs if output not in available_outputs]
+  observed_columns = list(observed.get('columns', []))
+  return {
+    'operator_id': MACH_DISK_FEATURE_OPERATOR_ID,
+    'status': 'blocked-missing-provider-feature' if missing_outputs else 'not-executed-provider-sample-not-bound',
+    'claim_status': 'not_accepted',
+    'comparison_method': 'branch-aware-no-extrapolation',
+    'available_provider_outputs': available_outputs,
+    'required_provider_outputs': required_outputs,
+    'missing_provider_outputs': missing_outputs,
+    'observed_point_count': observed.get('row_count', 0),
+    'observed_columns': observed_columns,
+    'observed_branch_id_field_present': 'branch_id' in observed_columns,
+    'reason': (
+      'current visual providers do not emit a Mach-disk feature and operating-branch channel'
+      if missing_outputs else
+      'provider inventory has the feature names but no bound pressure/feature sample arrays'
+    ),
   }
 
 
@@ -604,6 +636,8 @@ def build_provider_comparison_preflight(path: Path) -> dict[str, Any]:
   providers = _local_provider_inventory()
   operator_status = corpus_report['operator_reconciliation']['crosswalk_status']
   operator_executions = execute_spectral_shape_probes(path, providers)
+  visual_feature_execution = execute_visual_feature_probe(observations, providers)
+  operator_executions['VIS-MVP-A-061'] = visual_feature_execution
   comparisons = build_comparison_plan(
     observations=observations,
     providers=providers,
@@ -615,6 +649,7 @@ def build_provider_comparison_preflight(path: Path) -> dict[str, Any]:
     'providers': providers,
     'corpus_observations': observations,
     'operator_executions': operator_executions,
+    'visual_feature_operator': visual_feature_execution,
     'comparisons': comparisons,
     'unimplemented_product_boundaries': build_unimplemented_boundaries(providers),
     'release_blockers': [

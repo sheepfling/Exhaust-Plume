@@ -68,6 +68,11 @@ where possible: BSUV2 and EMAP UVVIS have no model-domain overlap, while EMAP
 FTIR produces only a partial-overlap diagnostic because the synthetic provider
 ends at 3 micrometres and the observation continues beyond 5 micrometres.
 Those residuals are diagnostics, not validation claims.
+For the non-spectral VIS gate, the preflight also records the explicit
+branch-aware/no-extrapolation feature operator. The recovered HOTWAKE relation
+has 606 points but no declared branch ID, and the current providers do not
+emit the required Mach-disk feature channel; this remains a blocked diagnostic,
+not an inferred comparison.
 
 The reviewed, gate-specific operator semantics are recorded in
 [`operator_semantic_crosswalk_v1.json`](operator_semantic_crosswalk_v1.json).
@@ -108,7 +113,7 @@ detection claim.
 
 The branch-level freeze is recorded in
 [`release_freeze_v1.json`](release_freeze_v1.json). It captures the current
-351-test, Ruff, Pyright, deterministic-asset, and installed-wheel checks while keeping
+356-test, Ruff, Pyright, deterministic-asset, and installed-wheel checks while keeping
 `release_ready` false until the external gates close.
 
 The intake gate is a prerequisite for external validation claims. Corpus

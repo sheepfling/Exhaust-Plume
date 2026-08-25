@@ -5,6 +5,7 @@ from typing import Any
 from scripts.validate_provider_comparisons import (
   build_comparison_plan,
   build_unimplemented_boundaries,
+  execute_visual_feature_probe,
 )
 
 
@@ -109,3 +110,20 @@ def test_operator_execution_diagnostics_do_not_promote_a_blocked_comparison() ->
   assert comparison['operator_execution']['status'] == 'partial-overlap-diagnostic'
   assert comparison['comparison_status'] == 'blocked'
   assert comparison['claim_status'] == 'not_accepted'
+
+
+def test_visual_feature_probe_reports_missing_feature_and_branch_contract() -> None:
+  result = execute_visual_feature_probe(
+    _observations(),
+    _providers(),
+  )
+
+  assert result['status'] == 'blocked-missing-provider-feature'
+  assert result['claim_status'] == 'not_accepted'
+  assert result['comparison_method'] == 'branch-aware-no-extrapolation'
+  assert result['observed_point_count'] == 606
+  assert result['observed_branch_id_field_present'] is False
+  assert result['missing_provider_outputs'] == [
+    'mach_disk_position_m',
+    'operating_pressure_or_branch_id',
+  ]

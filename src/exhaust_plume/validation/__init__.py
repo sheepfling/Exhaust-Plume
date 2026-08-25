@@ -46,6 +46,11 @@ from exhaust_plume.validation.spectral_comparisons import (
   SpectralShapeComparison,
   compare_peak_normalized_spectral_shape,
 )
+from exhaust_plume.validation.visual_comparisons import (
+  MACH_DISK_FEATURE_OPERATOR_ID,
+  MachDiskPressureComparison,
+  compare_mach_disk_pressure_relation,
+)
 
 __all__ = (
   'BenchmarkDefinition',
@@ -61,6 +66,8 @@ __all__ = (
   'FpaPixelGeometry',
   'FpaPixelImage',
   'MeasurementOperatorSpec',
+  'MACH_DISK_FEATURE_OPERATOR_ID',
+  'MachDiskPressureComparison',
   'NozzleCaseAssessment',
   'NozzleValidityCase',
   'OperatorStatus',
@@ -80,6 +87,7 @@ __all__ = (
   'integrate_spectral_band_rows',
   'integrate_ray_transfer_to_fpa',
   'compare_peak_normalized_spectral_shape',
+  'compare_mach_disk_pressure_relation',
   'peak_normalize_spectral_rows',
   'sample_spectral_rows',
   'write_validity_report_csv',

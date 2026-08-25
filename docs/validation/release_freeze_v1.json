@@ -8,7 +8,7 @@
   "repository_quality": {
     "pytest": {
       "status": "passed",
-      "tests_passed": 351,
+      "tests_passed": 356,
       "warnings": 18
     },
     "ruff": "passed",
@@ -45,6 +45,16 @@
       "no_overlap_mappings": 4,
       "partial_overlap_diagnostic_mappings": 2,
       "not_executed_mappings": 4
+    },
+    "visual_feature_probe": {
+      "status": "blocked-missing-provider-feature",
+      "comparison_method": "branch-aware-no-extrapolation",
+      "observed_point_count": 606,
+      "observed_branch_id_field_present": false,
+      "missing_provider_outputs": [
+        "mach_disk_position_m",
+        "operating_pressure_or_branch_id"
+      ]
     }
   },
   "component_validation": {
