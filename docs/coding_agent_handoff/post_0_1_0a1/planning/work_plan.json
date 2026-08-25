@@ -1,0 +1,67 @@
+{
+  "schema_version": "exhaust-plume-work-plan-v1",
+  "packet_version": "1.0.0",
+  "repository": "sheepfling/Exhaust-Plume",
+  "baseline": {
+    "branch": "main",
+    "commit": "49d6ffd1839258ce14319e157002005c6d2230e1",
+    "package_version": "0.1.0.a1"
+  },
+  "recommended_release_train": [
+    {
+      "release": "0.1.0a1",
+      "objective": "Reproducible baseline tag and release evidence",
+      "completion_packets": ["RLS-001", "RLS-002"]
+    },
+    {
+      "release": "0.1.0a2",
+      "objective": "One canonical API plus canonical straight, signature, and washed providers",
+      "completion_packets": ["API-010", "WASH-005"]
+    },
+    {
+      "release": "0.2.0a1",
+      "objective": "Validated MOC first cell and conservative endpoint handoff",
+      "completion_packets": ["MOC-007", "HND-003"]
+    },
+    {
+      "release": "0.2.0a2",
+      "objective": "Finite shock train, calibrated mixing, and physical termination",
+      "completion_packets": ["COMP-001"]
+    }
+  ],
+  "packets": [
+    {"id":"RLS-001","title":"Run and record the final main release gate","phase":"Release integrity","target_release":"0.1.0a1","priority":"P0","depends_on":[],"issue_file":"issues/rls_001_run-and-record-the-final-main-release-gate.md"},
+    {"id":"RLS-002","title":"Verify alpha tag and repository hygiene","phase":"Release integrity","target_release":"0.1.0a1","priority":"P0","depends_on":["RLS-001"],"issue_file":"issues/rls_002_tag-the-alpha-baseline-and-clean-repository-state.md"},
+    {"id":"API-008A","title":"Approve one canonical API and wire-contract authority","phase":"API consolidation","target_release":"0.1.0a2","priority":"P0","depends_on":["RLS-001"],"issue_file":"issues/api_008a_approve-one-canonical-api-and-wire-contract-authority.md"},
+    {"id":"API-008B","title":"Unify capability identities, lifecycle, and result envelopes","phase":"API consolidation","target_release":"0.1.0a2","priority":"P0","depends_on":["API-008A"],"issue_file":"issues/api_008b_unify-capability-identities-lifecycle-and-result-envelopes.md"},
+    {"id":"API-008C","title":"Establish canonical schema and fixture generation","phase":"API consolidation","target_release":"0.1.0a2","priority":"P0","depends_on":["API-008B"],"issue_file":"issues/api_008c_establish-canonical-schema-and-fixture-generation.md"},
+    {"id":"API-009","title":"Build the reusable canonical provider conformance harness","phase":"API consolidation","target_release":"0.1.0a2","priority":"P0","depends_on":["API-008C"],"issue_file":"issues/api_009_build-the-reusable-canonical-provider-conformance-harness.md"},
+    {"id":"PRV-001","title":"Port the prescribed visual provider to the canonical API","phase":"Canonical providers","target_release":"0.1.0a2","priority":"P0","depends_on":["API-009"],"issue_file":"issues/prv_001_port-the-prescribed-visual-provider-to-the-canonical-api.md"},
+    {"id":"PRV-002","title":"Port the straight analytical visual provider to the canonical API","phase":"Canonical providers","target_release":"0.1.0a2","priority":"P0","depends_on":["API-009"],"issue_file":"issues/prv_002_port-the-straight-analytical-visual-provider-to-the-canonical-api.md"},
+    {"id":"PRV-003","title":"Port the signature-table provider to the canonical API","phase":"Canonical providers","target_release":"0.1.0a2","priority":"P0","depends_on":["API-009"],"issue_file":"issues/prv_003_port-the-signature-table-provider-to-the-canonical-api.md"},
+    {"id":"PRV-004","title":"Add compatibility aliases and a deprecation schedule","phase":"Canonical providers","target_release":"0.1.0a2","priority":"P0","depends_on":["PRV-001","PRV-002","PRV-003"],"issue_file":"issues/prv_004_add-compatibility-aliases-and-a-deprecation-schedule.md"},
+    {"id":"API-010","title":"Hold the formal v1 API freeze gate","phase":"API consolidation","target_release":"0.1.0a2","priority":"P0","depends_on":["PRV-004"],"issue_file":"issues/api_010_hold-the-formal-v1-api-freeze-gate.md"},
+    {"id":"HND-001","title":"Freeze the canonical PlumeFluxSection handoff","phase":"Conservative composition","target_release":"0.1.0a2","priority":"P0","depends_on":["API-008B"],"issue_file":"issues/hnd_001_freeze-the-canonical-plumefluxsection-handoff.md"},
+    {"id":"HND-002","title":"Implement explicit matched-source handoff construction","phase":"Conservative composition","target_release":"0.1.0a2","priority":"P0","depends_on":["HND-001"],"issue_file":"issues/hnd_002_implement-explicit-matched-source-handoff-construction.md"},
+    {"id":"WASH-001","title":"Define canonical washed-plume provider inputs and session semantics","phase":"Washed plume productization","target_release":"0.1.0a2","priority":"P0","depends_on":["API-009","HND-001"],"issue_file":"issues/wash_001_define-canonical-washed-plume-provider-inputs-and-session-semantics.md"},
+    {"id":"WASH-002","title":"Wrap the curved conservation kernel in the canonical provider","phase":"Washed plume productization","target_release":"0.1.0a2","priority":"P0","depends_on":["WASH-001","HND-002"],"issue_file":"issues/wash_002_wrap-the-curved-conservation-kernel-in-the-canonical-provider.md"},
+    {"id":"WASH-003","title":"Expose washed visual and engineering products","phase":"Washed plume productization","target_release":"0.1.0a2","priority":"P0","depends_on":["WASH-002"],"issue_file":"issues/wash_003_expose-washed-visual-and-engineering-products.md"},
+    {"id":"WASH-004","title":"Add washed-provider conformance and consumer fixtures","phase":"Washed plume productization","target_release":"0.1.0a2","priority":"P0","depends_on":["WASH-003"],"issue_file":"issues/wash_004_add-washed-provider-conformance-and-consumer-fixtures.md"},
+    {"id":"WASH-005","title":"Hold the 0.1.0a2 release gate","phase":"Washed plume productization","target_release":"0.1.0a2","priority":"P0","depends_on":["API-010","WASH-004","RLS-002"],"issue_file":"issues/wash_005_hold-the-0-1-0a2-release-gate.md"},
+    {"id":"MOC-001","title":"Freeze the mathematical contract for a validated first cell","phase":"Validated near field","target_release":"0.2.0a1","priority":"P0","depends_on":["RLS-001"],"issue_file":"issues/moc_001_freeze-the-mathematical-contract-for-a-validated-first-cell.md"},
+    {"id":"MOC-002","title":"Implement inverse Prandtl–Meyer and characteristic primitives","phase":"Validated near field","target_release":"0.2.0a1","priority":"P0","depends_on":["MOC-001"],"issue_file":"issues/moc_002_implement-inverse-prandtl-meyer-and-characteristic-primitives.md"},
+    {"id":"MOC-003","title":"Implement centerline symmetry and interior characteristic mesh","phase":"Validated near field","target_release":"0.2.0a1","priority":"P0","depends_on":["MOC-002"],"issue_file":"issues/moc_003_implement-centerline-symmetry-and-interior-characteristic-mesh.md"},
+    {"id":"MOC-004","title":"Implement the underexpanded ambient-pressure free boundary","phase":"Validated near field","target_release":"0.2.0a1","priority":"P0","depends_on":["MOC-003"],"issue_file":"issues/moc_004_implement-the-underexpanded-ambient-pressure-free-boundary.md"},
+    {"id":"MOC-005","title":"Implement attached-overexpanded first-cell topology","phase":"Validated near field","target_release":"0.2.0a1","priority":"P0","depends_on":["MOC-003"],"issue_file":"issues/moc_005_implement-attached-overexpanded-first-cell-topology.md"},
+    {"id":"MOC-006","title":"Complete convergence and external validation evidence","phase":"Validated near field","target_release":"0.2.0a1","priority":"P0","depends_on":["MOC-004","MOC-005"],"issue_file":"issues/moc_006_complete-convergence-and-external-validation-evidence.md"},
+    {"id":"MOC-007","title":"Replace the compatibility-backed first-cell core","phase":"Validated near field","target_release":"0.2.0a1","priority":"P0","depends_on":["MOC-006","API-010"],"issue_file":"issues/moc_007_replace-the-compatibility-backed-first-cell-core.md"},
+    {"id":"HND-003","title":"Integrate the validated first-cell endpoint over a control surface","phase":"Conservative composition","target_release":"0.2.0a1","priority":"P0","depends_on":["MOC-007","HND-001"],"issue_file":"issues/hnd_003_integrate-the-validated-first-cell-endpoint-over-a-control-surface.md"},
+    {"id":"CELL-001","title":"Implement a finite coherent shock train","phase":"Downstream straight plume","target_release":"0.2.0a2","priority":"P1","depends_on":["HND-003"],"issue_file":"issues/cell_001_implement-a-finite-coherent-shock-train.md"},
+    {"id":"MIX-001","title":"Correct and harden the straight integral continuation","phase":"Downstream straight plume","target_release":"0.2.0a2","priority":"P1","depends_on":["HND-001"],"issue_file":"issues/mix_001_correct-and-harden-the-straight-integral-continuation.md"},
+    {"id":"MIX-002","title":"Calibrate entrainment and reconstruct useful profiles","phase":"Downstream straight plume","target_release":"0.2.0a2","priority":"P1","depends_on":["MIX-001"],"issue_file":"issues/mix_002_calibrate-entrainment-and-reconstruct-useful-profiles.md"},
+    {"id":"TERM-001","title":"Implement coherent-plume termination and passive-scalar handoff","phase":"Downstream straight plume","target_release":"0.2.0a2","priority":"P1","depends_on":["CELL-001","MIX-002"],"issue_file":"issues/term_001_implement-coherent-plume-termination-and-passive-scalar-handoff.md"},
+    {"id":"COMP-001","title":"Compose near field, shock train, and straight mixing provider","phase":"Downstream straight plume","target_release":"0.2.0a2","priority":"P1","depends_on":["CELL-001","MIX-002","TERM-001","API-010"],"issue_file":"issues/comp_001_compose-near-field-shock-train-and-straight-mixing-provider.md"}
+  ],
+  "topological_order": ["RLS-001","API-008A","MOC-001","RLS-002","API-008B","MOC-002","API-008C","HND-001","MOC-003","API-009","HND-002","MIX-001","MOC-004","MOC-005","MIX-002","MOC-006","PRV-001","PRV-002","PRV-003","WASH-001","PRV-004","WASH-002","API-010","WASH-003","MOC-007","WASH-004","HND-003","WASH-005","CELL-001","TERM-001","COMP-001"],
+  "deferred_future_tranches": [{"name":"physical optical path","status":"separate review required before issue publication","planned_ids":["RAY-001","RAD-001","RAD-002","RAD-003","SIG-002","OPT-VAL-001"],"summary":"Exact ray geometry, gray radiometry/transfer, ray-backed signature derivation, and optical validation remain future program scope. Detailed implementation issue bodies are intentionally not part of this PR."}]
+}

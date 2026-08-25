@@ -1,0 +1,32 @@
+id,title,phase,target_release,priority,depends_on,issue_file
+RLS-001,Run and record the final main release gate,Release integrity,0.1.0a1,P0,,issues/rls_001_run-and-record-the-final-main-release-gate.md
+RLS-002,Verify alpha tag and repository hygiene,Release integrity,0.1.0a1,P0,RLS-001,issues/rls_002_tag-the-alpha-baseline-and-clean-repository-state.md
+API-008A,Approve one canonical API and wire-contract authority,API consolidation,0.1.0a2,P0,RLS-001,issues/api_008a_approve-one-canonical-api-and-wire-contract-authority.md
+API-008B,"Unify capability identities, lifecycle, and result envelopes",API consolidation,0.1.0a2,P0,API-008A,issues/api_008b_unify-capability-identities-lifecycle-and-result-envelopes.md
+API-008C,Establish canonical schema and fixture generation,API consolidation,0.1.0a2,P0,API-008B,issues/api_008c_establish-canonical-schema-and-fixture-generation.md
+API-009,Build the reusable canonical provider conformance harness,API consolidation,0.1.0a2,P0,API-008C,issues/api_009_build-the-reusable-canonical-provider-conformance-harness.md
+PRV-001,Port the prescribed visual provider to the canonical API,Canonical providers,0.1.0a2,P0,API-009,issues/prv_001_port-the-prescribed-visual-provider-to-the-canonical-api.md
+PRV-002,Port the straight analytical visual provider to the canonical API,Canonical providers,0.1.0a2,P0,API-009,issues/prv_002_port-the-straight-analytical-visual-provider-to-the-canonical-api.md
+PRV-003,Port the signature-table provider to the canonical API,Canonical providers,0.1.0a2,P0,API-009,issues/prv_003_port-the-signature-table-provider-to-the-canonical-api.md
+PRV-004,Add compatibility aliases and a deprecation schedule,Canonical providers,0.1.0a2,P0,PRV-001;PRV-002;PRV-003,issues/prv_004_add-compatibility-aliases-and-a-deprecation-schedule.md
+API-010,Hold the formal v1 API freeze gate,API consolidation,0.1.0a2,P0,PRV-004,issues/api_010_hold-the-formal-v1-api-freeze-gate.md
+HND-001,Freeze the canonical PlumeFluxSection handoff,Conservative composition,0.1.0a2,P0,API-008B,issues/hnd_001_freeze-the-canonical-plumefluxsection-handoff.md
+HND-002,Implement explicit matched-source handoff construction,Conservative composition,0.1.0a2,P0,HND-001,issues/hnd_002_implement-explicit-matched-source-handoff-construction.md
+WASH-001,Define canonical washed-plume provider inputs and session semantics,Washed plume productization,0.1.0a2,P0,API-009;HND-001,issues/wash_001_define-canonical-washed-plume-provider-inputs-and-session-semantics.md
+WASH-002,Wrap the curved conservation kernel in the canonical provider,Washed plume productization,0.1.0a2,P0,WASH-001;HND-002,issues/wash_002_wrap-the-curved-conservation-kernel-in-the-canonical-provider.md
+WASH-003,Expose washed visual and engineering products,Washed plume productization,0.1.0a2,P0,WASH-002,issues/wash_003_expose-washed-visual-and-engineering-products.md
+WASH-004,Add washed-provider conformance and consumer fixtures,Washed plume productization,0.1.0a2,P0,WASH-003,issues/wash_004_add-washed-provider-conformance-and-consumer-fixtures.md
+WASH-005,Hold the 0.1.0a2 release gate,Washed plume productization,0.1.0a2,P0,API-010;WASH-004;RLS-002,issues/wash_005_hold-the-0-1-0a2-release-gate.md
+MOC-001,Freeze the mathematical contract for a validated first cell,Validated near field,0.2.0a1,P0,RLS-001,issues/moc_001_freeze-the-mathematical-contract-for-a-validated-first-cell.md
+MOC-002,Implement inverse Prandtl–Meyer and characteristic primitives,Validated near field,0.2.0a1,P0,MOC-001,issues/moc_002_implement-inverse-prandtl-meyer-and-characteristic-primitives.md
+MOC-003,Implement centerline symmetry and interior characteristic mesh,Validated near field,0.2.0a1,P0,MOC-002,issues/moc_003_implement-centerline-symmetry-and-interior-characteristic-mesh.md
+MOC-004,Implement the underexpanded ambient-pressure free boundary,Validated near field,0.2.0a1,P0,MOC-003,issues/moc_004_implement-the-underexpanded-ambient-pressure-free-boundary.md
+MOC-005,Implement attached-overexpanded first-cell topology,Validated near field,0.2.0a1,P0,MOC-003,issues/moc_005_implement-attached-overexpanded-first-cell-topology.md
+MOC-006,Complete convergence and external validation evidence,Validated near field,0.2.0a1,P0,MOC-004;MOC-005,issues/moc_006_complete-convergence-and-external-validation-evidence.md
+MOC-007,Replace the compatibility-backed first-cell core,Validated near field,0.2.0a1,P0,MOC-006;API-010,issues/moc_007_replace-the-compatibility-backed-first-cell-core.md
+HND-003,Integrate the validated first-cell endpoint over a control surface,Conservative composition,0.2.0a1,P0,MOC-007;HND-001,issues/hnd_003_integrate-the-validated-first-cell-endpoint-over-a-control-surface.md
+CELL-001,Implement a finite coherent shock train,Downstream straight plume,0.2.0a2,P1,HND-003,issues/cell_001_implement-a-finite-coherent-shock-train.md
+MIX-001,Correct and harden the straight integral continuation,Downstream straight plume,0.2.0a2,P1,HND-001,issues/mix_001_correct-and-harden-the-straight-integral-continuation.md
+MIX-002,Calibrate entrainment and reconstruct useful profiles,Downstream straight plume,0.2.0a2,P1,MIX-001,issues/mix_002_calibrate-entrainment-and-reconstruct-useful-profiles.md
+TERM-001,Implement coherent-plume termination and passive-scalar handoff,Downstream straight plume,0.2.0a2,P1,CELL-001;MIX-002,issues/term_001_implement-coherent-plume-termination-and-passive-scalar-handoff.md
+COMP-001,"Compose near field, shock train, and straight mixing provider",Downstream straight plume,0.2.0a2,P1,CELL-001;MIX-002;TERM-001;API-010,issues/comp_001_compose-near-field-shock-train-and-straight-mixing-provider.md
