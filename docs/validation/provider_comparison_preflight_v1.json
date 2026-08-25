@@ -215,6 +215,73 @@
       ]
     },
     {
+      "alignment_id": "MVP-A-066",
+      "available_provider_outputs": [
+        "spectral_radiant_intensity"
+      ],
+      "benchmark_id": "RP-EMAP-RAD-001",
+      "blockers": [
+        "the provider has no corpus-backed EMAP FTIR source asset or operating point",
+        "the local spectral sampling and peak-normalization operators do not provide the FTIR measurement volume or relative-calibration provenance",
+        "the FTIR product is a raster envelope and cannot validate absolute intrinsic J_lambda",
+        "external measurement-operator namespace is not reconciled with the committed registry"
+      ],
+      "claim_status": "not_accepted",
+      "comparison_id": "SIG-MVP-A-066",
+      "comparison_status": "blocked",
+      "measurement_operator_id": "operator.spectrum.peak_normalize_after_sensor_sampling",
+      "metric_ids": [
+        "metric.signature.relative_shape_rmse",
+        "metric.signature.band_location_error"
+      ],
+      "observed_data": {
+        "categorical_values": {
+          "evidence_layer": [
+            ""
+          ],
+          "measurement_kind": [
+            "published_peak_normalized_relative_spectral_trace"
+          ]
+        },
+        "columns": [
+          "benchmark_id",
+          "calibration_status",
+          "case_id",
+          "diagnostic",
+          "extraction_method",
+          "measurement_kind",
+          "notes",
+          "plot_height_px",
+          "point_index",
+          "relative_intensity_lower_envelope",
+          "relative_intensity_median_trace",
+          "relative_intensity_recommended",
+          "relative_intensity_upper_envelope",
+          "source_figure",
+          "source_id",
+          "source_pdf_page_1_indexed",
+          "source_pixel_x",
+          "source_pixel_y_max",
+          "source_pixel_y_median",
+          "source_pixel_y_min",
+          "wavelength_digitization_uncertainty_nm",
+          "wavelength_nm"
+        ],
+        "relative_path": "data/rp_emap_rad_001_ftir_relative_envelopes.csv",
+        "row_count": 708,
+        "uncertainty_fields": [
+          "wavelength_digitization_uncertainty_nm"
+        ]
+      },
+      "product_id": "plume.signature.spectral-radiant-intensity@1",
+      "provider_ids": [
+        "signature.table-lookup"
+      ],
+      "required_provider_outputs": [
+        "sensor_sampled_peak_normalized_spectral_shape"
+      ]
+    },
+    {
       "alignment_id": "MVP-A-073",
       "available_provider_outputs": [
         "spectral_radiant_intensity"
@@ -414,6 +481,141 @@
       ],
       "required_provider_outputs": [
         "line_of_sight_peak_normalized_spectral_shape"
+      ]
+    },
+    {
+      "alignment_id": "MVP-A-067",
+      "available_provider_outputs": [
+        "source_spectral_radiance",
+        "background_transmittance",
+        "optical_depth"
+      ],
+      "benchmark_id": "RP-EMAP-RAD-001",
+      "blockers": [
+        "the gray provider has no EMAP field, path-extinction scenario, or FTIR measurement-volume model",
+        "local spectral reduction operators can only act after a ray/source scenario is available; they do not create the missing field or path operator",
+        "the FTIR product is a raster envelope and does not separately identify source radiance and transmittance",
+        "external measurement-operator namespace is not reconciled with the committed registry"
+      ],
+      "claim_status": "not_accepted",
+      "comparison_id": "RAY-MVP-A-067",
+      "comparison_status": "blocked",
+      "measurement_operator_id": "operator.spectrum.peak_normalize_after_los_transfer",
+      "metric_ids": [
+        "metric.ray.relative_spectral_shape_rmse"
+      ],
+      "observed_data": {
+        "categorical_values": {
+          "evidence_layer": [
+            ""
+          ],
+          "measurement_kind": [
+            "published_peak_normalized_relative_spectral_trace"
+          ]
+        },
+        "columns": [
+          "benchmark_id",
+          "calibration_status",
+          "case_id",
+          "diagnostic",
+          "extraction_method",
+          "measurement_kind",
+          "notes",
+          "plot_height_px",
+          "point_index",
+          "relative_intensity_lower_envelope",
+          "relative_intensity_median_trace",
+          "relative_intensity_recommended",
+          "relative_intensity_upper_envelope",
+          "source_figure",
+          "source_id",
+          "source_pdf_page_1_indexed",
+          "source_pixel_x",
+          "source_pixel_y_max",
+          "source_pixel_y_median",
+          "source_pixel_y_min",
+          "wavelength_digitization_uncertainty_nm",
+          "wavelength_nm"
+        ],
+        "relative_path": "data/rp_emap_rad_001_ftir_relative_envelopes.csv",
+        "row_count": 708,
+        "uncertainty_fields": [
+          "wavelength_digitization_uncertainty_nm"
+        ]
+      },
+      "product_id": "plume.optical.spectral-ray-transfer@1",
+      "provider_ids": [
+        "plume.gray-ray-transfer"
+      ],
+      "required_provider_outputs": [
+        "line_of_sight_peak_normalized_spectral_shape"
+      ]
+    },
+    {
+      "alignment_id": "MVP-A-068",
+      "available_provider_outputs": [
+        "source_spectral_radiance",
+        "background_transmittance",
+        "optical_depth"
+      ],
+      "benchmark_id": "RP-EMAP-RAD-001",
+      "blockers": [
+        "the gray provider has no time-dependent source state, surface pose, detector response, or conjugate thermal model",
+        "the local band-integral helper is a spectral-array reduction before detector response, not a Gardon surface operator",
+        "the corpus trace is a digitized published display and is not a per-ray source-radiance truth set",
+        "external measurement-operator namespace is not reconciled with the committed registry"
+      ],
+      "claim_status": "not_accepted",
+      "comparison_id": "RAY-MVP-A-068",
+      "comparison_status": "blocked",
+      "measurement_operator_id": "operator.surface.gardon_band_integral",
+      "metric_ids": [
+        "metric.ray.surface_flux_log_rmse"
+      ],
+      "observed_data": {
+        "categorical_values": {
+          "evidence_layer": [
+            ""
+          ],
+          "measurement_kind": [
+            "digitized_published_time_history"
+          ]
+        },
+        "columns": [
+          "axis_scale",
+          "benchmark_id",
+          "case_id",
+          "extraction_method",
+          "measurement_kind",
+          "notes",
+          "observable",
+          "point_index",
+          "source_figure",
+          "source_id",
+          "source_pdf_page_1_indexed",
+          "source_pixel_x",
+          "source_pixel_y_max",
+          "source_pixel_y_median",
+          "source_pixel_y_min",
+          "time_digitization_uncertainty_s",
+          "time_minus_offset_s",
+          "unit",
+          "value_lower",
+          "value_recommended",
+          "value_upper"
+        ],
+        "relative_path": "data/rp_emap_rad_001_gardon_time_history.csv",
+        "row_count": 922,
+        "uncertainty_fields": [
+          "time_digitization_uncertainty_s"
+        ]
+      },
+      "product_id": "plume.optical.spectral-ray-transfer@1",
+      "provider_ids": [
+        "plume.gray-ray-transfer"
+      ],
+      "required_provider_outputs": [
+        "surface_detector_band_integrated_flux_time_history"
       ]
     },
     {
@@ -742,6 +944,44 @@
           "wavelength_digitization_uncertainty_nm"
         ]
       },
+      "gardon_time_history": {
+        "categorical_values": {
+          "evidence_layer": [
+            ""
+          ],
+          "measurement_kind": [
+            "digitized_published_time_history"
+          ]
+        },
+        "columns": [
+          "axis_scale",
+          "benchmark_id",
+          "case_id",
+          "extraction_method",
+          "measurement_kind",
+          "notes",
+          "observable",
+          "point_index",
+          "source_figure",
+          "source_id",
+          "source_pdf_page_1_indexed",
+          "source_pixel_x",
+          "source_pixel_y_max",
+          "source_pixel_y_median",
+          "source_pixel_y_min",
+          "time_digitization_uncertainty_s",
+          "time_minus_offset_s",
+          "unit",
+          "value_lower",
+          "value_recommended",
+          "value_upper"
+        ],
+        "relative_path": "data/rp_emap_rad_001_gardon_time_history.csv",
+        "row_count": 922,
+        "uncertainty_fields": [
+          "time_digitization_uncertainty_s"
+        ]
+      },
       "metadata": {
         "benchmark_id": "RP-EMAP-RAD-001",
         "evidence_limits": [
@@ -994,7 +1234,11 @@
       "provider_ids": [
         "plume.gray-ray-transfer"
       ],
-      "status": "passed"
+      "status": "passed",
+      "wavelength_domain_m": [
+        1e-06,
+        3e-06
+      ]
     },
     "signature": {
       "asset_source": "repository synthetic contract fixture",
@@ -1012,7 +1256,11 @@
       ],
       "output_units": "W sr^-1 m^-1",
       "provider_id": "signature.table-lookup",
-      "status": "passed"
+      "status": "passed",
+      "wavelength_domain_m": [
+        1e-06,
+        3e-06
+      ]
     },
     "visual": {
       "claim_ceiling": "Engineering-approximate straight visual geometry and named display features only.",

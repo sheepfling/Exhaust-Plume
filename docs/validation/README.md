@@ -38,7 +38,8 @@ structurally valid corpus as product validation.
 The recovered corpus intake evidence is recorded in
 [`corpus_intake_report_v1.json`](corpus_intake_report_v1.json). It matched the
 handoff SHA-256, passed safe-ZIP inspection, verified all 137 internal checksum
-entries, and passed all 57 source-corpus tests. Do not create synthetic
+entries, and its bundled test suite was executed from an isolated extraction:
+57 tests passed. Do not create synthetic
 replacements for the still-missing alignment archive. Keep raw observations
 separate from derived tables, digitized curves, modeled states, and
 product-alignment records.
@@ -57,9 +58,9 @@ python scripts/validate_provider_comparisons.py \
 ```
 
 The committed [`provider_comparison_preflight_v1.json`](provider_comparison_preflight_v1.json)
-is the result for the recovered attachment. It records the actual provider
-channels and corpus observation shapes, then leaves VIS-MVP-A-061 and the SIG
-measurement-space gates explicitly blocked. A blocked comparison is not a
+is the result for the recovered attachment. It records all ten gate-eligible
+VIS/SIG/RAY comparison mappings and the actual provider channels and corpus
+observation shapes, while leaving every comparison explicitly blocked. A blocked comparison is not a
 failed physics result: it means that the current provider does not produce the
 observable or operator required for a valid comparison. No external claim is
 accepted from this report.
@@ -89,7 +90,7 @@ provider and makes no image, detector, noise, or detection claim.
 
 The branch-level freeze is recorded in
 [`release_freeze_v1.json`](release_freeze_v1.json). It captures the current
-336-test, Ruff, Pyright, deterministic-asset, and installed-wheel checks while keeping
+339-test, Ruff, Pyright, deterministic-asset, and installed-wheel checks while keeping
 `release_ready` false until the external gates close.
 
 The intake gate is a prerequisite for external validation claims. Corpus

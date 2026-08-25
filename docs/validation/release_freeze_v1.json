@@ -31,7 +31,9 @@
     "archive_sha256": "79c2a34dd4c43bd976ceb8773fdccd78a2592d903bf03ca57c2aef82f882e9aa",
     "archive_members": 138,
     "internal_checksums_verified": 137,
-    "status": "preflight-valid-pending-release-gates"
+    "status": "preflight-valid-pending-release-gates",
+    "source_corpus_tests": 57,
+    "source_corpus_tests_status": "passed-from-isolated-archive-extraction"
   },
   "component_validation": {
     "benchmark_id": "CJ-UEJ-001",

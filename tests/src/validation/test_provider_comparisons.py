@@ -12,7 +12,11 @@ def _observations() -> dict[str, Any]:
   return {
     'RP-HOTWAKE-001': {'mach_disk_relation': {'row_count': 606}},
     'RP-BSUV2-001': {'spectral_radiance': {'row_count': 13}},
-    'RP-EMAP-RAD-001': {'uvvis_relative_spectrum': {'row_count': 758}},
+    'RP-EMAP-RAD-001': {
+      'uvvis_relative_spectrum': {'row_count': 758},
+      'ftir_relative_envelopes': {'row_count': 708},
+      'gardon_time_history': {'row_count': 922},
+    },
     'RP-ALSI-001': {'thermal_comparison': {'row_count': 5}},
   }
 
@@ -47,13 +51,29 @@ def test_provider_comparisons_remain_blocked_without_required_observables() -> N
     'VIS-MVP-A-061',
     'SIG-MVP-A-043',
     'SIG-MVP-A-064',
+    'SIG-MVP-A-066',
     'SIG-MVP-A-073',
     'RAY-MVP-A-044',
     'RAY-MVP-A-065',
+    'RAY-MVP-A-067',
+    'RAY-MVP-A-068',
     'RAY-MVP-A-074',
   ]
   assert all(comparison['comparison_status'] == 'blocked' for comparison in comparisons)
   assert all(comparison['claim_status'] == 'not_accepted' for comparison in comparisons)
+  assert len(comparisons) == 10
+  assert {comparison['alignment_id'] for comparison in comparisons} == {
+    'MVP-A-043',
+    'MVP-A-044',
+    'MVP-A-061',
+    'MVP-A-064',
+    'MVP-A-065',
+    'MVP-A-066',
+    'MVP-A-067',
+    'MVP-A-068',
+    'MVP-A-073',
+    'MVP-A-074',
+  }
   assert comparisons[0]['required_provider_outputs'] == [
     'mach_disk_position_m',
     'operating_pressure_or_branch_id',

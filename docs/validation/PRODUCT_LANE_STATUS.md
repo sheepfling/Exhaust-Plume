@@ -101,7 +101,8 @@ T3 cross-product gate is `synthetic_only`. Those statuses describe the corpus
 alignment layer. The repository now has deterministic spectral-array
 sampling, peak-normalization, and numeric band-integration helpers, but still
 needs provider-bound LOS/path/detector operators, thresholds, source assets,
-and the unresolved operator crosswalk before it can accept a product claim.
+and the unresolved operator crosswalk before it can accept any of the ten
+product comparisons.
 
 ## Working branch
 

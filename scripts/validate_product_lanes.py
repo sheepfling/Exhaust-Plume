@@ -291,6 +291,7 @@ def _run_signature_lane() -> dict[str, Any]:
     },
     'output_shape': [len(result.spectral_radiant_intensity), len(result.spectral_radiant_intensity[0])],
     'output_units': 'W sr^-1 m^-1',
+    'wavelengths_m': list(definition.wavelengths_m),
     'validity_mask': result.validity_mask,
     'radiation_claim': result.metadata.claims.radiation.value,
     'asset_source': 'repository synthetic contract fixture',
@@ -445,6 +446,7 @@ def _run_optical_lane() -> dict[str, Any]:
     },
     'hit_mask': first.hit_mask,
     'intersection_intervals_m': first.plume_intersection_t_m,
+    'wavelengths_m': list(definition.wavelengths_m),
     'radiation_claim': first.metadata.claims.radiation.value,
     'external_comparison': {
       'status': 'pending',

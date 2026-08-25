@@ -13,7 +13,14 @@
     "safe_member_paths": true,
     "duplicate_member_names": false,
     "source_corpus_tests": 57,
-    "source_corpus_tests_status": "passed"
+    "source_corpus_tests_status": "passed",
+    "source_corpus_tests_execution": {
+      "command": "python3 -m pytest -q",
+      "working_directory": "plume_validation_data_v8",
+      "execution_context": "isolated extraction of the recovered content-addressed archive",
+      "tests_passed": 57,
+      "status": "passed"
+    }
   },
   "embedded_alignment_overlay": {
     "product_definitions": 3,
