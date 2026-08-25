@@ -24,7 +24,11 @@
         "internal_checksums_verified": 137,
         "source_corpus_tests_passed": 57,
         "embedded_alignment_overlay": "verified",
-        "separate_alignment_archive": "missing"
+        "separate_alignment_archive": "missing",
+        "separate_archive_recovery_checks": [
+          "no matching local archive, Git object, or temporary attachment was found",
+          "deterministic ZIP reconstructions from the handoff alignment files did not match the required SHA-256"
+        ]
       }
     },
     {
