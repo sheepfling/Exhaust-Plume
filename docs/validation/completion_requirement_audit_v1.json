@@ -225,7 +225,7 @@
       "requirement_id": "repository-release-quality",
       "status": "verified",
       "evidence": {
-        "pytest_passed": 422,
+        "pytest_passed": 423,
         "ruff": "passed",
         "pyright": "passed",
         "installed_wheel_smoke": "passed",

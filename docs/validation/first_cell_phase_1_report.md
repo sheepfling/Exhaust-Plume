@@ -1,7 +1,7 @@
 # Phase 1 first-cell evidence report
 
 Status: **partial evidence; release gate not passed**  
-Source tranche: `b913938` (`feat: add fully expanded first-cell diagnostics`)  
+Source tranche: `20b1ccc` (`feat: reconcile MOC fan compatibility grid`)
 Branch: `work/validation-and-completion`
 
 This report records the first-cell correlation and resolution evidence added to
@@ -180,7 +180,7 @@ bindings.
 ## Quality and performance evidence
 
 After the current completion-branch updates, the repository suite reports
-`422 passed, 18 warnings`.
+`423 passed, 18 warnings`.
 Ruff and Pyright both pass. The full suite wall time was 12.90 s in the
 isolated completion worktree. The focused MOC resolution sweep completed in
 under 0.6 s including interpreter startup; solver-only timing and peak memory
