@@ -28,9 +28,12 @@ from exhaust_plume.models.moc.topology import MocTopologyResult, validate_moc_me
 __all__ = (
   'MocCharacteristicCell',
   'MocCharacteristicNode',
+  'MocFanReflectedInterfaceResult',
+  'MocInterfaceStatus',
   'MocZoneAssemblyStatus',
   'MocReflectedCharacteristicZoneResult',
   'assemble_reflected_characteristic_zone',
+  'validate_fan_reflected_interface',
 )
 
 
@@ -41,6 +44,37 @@ class MocZoneAssemblyStatus(str, Enum):
   INVALID_INPUT = 'invalid_input'
   GEOMETRY_FAILURE = 'geometry_failure'
   TOPOLOGY_FAILURE = 'topology_failure'
+####
+
+
+class MocInterfaceStatus(str, Enum):
+  """Outcome of the fan/reflected centerline interface check."""
+
+  ALIGNED = 'aligned'
+  MISALIGNED = 'misaligned'
+  INVALID_INPUT = 'invalid_input'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocFanReflectedInterfaceResult:
+  """Coordinate residuals between the fan grid and reflected march.
+
+  The reflected march solves centerline coordinates with averaged
+  characteristic geometry, while the fan records its lip-ray intersections.
+  These are different geometric constructions and must not be silently
+  identified as shared vertices.
+  """
+
+  status: MocInterfaceStatus
+  coordinate_residuals_m: tuple[float, ...]
+  maximum_coordinate_residual_m: float | None
+  position_tolerance_m: float
+  message: str = ''
+
+  @property
+  def aligned(self) -> bool:
+    return self.status is MocInterfaceStatus.ALIGNED
 ####
 
 
@@ -118,6 +152,74 @@ class MocReflectedCharacteristicZoneResult:
 
 def _empty_topology() -> MocTopologyResult:
   return validate_moc_mesh(())
+####
+
+
+def validate_fan_reflected_interface(
+  fan: MocExpansionFanResult,
+  reflected_boundary: MocReflectedBoundaryResult,
+  *,
+  position_tolerance_m: float = 1.0e-10,
+) -> MocFanReflectedInterfaceResult:
+  """Check whether fan axis vertices match reflected centerline coordinates.
+
+  A misaligned result is diagnostic evidence, not a numerical failure of
+  either open primitive.  The caller must resolve the coordinate mismatch
+  with a compatible interface construction before combining their cells.
+  """
+
+  if not isfinite(position_tolerance_m) or position_tolerance_m <= 0.0:
+    raise ValueError('position_tolerance_m must be finite and positive')
+  if not fan.converged:
+    return MocFanReflectedInterfaceResult(
+      status=MocInterfaceStatus.INVALID_INPUT,
+      coordinate_residuals_m=(),
+      maximum_coordinate_residual_m=None,
+      position_tolerance_m=position_tolerance_m,
+      message=f'lip fan is not converged: {fan.message}',
+    )
+  if not reflected_boundary.converged:
+    return MocFanReflectedInterfaceResult(
+      status=MocInterfaceStatus.INVALID_INPUT,
+      coordinate_residuals_m=(),
+      maximum_coordinate_residual_m=None,
+      position_tolerance_m=position_tolerance_m,
+      message=f'reflected free boundary is not converged: {reflected_boundary.message}',
+    )
+  if len(fan.centerline_points_m) != len(reflected_boundary.centerline_states):
+    return MocFanReflectedInterfaceResult(
+      status=MocInterfaceStatus.INVALID_INPUT,
+      coordinate_residuals_m=(),
+      maximum_coordinate_residual_m=None,
+      position_tolerance_m=position_tolerance_m,
+      message='fan and reflected centerline arrays have inconsistent lengths',
+    )
+  residuals = tuple(
+    sqrt(
+      (fan_point[0] - state.x_m) ** 2
+      + (fan_point[1] - state.y_m) ** 2
+    )
+    for fan_point, state in zip(fan.centerline_points_m, reflected_boundary.centerline_states)
+  )
+  maximum_residual = max(residuals, default=None)
+  if maximum_residual is None or maximum_residual <= position_tolerance_m:
+    return MocFanReflectedInterfaceResult(
+      status=MocInterfaceStatus.ALIGNED,
+      coordinate_residuals_m=residuals,
+      maximum_coordinate_residual_m=maximum_residual,
+      position_tolerance_m=position_tolerance_m,
+    )
+  return MocFanReflectedInterfaceResult(
+    status=MocInterfaceStatus.MISALIGNED,
+    coordinate_residuals_m=residuals,
+    maximum_coordinate_residual_m=maximum_residual,
+    position_tolerance_m=position_tolerance_m,
+    message=(
+      'fan lip-ray centerline points and reflected compatibility coordinates '
+      'are not coincident; an explicit characteristic interface construction '
+      'is required before combining their cells'
+    ),
+  )
 ####
 
 

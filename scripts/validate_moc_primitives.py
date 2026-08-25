@@ -31,6 +31,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_reflected_free_boundary,
   solve_overexpanded_lip_shock,
   solve_underexpanded_expansion_fan,
+  validate_fan_reflected_interface,
   validate_moc_mesh,
 )
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput  # noqa: E402
@@ -103,6 +104,10 @@ def build_moc_primitive_report() -> dict[str, Any]:
     fan_ambient,
   )
   reflected_zone = assemble_reflected_characteristic_zone(
+    fan,
+    reflected_boundary,
+  )
+  fan_reflected_interface = validate_fan_reflected_interface(
     fan,
     reflected_boundary,
   )
@@ -190,6 +195,10 @@ def build_moc_primitive_report() -> dict[str, Any]:
       refined_fan,
       refined_reflected_boundary,
     )
+    refined_interface = validate_fan_reflected_interface(
+      refined_fan,
+      refined_reflected_boundary,
+    )
     if not refined_zone.converged:
       resolution_failures.append({
         'case': f'reflected_characteristic_zone_resolution_{resolution}',
@@ -215,6 +224,10 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'reflected_zone_cell_count': refined_zone.cell_count,
       'reflected_zone_forms_closed_zone': refined_zone.topology.forms_closed_zone,
       'reflected_zone_coverage_area_residual_m2': refined_zone.coverage_area_residual_m2,
+      'fan_reflected_interface_status': refined_interface.status.value,
+      'fan_reflected_interface_maximum_coordinate_residual_m': (
+        refined_interface.maximum_coordinate_residual_m
+      ),
     })
   geometry_results = {
     'interior': {
@@ -357,6 +370,14 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'shock_closure_status': reflected_zone.shock_closure_status,
       'message': reflected_zone.message,
     },
+    'fan_reflected_interface': {
+      'status': fan_reflected_interface.status.value,
+      'aligned': fan_reflected_interface.aligned,
+      'maximum_coordinate_residual_m': fan_reflected_interface.maximum_coordinate_residual_m,
+      'position_tolerance_m': fan_reflected_interface.position_tolerance_m,
+      'message': fan_reflected_interface.message,
+      'claim_status': 'blocked-until-explicit-characteristic-interface-construction',
+    },
     'fan_resolution_probe': {
       'status': 'diagnostic-only-open-mesh',
       'cases': resolution_probe,
@@ -495,6 +516,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
     'next_gates': [
       'physical free-boundary/compression geometry closure; pressure-state and open-mesh primitives remain insufficient',
       'post-shock characteristic zone continuation and complete downstream bookkeeping',
+      'fan/reflected characteristic interface reconciliation; current lip-ray and averaged-compatibility grids are diagnostic-only and not combinable',
       'grid/refinement convergence for the assembled reflected zone and mild attached-overexpanded cases',
       'independent measurement-operator comparison before provider integration',
     ],

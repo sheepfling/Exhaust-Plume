@@ -173,6 +173,12 @@
           "physical_closure_status": "open",
           "shock_closure_status": "not_assembled"
         },
+        "fan_reflected_interface": {
+          "status": "misaligned",
+          "maximum_coordinate_residual_m": 0.1405629941238252,
+          "claim_status": "blocked-until-explicit-characteristic-interface-construction",
+          "message": "fan lip-ray centerline points and reflected compatibility coordinates are not coincident; an explicit characteristic interface construction is required before combining their cells"
+        },
         "post_shock_candidate_bookkeeping": {
           "status": "candidate-state-only",
           "downstream_total_pressure_Pa": 1849892.3539115468,
@@ -200,6 +206,7 @@
         },
         "claim_status": "not_accepted",
         "blockers": [
+          "fan lip-ray and reflected averaged-compatibility grids are not coincident and cannot be combined by coordinate snapping",
           "post-shock characteristic continuation and physical shock closure are not assembled",
           "the reflected-zone 4/8/16 resolution probe is diagnostic rather than convergence acceptance",
           "no independent planar MOC reference family is bound to the provider lane"
@@ -225,6 +232,7 @@
     "reduced-order shock-train calibration lacks a disjoint validation case and train-cell measurement operator",
     "separately named plume_mvp_validation_alignment_v1.zip is not verified",
     "planar MOC first-cell closure and external reference comparison are not complete",
+    "fan/reflected characteristic interface reconciliation is not complete",
     "first-cell correlation has no accepted physical solver-length comparison while shock closure remains open"
   ]
 }

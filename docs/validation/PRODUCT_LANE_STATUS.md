@@ -73,9 +73,12 @@ The standalone planar-MOC foundation is recorded in
 [`moc_primitive_validation_v1.json`](moc_primitive_validation_v1.json). Its
 reflected characteristic zone now has explicit connected one-perimeter mesh
 evidence and the shock candidate records total-pressure loss, but it remains
-outside the public product lanes until physical compression/shock closure,
-post-shock characteristic continuation, and grid/refinement convergence are
-accepted.
+outside the public product lanes until the fan/reflected coordinate interface
+is reconciled, physical compression/shock closure is assembled, post-shock
+characteristic continuation is added, and grid/refinement convergence is
+accepted. The current interface check records a 0.1405629941 m canonical
+maximum coordinate residual and explicitly blocks combining the two diagnostic
+meshes by coordinate snapping.
 
 The provider-comparison preflight is recorded in
 [`provider_comparison_preflight_v1.json`](provider_comparison_preflight_v1.json).
