@@ -1,7 +1,7 @@
 {
   "report_id": "exhaust-plume-completion-requirement-audit-v1",
   "schema_version": "plume.completion-requirement-audit@1",
-  "source_commit": "8ed11b829697c91563d0d428d48c5e8f353b33dd",
+  "source_commit": "38ee61ce7a1897ab6d2d08136c2543c9edd47775",
   "branch": "work/validation-and-completion",
   "base_main_commit": "dd4d57611ba940c8fc4a9721d4b3464b6bbd7848",
   "requirements": [
@@ -84,7 +84,8 @@
         "claim_status": "not_accepted",
         "blockers": [
           "the provider fixture is synthetic rather than a corpus-bound source/calibration case",
-          "BSUV2 and UVVIS observations do not overlap the current provider wavelength domain",
+        "the typed comparison boundary blocks intrinsic-table versus sensor-space/relative-shape pairs before residual calculation",
+        "the remaining same-unit BSUV2 ray probe does not overlap the current provider wavelength domain",
           "sensor-space observations require explicit observer, path, source, and detector binding"
         ]
       }
@@ -209,11 +210,11 @@
       "requirement_id": "repository-release-quality",
       "status": "verified",
       "evidence": {
-        "pytest_passed": 416,
+        "pytest_passed": 421,
         "ruff": "passed",
         "pyright": "passed",
         "installed_wheel_smoke": "passed",
-        "wheel_sha256": "0ab26c6c4d53be1e4f712e63c3b8054d8ee48514de9b5d6aae2c9800bd4a022a",
+        "wheel_sha256": "831d3a6fa66c1f0e4f7da9499b6ae5f46d35b5ec32288c6c8c6e3b9f9e6d58bd",
         "first_cell_convergence_test": "passed-diagnostic-open-lattice-only"
       }
     }

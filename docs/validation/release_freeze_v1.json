@@ -3,7 +3,7 @@
   "schema_version": "plume.release-freeze@1",
   "branch": "work/validation-and-completion",
   "base_main_commit": "dd4d57611ba940c8fc4a9721d4b3464b6bbd7848",
-  "head_commit": "8ed11b829697c91563d0d428d48c5e8f353b33dd",
+  "head_commit": "38ee61ce7a1897ab6d2d08136c2543c9edd47775",
   "completion_requirement_audit": "completion_requirement_audit_v1.json",
   "remote_publish_status": "validation-completion-branch-not-pushed; PRs-5-6-7-merged",
   "remote_pr_audit": {
@@ -35,7 +35,7 @@
   "repository_quality": {
     "pytest": {
       "status": "passed",
-      "tests_passed": 416,
+      "tests_passed": 421,
       "warnings": 18
     },
     "ruff": "passed",
@@ -44,7 +44,7 @@
     "public_schema_fixture_determinism": "passed",
       "fresh_wheel_build_and_installed_smoke": "passed",
       "wheel_package_version": "0.1.0a2.dev0",
-    "wheel_sha256": "0ab26c6c4d53be1e4f712e63c3b8054d8ee48514de9b5d6aae2c9800bd4a022a",
+    "wheel_sha256": "831d3a6fa66c1f0e4f7da9499b6ae5f46d35b5ec32288c6c8c6e3b9f9e6d58bd",
     "first_cell_phase_1_report": "first_cell_phase_1_report.md",
     "first_cell_correlation_status": "diagnostic-passed-physical-closure-pending",
     "committed_measurement_operator_count": 21,
@@ -77,9 +77,10 @@
     "gate_eligible_comparison_mappings": 10,
     "gate_eligible_comparison_status": "all-blocked-not-accepted",
     "spectral_shape_probe": {
-      "status": "diagnostic-only-no-accepted-claims",
-      "no_overlap_mappings": 4,
-      "partial_overlap_diagnostic_mappings": 2,
+      "status": "measurement-space-gated-diagnostic-only-no-accepted-claims",
+      "measurement_space_mismatch_mappings": 5,
+      "no_overlap_mappings": 1,
+      "partial_overlap_diagnostic_mappings": 0,
       "not_executed_mappings": 4
     },
     "visual_feature_probe": {
