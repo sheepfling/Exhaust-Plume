@@ -175,7 +175,7 @@ The current branch-level freeze is recorded in
 [`release_freeze_v1.json`](release_freeze_v1.json). It captures the current
 local quality and installed-wheel checks, including the first-cell tranche,
 while keeping `release_ready` false until the external gates close. The wheel
-evidence is built reproducibly with `SOURCE_DATE_EPOCH=1787667554`; two
+evidence is built reproducibly with `SOURCE_DATE_EPOCH=1787669770`; two
 independent builds produced the same recorded digest.
 
 The installed-wheel check can reproduce that evidence without an index when

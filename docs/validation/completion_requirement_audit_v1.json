@@ -1,9 +1,9 @@
 {
   "report_id": "exhaust-plume-completion-requirement-audit-v1",
   "schema_version": "plume.completion-requirement-audit@1",
-  "source_commit": "c3bb4f89891185453166447eb8537dc209c03d3f",
-  "head_commit": "7810695feafd8570cf9a359937b9f89c05366250",
-  "head_commit_note": "HEAD is a documentation-only provenance refresh after the validated code tranche.",
+  "source_commit": "6a819daf07f4319d1b14b7aa929c0f0d3e2e39a7",
+  "head_commit": "f6d6c74a94760d657ccf47d994408d3d816b43c7",
+  "head_commit_note": "The evidence snapshot follows the positioned post-shock-state code tranche; the current ledger update is documentation-only.",
   "branch": "work/validation-and-completion",
   "base_main_commit": "dd4d57611ba940c8fc4a9721d4b3464b6bbd7848",
   "requirements": [
@@ -242,9 +242,9 @@
         "ruff": "passed",
         "pyright": "passed",
         "installed_wheel_smoke": "passed-reproducible-offline-wheel",
-        "wheel_sha256": "15d1e6c2acd34733fcaae56c9b759e3a11845e96af4cd816c40ca495f272544b",
+        "wheel_sha256": "ad74ee329c952f6844e93ca8cbae861fe85780111b9ca395f91430190d557f9f",
         "wheel_reproducibility": {
-          "source_date_epoch": 1787667554,
+          "source_date_epoch": 1787669770,
           "independent_build_count": 2,
           "identical_digest": true
         },
