@@ -1,6 +1,6 @@
 {
   "manifest_id": "exhaust-plume-validation-corpus-intake-v1",
-  "status": "external-pending",
+  "status": "corpus-verified-alignment-pending",
   "source_repository": "sheepfling/Exhaust-Plume",
   "source_handoff": {
     "pull_request": 5,
@@ -29,10 +29,11 @@
         "source_corpus_tests": 57
       },
       "retrieval": {
-        "status": "missing",
+        "status": "verified",
         "source_url": null,
-        "retrieved_at_utc": null,
-        "license_status": "unknown"
+        "source_locator": "user-provided conversation attachment: 1-plume_validation_data_v8.zip",
+        "retrieved_at_utc": "2026-08-25T04:16:33Z",
+        "license_status": "source provenance documented; derived-corpus redistribution review pending"
       }
     },
     {
@@ -49,6 +50,7 @@
       "retrieval": {
         "status": "missing",
         "source_url": null,
+        "source_locator": null,
         "retrieved_at_utc": null,
         "license_status": "unknown"
       }

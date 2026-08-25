@@ -1,9 +1,11 @@
 # Validation corpus intake
 
 The merged validation handoff describes two external, content-addressed
-archives. The archives are not present in the repository or in the public
-release assets; this directory records the exact expected digests and keeps
-their absence explicit.
+archives. The Version 8 corpus archive has now been recovered from a
+user-provided attachment and verified against its expected digest. The
+separately named product-alignment archive is still missing; the recovered
+corpus contains an embedded alignment overlay, but that is not silently treated
+as the separately hashed archive.
 
 The intake gate is:
 
@@ -18,20 +20,23 @@ The command succeeds only when both files exist, match their recorded SHA-256
 digests, are valid ZIP archives, and contain no path-traversal or duplicate
 members. It never extracts or modifies the supplied archives.
 
-Do not create synthetic replacements for the missing corpus. After recovery,
-record the retrieval URL or source location, UTC retrieval time, license or
-redistribution status, and the immutable local path in the intake manifest.
-Keep raw observations separate from derived tables, digitized curves, modeled
-states, and product-alignment records.
+The recovered corpus intake evidence is recorded in
+[`corpus_intake_report_v1.json`](corpus_intake_report_v1.json). It matched the
+handoff SHA-256, passed safe-ZIP inspection, verified all 137 internal checksum
+entries, and passed all 57 source-corpus tests. Do not create synthetic
+replacements for the still-missing alignment archive. Keep raw observations
+separate from derived tables, digitized curves, modeled states, and
+product-alignment records.
 
 The handoff currently reports 17 benchmark definitions, 19 source records, 60
 indexed products, 78 alignment mappings, 11 validation gates, and 57 source-
 corpus tests. Those counts are claims about the referenced archive until the
 archive itself is recovered and independently verified.
 
-The intake gate is a prerequisite for external validation claims. Repository
-contract tests and synthetic physics regressions may run before it, but they
-must not be reported as validation against the missing corpus.
+The intake gate is a prerequisite for external validation claims. Corpus
+integrity tests are not product validation: repository contract tests and
+physics regressions must still be run through the named VIS, SIG, and future
+RAY/FPA measurement operators before a product claim is accepted.
 
 ## Typed claim registry
 

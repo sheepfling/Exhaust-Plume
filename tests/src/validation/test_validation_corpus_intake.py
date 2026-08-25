@@ -23,12 +23,14 @@ def _write_zip(path: Path, member: str) -> None:
 
 def test_intake_manifest_records_the_two_external_archives() -> None:
   manifest = load_manifest()
-  assert manifest['status'] == 'external-pending'
+  assert manifest['status'] == 'corpus-verified-alignment-pending'
   assert [archive['archive_id'] for archive in manifest['archives']] == [
     'validation-corpus-v8',
     'mvp-validation-alignment-v1',
   ]
   assert all(len(archive['sha256']) == 64 for archive in manifest['archives'])
+  assert manifest['archives'][0]['retrieval']['status'] == 'verified'
+  assert manifest['archives'][1]['retrieval']['status'] == 'missing'
 ####
 
 
