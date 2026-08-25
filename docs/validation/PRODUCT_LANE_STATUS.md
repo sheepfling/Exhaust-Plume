@@ -10,7 +10,7 @@ solver fidelity attached to a provider profile.
 | --- | --- | --- | --- | --- |
 | `shock-cell-basic-v1` | `plume.straight-analytical` and `plume.shock-cell-analytical` -> `plume.visual.sectioned-tube@1` | Both bounded visual providers pass contract, deterministic-serialization, conformance, and declared study-envelope checks | Corpus structure is verified; provider-specific benchmark/operator comparison remains pending | Engineering-approximate straight visual geometry and named features only; no spectral, ray, detector, mixing, or curved-flow claim |
 | `signature-table-mvp-v1` | `signature.table-lookup` -> `plume.signature.spectral-radiant-intensity@1` | Table shape, interpolation, extrapolation, time-axis, partial-result, provenance, and conformance tests | Pending a verified source asset and intrinsic-signature evidence | Versioned table and interpolation behavior only; no geometry, ray field, atmosphere, optics, or detector claim |
-| `optical-transfer-v1` | No provider | Canonical ray-transfer contract and miss/failed-ray semantics only | No provider-specific transfer validation yet | No optical-transfer claim |
+| `optical-transfer-v1` | `plume.gray-ray-transfer` -> `plume.optical.spectral-ray-transfer@1` | Exact finite-cylinder intervals, homogeneous slab/chord transfer, layer separation, miss semantics, and analytic/refinement checks | External sensor/path comparisons remain pending; gray analytic evidence is not corpus validation | Homogeneous gray transfer through a straight constant-radius support only; no chemistry, atmosphere, detector, or FPA claim |
 | `focal-plane-array-v1` | No provider; downstream adapter | Boundary and dependency checks only | Requires validated ray transfer plus camera/optics/detector data | No FPA image, count, noise, or detection claim |
 
 The basic and signature lanes are deliberately independent. A comparison to a
@@ -46,8 +46,10 @@ It confirms that the two visual providers expose only
 `core_radius_fraction` and `opacity_weight`, so the HOTWAKE Mach-disk operator
 cannot be applied. It also keeps BSUV2, EMAP, and ALSI in their declared
 sensor-space or band-integrated measurement spaces instead of comparing them
-to the synthetic intrinsic signature table. Ray transfer and FPA remain
-explicit downstream boundaries with no provider IDs.
+to the synthetic intrinsic signature table. The gray ray-transfer provider now
+passes the analytic local gate, while its external sensor-space comparison
+remains pending. FPA remains an explicit downstream boundary with no provider
+ID.
 
 The recovered corpus changes that sentence for data availability, not for
 product acceptance. Its own gate registry reports VIS, SIG, and RAY T1

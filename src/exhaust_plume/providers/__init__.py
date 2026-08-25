@@ -77,7 +77,13 @@ from exhaust_plume.providers.shock_cell_visual import (
     ShockCellVisualDefinition,
     ShockCellVisualOperatingState,
     ShockCellVisualProvider,
-    ShockCellVisualSession,
+  ShockCellVisualSession,
+)
+from exhaust_plume.providers.gray_ray_transfer import (
+  GrayRayTransferConfiguration,
+  GrayRayTransferDefinition,
+  GrayRayTransferProvider,
+  GrayRayTransferSession,
 )
 
 __all__ = (
@@ -136,6 +142,10 @@ __all__ = (
     'ShockCellVisualOperatingState',
     'ShockCellVisualProvider',
     'ShockCellVisualSession',
+    'GrayRayTransferConfiguration',
+    'GrayRayTransferDefinition',
+    'GrayRayTransferProvider',
+    'GrayRayTransferSession',
     'engineeringFluxSectionsFromCurvedPlume',
     'requireCapability',
     'sectionedTubeFromAxisymmetricZones',

@@ -15,7 +15,7 @@ applicability, validation evidence, and complexity ceiling.
 | `shock-cell-basic-v1` | active | Fast, steady, straight, low-order shock-cell construction | `plume.visual.sectioned-tube@1`; supporting spatial/engineering handoffs where explicitly advertised | No physical signature, ray transfer, detector image, mixing, chemistry, radiation, or curved/washed flow |
 | `signature-table-mvp-v1` | active | Independent unresolved spectral lookup | `plume.signature.spectral-radiant-intensity@1` | No solved flow, geometry reconstruction, atmosphere, optics, detector, or focal-plane array |
 | `washed-integral-v1` | planned | Curved, rotor-washed, or crossflow integral continuation | Visual and engineering products only after a provider and validation gate exist | No automatic spectral or ray-transfer claim |
-| `optical-transfer-v1` | planned | Local thermochemical/optical field and resolved transport | `plume.optical.spectral-ray-transfer@1` | No detector integration or focal-plane electronics |
+| `optical-transfer-v1` | active | Straight constant-radius support with exact homogeneous gray transfer | `plume.optical.spectral-ray-transfer@1` | No chemistry, atmosphere, curved transport, detector integration, or focal-plane electronics |
 | `focal-plane-array-v1` | planned downstream adapter | Camera geometry, spectral response, exposure, pixel integration, noise, and digitization | A future image/detector product | Not a plume solver; requires validated ray transfer as an input |
 
 The machine-readable copy is
@@ -68,6 +68,12 @@ integration, pixel integration, and an explicit noise/digitization policy.
 Until those contracts and validation gates exist, no provider may advertise an
 FPA capability.
 
+The current `optical-transfer-v1` provider is intentionally narrower than that
+future boundary: it resolves exact homogeneous gray transfer through a straight
+constant-radius support. Its gray analytic-transfer evidence does not validate
+the external BSUV2, EMAP, or ALSI sensor-space gates and does not satisfy any
+FPA requirement.
+
 ## Fidelity isolation rules
 
 1. A higher-fidelity model is a new provider/profile and a new lineage. It is
@@ -84,4 +90,3 @@ FPA capability.
 5. Performance is part of the basic solver contract. If a proposed improvement
    makes the fast lane materially slower or more stateful, it belongs in a
    separate lane even when it agrees with the same equations in a small test.
-

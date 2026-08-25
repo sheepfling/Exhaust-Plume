@@ -24,7 +24,14 @@ def _providers() -> dict[str, Any]:
       'output_channels': ['core_radius_fraction', 'opacity_weight'],
     },
     'signature': {'provider_id': 'signature.table-lookup'},
-    'optical': {'provider_ids': []},
+    'optical': {
+      'provider_ids': [],
+      'output_fields': [
+        'source_spectral_radiance',
+        'background_transmittance',
+        'optical_depth',
+      ],
+    },
     'focal_plane_array': {'provider_ids': []},
   }
 
@@ -41,6 +48,9 @@ def test_provider_comparisons_remain_blocked_without_required_observables() -> N
     'SIG-MVP-A-043',
     'SIG-MVP-A-064',
     'SIG-MVP-A-073',
+    'RAY-MVP-A-044',
+    'RAY-MVP-A-065',
+    'RAY-MVP-A-074',
   ]
   assert all(comparison['comparison_status'] == 'blocked' for comparison in comparisons)
   assert all(comparison['claim_status'] == 'not_accepted' for comparison in comparisons)

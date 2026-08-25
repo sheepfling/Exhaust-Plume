@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from math import cos, exp, isclose, pi, sin
 from pathlib import Path
 import sys
 from typing import Any, Callable
@@ -19,6 +20,8 @@ from exhaust_plume import (  # noqa: E402
   NozzleExitInput,
   Pose,
   SPECTRAL_RADIANT_INTENSITY_V1,
+  SPECTRAL_RAY_TRANSFER_V1,
+  SpectralRayTransferRequest,
   VISUAL_SECTIONED_TUBE_V1,
   VisualSampling,
   VisualSectionedTubeRequest,
@@ -29,7 +32,10 @@ from exhaust_plume.contracts import (  # noqa: E402
   SpectralSignatureRequest,
   run_visual_provider_conformance,
 )
+from exhaust_plume.geometry import SectionedTubeSupport, intersect_sectioned_tube  # noqa: E402
 from exhaust_plume.providers import (  # noqa: E402
+  GrayRayTransferDefinition,
+  GrayRayTransferProvider,
   LookupInterpolationPolicy,
   SignatureTableDefinition,
   SignatureTableProvider,
@@ -245,6 +251,158 @@ def _run_signature_lane() -> dict[str, Any]:
   }
 
 
+def _gray_definition() -> GrayRayTransferDefinition:
+  return GrayRayTransferDefinition(
+    frame_id='sensor',
+    support=SectionedTubeSupport(
+      frame_id='sensor',
+      centers_m=((0.0, 0.0, 0.0), (2.0, 0.0, 0.0)),
+      radii_m=(1.0, 1.0),
+    ),
+    wavelengths_m=(1.0e-6, 2.0e-6, 3.0e-6),
+    source_function_w_sr_m=(2.0, 4.0, 8.0),
+    absorption_coefficient_per_m=(0.5, 1.0, 2.0),
+  )
+
+
+def _run_optical_lane() -> dict[str, Any]:
+  provider = GrayRayTransferProvider()
+  definition = _gray_definition()
+  pose = Pose(
+    frame_id='world',
+    translation_m=(0.0, 0.0, 0.0),
+    rotation_xyzw=(0.0, 0.0, 0.0, 1.0),
+  )
+  request = SpectralRayTransferRequest(
+    ray_frame_id='sensor',
+    ray_origins_m=((-2.0, 0.0, 0.0), (-2.0, 2.0, 0.0)),
+    ray_directions=((1.0, 0.0, 0.0), (1.0, 0.0, 0.0)),
+    ray_t_min_m=(0.0, 0.0),
+    ray_t_max_m=(10.0, 10.0),
+    wavelengths_m=(1.0e-6, 2.0e-6, 3.0e-6),
+  )
+  first_snapshot = provider.create_session(definition=definition).create_snapshot(
+    time_s=0.0,
+    source_pose=pose,
+    dynamic_state={},
+    ambient_state={},
+  )
+  second_snapshot = provider.create_session(definition=definition).create_snapshot(
+    time_s=0.0,
+    source_pose=pose,
+    dynamic_state={},
+    ambient_state={},
+  )
+  first = first_snapshot.evaluate(SPECTRAL_RAY_TRANSFER_V1, request)
+  second = second_snapshot.evaluate(SPECTRAL_RAY_TRANSFER_V1, request)
+  expected_transmittance = tuple(exp(-2.0 * coefficient) for coefficient in definition.absorption_coefficient_per_m)
+  expected_source = tuple(
+    source * (1.0 - transmission)
+    for source, transmission in zip(definition.source_function_w_sr_m, expected_transmittance)
+  )
+  def curved_support(section_count: int) -> SectionedTubeSupport:
+    centers = tuple(
+      (
+        5.0 * cos(index * pi / (2.0 * (section_count - 1))),
+        5.0 * sin(index * pi / (2.0 * (section_count - 1))),
+        0.0,
+      )
+      for index in range(section_count)
+    )
+    return SectionedTubeSupport(
+      frame_id='sensor',
+      centers_m=centers,
+      radii_m=(0.4,) * section_count,
+    )
+
+  spatial_refinement_lengths = []
+  for section_count in (3, 5, 9, 17):
+    intervals = intersect_sectioned_tube(
+      (-1.0, 2.5, 0.0),
+      (1.0, 0.0, 0.0),
+      curved_support(section_count),
+      t_max_m=12.0,
+    )
+    spatial_refinement_lengths.append(sum(interval.t_exit_m - interval.t_enter_m for interval in intervals))
+  straight_refinement_lengths = []
+  for section_count in (2, 3, 5, 9):
+    straight_support = SectionedTubeSupport(
+      frame_id='sensor',
+      centers_m=tuple((2.0 * index / (section_count - 1), 0.0, 0.0) for index in range(section_count)),
+      radii_m=(1.0,) * section_count,
+    )
+    straight_intervals = intersect_sectioned_tube(
+      (-2.0, 0.0, 0.0),
+      (1.0, 0.0, 0.0),
+      straight_support,
+      t_max_m=10.0,
+    )
+    straight_refinement_lengths.append(sum(interval.t_exit_m - interval.t_enter_m for interval in straight_intervals))
+  spatial_refinement_passed = all(isclose(length, 4.0, rel_tol=0.0, abs_tol=1.0e-12) for length in straight_refinement_lengths)
+  coarse_request = SpectralRayTransferRequest(
+    ray_frame_id='sensor',
+    ray_origins_m=((-2.0, 0.0, 0.0),),
+    ray_directions=((1.0, 0.0, 0.0),),
+    ray_t_min_m=(0.0,),
+    ray_t_max_m=(10.0,),
+    wavelengths_m=(1.0e-6, 3.0e-6),
+  )
+  fine_request = SpectralRayTransferRequest(
+    ray_frame_id='sensor',
+    ray_origins_m=((-2.0, 0.0, 0.0),),
+    ray_directions=((1.0, 0.0, 0.0),),
+    ray_t_min_m=(0.0,),
+    ray_t_max_m=(10.0,),
+    wavelengths_m=(1.0e-6, 2.0e-6, 3.0e-6),
+  )
+  coarse = first_snapshot.evaluate(SPECTRAL_RAY_TRANSFER_V1, coarse_request)
+  fine = first_snapshot.evaluate(SPECTRAL_RAY_TRANSFER_V1, fine_request)
+  spectral_endpoint_error = max(
+    abs(coarse.source_spectral_radiance[0][index] - fine.source_spectral_radiance[0][2 * index])
+    for index in (0, 1)
+  )
+  spectral_refinement_passed = spectral_endpoint_error <= 1.0e-12
+  analytic_passed = (
+    all(isclose(actual, expected, rel_tol=1.0e-12, abs_tol=1.0e-12) for actual, expected in zip(first.source_spectral_radiance[0], expected_source))
+    and all(isclose(actual, expected, rel_tol=1.0e-12, abs_tol=1.0e-12) for actual, expected in zip(first.background_transmittance[0], expected_transmittance))
+    and first.optical_depth is not None
+    and all(isclose(actual, expected, rel_tol=1.0e-12, abs_tol=1.0e-12) for actual, expected in zip(first.optical_depth[0], (1.0, 2.0, 4.0)))
+    and first.hit_mask == (True, False)
+  )
+  return {
+    'lane_id': 'optical-transfer-v1',
+    'product_id': SPECTRAL_RAY_TRANSFER_V1.capability.wire_id,
+    'provider_id': provider.descriptor.provider_id,
+    'status': 'passed' if analytic_passed else 'failed',
+    'analytic_slab_and_chord_passed': analytic_passed,
+    'deterministic_serialization': first.model_dump(mode='json') == second.model_dump(mode='json'),
+    'spatial_refinement': {
+      'straight_section_counts': [2, 3, 5, 9],
+      'straight_exact_chord_lengths_m': straight_refinement_lengths,
+      'passed': spatial_refinement_passed,
+      'curved_section_counts': [3, 5, 9, 17],
+      'curved_capsule_path_lengths_m': spatial_refinement_lengths,
+      'curved_status': 'nonmonotonic-observed-not-promoted',
+      'note': 'the provider gate uses the exact straight cylinder; curved-support refinement is recorded as geometry-only evidence and is not advertised as converged',
+    },
+    'spectral_refinement': {
+      'coarse_wavelength_count': 2,
+      'fine_wavelength_count': 3,
+      'endpoint_max_abs_delta': spectral_endpoint_error,
+      'passed': spectral_refinement_passed,
+      'note': 'linear property interpolation consistency, not chemistry or source-model validation',
+    },
+    'hit_mask': first.hit_mask,
+    'intersection_intervals_m': first.plume_intersection_t_m,
+    'radiation_claim': first.metadata.claims.radiation.value,
+    'external_comparison': {
+      'status': 'pending',
+      'reason': 'The gray provider is analytically validated but the recovered external gates require sensor-space LOS, band, or path operators that are not yet implemented.',
+    },
+    'claim_ceiling': 'Homogeneous gray transfer through a straight constant-radius support only; no chemistry, atmosphere, detector, or FPA claim.',
+  }
+
+
 def _run_fpa_boundary() -> dict[str, Any]:
   matrix = json.loads((REPO_ROOT / 'docs' / 'solver_fidelity_matrix_v1.json').read_text(encoding='utf-8'))
   lanes = {lane['lane_id']: lane for lane in matrix['lanes']}
@@ -252,7 +410,7 @@ def _run_fpa_boundary() -> dict[str, Any]:
   optical = lanes['optical-transfer-v1']
   passed = (
     fpa['provider_ids'] == []
-    and optical['provider_ids'] == []
+    and optical['provider_ids'] == ['plume.gray-ray-transfer']
     and fpa['focal_plane_array'] == 'downstream-adapter'
     and 'plume.optical.spectral-ray-transfer@1' in fpa['requires']
     and 'detector-response-contract' in fpa['requires']
@@ -299,8 +457,9 @@ def main(argv: list[str] | None = None) -> int:
   args = parser.parse_args(argv)
   visual = _run_check('shock-cell-basic-v1', _run_visual_lane)
   signature = _run_check('signature-table-mvp-v1', _run_signature_lane)
+  optical = _run_check('optical-transfer-v1', _run_optical_lane)
   fpa = _run_check('focal-plane-array-v1', _run_fpa_boundary)
-  local_passed = all(result['status'] in {'passed', 'boundary-valid-not-implemented'} for result in (visual, signature, fpa))
+  local_passed = all(result['status'] in {'passed', 'boundary-valid-not-implemented'} for result in (visual, signature, optical, fpa))
   report = {
     'report_id': 'exhaust-plume-product-lane-validation-v1',
     'local_status': 'passed' if local_passed else 'failed',
@@ -308,6 +467,7 @@ def main(argv: list[str] | None = None) -> int:
     'lanes': {
       'visual': visual,
       'signature': signature,
+      'optical': optical,
       'focal_plane_array': fpa,
     },
     'external_corpus': _external_summary(args.corpus),

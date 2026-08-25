@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from scripts.validate_product_lanes import _run_fpa_boundary, _run_signature_lane, _run_visual_lane
+from scripts.validate_product_lanes import _run_fpa_boundary, _run_optical_lane, _run_signature_lane, _run_visual_lane
 
 
 def test_visual_lane_local_acceptance_is_separate_from_external_comparison() -> None:
@@ -22,7 +22,17 @@ def test_signature_lane_local_interpolation_acceptance_is_explicitly_table_only(
   assert report['external_comparison']['status'] == 'pending'
 
 
+def test_optical_lane_passes_analytic_gray_transfer_without_promoting_external_claims() -> None:
+  report = _run_optical_lane()
+
+  assert report['status'] == 'passed'
+  assert report['provider_id'] == 'plume.gray-ray-transfer'
+  assert report['analytic_slab_and_chord_passed'] is True
+  assert report['external_comparison']['status'] == 'pending'
+
+
 def test_fpa_boundary_does_not_advertise_an_unimplemented_provider() -> None:
   report = _run_fpa_boundary()
   assert report['status'] == 'boundary-valid-not-implemented'
   assert report['provider_advertised'] is False
+  assert report['ray_provider_prerequisite_present'] is True

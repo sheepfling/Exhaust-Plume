@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from exhaust_plume.providers import (
+  GrayRayTransferProvider,
   ShockCellVisualProvider,
   SignatureTableProvider,
   StraightAnalyticalProvider,
@@ -21,6 +22,7 @@ def _matrix() -> dict[str, Any]:
 
 def _active_descriptors() -> dict[str, Any]:
   providers = (
+    GrayRayTransferProvider(),
     ShockCellVisualProvider(),
     StraightAnalyticalProvider(),
     SignatureTableProvider(),
@@ -36,7 +38,7 @@ def test_fidelity_matrix_has_separate_active_and_downstream_lanes() -> None:
   assert lanes['shock-cell-basic-v1']['status'] == 'active'
   assert lanes['signature-table-mvp-v1']['status'] == 'active'
   assert lanes['washed-integral-v1']['status'] == 'planned'
-  assert lanes['optical-transfer-v1']['status'] == 'planned'
+  assert lanes['optical-transfer-v1']['status'] == 'active'
   assert lanes['focal-plane-array-v1']['status'] == 'planned-downstream'
   assert lanes['shock-cell-basic-v1']['focal_plane_array'] == 'not_supported'
 ####

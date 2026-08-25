@@ -76,15 +76,33 @@
     },
     {
       "lane_id": "optical-transfer-v1",
-      "status": "planned",
-      "provider_ids": [],
+      "status": "active",
+      "provider_ids": [
+        "plume.gray-ray-transfer"
+      ],
+      "advertised_capabilities": [
+        "plume.optical.spectral-ray-transfer@1"
+      ],
+      "forbidden_capabilities": [
+        "plume.signature.spectral-radiant-intensity@1",
+        "plume.image.spectral-radiance@1"
+      ],
       "target_capabilities": [
         "plume.optical.spectral-ray-transfer@1"
       ],
       "requires": [
-        "validated-local-optical-field",
-        "ray-transfer-validation"
+        "exact-sectioned-support-intervals",
+        "analytic-gray-transfer-validation"
       ],
+      "model_axes": {
+        "morphology": "straight-axisymmetric-support",
+        "flow": "not_solved",
+        "mixing": "not_solved",
+        "thermochemistry": "not_solved",
+        "radiation": "homogeneous-gray-source-function",
+        "validation": "analytic-transfer-and-declared-support-envelope"
+      },
+      "complexity_policy": "straight homogeneous transfer ceiling; curved/path/chemistry fidelity requires a new provider lane",
       "focal_plane_array": "not_supported"
     },
     {

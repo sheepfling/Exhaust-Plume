@@ -21,12 +21,13 @@ try:
   )
   from scripts.validate_product_lanes import (
     _run_fpa_boundary,
+    _run_optical_lane,
     _run_signature_lane,
     _run_visual_lane,
   )
 except ModuleNotFoundError:  # pragma: no cover - direct script execution
   from validate_external_corpus_alignment import _read_csv, _read_json, preflight_corpus
-  from validate_product_lanes import _run_fpa_boundary, _run_signature_lane, _run_visual_lane
+  from validate_product_lanes import _run_fpa_boundary, _run_optical_lane, _run_signature_lane, _run_visual_lane
 
 
 VISUAL_PRODUCT = 'plume.visual.sectioned-tube@1'
@@ -133,6 +134,7 @@ def summarize_corpus_observations(archive: ZipFile) -> dict[str, Any]:
 def _local_provider_inventory() -> dict[str, Any]:
   visual = _run_visual_lane()
   signature = _run_signature_lane()
+  optical = _run_optical_lane()
   fpa = _run_fpa_boundary()
   visual_channels = sorted({
     channel
@@ -157,9 +159,15 @@ def _local_provider_inventory() -> dict[str, Any]:
       'claim_ceiling': signature['claim_ceiling'],
     },
     'optical': {
-      'provider_ids': [],
-      'status': 'no-provider',
-      'claim_ceiling': 'No optical-transfer claim.',
+      'provider_ids': [optical['provider_id']],
+      'status': optical['status'],
+      'claim_ceiling': optical['claim_ceiling'],
+      'analytic_transfer_passed': optical['analytic_slab_and_chord_passed'],
+      'output_fields': [
+        'source_spectral_radiance',
+        'background_transmittance',
+        'optical_depth',
+      ],
     },
     'focal_plane_array': {
       'provider_ids': [],
@@ -217,6 +225,8 @@ def build_comparison_plan(
   visual_outputs = list(providers['visual']['output_channels'])
   signature_id = providers['signature']['provider_id']
   signature_outputs = ['spectral_radiant_intensity']
+  ray_ids = list(providers['optical']['provider_ids'])
+  ray_outputs = list(providers['optical']['output_fields'])
   visual_blockers = [
     'current visual providers emit display channels only; no mach_disk_position observable is produced',
     'the bounded construction endpoint is not a physical Mach-disk endpoint',
@@ -291,6 +301,57 @@ def build_comparison_plan(
         *([crosswalk_blocker] if crosswalk_blocker is not None else []),
       ],
     ),
+    _comparison(
+      comparison_id='RAY-MVP-A-044',
+      product_id=RAY_PRODUCT,
+      provider_ids=ray_ids,
+      benchmark_id='RP-BSUV2-001',
+      alignment_id='MVP-A-044',
+      measurement_operator_id='operator.sensor.bsuv2_los_fov',
+      metric_ids=['metric.ray.sensor_space_log_rmse'],
+      observed_data=observations['RP-BSUV2-001']['spectral_radiance'],
+      available_provider_outputs=ray_outputs,
+      required_provider_outputs=['bsuv2_los_fov_sensor_space_radiance'],
+      blockers=[
+        'the gray provider has no BSUV2 plume field, line-of-sight, or field-of-view detector model',
+        'the external observable combines source, path, and sensor effects; the current provider only supplies homogeneous support transfer',
+        *([crosswalk_blocker] if crosswalk_blocker is not None else []),
+      ],
+    ),
+    _comparison(
+      comparison_id='RAY-MVP-A-065',
+      product_id=RAY_PRODUCT,
+      provider_ids=ray_ids,
+      benchmark_id='RP-EMAP-RAD-001',
+      alignment_id='MVP-A-065',
+      measurement_operator_id='operator.spectrum.peak_normalize_after_los_transfer',
+      metric_ids=['metric.ray.relative_spectral_shape_rmse'],
+      observed_data=observations['RP-EMAP-RAD-001']['uvvis_relative_spectrum'],
+      available_provider_outputs=ray_outputs,
+      required_provider_outputs=['line_of_sight_peak_normalized_spectral_shape'],
+      blockers=[
+        'the provider has no EMAP field, path extinction, sensor sampling, or peak-normalization operator',
+        'the corpus records a normalized source-plus-path shape, not independent source radiance and transmittance',
+        *([crosswalk_blocker] if crosswalk_blocker is not None else []),
+      ],
+    ),
+    _comparison(
+      comparison_id='RAY-MVP-A-074',
+      product_id=RAY_PRODUCT,
+      provider_ids=ray_ids,
+      benchmark_id='RP-ALSI-001',
+      alignment_id='MVP-A-074',
+      measurement_operator_id='operator.image.integrate_alsi_band_and_area',
+      metric_ids=['metric.ray.band_radiance_relative_error'],
+      observed_data=observations['RP-ALSI-001']['thermal_comparison'],
+      available_provider_outputs=ray_outputs,
+      required_provider_outputs=['alsi_band_integrated_radiance_and_projected_power'],
+      blockers=[
+        'the provider has no ALSI bandpass, projected-area, or image integration operator',
+        'the thermal corpus is band-integrated and is not a per-ray source-spectrum truth set',
+        *([crosswalk_blocker] if crosswalk_blocker is not None else []),
+      ],
+    ),
   ]
   return comparisons
 
@@ -302,10 +363,9 @@ def build_unimplemented_boundaries(providers: Mapping[str, Any]) -> list[dict[st
     {
       'product_id': RAY_PRODUCT,
       'provider_ids': list(providers['optical']['provider_ids']),
-      'status': 'blocked_no_provider',
+      'status': 'external-validation-pending' if providers['optical']['provider_ids'] else 'blocked_no_provider',
       'claim_status': 'not_accepted',
       'required_prerequisites': [
-        'validated optical ray-transfer provider',
         'source radiance and transmittance separation',
         'sensor-space comparison operators',
       ],

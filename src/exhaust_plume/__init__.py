@@ -156,6 +156,12 @@ from exhaust_plume.providers.signature_table import (
   SignatureTableProvider,
   SignatureTableSession,
 )
+from exhaust_plume.providers.gray_ray_transfer import (
+  GrayRayTransferConfiguration,
+  GrayRayTransferDefinition,
+  GrayRayTransferProvider,
+  GrayRayTransferSession,
+)
 from exhaust_plume.products import (
   VisualMesh,
   build_sectioned_tube_mesh,
@@ -282,6 +288,10 @@ __all__ = (
     'ShockCellVisualOperatingState',
     'ShockCellVisualProvider',
     'ShockCellVisualSession',
+    'GrayRayTransferConfiguration',
+    'GrayRayTransferDefinition',
+    'GrayRayTransferProvider',
+    'GrayRayTransferSession',
     'OrthogonalUniformCrossflowExactSolution',
     'SweptTubeMesh',
     'StudyValidityEnvelope',
