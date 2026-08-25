@@ -1,12 +1,35 @@
 from __future__ import annotations
 
+from pathlib import Path
+
+from scripts import validate_product_lanes
 from scripts.validate_product_lanes import (
+  _external_summary,
   _run_cross_product_consistency,
   _run_fpa_boundary,
   _run_optical_lane,
   _run_signature_lane,
   _run_visual_lane,
 )
+
+
+def test_external_summary_redacts_machine_local_archive_path(monkeypatch) -> None:
+  monkeypatch.setattr(
+    validate_product_lanes,
+    'preflight_corpus',
+    lambda _: {
+      'status': 'preflight-valid-pending-release-gates',
+      'archive': {'path': '/machine-specific/archive.zip', 'status': 'verified'},
+      'content_counts': {},
+      'alignment': {'validation_gate_statuses': {}},
+      'operator_reconciliation': {'crosswalk_status': 'pending'},
+      'release_blockers': [],
+    },
+  )
+
+  summary = _external_summary(Path('/machine-specific/archive.zip'))
+
+  assert summary['archive'] == {'status': 'verified'}
 
 
 def test_visual_lane_local_acceptance_is_separate_from_external_comparison() -> None:

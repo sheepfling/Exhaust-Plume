@@ -1,0 +1,327 @@
+{
+  "external_corpus": {
+    "archive": {
+      "actual_sha256": "79c2a34dd4c43bd976ceb8773fdccd78a2592d903bf03ca57c2aef82f882e9aa",
+      "expected_sha256": "79c2a34dd4c43bd976ceb8773fdccd78a2592d903bf03ca57c2aef82f882e9aa",
+      "member_count": 138,
+      "status": "verified"
+    },
+    "content_counts": {
+      "alignment_mappings": 78,
+      "alignment_summary_rows": 20,
+      "benchmark_definitions": 17,
+      "indexed_products": 60,
+      "source_records": 19
+    },
+    "gate_statuses": {
+      "outside_corpus": 4,
+      "partial_evidence": 3,
+      "ready": 3,
+      "synthetic_only": 1
+    },
+    "operator_crosswalk_status": "pending",
+    "release_blockers": [
+      "external operator crosswalk is unresolved",
+      "provider-specific VIS/SIG/RAY comparisons are recorded but not accepted",
+      "separately named MVP alignment archive is not yet verified"
+    ],
+    "status": "preflight-valid-pending-release-gates"
+  },
+  "external_status": "comparison-pending",
+  "lanes": {
+    "cross_product": {
+      "adapter_id": "plume.adapter.far-field-from-rays",
+      "claim_ceiling": "Synthetic orthographic ray-to-signature consistency only; no experimental signature, atmosphere, detector, image, or FPA claim.",
+      "claim_derivation": "adapted",
+      "corpus_cross_product_rule_id": "MVP-X-001",
+      "deterministic_serialization": true,
+      "external_adapter_id": "adapter.far_field_from_rays@1",
+      "external_comparison": {
+        "reason": "The adapter operator is verified against a homogeneous gray ray fixture; recovered sensor-space comparisons remain blocked by missing LOS/path/detector operators and the unresolved external namespace crosswalk.",
+        "status": "synthetic-only"
+      },
+      "lane_id": "ray-to-signature-consistency-v1",
+      "miss_group_zero_passed": true,
+      "operator_mapping_status": "semantic-match-reviewed-for-synthetic-rule-only",
+      "orthographic_area_integration_passed": true,
+      "product_id": "plume.signature.spectral-radiant-intensity@1",
+      "radiation_claim": "gray_approximate",
+      "ray_provider_id": "plume.gray-ray-transfer",
+      "registry_operator_id": "op.ray.projected-area-signature",
+      "snapshot_lineage_preserved": true,
+      "status": "passed",
+      "wavelength_grid_identity_preserved": true
+    },
+    "focal_plane_array": {
+      "claim_ceiling": "Deterministic expected-electron adapter only; no externally validated FPA image, detector-count, noise-realization, or detection claim.",
+      "lane_id": "focal-plane-array-v1",
+      "pixel_detector_contract_passed": true,
+      "pixel_detector_operator_id": "op.sensor.fpa-pixel-detector",
+      "pixel_grid_shape": [
+        1,
+        2
+      ],
+      "pixel_validity_mask": [
+        [
+          true,
+          true
+        ]
+      ],
+      "provider_advertised": false,
+      "ray_provider_prerequisite_present": true,
+      "ray_signature_adapter_present": true,
+      "source_semantics": "source-only",
+      "status": "boundary-valid-not-implemented"
+    },
+    "optical": {
+      "analytic_slab_and_chord_passed": true,
+      "claim_ceiling": "Homogeneous gray transfer through a straight constant-radius support only; no chemistry, atmosphere, detector, or FPA claim.",
+      "deterministic_serialization": true,
+      "external_comparison": {
+        "reason": "The gray provider is analytically validated but the recovered external gates require sensor-space LOS, band, or path operators that are not yet implemented.",
+        "status": "pending"
+      },
+      "hit_mask": [
+        true,
+        false
+      ],
+      "intersection_intervals_m": [
+        [
+          2.0,
+          4.0
+        ],
+        null
+      ],
+      "lane_id": "optical-transfer-v1",
+      "measurement_probe": {
+        "ray_index": 0,
+        "source_spectral_radiance_w_m2_sr_m": [
+          1.2642411176571153,
+          3.458658867053549,
+          7.853474888890126
+        ],
+        "validity_mask": [
+          true,
+          true,
+          true
+        ],
+        "wavelengths_m": [
+          1e-06,
+          2e-06,
+          3e-06
+        ]
+      },
+      "product_id": "plume.optical.spectral-ray-transfer@1",
+      "provider_id": "plume.gray-ray-transfer",
+      "radiation_claim": "gray_approximate",
+      "spatial_refinement": {
+        "curved_capsule_path_lengths_m": [
+          0.8659137602339158,
+          0.9621518190960741,
+          0.9071104557061656,
+          0.926910092480842
+        ],
+        "curved_section_counts": [
+          3,
+          5,
+          9,
+          17
+        ],
+        "curved_status": "nonmonotonic-observed-not-promoted",
+        "note": "the provider gate uses the exact straight cylinder; curved-support refinement is recorded as geometry-only evidence and is not advertised as converged",
+        "passed": false,
+        "straight_exact_chord_lengths_m": [
+          2.0,
+          2.0,
+          2.0,
+          2.0
+        ],
+        "straight_section_counts": [
+          2,
+          3,
+          5,
+          9
+        ]
+      },
+      "spectral_refinement": {
+        "coarse_wavelength_count": 2,
+        "endpoint_max_abs_delta": 0.0,
+        "fine_wavelength_count": 3,
+        "note": "linear property interpolation consistency, not chemistry or source-model validation",
+        "passed": true
+      },
+      "status": "passed",
+      "wavelengths_m": [
+        1e-06,
+        2e-06,
+        3e-06
+      ]
+    },
+    "signature": {
+      "asset_source": "repository synthetic contract fixture",
+      "claim_ceiling": "Versioned table and interpolation behavior only; no intrinsic physical validation claim.",
+      "contract_interpolation_passed": true,
+      "external_comparison": {
+        "reason": "Recovered spectral observations are sensor-space or relative-shape products and require explicit LOS, path, detector, and source-calibration operators before comparison to intrinsic J_lambda.",
+        "status": "pending"
+      },
+      "lane_id": "signature-table-mvp-v1",
+      "measurement_probe": {
+        "direction_unit": [
+          0.5,
+          0.8660254037844386,
+          0.0
+        ],
+        "spectral_radiant_intensity_w_sr_m": [
+          1.5,
+          2.5,
+          3.5
+        ],
+        "wavelengths_m": [
+          1e-06,
+          2e-06,
+          3e-06
+        ]
+      },
+      "measurement_space_operators": {
+        "band_integration_passed": true,
+        "operator_ids": [
+          "op.sensor.spectral-sampling",
+          "op.sensor.peak-normalize-spectrum",
+          "op.sensor.band-integral"
+        ],
+        "peak_normalization_passed": true,
+        "scope": "spectral-array reduction only; no line-of-sight, atmosphere, optics, detector, or source calibration",
+        "sensor_sampling_passed": true,
+        "status": "passed"
+      },
+      "output_shape": [
+        1,
+        2
+      ],
+      "output_units": "W sr^-1 m^-1",
+      "product_id": "plume.signature.spectral-radiant-intensity@1",
+      "provider_id": "signature.table-lookup",
+      "radiation_claim": "tabulated",
+      "status": "passed",
+      "validity_mask": [
+        [
+          true,
+          true
+        ]
+      ],
+      "wavelengths_m": [
+        1e-06,
+        2e-06,
+        3e-06
+      ]
+    },
+    "visual": {
+      "cases": [
+        {
+          "applicability": "marginal",
+          "exit_to_ambient_pressure_ratio": 1.0,
+          "output_channels": [
+            "core_radius_fraction",
+            "opacity_weight"
+          ],
+          "provider_id": "plume.straight-analytical",
+          "radiation_claim": "appearance_only",
+          "section_count": 16
+        },
+        {
+          "applicability": "marginal",
+          "exit_to_ambient_pressure_ratio": 1.2,
+          "output_channels": [
+            "core_radius_fraction",
+            "opacity_weight"
+          ],
+          "provider_id": "plume.straight-analytical",
+          "radiation_claim": "appearance_only",
+          "section_count": 16
+        },
+        {
+          "applicability": "marginal",
+          "exit_to_ambient_pressure_ratio": 0.85,
+          "output_channels": [
+            "core_radius_fraction",
+            "opacity_weight"
+          ],
+          "provider_id": "plume.straight-analytical",
+          "radiation_claim": "appearance_only",
+          "section_count": 16
+        },
+        {
+          "applicability": "marginal",
+          "exit_to_ambient_pressure_ratio": 1.0,
+          "output_channels": [
+            "core_radius_fraction",
+            "opacity_weight"
+          ],
+          "provider_id": "plume.shock-cell-analytical",
+          "radiation_claim": "appearance_only",
+          "section_count": 16
+        },
+        {
+          "applicability": "marginal",
+          "exit_to_ambient_pressure_ratio": 1.2,
+          "output_channels": [
+            "core_radius_fraction",
+            "opacity_weight"
+          ],
+          "provider_id": "plume.shock-cell-analytical",
+          "radiation_claim": "appearance_only",
+          "section_count": 16
+        },
+        {
+          "applicability": "marginal",
+          "exit_to_ambient_pressure_ratio": 0.85,
+          "output_channels": [
+            "core_radius_fraction",
+            "opacity_weight"
+          ],
+          "provider_id": "plume.shock-cell-analytical",
+          "radiation_claim": "appearance_only",
+          "section_count": 16
+        }
+      ],
+      "claim_ceiling": "Engineering-approximate straight visual geometry and named display features only.",
+      "contract_conformance": true,
+      "deterministic_serialization": true,
+      "external_comparison": {
+        "reason": "The current visual contract exposes geometry/display channels, while the recovered CJ gate requires explicit pressure/velocity/Mach feature operators.",
+        "status": "pending"
+      },
+      "lane_id": "shock-cell-basic-v1",
+      "product_id": "plume.visual.sectioned-tube@1",
+      "provider_ids": [
+        "plume.straight-analytical",
+        "plume.shock-cell-analytical"
+      ],
+      "provider_reports": [
+        {
+          "contract_conformance": true,
+          "deterministic_serialization": true,
+          "output_channels": [
+            "core_radius_fraction",
+            "opacity_weight"
+          ],
+          "provider_id": "plume.straight-analytical"
+        },
+        {
+          "contract_conformance": true,
+          "deterministic_serialization": true,
+          "output_channels": [
+            "core_radius_fraction",
+            "opacity_weight"
+          ],
+          "provider_id": "plume.shock-cell-analytical"
+        }
+      ],
+      "status": "passed"
+    }
+  },
+  "local_status": "passed",
+  "release_ready": false,
+  "report_id": "exhaust-plume-product-lane-validation-v1"
+}

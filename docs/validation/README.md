@@ -69,6 +69,12 @@ FTIR produces only a partial-overlap diagnostic because the synthetic provider
 ends at 3 micrometres and the observation continues beyond 5 micrometres.
 Those residuals are diagnostics, not validation claims.
 
+The reproducible local lane run is preserved in
+[`product_lane_validation_v1.json`](product_lane_validation_v1.json). It shows
+independent VIS and SIG contract/operator acceptance, the analytic optical
+boundary, the synthetic ray-to-signature check, and the downstream FPA adapter
+status. Its `release_ready` flag remains false.
+
 The first quantitative benchmark component record is
 [`cj_uej_component_validation_v1.json`](cj_uej_component_validation_v1.json).
 It is intentionally separate from the product preflight: `CJ-UEJ-001` is a

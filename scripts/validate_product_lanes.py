@@ -641,9 +641,13 @@ def _external_summary(path: Path | None) -> dict[str, Any]:
   if path is None:
     return {'status': 'not-provided'}
   report = preflight_corpus(path)
+  archive = {
+    key: value for key, value in report['archive'].items()
+    if key != 'path'
+  }
   return {
     'status': report['status'],
-    'archive': report['archive'],
+    'archive': archive,
     'content_counts': report.get('content_counts', {}),
     'gate_statuses': report.get('alignment', {}).get('validation_gate_statuses', {}),
     'operator_crosswalk_status': report.get('operator_reconciliation', {}).get('crosswalk_status'),

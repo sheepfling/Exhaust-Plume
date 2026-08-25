@@ -79,6 +79,13 @@ partial-domain outcomes instead of extrapolating the synthetic providers; the
 residuals remain diagnostic only. FPA remains an explicit downstream boundary
 with no provider ID.
 
+The exact local execution is preserved in
+[`product_lane_validation_v1.json`](product_lane_validation_v1.json): VIS and
+SIG each pass their independent local contract/operator checks, optical passes
+the analytic gray-transfer gate, the ray-to-signature adapter passes its
+synthetic lineage checks, and FPA remains a deterministic downstream adapter
+without a provider.
+
 The canonical cold-jet benchmark now has a separate component diagnostic in
 [`cj_uej_component_validation_v1.json`](cj_uej_component_validation_v1.json).
 It applies the corpus probe-line operator to the bounded shock-cell zones and
