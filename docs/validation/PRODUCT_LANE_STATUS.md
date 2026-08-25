@@ -40,6 +40,15 @@ and regression tests remain engineering evidence, not experimental validation;
 the unresolved operator crosswalk, provider-specific comparisons, and separate
 alignment archive still block external claims.
 
+The provider-comparison preflight is recorded in
+[`provider_comparison_preflight_v1.json`](provider_comparison_preflight_v1.json).
+It confirms that the two visual providers expose only
+`core_radius_fraction` and `opacity_weight`, so the HOTWAKE Mach-disk operator
+cannot be applied. It also keeps BSUV2, EMAP, and ALSI in their declared
+sensor-space or band-integrated measurement spaces instead of comparing them
+to the synthetic intrinsic signature table. Ray transfer and FPA remain
+explicit downstream boundaries with no provider IDs.
+
 The recovered corpus changes that sentence for data availability, not for
 product acceptance. Its own gate registry reports VIS, SIG, and RAY T1
 component evidence as `ready` and their T2 product evidence as
@@ -71,6 +80,10 @@ The fidelity-specific local report is generated with:
 python3 scripts/validate_product_lanes.py \
   --corpus /path/to/plume_validation_data_v8.zip \
   --output product-lane-report.json
+
+python3 scripts/validate_provider_comparisons.py \
+  --corpus /path/to/plume_validation_data_v8.zip \
+  --output provider-comparison-preflight.json
 ```
 
 This command currently passes the VIS provider/conformance cases, SIG table

@@ -1,0 +1,836 @@
+{
+  "archive": {
+    "actual_sha256": "79c2a34dd4c43bd976ceb8773fdccd78a2592d903bf03ca57c2aef82f882e9aa",
+    "expected_sha256": "79c2a34dd4c43bd976ceb8773fdccd78a2592d903bf03ca57c2aef82f882e9aa",
+    "member_count": 138,
+    "status": "verified"
+  },
+  "comparisons": [
+    {
+      "alignment_id": "MVP-A-061",
+      "available_provider_outputs": [
+        "core_radius_fraction",
+        "opacity_weight"
+      ],
+      "benchmark_id": "RP-HOTWAKE-001",
+      "blockers": [
+        "current visual providers emit display channels only; no mach_disk_position observable is produced",
+        "the bounded construction endpoint is not a physical Mach-disk endpoint",
+        "the external relation is an unordered hysteretic point cloud and requires branch-aware operator semantics",
+        "external measurement-operator namespace is not reconciled with the committed registry"
+      ],
+      "claim_status": "not_accepted",
+      "comparison_id": "VIS-MVP-A-061",
+      "comparison_status": "blocked",
+      "measurement_operator_id": "operator.extract.sectioned_tube_mach_disk_position",
+      "metric_ids": [
+        "metric.geometry.mach_disk_position_rmse"
+      ],
+      "observed_data": {
+        "categorical_values": {
+          "measurement_kind": [
+            "published_raster_curve_point"
+          ],
+          "run_id": [
+            "Run18_HotJet001",
+            "Run19_HotJet001",
+            "Run31_HotJet001"
+          ],
+          "temporal_order_available": [
+            "False"
+          ]
+        },
+        "columns": [
+          "benchmark_id",
+          "cluster_index_at_pixel_bin",
+          "combustion_chamber_pressure_bar",
+          "extraction_method",
+          "mach_disk_position_from_nozzle_exit_mm",
+          "measurement_kind",
+          "notes",
+          "point_index",
+          "position_digitization_uncertainty_mm",
+          "pressure_digitization_uncertainty_bar",
+          "run_id",
+          "sensor_description",
+          "series_id",
+          "source_figure",
+          "source_id",
+          "source_pdf_page_1_indexed",
+          "source_pixel_x",
+          "source_pixel_y",
+          "temporal_order_available"
+        ],
+        "relative_path": "data/rp_hotwake_001_mach_disk_pressure_relation.csv",
+        "row_count": 606,
+        "uncertainty_fields": [
+          "position_digitization_uncertainty_mm",
+          "pressure_digitization_uncertainty_bar"
+        ]
+      },
+      "product_id": "plume.visual.sectioned-tube@1",
+      "provider_ids": [
+        "plume.straight-analytical",
+        "plume.shock-cell-analytical"
+      ],
+      "required_provider_outputs": [
+        "mach_disk_position_m",
+        "operating_pressure_or_branch_id"
+      ]
+    },
+    {
+      "alignment_id": "MVP-A-043",
+      "available_provider_outputs": [
+        "spectral_radiant_intensity"
+      ],
+      "benchmark_id": "RP-BSUV2-001",
+      "blockers": [
+        "the provider asset is a synthetic table fixture, not the BSUV2 operating point",
+        "the current signature lane has no declared line-of-sight and field-of-view measurement operator",
+        "the corpus contains 13 digitized sensor-space markers, not intrinsic J_lambda truth",
+        "external measurement-operator namespace is not reconciled with the committed registry"
+      ],
+      "claim_status": "not_accepted",
+      "comparison_id": "SIG-MVP-A-043",
+      "comparison_status": "blocked",
+      "measurement_operator_id": "operator.sensor.bsuv2_los_fov",
+      "metric_ids": [
+        "metric.signature.log_spectral_rmse"
+      ],
+      "observed_data": {
+        "categorical_values": {
+          "evidence_layer": [
+            "digitized_published_markers"
+          ],
+          "measurement_kind": [
+            "published experimental triangle marker"
+          ],
+          "quality_flag": [
+            "axis_edge_marker",
+            "digitized_triangle_marker"
+          ]
+        },
+        "columns": [
+          "benchmark_id",
+          "case_id",
+          "evidence_layer",
+          "extraction_method",
+          "log10_radiance_digitization_uncertainty_dex",
+          "log10_spectral_radiance_source_units",
+          "measurement_kind",
+          "notes",
+          "pixel_x_marker_center",
+          "pixel_y_marker_center",
+          "point_index",
+          "quality_flag",
+          "source_figure",
+          "source_id",
+          "source_pdf_page_1_indexed",
+          "spectral_radiance_w_cm2_sr_um",
+          "spectral_radiance_w_m2_sr_m",
+          "spectral_radiance_w_m2_sr_um",
+          "wavelength_digitization_uncertainty_um",
+          "wavelength_um"
+        ],
+        "relative_path": "data/rp_bsuv2_001_uv_spectral_radiance.csv",
+        "row_count": 13,
+        "uncertainty_fields": [
+          "log10_radiance_digitization_uncertainty_dex",
+          "wavelength_digitization_uncertainty_um"
+        ]
+      },
+      "product_id": "plume.signature.spectral-radiant-intensity@1",
+      "provider_ids": [
+        "signature.table-lookup"
+      ],
+      "required_provider_outputs": [
+        "bsuv2_los_fov_sensor_space_radiance"
+      ]
+    },
+    {
+      "alignment_id": "MVP-A-064",
+      "available_provider_outputs": [
+        "spectral_radiant_intensity"
+      ],
+      "benchmark_id": "RP-EMAP-RAD-001",
+      "blockers": [
+        "the provider has no corpus-backed EMAP source asset or operating point",
+        "the current signature lane has no sensor-sampling or peak-normalization operator",
+        "normalized spectral shape cannot validate the provider absolute-radiance claim",
+        "external measurement-operator namespace is not reconciled with the committed registry"
+      ],
+      "claim_status": "not_accepted",
+      "comparison_id": "SIG-MVP-A-064",
+      "comparison_status": "blocked",
+      "measurement_operator_id": "operator.spectrum.peak_normalize_after_sensor_sampling",
+      "metric_ids": [
+        "metric.signature.relative_shape_rmse",
+        "metric.signature.band_location_error"
+      ],
+      "observed_data": {
+        "categorical_values": {
+          "evidence_layer": [
+            ""
+          ],
+          "measurement_kind": [
+            "published_peak_normalized_relative_spectral_trace"
+          ]
+        },
+        "columns": [
+          "benchmark_id",
+          "calibration_status",
+          "case_id",
+          "diagnostic",
+          "extraction_method",
+          "measurement_kind",
+          "notes",
+          "plot_height_px",
+          "point_index",
+          "relative_intensity_lower_envelope",
+          "relative_intensity_median_trace",
+          "relative_intensity_recommended",
+          "relative_intensity_upper_envelope",
+          "source_figure",
+          "source_id",
+          "source_pdf_page_1_indexed",
+          "source_pixel_x",
+          "source_pixel_y_max",
+          "source_pixel_y_median",
+          "source_pixel_y_min",
+          "wavelength_digitization_uncertainty_nm",
+          "wavelength_nm"
+        ],
+        "relative_path": "data/rp_emap_rad_001_uvvis_relative_spectrum.csv",
+        "row_count": 758,
+        "uncertainty_fields": [
+          "wavelength_digitization_uncertainty_nm"
+        ]
+      },
+      "product_id": "plume.signature.spectral-radiant-intensity@1",
+      "provider_ids": [
+        "signature.table-lookup"
+      ],
+      "required_provider_outputs": [
+        "sensor_sampled_peak_normalized_spectral_shape"
+      ]
+    },
+    {
+      "alignment_id": "MVP-A-073",
+      "available_provider_outputs": [
+        "spectral_radiant_intensity"
+      ],
+      "benchmark_id": "RP-ALSI-001",
+      "blockers": [
+        "the signature contract emits wavelength-resolved intensity, not the ALSI band-integrated observable",
+        "the provider has no formulation-sweep input or band detector operator",
+        "external measurement-operator namespace is not reconciled with the committed registry"
+      ],
+      "claim_status": "not_accepted",
+      "comparison_id": "SIG-MVP-A-073",
+      "comparison_status": "blocked",
+      "measurement_operator_id": "operator.sensor.alsi_thermal_band",
+      "metric_ids": [
+        "metric.signature.band_power_relative_error",
+        "metric.signature.composition_trend"
+      ],
+      "observed_data": {
+        "categorical_values": {
+          "evidence_layer": [
+            "direct_table_transcription_and_unit_conversion"
+          ],
+          "measurement_kind": [
+            "average_of_five_sequential_thermal_images"
+          ]
+        },
+        "columns": [
+          "assumed_emissivity_for_temperature",
+          "average_pressure_mpa",
+          "average_pressure_psia",
+          "benchmark_id",
+          "evidence_layer",
+          "local_mach_disk_temperature_flag",
+          "maximum_temperature_c",
+          "maximum_temperature_k",
+          "measurement_area_m2",
+          "measurement_kind",
+          "notes",
+          "propellant_id",
+          "radiance_w_m2_sr",
+          "run_id",
+          "sequential_image_count",
+          "source_id",
+          "source_pdf_page_1_indexed",
+          "source_propellant_label",
+          "source_table",
+          "test_date_label",
+          "total_power_w"
+        ],
+        "relative_path": "data/rp_alsi_001_thermal_comparison.csv",
+        "row_count": 5,
+        "uncertainty_fields": []
+      },
+      "product_id": "plume.signature.spectral-radiant-intensity@1",
+      "provider_ids": [
+        "signature.table-lookup"
+      ],
+      "required_provider_outputs": [
+        "band_integrated_radiance",
+        "formulation_sweep"
+      ]
+    }
+  ],
+  "corpus_observations": {
+    "CJ-UEJ-001": {
+      "mach_estimates": {
+        "categorical_values": {
+          "measurement_kind": [
+            "published_derived_experimental_marker"
+          ],
+          "method": [
+            "ldv_total_temperature_assumption",
+            "pressure_as_measured",
+            "pressure_static_profile_shifted_downstream"
+          ],
+          "profile_id": [
+            "centerline",
+            "off_axis_y_over_d_0p25"
+          ]
+        },
+        "columns": [
+          "benchmark_id",
+          "case_id",
+          "extraction_method",
+          "mach_digitization_uncertainty_abs",
+          "mach_number",
+          "measurement_kind",
+          "method",
+          "notes",
+          "point_index",
+          "profile_id",
+          "radial_position_y_over_D",
+          "source_drawing_index",
+          "source_figure",
+          "source_id",
+          "source_pdf_page_1_indexed",
+          "source_pdf_x_pt",
+          "source_pdf_y_pt",
+          "static_pressure_profile_shift_m",
+          "static_pressure_profile_shift_over_D",
+          "x_digitization_uncertainty_over_D",
+          "x_over_D"
+        ],
+        "relative_path": "data/cj_uej_001_mach_estimates.csv",
+        "row_count": 100,
+        "uncertainty_fields": [
+          "mach_digitization_uncertainty_abs",
+          "x_digitization_uncertainty_over_D"
+        ]
+      },
+      "metadata": {
+        "benchmark_id": "CJ-UEJ-001",
+        "evidence_limits": [
+          "The case is a cold dry-air jet and is a gasdynamic precursor only.",
+          "Figure 2 LDV markers cover only the published near-exit extent.",
+          "Mach values are author-derived from LDV or pressure measurements, not direct Mach probes."
+        ],
+        "source": {
+          "sha256": "c4a83b0eb60b1502597f8506e7961ae006b6486190e4679c52c8b8518093d00c",
+          "title": "Experimental exploration of an underexpanded supersonic jet",
+          "url": "https://acoustique.ec-lyon.fr/publi/andre_issw11.pdf"
+        },
+        "validation_role": "gasdynamic precursor for shock-cell pressure, velocity, and Mach geometry; not a chemically reacting rocket plume"
+      },
+      "profiles": {
+        "categorical_values": {
+          "measurement_kind": [
+            "published_experimental_marker"
+          ],
+          "observable": [
+            "axial_velocity",
+            "pitot_pressure_ratio",
+            "static_pressure_ratio"
+          ],
+          "profile_id": [
+            "centerline",
+            "off_axis_y_over_d_0p25"
+          ]
+        },
+        "columns": [
+          "benchmark_id",
+          "case_id",
+          "extraction_method",
+          "measurement_kind",
+          "notes",
+          "observable",
+          "point_index",
+          "profile_id",
+          "radial_position_y_over_D",
+          "source_drawing_index",
+          "source_figure",
+          "source_id",
+          "source_pdf_page_1_indexed",
+          "source_pdf_x_pt",
+          "source_pdf_y_pt",
+          "unit",
+          "value",
+          "value_digitization_uncertainty",
+          "x_digitization_uncertainty_over_D",
+          "x_over_D"
+        ],
+        "relative_path": "data/cj_uej_001_profiles.csv",
+        "row_count": 259,
+        "uncertainty_fields": [
+          "value_digitization_uncertainty",
+          "x_digitization_uncertainty_over_D"
+        ]
+      }
+    },
+    "RP-ALSI-001": {
+      "metadata": {
+        "benchmark_id": "RP-ALSI-001",
+        "evidence_limits": [
+          "Table 5 is a published calculation, not a measured local plume state.",
+          "Table 6 temperatures depend on the source emissivity assumption of 0.18.",
+          "The AC14 6/3 maximum is explicitly localized at a Mach disk.",
+          "Full spectral-curve digitization remains deferred because overlapping line styles cannot yet be separated with adequate confidence."
+        ],
+        "source": {
+          "author": "Clay J. Snaza",
+          "handle": "http://hdl.handle.net/10945/28309",
+          "local_pdf_sha256": "ae5e628d1aaec4e0883da2b35de18e6b04f1aa4cf00543dbbb9942ff85c2e1e4",
+          "publisher": "Naval Postgraduate School",
+          "source_id": "nps_alsi_plume_signature_1994",
+          "title": "Investigation of the effects of solid rocket motor propellant composition on plume signature",
+          "year": 1994
+        },
+        "validation_role": null
+      },
+      "thermal_comparison": {
+        "categorical_values": {
+          "evidence_layer": [
+            "direct_table_transcription_and_unit_conversion"
+          ],
+          "measurement_kind": [
+            "average_of_five_sequential_thermal_images"
+          ]
+        },
+        "columns": [
+          "assumed_emissivity_for_temperature",
+          "average_pressure_mpa",
+          "average_pressure_psia",
+          "benchmark_id",
+          "evidence_layer",
+          "local_mach_disk_temperature_flag",
+          "maximum_temperature_c",
+          "maximum_temperature_k",
+          "measurement_area_m2",
+          "measurement_kind",
+          "notes",
+          "propellant_id",
+          "radiance_w_m2_sr",
+          "run_id",
+          "sequential_image_count",
+          "source_id",
+          "source_pdf_page_1_indexed",
+          "source_propellant_label",
+          "source_table",
+          "test_date_label",
+          "total_power_w"
+        ],
+        "relative_path": "data/rp_alsi_001_thermal_comparison.csv",
+        "row_count": 5,
+        "uncertainty_fields": []
+      }
+    },
+    "RP-BSUV2-001": {
+      "metadata": {
+        "benchmark_id": "RP-BSUV2-001",
+        "evidence_limits": [
+          "The CSV is digitized from published triangle markers, not the original on-board instrument file.",
+          "The source paper is a simulation paper reproducing an earlier flight experiment; source context and simulation assumptions must not be mistaken for measured quantities.",
+          "The plotted curve should be compared through the 4-degree line of sight and 2-degree field of view, not against a local cell radiance."
+        ],
+        "source": {
+          "source_id": "bsuv2_high_altitude_uv_1991",
+          "source_pdf_sha256": "4756ccaf13eafc156ae2281a1056f33e6996be19188ae6e256197e14bf71e76b",
+          "source_url": "https://www.eucass.eu/doi/EUCASS2017-441.pdf"
+        },
+        "validation_role": null
+      },
+      "spectral_radiance": {
+        "categorical_values": {
+          "evidence_layer": [
+            "digitized_published_markers"
+          ],
+          "measurement_kind": [
+            "published experimental triangle marker"
+          ],
+          "quality_flag": [
+            "axis_edge_marker",
+            "digitized_triangle_marker"
+          ]
+        },
+        "columns": [
+          "benchmark_id",
+          "case_id",
+          "evidence_layer",
+          "extraction_method",
+          "log10_radiance_digitization_uncertainty_dex",
+          "log10_spectral_radiance_source_units",
+          "measurement_kind",
+          "notes",
+          "pixel_x_marker_center",
+          "pixel_y_marker_center",
+          "point_index",
+          "quality_flag",
+          "source_figure",
+          "source_id",
+          "source_pdf_page_1_indexed",
+          "spectral_radiance_w_cm2_sr_um",
+          "spectral_radiance_w_m2_sr_m",
+          "spectral_radiance_w_m2_sr_um",
+          "wavelength_digitization_uncertainty_um",
+          "wavelength_um"
+        ],
+        "relative_path": "data/rp_bsuv2_001_uv_spectral_radiance.csv",
+        "row_count": 13,
+        "uncertainty_fields": [
+          "log10_radiance_digitization_uncertainty_dex",
+          "wavelength_digitization_uncertainty_um"
+        ]
+      }
+    },
+    "RP-EMAP-RAD-001": {
+      "ftir_relative_envelopes": {
+        "categorical_values": {
+          "evidence_layer": [
+            ""
+          ],
+          "measurement_kind": [
+            "published_peak_normalized_relative_spectral_trace"
+          ]
+        },
+        "columns": [
+          "benchmark_id",
+          "calibration_status",
+          "case_id",
+          "diagnostic",
+          "extraction_method",
+          "measurement_kind",
+          "notes",
+          "plot_height_px",
+          "point_index",
+          "relative_intensity_lower_envelope",
+          "relative_intensity_median_trace",
+          "relative_intensity_recommended",
+          "relative_intensity_upper_envelope",
+          "source_figure",
+          "source_id",
+          "source_pdf_page_1_indexed",
+          "source_pixel_x",
+          "source_pixel_y_max",
+          "source_pixel_y_median",
+          "source_pixel_y_min",
+          "wavelength_digitization_uncertainty_nm",
+          "wavelength_nm"
+        ],
+        "relative_path": "data/rp_emap_rad_001_ftir_relative_envelopes.csv",
+        "row_count": 708,
+        "uncertainty_fields": [
+          "wavelength_digitization_uncertainty_nm"
+        ]
+      },
+      "metadata": {
+        "benchmark_id": "RP-EMAP-RAD-001",
+        "evidence_limits": [
+          "Spectral intensity axes are arbitrary; no absolute radiance is inferred.",
+          "The FTIR product is a raster-column envelope, not raw instrument bins.",
+          "Figure 22 is a digitized published display, not a raw Gardon-gauge export.",
+          "The UV-visible, FTIR, and Gardon examples are not the same hot-fire run."
+        ],
+        "source": {
+          "sha256": "6809036df26cbde0785cfbe12f1fb546d1c9524b8cc88d003b900c5c456a6f89",
+          "source_id": "dlr_emap_overview_2019",
+          "title": "Overview to the ESA-EMAP project",
+          "url": "https://elib.dlr.de/129440/1/FAR2019_Saile_OverviewToESAEMAP_maxRes.pdf"
+        },
+        "validation_role": null
+      },
+      "uvvis_relative_spectrum": {
+        "categorical_values": {
+          "evidence_layer": [
+            ""
+          ],
+          "measurement_kind": [
+            "published_peak_normalized_relative_spectral_trace"
+          ]
+        },
+        "columns": [
+          "benchmark_id",
+          "calibration_status",
+          "case_id",
+          "diagnostic",
+          "extraction_method",
+          "measurement_kind",
+          "notes",
+          "plot_height_px",
+          "point_index",
+          "relative_intensity_lower_envelope",
+          "relative_intensity_median_trace",
+          "relative_intensity_recommended",
+          "relative_intensity_upper_envelope",
+          "source_figure",
+          "source_id",
+          "source_pdf_page_1_indexed",
+          "source_pixel_x",
+          "source_pixel_y_max",
+          "source_pixel_y_median",
+          "source_pixel_y_min",
+          "wavelength_digitization_uncertainty_nm",
+          "wavelength_nm"
+        ],
+        "relative_path": "data/rp_emap_rad_001_uvvis_relative_spectrum.csv",
+        "row_count": 758,
+        "uncertainty_fields": [
+          "wavelength_digitization_uncertainty_nm"
+        ]
+      }
+    },
+    "RP-HOTWAKE-001": {
+      "frequency_features": {
+        "categorical_values": {
+          "diagnostic": [
+            "base_pressure_spectrogram",
+            "piv_velocity_spectrum",
+            "schlieren_pixel_spectrum"
+          ],
+          "mode_name": [
+            "broad_excitation_band",
+            "flapping",
+            "flapping_or_helical_resonant_mode",
+            "negligible_excitation_statement",
+            "swinging",
+            "swinging_second_harmonic"
+          ],
+          "symmetry": [
+            "antisymmetric",
+            "asymmetric_or_helical",
+            "azimuthally_phase_shifted",
+            "not_applicable",
+            "not_resolved",
+            "symmetric"
+          ]
+        },
+        "columns": [
+          "benchmark_id",
+          "diagnostic",
+          "evidence_layer",
+          "feature_id",
+          "freestream_mach",
+          "frequency_max_hz",
+          "frequency_min_hz",
+          "jet_state",
+          "mode_name",
+          "notes",
+          "reported_strouhal_number",
+          "representative_frequency_hz",
+          "source_id",
+          "source_pdf_page_1_indexed",
+          "symmetry"
+        ],
+        "relative_path": "data/rp_hotwake_001_frequency_features.csv",
+        "row_count": 16,
+        "uncertainty_fields": []
+      },
+      "mach_disk_relation": {
+        "categorical_values": {
+          "measurement_kind": [
+            "published_raster_curve_point"
+          ],
+          "run_id": [
+            "Run18_HotJet001",
+            "Run19_HotJet001",
+            "Run31_HotJet001"
+          ],
+          "temporal_order_available": [
+            "False"
+          ]
+        },
+        "columns": [
+          "benchmark_id",
+          "cluster_index_at_pixel_bin",
+          "combustion_chamber_pressure_bar",
+          "extraction_method",
+          "mach_disk_position_from_nozzle_exit_mm",
+          "measurement_kind",
+          "notes",
+          "point_index",
+          "position_digitization_uncertainty_mm",
+          "pressure_digitization_uncertainty_bar",
+          "run_id",
+          "sensor_description",
+          "series_id",
+          "source_figure",
+          "source_id",
+          "source_pdf_page_1_indexed",
+          "source_pixel_x",
+          "source_pixel_y",
+          "temporal_order_available"
+        ],
+        "relative_path": "data/rp_hotwake_001_mach_disk_pressure_relation.csv",
+        "row_count": 606,
+        "uncertainty_fields": [
+          "position_digitization_uncertainty_mm",
+          "pressure_digitization_uncertainty_bar"
+        ]
+      },
+      "metadata": {
+        "benchmark_id": "RP-HOTWAKE-001",
+        "evidence_limits": [
+          "Published traces and curves are digitized raster products, not raw pressure or schlieren files.",
+          "The source states that no raw dataset is available with the article.",
+          "The chamber state and exit state are RPA/one-dimensional estimates, not direct local plume measurements.",
+          "The pressure-position point cloud does not recover time ordering through the hysteresis loop.",
+          "The gray uncorrected Run31 pressure trace is not extracted because it cannot be separated from the grid reliably."
+        ],
+        "source": {
+          "sha256": "c70a38a9a2032dd1d4f1b7c8144f3f645988938aa209c8690a7588f07a484f72",
+          "title": "Aerodynamic excitations in the near wake of space launchers: insights from hot-flow experiments using high-speed PIV",
+          "url": "https://elib.dlr.de/222882/2/Saile_et_al-2026-Experiments_in_Fluids.pdf"
+        },
+        "validation_role": "hot solid-motor plume, Mach-disk motion, and launcher-base unsteadiness in subsonic crossflow"
+      }
+    }
+  },
+  "corpus_status": "preflight-valid-pending-release-gates",
+  "operator_reconciliation": {
+    "committed_count": 16,
+    "committed_only": [
+      "op.atmosphere.path-transfer",
+      "op.engineering.statistical-envelope",
+      "op.field.piv-plane",
+      "op.field.point-probe",
+      "op.field.profile-probe",
+      "op.particle.collection-treatment",
+      "op.particle.l2f-counter",
+      "op.ray.projected-area-signature",
+      "op.ray.surface-radiometer",
+      "op.ray.transmissometer",
+      "op.sensor.bandpass-detector",
+      "op.sensor.los-fov-spectrum",
+      "op.surface.sensor-array",
+      "op.temporal.frequency-feature",
+      "op.visual.feature-extractor",
+      "op.visual.support-envelope"
+    ],
+    "crosswalk_status": "pending",
+    "exact_namespace_match": false,
+    "external_count": 35,
+    "external_only": [
+      "operator.align.pressure_and_radiation_time_histories",
+      "operator.align.snapshot_time_to_pressure_trace",
+      "operator.ambient_flow_to_curved_centerline_component",
+      "operator.ambient_velocity_to_deflection_envelope",
+      "operator.bin.particle_velocity_events",
+      "operator.case.configure_emap_materials",
+      "operator.case.select_alsi_formulation",
+      "operator.case.select_emap_hot_fire",
+      "operator.case.select_emap_nozzle_state",
+      "operator.case.select_retalt_run",
+      "operator.case.select_rotor_ige",
+      "operator.compare.source_equilibrium_context",
+      "operator.compute.transmittance_from_extinction",
+      "operator.extract.feature_frequency",
+      "operator.extract.feature_frequency_and_mode",
+      "operator.extract.local_field_mach_disk_position",
+      "operator.extract.sectioned_tube_mach_disk_position",
+      "operator.extract.shock_features_from_local_field",
+      "operator.image.integrate_alsi_band_and_area",
+      "operator.optics.scalar_extinction_envelope",
+      "operator.particle_kinematics_to_optical_component",
+      "operator.particle_population_to_optical_component",
+      "operator.reduce.field_to_reported_extrema",
+      "operator.sample.canonical_jet_probe_lines",
+      "operator.sample.hotwake_piv_locations",
+      "operator.sample.local_field_at_probe_stations",
+      "operator.sample.particle_size_distribution",
+      "operator.sample.surface_pressure_sensors",
+      "operator.sensor.alsi_thermal_band",
+      "operator.sensor.black_brant_imager",
+      "operator.sensor.bsuv2_los_fov",
+      "operator.spectrum.peak_normalize_after_los_transfer",
+      "operator.spectrum.peak_normalize_after_sensor_sampling",
+      "operator.surface.conjugate_thermal_response",
+      "operator.surface.gardon_band_integral"
+    ]
+  },
+  "providers": {
+    "focal_plane_array": {
+      "claim_ceiling": "No FPA image, detector count, noise, or detection claim.",
+      "provider_ids": [],
+      "status": "boundary-valid-not-implemented"
+    },
+    "optical": {
+      "claim_ceiling": "No optical-transfer claim.",
+      "provider_ids": [],
+      "status": "no-provider"
+    },
+    "signature": {
+      "asset_source": "repository synthetic contract fixture",
+      "claim_ceiling": "Versioned table and interpolation behavior only; no intrinsic physical validation claim.",
+      "lane_id": "signature-table-mvp-v1",
+      "output_shape": [
+        1,
+        2
+      ],
+      "output_units": "W sr^-1 m^-1",
+      "provider_id": "signature.table-lookup",
+      "status": "passed"
+    },
+    "visual": {
+      "claim_ceiling": "Engineering-approximate straight visual geometry and named display features only.",
+      "lane_id": "shock-cell-basic-v1",
+      "output_channels": [
+        "core_radius_fraction",
+        "opacity_weight"
+      ],
+      "provider_ids": [
+        "plume.straight-analytical",
+        "plume.shock-cell-analytical"
+      ],
+      "status": "passed"
+    }
+  },
+  "release_blockers": [
+    "external operator crosswalk is unresolved",
+    "all current provider-specific external comparisons are blocked by missing measurement-space outputs or operators",
+    "separately named MVP alignment archive is not yet verified"
+  ],
+  "release_ready": false,
+  "report_id": "exhaust-plume-provider-comparison-preflight-v1",
+  "status": "comparisons-recorded-pending-implementation",
+  "unimplemented_product_boundaries": [
+    {
+      "claim_status": "not_accepted",
+      "product_id": "plume.optical.spectral-ray-transfer@1",
+      "provider_ids": [],
+      "required_prerequisites": [
+        "validated optical ray-transfer provider",
+        "source radiance and transmittance separation",
+        "sensor-space comparison operators"
+      ],
+      "status": "blocked_no_provider"
+    },
+    {
+      "claim_status": "not_accepted",
+      "product_id": "plume.image.spectral-radiance@1",
+      "provider_ids": [],
+      "required_prerequisites": [
+        "plume.optical.spectral-ray-transfer@1",
+        "camera and optics model",
+        "detector response, exposure, pixel, and noise contract"
+      ],
+      "status": "blocked_upstream_ray_and_detector"
+    }
+  ]
+}

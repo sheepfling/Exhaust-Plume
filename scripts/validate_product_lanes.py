@@ -140,6 +140,7 @@ def _run_visual_lane() -> dict[str, Any]:
       case_summaries.append({
         'exit_to_ambient_pressure_ratio': ratio,
         'section_count': len(result.sections),
+        'output_channels': sorted(result.channels),
         'applicability': result.metadata.applicability.status.value,
         'provider_id': result.metadata.provenance.provider_id,
         'radiation_claim': result.metadata.claims.radiation.value,
@@ -161,6 +162,7 @@ def _run_visual_lane() -> dict[str, Any]:
       'provider_id': provider.descriptor.provider_id,
       'contract_conformance': conformance.passed,
       'deterministic_serialization': conformance.deterministic_serialization,
+      'output_channels': case_summaries[-1]['output_channels'],
     })
   all_conformant = all(report['contract_conformance'] for report in provider_reports)
   all_deterministic = all(report['deterministic_serialization'] for report in provider_reports)
@@ -230,6 +232,8 @@ def _run_signature_lane() -> dict[str, Any]:
     'provider_id': provider.descriptor.provider_id,
     'status': 'passed' if contract_passed else 'failed',
     'contract_interpolation_passed': contract_passed,
+    'output_shape': [len(result.spectral_radiant_intensity), len(result.spectral_radiant_intensity[0])],
+    'output_units': 'W sr^-1 m^-1',
     'validity_mask': result.validity_mask,
     'radiation_claim': result.metadata.claims.radiation.value,
     'asset_source': 'repository synthetic contract fixture',

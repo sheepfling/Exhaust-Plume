@@ -48,6 +48,22 @@ indexed products, 78 alignment mappings, 11 validation gates, and 57 source-
 corpus tests. These counts establish corpus integrity; they do not by
 themselves establish provider-specific product validation.
 
+After the archive preflight, record provider-specific comparability with:
+
+```bash
+python scripts/validate_provider_comparisons.py \
+  --corpus /path/to/plume_validation_data_v8.zip \
+  --output provider-comparison-preflight.json
+```
+
+The committed [`provider_comparison_preflight_v1.json`](provider_comparison_preflight_v1.json)
+is the result for the recovered attachment. It records the actual provider
+channels and corpus observation shapes, then leaves VIS-MVP-A-061 and the SIG
+measurement-space gates explicitly blocked. A blocked comparison is not a
+failed physics result: it means that the current provider does not produce the
+observable or operator required for a valid comparison. No external claim is
+accepted from this report.
+
 The intake gate is a prerequisite for external validation claims. Corpus
 integrity tests are not product validation: repository contract tests and
 physics regressions must still be run through the named VIS, SIG, and future
