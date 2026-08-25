@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import asdict
 import json
 from pathlib import Path
 import sys
@@ -25,9 +26,11 @@ try:
     _run_signature_lane,
     _run_visual_lane,
   )
+  from exhaust_plume.validation.spectral_comparisons import compare_peak_normalized_spectral_shape
 except ModuleNotFoundError:  # pragma: no cover - direct script execution
   from validate_external_corpus_alignment import _read_csv, _read_json, preflight_corpus
   from validate_product_lanes import _run_fpa_boundary, _run_optical_lane, _run_signature_lane, _run_visual_lane
+  from exhaust_plume.validation.spectral_comparisons import compare_peak_normalized_spectral_shape
 
 
 VISUAL_PRODUCT = 'plume.visual.sectioned-tube@1'
@@ -168,6 +171,7 @@ def _local_provider_inventory() -> dict[str, Any]:
         min(signature['wavelengths_m']),
         max(signature['wavelengths_m']),
       ],
+      'measurement_probe': signature['measurement_probe'],
     },
     'optical': {
       'provider_ids': [optical['provider_id']],
@@ -183,12 +187,121 @@ def _local_provider_inventory() -> dict[str, Any]:
         min(optical['wavelengths_m']),
         max(optical['wavelengths_m']),
       ],
+      'measurement_probe': optical['measurement_probe'],
     },
     'focal_plane_array': {
       'provider_ids': [],
       'status': fpa['status'],
       'claim_ceiling': fpa['claim_ceiling'],
     },
+  }
+
+
+def _read_spectral_curve(
+    archive: ZipFile,
+    relative_path: str,
+    *,
+    wavelength_field: str,
+    wavelength_scale: float,
+    value_field: str,
+) -> tuple[tuple[float, ...], tuple[float, ...]]:
+  rows = _read_csv(archive, relative_path)
+  wavelengths = tuple(float(row[wavelength_field]) * wavelength_scale for row in rows)
+  values = tuple(float(row[value_field]) for row in rows)
+  return wavelengths, values
+
+
+def _not_executed(reason: str) -> dict[str, Any]:
+  return {
+    'status': 'not-executed',
+    'reason': reason,
+  }
+
+
+def execute_spectral_shape_probes(path: Path, providers: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
+  """Run domain/shape diagnostics against recovered spectral curves.
+
+  These probes use the current synthetic provider fixtures only to expose
+  coverage and metric behavior.  They never change a comparison's blocked or
+  claim-status fields and therefore cannot promote a scenario-mismatched
+  fixture into external validation.
+  """
+
+  with ZipFile(path) as archive:
+    bsuv2 = _read_spectral_curve(
+      archive,
+      'data/rp_bsuv2_001_uv_spectral_radiance.csv',
+      wavelength_field='wavelength_um',
+      wavelength_scale=1.0e-6,
+      value_field='spectral_radiance_w_m2_sr_m',
+    )
+    uvvis = _read_spectral_curve(
+      archive,
+      'data/rp_emap_rad_001_uvvis_relative_spectrum.csv',
+      wavelength_field='wavelength_nm',
+      wavelength_scale=1.0e-9,
+      value_field='relative_intensity_recommended',
+    )
+    ftir = _read_spectral_curve(
+      archive,
+      'data/rp_emap_rad_001_ftir_relative_envelopes.csv',
+      wavelength_field='wavelength_nm',
+      wavelength_scale=1.0e-9,
+      value_field='relative_intensity_recommended',
+    )
+  signature_probe = providers['signature']['measurement_probe']
+  optical_probe = providers['optical']['measurement_probe']
+  optical_model = {
+    'wavelengths_m': optical_probe['wavelengths_m'],
+    'values': optical_probe['source_spectral_radiance_w_m2_sr_m'],
+  }
+
+  def run(model: Mapping[str, Any], observed: tuple[tuple[float, ...], tuple[float, ...]]) -> dict[str, Any]:
+    result = compare_peak_normalized_spectral_shape(
+      model['wavelengths_m'],
+      model['values'],
+      observed[0],
+      observed[1],
+    )
+    return asdict(result)
+
+  return {
+    'VIS-MVP-A-061': _not_executed(
+      'visual Mach-disk feature extraction is not a spectral-shape comparison',
+    ),
+    'SIG-MVP-A-043': run(
+      {
+        'wavelengths_m': signature_probe['wavelengths_m'],
+        'values': signature_probe['spectral_radiant_intensity_w_sr_m'],
+      },
+      bsuv2,
+    ),
+    'SIG-MVP-A-064': run(
+      {
+        'wavelengths_m': signature_probe['wavelengths_m'],
+        'values': signature_probe['spectral_radiant_intensity_w_sr_m'],
+      },
+      uvvis,
+    ),
+    'SIG-MVP-A-066': run(
+      {
+        'wavelengths_m': signature_probe['wavelengths_m'],
+        'values': signature_probe['spectral_radiant_intensity_w_sr_m'],
+      },
+      ftir,
+    ),
+    'SIG-MVP-A-073': _not_executed(
+      'ALSI corpus record is a band-integrated thermal table without a spectral curve',
+    ),
+    'RAY-MVP-A-044': run(optical_model, bsuv2),
+    'RAY-MVP-A-065': run(optical_model, uvvis),
+    'RAY-MVP-A-067': run(optical_model, ftir),
+    'RAY-MVP-A-068': _not_executed(
+      'Gardon corpus record is a time history without a spectral curve',
+    ),
+    'RAY-MVP-A-074': _not_executed(
+      'ALSI corpus record is a band-integrated thermal table without a spectral curve',
+    ),
   }
 
 
@@ -228,6 +341,7 @@ def build_comparison_plan(
     observations: Mapping[str, Any],
     providers: Mapping[str, Any],
     operator_crosswalk_status: str,
+    operator_executions: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
   """Build explicit comparison blockers without guessing operator aliases."""
 
@@ -423,6 +537,12 @@ def build_comparison_plan(
       ],
     ),
   ]
+  if operator_executions is not None:
+    for comparison in comparisons:
+      execution = operator_executions.get(comparison['comparison_id'])
+      if execution is not None:
+        comparison['operator_execution'] = dict(execution)
+  ####
   return comparisons
 
 
@@ -483,15 +603,18 @@ def build_provider_comparison_preflight(path: Path) -> dict[str, Any]:
     observations = summarize_corpus_observations(archive)
   providers = _local_provider_inventory()
   operator_status = corpus_report['operator_reconciliation']['crosswalk_status']
+  operator_executions = execute_spectral_shape_probes(path, providers)
   comparisons = build_comparison_plan(
     observations=observations,
     providers=providers,
     operator_crosswalk_status=operator_status,
+    operator_executions=operator_executions,
   )
   report.update({
     'status': 'comparisons-recorded-pending-implementation',
     'providers': providers,
     'corpus_observations': observations,
+    'operator_executions': operator_executions,
     'comparisons': comparisons,
     'unimplemented_product_boundaries': build_unimplemented_boundaries(providers),
     'release_blockers': [

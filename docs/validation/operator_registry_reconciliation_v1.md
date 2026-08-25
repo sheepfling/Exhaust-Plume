@@ -48,6 +48,14 @@ atmospheric transfer, detector response, source calibration, or formulation
 sweeps. Their presence reduces an implementation gap but does not reconcile an
 external `operator.*` ID or close a product gate.
 
+The provider-comparison preflight also runs a bounded spectral-shape diagnostic
+against the recovered BSUV2 and EMAP curves. It records no-overlap and
+partial-overlap outcomes without extrapolation; the partial FTIR residuals are
+measurement-space diagnostics from synthetic provider probes, not accepted
+external validation. Non-spectral visual, Gardon time-history, and ALSI
+band-integrated mappings are explicitly recorded as not executed by that
+diagnostic.
+
 The downstream `op.sensor.fpa-pixel-detector` adapter is also implemented and
 unit-tested. It applies explicit ray-to-pixel collection weights, detector
 spectral response, exposure, dark-current, read-noise variance, and invalid-ray

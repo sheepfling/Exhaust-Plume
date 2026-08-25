@@ -90,3 +90,22 @@ def test_downstream_boundaries_do_not_advertise_unimplemented_products() -> None
   ]
   assert all(boundary['provider_ids'] == [] for boundary in boundaries)
   assert all(boundary['claim_status'] == 'not_accepted' for boundary in boundaries)
+
+
+def test_operator_execution_diagnostics_do_not_promote_a_blocked_comparison() -> None:
+  comparisons = build_comparison_plan(
+    observations=_observations(),
+    providers=_providers(),
+    operator_crosswalk_status='pending',
+    operator_executions={
+      'SIG-MVP-A-066': {
+        'status': 'partial-overlap-diagnostic',
+        'coverage_fraction': 0.16,
+      },
+    },
+  )
+
+  comparison = next(item for item in comparisons if item['comparison_id'] == 'SIG-MVP-A-066')
+  assert comparison['operator_execution']['status'] == 'partial-overlap-diagnostic'
+  assert comparison['comparison_status'] == 'blocked'
+  assert comparison['claim_status'] == 'not_accepted'

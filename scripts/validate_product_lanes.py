@@ -245,6 +245,14 @@ def _run_signature_lane() -> dict[str, Any]:
       wavelengths_m=(1.5e-6, 2.5e-6),
     ),
   )
+  probe_result = snapshot.evaluate(
+    SPECTRAL_RADIANT_INTENSITY_V1,
+    SpectralSignatureRequest(
+      direction_frame_id='source-local',
+      source_to_observer_directions=((0.5, 3**0.5 / 2.0, 0.0),),
+      wavelengths_m=definition.wavelengths_m,
+    ),
+  )
   expected = ((2.0, 3.0),)
   contract_passed = result.spectral_radiant_intensity == expected and all(result.validity_mask[0])
   operator_source_wavelengths = definition.wavelengths_m
@@ -298,6 +306,11 @@ def _run_signature_lane() -> dict[str, Any]:
     'output_shape': [len(result.spectral_radiant_intensity), len(result.spectral_radiant_intensity[0])],
     'output_units': 'W sr^-1 m^-1',
     'wavelengths_m': list(definition.wavelengths_m),
+    'measurement_probe': {
+      'direction_unit': [0.5, 3**0.5 / 2.0, 0.0],
+      'wavelengths_m': list(definition.wavelengths_m),
+      'spectral_radiant_intensity_w_sr_m': list(probe_result.spectral_radiant_intensity[0]),
+    },
     'validity_mask': result.validity_mask,
     'radiation_claim': result.metadata.claims.radiation.value,
     'asset_source': 'repository synthetic contract fixture',
@@ -453,6 +466,12 @@ def _run_optical_lane() -> dict[str, Any]:
     'hit_mask': first.hit_mask,
     'intersection_intervals_m': first.plume_intersection_t_m,
     'wavelengths_m': list(definition.wavelengths_m),
+    'measurement_probe': {
+      'ray_index': 0,
+      'wavelengths_m': list(definition.wavelengths_m),
+      'source_spectral_radiance_w_m2_sr_m': list(first.source_spectral_radiance[0]),
+      'validity_mask': list(first.validity_mask[0]),
+    },
     'radiation_claim': first.metadata.claims.radiation.value,
     'external_comparison': {
       'status': 'pending',

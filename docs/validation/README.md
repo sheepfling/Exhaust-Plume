@@ -63,7 +63,11 @@ VIS/SIG/RAY comparison mappings and the actual provider channels and corpus
 observation shapes, while leaving every comparison explicitly blocked. A blocked comparison is not a
 failed physics result: it means that the current provider does not produce the
 observable or operator required for a valid comparison. No external claim is
-accepted from this report.
+accepted from this report. The report also executes the spectral-shape probe
+where possible: BSUV2 and EMAP UVVIS have no model-domain overlap, while EMAP
+FTIR produces only a partial-overlap diagnostic because the synthetic provider
+ends at 3 micrometres and the observation continues beyond 5 micrometres.
+Those residuals are diagnostics, not validation claims.
 
 The first quantitative benchmark component record is
 [`cj_uej_component_validation_v1.json`](cj_uej_component_validation_v1.json).
@@ -92,7 +96,7 @@ detection claim.
 
 The branch-level freeze is recorded in
 [`release_freeze_v1.json`](release_freeze_v1.json). It captures the current
-344-test, Ruff, Pyright, deterministic-asset, and installed-wheel checks while keeping
+349-test, Ruff, Pyright, deterministic-asset, and installed-wheel checks while keeping
 `release_ready` false until the external gates close.
 
 The intake gate is a prerequisite for external validation claims. Corpus

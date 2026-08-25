@@ -42,6 +42,10 @@ from exhaust_plume.validation.measurement_operators import (
   peak_normalize_spectral_rows,
   sample_spectral_rows,
 )
+from exhaust_plume.validation.spectral_comparisons import (
+  SpectralShapeComparison,
+  compare_peak_normalized_spectral_shape,
+)
 
 __all__ = (
   'BenchmarkDefinition',
@@ -64,6 +68,7 @@ __all__ = (
   'PeakNormalizedSpectrum',
   'SPECTRAL_SAMPLING_OPERATOR_ID',
   'SampledSpectrum',
+  'SpectralShapeComparison',
   'StudyValidityEnvelope',
   'ValidationClaim',
   'ValidationRegistry',
@@ -74,6 +79,7 @@ __all__ = (
   'evaluate_validity_matrix',
   'integrate_spectral_band_rows',
   'integrate_ray_transfer_to_fpa',
+  'compare_peak_normalized_spectral_shape',
   'peak_normalize_spectral_rows',
   'sample_spectral_rows',
   'write_validity_report_csv',

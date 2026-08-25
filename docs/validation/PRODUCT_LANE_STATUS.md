@@ -74,8 +74,10 @@ cannot be applied. It also keeps BSUV2, EMAP, and ALSI in their declared
 sensor-space or band-integrated measurement spaces instead of comparing them
 to the synthetic intrinsic signature table. The gray ray-transfer provider now
 passes the analytic local gate, while its external sensor-space comparison
-remains pending. FPA remains an explicit downstream boundary with no provider
-ID.
+remains pending. The spectral probe records explicit no-overlap and
+partial-domain outcomes instead of extrapolating the synthetic providers; the
+residuals remain diagnostic only. FPA remains an explicit downstream boundary
+with no provider ID.
 
 The canonical cold-jet benchmark now has a separate component diagnostic in
 [`cj_uej_component_validation_v1.json`](cj_uej_component_validation_v1.json).
