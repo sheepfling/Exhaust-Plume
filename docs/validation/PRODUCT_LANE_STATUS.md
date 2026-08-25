@@ -8,6 +8,7 @@ solver fidelity attached to a provider profile.
 
 | Lane | Provider/product | Local evidence | External evidence | Claim ceiling |
 | --- | --- | --- | --- | --- |
+| `planar-moc-primitives-v1` | No provider; standalone `exhaust_plume.models.moc` foundation | 15 scalar round trips plus interior/centerline compatibility and forward-ray residual checks pass | No product comparison; first-cell assembly, convergence, and external measurement mapping remain pending | Numerical planar characteristic diagnostics only; no public VIS/SIG/RAY/FPA claim |
 | `shock-cell-basic-v1` | `plume.straight-analytical` and `plume.shock-cell-analytical` -> `plume.visual.sectioned-tube@1` | Both bounded visual providers pass contract, deterministic-serialization, conformance, and declared study-envelope checks | Corpus structure is verified; provider-specific benchmark/operator comparison remains pending | Engineering-approximate straight visual geometry and named features only; no spectral, ray, detector, mixing, or curved-flow claim |
 | `shock-cell-reduced-order-v1` | `plume.shock-train-reduced-order` -> `plume.visual.sectioned-tube@1` | Explicit calibration, physical-versus-safety termination, reduced-order geometry labels, visual-only capability, and canonical conformance checks pass | CJ-UEJ archive is verified and used for component context; closure calibration/validation split and train-cell measurement operator are missing | Experimental visual envelope only; downstream cells are scaled reduced-order geometry; no resolved MOC, spectral, ray, detector, or FPA claim |
 | `signature-table-mvp-v1` | `signature.table-lookup` -> `plume.signature.spectral-radiant-intensity@1` | Table shape, interpolation, extrapolation, time-axis, partial-result, provenance, and conformance tests | Pending a verified source asset and intrinsic-signature evidence | Versioned table and interpolation behavior only; no geometry, ray field, atmosphere, optics, or detector claim |
@@ -67,6 +68,11 @@ The recovered archive now satisfies the integrity gate. Repository fixtures
 and regression tests remain engineering evidence, not experimental validation;
 the exact external operator namespace remains distinct, while provider-specific
 comparisons and the separate alignment archive still block external claims.
+
+The standalone planar-MOC foundation is recorded in
+[`moc_primitive_validation_v1.json`](moc_primitive_validation_v1.json). It is
+kept outside the public product lanes until a first-cell assembler demonstrates
+closed topology and grid/refinement convergence.
 
 The provider-comparison preflight is recorded in
 [`provider_comparison_preflight_v1.json`](provider_comparison_preflight_v1.json).

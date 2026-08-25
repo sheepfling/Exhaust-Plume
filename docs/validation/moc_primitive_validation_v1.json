@@ -1,0 +1,54 @@
+{
+  "report_id": "exhaust-plume-moc-primitive-validation-v1",
+  "model_fidelity": "planar-moc-primitives",
+  "status": "primitive-gate-passed-provider-integration-pending",
+  "claim_status": "not_accepted",
+  "provider_integration": "not_started",
+  "low_fidelity_promotion_detected": false,
+  "round_trip": {
+    "case_count": 15,
+    "gamma_values": [
+      1.2,
+      1.4,
+      1.67
+    ],
+    "mach_values": [
+      1.000001,
+      1.2,
+      2.0,
+      5.0,
+      25.0
+    ],
+    "maximum_absolute_nu_residual": 3.204547738278052e-12,
+    "all_residuals_finite": true,
+    "failures": []
+  },
+  "geometry_cases": {
+    "interior": {
+      "status": "converged",
+      "invariant_residual_plus": -9.470202400052585e-13,
+      "invariant_residual_minus": 9.470202400052585e-13,
+      "geometry_residual": 2.7755575615628914e-17,
+      "point_m": [
+        0.26961354188124514,
+        -1.3877787807814457e-17
+      ]
+    },
+    "centerline": {
+      "status": "converged",
+      "invariant_residual_minus": 9.470202400052585e-13,
+      "geometry_residual": 5.551115123125783e-17,
+      "point_m": [
+        0.2696135418812452,
+        0.0
+      ]
+    }
+  },
+  "failures": [],
+  "next_gates": [
+    "planar expansion-fan and ambient-pressure free-boundary assembler",
+    "closed-zone topology validation",
+    "grid/refinement convergence on underexpanded and mild attached-overexpanded cases",
+    "independent measurement-operator comparison before provider integration"
+  ]
+}
