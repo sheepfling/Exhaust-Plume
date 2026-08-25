@@ -3,12 +3,12 @@
   "schema_version": "plume.release-freeze@1",
   "branch": "work/validation-and-completion",
   "base_main_commit": "dd4d57611ba940c8fc4a9721d4b3464b6bbd7848",
-  "head_commit": "0afbbc6a18b4112bf28040def23e763fa8ae7229",
+  "head_commit": "6b21a0298af083e8dbf6df0ec27e5bc3c964500d",
   "remote_publish_status": "local-only-not-pushed-or-merged",
   "repository_quality": {
     "pytest": {
       "status": "passed",
-      "tests_passed": 349,
+      "tests_passed": 350,
       "warnings": 18
     },
     "ruff": "passed",
