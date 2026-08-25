@@ -25,8 +25,29 @@
         "source_corpus_tests_passed": 57,
         "embedded_alignment_overlay": "verified",
         "separate_alignment_archive": "missing",
+        "merged_pr_artifact_checks": [
+          {
+            "pull_request": 5,
+            "state": "MERGED",
+            "url": "https://github.com/sheepfling/Exhaust-Plume/pull/5",
+            "archive_present_in_files_or_comments": false
+          },
+          {
+            "pull_request": 6,
+            "state": "MERGED",
+            "url": "https://github.com/sheepfling/Exhaust-Plume/pull/6",
+            "archive_present_in_files_or_comments": false
+          },
+          {
+            "pull_request": 7,
+            "state": "MERGED",
+            "url": "https://github.com/sheepfling/Exhaust-Plume/pull/7",
+            "archive_present_in_files_or_comments": false
+          }
+        ],
         "separate_archive_recovery_checks": [
           "no matching local archive, Git object, or temporary attachment was found",
+          "merged PR #5, #6, and #7 file lists and comments contain no separate archive",
           "deterministic ZIP reconstructions from the handoff alignment files did not match the required SHA-256"
         ]
       }
