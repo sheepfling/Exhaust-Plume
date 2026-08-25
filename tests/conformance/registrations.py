@@ -28,7 +28,11 @@ from exhaust_plume.providers import (
   StraightVisualProvider,
   ShockCellVisualDefinition,
   ShockCellVisualProvider,
+  ShockTrainVisualConfiguration,
+  ShockTrainVisualDefinition,
+  ShockTrainVisualProvider,
 )
+from exhaust_plume.models.shock_train import ShockTrainCalibration, ShockTrainTerminationPolicy
 
 from .fakes import (
   FakeFailureProvider,
@@ -70,6 +74,7 @@ CURRENT_PROVIDER_SYMBOLS = (
   'StaticPlumeProvider',
   'ShockCellAnalyticalProvider',
   'ShockCellVisualProvider',
+  'ShockTrainVisualProvider',
 )
 
 
@@ -345,6 +350,55 @@ def _shock_cell_visual_fixture() -> ProviderFixture:
 ####
 
 
+def _shock_train_visual_configuration() -> ShockTrainVisualConfiguration:
+  return ShockTrainVisualConfiguration(
+    calibration=ShockTrainCalibration(
+      calibration_id='api-009-provider-seed-v1',
+      source_description='canonical conformance engineering seed; not external calibration',
+      applicable_mach_range=(1.0, 10.0),
+      applicable_pressure_ratio_range=(1.0, 1000.0),
+      applicable_temperature_ratio_range=(0.1, 10.0),
+      mixing_layer_growth_rate=0.01,
+      pressure_amplitude_decay_coefficient=0.3,
+      cell_spacing_coefficient=1.306,
+      finite_shear_layer_spacing_correction=0.5,
+      total_pressure_loss_coefficient=0.02,
+      mean_pressure_relaxation_coefficient=0.2,
+    ),
+    termination_policy=ShockTrainTerminationPolicy(max_cells=64, max_axial_distance_m=8.0),
+  )
+####
+
+
+def _shock_train_visual_fixture() -> ProviderFixture:
+  return ProviderFixture(
+    name='reduced-order shock-train visual provider',
+    provider_factory=lambda: ShockTrainVisualProvider(configuration=_shock_train_visual_configuration()),
+    session_factory=lambda provider: provider.create_session(
+      definition=ShockTrainVisualDefinition(nozzle_radius_m=1.0),
+    ),
+    snapshot_factory=_shock_cell_visual_snapshot,
+    products=(ProductConformanceCase(
+      capability=v1.VISUAL_SECTIONED_TUBE_V1,
+      request=v1.VisualSectionedTubeRequest(
+        output_frame_id='straight-axisymmetric-xr',
+        sampling=v1.VisualSampling(
+          maximum_section_count=16,
+          maximum_axial_extent_m=8.0,
+        ),
+        requested_channels=('core_radius_fraction', 'opacity_weight', 'shock_weight'),
+      ),
+      expected_frame_id='straight-axisymmetric-xr',
+    ),),
+    unsupported_capabilities=(
+      v1.SPECTRAL_RADIANT_INTENSITY_CAPABILITY,
+      v1.SPECTRAL_RAY_TRANSFER_CAPABILITY,
+    ),
+    probe_times_s=(0.0,),
+  )
+####
+
+
 def _fake_visual_fixture() -> ProviderFixture:
   return ProviderFixture(
     name='fake visual-only provider',
@@ -450,6 +504,7 @@ PROVIDER_REGISTRATION_TABLE = (
     ),
   ),
   ProviderRegistration(('ShockCellVisualProvider',), _shock_cell_visual_fixture),
+  ProviderRegistration(('ShockTrainVisualProvider',), _shock_train_visual_fixture),
 )
 
 

@@ -79,6 +79,13 @@ from exhaust_plume.providers.shock_cell_visual import (
     ShockCellVisualProvider,
   ShockCellVisualSession,
 )
+from exhaust_plume.providers.shock_train_visual import (
+  ShockTrainVisualConfiguration,
+  ShockTrainVisualDefinition,
+  ShockTrainVisualOperatingState,
+  ShockTrainVisualProvider,
+  ShockTrainVisualSession,
+)
 from exhaust_plume.providers.gray_ray_transfer import (
   GrayRayTransferConfiguration,
   GrayRayTransferDefinition,
@@ -142,6 +149,11 @@ __all__ = (
     'ShockCellVisualOperatingState',
     'ShockCellVisualProvider',
     'ShockCellVisualSession',
+  'ShockTrainVisualConfiguration',
+  'ShockTrainVisualDefinition',
+  'ShockTrainVisualOperatingState',
+  'ShockTrainVisualProvider',
+  'ShockTrainVisualSession',
     'GrayRayTransferConfiguration',
     'GrayRayTransferDefinition',
     'GrayRayTransferProvider',

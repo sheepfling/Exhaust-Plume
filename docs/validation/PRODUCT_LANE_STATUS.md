@@ -9,6 +9,7 @@ solver fidelity attached to a provider profile.
 | Lane | Provider/product | Local evidence | External evidence | Claim ceiling |
 | --- | --- | --- | --- | --- |
 | `shock-cell-basic-v1` | `plume.straight-analytical` and `plume.shock-cell-analytical` -> `plume.visual.sectioned-tube@1` | Both bounded visual providers pass contract, deterministic-serialization, conformance, and declared study-envelope checks | Corpus structure is verified; provider-specific benchmark/operator comparison remains pending | Engineering-approximate straight visual geometry and named features only; no spectral, ray, detector, mixing, or curved-flow claim |
+| `shock-cell-reduced-order-v1` | `plume.shock-train-reduced-order` -> `plume.visual.sectioned-tube@1` | Explicit calibration, physical-versus-safety termination, reduced-order geometry labels, visual-only capability, and canonical conformance checks pass | CJ-UEJ archive is verified and used for component context; closure calibration/validation split and train-cell measurement operator are missing | Experimental visual envelope only; downstream cells are scaled reduced-order geometry; no resolved MOC, spectral, ray, detector, or FPA claim |
 | `signature-table-mvp-v1` | `signature.table-lookup` -> `plume.signature.spectral-radiant-intensity@1` | Table shape, interpolation, extrapolation, time-axis, partial-result, provenance, and conformance tests | Pending a verified source asset and intrinsic-signature evidence | Versioned table and interpolation behavior only; no geometry, ray field, atmosphere, optics, or detector claim |
 | `optical-transfer-v1` | `plume.gray-ray-transfer` -> `plume.optical.spectral-ray-transfer@1` | Exact finite-cylinder intervals, homogeneous slab/chord transfer, layer separation, miss semantics, and analytic/refinement checks | External sensor/path comparisons remain pending; gray analytic evidence is not corpus validation | Homogeneous gray transfer through a straight constant-radius support only; no chemistry, atmosphere, detector, or FPA claim |
 | `focal-plane-array-v1` | No provider; downstream adapter | Boundary and dependency checks only | Requires validated ray transfer plus camera/optics/detector data | No FPA image, count, noise, or detection claim |
@@ -83,6 +84,14 @@ near-sonic and total-temperature assumptions. This is quantitative supporting
 evidence only: the claim remains proposed/not accepted because the current
 solver is one construction cell, has no physical shock-train termination, and
 does not expose a local-field or validated VIS product.
+
+The reduced-order shock-train component has its own evidence record in
+[`shock_train_component_validation_v1.json`](shock_train_component_validation_v1.json).
+It records the explicit closure seed, physical/safety termination behavior,
+cell-fidelity counts, corpus feature context, and sensitivity sweep. The
+calibration/validation split is blocked because the recovered archive contains
+one benchmark case; the closure and the visual lane therefore remain
+experimental and `not_accepted`.
 
 The recovered corpus changes that sentence for data availability, not for
 product acceptance. Its own gate registry reports VIS, SIG, and RAY T1

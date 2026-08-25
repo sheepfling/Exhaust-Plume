@@ -24,6 +24,7 @@ class TerminationReason(str, Enum):
   REQUESTED_CONSTRUCTION_LIMIT = 'requested-construction-limit'
   MAX_CELL_LIMIT = 'max-cell-limit'
   DETACHED_SHOCK_REQUIRED = 'detached-shock-required'
+  MODEL_VALIDITY_EXCEEDED = 'model-validity-exceeded'
   NUMERICAL_FAILURE = 'numerical-failure'
   PROVIDER_FAILURE = 'provider-failure'
 ####

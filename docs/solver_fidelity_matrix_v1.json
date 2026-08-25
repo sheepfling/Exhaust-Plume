@@ -61,6 +61,31 @@
       "complexity_policy": "independent provider; no shock-cell backfill"
     },
     {
+      "lane_id": "shock-cell-reduced-order-v1",
+      "status": "experimental",
+      "provider_ids": [
+        "plume.shock-train-reduced-order"
+      ],
+      "advertised_capabilities": [
+        "plume.visual.sectioned-tube@1"
+      ],
+      "forbidden_capabilities": [
+        "plume.signature.spectral-radiant-intensity@1",
+        "plume.optical.spectral-ray-transfer@1",
+        "plume.image.spectral-radiance@1"
+      ],
+      "focal_plane_array": "not_supported",
+      "model_axes": {
+        "morphology": "straight-axisymmetric",
+        "flow": "resolved-first-cell-plus-scaled-reduced-order-train",
+        "mixing": "calibrated-growth-closure",
+        "thermochemistry": "frozen-gamma",
+        "radiation": "none",
+        "validation": "component-diagnostic; calibration-validation-split-blocked"
+      },
+      "complexity_policy": "separate experimental lane; does not mutate the frozen basic solver ceiling"
+    },
+    {
       "lane_id": "washed-integral-v1",
       "status": "planned",
       "provider_ids": [],

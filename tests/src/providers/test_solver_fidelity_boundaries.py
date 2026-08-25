@@ -36,6 +36,9 @@ def test_fidelity_matrix_has_separate_active_and_downstream_lanes() -> None:
   assert matrix['matrix_id'] == 'solver-fidelity-matrix-v1'
   lanes = {lane['lane_id']: lane for lane in matrix['lanes']}
   assert lanes['shock-cell-basic-v1']['status'] == 'active'
+  assert lanes['shock-cell-reduced-order-v1']['status'] == 'experimental'
+  assert lanes['shock-cell-reduced-order-v1']['provider_ids'] == ['plume.shock-train-reduced-order']
+  assert lanes['shock-cell-reduced-order-v1']['focal_plane_array'] == 'not_supported'
   assert lanes['signature-table-mvp-v1']['status'] == 'active'
   assert lanes['washed-integral-v1']['status'] == 'planned'
   assert lanes['optical-transfer-v1']['status'] == 'active'

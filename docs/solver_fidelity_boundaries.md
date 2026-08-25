@@ -13,6 +13,7 @@ applicability, validation evidence, and complexity ceiling.
 | Lane | Status | Current role | Allowed primary product | Explicit non-claims |
 | --- | --- | --- | --- | --- |
 | `shock-cell-basic-v1` | active | Fast, steady, straight, low-order shock-cell construction | `plume.visual.sectioned-tube@1`; supporting spatial/engineering handoffs where explicitly advertised | No physical signature, ray transfer, detector image, mixing, chemistry, radiation, or curved/washed flow |
+| `shock-cell-reduced-order-v1` | experimental | One resolved first cell plus explicitly calibrated, scaled downstream shock-train continuation | `plume.visual.sectioned-tube@1` through `plume.shock-train-reduced-order` | No resolved downstream MOC claim, spectral signature, ray transfer, detector image, FPA, or unvalidated universal closure |
 | `signature-table-mvp-v1` | active | Independent unresolved spectral lookup | `plume.signature.spectral-radiant-intensity@1` | No solved flow, geometry reconstruction, atmosphere, optics, detector, or focal-plane array |
 | `washed-integral-v1` | planned | Curved, rotor-washed, or crossflow integral continuation | Visual and engineering products only after a provider and validation gate exist | No automatic spectral or ray-transfer claim |
 | `optical-transfer-v1` | active | Straight constant-radius support with exact homogeneous gray transfer | `plume.optical.spectral-ray-transfer@1` | No chemistry, atmosphere, curved transport, detector integration, or focal-plane electronics |
@@ -43,6 +44,22 @@ The initial shock-cell solver is complete for its declared job when:
 “Done” means useful and bounded, not physically complete. Viscous mixing,
 curved or washed flow, finite-rate chemistry, radiation, and detector
 modeling belong to later lanes.
+
+## Reduced-order shock-train boundary
+
+`shock-cell-reduced-order-v1` is a separate experimental lane. It consumes the
+resolved first-cell result, then advances downstream cells with an explicit
+calibration object carrying applicability ranges and closure provenance. The
+downstream geometry is labeled `SCALED_REDUCED_ORDER`; it is not silently
+promoted to resolved characteristic/MOC geometry. Physical termination checks
+are kept separate from `max_cells` and axial-domain safety truncation.
+
+The canonical provider is visual-only and requires a caller-supplied
+calibration. The recovered CJ-UEJ archive supplies component context and
+provenance, but it does not provide the disjoint calibration/validation split
+needed to accept the closure. The current evidence is recorded in
+[`shock_train_component_validation_v1.json`](validation/shock_train_component_validation_v1.json)
+and remains `not_accepted`.
 
 ## Signature boundary
 
