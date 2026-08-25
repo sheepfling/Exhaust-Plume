@@ -3,7 +3,7 @@
   "schema_version": "plume.release-freeze@1",
   "branch": "work/validation-and-completion",
   "base_main_commit": "dd4d57611ba940c8fc4a9721d4b3464b6bbd7848",
-  "head_commit": "ce7be892e623714f22cdd6074047d1845d750d1b",
+  "head_commit": "be6c93704ae324ac3316b8408494dcbae5582443",
   "completion_requirement_audit": "completion_requirement_audit_v1.json",
   "remote_publish_status": "validation-completion-branch-not-pushed; PRs-5-6-7-merged",
   "remote_main_commit": "d416cbcb30ee9ff853cac90cb088fcdd79677616",
@@ -27,7 +27,7 @@
   "repository_quality": {
     "pytest": {
       "status": "passed",
-      "tests_passed": 410,
+      "tests_passed": 415,
       "warnings": 18
     },
     "ruff": "passed",
@@ -36,7 +36,9 @@
     "public_schema_fixture_determinism": "passed",
       "fresh_wheel_build_and_installed_smoke": "passed",
       "wheel_package_version": "0.1.0a2.dev0",
-    "wheel_sha256": "98716f1e3e9f435c59c59ed8a28142b8144d6b7d6c99b83d7ef6fc4c72e34445",
+    "wheel_sha256": "40dc01421c97b92a17dbee134fabd6b4ddc951297fe6bbb18698a69038c5e573",
+    "first_cell_phase_1_report": "first_cell_phase_1_report.md",
+    "first_cell_correlation_status": "diagnostic-passed-physical-closure-pending",
     "committed_measurement_operator_count": 21,
     "known_installed_smoke_diagnostics": "legacy expansion-fan warnings and one expected unattainable pressure-target error log; smoke exited successfully"
   },
@@ -48,7 +50,8 @@
     "ray_to_signature": "passed-synthetic-external-pending",
     "focal_plane_array": "boundary-validated-downstream",
     "focal_plane_array_operator": "passed-deterministic-expected-electron-and-ADC-adapters",
-    "planar_moc_foundation": "passed-local-foundation-open-closure-pending"
+    "planar_moc_foundation": "passed-local-foundation-open-closure-pending",
+    "first_cell_correlation": "passed-local-diagnostic-physical-length-pending"
   },
   "validation_corpus": {
     "archive_sha256": "79c2a34dd4c43bd976ceb8773fdccd78a2592d903bf03ca57c2aef82f882e9aa",
@@ -106,7 +109,8 @@
     "all current provider-specific external comparisons remain blocked by missing provider-bound measurement-space outputs, physical scenario assets, or accepted product-specific measurement-operator mappings",
     "reduced-order shock-train closure has no disjoint calibration/validation split or train-cell measurement operator",
     "separately named MVP alignment archive is not yet verified",
-    "planar MOC first-cell closure and external reference comparison are not complete"
+    "planar MOC first-cell closure and external reference comparison are not complete",
+    "first-cell correlation has no accepted physical solver-length comparison while shock closure remains open"
   ],
-  "scope_boundary": "The completion branch contains bounded providers, an experimental calibrated reduced-order shock-train lane, an isolated planar MOC foundation with an open fan, reflected free-boundary march, a 44-cell connected open characteristic zone, a boundary-side attached shock candidate, and local residuals, explicit fidelity ceilings, analytic/synthetic validation, and reproducible evidence. It does not claim a closed MOC first cell or full thermochemical, curved-flow, sensor-space, or focal-plane-array validation."
+  "scope_boundary": "The completion branch contains bounded providers, an experimental calibrated reduced-order shock-train lane, an isolated planar MOC foundation with an open fan, reflected free-boundary march, a 44-cell connected open characteristic zone, a boundary-side attached shock candidate, fully-expanded and first-cell correlation diagnostics, local residuals, explicit fidelity ceilings, analytic/synthetic validation, and reproducible evidence. It does not claim a closed MOC first cell or full thermochemical, curved-flow, sensor-space, or focal-plane-array validation."
 }

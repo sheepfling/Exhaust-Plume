@@ -130,11 +130,10 @@ recorded in
 equation, matched-flow, scaling, and open-lattice diagnostic checks, but keeps
 the physical first-cell and external-reference gates open.
 
-The prior branch-level freeze is recorded in
+The current branch-level freeze is recorded in
 [`release_freeze_v1.json`](release_freeze_v1.json). It captures the current
-local quality and installed-wheel checks at its recorded source commit while
-keeping `release_ready` false until the external gates close. The first-cell
-tranche report is the more recent lane-specific evidence.
+local quality and installed-wheel checks, including the first-cell tranche,
+while keeping `release_ready` false until the external gates close.
 
 The requirement-by-requirement audit is recorded in
 [`completion_requirement_audit_v1.json`](completion_requirement_audit_v1.json).
