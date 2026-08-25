@@ -178,6 +178,17 @@ while keeping `release_ready` false until the external gates close. The wheel
 evidence is built reproducibly with `SOURCE_DATE_EPOCH=1787667554`; two
 independent builds produced the same recorded digest.
 
+The installed-wheel check can reproduce that evidence without an index when
+the runner already has the project build and runtime dependencies:
+
+```bash
+python scripts/check_build.py --offline
+```
+
+Offline mode uses the local build backend, a system-site-packages virtual
+environment, and `pip --no-index --no-deps`; the default command retains the
+isolated build and dependency-upgrade path.
+
 The requirement-by-requirement audit is recorded in
 [`completion_requirement_audit_v1.json`](completion_requirement_audit_v1.json).
 It distinguishes verified local contracts and synthetic operators from the
