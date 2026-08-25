@@ -6,6 +6,14 @@
   "head_commit": "fdc5bf86f1bdadcd6d57a8895e6b87aca8b51cd5",
   "completion_requirement_audit": "completion_requirement_audit_v1.json",
   "remote_publish_status": "validation-completion-branch-not-pushed; PRs-5-6-7-merged",
+  "remote_pr_audit": {
+    "repository": "sheepfling/Exhaust-Plume",
+    "default_branch": "main",
+    "open_pull_requests": [],
+    "merged_pull_requests": [5, 6, 7],
+    "closed_superseded_pull_requests": [1, 2, 3, 4],
+    "audited_on": "2026-08-25"
+  },
   "remote_main_commit": "d416cbcb30ee9ff853cac90cb088fcdd79677616",
   "remote_merged_prs": [
     {
