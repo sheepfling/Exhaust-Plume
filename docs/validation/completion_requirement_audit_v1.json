@@ -12,6 +12,8 @@
         "main_is_ancestor": true,
         "worktree_clean": true,
         "merged_prs": [5, 6, 7],
+        "open_pr_count": 0,
+        "open_pr_search": "repository-scoped GitHub pull-request search returned no open PRs",
         "remote_main_commit": "d416cbcb30ee9ff853cac90cb088fcdd79677616"
       }
     },
@@ -48,6 +50,7 @@
         "separate_archive_recovery_checks": [
           "no matching local archive, Git object, or temporary attachment was found",
           "merged PR #5, #6, and #7 file lists and comments contain no separate archive",
+          "repository-scoped GitHub searches for the exact alignment filename and expected SHA returned no artifact",
           "deterministic ZIP reconstructions from the handoff alignment files did not match the required SHA-256"
         ]
       }
