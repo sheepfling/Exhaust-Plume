@@ -64,6 +64,12 @@ failed physics result: it means that the current provider does not produce the
 observable or operator required for a valid comparison. No external claim is
 accepted from this report.
 
+The bounded gray optical lane has its own reproducible local evidence in
+[`optical_transfer_validation_v1.json`](optical_transfer_validation_v1.json).
+Its straight-cylinder analytic gate passes; the curved-support refinement is
+recorded as nonmonotonic geometry-only evidence and is not promoted into the
+provider claim.
+
 The intake gate is a prerequisite for external validation claims. Corpus
 integrity tests are not product validation: repository contract tests and
 physics regressions must still be run through the named VIS, SIG, and future

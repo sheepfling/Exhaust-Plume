@@ -13,6 +13,13 @@ solver fidelity attached to a provider profile.
 | `optical-transfer-v1` | `plume.gray-ray-transfer` -> `plume.optical.spectral-ray-transfer@1` | Exact finite-cylinder intervals, homogeneous slab/chord transfer, layer separation, miss semantics, and analytic/refinement checks | External sensor/path comparisons remain pending; gray analytic evidence is not corpus validation | Homogeneous gray transfer through a straight constant-radius support only; no chemistry, atmosphere, detector, or FPA claim |
 | `focal-plane-array-v1` | No provider; downstream adapter | Boundary and dependency checks only | Requires validated ray transfer plus camera/optics/detector data | No FPA image, count, noise, or detection claim |
 
+The local optical evidence is recorded in
+[`optical_transfer_validation_v1.json`](optical_transfer_validation_v1.json).
+It is deliberately limited to the exact straight-cylinder gray-transfer
+provider. The curved-support interval refinement is retained as a
+nonmonotonic geometry diagnostic and does not expand the provider’s morphology
+or claim ceiling.
+
 The basic and signature lanes are deliberately independent. A comparison to a
 higher-fidelity solver may produce a residual report, but it must not modify
 the basic provider's configuration, training data, or claim ceiling.

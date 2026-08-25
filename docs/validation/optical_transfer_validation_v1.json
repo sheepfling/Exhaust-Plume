@@ -1,0 +1,51 @@
+{
+  "report_id": "exhaust-plume-optical-transfer-validation-v1",
+  "schema_version": "plume.validation-report@1",
+  "source_commit": "bf2f510",
+  "reproduction": {
+    "command": "python3 scripts/validate_product_lanes.py --output product-lane-report.json",
+    "lane_id": "optical-transfer-v1",
+    "provider_id": "plume.gray-ray-transfer",
+    "provider_version": "1.0.0"
+  },
+  "local_status": "analytic-gate-passed-external-comparison-pending",
+  "product_id": "plume.optical.spectral-ray-transfer@1",
+  "analytic_cases": {
+    "homogeneous_slab_and_finite_cylinder_chord": "passed",
+    "source_and_background_terms_separate": "passed",
+    "miss_ray_semantics": "passed",
+    "deterministic_serialization": "passed",
+    "intersection_intervals_m": [
+      [2.0, 4.0],
+      null
+    ],
+    "hit_mask": [true, false]
+  },
+  "spatial_refinement": {
+    "straight_section_counts": [2, 3, 5, 9],
+    "straight_exact_chord_lengths_m": [2.0, 2.0, 2.0, 2.0],
+    "straight_gate": "passed",
+    "curved_section_counts": [3, 5, 9, 17],
+    "curved_capsule_path_lengths_m": [
+      0.8659137602339158,
+      0.9621518190960741,
+      0.9071104557061656,
+      0.926910092480842
+    ],
+    "curved_gate": "nonmonotonic-observed-not-promoted",
+    "curved_claim": "geometry-only evidence; no curved ray-transfer claim"
+  },
+  "spectral_refinement": {
+    "coarse_wavelength_count": 2,
+    "fine_wavelength_count": 3,
+    "endpoint_max_abs_delta": 0.0,
+    "gate": "passed-for-linear-property-interpolation",
+    "limitation": "not chemistry or source-model validation"
+  },
+  "claim_ceiling": "Homogeneous gray transfer through a straight constant-radius support only; no chemistry, atmosphere, detector, or FPA claim.",
+  "external_validation": {
+    "status": "pending",
+    "reason": "The recovered BSUV2, EMAP, and ALSI gates require explicit sensor-space, line-of-sight, band, and path operators that are not implemented by this provider.",
+    "accepted_claim": false
+  }
+}

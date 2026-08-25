@@ -277,6 +277,207 @@
         "band_integrated_radiance",
         "formulation_sweep"
       ]
+    },
+    {
+      "alignment_id": "MVP-A-044",
+      "available_provider_outputs": [
+        "source_spectral_radiance",
+        "background_transmittance",
+        "optical_depth"
+      ],
+      "benchmark_id": "RP-BSUV2-001",
+      "blockers": [
+        "the gray provider has no BSUV2 plume field, line-of-sight, or field-of-view detector model",
+        "the external observable combines source, path, and sensor effects; the current provider only supplies homogeneous support transfer",
+        "external measurement-operator namespace is not reconciled with the committed registry"
+      ],
+      "claim_status": "not_accepted",
+      "comparison_id": "RAY-MVP-A-044",
+      "comparison_status": "blocked",
+      "measurement_operator_id": "operator.sensor.bsuv2_los_fov",
+      "metric_ids": [
+        "metric.ray.sensor_space_log_rmse"
+      ],
+      "observed_data": {
+        "categorical_values": {
+          "evidence_layer": [
+            "digitized_published_markers"
+          ],
+          "measurement_kind": [
+            "published experimental triangle marker"
+          ],
+          "quality_flag": [
+            "axis_edge_marker",
+            "digitized_triangle_marker"
+          ]
+        },
+        "columns": [
+          "benchmark_id",
+          "case_id",
+          "evidence_layer",
+          "extraction_method",
+          "log10_radiance_digitization_uncertainty_dex",
+          "log10_spectral_radiance_source_units",
+          "measurement_kind",
+          "notes",
+          "pixel_x_marker_center",
+          "pixel_y_marker_center",
+          "point_index",
+          "quality_flag",
+          "source_figure",
+          "source_id",
+          "source_pdf_page_1_indexed",
+          "spectral_radiance_w_cm2_sr_um",
+          "spectral_radiance_w_m2_sr_m",
+          "spectral_radiance_w_m2_sr_um",
+          "wavelength_digitization_uncertainty_um",
+          "wavelength_um"
+        ],
+        "relative_path": "data/rp_bsuv2_001_uv_spectral_radiance.csv",
+        "row_count": 13,
+        "uncertainty_fields": [
+          "log10_radiance_digitization_uncertainty_dex",
+          "wavelength_digitization_uncertainty_um"
+        ]
+      },
+      "product_id": "plume.optical.spectral-ray-transfer@1",
+      "provider_ids": [
+        "plume.gray-ray-transfer"
+      ],
+      "required_provider_outputs": [
+        "bsuv2_los_fov_sensor_space_radiance"
+      ]
+    },
+    {
+      "alignment_id": "MVP-A-065",
+      "available_provider_outputs": [
+        "source_spectral_radiance",
+        "background_transmittance",
+        "optical_depth"
+      ],
+      "benchmark_id": "RP-EMAP-RAD-001",
+      "blockers": [
+        "the provider has no EMAP field, path extinction, sensor sampling, or peak-normalization operator",
+        "the corpus records a normalized source-plus-path shape, not independent source radiance and transmittance",
+        "external measurement-operator namespace is not reconciled with the committed registry"
+      ],
+      "claim_status": "not_accepted",
+      "comparison_id": "RAY-MVP-A-065",
+      "comparison_status": "blocked",
+      "measurement_operator_id": "operator.spectrum.peak_normalize_after_los_transfer",
+      "metric_ids": [
+        "metric.ray.relative_spectral_shape_rmse"
+      ],
+      "observed_data": {
+        "categorical_values": {
+          "evidence_layer": [
+            ""
+          ],
+          "measurement_kind": [
+            "published_peak_normalized_relative_spectral_trace"
+          ]
+        },
+        "columns": [
+          "benchmark_id",
+          "calibration_status",
+          "case_id",
+          "diagnostic",
+          "extraction_method",
+          "measurement_kind",
+          "notes",
+          "plot_height_px",
+          "point_index",
+          "relative_intensity_lower_envelope",
+          "relative_intensity_median_trace",
+          "relative_intensity_recommended",
+          "relative_intensity_upper_envelope",
+          "source_figure",
+          "source_id",
+          "source_pdf_page_1_indexed",
+          "source_pixel_x",
+          "source_pixel_y_max",
+          "source_pixel_y_median",
+          "source_pixel_y_min",
+          "wavelength_digitization_uncertainty_nm",
+          "wavelength_nm"
+        ],
+        "relative_path": "data/rp_emap_rad_001_uvvis_relative_spectrum.csv",
+        "row_count": 758,
+        "uncertainty_fields": [
+          "wavelength_digitization_uncertainty_nm"
+        ]
+      },
+      "product_id": "plume.optical.spectral-ray-transfer@1",
+      "provider_ids": [
+        "plume.gray-ray-transfer"
+      ],
+      "required_provider_outputs": [
+        "line_of_sight_peak_normalized_spectral_shape"
+      ]
+    },
+    {
+      "alignment_id": "MVP-A-074",
+      "available_provider_outputs": [
+        "source_spectral_radiance",
+        "background_transmittance",
+        "optical_depth"
+      ],
+      "benchmark_id": "RP-ALSI-001",
+      "blockers": [
+        "the provider has no ALSI bandpass, projected-area, or image integration operator",
+        "the thermal corpus is band-integrated and is not a per-ray source-spectrum truth set",
+        "external measurement-operator namespace is not reconciled with the committed registry"
+      ],
+      "claim_status": "not_accepted",
+      "comparison_id": "RAY-MVP-A-074",
+      "comparison_status": "blocked",
+      "measurement_operator_id": "operator.image.integrate_alsi_band_and_area",
+      "metric_ids": [
+        "metric.ray.band_radiance_relative_error"
+      ],
+      "observed_data": {
+        "categorical_values": {
+          "evidence_layer": [
+            "direct_table_transcription_and_unit_conversion"
+          ],
+          "measurement_kind": [
+            "average_of_five_sequential_thermal_images"
+          ]
+        },
+        "columns": [
+          "assumed_emissivity_for_temperature",
+          "average_pressure_mpa",
+          "average_pressure_psia",
+          "benchmark_id",
+          "evidence_layer",
+          "local_mach_disk_temperature_flag",
+          "maximum_temperature_c",
+          "maximum_temperature_k",
+          "measurement_area_m2",
+          "measurement_kind",
+          "notes",
+          "propellant_id",
+          "radiance_w_m2_sr",
+          "run_id",
+          "sequential_image_count",
+          "source_id",
+          "source_pdf_page_1_indexed",
+          "source_propellant_label",
+          "source_table",
+          "test_date_label",
+          "total_power_w"
+        ],
+        "relative_path": "data/rp_alsi_001_thermal_comparison.csv",
+        "row_count": 5,
+        "uncertainty_fields": []
+      },
+      "product_id": "plume.optical.spectral-ray-transfer@1",
+      "provider_ids": [
+        "plume.gray-ray-transfer"
+      ],
+      "required_provider_outputs": [
+        "alsi_band_integrated_radiance_and_projected_power"
+      ]
     }
   ],
   "corpus_observations": {
@@ -771,9 +972,17 @@
       "status": "boundary-valid-not-implemented"
     },
     "optical": {
-      "claim_ceiling": "No optical-transfer claim.",
-      "provider_ids": [],
-      "status": "no-provider"
+      "analytic_transfer_passed": true,
+      "claim_ceiling": "Homogeneous gray transfer through a straight constant-radius support only; no chemistry, atmosphere, detector, or FPA claim.",
+      "output_fields": [
+        "source_spectral_radiance",
+        "background_transmittance",
+        "optical_depth"
+      ],
+      "provider_ids": [
+        "plume.gray-ray-transfer"
+      ],
+      "status": "passed"
     },
     "signature": {
       "asset_source": "repository synthetic contract fixture",
@@ -813,13 +1022,14 @@
     {
       "claim_status": "not_accepted",
       "product_id": "plume.optical.spectral-ray-transfer@1",
-      "provider_ids": [],
+      "provider_ids": [
+        "plume.gray-ray-transfer"
+      ],
       "required_prerequisites": [
-        "validated optical ray-transfer provider",
         "source radiance and transmittance separation",
         "sensor-space comparison operators"
       ],
-      "status": "blocked_no_provider"
+      "status": "external-validation-pending"
     },
     {
       "claim_status": "not_accepted",
