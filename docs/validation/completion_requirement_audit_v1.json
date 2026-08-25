@@ -1,7 +1,7 @@
 {
   "report_id": "exhaust-plume-completion-requirement-audit-v1",
   "schema_version": "plume.completion-requirement-audit@1",
-  "source_commit": "ab098ebd6ab0649eb60fba9a47836d4c21a9b779",
+  "source_commit": "98d5161f0947d434f4d0c04383e427050bc95952",
   "branch": "work/validation-and-completion",
   "base_main_commit": "dd4d57611ba940c8fc4a9721d4b3464b6bbd7848",
   "requirements": [
@@ -149,14 +149,22 @@
           "maximum_absolute_tangent_residual": 0.0,
           "maximum_absolute_geometry_residual": 1.1443916996305594e-16,
           "closure_status": "open",
-          "shock_closure": "not_assembled"
+          "shock_closure": "candidate-open-cell",
+          "shock_closure_candidate": {
+            "status": "converged",
+            "shock_status": "attached",
+            "shock_end_m": [0.8922526018896758, 0.0],
+            "geometry_residual_m": 0.0,
+            "downstream_mach": 1.9526869005729972,
+            "topology_status": "not_assembled"
+          }
         },
         "mesh_topology": "connected-one-boundary-cycle-no-nonmanifold-edges",
         "physical_first_cell": "not_assembled",
         "external_reference_comparison": "pending",
         "claim_status": "not_accepted",
         "blockers": [
-          "shock-endpoint geometry and closed characteristic-cell topology are not assembled",
+          "closed characteristic-cell topology and full post-shock bookkeeping are not assembled",
           "the open fan resolution probe is diagnostic rather than convergence acceptance",
           "no independent planar MOC reference family is bound to the provider lane"
         ]
@@ -166,11 +174,11 @@
       "requirement_id": "repository-release-quality",
       "status": "verified",
       "evidence": {
-        "pytest_passed": 407,
+        "pytest_passed": 409,
         "ruff": "passed",
         "pyright": "passed",
         "installed_wheel_smoke": "passed",
-        "wheel_sha256": "173b11f67fba097028994b8c7ec6ad30211ed2af0062463f0f89ae189bd8771b"
+        "wheel_sha256": "60eb33b468fb849ec59b8b623d58628ef79fa0f5f6bcee5b5a7a8b287f539ad6"
       }
     }
   ],
