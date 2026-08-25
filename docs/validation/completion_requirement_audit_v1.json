@@ -1,7 +1,7 @@
 {
   "report_id": "exhaust-plume-completion-requirement-audit-v1",
   "schema_version": "plume.completion-requirement-audit@1",
-  "source_commit": "b996fdda07f76c20be11bf40d9653941d3eeff3b",
+  "source_commit": "20b1ccce0fe87727d98050d89cc0818091839ada",
   "branch": "work/validation-and-completion",
   "base_main_commit": "dd4d57611ba940c8fc4a9721d4b3464b6bbd7848",
   "requirements": [
@@ -221,7 +221,7 @@
         "ruff": "passed",
         "pyright": "passed",
         "installed_wheel_smoke": "passed",
-        "wheel_sha256": "ccce1d1abe4c765bea8716a3a399d6e23322154deaad6efa57857bb51250b70b",
+        "wheel_sha256": "ec67f9eb39d4d4964d6e604e2a1ba919a081008a551bb55b1352aa274037149c",
         "first_cell_convergence_test": "passed-diagnostic-open-lattice-only"
       }
     }
