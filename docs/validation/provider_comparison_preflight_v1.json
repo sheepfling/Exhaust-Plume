@@ -1496,7 +1496,7 @@
     }
   },
   "operator_reconciliation": {
-    "committed_count": 20,
+    "committed_count": 21,
     "committed_only": [
       "op.atmosphere.path-transfer",
       "op.engineering.statistical-envelope",
@@ -1510,6 +1510,7 @@
       "op.ray.transmissometer",
       "op.sensor.band-integral",
       "op.sensor.bandpass-detector",
+      "op.sensor.fpa-digitization",
       "op.sensor.fpa-pixel-detector",
       "op.sensor.los-fov-spectrum",
       "op.sensor.peak-normalize-spectrum",

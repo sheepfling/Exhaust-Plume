@@ -1,7 +1,7 @@
 {
   "report_id": "exhaust-plume-fpa-boundary-validation-v1",
   "schema_version": "plume.validation-report@1",
-  "source_commit": "8529fcc45afc36e15f23e8d6f07e7b972f565745",
+  "source_commit": "42937a22708f0a6687f31113b2cfba572e681693",
   "reproduction": {
     "command": "python3 scripts/validate_product_lanes.py --output product-lane-report.json",
     "lane_id": "focal-plane-array-v1"
@@ -26,6 +26,7 @@
     "operator_id": "op.sensor.fpa-pixel-detector",
     "status": "passed-deterministic-synthetic-fixture",
     "camera_optics_identity_preserved": true,
+    "camera_mapping_model_id": "declared-ray-to-pixel-mapping-v1",
     "output": "expected electron image plus explicit validity and noise-variance fields",
     "does_not_claim": [
       "random noise realization",
@@ -42,6 +43,14 @@
       "random noise realization",
       "detection probability or threshold"
     ]
+  },
+  "synthetic_probe": {
+    "camera_optics_id": "synthetic-camera-optics-v1",
+    "camera_mapping_model_id": "declared-ray-to-pixel-mapping-v1",
+    "digitization_policy_id": "synthetic-adc-v1",
+    "digitized_counts": [[98, 1]],
+    "validity_mask": [[true, true]],
+    "saturated_mask": [[false, false]]
   },
   "negative_boundary_checks": {
     "fpa_provider_advertised": false,
