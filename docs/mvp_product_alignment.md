@@ -43,6 +43,17 @@ The three primary MVP products remain independently versioned:
 | `plume.signature.spectral-radiant-intensity@1` | Intrinsic unresolved source signature | Direction, spectral coordinate, radiant intensity, validity, provenance | Range loss, external atmosphere, optics, detector response |
 | `plume.optical.spectral-ray-transfer@1` | Resolved participating-medium transfer | Source radiance and background transmittance returned separately | Opaque precomposition with a caller-owned scene background |
 
+### Focal-plane boundary
+
+The focal-plane-array (FPA) area is tracked through the optical/RAY lane. The
+public contract in this tranche is the wavelength-resolved
+`plume.optical.spectral-ray-transfer@1` result; an FPA image, detector response,
+exposure, noise model, and pixel integration are downstream measurement
+adapters, not a second ray-transfer wire model. FPA validation therefore
+requires an explicit pixel/detector operator and cannot be inferred from a
+visual tube or an unresolved signature table. No provider advertises an FPA
+capability until that downstream contract and its validation gates exist.
+
 ## Supporting data products
 
 The primary products are consumer-facing. Supporting products make provider composition and validation possible.

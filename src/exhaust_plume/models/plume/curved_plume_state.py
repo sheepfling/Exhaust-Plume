@@ -68,7 +68,6 @@ class AmbientStateField(Protocol):
   def sample(self, position_m: FloatArray) -> AmbientState:
     """Return the local ambient state at ``position_m``."""
     ...
-  ####
 ####
 
 
@@ -162,7 +161,6 @@ class MixtureThermodynamics(Protocol):
   ) -> MixtureState:
     """Reconstruct the local thermodynamic state."""
     ...
-  ####
 ####
 
 

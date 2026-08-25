@@ -14,7 +14,11 @@ Version 8 adds an architecture-alignment layer connecting the Version 7 validati
 - All three primary products have at least one gate-eligible observation, with the documented scope limitations.
 - Seven cross-product rules include the permitted `RAY -> SIG` derivation and prohibit unsupported `SIG -> RAY`, `VIS -> SIG`, `VIS -> RAY`, and `SIG -> VIS` inference.
 - Eleven validation gates cover T0 contract, T1 component, T2 product, T3 cross-product, and T4 operational levels.
-- The 20-row summary is consistent with the detailed registry.
+- The committed `mvp_product_coverage_summary.csv` contains one row for each
+  of the eight catalog entries, and its product IDs and coverage fields are
+  consistent with the catalog. The larger 20-row summary cited in the source
+  corpus is not present in this public handoff and is not treated as a
+  repository-local validation artifact.
 
 ## Regression and determinism checks
 
