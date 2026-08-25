@@ -1,7 +1,7 @@
 # Phase 1 first-cell evidence report
 
 Status: **partial evidence; release gate not passed**  
-Source tranche: `139b5687` (`qa: add planar MOC CJ-UEJ component evidence`)
+Source tranche: `c3bb4f89891185453166447eb8537dc209c03d3f` (`feat: add diagnostic shock-train spacing evidence`)
 Branch: `work/validation-and-completion`
 
 This report records the first-cell correlation and resolution evidence added to
@@ -194,8 +194,8 @@ and the source case does not supply a disjoint closure validation set.
 ## Quality and performance evidence
 
 After the current completion-branch updates, the repository suite reports
-`434 passed, 18 warnings`.
-Ruff and Pyright both pass. The full suite wall time was 12.90 s in the
+`438 passed, 18 warnings`.
+Ruff and Pyright both pass. The full suite wall time was 13.69 s in the
 isolated completion worktree. The focused MOC resolution sweep completed in
 under 0.6 s including interpreter startup; solver-only timing and peak memory
 were not instrumented and are intentionally not presented as benchmark
