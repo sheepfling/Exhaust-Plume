@@ -4,7 +4,25 @@
   "branch": "work/validation-and-completion",
   "base_main_commit": "dd4d57611ba940c8fc4a9721d4b3464b6bbd7848",
   "head_commit": "28f37fbebfda4fd95e44487acf1b17c55bea43a1",
-  "remote_publish_status": "local-only-not-pushed-or-merged",
+  "remote_publish_status": "validation-completion-branch-not-pushed; PRs-5-6-7-merged",
+  "remote_main_commit": "d416cbcb30ee9ff853cac90cb088fcdd79677616",
+  "remote_merged_prs": [
+    {
+      "number": 5,
+      "merge_commit": "84dc4f47d08e19f6c6c26dbbd9133205ea27e39b",
+      "head_sha_at_merge": "f418aa84d3c6b96bd4b6c24b76296a5d9b2a9225"
+    },
+    {
+      "number": 6,
+      "merge_commit": "66dfd451883132f4815d185481acefd3f8653116",
+      "head_sha_at_merge": "92c3ceb8d2ce537bda033ad062fd39c2e18ee295"
+    },
+    {
+      "number": 7,
+      "merge_commit": "d416cbcb30ee9ff853cac90cb088fcdd79677616",
+      "head_sha_at_merge": "03f644cd583334d29db90a87bee92c233dfe222d"
+    }
+  ],
   "repository_quality": {
     "pytest": {
       "status": "passed",
