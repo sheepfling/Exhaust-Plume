@@ -3,12 +3,12 @@
   "schema_version": "plume.release-freeze@1",
   "branch": "work/validation-and-completion",
   "base_main_commit": "dd4d57611ba940c8fc4a9721d4b3464b6bbd7848",
-  "head_commit": "2f3a3e89e70e384863308102c5c28e3c2aec90dc",
+  "head_commit": "50200b34d680defe59e4dc6284665a73b40d49e6",
   "remote_publish_status": "local-only-not-pushed-or-merged",
   "repository_quality": {
     "pytest": {
       "status": "passed",
-      "tests_passed": 319,
+      "tests_passed": 324,
       "warnings": 18
     },
     "ruff": "passed",
@@ -31,9 +31,17 @@
     "internal_checksums_verified": 137,
     "status": "preflight-valid-pending-release-gates"
   },
+  "component_validation": {
+    "benchmark_id": "CJ-UEJ-001",
+    "report": "cj_uej_component_validation_v1.json",
+    "status": "partial_component_evidence",
+    "claim_status": "not_accepted",
+    "operator_crosswalk": "semantic-match-reviewed-for-cj-uej-component-only",
+    "physical_shock_train_resolved": false
+  },
   "release_ready": false,
   "release_blockers": [
-    "external operator crosswalk is unresolved",
+    "general external operator crosswalk remains unresolved; the CJ mapping is component-scoped only",
     "all current provider-specific external comparisons are blocked by missing measurement-space outputs or operators",
     "separately named MVP alignment archive is not yet verified"
   ],
