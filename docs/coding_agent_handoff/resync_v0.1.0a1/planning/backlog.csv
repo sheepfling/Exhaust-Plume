@@ -1,0 +1,21 @@
+id,priority,title,depends_on,acceptance_summary
+VAL-001,P0,Validation claim and measurement-operator architecture,,Typed benchmark/operator/claim registry; experiments remain observations
+VAL-002,P0,Canonical shock-cell external benchmark,VAL-001,CJ-UEJ pressure velocity Mach phase spacing metrics run reproducibly
+VAL-003,P0,Hot-plume feature external benchmark,VAL-001,RP-HOTWAKE Mach-disk and frequency evidence integrated with scoped claims
+PHYS-001,P0,Coherent finite shock train,VAL-002,Finite train has local spacing decay coherent-core diagnostics and convergent topology
+PHYS-002,P0,Physical plume termination,PHYS-001,Physical/domain termination distinguished from construction safety limit
+MIX-001,P1,Neutral conservative flux-section handoff,PHYS-001,Mass momentum enthalpy and optional species flux close at handoff
+MIX-002,P1,Straight integral provider composition,MIX-001,Straight integral kernel exposed through standard capabilities with conservation tests
+CURVE-001,P1,Curved provider lifecycle,MIX-001,Existing curved kernel served through common lifecycle without morphology-specific API
+CURVE-002,P1,AmbientFlowField and rotor-wash inputs,CURVE-001,Prescribed/measured/imported ambient velocity fields supported with units/frames
+CURVE-003,P1,Curved visual and support product adapter,CURVE-001;CURVE-002,Existing VIS/support contracts serve curved geometry and support
+CURVE-004,P1,Curved plume external validation,VAL-001;CURVE-003,RW-IGE gates plus zero-crossflow transform frame and conservation tests
+RAY-001,P1,Gray physical ray-transfer kernel,MIX-002,Analytic slab chord layer ordering thin/thick/miss-ray tests pass
+RAY-002,P1,Axisymmetric ray geometry and product provider,RAY-001,Ray DTO served physically with source radiance and background transmittance separate
+CROSS-001,P1,FarFieldFromRays cross-product derivation,RAY-002,Ray-derived unresolved signature obeys declared integration identity and provenance
+RAD-VAL-001,P1,External radiation validation suite,VAL-001;RAY-002,EMAP BSUV2 Fastrac AlSi comparisons through explicit operators
+SPEC-001,P2,Molecular spectral opacity assets,RAY-001,Reproducible versioned opacity generation and interpolation
+THERMO-001,P2,Variable-property thermochemistry,MIX-002,Energy/element closure and frozen/equilibrium references
+PART-001,P2,Particle population and optical effects,SPEC-001;THERMO-001,Zero-loading limit and measured particle/radiation evidence
+IMPORT-001,P2,Imported field provider,CURVE-001,CFD/RANS/LES field adapter with units frames interpolation provenance
+GPU-001,P2,Transient GPU/general-3D execution,RAY-002,Execution semantics preserve capability results and lifecycle contracts

@@ -1,0 +1,310 @@
+document: exhaust-plume-post-a1-work-plan
+version: 1
+baseline:
+  repository: sheepfling/Exhaust-Plume
+  canonical_branch: main
+  main_commit: 49d6ffd1839258ce14319e157002005c6d2230e1
+  release_tag: v0.1.0a1
+  release_commit: 8b37e48b65321403bb3eb4ed0fdfe949dc9f1506
+  python_version_constant: 0.1.0.a1
+  distribution_version: 0.1.0a1
+  main_vs_tag: one merge commit ahead; no file-level differences
+  release_ci_evidence: No workflow run was returned for main@49d6ffd by the connected
+    GitHub query; rerun and record exact-main CI.
+canonical_api_target: exhaust_plume.api
+packets:
+- id: A1-000
+  title: Post-release baseline, CI evidence, and repository hygiene
+  priority: P0
+  release: 0.1.0a2
+  depends_on: []
+  status: ready
+  paths:
+  - docs/baseline/current_api_inventory.md
+  - docs/baseline/current_quality_results.md
+  - docs/baseline/m0_architecture_review.md
+  - README.md
+  - .github/workflows/ci.yml
+  acceptance:
+  - Record main@49d6ffd and tag v0.1.0a1 as the canonical baseline.
+  - Run and retain Python 3.10-3.13 CI evidence for exact main.
+  - Update API inventory to include api/contracts/products/providers, straight and
+    curved kernels, and four CLI entry points.
+  - 'Close PR #1 and PR #2 as incorporated; retain PR #3/#4 closed history.'
+  - Mark feature/initial-work, feature/curved-plume-kernel, and feature/mvp-product-contracts
+    as stale; delete only after confirming no unique commits.
+  - No production behavior changes.
+- id: A1-010
+  title: API-008 authority review, compatibility inventory, and freeze record
+  priority: P0
+  release: 0.1.0a2
+  depends_on:
+  - A1-000
+  status: blocked
+  paths:
+  - docs/interface_contracts_v1.md
+  - docs/mvp_product_alignment.md
+  - docs/api_008_decision.md
+  - planning/api_compatibility_inventory.csv
+  - tests/src/api/
+  acceptance:
+  - Freeze exhaust_plume.api as the canonical v1 transport/product authority.
+  - Inventory every overlapping concept in api/contracts/products/providers and assign
+    one role.
+  - Record exact a1 import and serialized-fixture compatibility obligations.
+  - Choose one canonical public PlumeFluxSection and a distinct internal computational-state
+    name.
+  - Approve the capability IDs, envelope fields, units, frames, time policy, and invalid-value
+    semantics from the final decisions.
+  - Produce a signed-off API-008 decision record; no production behavior changes beyond
+    test scaffolding.
+- id: A1-011
+  title: Canonical API adapters, schema authority, root exports, and deprecations
+  priority: P0
+  release: 0.1.0a2
+  depends_on:
+  - A1-010
+  status: blocked
+  paths:
+  - src/exhaust_plume/api/
+  - src/exhaust_plume/contracts/
+  - src/exhaust_plume/products/
+  - src/exhaust_plume/providers/
+  - src/exhaust_plume/compat/
+  - src/exhaust_plume/__init__.py
+  - tests/src/api/
+  - tests/src/contracts/
+  - tests/src/compat/
+  acceptance:
+  - Generate v1 schemas from canonical API models only.
+  - Add explicit adapters for every retained compatibility visual/signature/ray/flux
+    result whose semantics match.
+  - Reject semantic mismatch instead of inventing missing fields.
+  - Align package-root exports while retaining tested a1 import aliases.
+  - Add one canonical provider conformance harness for discovery, time, immutability,
+    deterministic hashes, and errors.
+  - Document deprecation targets; do not remove a1 public imports in this packet.
+- id: A1-020
+  title: StraightIntegralPlumeProvider over the landed continuation kernel
+  priority: P0
+  release: 0.1.0a2
+  depends_on:
+  - A1-011
+  status: blocked
+  paths:
+  - src/exhaust_plume/models/integral/straight.py
+  - src/exhaust_plume/providers/straight_integral.py
+  - src/exhaust_plume/api/adapters.py
+  - tests/src/models/integral/
+  - tests/src/providers/test_straight_integral.py
+  acceptance:
+  - Wrap the conservative straight continuation without changing its governing equations
+    in the provider PR.
+  - Accept the canonical neutral flux-section input.
+  - Advertise visual sectioned-tube and engineering flux-section only.
+  - Match exact constant-density free-jet mass, radius, velocity, temperature, and
+    tracer histories.
+  - Report domain truncation separately from physical equilibrium.
+  - Pass rotation/translation, conservation, deterministic snapshot, conformance,
+    and installed-wheel tests.
+- id: A1-030
+  title: Consolidate curved-plume entrainment and freeze W1 defaults
+  priority: P0
+  release: 0.1.0a2
+  depends_on:
+  - A1-011
+  status: blocked
+  paths:
+  - src/exhaust_plume/models/plume/curved_plume_entrainment.py
+  - src/exhaust_plume/models/plume/curved_plume_closures.py
+  - src/exhaust_plume/models/plume/curved_plume.py
+  - src/exhaust_plume/models/plume/__init__.py
+  - tests/src/models/plume/
+  acceptance:
+  - One DevelopingShearForcedEntrainment implementation and one solver protocol.
+  - Retain a deprecation alias if a1 users import the duplicate class.
+  - Expose resolved shear/forced components for calibration diagnostics.
+  - Encode alpha_j=0.07, f0=1/3, development length=4.6 source diameters, p=2, and
+    disabled uncalibrated forced/turbulence terms in one W1 factory or configuration.
+  - Label W1 outputs EXPLORATORY_ANALYTICAL and VERIFIED, never VALIDATED.
+  - Exact developing-free-jet tests and crossflow decomposition tests pass.
+- id: A1-040
+  title: WashedIntegralPlumeProvider and canonical visual/flux adapters
+  priority: P0
+  release: 0.1.0a2
+  depends_on:
+  - A1-020
+  - A1-030
+  status: blocked
+  paths:
+  - src/exhaust_plume/providers/washed_integral.py
+  - src/exhaust_plume/api/adapters.py
+  - src/exhaust_plume/models/plume/curved_plume_solver.py
+  - src/exhaust_plume/models/plume/curved_plume_geometry.py
+  - tests/src/providers/test_washed_integral.py
+  - tests/fixtures/products/washed_visual_v1.json
+  acceptance:
+  - Use provider-specific definition/configuration/operating-state objects; do not
+    expose CurvedPlumeStation or mesh types.
+  - Accept a pressure-matched canonical PlumeFluxSection plus background/rotor operating
+    data.
+  - Advertise visual sectioned-tube and, only if semantics are complete, engineering
+    flux-section.
+  - Use rotation-minimizing frames and explicit support semantics.
+  - Zero wash reproduces the straight provider within declared tolerances.
+  - Rigid-transform invariance and rotor-torque sign mirroring pass.
+  - Mass, vector momentum, energy, and exhaust-tracer residuals pass.
+  - Slenderness warning at kappa*b >= 0.10 and model termination at >= 0.25 are explicit.
+  - No signature or ray capability is advertised.
+- id: A1-050
+  title: Live visual consumer swap and golden physics fixture
+  priority: P0
+  release: 0.1.0a2
+  depends_on:
+  - A1-040
+  status: blocked
+  paths:
+  - src/exhaust_plume/products/workflow_visual.py
+  - src/exhaust_plume/products/visual_cli.py
+  - fixtures/products/
+  - tests/src/products/
+  acceptance:
+  - The same visual consumer evaluates prescribed, straight-integral, and washed-integral
+    providers through the canonical capability.
+  - No consumer branches on provider class.
+  - Golden JSON, mesh, OBJ, and optional PNG outputs are deterministic.
+  - The live physics result retains exploratory provenance and explicit support definition.
+- id: A1-060
+  title: Loopback HTTP/1.1 sidecar for canonical schemas
+  priority: P1
+  release: 0.1.0a2
+  depends_on:
+  - A1-011
+  - A1-050
+  status: blocked
+  paths:
+  - src/exhaust_plume/service/
+  - src/exhaust_plume/service_cli.py
+  - tests/src/service/
+  - pyproject.toml
+  acceptance:
+  - Bind to 127.0.0.1 only by default; remote exposure is absent in v1.
+  - Serve health/version, schema discovery, provider discovery, session creation/deletion,
+    snapshot creation, and product evaluation.
+  - Use UTF-8 strict JSON; no NaN or infinity; optional gzip.
+  - Enforce published payload and batch limits before allocation.
+  - Return one structured error schema for all failures.
+  - Round-trip canonical visual products without schema or frame changes.
+- id: A1-070
+  title: Downstream shock-cell flux-section extraction and transition diagnostics
+  priority: P1
+  release: 0.1.0a3
+  depends_on:
+  - A1-020
+  status: blocked
+  paths:
+  - src/exhaust_plume/models/shock_cells/
+  - src/exhaust_plume/providers/shock_diamond.py
+  - src/exhaust_plume/api/adapters.py
+  - tests/src/models/shock_cells/
+  - tests/src/providers/test_shock_handoff.py
+  acceptance:
+  - Extract a declared downstream conservative section rather than silently returning
+    the nozzle exit.
+  - Preserve mass, vector momentum including residual pressure thrust, total enthalpy/energy,
+    and species flux.
+  - Report mean pressure residual, oscillation metric, persistence count, and handoff
+    applicability.
+  - Distinguish weak-wave transition from requested construction truncation.
+  - Pass analytical and conservation regressions without creating a composite provider
+    yet.
+- id: A1-071
+  title: ShockToWashedCompositeProvider and provenance chain
+  priority: P1
+  release: 0.1.0a3
+  depends_on:
+  - A1-040
+  - A1-070
+  status: blocked
+  paths:
+  - src/exhaust_plume/providers/shock_to_mixing.py
+  - src/exhaust_plume/api/adapters.py
+  - tests/src/providers/test_shock_to_mixing.py
+  acceptance:
+  - Compose shock-cell and straight/washed providers only through canonical PlumeFluxSection.
+  - Expose one snapshot/product lifecycle and one derivation/provenance chain.
+  - Keep near-field construction termination, transition, and downstream plume termination
+    distinct.
+  - Preserve consumer product semantics across the composite boundary.
+- id: A1-080
+  title: Exact/convergent ray intervals through straight and curved support
+  priority: P1
+  release: 0.1.0a3
+  depends_on:
+  - A1-040
+  status: blocked
+  paths:
+  - src/exhaust_plume/geometry/ray_intervals.py
+  - tests/src/geometry/test_ray_intervals.py
+  acceptance:
+  - Return ordered, non-overlapping intervals through straight and curved sectioned
+    support.
+  - Pass analytic cylinder/chord cases, misses, tangencies, and rigid-transform invariance.
+  - Provide spatial refinement evidence for swept/sectioned approximations.
+  - Do not advertise ray-transfer capability in this geometry-only packet.
+- id: A1-081
+  title: Homogeneous gray ray-transfer provider and advertisement gate
+  priority: P1
+  release: 0.1.0a3
+  depends_on:
+  - A1-080
+  status: blocked
+  paths:
+  - src/exhaust_plume/radiation/gray.py
+  - src/exhaust_plume/providers/gray_ray_transfer.py
+  - tests/src/radiation/
+  - tests/src/providers/test_gray_ray_transfer.py
+  acceptance:
+  - Implement exact homogeneous-segment transfer over the intervals.
+  - Pass slab, chord, layer-ordering, optically thin, optically thick, and miss-ray
+    regressions.
+  - Keep source radiance and background transmittance separate.
+  - Record spatial and spectral refinement evidence.
+  - Advertise plume.optical.spectral-ray-transfer@1 only after the complete gate passes.
+- id: A1-090
+  title: Calibration data registry, objective functions, and free-jet calibration
+  priority: P2
+  release: post-a3
+  depends_on:
+  - A1-040
+  status: blocked
+  paths:
+  - data/calibration/
+  - docs/validation/
+  - src/exhaust_plume/calibration/
+  - tests/validation/
+  acceptance:
+  - Create versioned dataset metadata, units, frame definitions, and train/holdout
+    splits.
+  - Fit free-jet development parameters before crossflow or rotor coefficients.
+  - Report uncertainty, covariance/sensitivity, residuals, and applicability.
+  - Keep analytical verification distinct from calibration and validation.
+- id: A1-091
+  title: Uniform-crossflow, rotor-wake, and helicopter held-out validation
+  priority: P2
+  release: post-a3
+  depends_on:
+  - A1-090
+  status: blocked
+  paths:
+  - data/calibration/
+  - docs/validation/
+  - src/exhaust_plume/calibration/
+  - tests/validation/
+  acceptance:
+  - Calibrate forced-crossflow/rotor parameters only after free-jet closure is fixed.
+  - Validate trajectory and scalar/thermal dilution, not trajectory alone.
+  - Add rotor mass/thrust/torque invariant evidence.
+  - Evaluate held-out helicopter hover cases and circular versus slit outlets where
+    data support them.
+  - Promote fidelity labels only when held-out criteria pass.

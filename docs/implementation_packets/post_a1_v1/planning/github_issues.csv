@@ -1,0 +1,15 @@
+id,title,priority,target_release,status,depends_on,estimated_prs,packet_file
+A1-000,"Post-release baseline, CI evidence, and repository hygiene",P0,0.1.0a2,ready,,1,work_packets/A1-000.md
+A1-010,"API-008 authority review, compatibility inventory, and freeze record",P0,0.1.0a2,blocked,A1-000,1,work_packets/A1-010.md
+A1-011,"Canonical API adapters, schema authority, root exports, and deprecations",P0,0.1.0a2,blocked,A1-010,1,work_packets/A1-011.md
+A1-020,StraightIntegralPlumeProvider over the landed continuation kernel,P0,0.1.0a2,blocked,A1-011,1,work_packets/A1-020.md
+A1-030,Consolidate curved-plume entrainment and freeze W1 defaults,P0,0.1.0a2,blocked,A1-011,1,work_packets/A1-030.md
+A1-040,WashedIntegralPlumeProvider and canonical visual/flux adapters,P0,0.1.0a2,blocked,A1-020;A1-030,1,work_packets/A1-040.md
+A1-050,Live visual consumer swap and golden physics fixture,P0,0.1.0a2,blocked,A1-040,1,work_packets/A1-050.md
+A1-060,Loopback HTTP/1.1 sidecar for canonical schemas,P1,0.1.0a2,blocked,A1-011;A1-050,1,work_packets/A1-060.md
+A1-070,Downstream shock-cell flux-section extraction and transition diagnostics,P1,0.1.0a3,blocked,A1-020,1,work_packets/A1-070.md
+A1-071,ShockToWashedCompositeProvider and provenance chain,P1,0.1.0a3,blocked,A1-040;A1-070,1,work_packets/A1-071.md
+A1-080,Exact/convergent ray intervals through straight and curved support,P1,0.1.0a3,blocked,A1-040,1,work_packets/A1-080.md
+A1-081,Homogeneous gray ray-transfer provider and advertisement gate,P1,0.1.0a3,blocked,A1-080,1,work_packets/A1-081.md
+A1-090,"Calibration data registry, objective functions, and free-jet calibration",P2,post-a3,blocked,A1-040,1,work_packets/A1-090.md
+A1-091,"Uniform-crossflow, rotor-wake, and helicopter held-out validation",P2,post-a3,blocked,A1-090,1,work_packets/A1-091.md
