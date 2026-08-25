@@ -64,5 +64,18 @@ python3 -m ruff check .
 python3 scripts/check_pyright.py
 ```
 
+The fidelity-specific local report is generated with:
+
+```bash
+python3 scripts/validate_product_lanes.py \
+  --corpus /path/to/plume_validation_data_v8.zip \
+  --output product-lane-report.json
+```
+
+This command currently passes the VIS provider/conformance cases, SIG table
+interpolation cases, and the negative FPA-advertisement boundary check. Its
+report intentionally remains `release_ready: false` until external
+measurement-operator comparisons and the operator crosswalk are complete.
+
 The missing external archive is a release blocker, not a reason to weaken the
 fidelity boundaries or synthesize replacement measurements.
