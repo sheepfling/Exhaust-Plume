@@ -11,6 +11,12 @@
   "local_status": "synthetic-gate-passed-external-comparison-pending",
   "input_product_id": "plume.optical.spectral-ray-transfer@1",
   "output_product_id": "plume.signature.spectral-radiant-intensity@1",
+  "alignment": {
+    "corpus_cross_product_rule_id": "MVP-X-001",
+    "external_adapter_id": "adapter.far_field_from_rays@1",
+    "registry_operator_id": "op.ray.projected-area-signature",
+    "mapping_status": "semantic-match-reviewed-for-synthetic-rule-only"
+  },
   "operator": {
     "name": "orthographic_projected_area_sum",
     "equation": "J_lambda(direction) = sum(L_lambda(ray) * projected_area(ray))",

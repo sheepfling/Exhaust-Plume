@@ -23,6 +23,15 @@ and `op.visual.feature-extractor` in the committed registry. Similar-looking
 names are not aliases until their input product, observable, metadata,
 uncertainty, and benchmark scope are proven equivalent.
 
+One narrow cross-product mapping has now been reviewed explicitly. The
+embedded rule `MVP-X-001` names `adapter.far_field_from_rays@1`; its invariant
+and required context match the committed `op.ray.projected-area-signature`
+operator, and the implementation is exposed as the internal adapter
+`plume.adapter.far-field-from-rays`. This mapping is accepted for the
+synthetic cross-product consistency gate only. It does not reconcile the
+external sensor/feature operator namespace used by the VIS, SIG, and RAY
+measurement comparisons.
+
 ## Release treatment
 
 The typed `ValidationRegistry` loads only the committed registry and therefore
