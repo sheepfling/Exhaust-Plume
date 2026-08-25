@@ -1,7 +1,8 @@
-"""Common immutable contracts for plume products.
+"""Compatibility contracts for the pre-v1 plume product workflows.
 
-These models are an API-review witness. They do not freeze the public v1 API
-or replace provider-private solver states.
+These models are retained for existing workflows and adapters. They are not
+the public v1 wire authority and must not replace provider-private solver
+states or receive new product fields.
 """
 
 from __future__ import annotations

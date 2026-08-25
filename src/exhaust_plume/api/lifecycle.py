@@ -1,4 +1,8 @@
-"""Provider, session, snapshot, and capability lifecycle contracts."""
+"""0.1.x compatibility lifecycle for the pre-v1 API surface.
+
+New providers use ``exhaust_plume.contracts.lifecycle_v1``. This module is
+retained only for callers of the original request/envelope ABI.
+"""
 
 from __future__ import annotations
 

@@ -22,8 +22,9 @@ The common checks cover:
 | `StraightVisualProvider` | registered visual product fixture |
 | `StraightAnalyticalProvider` / `StraightAnalyticalPlumeProviderV0` | registered visual product fixture |
 | `SignatureTableProvider` | registered signature product fixture |
-| `StaticPlumeProvider` | waived: legacy `providers.lifecycle` API |
-| `ShockCellAnalyticalProvider` | waived: legacy spatial capability API |
+| `ShockCellVisualProvider` | registered visual product fixture |
+| `StaticPlumeProvider` | compatibility-only fixture; not a production provider |
+| `ShockCellAnalyticalProvider` | compatibility-only spatial-zone provider; use `ShockCellVisualProvider` |
 
 The failure fixture intentionally advertises a visual capability while
 returning a snapshot without that evaluator. The harness rejects it at the

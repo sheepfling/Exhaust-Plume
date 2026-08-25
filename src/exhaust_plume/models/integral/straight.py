@@ -10,7 +10,7 @@ from typing import Mapping
 from exhaust_plume.contracts.handoff import PlumeFluxSection
 from exhaust_plume.models.gas.calorically_perfect import CaloricallyPerfectGas
 from exhaust_plume.models.nozzle.contracts import AmbientState
-from exhaust_plume.contracts.snapshot import TerminationReason
+from exhaust_plume.contracts.termination import TerminationReason
 
 __all__ = (
     "IntegralStraightConfiguration",

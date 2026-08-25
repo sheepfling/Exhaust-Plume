@@ -1,8 +1,8 @@
-"""Strict immutable DTOs for versioned exhaust-plume products.
+"""Compatibility DTOs for the pre-v1 exhaust-plume product envelopes.
 
-The contracts intentionally separate visual geometry, unresolved spectral
-signature, resolved spectral ray transfer, and conservative engineering handoff
-products. They contain no solver-private plume-zone or mesh types.
+The canonical v1 wire models live in ``exhaust_plume.contracts``. These
+models remain frozen so 0.1.x callers can migrate without a wire break; new
+product fields must not be added here.
 """
 
 from __future__ import annotations

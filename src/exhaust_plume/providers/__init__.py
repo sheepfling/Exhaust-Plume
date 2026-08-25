@@ -12,7 +12,7 @@ from exhaust_plume.providers.adapters import (
     sectionedTubeFromAxisymmetricZones,
     sectionedTubeFromCurvedPlume,
 )
-from exhaust_plume.providers.lifecycle import (
+from exhaust_plume.providers.compatibility import (
     CapabilityBinding,
     ClosedSessionError,
     EngineeringFluxSectionCapability,
@@ -24,6 +24,13 @@ from exhaust_plume.providers.lifecycle import (
     SessionRequest,
     SpectralRadiantIntensityCapability,
     SpectralRayTransferCapability,
+    StaticEngineeringFluxCapability,
+    StaticPlumeProvider,
+    StaticPlumeSession,
+    StaticPlumeSnapshot,
+    StaticRayTransferCapability,
+    StaticSignatureCapability,
+    StaticVisualCapability,
     TimeAccessMode,
     UnsupportedCapabilityError,
     VisualSectionedTubeCapability,
@@ -41,15 +48,6 @@ from exhaust_plume.providers.signature_table import (
     SignatureTableDefinition,
     SignatureTableProvider,
     SignatureTableSession,
-)
-from exhaust_plume.providers.static import (
-    StaticEngineeringFluxCapability,
-    StaticPlumeProvider,
-    StaticPlumeSession,
-    StaticPlumeSnapshot,
-    StaticRayTransferCapability,
-    StaticSignatureCapability,
-    StaticVisualCapability,
 )
 from exhaust_plume.providers.straight_analytical import (
     StraightAnalyticalConfiguration,

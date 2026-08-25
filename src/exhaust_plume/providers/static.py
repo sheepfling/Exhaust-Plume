@@ -1,4 +1,8 @@
-"""Deterministic static providers for fixtures and conformance tests."""
+"""Compatibility-only static providers for legacy fixtures and tests.
+
+Production providers use the canonical v1 lifecycle. This module remains
+available for 0.1.x callers that exchange the pre-v1 product DTOs.
+"""
 
 from __future__ import annotations
 

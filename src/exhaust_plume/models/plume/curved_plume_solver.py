@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from math import pi, sqrt
+from typing import Callable
 
 import numpy as np
 from numpy import ndarray
@@ -24,11 +25,13 @@ from exhaust_plume.models.plume.curved_plume_closures import (
     ZeroCurvedPlumeSourceTermModel,
 )
 from exhaust_plume.models.plume.curved_plume_state import (
+    AmbientState,
     AmbientStateField,
     CurvedPlumeSource,
     CurvedPlumeStation,
     IdealGasMixtureThermodynamics,
     MixtureThermodynamics,
+    _validateAmbientCaloricProperties,
 )
 
 _POSITION = slice(0, 3)
@@ -49,6 +52,7 @@ def _reconstructStation(
     entrainment_kgpspm: float,
     momentum_derivative_Npm: ArrayLike,
     minimum_speed_mps: float,
+    ambient_caloric_reference: AmbientState,
 ) -> CurvedPlumeStation:
   if state.shape != (_STATE_SIZE,):
     raise ValueError(f'Expected conserved state shape ({_STATE_SIZE},). Got:{state.shape}')
@@ -65,6 +69,10 @@ def _reconstructStation(
   exhaust_mass_flow = _validateNonnegativeFinite('exhaust_mass_flow_kgps', state[_EXHAUST_MASS_FLOW])
   exhaust_mass_fraction = exhaust_mass_flow / mass_flow
   ambient = ambient_field.sample(position)
+  _validateAmbientCaloricProperties(
+      ambient=ambient,
+      reference=ambient_caloric_reference,
+  )
   mixture = thermodynamics.reconstruct(
       source=source,
       ambient=ambient,
@@ -120,11 +128,15 @@ def _calculateInitialConservedState(source: CurvedPlumeSource) -> FloatArray:
 ####
 
 
-def _isEquilibrated(station: CurvedPlumeStation, options: CurvedPlumeOptions) -> bool:
+def _calculateEquilibriumResidual(station: CurvedPlumeStation, options: CurvedPlumeOptions) -> float:
+  """Return a signed residual whose first non-positive crossing is equilibrium."""
   return (
-      station.exhaust_mass_fraction <= options.equilibrium_exhaust_mass_fraction
-      and abs(station.temperature_K - station.ambient_temperature_K) <= options.equilibrium_temperature_excess_K
-      and station.relative_speed_mps <= options.equilibrium_relative_speed_mps
+      max(
+          station.exhaust_mass_fraction / options.equilibrium_exhaust_mass_fraction - 1.,
+          abs(station.temperature_K - station.ambient_temperature_K)
+          / options.equilibrium_temperature_excess_K - 1.,
+          station.relative_speed_mps / options.equilibrium_relative_speed_mps - 1.,
+      )
   )
 ####
 
@@ -161,6 +173,7 @@ def solveCurvedPlume(
         entrainment_kgpspm=0.,
         momentum_derivative_Npm=np.zeros(3),
         minimum_speed_mps=options.minimum_speed_mps,
+        ambient_caloric_reference=source_ambient,
     )
     entrainment = entrainment_model.calculateMassEntrainmentPerLength(
         arc_length_m=arc_length_m,
@@ -169,6 +182,10 @@ def solveCurvedPlume(
     )
     entrainment = _validateNonnegativeFinite('entrainment_kgpspm', entrainment)
     ambient = ambient_field.sample(provisional.position_m)
+    _validateAmbientCaloricProperties(
+        ambient=ambient,
+        reference=source_ambient,
+    )
     external_source_terms = external_source_model.calculateSourceTerms(
         arc_length_m=arc_length_m,
         station=provisional,
@@ -191,6 +208,27 @@ def solveCurvedPlume(
   ####
 
   output_arc_lengths = np.linspace(0., options.max_arc_length_m, options.number_of_stations)
+  equilibrium_event: Callable[[float, ndarray], float] | None = None
+  if options.enable_equilibrium_termination:
+    def equilibrium_event_function(arc_length_m: float, state: ndarray) -> float:
+      station = _reconstructStation(
+          arc_length_m=arc_length_m,
+          state=np.asarray(state, dtype=float),
+          source=source,
+          ambient_field=ambient_field,
+          thermodynamics=thermodynamic_model,
+          entrainment_kgpspm=0.,
+          momentum_derivative_Npm=np.zeros(3),
+          minimum_speed_mps=options.minimum_speed_mps,
+          ambient_caloric_reference=source_ambient,
+      )
+      return _calculateEquilibriumResidual(station, options)
+    ####
+    setattr(equilibrium_event_function, 'terminal', True)
+    setattr(equilibrium_event_function, 'direction', -1.)
+    equilibrium_event = equilibrium_event_function
+  ####
+
   solution = solve_ivp(
       derivative,
       (0., options.max_arc_length_m),
@@ -199,21 +237,51 @@ def solveCurvedPlume(
       rtol=options.relative_tolerance,
       atol=options.absolute_tolerance,
       max_step=options.max_step_m,
+      events=equilibrium_event,
   )
+  event_arc_length: float | None = None
+  event_state: ndarray | None = None
+  event_states = solution.y_events
+  if (
+      equilibrium_event is not None
+      and solution.t_events
+      and event_states is not None
+      and len(solution.t_events[0]) > 0
+  ):
+    event_arc_length = float(solution.t_events[0][0])
+    event_state = np.asarray(event_states[0][0], dtype=float)
+  ####
+
+  solution_samples = [
+      (float(arc_length_m), np.asarray(state, dtype=float))
+      for arc_length_m, state in zip(solution.t, solution.y.T)
+  ]
+  if event_arc_length is not None and event_state is not None:
+    if not solution_samples or not np.isclose(
+        solution_samples[-1][0],
+        event_arc_length,
+        rtol=0.,
+        atol=1.e-12,
+    ):
+      solution_samples.append((event_arc_length, event_state))
+    ####
+  ####
+
   stations: list[CurvedPlumeStation] = []
-  for arc_length_m, state in zip(solution.t, solution.y.T):
+  for arc_length_m, state in solution_samples:
     provisional = _reconstructStation(
-        arc_length_m=float(arc_length_m),
-        state=np.asarray(state, dtype=float),
+        arc_length_m=arc_length_m,
+        state=state,
         source=source,
         ambient_field=ambient_field,
         thermodynamics=thermodynamic_model,
         entrainment_kgpspm=0.,
         momentum_derivative_Npm=np.zeros(3),
         minimum_speed_mps=options.minimum_speed_mps,
+        ambient_caloric_reference=source_ambient,
     )
     entrainment = entrainment_model.calculateMassEntrainmentPerLength(
-        arc_length_m=float(arc_length_m),
+        arc_length_m=arc_length_m,
         station=provisional,
         source=source,
     )
@@ -223,33 +291,31 @@ def solveCurvedPlume(
         source=source,
     )
     ambient = ambient_field.sample(provisional.position_m)
+    _validateAmbientCaloricProperties(
+        ambient=ambient,
+        reference=source_ambient,
+    )
     momentum_derivative = entrainment * ambient.velocity_mps + external_source_terms.force_Npm
     station = _reconstructStation(
-        arc_length_m=float(arc_length_m),
-        state=np.asarray(state, dtype=float),
+        arc_length_m=arc_length_m,
+        state=state,
         source=source,
         ambient_field=ambient_field,
         thermodynamics=thermodynamic_model,
         entrainment_kgpspm=_validateNonnegativeFinite('entrainment_kgpspm', entrainment),
         momentum_derivative_Npm=momentum_derivative,
         minimum_speed_mps=options.minimum_speed_mps,
+        ambient_caloric_reference=source_ambient,
     )
     stations.append(station)
   ####
 
   if not solution.success:
     termination = CurvedPlumeTermination.NUMERICAL_FAILURE
+  elif event_arc_length is not None:
+    termination = CurvedPlumeTermination.EQUILIBRIUM
   else:
     termination = CurvedPlumeTermination.DOMAIN_LIMIT
-    if options.enable_equilibrium_termination:
-      for index, station in enumerate(stations[1:], start=1):
-        if _isEquilibrated(station, options):
-          stations = stations[:index + 1]
-          termination = CurvedPlumeTermination.EQUILIBRIUM
-          break
-        ####
-      ####
-    ####
   ####
   return CurvedPlumeResult(
       stations=tuple(stations),
