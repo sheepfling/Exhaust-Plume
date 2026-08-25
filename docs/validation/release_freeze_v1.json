@@ -4,6 +4,7 @@
   "branch": "work/validation-and-completion",
   "base_main_commit": "dd4d57611ba940c8fc4a9721d4b3464b6bbd7848",
   "head_commit": "42937a22708f0a6687f31113b2cfba572e681693",
+  "completion_requirement_audit": "completion_requirement_audit_v1.json",
   "remote_publish_status": "validation-completion-branch-not-pushed; PRs-5-6-7-merged",
   "remote_main_commit": "d416cbcb30ee9ff853cac90cb088fcdd79677616",
   "remote_merged_prs": [
