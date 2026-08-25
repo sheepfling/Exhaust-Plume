@@ -34,6 +34,14 @@ from exhaust_plume.contracts import (  # noqa: E402
 )
 from exhaust_plume.geometry import SectionedTubeSupport, intersect_sectioned_tube  # noqa: E402
 from exhaust_plume.radiation import FarFieldRayIntegration, far_field_from_rays  # noqa: E402
+from exhaust_plume.validation.measurement_operators import (  # noqa: E402
+  BAND_INTEGRATION_OPERATOR_ID,
+  PEAK_NORMALIZATION_OPERATOR_ID,
+  SPECTRAL_SAMPLING_OPERATOR_ID,
+  integrate_spectral_band_rows,
+  peak_normalize_spectral_rows,
+  sample_spectral_rows,
+)
 from exhaust_plume.providers import (  # noqa: E402
   GrayRayTransferDefinition,
   GrayRayTransferProvider,
@@ -233,12 +241,54 @@ def _run_signature_lane() -> dict[str, Any]:
   )
   expected = ((2.0, 3.0),)
   contract_passed = result.spectral_radiant_intensity == expected and all(result.validity_mask[0])
+  operator_source_wavelengths = definition.wavelengths_m
+  operator_source_values = ((1.0, 2.0, 3.0),)
+  sampled = sample_spectral_rows(
+    operator_source_wavelengths,
+    operator_source_values,
+    (1.5e-6, 2.5e-6),
+  )
+  normalized = peak_normalize_spectral_rows(
+    sampled.wavelengths_m,
+    sampled.values,
+    validity_mask=sampled.validity_mask,
+  )
+  band = integrate_spectral_band_rows(
+    operator_source_wavelengths,
+    operator_source_values,
+    1.5e-6,
+    2.5e-6,
+  )
+  measurement_space_operators_passed = (
+    sampled.values == ((1.5, 2.5),)
+    and sampled.validity_mask == ((True, True),)
+    and normalized.values == ((0.6, 1.0),)
+    and normalized.validity_mask == ((True, True),)
+    and normalized.normalization_factors == (2.5,)
+    and len(band.values) == 1
+    and isclose(band.values[0], 2.0e-6, rel_tol=1.0e-12, abs_tol=1.0e-18)
+    and band.validity_mask == (True,)
+  )
   return {
     'lane_id': 'signature-table-mvp-v1',
     'product_id': SPECTRAL_RADIANT_INTENSITY_V1.capability.wire_id,
     'provider_id': provider.descriptor.provider_id,
-    'status': 'passed' if contract_passed else 'failed',
+    'status': 'passed' if contract_passed and measurement_space_operators_passed else 'failed',
     'contract_interpolation_passed': contract_passed,
+    'measurement_space_operators': {
+      'status': 'passed' if measurement_space_operators_passed else 'failed',
+      'operator_ids': [
+        SPECTRAL_SAMPLING_OPERATOR_ID,
+        PEAK_NORMALIZATION_OPERATOR_ID,
+        BAND_INTEGRATION_OPERATOR_ID,
+      ],
+      'sensor_sampling_passed': sampled.values == ((1.5, 2.5),),
+      'peak_normalization_passed': normalized.values == ((0.6, 1.0),),
+      'band_integration_passed': len(band.values) == 1 and isclose(
+        band.values[0], 2.0e-6, rel_tol=1.0e-12, abs_tol=1.0e-18,
+      ),
+      'scope': 'spectral-array reduction only; no line-of-sight, atmosphere, optics, detector, or source calibration',
+    },
     'output_shape': [len(result.spectral_radiant_intensity), len(result.spectral_radiant_intensity[0])],
     'output_units': 'W sr^-1 m^-1',
     'validity_mask': result.validity_mask,
@@ -246,7 +296,7 @@ def _run_signature_lane() -> dict[str, Any]:
     'asset_source': 'repository synthetic contract fixture',
     'external_comparison': {
       'status': 'pending',
-      'reason': 'Recovered spectral observations are sensor-space or relative-shape products and require explicit LOS/band operators before comparison to intrinsic J_lambda.'
+      'reason': 'Recovered spectral observations are sensor-space or relative-shape products and require explicit LOS, path, detector, and source-calibration operators before comparison to intrinsic J_lambda.'
     },
     'claim_ceiling': 'Versioned table and interpolation behavior only; no intrinsic physical validation claim.',
   }
@@ -491,7 +541,7 @@ def _run_cross_product_consistency() -> dict[str, Any]:
     'claim_derivation': first.metadata.claims.derivation.value,
     'external_comparison': {
       'status': 'synthetic-only',
-      'reason': 'The adapter operator is verified against a homogeneous gray ray fixture; recovered sensor-space comparisons remain blocked by missing operators and the unresolved external namespace crosswalk.',
+      'reason': 'The adapter operator is verified against a homogeneous gray ray fixture; recovered sensor-space comparisons remain blocked by missing LOS/path/detector operators and the unresolved external namespace crosswalk.',
     },
     'claim_ceiling': 'Synthetic orthographic ray-to-signature consistency only; no experimental signature, atmosphere, detector, image, or FPA claim.',
   }

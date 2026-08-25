@@ -155,7 +155,7 @@
       "benchmark_id": "RP-EMAP-RAD-001",
       "blockers": [
         "the provider has no corpus-backed EMAP source asset or operating point",
-        "the current signature lane has no sensor-sampling or peak-normalization operator",
+        "the local spectral sampling and peak-normalization operators do not provide a corpus-backed EMAP source asset or operating point",
         "normalized spectral shape cannot validate the provider absolute-radiance claim",
         "external measurement-operator namespace is not reconciled with the committed registry"
       ],
@@ -222,7 +222,7 @@
       "benchmark_id": "RP-ALSI-001",
       "blockers": [
         "the signature contract emits wavelength-resolved intensity, not the ALSI band-integrated observable",
-        "the provider has no formulation-sweep input or band detector operator",
+        "the local band-integral helper has no detector response or formulation-sweep input to represent the ALSI measurement operator",
         "external measurement-operator namespace is not reconciled with the committed registry"
       ],
       "claim_status": "not_accepted",
@@ -357,7 +357,8 @@
       ],
       "benchmark_id": "RP-EMAP-RAD-001",
       "blockers": [
-        "the provider has no EMAP field, path extinction, sensor sampling, or peak-normalization operator",
+        "the provider has no EMAP field or path-extinction scenario; spectral sampling and peak normalization are only post-processing helpers",
+        "local spectral reduction operators can only act after a ray/source scenario is available; they do not create the missing EMAP field or path operator",
         "the corpus records a normalized source-plus-path shape, not independent source radiance and transmittance",
         "external measurement-operator namespace is not reconciled with the committed registry"
       ],
@@ -905,7 +906,7 @@
   },
   "corpus_status": "preflight-valid-pending-release-gates",
   "operator_reconciliation": {
-    "committed_count": 16,
+    "committed_count": 19,
     "committed_only": [
       "op.atmosphere.path-transfer",
       "op.engineering.statistical-envelope",
@@ -917,8 +918,11 @@
       "op.ray.projected-area-signature",
       "op.ray.surface-radiometer",
       "op.ray.transmissometer",
+      "op.sensor.band-integral",
       "op.sensor.bandpass-detector",
       "op.sensor.los-fov-spectrum",
+      "op.sensor.peak-normalize-spectrum",
+      "op.sensor.spectral-sampling",
       "op.surface.sensor-array",
       "op.temporal.frequency-feature",
       "op.visual.feature-extractor",
@@ -996,6 +1000,12 @@
       "asset_source": "repository synthetic contract fixture",
       "claim_ceiling": "Versioned table and interpolation behavior only; no intrinsic physical validation claim.",
       "lane_id": "signature-table-mvp-v1",
+      "measurement_space_operator_ids": [
+        "op.sensor.spectral-sampling",
+        "op.sensor.peak-normalize-spectrum",
+        "op.sensor.band-integral"
+      ],
+      "measurement_space_operator_status": "passed",
       "output_shape": [
         1,
         2
@@ -1020,7 +1030,7 @@
   },
   "release_blockers": [
     "external operator crosswalk is unresolved",
-    "all current provider-specific external comparisons are blocked by missing measurement-space outputs or operators",
+    "all current provider-specific external comparisons remain blocked by missing provider-bound measurement-space outputs, physical scenario assets, or reviewed operator crosswalks",
     "separately named MVP alignment archive is not yet verified"
   ],
   "release_ready": false,

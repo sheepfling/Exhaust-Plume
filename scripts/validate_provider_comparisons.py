@@ -157,6 +157,8 @@ def _local_provider_inventory() -> dict[str, Any]:
       'status': signature['status'],
       'asset_source': signature['asset_source'],
       'claim_ceiling': signature['claim_ceiling'],
+      'measurement_space_operator_ids': signature['measurement_space_operators']['operator_ids'],
+      'measurement_space_operator_status': signature['measurement_space_operators']['status'],
     },
     'optical': {
       'provider_ids': [optical['provider_id']],
@@ -279,7 +281,7 @@ def build_comparison_plan(
       required_provider_outputs=['sensor_sampled_peak_normalized_spectral_shape'],
       blockers=[
         'the provider has no corpus-backed EMAP source asset or operating point',
-        'the current signature lane has no sensor-sampling or peak-normalization operator',
+        'the local spectral sampling and peak-normalization operators do not provide a corpus-backed EMAP source asset or operating point',
         'normalized spectral shape cannot validate the provider absolute-radiance claim',
         *([crosswalk_blocker] if crosswalk_blocker is not None else []),
       ],
@@ -297,7 +299,7 @@ def build_comparison_plan(
       required_provider_outputs=['band_integrated_radiance', 'formulation_sweep'],
       blockers=[
         'the signature contract emits wavelength-resolved intensity, not the ALSI band-integrated observable',
-        'the provider has no formulation-sweep input or band detector operator',
+        'the local band-integral helper has no detector response or formulation-sweep input to represent the ALSI measurement operator',
         *([crosswalk_blocker] if crosswalk_blocker is not None else []),
       ],
     ),
@@ -330,7 +332,8 @@ def build_comparison_plan(
       available_provider_outputs=ray_outputs,
       required_provider_outputs=['line_of_sight_peak_normalized_spectral_shape'],
       blockers=[
-        'the provider has no EMAP field, path extinction, sensor sampling, or peak-normalization operator',
+        'the provider has no EMAP field or path-extinction scenario; spectral sampling and peak normalization are only post-processing helpers',
+        'local spectral reduction operators can only act after a ray/source scenario is available; they do not create the missing EMAP field or path operator',
         'the corpus records a normalized source-plus-path shape, not independent source radiance and transmittance',
         *([crosswalk_blocker] if crosswalk_blocker is not None else []),
       ],
@@ -425,7 +428,7 @@ def build_provider_comparison_preflight(path: Path) -> dict[str, Any]:
     'unimplemented_product_boundaries': build_unimplemented_boundaries(providers),
     'release_blockers': [
       'external operator crosswalk is unresolved',
-      'all current provider-specific external comparisons are blocked by missing measurement-space outputs or operators',
+      'all current provider-specific external comparisons remain blocked by missing provider-bound measurement-space outputs, physical scenario assets, or reviewed operator crosswalks',
       'separately named MVP alignment archive is not yet verified',
     ],
   })

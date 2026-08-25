@@ -47,7 +47,7 @@
   "release_ready": false,
   "release_blockers": [
     "general external operator crosswalk remains unresolved; the CJ mapping is component-scoped only",
-    "all current provider-specific external comparisons are blocked by missing measurement-space outputs or operators",
+    "all current provider-specific external comparisons remain blocked by missing provider-bound measurement-space outputs, physical scenario assets, or reviewed operator crosswalks",
     "reduced-order shock-train closure has no disjoint calibration/validation split or train-cell measurement operator",
     "separately named MVP alignment archive is not yet verified"
   ],

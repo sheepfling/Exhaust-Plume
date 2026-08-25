@@ -24,9 +24,22 @@ from exhaust_plume.validation.envelope import (
   write_validity_report_csv,
   write_validity_report_json,
 )
+from exhaust_plume.validation.measurement_operators import (
+  BAND_INTEGRATION_OPERATOR_ID,
+  PEAK_NORMALIZATION_OPERATOR_ID,
+  SPECTRAL_SAMPLING_OPERATOR_ID,
+  BandIntegratedSpectrum,
+  PeakNormalizedSpectrum,
+  SampledSpectrum,
+  integrate_spectral_band_rows,
+  peak_normalize_spectral_rows,
+  sample_spectral_rows,
+)
 
 __all__ = (
   'BenchmarkDefinition',
+  'BandIntegratedSpectrum',
+  'BAND_INTEGRATION_OPERATOR_ID',
   'ClaimRole',
   'ClaimStatus',
   'DEFAULT_STUDY_VALIDITY_ENVELOPE',
@@ -36,6 +49,10 @@ __all__ = (
   'NozzleCaseAssessment',
   'NozzleValidityCase',
   'OperatorStatus',
+  'PEAK_NORMALIZATION_OPERATOR_ID',
+  'PeakNormalizedSpectrum',
+  'SPECTRAL_SAMPLING_OPERATOR_ID',
+  'SampledSpectrum',
   'StudyValidityEnvelope',
   'ValidationClaim',
   'ValidationRegistry',
@@ -44,6 +61,9 @@ __all__ = (
   'default_validity_cases',
   'evaluate_nozzle_case',
   'evaluate_validity_matrix',
+  'integrate_spectral_band_rows',
+  'peak_normalize_spectral_rows',
+  'sample_spectral_rows',
   'write_validity_report_csv',
   'write_validity_report_json',
 )

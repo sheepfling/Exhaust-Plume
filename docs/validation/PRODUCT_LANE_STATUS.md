@@ -98,9 +98,10 @@ product acceptance. Its own gate registry reports VIS, SIG, and RAY T1
 component evidence as `ready` and their T2 product evidence as
 `partial_evidence`; all three T0 contract gates are `outside_corpus`, and the
 T3 cross-product gate is `synthetic_only`. Those statuses describe the corpus
-alignment layer. The repository still needs provider-specific operators,
-thresholds, and the unresolved operator crosswalk before it can accept a
-product claim.
+alignment layer. The repository now has deterministic spectral-array
+sampling, peak-normalization, and numeric band-integration helpers, but still
+needs provider-bound LOS/path/detector operators, thresholds, source assets,
+and the unresolved operator crosswalk before it can accept a product claim.
 
 ## Working branch
 

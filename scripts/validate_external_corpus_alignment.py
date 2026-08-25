@@ -263,7 +263,7 @@ def preflight_corpus(path: Path) -> dict[str, Any]:
     'release_ready': False,
     'release_blockers': [
       'external operator crosswalk is unresolved' if operator_status != 'reconciled' else None,
-      'provider-specific VIS/SIG/RAY comparisons are not yet recorded',
+      'provider-specific VIS/SIG/RAY comparisons are recorded but not accepted',
       'separately named MVP alignment archive is not yet verified',
     ],
     'errors': errors,
