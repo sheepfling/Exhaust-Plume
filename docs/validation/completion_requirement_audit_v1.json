@@ -114,8 +114,16 @@
       "status": "verified-with-release-gates-open",
       "evidence": {
         "fidelity_matrix": "solver_fidelity_matrix_v1.json",
+        "lane_release_manifest": "lane_release_manifest_v1.json",
         "basic_solver_claim_ceiling": "engineering-approximate straight visual geometry only",
         "signature_claim_ceiling": "versioned table and interpolation behavior only",
+        "scoped_local_release_lanes": [
+          "shock-cell-basic-v1",
+          "signature-table-mvp-v1",
+          "optical-transfer-v1",
+          "focal-plane-array-v1"
+        ],
+        "external_validation_required_for_product_claim": true,
         "reduced_order_status": "experimental-calibration-validation-split-blocked",
         "fpa_provider_ids": [],
         "low_fidelity_promotion_detected": false

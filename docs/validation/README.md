@@ -100,6 +100,14 @@ independent VIS and SIG contract/operator acceptance, the analytic optical
 boundary, the synthetic ray-to-signature check, and the downstream FPA adapter
 status. Its `release_ready` flag remains false.
 
+The fidelity-scoped release decision is preserved in
+[`lane_release_manifest_v1.json`](lane_release_manifest_v1.json). It records
+which active lanes have a scoped local release boundary, which lanes remain
+experimental or planned, and which external comparisons are still pending.
+The manifest treats a local contract/analytic release as distinct from an
+externally validated product claim and verifies that advertised capabilities
+remain disjoint from each lane's forbidden capabilities.
+
 The first quantitative benchmark component record is
 [`cj_uej_component_validation_v1.json`](cj_uej_component_validation_v1.json).
 It is intentionally separate from the product preflight: `CJ-UEJ-001` is a
