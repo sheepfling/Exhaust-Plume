@@ -1,7 +1,7 @@
 # Phase 1 first-cell evidence report
 
 Status: **partial evidence; release gate not passed**  
-Source tranche: `20b1ccc` (`feat: reconcile MOC fan compatibility grid`)
+Source tranche: `139b5687` (`qa: add planar MOC CJ-UEJ component evidence`)
 Branch: `work/validation-and-completion`
 
 This report records the first-cell correlation and resolution evidence added to
