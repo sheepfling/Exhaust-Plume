@@ -3,7 +3,7 @@
   "schema_version": "plume.release-freeze@1",
   "branch": "work/validation-and-completion",
   "base_main_commit": "dd4d57611ba940c8fc4a9721d4b3464b6bbd7848",
-  "head_commit": "28f37fbebfda4fd95e44487acf1b17c55bea43a1",
+  "head_commit": "020696ec4074984dd7d6b5f19fd721b83967ae91",
   "remote_publish_status": "validation-completion-branch-not-pushed; PRs-5-6-7-merged",
   "remote_main_commit": "d416cbcb30ee9ff853cac90cb088fcdd79677616",
   "remote_merged_prs": [
@@ -26,11 +26,12 @@
   "repository_quality": {
     "pytest": {
       "status": "passed",
-      "tests_passed": 357,
+      "tests_passed": 363,
       "warnings": 18
     },
     "ruff": "passed",
     "pyright": "passed",
+    "generic_sensor_space_operator_probe": "passed-synthetic-only",
     "public_schema_fixture_determinism": "passed",
       "fresh_wheel_build_and_installed_smoke": "passed",
       "wheel_package_version": "0.1.0a2.dev0",
@@ -55,7 +56,9 @@
     "source_corpus_tests_status": "passed-from-isolated-archive-extraction",
     "product_lane_report": "product_lane_validation_v1.json",
     "product_lane_local_status": "passed",
+    "generic_sensor_space_operator_status": "passed-synthetic-only",
     "provider_comparison_report": "provider_comparison_preflight_v1.json",
+    "provider_comparison_status": "comparisons-recorded-pending-provider-bindings",
     "gate_eligible_comparison_mappings": 10,
     "gate_eligible_comparison_status": "all-blocked-not-accepted",
     "spectral_shape_probe": {

@@ -38,7 +38,7 @@
       "deterministic_serialization": true,
       "external_adapter_id": "adapter.far_field_from_rays@1",
       "external_comparison": {
-        "reason": "The adapter operator is verified against a homogeneous gray ray fixture; recovered sensor-space comparisons remain blocked by missing LOS/path/detector operators, while the exact external namespace remains distinct despite complete scoped semantic review.",
+        "reason": "The adapter operator and generic sensor-space helpers are verified against homogeneous gray fixtures; recovered comparisons remain blocked by missing provider-bound scenario assets, while the exact external namespace remains distinct despite complete scoped semantic review.",
         "status": "synthetic-only"
       },
       "lane_id": "ray-to-signature-consistency-v1",
@@ -79,7 +79,7 @@
       "claim_ceiling": "Homogeneous gray transfer through a straight constant-radius support only; no chemistry, atmosphere, detector, or FPA claim.",
       "deterministic_serialization": true,
       "external_comparison": {
-        "reason": "The gray provider is analytically validated but the recovered external gates require sensor-space LOS, band, or path operators that are not yet implemented.",
+        "reason": "The gray provider is analytically validated and generic downstream sensor operators pass synthetic probes, but the recovered external gates still require provider-bound observer, path, band, and scenario assets.",
         "status": "pending"
       },
       "hit_mask": [
@@ -115,6 +115,19 @@
       "product_id": "plume.optical.spectral-ray-transfer@1",
       "provider_id": "plume.gray-ray-transfer",
       "radiation_claim": "gray_approximate",
+      "sensor_space_operators": {
+        "bandpass_passed": true,
+        "claim_status": "not_accepted",
+        "los_fov_passed": true,
+        "operator_ids": [
+          "op.atmosphere.path-transfer",
+          "op.sensor.los-fov-spectrum",
+          "op.sensor.bandpass-detector"
+        ],
+        "path_transfer_passed": true,
+        "scope": "synthetic downstream operator math only; no external observer, atmosphere, calibration, or detector asset",
+        "status": "passed"
+      },
       "spatial_refinement": {
         "curved_capsule_path_lengths_m": [
           0.8659137602339158,
@@ -163,7 +176,7 @@
       "claim_ceiling": "Versioned table and interpolation behavior only; no intrinsic physical validation claim.",
       "contract_interpolation_passed": true,
       "external_comparison": {
-        "reason": "Recovered spectral observations are sensor-space or relative-shape products and require explicit LOS, path, detector, and source-calibration operators before comparison to intrinsic J_lambda.",
+        "reason": "Recovered spectral observations are sensor-space or relative-shape products; generic LOS, path, and bandpass operators now pass synthetic probes, but the signature provider still lacks a corpus-bound observer, source-calibration, and detector scenario.",
         "status": "pending"
       },
       "lane_id": "signature-table-mvp-v1",
@@ -189,11 +202,27 @@
         "operator_ids": [
           "op.sensor.spectral-sampling",
           "op.sensor.peak-normalize-spectrum",
-          "op.sensor.band-integral"
+          "op.sensor.band-integral",
+          "op.atmosphere.path-transfer",
+          "op.sensor.los-fov-spectrum",
+          "op.sensor.bandpass-detector"
         ],
         "peak_normalization_passed": true,
-        "scope": "spectral-array reduction only; no line-of-sight, atmosphere, optics, detector, or source calibration",
+        "scope": "spectral-array and synthetic downstream sensor-operator math only; no external observer, atmosphere, detector, or source calibration",
         "sensor_sampling_passed": true,
+        "sensor_space_probe": {
+          "bandpass_passed": true,
+          "claim_status": "not_accepted",
+          "los_fov_passed": true,
+          "operator_ids": [
+            "op.atmosphere.path-transfer",
+            "op.sensor.los-fov-spectrum",
+            "op.sensor.bandpass-detector"
+          ],
+          "path_transfer_passed": true,
+          "scope": "synthetic downstream operator math only; no external observer, atmosphere, calibration, or detector asset",
+          "status": "passed"
+        },
         "status": "passed"
       },
       "output_shape": [
