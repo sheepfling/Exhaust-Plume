@@ -125,12 +125,15 @@ The retained `products` and `providers` modules are compatibility and workflow
 surfaces for the already-integrated consumers; new provider-boundary code must
 use the API contracts rather than create another product hierarchy.
 
-The renderer-neutral adapters in `exhaust_plume.api.visualization` consume a
-validated `SectionedTubeResult` and expose aligned centerline/frame/axis lines,
-typed feature-channel lines, and an optional deterministic display mesh. They
-preserve the result frame and channel semantics, keep null channel samples
-explicit, and do not turn feature values into radiance or conservative support
-claims. Mesh topology remains a consumer-side display representation.
+The renderer-neutral adapters in `exhaust_plume.api.visualization` consume the
+validated standard `ProductResult` union and keep each product family
+separate. They expose sectioned-tube centerline/frame/axis lines and an
+optional deterministic display mesh; spectral-intensity wavelength/direction
+grids and lines; ray-transfer spectral lines with ray origin/direction and
+item status; and engineering-flux scalar/vector/species glyph data. They
+preserve result frames, channel semantics, validity masks, and null samples,
+and do not infer radiance, ray intersections, or conservative support from
+missing fields. Mesh topology remains a consumer-side display representation.
 
 The current shock-zone integration is the bounded adapter
 `sectioned_tube_payload_from_axisymmetric_zones(zones)`. It accepts only finite

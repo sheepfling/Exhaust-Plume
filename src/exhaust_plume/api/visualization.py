@@ -11,18 +11,25 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from math import cos, isfinite, pi, sin
-from typing import TypeAlias
+from typing import Any, TypeAlias
 
 from exhaust_plume.api.capabilities import VISUAL_SECTIONED_TUBE_V1
 from exhaust_plume.api.contracts import (
   FeatureAssociation,
   FeatureChannel,
+  ItemStatus,
+  PlumeFluxSectionResult,
+  ProductResult,
   ResultStatus,
+  ResultEnvelope,
   SectionedTubeResult,
+  SpectralRadiantIntensityResult,
+  SpectralRayTransferResult,
 )
 
 Vector3: TypeAlias = tuple[float, float, float]
 ScalarValue: TypeAlias = float | None
+Matrix2: TypeAlias = tuple[tuple[float, float], tuple[float, float]]
 
 
 def _as_vector3(values: tuple[float, ...]) -> Vector3:
@@ -30,6 +37,16 @@ def _as_vector3(values: tuple[float, ...]) -> Vector3:
     raise ValueError('contract vector must contain exactly three values')
   ####
   return (float(values[0]), float(values[1]), float(values[2]))
+####
+
+
+def _check_result_envelope(envelope: ResultEnvelope) -> None:
+  if envelope.status is ResultStatus.FAILED:
+    raise ValueError('a FAILED product result cannot be visualized')
+  ####
+  if not envelope.applicability.supported:
+    raise ValueError('an out-of-applicability product result cannot be visualized')
+  ####
 ####
 
 
@@ -272,11 +289,10 @@ def _require_renderable_result(result: object) -> SectionedTubeResult:
   if not isinstance(result, SectionedTubeResult):
     raise TypeError('result must be an exhaust_plume.api SectionedTubeResult')
   ####
-  if result.envelope.status is ResultStatus.FAILED:
-    raise ValueError('a FAILED sectioned-tube result cannot be visualized')
-  ####
-  if not result.envelope.applicability.supported:
-    raise ValueError('an out-of-applicability sectioned-tube result cannot be visualized')
+  try:
+    _check_result_envelope(result.envelope)
+  except ValueError as error:
+    raise ValueError(str(error).replace('product result', 'sectioned-tube result')) from error
   ####
   return result
 ####
@@ -445,13 +461,442 @@ def build_sectioned_tube_render_mesh(
 ####
 
 
+@dataclass(frozen=True, slots=True)
+class SpectralRadiantIntensityGrid:
+  """Renderer-neutral wavelength/direction grid for the signature product."""
+
+  frame_id: str
+  directions: tuple[Vector3, ...]
+  wavelengths_m: tuple[float, ...]
+  radiant_intensity_W_sr_m: tuple[tuple[ScalarValue, ...], ...]
+  validity_mask: tuple[tuple[bool, ...], ...]
+  uncertainty: dict[str, Any]
+
+  def __post_init__(self) -> None:
+    if not self.frame_id:
+      raise ValueError('spectral-intensity grid frame_id must not be empty')
+    ####
+    if not self.directions or not self.wavelengths_m:
+      raise ValueError('spectral-intensity grid axes must not be empty')
+    ####
+    if len(self.radiant_intensity_W_sr_m) != len(self.directions):
+      raise ValueError('spectral-intensity direction axis does not match directions')
+    ####
+    if len(self.validity_mask) != len(self.directions):
+      raise ValueError('spectral-intensity validity axis does not match directions')
+    ####
+    if any(not isfinite(value) or value <= 0. for value in self.wavelengths_m):
+      raise ValueError('spectral-intensity wavelengths must be finite and positive')
+    ####
+    if any(right <= left for left, right in zip(self.wavelengths_m, self.wavelengths_m[1:])):
+      raise ValueError('spectral-intensity wavelengths must be strictly increasing')
+    ####
+    wavelength_count = len(self.wavelengths_m)
+    for direction_index, (direction, values, validity) in enumerate(zip(
+      self.directions,
+      self.radiant_intensity_W_sr_m,
+      self.validity_mask,
+      strict=True,
+    )):
+      if len(direction) != 3 or not all(isfinite(value) for value in direction):
+        raise ValueError(f'spectral-intensity direction {direction_index} must be finite')
+      ####
+      if len(values) != wavelength_count or len(validity) != wavelength_count:
+        raise ValueError('spectral-intensity wavelength axes do not match')
+      ####
+      if any(
+        valid != (value is not None)
+        for value, valid in zip(values, validity, strict=True)
+      ):
+        raise ValueError('spectral-intensity values and validity mask disagree')
+      ####
+      if any(value is not None and (not isfinite(value) or value < 0.) for value in values):
+        raise ValueError('spectral-intensity values must be finite and nonnegative')
+    ####
+    object.__setattr__(self, 'directions', tuple(_as_vector3(direction) for direction in self.directions))
+    object.__setattr__(self, 'wavelengths_m', tuple(float(value) for value in self.wavelengths_m))
+    object.__setattr__(
+      self,
+      'radiant_intensity_W_sr_m',
+      tuple(
+        tuple(None if value is None else float(value) for value in row)
+        for row in self.radiant_intensity_W_sr_m
+      ),
+    )
+    object.__setattr__(self, 'validity_mask', tuple(tuple(row) for row in self.validity_mask))
+    object.__setattr__(self, 'uncertainty', dict(self.uncertainty))
+  ####
+####
+
+
+@dataclass(frozen=True, slots=True)
+class SpectralRadiantIntensityLine:
+  """One direction's wavelength line from a spectral-intensity grid."""
+
+  frame_id: str
+  direction_index: int
+  direction: Vector3
+  wavelengths_m: tuple[float, ...]
+  values_W_sr_m: tuple[ScalarValue, ...]
+  validity_mask: tuple[bool, ...]
+
+  def __post_init__(self) -> None:
+    if not self.frame_id:
+      raise ValueError('spectral-intensity line frame_id must not be empty')
+    ####
+    if self.direction_index < 0:
+      raise ValueError('spectral-intensity line direction_index must be nonnegative')
+    ####
+    if len(self.wavelengths_m) != len(self.values_W_sr_m) or len(self.wavelengths_m) != len(self.validity_mask):
+      raise ValueError('spectral-intensity line axes must have matching lengths')
+    ####
+    object.__setattr__(self, 'direction', _as_vector3(self.direction))
+    object.__setattr__(self, 'wavelengths_m', tuple(float(value) for value in self.wavelengths_m))
+    object.__setattr__(
+      self,
+      'values_W_sr_m',
+      tuple(None if value is None else float(value) for value in self.values_W_sr_m),
+    )
+    object.__setattr__(self, 'validity_mask', tuple(self.validity_mask))
+  ####
+####
+
+
+def extract_spectral_radiant_intensity_grid(
+  result: SpectralRadiantIntensityResult,
+) -> SpectralRadiantIntensityGrid:
+  """Extract the signature product as a renderer-neutral spectral grid."""
+
+  if not isinstance(result, SpectralRadiantIntensityResult):
+    raise TypeError('result must be an exhaust_plume.api SpectralRadiantIntensityResult')
+  ####
+  _check_result_envelope(result.envelope)
+  payload = result.payload
+  return SpectralRadiantIntensityGrid(
+    frame_id=result.envelope.frame.frame_id,
+    directions=tuple(_as_vector3(direction) for direction in payload.directions),
+    wavelengths_m=tuple(payload.wavelengths_m),
+    radiant_intensity_W_sr_m=tuple(
+      tuple(value for value in row)
+      for row in payload.radiant_intensity_W_sr_m
+    ),
+    validity_mask=tuple(tuple(row) for row in payload.validity_mask),
+    uncertainty=payload.uncertainty,
+  )
+####
+
+
+def extract_spectral_radiant_intensity_lines(
+  result: SpectralRadiantIntensityResult,
+  *,
+  direction_index: int | None = None,
+) -> tuple[SpectralRadiantIntensityLine, ...]:
+  """Extract one wavelength line per requested signature direction."""
+
+  grid = extract_spectral_radiant_intensity_grid(result)
+  if direction_index is None:
+    selected_indices = tuple(range(len(grid.directions)))
+  else:
+    if direction_index < 0 or direction_index >= len(grid.directions):
+      raise IndexError(f'direction_index out of range: {direction_index}')
+    ####
+    selected_indices = (direction_index,)
+  ####
+  return tuple(
+    SpectralRadiantIntensityLine(
+      frame_id=grid.frame_id,
+      direction_index=index,
+      direction=grid.directions[index],
+      wavelengths_m=grid.wavelengths_m,
+      values_W_sr_m=grid.radiant_intensity_W_sr_m[index],
+      validity_mask=grid.validity_mask[index],
+    )
+    for index in selected_indices
+  )
+####
+
+
+@dataclass(frozen=True, slots=True)
+class SpectralRayTransferLine:
+  """One ray's spectrum and ray-domain metadata.
+
+  The standard API exposes origin/direction and item status here; it does not
+  expose a plume intersection interval, so this adapter does not infer one.
+  """
+
+  frame_id: str
+  ray_id: str
+  origin_m: Vector3
+  direction: Vector3
+  wavelengths_m: tuple[float, ...]
+  source_radiance_W_m2_sr_m: tuple[ScalarValue, ...]
+  background_transmittance: tuple[ScalarValue, ...]
+  validity_mask: tuple[bool, ...]
+  item_status: ItemStatus
+
+  def __post_init__(self) -> None:
+    if not self.frame_id or not self.ray_id:
+      raise ValueError('ray-transfer line frame_id and ray_id must not be empty')
+    ####
+    if len(self.origin_m) != 3 or len(self.direction) != 3:
+      raise ValueError('ray-transfer line origin and direction must be 3-vectors')
+    ####
+    if not (
+      len(self.wavelengths_m) == len(self.source_radiance_W_m2_sr_m)
+      == len(self.background_transmittance) == len(self.validity_mask)
+    ):
+      raise ValueError('ray-transfer line wavelength axes must have matching lengths')
+    ####
+    if any(
+      valid != (source is not None and transmittance is not None)
+      for source, transmittance, valid in zip(
+        self.source_radiance_W_m2_sr_m,
+        self.background_transmittance,
+        self.validity_mask,
+        strict=True,
+      )
+    ):
+      raise ValueError('ray-transfer line values and validity mask disagree')
+    ####
+    object.__setattr__(self, 'origin_m', _as_vector3(self.origin_m))
+    object.__setattr__(self, 'direction', _as_vector3(self.direction))
+    object.__setattr__(self, 'wavelengths_m', tuple(float(value) for value in self.wavelengths_m))
+    object.__setattr__(
+      self,
+      'source_radiance_W_m2_sr_m',
+      tuple(None if value is None else float(value) for value in self.source_radiance_W_m2_sr_m),
+    )
+    object.__setattr__(
+      self,
+      'background_transmittance',
+      tuple(None if value is None else float(value) for value in self.background_transmittance),
+    )
+    object.__setattr__(self, 'validity_mask', tuple(self.validity_mask))
+  ####
+####
+
+
+@dataclass(frozen=True, slots=True)
+class SpectralRayTransferData:
+  """All ray lines sharing one resolved-transfer wavelength axis."""
+
+  frame_id: str
+  wavelengths_m: tuple[float, ...]
+  lines: tuple[SpectralRayTransferLine, ...]
+
+  def __post_init__(self) -> None:
+    if not self.frame_id or not self.lines:
+      raise ValueError('ray-transfer data requires a frame and at least one line')
+    ####
+    if any(line.frame_id != self.frame_id for line in self.lines):
+      raise ValueError('ray-transfer lines must use the shared frame')
+    ####
+    if any(line.wavelengths_m != self.wavelengths_m for line in self.lines):
+      raise ValueError('ray-transfer lines must use the shared wavelength axis')
+    ####
+    object.__setattr__(self, 'wavelengths_m', tuple(float(value) for value in self.wavelengths_m))
+    object.__setattr__(self, 'lines', tuple(self.lines))
+  ####
+####
+
+
+def extract_spectral_ray_transfer_lines(
+  result: SpectralRayTransferResult,
+  *,
+  ray_id: str | None = None,
+) -> tuple[SpectralRayTransferLine, ...]:
+  """Extract ray spectra, hit/miss state, and optional plume intervals."""
+
+  if not isinstance(result, SpectralRayTransferResult):
+    raise TypeError('result must be an exhaust_plume.api SpectralRayTransferResult')
+  ####
+  _check_result_envelope(result.envelope)
+  payload = result.payload
+  selected_indices = tuple(
+    index for index, candidate in enumerate(payload.ray_ids)
+    if ray_id is None or candidate == ray_id
+  )
+  if ray_id is not None and not selected_indices:
+    raise KeyError(f'unknown ray_id {ray_id!r}')
+  ####
+  return tuple(
+    SpectralRayTransferLine(
+      frame_id=result.envelope.frame.frame_id,
+      ray_id=payload.ray_ids[index],
+      origin_m=_as_vector3(payload.origins_m[index]),
+      direction=_as_vector3(payload.directions[index]),
+      wavelengths_m=tuple(payload.wavelengths_m),
+      source_radiance_W_m2_sr_m=tuple(payload.source_radiance_W_m2_sr_m[index]),
+      background_transmittance=tuple(payload.background_transmittance[index]),
+      validity_mask=tuple(payload.validity_mask[index]),
+      item_status=payload.item_status[index],
+    )
+    for index in selected_indices
+  )
+####
+
+
+def extract_spectral_ray_transfer_data(
+  result: SpectralRayTransferResult,
+  *,
+  ray_id: str | None = None,
+) -> SpectralRayTransferData:
+  """Extract ray-transfer lines with their shared spectral axis."""
+
+  if not isinstance(result, SpectralRayTransferResult):
+    raise TypeError('result must be an exhaust_plume.api SpectralRayTransferResult')
+  ####
+  lines = extract_spectral_ray_transfer_lines(result, ray_id=ray_id)
+  return SpectralRayTransferData(
+    frame_id=result.envelope.frame.frame_id,
+    wavelengths_m=tuple(result.payload.wavelengths_m),
+    lines=lines,
+  )
+####
+
+
+@dataclass(frozen=True, slots=True)
+class PlumeFluxSectionGlyph:
+  """Renderer-neutral scalar/vector glyph data for one flux section."""
+
+  frame_id: str
+  section_frame_id: str
+  time_s: float
+  section_translation_m: Vector3
+  section_rotation_xyzw: tuple[float, float, float, float]
+  normal: Vector3
+  area_m2: float
+  mass_flow_kgps: float
+  momentum_flux_N: Vector3
+  total_energy_flow_W: float
+  species_mass_flows_kgps: tuple[tuple[str, float], ...]
+  pressure_Pa: float
+  ambient_pressure_Pa: float
+  pressure_match_relative_residual: float
+  cross_section_second_moment_m2: Matrix2
+
+  def __post_init__(self) -> None:
+    if not self.frame_id or not self.section_frame_id:
+      raise ValueError('flux glyph frame IDs must not be empty')
+    ####
+    if len(self.section_rotation_xyzw) != 4:
+      raise ValueError('flux glyph section rotation must have four components')
+    ####
+    if len(self.cross_section_second_moment_m2) != 2 or any(
+      len(row) != 2 for row in self.cross_section_second_moment_m2
+    ):
+      raise ValueError('flux glyph second moment must be a 2x2 matrix')
+    ####
+    if len(self.species_mass_flows_kgps) != len({species_id for species_id, _ in self.species_mass_flows_kgps}):
+      raise ValueError('flux glyph species IDs must be unique')
+    ####
+    object.__setattr__(self, 'section_translation_m', _as_vector3(self.section_translation_m))
+    object.__setattr__(self, 'normal', _as_vector3(self.normal))
+    object.__setattr__(self, 'momentum_flux_N', _as_vector3(self.momentum_flux_N))
+    object.__setattr__(
+      self,
+      'section_rotation_xyzw',
+      tuple(float(value) for value in self.section_rotation_xyzw),
+    )
+    object.__setattr__(
+      self,
+      'species_mass_flows_kgps',
+      tuple((str(species_id), float(mass_flow)) for species_id, mass_flow in self.species_mass_flows_kgps),
+    )
+    object.__setattr__(
+      self,
+      'cross_section_second_moment_m2',
+      tuple(tuple(float(value) for value in row) for row in self.cross_section_second_moment_m2),
+    )
+  ####
+####
+
+
+def extract_plume_flux_section_glyph(result: PlumeFluxSectionResult) -> PlumeFluxSectionGlyph:
+  """Extract engineering flux data without turning it into visual geometry."""
+
+  if not isinstance(result, PlumeFluxSectionResult):
+    raise TypeError('result must be an exhaust_plume.api PlumeFluxSectionResult')
+  ####
+  _check_result_envelope(result.envelope)
+  if not result.payload.applicability.supported:
+    raise ValueError('an out-of-applicability flux-section result cannot be visualized')
+  ####
+  payload = result.payload
+  return PlumeFluxSectionGlyph(
+    frame_id=result.envelope.frame.frame_id,
+    section_frame_id=payload.frame.frame_id,
+    time_s=payload.time_s,
+    section_translation_m=payload.section_pose.translation_m,
+    section_rotation_xyzw=payload.section_pose.rotation_xyzw,
+    normal=payload.normal,
+    area_m2=payload.area_m2,
+    mass_flow_kgps=payload.mass_flow_kgps,
+    momentum_flux_N=payload.momentum_flux_N,
+    total_energy_flow_W=payload.total_energy_flow_W,
+    species_mass_flows_kgps=tuple(
+      (species.species_id, species.mass_flow_kgps)
+      for species in payload.species_mass_flows_kgps
+    ),
+    pressure_Pa=payload.pressure_Pa,
+    ambient_pressure_Pa=payload.ambient_pressure_Pa,
+    pressure_match_relative_residual=payload.pressure_match_relative_residual,
+    cross_section_second_moment_m2=payload.cross_section_second_moment_m2,
+  )
+####
+
+
+ProductVisualizationData: TypeAlias = (
+  SectionedTubeLineData
+  | SpectralRadiantIntensityGrid
+  | SpectralRayTransferData
+  | PlumeFluxSectionGlyph
+)
+
+
+def extract_product_visualization_data(result: ProductResult) -> ProductVisualizationData:
+  """Dispatch one standard API result to its product-specific visualization data.
+
+  The return type is a tagged Python union rather than a combined omnibus
+  product.  Callers retain the independent semantics of visual geometry,
+  spectral signature, ray transfer, and engineering flux.
+  """
+
+  if isinstance(result, SectionedTubeResult):
+    return extract_sectioned_tube_line_data(result)
+  ####
+  if isinstance(result, SpectralRadiantIntensityResult):
+    return extract_spectral_radiant_intensity_grid(result)
+  ####
+  if isinstance(result, SpectralRayTransferResult):
+    return extract_spectral_ray_transfer_data(result)
+  ####
+  if isinstance(result, PlumeFluxSectionResult):
+    return extract_plume_flux_section_glyph(result)
+  ####
+  raise TypeError('result must be one of the standard exhaust_plume.api product results')
+####
+
+
 __all__ = (
   'SectionedTubeChannelLine',
   'SectionedTubeGeometrySeries',
   'SectionedTubeLineData',
   'SectionedTubeRenderMesh',
+  'SpectralRadiantIntensityGrid',
+  'SpectralRadiantIntensityLine',
+  'SpectralRayTransferData',
+  'SpectralRayTransferLine',
+  'PlumeFluxSectionGlyph',
+  'ProductVisualizationData',
   'build_sectioned_tube_render_mesh',
   'extract_sectioned_tube_channel_lines',
   'extract_sectioned_tube_geometry',
   'extract_sectioned_tube_line_data',
+  'extract_spectral_radiant_intensity_grid',
+  'extract_spectral_radiant_intensity_lines',
+  'extract_spectral_ray_transfer_data',
+  'extract_spectral_ray_transfer_lines',
+  'extract_plume_flux_section_glyph',
+  'extract_product_visualization_data',
 )
