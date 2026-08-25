@@ -75,6 +75,9 @@
       "pressure_ratio": 1.3673991134896744,
       "downstream_pressure_Pa": 136739.91134896743,
       "downstream_mach": 1.7952608120292561,
+      "upstream_total_pressure_Pa": 782444.9066867264,
+      "downstream_total_pressure_Pa": 780008.1785082866,
+      "total_pressure_ratio": 0.996885751114723,
       "detached_turn_failure": {
         "status": "outside_domain",
         "shock_status": "detached_shock_required"
@@ -146,6 +149,8 @@
         "geometry_residual_m": -1.3877787807814457e-17,
         "downstream_mach": 1.9526869005729972,
         "downstream_pressure_Pa": 254454.8124733928,
+        "downstream_total_pressure_Pa": 1849892.3539115468,
+        "total_pressure_ratio": 0.9249461769557736,
         "topology_status": "not_assembled"
       }
     },
@@ -231,7 +236,7 @@
   "failures": [],
   "next_gates": [
     "physical free-boundary/compression geometry closure; pressure-state and open-mesh primitives remain insufficient",
-    "post-shock characteristic zone and downstream total-pressure bookkeeping",
+    "post-shock characteristic zone continuation and complete downstream bookkeeping",
     "grid/refinement convergence for the assembled reflected zone and mild attached-overexpanded cases",
     "independent measurement-operator comparison before provider integration"
   ]

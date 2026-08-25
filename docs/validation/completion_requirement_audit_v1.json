@@ -1,7 +1,7 @@
 {
   "report_id": "exhaust-plume-completion-requirement-audit-v1",
   "schema_version": "plume.completion-requirement-audit@1",
-  "source_commit": "fdc5bf8a724818a7c5db13f69f987f6abb3a9390",
+  "source_commit": "8ed11b829697c91563d0d428d48c5e8f353b33dd",
   "branch": "work/validation-and-completion",
   "base_main_commit": "dd4d57611ba940c8fc4a9721d4b3464b6bbd7848",
   "requirements": [
@@ -172,6 +172,13 @@
           "physical_closure_status": "open",
           "shock_closure_status": "not_assembled"
         },
+        "post_shock_candidate_bookkeeping": {
+          "status": "candidate-state-only",
+          "downstream_total_pressure_Pa": 1849892.3539115468,
+          "total_pressure_ratio": 0.9249461769557736,
+          "pressure_loss_is_decreasing": true,
+          "continuation_status": "not_assembled"
+        },
         "mesh_topology": "connected-one-boundary-cycle-no-nonmanifold-edges-and-zero-area-coverage-residual",
         "physical_first_cell": "not_assembled",
         "external_reference_comparison": "pending",
@@ -192,7 +199,7 @@
         },
         "claim_status": "not_accepted",
         "blockers": [
-          "full post-shock bookkeeping and physical shock closure are not assembled",
+          "post-shock characteristic continuation and physical shock closure are not assembled",
           "the reflected-zone 4/8/16 resolution probe is diagnostic rather than convergence acceptance",
           "no independent planar MOC reference family is bound to the provider lane"
         ]
@@ -206,7 +213,7 @@
         "ruff": "passed",
         "pyright": "passed",
         "installed_wheel_smoke": "passed",
-        "wheel_sha256": "40dc01421c97b92a17dbee134fabd6b4ddc951297fe6bbb18698a69038c5e573",
+        "wheel_sha256": "0ab26c6c4d53be1e4f712e63c3b8054d8ee48514de9b5d6aae2c9800bd4a022a",
         "first_cell_convergence_test": "passed-diagnostic-open-lattice-only"
       }
     }

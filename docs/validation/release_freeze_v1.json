@@ -3,7 +3,7 @@
   "schema_version": "plume.release-freeze@1",
   "branch": "work/validation-and-completion",
   "base_main_commit": "dd4d57611ba940c8fc4a9721d4b3464b6bbd7848",
-  "head_commit": "fdc5bf86f1bdadcd6d57a8895e6b87aca8b51cd5",
+  "head_commit": "8ed11b829697c91563d0d428d48c5e8f353b33dd",
   "completion_requirement_audit": "completion_requirement_audit_v1.json",
   "remote_publish_status": "validation-completion-branch-not-pushed; PRs-5-6-7-merged",
   "remote_pr_audit": {
@@ -44,7 +44,7 @@
     "public_schema_fixture_determinism": "passed",
       "fresh_wheel_build_and_installed_smoke": "passed",
       "wheel_package_version": "0.1.0a2.dev0",
-    "wheel_sha256": "40dc01421c97b92a17dbee134fabd6b4ddc951297fe6bbb18698a69038c5e573",
+    "wheel_sha256": "0ab26c6c4d53be1e4f712e63c3b8054d8ee48514de9b5d6aae2c9800bd4a022a",
     "first_cell_phase_1_report": "first_cell_phase_1_report.md",
     "first_cell_correlation_status": "diagnostic-passed-physical-closure-pending",
     "committed_measurement_operator_count": 21,

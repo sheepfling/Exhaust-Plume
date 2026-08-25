@@ -87,6 +87,12 @@ all converge for this case at (N=4,8,16). The returned zone is still open
 physically: its `shock_closure_status` is `not_assembled` and its
 `physical_closure_status` is `open`.
 
+The boundary-side attached-shock candidate now records a downstream total
+pressure of 1,849,892.35 Pa and a total-pressure ratio of 0.9249462 relative to
+its local upstream state. This is a valid post-shock state diagnostic, not a
+claim that the candidate has been continued through a closed characteristic
+zone.
+
 The mild overexpanded diagnostic case uses (M_e=3) and (p_e/p_a=0.9).
 The existing basic solver returns one construction cell at its configured
 boundary, but that result is not an attached-overexpanded MOC first-cell
@@ -110,8 +116,8 @@ The area, maximum-radius, and open-extent differences are monotone for these
 three resolutions. Their estimated observed orders are approximately 2.01,
 2.00, and 2.00 respectively. This is evidence for the numerical open-lattice
 construction only; it is not a convergence acceptance for a physical first
-cell because the shock endpoint, post-shock bookkeeping, and downstream
-continuation are absent. The physical first-cell length and solver-to-
+cell because the shock endpoint, post-shock characteristic continuation, and
+downstream continuation are absent. The physical first-cell length and solver-to-
 correlation relative error are therefore recorded as **not available**.
 
 ## Correlation comparison
@@ -155,6 +161,7 @@ bindings.
   attached topology.
 - No nozzle separation model is claimed.
 - The open reflected characteristic zone is not a closed shock cell.
+- The post-shock candidate has no neighboring characteristic continuation.
 - No finite downstream shock train or physical termination is inferred.
 - No independent planar MOC reference family is bound to the current solver.
 - No disjoint calibration/validation split is available for reduced-order
