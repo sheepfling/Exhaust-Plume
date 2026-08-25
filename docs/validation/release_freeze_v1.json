@@ -3,12 +3,12 @@
   "schema_version": "plume.release-freeze@1",
   "branch": "work/validation-and-completion",
   "base_main_commit": "dd4d57611ba940c8fc4a9721d4b3464b6bbd7848",
-  "head_commit": "fa8c57d210de9ed0efc9f7bea78d19a78384d700",
+  "head_commit": "45ea9edbf775ead0b8ebf69a8fa303f426b73e31",
   "remote_publish_status": "local-only-not-pushed-or-merged",
   "repository_quality": {
     "pytest": {
       "status": "passed",
-      "tests_passed": 356,
+      "tests_passed": 357,
       "warnings": 18
     },
     "ruff": "passed",
@@ -70,16 +70,15 @@
   },
   "operator_crosswalk": {
     "artifact": "operator_semantic_crosswalk_v1.json",
-    "status": "valid-scoped-review-general-reconciliation-pending",
-    "entries": 8,
+    "status": "valid-complete-scoped-exact-namespace-pending",
+    "entries": 35,
     "primary_gate_external_operator_count": 7,
     "primary_gate_alignment_count": 10,
-    "unreviewed_external_operator_count": 27
+    "unreviewed_external_operator_count": 0
   },
   "release_ready": false,
   "release_blockers": [
-    "general external operator crosswalk remains unresolved; scoped gate mappings are documented but not executable equivalence",
-    "all current provider-specific external comparisons remain blocked by missing provider-bound measurement-space outputs, physical scenario assets, or reviewed operator crosswalks",
+    "all current provider-specific external comparisons remain blocked by missing provider-bound measurement-space outputs, physical scenario assets, or accepted product-specific measurement-operator mappings",
     "reduced-order shock-train closure has no disjoint calibration/validation split or train-cell measurement operator",
     "separately named MVP alignment archive is not yet verified"
   ],
