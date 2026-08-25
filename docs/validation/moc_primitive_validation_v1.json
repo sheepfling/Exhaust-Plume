@@ -199,7 +199,12 @@
           "reflected_zone_node_count": 15,
           "reflected_zone_cell_count": 14,
           "reflected_zone_forms_closed_zone": true,
+          "coverage_area_m2": 0.04008720815249407,
           "reflected_zone_coverage_area_residual_m2": 0.0,
+          "maximum_radius_m": 0.1495180843813482,
+          "open_extent_x_m": 0.7443014497372717,
+          "candidate_shock_status": "converged",
+          "candidate_shock_endpoint_x_m": 0.8395437691750518,
           "fan_reflected_interface_status": "aligned",
           "fan_reflected_interface_maximum_coordinate_residual_m": 0.0
         },
@@ -220,7 +225,12 @@
           "reflected_zone_node_count": 45,
           "reflected_zone_cell_count": 44,
           "reflected_zone_forms_closed_zone": true,
+          "coverage_area_m2": 0.04041915264641294,
           "reflected_zone_coverage_area_residual_m2": 0.0,
+          "maximum_radius_m": 0.14926957829876192,
+          "open_extent_x_m": 0.7431488332818272,
+          "candidate_shock_status": "converged",
+          "candidate_shock_endpoint_x_m": 0.8381801275335106,
           "fan_reflected_interface_status": "aligned",
           "fan_reflected_interface_maximum_coordinate_residual_m": 0.0
         },
@@ -241,11 +251,70 @@
           "reflected_zone_node_count": 153,
           "reflected_zone_cell_count": 152,
           "reflected_zone_forms_closed_zone": true,
+          "coverage_area_m2": 0.040501552315855095,
           "reflected_zone_coverage_area_residual_m2": 0.0,
+          "maximum_radius_m": 0.14920750949998884,
+          "open_extent_x_m": 0.7428606519458858,
+          "candidate_shock_status": "converged",
+          "candidate_shock_endpoint_x_m": 0.837839184917128,
           "fan_reflected_interface_status": "aligned",
           "fan_reflected_interface_maximum_coordinate_residual_m": 0.0
         }
-      ]
+      ],
+      "refinement_diagnostic": {
+        "status": "diagnostic-monotone-finite-open-lattice",
+        "interpretation": "open-lattice-only; physical first-cell closure remains pending",
+        "metrics": {
+          "coverage_area_m2": {
+            "direction": "increasing",
+            "values": [
+              0.04008720815249407,
+              0.04041915264641294,
+              0.040501552315855095
+            ],
+            "coarse_to_medium_absolute_delta": 0.0003319444939188648,
+            "medium_to_fine_absolute_delta": 8.239966944215832e-05,
+            "observed_order": 2.010231566604812,
+            "monotone": true
+          },
+          "maximum_radius_m": {
+            "direction": "decreasing",
+            "values": [
+              0.1495180843813482,
+              0.14926957829876192,
+              0.14920750949998884
+            ],
+            "coarse_to_medium_absolute_delta": 0.0002485060825862806,
+            "medium_to_fine_absolute_delta": 6.206879877307392e-05,
+            "observed_order": 2.0013410338977184,
+            "monotone": true
+          },
+          "open_extent_x_m": {
+            "direction": "decreasing",
+            "values": [
+              0.7443014497372717,
+              0.7431488332818272,
+              0.7428606519458858
+            ],
+            "coarse_to_medium_absolute_delta": 0.0011526164554445106,
+            "medium_to_fine_absolute_delta": 0.0002881813359414398,
+            "observed_order": 1.9998637142299276,
+            "monotone": true
+          },
+          "candidate_shock_endpoint_x_m": {
+            "direction": "decreasing",
+            "values": [
+              0.8395437691750518,
+              0.8381801275335106,
+              0.837839184917128
+            ],
+            "coarse_to_medium_absolute_delta": 0.0013636416415412356,
+            "medium_to_fine_absolute_delta": 0.00034094261638251133,
+            "observed_order": 1.99986371422972,
+            "monotone": true
+          }
+        }
+      }
     }
   },
   "failures": [],

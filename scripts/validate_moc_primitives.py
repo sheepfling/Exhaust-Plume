@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from math import isfinite
+from math import isfinite, log
 from pathlib import Path
 import sys
 from typing import Any
@@ -37,6 +37,82 @@ from exhaust_plume.models.moc import (  # noqa: E402
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput  # noqa: E402
 from exhaust_plume.models.nozzle.exit_state import derive_ambient_state, derive_uniform_nozzle_exit  # noqa: E402
 from exhaust_plume.util.aero.shock_validity import ShockSolveStatus  # noqa: E402
+
+
+def _observed_refinement_order(
+  coarse: float,
+  medium: float,
+  fine: float,
+) -> float | None:
+  """Estimate the observed order for two successive resolution halvings.
+
+  The fan count doubles in the resolution probe, so the nominal mesh-size
+  ratio is two.  This helper is intentionally a diagnostic: it returns no
+  order when either successive change is zero or non-finite, rather than
+  manufacturing a convergence claim from a flat or failed sequence.
+  """
+
+  values = (float(coarse), float(medium), float(fine))
+  if not all(isfinite(value) for value in values):
+    return None
+  coarse_delta = abs(values[1] - values[0])
+  fine_delta = abs(values[2] - values[1])
+  if coarse_delta <= 0.0 or fine_delta <= 0.0:
+    return None
+  return log(coarse_delta / fine_delta, 2.0)
+
+
+def _refinement_diagnostic(
+  resolution_probe: list[dict[str, Any]],
+) -> dict[str, Any]:
+  """Summarize monotonicity and observed order for the open-lattice probe.
+
+  These metrics describe the convergent numerical construction only.  The
+  returned status deliberately says ``diagnostic`` and is not reused as a
+  physical first-cell or Mach-disk acceptance gate.
+  """
+
+  if len(resolution_probe) < 3:
+    return {
+      'status': 'diagnostic-insufficient-resolution',
+      'minimum_resolution_count': 3,
+      'metrics': {},
+    }
+  specs = {
+    'coverage_area_m2': 'increasing',
+    'maximum_radius_m': 'decreasing',
+    'open_extent_x_m': 'decreasing',
+    'candidate_shock_endpoint_x_m': 'decreasing',
+  }
+  metrics: dict[str, Any] = {}
+  all_monotone = True
+  all_orders_finite = True
+  for field, direction in specs.items():
+    values = [float(case[field]) for case in resolution_probe]
+    if direction == 'increasing':
+      monotone = all(right > left for left, right in zip(values, values[1:]))
+    else:
+      monotone = all(right < left for left, right in zip(values, values[1:]))
+    order = _observed_refinement_order(values[0], values[1], values[2])
+    all_monotone = all_monotone and monotone
+    all_orders_finite = all_orders_finite and order is not None and isfinite(order)
+    metrics[field] = {
+      'direction': direction,
+      'values': values,
+      'coarse_to_medium_absolute_delta': abs(values[1] - values[0]),
+      'medium_to_fine_absolute_delta': abs(values[2] - values[1]),
+      'observed_order': order,
+      'monotone': monotone,
+    }
+  return {
+    'status': (
+      'diagnostic-monotone-finite-open-lattice'
+      if all_monotone and all_orders_finite
+      else 'diagnostic-nonmonotone-or-insufficient-order'
+    ),
+    'interpretation': 'open-lattice-only; physical first-cell closure remains pending',
+    'metrics': metrics,
+  }
 
 
 def build_moc_primitive_report() -> dict[str, Any]:
@@ -209,6 +285,14 @@ def build_moc_primitive_report() -> dict[str, Any]:
       refined_fan,
       refined_reflected_boundary,
     )
+    refined_shock = (
+      solve_attached_shock_to_centerline(
+        refined_reflected_boundary.boundary_states[-1],
+        upstream_pressure_Pa=fan_ambient.pressure_Pa,
+      )
+      if refined_reflected_boundary.boundary_states
+      else None
+    )
     refined_interface = validate_fan_reflected_interface(
       refined_fan,
       refined_reflected_boundary,
@@ -237,7 +321,25 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'reflected_zone_node_count': refined_zone.node_count,
       'reflected_zone_cell_count': refined_zone.cell_count,
       'reflected_zone_forms_closed_zone': refined_zone.topology.forms_closed_zone,
+      'coverage_area_m2': refined_zone.coverage_area_m2,
       'reflected_zone_coverage_area_residual_m2': refined_zone.coverage_area_residual_m2,
+      'maximum_radius_m': max(
+        (point[1] for point in refined_reflected_boundary.boundary_points_m),
+        default=None,
+      ),
+      'open_extent_x_m': max(
+        (
+          max((node.point_m[0] for node in refined_zone.nodes), default=0.0),
+          max((point[0] for point in refined_reflected_boundary.boundary_points_m), default=0.0),
+        ),
+        default=0.0,
+      ),
+      'candidate_shock_status': refined_shock.status.value if refined_shock is not None else None,
+      'candidate_shock_endpoint_x_m': (
+        refined_shock.shock_end_m[0]
+        if refined_shock is not None and refined_shock.shock_end_m is not None
+        else None
+      ),
       'fan_reflected_interface_status': refined_interface.status.value,
       'fan_reflected_interface_maximum_coordinate_residual_m': (
         refined_interface.maximum_coordinate_residual_m
@@ -400,6 +502,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
     'fan_resolution_probe': {
       'status': 'diagnostic-only-open-mesh',
       'cases': resolution_probe,
+      'refinement_diagnostic': _refinement_diagnostic(resolution_probe),
     },
   }
   failures = [
