@@ -46,7 +46,13 @@
     "public_schema_fixture_determinism": "passed",
       "fresh_wheel_build_and_installed_smoke": "passed",
       "wheel_package_version": "0.1.0a2.dev0",
-    "wheel_sha256": "44fcd511f158b44ff33719791584a2a8e384a5fdd370f455eba2c8156cd1f15f",
+    "wheel_sha256": "15d1e6c2acd34733fcaae56c9b759e3a11845e96af4cd816c40ca495f272544b",
+    "wheel_reproducibility": {
+      "source_date_epoch": 1787667554,
+      "independent_build_count": 2,
+      "identical_digest": true,
+      "offline_installed_smoke": "passed"
+    },
     "first_cell_phase_1_report": "first_cell_phase_1_report.md",
     "first_cell_correlation_status": "diagnostic-passed-physical-closure-pending",
     "moc_cj_uej_component_diagnostic": "partial-component-evidence-not-accepted",

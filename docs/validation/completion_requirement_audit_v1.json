@@ -241,8 +241,13 @@
         "pytest_passed": 439,
         "ruff": "passed",
         "pyright": "passed",
-        "installed_wheel_smoke": "passed",
-        "wheel_sha256": "44fcd511f158b44ff33719791584a2a8e384a5fdd370f455eba2c8156cd1f15f",
+        "installed_wheel_smoke": "passed-reproducible-offline-wheel",
+        "wheel_sha256": "15d1e6c2acd34733fcaae56c9b759e3a11845e96af4cd816c40ca495f272544b",
+        "wheel_reproducibility": {
+          "source_date_epoch": 1787667554,
+          "independent_build_count": 2,
+          "identical_digest": true
+        },
         "first_cell_convergence_test": "passed-diagnostic-open-lattice-only"
       }
     }
