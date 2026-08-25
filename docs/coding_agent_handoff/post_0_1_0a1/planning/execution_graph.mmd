@@ -1,0 +1,75 @@
+flowchart TD
+  RLS_001["RLS-001: Run and record the final main release gate"]
+  RLS_002["RLS-002: Verify alpha tag and repository hygiene"]
+  API_008A["API-008A: Approve one canonical API and wire-contract authority"]
+  API_008B["API-008B: Unify capability identities, lifecycle, and result envelopes"]
+  API_008C["API-008C: Establish canonical schema and fixture generation"]
+  API_009["API-009: Build the reusable canonical provider conformance harness"]
+  PRV_001["PRV-001: Port the prescribed visual provider to the canonical API"]
+  PRV_002["PRV-002: Port the straight analytical visual provider to the canonical API"]
+  PRV_003["PRV-003: Port the signature-table provider to the canonical API"]
+  PRV_004["PRV-004: Add compatibility aliases and a deprecation schedule"]
+  API_010["API-010: Hold the formal v1 API freeze gate"]
+  HND_001["HND-001: Freeze the canonical PlumeFluxSection handoff"]
+  HND_002["HND-002: Implement explicit matched-source handoff construction"]
+  WASH_001["WASH-001: Define canonical washed-plume provider inputs and session semantics"]
+  WASH_002["WASH-002: Wrap the curved conservation kernel in the canonical provider"]
+  WASH_003["WASH-003: Expose washed visual and engineering products"]
+  WASH_004["WASH-004: Add washed-provider conformance and consumer fixtures"]
+  WASH_005["WASH-005: Hold the 0.1.0a2 release gate"]
+  MOC_001["MOC-001: Freeze the mathematical contract for a validated first cell"]
+  MOC_002["MOC-002: Implement inverse Prandtl–Meyer and characteristic primitives"]
+  MOC_003["MOC-003: Implement centerline symmetry and interior characteristic mesh"]
+  MOC_004["MOC-004: Implement the underexpanded ambient-pressure free boundary"]
+  MOC_005["MOC-005: Implement attached-overexpanded first-cell topology"]
+  MOC_006["MOC-006: Complete convergence and external validation evidence"]
+  MOC_007["MOC-007: Replace the compatibility-backed first-cell core"]
+  HND_003["HND-003: Integrate the validated first-cell endpoint over a control surface"]
+  CELL_001["CELL-001: Implement a finite coherent shock train"]
+  MIX_001["MIX-001: Correct and harden the straight integral continuation"]
+  MIX_002["MIX-002: Calibrate entrainment and reconstruct useful profiles"]
+  TERM_001["TERM-001: Implement coherent-plume termination and passive-scalar handoff"]
+  COMP_001["COMP-001: Compose near field, shock train, and straight mixing provider"]
+  RLS_001 --> RLS_002
+  RLS_001 --> API_008A
+  API_008A --> API_008B
+  API_008B --> API_008C
+  API_008C --> API_009
+  API_009 --> PRV_001
+  API_009 --> PRV_002
+  API_009 --> PRV_003
+  PRV_001 --> PRV_004
+  PRV_002 --> PRV_004
+  PRV_003 --> PRV_004
+  PRV_004 --> API_010
+  API_008B --> HND_001
+  HND_001 --> HND_002
+  API_009 --> WASH_001
+  HND_001 --> WASH_001
+  WASH_001 --> WASH_002
+  HND_002 --> WASH_002
+  WASH_002 --> WASH_003
+  WASH_003 --> WASH_004
+  API_010 --> WASH_005
+  WASH_004 --> WASH_005
+  RLS_002 --> WASH_005
+  RLS_001 --> MOC_001
+  MOC_001 --> MOC_002
+  MOC_002 --> MOC_003
+  MOC_003 --> MOC_004
+  MOC_003 --> MOC_005
+  MOC_004 --> MOC_006
+  MOC_005 --> MOC_006
+  MOC_006 --> MOC_007
+  API_010 --> MOC_007
+  MOC_007 --> HND_003
+  HND_001 --> HND_003
+  HND_003 --> CELL_001
+  HND_001 --> MIX_001
+  MIX_001 --> MIX_002
+  CELL_001 --> TERM_001
+  MIX_002 --> TERM_001
+  CELL_001 --> COMP_001
+  MIX_002 --> COMP_001
+  TERM_001 --> COMP_001
+  API_010 --> COMP_001
