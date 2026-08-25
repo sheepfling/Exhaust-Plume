@@ -163,12 +163,17 @@ bindings.
 
 ## Quality and performance evidence
 
-After this tranche, the repository suite reports `415 passed, 18 warnings`.
-Ruff and Pyright both pass. The full suite wall time was 13.47 s in the
+After this tranche, the repository suite reports `416 passed, 18 warnings`.
+Ruff and Pyright both pass. The full suite wall time was 12.90 s in the
 isolated completion worktree. The focused MOC resolution sweep completed in
 under 0.6 s including interpreter startup; solver-only timing and peak memory
 were not instrumented and are intentionally not presented as benchmark
 evidence.
+
+The refinement table is guarded by
+`tests/src/models/shock_cells/test_first_cell_convergence.py`. That test
+checks the monotone diagnostic metrics and explicitly requires the physical
+and shock closure statuses to remain open.
 
 ## Release decision
 
