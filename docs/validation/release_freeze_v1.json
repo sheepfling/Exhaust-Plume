@@ -35,7 +35,7 @@
     "public_schema_fixture_determinism": "passed",
       "fresh_wheel_build_and_installed_smoke": "passed",
       "wheel_package_version": "0.1.0a2.dev0",
-      "wheel_sha256": "92cbc7cfb62334e836735847250cffb2aa50563c516c85e18a5e7813fbf64357",
+      "wheel_sha256": "1711da032c487e11f542c0d3d179c959ba08dc2f8e36cbe1e4a7e0e454d4c650",
     "known_installed_smoke_diagnostics": "legacy expansion-fan warnings and one expected unattainable pressure-target error log; smoke exited successfully"
   },
   "product_lanes": {
