@@ -158,7 +158,27 @@
         },
         "downstream_total_pressure_Pa": 1849892.3539115468,
         "total_pressure_ratio": 0.9249461769557736,
-        "topology_status": "not_assembled"
+        "topology_status": "not_assembled",
+        "post_shock_continuation": {
+          "status": "converged_prescribed_boundary",
+          "boundary_sample_count": 2,
+          "characteristic_family": "C-",
+          "centerline_point_count": 2,
+          "centerline_points_m": [
+            [
+              0.9373938284262372,
+              0.0
+            ],
+            [
+              0.8381801275335106,
+              0.0
+            ]
+          ],
+          "maximum_geometry_residual_m": 0.0,
+          "maximum_absolute_invariant_residual": 8.36886115962443e-13,
+          "continuation_status": "prescribed-boundary-trace-only",
+          "message": "prescribed downstream shock-boundary C- traces reached the symmetry line; shock fitting and the downstream C+ interior field remain unassembled"
+        }
       }
     },
     "reflected_characteristic_zone_assembly": {
@@ -327,7 +347,7 @@
   "failures": [],
   "next_gates": [
     "physical free-boundary/compression geometry closure; pressure-state and open-mesh primitives remain insufficient",
-    "post-shock characteristic zone continuation and complete downstream bookkeeping",
+    "sampled shock-boundary state field, post-shock C+ interior continuation, and complete downstream bookkeeping",
     "grid/refinement convergence for the assembled reflected zone and mild attached-overexpanded cases",
     "independent measurement-operator comparison before provider integration"
   ]

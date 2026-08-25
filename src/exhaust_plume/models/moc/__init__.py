@@ -58,6 +58,13 @@ from exhaust_plume.models.moc.zone import (
   assemble_reflected_characteristic_zone,
   validate_fan_reflected_interface,
 )
+from exhaust_plume.models.moc.post_shock import (
+  MocPostShockBoundaryState,
+  MocPostShockCharacteristicSegment,
+  MocPostShockContinuationResult,
+  MocPostShockContinuationStatus,
+  continue_post_shock_characteristics_to_centerline,
+)
 
 __all__ = (
   'CharacteristicFamily',
@@ -81,6 +88,10 @@ __all__ = (
   'MocInterfaceStatus',
   'MocReflectedCharacteristicZoneResult',
   'MocZoneAssemblyStatus',
+  'MocPostShockBoundaryState',
+  'MocPostShockCharacteristicSegment',
+  'MocPostShockContinuationResult',
+  'MocPostShockContinuationStatus',
   'ScalarRootResult',
   'centerline_characteristic_point',
   'characteristic_invariants',
@@ -100,5 +111,6 @@ __all__ = (
   'solve_reflected_free_boundary',
   'assemble_reflected_characteristic_zone',
   'validate_fan_reflected_interface',
+  'continue_post_shock_characteristics_to_centerline',
   'validate_moc_mesh',
 )

@@ -34,6 +34,10 @@ The implementation in `exhaust_plume.models.moc` currently provides:
 - a boundary-side attached shock-to-centerline segment candidate with explicit
   turn, branch, positioned downstream characteristic state, and
   forward-endpoint diagnostics;
+- a prescribed-boundary post-shock continuation primitive that marches
+  downstream `C-` characteristics from sampled shock states to the symmetry
+  line while checking forward geometry, invariant residuals, and total-
+  pressure loss;
 - mesh connectivity diagnostics that distinguish a topologically bounded
   polygon from an unresolved physical boundary;
 - a shared averaged-characteristic fan/reflected interface whose combined
@@ -52,7 +56,11 @@ characteristic continuation are solved. The current shock-to-centerline
 operation reconstructs a positioned downstream supersonic state and its
 total-pressure loss, but it remains only a boundary-side candidate; it does
 not prove that downstream characteristics or total-pressure bookkeeping close
-across the full plume cell.
+across the full plume cell. The prescribed-boundary continuation primitive now
+proves individual downstream `C-` traces when a sampled post-shock boundary is
+supplied. It deliberately does not fit the shock or synthesize the missing
+downstream `C+` interior field from the two-point candidate, so canonical
+first-cell closure remains open.
 No public provider is wired to these primitives yet. The module does not claim
 axisymmetric, reacting, viscous, or experimentally validated plume physics.
 
@@ -119,9 +127,10 @@ do not authorize replacing the basic provider or accepting a product claim.
 
 ## Next gates before provider integration
 
-1. Assemble and validate the characteristic zones adjacent to the
-   shock-to-centerline candidate, including explicit post-shock total-pressure
-   bookkeeping and shock-endpoint topology.
+1. Supply a sampled, shock-fitted downstream boundary and assemble/validate
+   the characteristic zones adjacent to the shock-to-centerline candidate,
+   including explicit post-shock total-pressure bookkeeping and shock-endpoint
+   topology.
 2. Demonstrate grid/refinement convergence for the assembled reflected zone,
    underexpanded, and mild attached overexpanded reference cases.
 3. Compare an independent cold-jet case through an explicit measurement

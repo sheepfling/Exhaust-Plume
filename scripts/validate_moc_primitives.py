@@ -16,6 +16,7 @@ if str(REPO_ROOT / 'src') not in sys.path:
 from exhaust_plume.models.moc import (  # noqa: E402
   CharacteristicFamily,
   CharacteristicState,
+  MocPostShockBoundaryState,
   MocTopologyStatus,
   MocPrimitiveStatus,
   assemble_reflected_characteristic_zone,
@@ -26,6 +27,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_attached_compression_to_pressure,
   solve_attached_compression_to_turn,
   solve_attached_shock_to_centerline,
+  continue_post_shock_characteristics_to_centerline,
   solve_ambient_pressure_free_boundary,
   solve_ambient_pressure_free_boundary_point,
   solve_reflected_free_boundary,
@@ -209,6 +211,39 @@ def build_moc_primitive_report() -> dict[str, Any]:
     if reflected_boundary.boundary_states
     else None
   )
+  post_shock_continuation = None
+  if (
+    shock_closure is not None
+    and shock_closure.converged
+    and shock_closure.shock_start_m is not None
+    and shock_closure.shock_end_m is not None
+    and shock_closure.downstream_state is not None
+    and shock_closure.compression is not None
+    and shock_closure.compression.downstream_total_pressure_Pa is not None
+    and shock_closure.compression.upstream_total_pressure_Pa is not None
+    and shock_closure.downstream_mach is not None
+  ):
+    downstream_at_shock_start = CharacteristicState(
+      x_m=shock_closure.shock_start_m[0],
+      y_m=shock_closure.shock_start_m[1],
+      theta_rad=shock_closure.target_centerline_flow_angle_rad,
+      mach=shock_closure.downstream_mach,
+      gamma=reflected_boundary.boundary_states[-1].gamma,
+    )
+    post_shock_continuation = continue_post_shock_characteristics_to_centerline((
+      MocPostShockBoundaryState(
+        point_m=shock_closure.shock_start_m,
+        state=downstream_at_shock_start,
+        upstream_total_pressure_Pa=shock_closure.compression.upstream_total_pressure_Pa,
+        downstream_total_pressure_Pa=shock_closure.compression.downstream_total_pressure_Pa,
+      ),
+      MocPostShockBoundaryState(
+        point_m=shock_closure.shock_end_m,
+        state=shock_closure.downstream_state,
+        upstream_total_pressure_Pa=shock_closure.compression.upstream_total_pressure_Pa,
+        downstream_total_pressure_Pa=shock_closure.compression.downstream_total_pressure_Pa,
+      ),
+    ))
   overexpanded_exit = derive_uniform_nozzle_exit(
     NozzleExitInput(
       mach=2.0,
@@ -476,6 +511,24 @@ def build_moc_primitive_report() -> dict[str, Any]:
           'downstream_total_pressure_Pa': shock_closure.downstream_total_pressure_Pa,
           'total_pressure_ratio': shock_closure.total_pressure_ratio,
           'topology_status': 'not_assembled',
+          'post_shock_continuation': (
+            {
+              'status': post_shock_continuation.status.value,
+              'boundary_sample_count': 2,
+              'characteristic_family': 'C-',
+              'centerline_point_count': len(post_shock_continuation.centerline_states),
+              'centerline_points_m': [
+                segment.centerline_point_m
+                for segment in post_shock_continuation.segments
+              ],
+              'maximum_geometry_residual_m': post_shock_continuation.maximum_geometry_residual_m,
+              'maximum_absolute_invariant_residual': post_shock_continuation.maximum_absolute_invariant_residual,
+              'continuation_status': 'prescribed-boundary-trace-only',
+              'message': post_shock_continuation.message,
+            }
+            if post_shock_continuation is not None
+            else None
+          ),
         }
         if shock_closure is not None
         else None
@@ -627,6 +680,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'message': shock_closure.message,
       }
     ] if shock_closure is not None and not shock_closure.converged else []),
+    *([
+      {
+        'case': 'post_shock_continuation',
+        'status': post_shock_continuation.status.value,
+        'message': post_shock_continuation.message,
+      }
+    ] if post_shock_continuation is not None and not post_shock_continuation.converged else []),
   ]
   ####
   return {
@@ -648,7 +708,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
     'failures': failures,
     'next_gates': [
       'physical free-boundary/compression geometry closure; pressure-state and open-mesh primitives remain insufficient',
-      'post-shock characteristic zone continuation and complete downstream bookkeeping',
+      'sampled shock-boundary state field, post-shock C+ interior continuation, and complete downstream bookkeeping',
       'grid/refinement convergence for the assembled reflected zone and mild attached-overexpanded cases',
       'independent measurement-operator comparison before provider integration',
     ],
