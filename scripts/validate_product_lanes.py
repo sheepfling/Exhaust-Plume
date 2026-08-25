@@ -33,6 +33,7 @@ from exhaust_plume.contracts import (  # noqa: E402
   run_visual_provider_conformance,
 )
 from exhaust_plume.geometry import SectionedTubeSupport, intersect_sectioned_tube  # noqa: E402
+from exhaust_plume.radiation import FarFieldRayIntegration, far_field_from_rays  # noqa: E402
 from exhaust_plume.providers import (  # noqa: E402
   GrayRayTransferDefinition,
   GrayRayTransferProvider,
@@ -420,7 +421,75 @@ def _run_fpa_boundary() -> dict[str, Any]:
     'status': 'boundary-valid-not-implemented' if passed else 'failed',
     'provider_advertised': False,
     'ray_provider_prerequisite_present': optical['provider_ids'] != [],
+    'ray_signature_adapter_present': True,
     'claim_ceiling': 'No FPA image, detector count, noise, or detection claim.',
+  }
+
+
+def _run_cross_product_consistency() -> dict[str, Any]:
+  """Validate the bounded ray-to-signature operator with synthetic rays."""
+
+  provider = GrayRayTransferProvider()
+  definition = _gray_definition()
+  pose = Pose(
+    frame_id='world',
+    translation_m=(0.0, 0.0, 0.0),
+    rotation_xyzw=(0.0, 0.0, 0.0, 1.0),
+  )
+  request = SpectralRayTransferRequest(
+    ray_frame_id='sensor',
+    ray_origins_m=((-2.0, 0.0, 0.0), (-2.0, 0.0, 0.0), (-2.0, 2.0, 0.0)),
+    ray_directions=((1.0, 0.0, 0.0),) * 3,
+    ray_t_min_m=(0.0, 0.0, 0.0),
+    ray_t_max_m=(10.0, 10.0, 10.0),
+    wavelengths_m=(1.5e-6, 2.5e-6),
+  )
+  snapshot = provider.create_session(definition=definition).create_snapshot(
+    time_s=0.0,
+    source_pose=pose,
+    dynamic_state={},
+    ambient_state={},
+  )
+  ray_result = snapshot.evaluate(SPECTRAL_RAY_TRANSFER_V1, request)
+  integration = FarFieldRayIntegration(
+    direction_frame_id='sensor',
+    source_to_observer_directions=((1.0, 0.0, 0.0), (0.0, 1.0, 0.0)),
+    ray_direction_indices=(0, 0, 1),
+    ray_projected_area_weights_m2=(0.25, 0.75, 1.0),
+  )
+  first = far_field_from_rays(request, ray_result, integration)
+  second = far_field_from_rays(request, ray_result, integration)
+  expected = ray_result.source_spectral_radiance[0]
+  integration_error = max(
+    abs(actual - target)
+    for actual, target in zip(first.spectral_radiant_intensity[0], expected, strict=True)
+  )
+  passed = (
+    integration_error <= 1.0e-12
+    and first.spectral_radiant_intensity[1] == (0.0, 0.0)
+    and first.validity_mask == ((True, True), (True, True))
+    and first.metadata.provenance.parent_result_ids == (ray_result.metadata.result_id,)
+    and first.metadata.provenance.metadata['wavelength_grid_digest_sha256']
+    and first.model_dump(mode='json') == second.model_dump(mode='json')
+  )
+  return {
+    'lane_id': 'ray-to-signature-consistency-v1',
+    'status': 'passed' if passed else 'failed',
+    'adapter_id': 'plume.adapter.far-field-from-rays',
+    'ray_provider_id': provider.descriptor.provider_id,
+    'product_id': 'plume.signature.spectral-radiant-intensity@1',
+    'orthographic_area_integration_passed': integration_error <= 1.0e-12,
+    'miss_group_zero_passed': first.spectral_radiant_intensity[1] == (0.0, 0.0),
+    'wavelength_grid_identity_preserved': bool(first.metadata.provenance.metadata['wavelength_grid_digest_sha256']),
+    'snapshot_lineage_preserved': first.metadata.provenance.parent_result_ids == (ray_result.metadata.result_id,),
+    'deterministic_serialization': first.model_dump(mode='json') == second.model_dump(mode='json'),
+    'radiation_claim': first.metadata.claims.radiation.value,
+    'claim_derivation': first.metadata.claims.derivation.value,
+    'external_comparison': {
+      'status': 'synthetic-only',
+      'reason': 'The adapter operator is verified against a homogeneous gray ray fixture; recovered sensor-space comparisons remain blocked by missing operators and the unresolved external namespace crosswalk.',
+    },
+    'claim_ceiling': 'Synthetic orthographic ray-to-signature consistency only; no experimental signature, atmosphere, detector, image, or FPA claim.',
   }
 
 
@@ -458,8 +527,9 @@ def main(argv: list[str] | None = None) -> int:
   visual = _run_check('shock-cell-basic-v1', _run_visual_lane)
   signature = _run_check('signature-table-mvp-v1', _run_signature_lane)
   optical = _run_check('optical-transfer-v1', _run_optical_lane)
+  cross_product = _run_check('ray-to-signature-consistency-v1', _run_cross_product_consistency)
   fpa = _run_check('focal-plane-array-v1', _run_fpa_boundary)
-  local_passed = all(result['status'] in {'passed', 'boundary-valid-not-implemented'} for result in (visual, signature, optical, fpa))
+  local_passed = all(result['status'] in {'passed', 'boundary-valid-not-implemented'} for result in (visual, signature, optical, cross_product, fpa))
   report = {
     'report_id': 'exhaust-plume-product-lane-validation-v1',
     'local_status': 'passed' if local_passed else 'failed',
@@ -468,6 +538,7 @@ def main(argv: list[str] | None = None) -> int:
       'visual': visual,
       'signature': signature,
       'optical': optical,
+      'cross_product': cross_product,
       'focal_plane_array': fpa,
     },
     'external_corpus': _external_summary(args.corpus),

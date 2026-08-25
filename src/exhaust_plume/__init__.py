@@ -162,6 +162,7 @@ from exhaust_plume.providers.gray_ray_transfer import (
   GrayRayTransferProvider,
   GrayRayTransferSession,
 )
+from exhaust_plume.radiation import FarFieldRayIntegration, far_field_from_rays
 from exhaust_plume.products import (
   VisualMesh,
   build_sectioned_tube_mesh,
@@ -290,8 +291,10 @@ __all__ = (
     'ShockCellVisualSession',
     'GrayRayTransferConfiguration',
     'GrayRayTransferDefinition',
-    'GrayRayTransferProvider',
-    'GrayRayTransferSession',
+  'GrayRayTransferProvider',
+  'GrayRayTransferSession',
+  'FarFieldRayIntegration',
+  'far_field_from_rays',
     'OrthogonalUniformCrossflowExactSolution',
     'SweptTubeMesh',
     'StudyValidityEnvelope',

@@ -1,6 +1,12 @@
 from __future__ import annotations
 
-from scripts.validate_product_lanes import _run_fpa_boundary, _run_optical_lane, _run_signature_lane, _run_visual_lane
+from scripts.validate_product_lanes import (
+  _run_cross_product_consistency,
+  _run_fpa_boundary,
+  _run_optical_lane,
+  _run_signature_lane,
+  _run_visual_lane,
+)
 
 
 def test_visual_lane_local_acceptance_is_separate_from_external_comparison() -> None:
@@ -36,3 +42,12 @@ def test_fpa_boundary_does_not_advertise_an_unimplemented_provider() -> None:
   assert report['status'] == 'boundary-valid-not-implemented'
   assert report['provider_advertised'] is False
   assert report['ray_provider_prerequisite_present'] is True
+
+
+def test_ray_to_signature_consistency_is_synthetic_and_lineage_preserving() -> None:
+  report = _run_cross_product_consistency()
+  assert report['status'] == 'passed'
+  assert report['orthographic_area_integration_passed'] is True
+  assert report['miss_group_zero_passed'] is True
+  assert report['snapshot_lineage_preserved'] is True
+  assert report['external_comparison']['status'] == 'synthetic-only'
