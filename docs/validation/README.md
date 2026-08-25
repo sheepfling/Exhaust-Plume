@@ -45,6 +45,13 @@ replacements for the still-missing alignment archive. Keep raw observations
 separate from derived tables, digitized curves, modeled states, and
 product-alignment records.
 
+The recovery audit for the second archive is recorded in
+[`archive_recovery_audit_v1.json`](archive_recovery_audit_v1.json). It checks
+the merged handoff PR, the tagged release assets, and the closest local
+structural reconstruction. None supplies the content-addressed ZIP, so the
+embedded alignment overlay remains useful for scoped repository checks but is
+not treated as the separately hashed release input.
+
 The recovered archive contains 17 benchmark definitions, 19 source records, 60
 indexed products, 78 alignment mappings, 11 validation gates, and 57 source-
 corpus tests. These counts establish corpus integrity; they do not by

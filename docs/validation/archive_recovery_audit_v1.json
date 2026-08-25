@@ -1,0 +1,41 @@
+{
+  "audit_id": "exhaust-plume-validation-archive-recovery-audit-v1",
+  "audited_at_utc": "2026-08-25T15:39:34Z",
+  "repository": "sheepfling/Exhaust-Plume",
+  "handoff_pull_request": 5,
+  "handoff_commit": "f418aa84d3c6b96bd4b6c24b76296a5d9b2a9225",
+  "remote_main_commit_audited": "d416cbcb30ee9ff853cac90cb088fcdd79677616",
+  "results": [
+    {
+      "archive_id": "validation-corpus-v8",
+      "filename": "plume_validation_data_v8.zip",
+      "expected_sha256": "79c2a34dd4c43bd976ceb8773fdccd78a2592d903bf03ca57c2aef82f882e9aa",
+      "source": "user-provided conversation attachment",
+      "status": "verified"
+    },
+    {
+      "archive_id": "mvp-validation-alignment-v1",
+      "filename": "plume_mvp_validation_alignment_v1.zip",
+      "expected_sha256": "569aa7f0572f454a1a539b2fbecd977107aced9cab8eb2e65f01c814f8494ceb",
+      "status": "not-recovered",
+      "checks": [
+        {
+          "source": "merged handoff PR #5 changed-file inventory",
+          "result": "hash manifest and unpacked alignment files present; ZIP payload absent"
+        },
+        {
+          "source": "release v0.1.0a1 asset inventory",
+          "result": "only wheel and source distribution assets; alignment ZIP absent"
+        },
+        {
+          "source": "local recovery candidates",
+          "result": "structural reconstruction candidate failed content-addressed SHA verification",
+          "candidate_sha256": "7995821a7d1bf87363d908dd669bc96b5d78611eb449421cb7aaa92c7bed963"
+        }
+      ],
+      "policy": "Do not promote the embedded alignment overlay or a reconstructed ZIP as the separately hashed archive."
+    }
+  ],
+  "release_effect": "The separate alignment archive remains a release blocker; provider-bound comparisons and product claims stay not accepted.",
+  "next_required_input": "Owner-provided plume_mvp_validation_alignment_v1.zip whose SHA-256 equals the handoff manifest."
+}
