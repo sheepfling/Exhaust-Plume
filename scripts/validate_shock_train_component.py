@@ -22,6 +22,7 @@ if str(REPO_ROOT / 'src') not in sys.path:
 from exhaust_plume.models.shock_train import (  # noqa: E402
   ShockTrainCalibration,
   ShockTrainTerminationPolicy,
+  propagate_shock_train_covariance,
   solve_shock_train,
   sweep_shock_train_parameter,
 )
@@ -139,6 +140,11 @@ def build_shock_train_component_report(corpus_path: Path) -> dict[str, Any]:
   calibration = _calibration()
   policy = _policy(diameter_m)
   result = solve_shock_train(first_cell, calibration, policy)
+  uncertainty_propagation = propagate_shock_train_covariance(
+    first_cell,
+    calibration,
+    policy,
+  )
   pressure_rows = [
     {
       'x_over_D': float(row['x_over_D']),
@@ -180,6 +186,7 @@ def build_shock_train_component_report(corpus_path: Path) -> dict[str, Any]:
       ),
       'calibration_id': result.calibration_id,
       'uncertainty': dict(result.uncertainty),
+      'uncertainty_propagation': uncertainty_propagation,
       'diagnostics': dict(result.diagnostics),
       'cells': _train_metrics(
         result,
@@ -214,7 +221,7 @@ def build_shock_train_component_report(corpus_path: Path) -> dict[str, Any]:
       'No disjoint calibration and validation cases are present for the closure coefficients.',
       'The source is convergent/choked while the current first-cell contract uses an explicit near-sonic M>1 adapter.',
       'Observed pressure extrema are not a validated measurement operator for reduced-order cell centers or spacing.',
-      'Calibration covariance is retained as provenance but response uncertainty propagation is not implemented.',
+      'The engineering seed supplies no calibrated parameter covariance; output uncertainty propagation is available only when a covariance-bearing calibration artifact is supplied.',
       'The provider advertises visual geometry only and cannot promote this evidence to signature, ray, or FPA claims.',
     ],
   })

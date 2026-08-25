@@ -35,7 +35,7 @@
   "repository_quality": {
     "pytest": {
       "status": "passed",
-      "tests_passed": 429,
+      "tests_passed": 432,
       "warnings": 18
     },
     "ruff": "passed",
@@ -44,7 +44,7 @@
     "public_schema_fixture_determinism": "passed",
       "fresh_wheel_build_and_installed_smoke": "passed",
       "wheel_package_version": "0.1.0a2.dev0",
-    "wheel_sha256": "ec67f9eb39d4d4964d6e604e2a1ba919a081008a551bb55b1352aa274037149c",
+    "wheel_sha256": "81df663b3b26823e6ffb4c436270b9f69e15d63eacf64fd63c8a3231564b4cec",
     "first_cell_phase_1_report": "first_cell_phase_1_report.md",
     "first_cell_correlation_status": "diagnostic-passed-physical-closure-pending",
     "moc_cj_uej_component_diagnostic": "partial-component-evidence-not-accepted",

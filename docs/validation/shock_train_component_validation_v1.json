@@ -3,7 +3,7 @@
     "No disjoint calibration and validation cases are present for the closure coefficients.",
     "The source is convergent/choked while the current first-cell contract uses an explicit near-sonic M>1 adapter.",
     "Observed pressure extrema are not a validated measurement operator for reduced-order cell centers or spacing.",
-    "Calibration covariance is retained as provenance but response uncertainty propagation is not implemented.",
+    "The engineering seed supplies no calibrated parameter covariance; output uncertainty propagation is available only when a covariance-bearing calibration artifact is supplied.",
     "The provider advertises visual geometry only and cannot promote this evidence to signature, ray, or FPA claims."
   ],
   "archive": {
@@ -618,8 +618,19 @@
     "termination_is_physical": true,
     "termination_reason": "core-became-subsonic",
     "uncertainty": {
+      "covariance_parameter_names": null,
       "parameter_covariance": null,
-      "status": "calibration-covariance-retained; response-propagation-not-implemented"
+      "status": "calibration-covariance-retained; response-propagation-explicit-diagnostic"
+    },
+    "uncertainty_propagation": {
+      "output_names": [
+        "shock_train_end_x_m",
+        "first_cell_length_m",
+        "last_pressure_amplitude"
+      ],
+      "parameter_names": [],
+      "reason": "the calibration does not provide a parameter covariance matrix",
+      "status": "not-available-no-calibration-covariance"
     },
     "was_domain_truncated": false
   },

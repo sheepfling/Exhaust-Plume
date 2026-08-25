@@ -119,8 +119,11 @@ The reduced-order shock-train component has its own evidence record in
 It records the explicit closure seed, physical/safety termination behavior,
 cell-fidelity counts, corpus feature context, and sensitivity sweep. The
 calibration/validation split is blocked because the recovered archive contains
-one benchmark case; the closure and the visual lane therefore remain
-experimental and `not_accepted`.
+one benchmark case. The solver now exposes an explicit covariance-parameter
+order and a finite-difference output-uncertainty diagnostic, but the engineering
+seed contains no calibrated covariance artifact, so the uncertainty result is
+`not-available-no-calibration-covariance`. The closure and the visual lane
+therefore remain experimental and `not_accepted`.
 
 The higher-fidelity CJ-UEJ MOC comparison is intentionally a separate record in
 [`moc_cj_uej_component_validation_v1.json`](moc_cj_uej_component_validation_v1.json).

@@ -140,6 +140,14 @@ recorded in
 equation, matched-flow, scaling, and open-lattice diagnostic checks, but keeps
 the physical first-cell and external-reference gates open.
 
+The reduced-order lane's calibration contract now requires an explicit
+parameter order whenever a covariance matrix is supplied. The public
+`propagate_shock_train_covariance` diagnostic uses local finite differences to
+propagate that covariance to continuous outputs while reporting discrete cell
+counts only as perturbation observations. The recovered engineering seed has no
+calibrated covariance artifact, so its report records uncertainty propagation
+as unavailable rather than inventing parameter error bars.
+
 The recovered CJ-UEJ Mach trace is also run through the standalone planar-MOC
 component diagnostic in
 [`moc_cj_uej_component_validation_v1.json`](moc_cj_uej_component_validation_v1.json).

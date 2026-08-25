@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
+import pytest
+
 from exhaust_plume import (
   AmbientInput,
   CaloricallyPerfectGas,
@@ -14,6 +18,7 @@ from exhaust_plume.models.shock_train import (
   ShockTrainCalibration,
   ShockTrainStatus,
   ShockTrainTerminationPolicy,
+  propagate_shock_train_covariance,
   sweep_shock_train_parameter,
   solve_shock_train,
 )
@@ -57,6 +62,10 @@ def _calibration(
     total_pressure_loss_coefficient=total_pressure_loss_coefficient,
     mean_pressure_relaxation_coefficient=0.2,
     parameter_covariance=((1.0, -0.1), (-0.1, 1.0)),
+    covariance_parameter_names=(
+      'mixing_layer_growth_rate',
+      'pressure_amplitude_decay_coefficient',
+    ),
   )
 ####
 
@@ -73,7 +82,7 @@ def test_physical_termination_is_not_a_cell_limit() -> None:
   assert result.termination_reason is TerminationReason.CORE_BECAME_SUBSONIC
   assert result.cell_count > 1
   assert result.supersonic_core_end_x_m == result.shock_train_end_x_m
-  assert result.uncertainty['status'] == 'calibration-covariance-retained; response-propagation-not-implemented'
+  assert result.uncertainty['status'] == 'calibration-covariance-retained; response-propagation-explicit-diagnostic'
   assert result.cells[0].metrics.geometry_fidelity is GeometryFidelity.RESOLVED_FIRST_CELL
   assert all(
     cell.metrics.geometry_fidelity is GeometryFidelity.SCALED_REDUCED_ORDER
@@ -183,3 +192,58 @@ def test_matched_exit_has_no_train_and_reports_no_pressure_mismatch() -> None:
   assert result.cells == ()
   assert result.status is ShockTrainStatus.PHYSICALLY_TERMINATED
   assert result.termination_reason is TerminationReason.NO_PRESSURE_MISMATCH
+
+
+def test_covariance_propagation_preserves_parameter_order_and_reports_output_uncertainty() -> None:
+  first_cell = _first_cell()
+  result = propagate_shock_train_covariance(
+    first_cell,
+    _calibration(),
+    ShockTrainTerminationPolicy(max_cells=12, max_axial_distance_m=10.0),
+  )
+
+  assert result['status'] == 'linearized-propagation'
+  assert result['parameter_names'] == [
+    'mixing_layer_growth_rate',
+    'pressure_amplitude_decay_coefficient',
+  ]
+  assert result['output_names'] == [
+    'shock_train_end_x_m',
+    'first_cell_length_m',
+    'last_pressure_amplitude',
+  ]
+  assert len(result['jacobian']) == 3
+  assert len(result['jacobian'][0]) == 2
+  assert result['output_covariance'] is not None
+  assert all(value >= 0.0 for value in result['output_standard_deviation'])
+  assert result['discrete_cell_count_is_not_differentiated'] is True
+  assert {item['difference_scheme'] for item in result['perturbations']} == {'central'}
+
+
+def test_covariance_propagation_without_covariance_is_explicitly_unavailable() -> None:
+  first_cell = _first_cell()
+  calibration = _calibration().__class__(
+    calibration_id='test-shock-train-no-covariance-v1',
+    source_description='unit-test closure without covariance',
+    applicable_mach_range=(1.0, 2.0),
+    applicable_pressure_ratio_range=(1.0, 10.0),
+    applicable_temperature_ratio_range=(0.1, 10.0),
+    mixing_layer_growth_rate=0.01,
+    pressure_amplitude_decay_coefficient=0.3,
+    cell_spacing_coefficient=1.306,
+    finite_shear_layer_spacing_correction=0.5,
+    total_pressure_loss_coefficient=0.02,
+    mean_pressure_relaxation_coefficient=0.2,
+  )
+  result = propagate_shock_train_covariance(
+    first_cell,
+    calibration,
+    ShockTrainTerminationPolicy(max_cells=4, max_axial_distance_m=10.0),
+  )
+
+  assert result['status'] == 'not-available-no-calibration-covariance'
+
+
+def test_covariance_requires_explicit_parameter_order() -> None:
+  with pytest.raises(ValueError, match='covariance_parameter_names'):
+    replace(_calibration(), covariance_parameter_names=None)

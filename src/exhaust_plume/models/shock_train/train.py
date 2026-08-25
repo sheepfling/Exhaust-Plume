@@ -118,7 +118,8 @@ def _termination_result(
     calibration_id=calibration.calibration_id,
     uncertainty={
       'parameter_covariance': calibration.parameter_covariance,
-      'status': 'calibration-covariance-retained; response-propagation-not-implemented',
+      'covariance_parameter_names': calibration.covariance_parameter_names,
+      'status': 'calibration-covariance-retained; response-propagation-explicit-diagnostic',
     },
     diagnostics=diagnostics,
   )

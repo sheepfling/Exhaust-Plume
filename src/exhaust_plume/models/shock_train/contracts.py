@@ -12,6 +12,7 @@ from exhaust_plume.contracts.termination import TerminationReason, TerminationRe
 from exhaust_plume.models.shock_cells.contracts import ClosedZone
 
 __all__ = (
+  'SHOCK_TRAIN_CALIBRATION_PARAMETER_NAMES',
   'GeometryFidelity',
   'ShockCellMetrics',
   'ShockTrainCalibration',
@@ -19,6 +20,16 @@ __all__ = (
   'ShockTrainResult',
   'ShockTrainStatus',
   'ShockTrainTerminationPolicy',
+)
+
+
+SHOCK_TRAIN_CALIBRATION_PARAMETER_NAMES = (
+  'mixing_layer_growth_rate',
+  'pressure_amplitude_decay_coefficient',
+  'cell_spacing_coefficient',
+  'finite_shear_layer_spacing_correction',
+  'total_pressure_loss_coefficient',
+  'mean_pressure_relaxation_coefficient',
 )
 
 
@@ -101,6 +112,7 @@ class ShockTrainCalibration:
   initial_shear_layer_thickness_m: float = 0.0
   minimum_shear_layer_spacing_correction: float = 0.25
   parameter_covariance: tuple[tuple[float, ...], ...] | None = None
+  covariance_parameter_names: tuple[str, ...] | None = None
 
   def __post_init__(self) -> None:
     if not self.calibration_id or not self.source_description:
@@ -130,7 +142,34 @@ class ShockTrainCalibration:
       )
       if not rows or any(len(row) != len(rows) for row in rows):
         raise ValueError('parameter_covariance must be a nonempty square matrix')
+      if any(
+          abs(rows[row][column] - rows[column][row]) > 1.0e-12
+          for row in range(len(rows))
+          for column in range(len(rows))
+      ):
+        raise ValueError('parameter_covariance must be symmetric')
       object.__setattr__(self, 'parameter_covariance', rows)
+      if self.covariance_parameter_names is None:
+        raise ValueError(
+          'covariance_parameter_names are required when parameter_covariance is supplied'
+        )
+      names = tuple(self.covariance_parameter_names)
+      if not names or any(not isinstance(name, str) or not name for name in names):
+        raise ValueError(
+          'covariance_parameter_names must contain nonempty strings'
+        )
+      if len(names) != len(rows) or len(set(names)) != len(names):
+        raise ValueError(
+          'covariance_parameter_names must match the covariance dimension without duplicates'
+        )
+      unknown = sorted(set(names) - set(SHOCK_TRAIN_CALIBRATION_PARAMETER_NAMES))
+      if unknown:
+        raise ValueError(f'unknown shock-train covariance parameters: {unknown!r}')
+      object.__setattr__(self, 'covariance_parameter_names', names)
+    elif self.covariance_parameter_names is not None:
+      raise ValueError(
+        'covariance_parameter_names require a parameter_covariance matrix'
+      )
     ####
   ####
 ####
