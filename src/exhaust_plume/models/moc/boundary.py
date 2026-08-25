@@ -187,10 +187,18 @@ def solve_ambient_pressure_free_boundary_point(
   last_geometry_residual: float | None = None
   last_intersection_status: str | None = None
   for iteration in range(1, maximum_iterations + 1):
-    incoming_angle = (
+    incoming_characteristic_angle = (
       incoming.theta_rad + incoming.mu_rad
       if family is CharacteristicFamily.PLUS
       else incoming.theta_rad - incoming.mu_rad
+    )
+    boundary_characteristic_angle = (
+      boundary_state.theta_rad + boundary_state.mu_rad
+      if family is CharacteristicFamily.PLUS
+      else boundary_state.theta_rad - boundary_state.mu_rad
+    )
+    incoming_angle = 0.5 * (
+      incoming_characteristic_angle + boundary_characteristic_angle
     )
     boundary_angle = 0.5 * (previous_boundary.theta_rad + boundary_theta)
     incoming_ray = Ray2D(
@@ -327,7 +335,8 @@ def solve_reflected_free_boundary(
     raise ValueError('pressure_tolerance must be finite and positive')
   if isinstance(maximum_iterations, bool) or maximum_iterations < 1:
     raise ValueError('maximum_iterations must be a positive integer')
-  if not fan.states:
+  source_states = fan.lip_states
+  if not source_states:
     return MocReflectedBoundaryResult(
       status=MocPrimitiveStatus.INVALID_INPUT,
       seed_boundary_state=None,
@@ -357,7 +366,7 @@ def solve_reflected_free_boundary(
     )
   ####
   gamma = float(exit_state.gas.gamma)
-  if any(abs(state.gamma - gamma) > invariant_tolerance for state in fan.states):
+  if any(abs(state.gamma - gamma) > invariant_tolerance for state in source_states):
     return MocReflectedBoundaryResult(
       status=MocPrimitiveStatus.INVALID_INPUT,
       seed_boundary_state=None,
@@ -369,7 +378,7 @@ def solve_reflected_free_boundary(
       message='lip fan and exit state must use the same gamma',
     )
   ####
-  terminal = fan.states[-1]
+  terminal = source_states[-1]
   seed_boundary = CharacteristicState(
     x_m=0.0,
     y_m=float(exit_state.radius_m),
@@ -383,7 +392,7 @@ def solve_reflected_free_boundary(
   point_results: list[MocFreeBoundaryPointResult] = []
   boundary_states: list[CharacteristicState] = []
   boundary_points: list[tuple[float, float]] = []
-  for index, source in enumerate(fan.states):
+  for index, source in enumerate(source_states):
     centerline_result = centerline_characteristic_point(
       source,
       CharacteristicFamily.MINUS,

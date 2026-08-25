@@ -47,7 +47,13 @@ class MocExpansionFanCell:
 
 @dataclass(frozen=True, slots=True)
 class MocExpansionFanResult:
-  """Structured expansion-fan result without a downstream closure claim."""
+  """Structured expansion-fan result without a downstream closure claim.
+
+  ``states`` are the centerline-compatible states at the recorded axis
+  intersections. ``lip_states`` retain the same simple-wave states at the
+  nozzle-lip source point so reflected characteristic marches have explicit
+  source geometry.
+  """
 
   status: MocPrimitiveStatus
   exit_pressure_Pa: float
@@ -56,6 +62,7 @@ class MocExpansionFanResult:
   terminal_pressure_residual: float | None
   terminal_turn_rad: float | None
   states: tuple[CharacteristicState, ...]
+  lip_states: tuple[CharacteristicState, ...]
   centerline_points_m: tuple[tuple[float, float], ...]
   cells: tuple[MocExpansionFanCell, ...]
   message: str = ''
@@ -81,6 +88,7 @@ def _invalid(
     terminal_pressure_residual=None,
     terminal_turn_rad=None,
     states=(),
+    lip_states=(),
     centerline_points_m=(),
     cells=(),
     message=message,
@@ -158,6 +166,7 @@ def solve_underexpanded_expansion_fan(
   ####
   lip = (0.0, float(exit_state.radius_m))
   states: list[CharacteristicState] = []
+  lip_states: list[CharacteristicState] = []
   centerline_points: list[tuple[float, float]] = []
   for index in range(characteristic_count + 1):
     fraction = index / characteristic_count
@@ -174,6 +183,15 @@ def solve_underexpanded_expansion_fan(
     theta = float(exit_state.flow_angle_rad) + fraction * total_turn
     mu = mach_angle_rad(mach)
     characteristic_angle = theta - mu
+    lip_states.append(
+      CharacteristicState(
+        x_m=lip[0],
+        y_m=lip[1],
+        theta_rad=theta,
+        mach=mach,
+        gamma=gamma,
+      )
+    )
     vertical_component = sin(characteristic_angle)
     # This sign check is dimensionless.  Keep the metre-valued tolerance
     # reserved for coordinate comparisons below.
@@ -257,6 +275,7 @@ def solve_underexpanded_expansion_fan(
     terminal_pressure_residual=pressure_residual,
     terminal_turn_rad=total_turn,
     states=tuple(states),
+    lip_states=tuple(lip_states),
     centerline_points_m=tuple(centerline_points),
     cells=tuple(cells),
     message=(

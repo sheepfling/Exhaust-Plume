@@ -48,6 +48,13 @@ from exhaust_plume.models.moc.topology import (
   MocTopologyStatus,
   validate_moc_mesh,
 )
+from exhaust_plume.models.moc.zone import (
+  MocCharacteristicCell,
+  MocCharacteristicNode,
+  MocReflectedCharacteristicZoneResult,
+  MocZoneAssemblyStatus,
+  assemble_reflected_characteristic_zone,
+)
 
 __all__ = (
   'CharacteristicFamily',
@@ -65,6 +72,10 @@ __all__ = (
   'MocReflectedBoundaryResult',
   'MocTopologyResult',
   'MocTopologyStatus',
+  'MocCharacteristicCell',
+  'MocCharacteristicNode',
+  'MocReflectedCharacteristicZoneResult',
+  'MocZoneAssemblyStatus',
   'ScalarRootResult',
   'centerline_characteristic_point',
   'characteristic_invariants',
@@ -82,5 +93,6 @@ __all__ = (
   'solve_ambient_pressure_free_boundary',
   'solve_ambient_pressure_free_boundary_point',
   'solve_reflected_free_boundary',
+  'assemble_reflected_characteristic_zone',
   'validate_moc_mesh',
 )

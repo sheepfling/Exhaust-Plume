@@ -18,6 +18,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   CharacteristicState,
   MocTopologyStatus,
   MocPrimitiveStatus,
+  assemble_reflected_characteristic_zone,
   centerline_characteristic_point,
   interior_characteristic_point,
   inverse_prandtl_meyer_angle_rad,
@@ -101,6 +102,10 @@ def build_moc_primitive_report() -> dict[str, Any]:
     fan_exit,
     fan_ambient,
   )
+  reflected_zone = assemble_reflected_characteristic_zone(
+    fan,
+    reflected_boundary,
+  )
   shock_closure = (
     solve_attached_shock_to_centerline(
       reflected_boundary.boundary_states[-1],
@@ -169,6 +174,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
     ambient_pressure_Pa=101325.0,
   )
   resolution_probe = []
+  resolution_failures = []
   for resolution in (4, 8, 16):
     refined_fan = solve_underexpanded_expansion_fan(
       fan_exit,
@@ -180,6 +186,16 @@ def build_moc_primitive_report() -> dict[str, Any]:
       fan_exit,
       fan_ambient,
     )
+    refined_zone = assemble_reflected_characteristic_zone(
+      refined_fan,
+      refined_reflected_boundary,
+    )
+    if not refined_zone.converged:
+      resolution_failures.append({
+        'case': f'reflected_characteristic_zone_resolution_{resolution}',
+        'status': refined_zone.status.value,
+        'message': refined_zone.message,
+      })
     resolution_probe.append({
       'characteristic_count': resolution,
       'status': refined_fan.status.value,
@@ -194,6 +210,11 @@ def build_moc_primitive_report() -> dict[str, Any]:
         if refined_reflected_boundary.boundary_points_m
         else None
       ),
+      'reflected_zone_status': refined_zone.status.value,
+      'reflected_zone_node_count': refined_zone.node_count,
+      'reflected_zone_cell_count': refined_zone.cell_count,
+      'reflected_zone_forms_closed_zone': refined_zone.topology.forms_closed_zone,
+      'reflected_zone_coverage_area_residual_m2': refined_zone.coverage_area_residual_m2,
     })
   geometry_results = {
     'interior': {
@@ -315,6 +336,22 @@ def build_moc_primitive_report() -> dict[str, Any]:
         else None
       ),
     },
+    'reflected_characteristic_zone_assembly': {
+      'status': reflected_zone.status.value,
+      'characteristic_count': reflected_zone.characteristic_count,
+      'node_count': reflected_zone.node_count,
+      'cell_count': reflected_zone.cell_count,
+      'topology_status': reflected_zone.topology.status.value,
+      'boundary_edge_count': reflected_zone.topology.boundary_edge_count,
+      'boundary_component_count': reflected_zone.topology.boundary_component_count,
+      'forms_closed_zone': reflected_zone.topology.forms_closed_zone,
+      'nonmanifold_edge_count': reflected_zone.topology.nonmanifold_edge_count,
+      'coverage_area_m2': reflected_zone.coverage_area_m2,
+      'coverage_area_residual_m2': reflected_zone.coverage_area_residual_m2,
+      'physical_closure_status': reflected_zone.physical_closure_status,
+      'shock_closure_status': reflected_zone.shock_closure_status,
+      'message': reflected_zone.message,
+    },
     'fan_resolution_probe': {
       'status': 'diagnostic-only-open-mesh',
       'cases': resolution_probe,
@@ -322,6 +359,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
   }
   failures = [
     *round_trip_failures,
+    *resolution_failures,
     *([
       {
         'case': 'interior',
@@ -418,6 +456,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
     ] if not reflected_boundary.converged else []),
     *([
       {
+        'case': 'reflected_characteristic_zone_assembly',
+        'status': reflected_zone.status.value,
+        'message': reflected_zone.message,
+      }
+    ] if not reflected_zone.converged else []),
+    *([
+      {
         'case': 'shock_closure_candidate',
         'status': shock_closure.status.value,
         'message': shock_closure.message,
@@ -444,8 +489,8 @@ def build_moc_primitive_report() -> dict[str, Any]:
     'failures': failures,
     'next_gates': [
       'physical free-boundary/compression geometry closure; pressure-state and open-mesh primitives remain insufficient',
-      'first-cell assembly with reflected-centerline and shock-endpoint semantics',
-      'grid/refinement convergence on underexpanded and mild attached-overexpanded cases',
+      'post-shock characteristic zone and downstream total-pressure bookkeeping',
+      'grid/refinement convergence for the assembled reflected zone and mild attached-overexpanded cases',
       'independent measurement-operator comparison before provider integration',
     ],
   }

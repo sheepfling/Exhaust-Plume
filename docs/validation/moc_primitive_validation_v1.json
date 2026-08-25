@@ -105,12 +105,12 @@
       "march_point": {
         "status": "converged",
         "point_m": [
-          0.11190938930437913,
-          0.0646109160397299
+          0.09286876214969636,
+          0.06212496730539985
         ],
         "pressure_residual": 1.4361623714154308e-16,
         "tangent_residual": 0.0,
-        "geometry_residual": 1.3877787807814457e-17,
+        "geometry_residual": 1.962615573354719e-17,
         "iterations": 2
       }
     },
@@ -120,14 +120,14 @@
       "boundary_point_count": 9,
       "maximum_absolute_pressure_residual": 1.4361623714154308e-16,
       "maximum_absolute_tangent_residual": 0.0,
-      "maximum_absolute_geometry_residual": 1.1443916996305594e-16,
+      "maximum_absolute_geometry_residual": 5.551115123125783e-17,
       "first_boundary_point_m": [
-        0.3208196965944915,
-        0.13522533819055232
+        0.26762119242516197,
+        0.1210932242424698
       ],
       "last_boundary_point_m": [
-        0.784604140253512,
-        0.1311919616792816
+        0.7431488332818272,
+        0.1158153281924007
       ],
       "closure_status": "open",
       "shock_closure": "candidate-open-cell",
@@ -135,19 +135,35 @@
         "status": "converged",
         "shock_status": "attached",
         "shock_start_m": [
-          0.784604140253512,
-          0.1311919616792816
+          0.7431488332818272,
+          0.1158153281924007
         ],
         "shock_end_m": [
-          0.8922526018896758,
-          0.0
+          0.8381801275335106,
+          -1.3877787807814457e-17
         ],
         "shock_angle_rad": -0.8836549193642591,
-        "geometry_residual_m": 0.0,
+        "geometry_residual_m": -1.3877787807814457e-17,
         "downstream_mach": 1.9526869005729972,
         "downstream_pressure_Pa": 254454.8124733928,
         "topology_status": "not_assembled"
       }
+    },
+    "reflected_characteristic_zone_assembly": {
+      "status": "converged_open",
+      "characteristic_count": 8,
+      "node_count": 45,
+      "cell_count": 44,
+      "topology_status": "open",
+      "boundary_edge_count": 26,
+      "boundary_component_count": 1,
+      "forms_closed_zone": true,
+      "nonmanifold_edge_count": 0,
+      "coverage_area_m2": 0.04041915264641294,
+      "coverage_area_residual_m2": 0.0,
+      "physical_closure_status": "open",
+      "shock_closure_status": "not_assembled",
+      "message": ""
     },
     "fan_resolution_probe": {
       "status": "diagnostic-only-open-mesh",
@@ -162,9 +178,14 @@
           "reflected_boundary_status": "converged",
           "reflected_boundary_point_count": 5,
           "reflected_boundary_last_point_m": [
-            0.7851177464791419,
-            0.1313524110491443
-          ]
+            0.7443014497372717,
+            0.11607250611865233
+          ],
+          "reflected_zone_status": "converged_open",
+          "reflected_zone_node_count": 15,
+          "reflected_zone_cell_count": 14,
+          "reflected_zone_forms_closed_zone": true,
+          "reflected_zone_coverage_area_residual_m2": 0.0
         },
         {
           "characteristic_count": 8,
@@ -176,9 +197,14 @@
           "reflected_boundary_status": "converged",
           "reflected_boundary_point_count": 9,
           "reflected_boundary_last_point_m": [
-            0.784604140253512,
-            0.1311919616792816
-          ]
+            0.7431488332818272,
+            0.1158153281924007
+          ],
+          "reflected_zone_status": "converged_open",
+          "reflected_zone_node_count": 45,
+          "reflected_zone_cell_count": 44,
+          "reflected_zone_forms_closed_zone": true,
+          "reflected_zone_coverage_area_residual_m2": 0.0
         },
         {
           "characteristic_count": 16,
@@ -190,9 +216,14 @@
           "reflected_boundary_status": "converged",
           "reflected_boundary_point_count": 17,
           "reflected_boundary_last_point_m": [
-            0.7844690209945763,
-            0.131149750742438
-          ]
+            0.7428606519458858,
+            0.11575102763690215
+          ],
+          "reflected_zone_status": "converged_open",
+          "reflected_zone_node_count": 153,
+          "reflected_zone_cell_count": 152,
+          "reflected_zone_forms_closed_zone": true,
+          "reflected_zone_coverage_area_residual_m2": 0.0
         }
       ]
     }
@@ -200,8 +231,8 @@
   "failures": [],
   "next_gates": [
     "physical free-boundary/compression geometry closure; pressure-state and open-mesh primitives remain insufficient",
-    "first-cell assembly with reflected-centerline and shock-endpoint semantics",
-    "grid/refinement convergence on underexpanded and mild attached-overexpanded cases",
+    "post-shock characteristic zone and downstream total-pressure bookkeeping",
+    "grid/refinement convergence for the assembled reflected zone and mild attached-overexpanded cases",
     "independent measurement-operator comparison before provider integration"
   ]
 }
