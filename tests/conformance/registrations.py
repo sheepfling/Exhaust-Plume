@@ -26,6 +26,8 @@ from exhaust_plume.providers import (
   StraightAnalyticalProvider,
   StraightVisualDefinition,
   StraightVisualProvider,
+  ShockCellVisualDefinition,
+  ShockCellVisualProvider,
 )
 
 from .fakes import (
@@ -67,6 +69,7 @@ CURRENT_PROVIDER_SYMBOLS = (
   'SignatureTableProvider',
   'StaticPlumeProvider',
   'ShockCellAnalyticalProvider',
+  'ShockCellVisualProvider',
 )
 
 
@@ -302,6 +305,46 @@ def _signature_fixture() -> ProviderFixture:
 ####
 
 
+def _shock_cell_visual_snapshot(session: v1.ProductSession, time_s: float) -> v1.ProductSnapshot:
+  operating_state = _analytical_state()
+  return session.create_snapshot(
+    time_s=time_s,
+    source_pose=_POSE,
+    dynamic_state={'nozzle_exit': operating_state.nozzle_exit},
+    ambient_state={'ambient': operating_state.ambient},
+  )
+####
+
+
+def _shock_cell_visual_fixture() -> ProviderFixture:
+  return ProviderFixture(
+    name='shock-cell visual provider',
+    provider_factory=ShockCellVisualProvider,
+    session_factory=lambda provider: provider.create_session(
+      definition=ShockCellVisualDefinition(nozzle_radius_m=1.0),
+    ),
+    snapshot_factory=_shock_cell_visual_snapshot,
+    products=(ProductConformanceCase(
+      capability=v1.VISUAL_SECTIONED_TUBE_V1,
+      request=v1.VisualSectionedTubeRequest(
+        output_frame_id='straight-axisymmetric-xr',
+        sampling=v1.VisualSampling(
+          maximum_section_count=16,
+          maximum_axial_extent_m=8.0,
+        ),
+        requested_channels=('core_radius_fraction', 'opacity_weight'),
+      ),
+      expected_frame_id='straight-axisymmetric-xr',
+    ),),
+    unsupported_capabilities=(
+      v1.SPECTRAL_RADIANT_INTENSITY_CAPABILITY,
+      v1.SPECTRAL_RAY_TRANSFER_CAPABILITY,
+    ),
+    probe_times_s=(0.0,),
+  )
+####
+
+
 def _fake_visual_fixture() -> ProviderFixture:
   return ProviderFixture(
     name='fake visual-only provider',
@@ -406,6 +449,7 @@ PROVIDER_REGISTRATION_TABLE = (
       'axisymmetric zone products'
     ),
   ),
+  ProviderRegistration(('ShockCellVisualProvider',), _shock_cell_visual_fixture),
 )
 
 

@@ -142,6 +142,13 @@ from exhaust_plume.providers.straight_analytical import (
     StraightAnalyticalProvider,
     StraightAnalyticalSession,
 )
+from exhaust_plume.providers.shock_cell_visual import (
+    ShockCellVisualConfiguration,
+    ShockCellVisualDefinition,
+    ShockCellVisualOperatingState,
+    ShockCellVisualProvider,
+    ShockCellVisualSession,
+)
 from exhaust_plume.providers.signature_table import (
   LookupInterpolationPolicy,
   SignatureTableConfiguration,
@@ -270,6 +277,11 @@ __all__ = (
     'StraightAnalyticalPlumeProviderV0',
     'StraightAnalyticalProvider',
     'StraightAnalyticalSession',
+    'ShockCellVisualConfiguration',
+    'ShockCellVisualDefinition',
+    'ShockCellVisualOperatingState',
+    'ShockCellVisualProvider',
+    'ShockCellVisualSession',
     'OrthogonalUniformCrossflowExactSolution',
     'SweptTubeMesh',
     'StudyValidityEnvelope',

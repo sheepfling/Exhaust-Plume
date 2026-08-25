@@ -4,7 +4,11 @@ import json
 from pathlib import Path
 from typing import Any
 
-from exhaust_plume.providers import SignatureTableProvider, StraightAnalyticalProvider
+from exhaust_plume.providers import (
+  ShockCellVisualProvider,
+  SignatureTableProvider,
+  StraightAnalyticalProvider,
+)
 
 ROOT = Path(__file__).resolve().parents[3]
 MATRIX_PATH = ROOT / 'docs' / 'solver_fidelity_matrix_v1.json'
@@ -16,7 +20,11 @@ def _matrix() -> dict[str, Any]:
 
 
 def _active_descriptors() -> dict[str, Any]:
-  providers = (StraightAnalyticalProvider(), SignatureTableProvider())
+  providers = (
+    ShockCellVisualProvider(),
+    StraightAnalyticalProvider(),
+    SignatureTableProvider(),
+  )
   return {provider.descriptor.provider_id: provider.descriptor for provider in providers}
 ####
 

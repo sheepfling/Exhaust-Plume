@@ -10,7 +10,8 @@
       "lane_id": "shock-cell-basic-v1",
       "status": "active",
       "provider_ids": [
-        "plume.straight-analytical"
+        "plume.straight-analytical",
+        "plume.shock-cell-analytical"
       ],
       "compatibility_provider_ids": [
         "shock-cell-analytical"

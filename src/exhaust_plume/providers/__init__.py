@@ -74,6 +74,13 @@ from exhaust_plume.providers.shock_diamond import (
     ShockCellDefinition,
     ShockCellOperatingState,
 )
+from exhaust_plume.providers.shock_cell_visual import (
+    ShockCellVisualConfiguration,
+    ShockCellVisualDefinition,
+    ShockCellVisualOperatingState,
+    ShockCellVisualProvider,
+    ShockCellVisualSession,
+)
 
 __all__ = (
     'CapabilityBinding',
@@ -126,6 +133,11 @@ __all__ = (
     'ShockCellConfiguration',
     'ShockCellDefinition',
     'ShockCellOperatingState',
+    'ShockCellVisualConfiguration',
+    'ShockCellVisualDefinition',
+    'ShockCellVisualOperatingState',
+    'ShockCellVisualProvider',
+    'ShockCellVisualSession',
     'engineeringFluxSectionsFromCurvedPlume',
     'requireCapability',
     'sectionedTubeFromAxisymmetricZones',
