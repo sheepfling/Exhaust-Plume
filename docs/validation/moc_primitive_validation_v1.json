@@ -149,6 +149,13 @@
         "geometry_residual_m": -1.3877787807814457e-17,
         "downstream_mach": 1.9526869005729972,
         "downstream_pressure_Pa": 254454.8124733928,
+        "downstream_state": {
+          "x_m": 0.8381801275335106,
+          "y_m": -1.3877787807814457e-17,
+          "theta_rad": 0.0,
+          "mach": 1.9526869005729972,
+          "gamma": 1.4
+        },
         "downstream_total_pressure_Pa": 1849892.3539115468,
         "total_pressure_ratio": 0.9249461769557736,
         "topology_status": "not_assembled"
