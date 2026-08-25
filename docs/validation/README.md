@@ -126,7 +126,7 @@ noise-realization, or detection claim.
 
 The branch-level freeze is recorded in
 [`release_freeze_v1.json`](release_freeze_v1.json). It captures the current
-366-test, Ruff, Pyright, deterministic-asset, synthetic sensor-operator, and installed-wheel checks while keeping
+401-test, Ruff, Pyright, deterministic-asset, synthetic sensor-operator, and installed-wheel checks while keeping
 `release_ready` false until the external gates close.
 
 The requirement-by-requirement audit is recorded in

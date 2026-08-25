@@ -1,7 +1,7 @@
 {
   "report_id": "exhaust-plume-completion-requirement-audit-v1",
   "schema_version": "plume.completion-requirement-audit@1",
-  "source_commit": "42937a22708f0a6687f31113b2cfba572e681693",
+  "source_commit": "2d2a172ee4e7335f24b1505cc9ab321625e3e3a1",
   "branch": "work/validation-and-completion",
   "base_main_commit": "dd4d57611ba940c8fc4a9721d4b3464b6bbd7848",
   "requirements": [
@@ -118,14 +118,35 @@
       }
     },
     {
+      "requirement_id": "planar-moc-first-cell-foundation",
+      "status": "partial-first-cell-pending",
+      "evidence": {
+        "foundation_report": "moc_primitive_validation_v1.json",
+        "local_status": "fan-compression-boundary-foundation-gate-passed-closure-pending",
+        "scalar_round_trip_cases": 15,
+        "open_fan_characteristic_counts": [4, 8, 16],
+        "free_boundary_pressure_and_tangent_residuals": "passed-local",
+        "attached_compression_pressure_residual": 1.6168794698185392e-16,
+        "mesh_topology": "connected-one-boundary-cycle-no-nonmanifold-edges",
+        "physical_first_cell": "not_assembled",
+        "external_reference_comparison": "pending",
+        "claim_status": "not_accepted",
+        "blockers": [
+          "reflected-centerline and shock-endpoint geometry are not assembled",
+          "the open fan resolution probe is diagnostic rather than convergence acceptance",
+          "no independent planar MOC reference family is bound to the provider lane"
+        ]
+      }
+    },
+    {
       "requirement_id": "repository-release-quality",
       "status": "verified",
       "evidence": {
-        "pytest_passed": 366,
+        "pytest_passed": 401,
         "ruff": "passed",
         "pyright": "passed",
         "installed_wheel_smoke": "passed",
-        "wheel_sha256": "de9275645ff65bcc2e25f8a071a5f29ae46337c6a5caf61e471139adb7564ca7"
+        "wheel_sha256": "763e59887c8409cd5585ea9b5df59577ed3df550257f7876e59f77135d6e48ec"
       }
     }
   ],
@@ -133,6 +154,7 @@
   "release_blockers": [
     "provider-bound VIS/SIG/RAY comparisons are not accepted",
     "reduced-order shock-train calibration lacks a disjoint validation case and train-cell measurement operator",
-    "separately named plume_mvp_validation_alignment_v1.zip is not verified"
+    "separately named plume_mvp_validation_alignment_v1.zip is not verified",
+    "planar MOC first-cell closure and external reference comparison are not complete"
   ]
 }
