@@ -7,6 +7,11 @@ def test_visual_lane_local_acceptance_is_separate_from_external_comparison() -> 
   report = _run_visual_lane()
   assert report['status'] == 'passed'
   assert report['contract_conformance'] is True
+  assert report['provider_ids'] == [
+    'plume.straight-analytical',
+    'plume.shock-cell-analytical',
+  ]
+  assert {entry['provider_id'] for entry in report['provider_reports']} == set(report['provider_ids'])
   assert report['external_comparison']['status'] == 'pending'
 
 

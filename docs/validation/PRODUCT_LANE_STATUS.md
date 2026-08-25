@@ -8,7 +8,7 @@ solver fidelity attached to a provider profile.
 
 | Lane | Provider/product | Local evidence | External evidence | Claim ceiling |
 | --- | --- | --- | --- | --- |
-| `shock-cell-basic-v1` | `plume.straight-analytical` -> `plume.visual.sectioned-tube@1` | Contract, deterministic-provider, first-cell regression, conformance, and declared study-envelope tests | Pending the recovered Version 8 corpus and benchmark/operator intake | Engineering-approximate straight visual geometry and named features only; no spectral, ray, detector, mixing, or curved-flow claim |
+| `shock-cell-basic-v1` | `plume.straight-analytical` and `plume.shock-cell-analytical` -> `plume.visual.sectioned-tube@1` | Both bounded visual providers pass contract, deterministic-serialization, conformance, and declared study-envelope checks | Corpus structure is verified; provider-specific benchmark/operator comparison remains pending | Engineering-approximate straight visual geometry and named features only; no spectral, ray, detector, mixing, or curved-flow claim |
 | `signature-table-mvp-v1` | `signature.table-lookup` -> `plume.signature.spectral-radiant-intensity@1` | Table shape, interpolation, extrapolation, time-axis, partial-result, provenance, and conformance tests | Pending a verified source asset and intrinsic-signature evidence | Versioned table and interpolation behavior only; no geometry, ray field, atmosphere, optics, or detector claim |
 | `optical-transfer-v1` | No provider | Canonical ray-transfer contract and miss/failed-ray semantics only | No provider-specific transfer validation yet | No optical-transfer claim |
 | `focal-plane-array-v1` | No provider; downstream adapter | Boundary and dependency checks only | Requires validated ray transfer plus camera/optics/detector data | No FPA image, count, noise, or detection claim |
@@ -35,9 +35,10 @@ following are true:
    lineage. The shock-cell provider cannot satisfy these gates by supplying
    geometry alone.
 
-Until the archive is recovered, the repository's fixtures and regression
-tests remain useful engineering evidence but are not reported as experimental
-validation.
+The recovered archive now satisfies the integrity gate. Repository fixtures
+and regression tests remain engineering evidence, not experimental validation;
+the unresolved operator crosswalk, provider-specific comparisons, and separate
+alignment archive still block external claims.
 
 The recovered corpus changes that sentence for data availability, not for
 product acceptance. Its own gate registry reports VIS, SIG, and RAY T1

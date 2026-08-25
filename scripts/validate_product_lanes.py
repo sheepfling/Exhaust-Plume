@@ -33,6 +33,9 @@ from exhaust_plume.providers import (  # noqa: E402
   LookupInterpolationPolicy,
   SignatureTableDefinition,
   SignatureTableProvider,
+  ShockCellVisualDefinition,
+  ShockCellVisualOperatingState,
+  ShockCellVisualProvider,
   StraightAnalyticalDefinition,
   StraightAnalyticalOperatingState,
   StraightAnalyticalProvider,
@@ -51,7 +54,7 @@ def _fixture() -> dict[str, Any]:
   )
 
 
-def _analytical_state(exit_to_ambient_pressure_ratio: float) -> StraightAnalyticalOperatingState:
+def _analytical_components(exit_to_ambient_pressure_ratio: float) -> tuple[Any, Any]:
   values = _fixture()['gas']
   gas = CaloricallyPerfectGas.dry_air(gamma=float(values['gamma']))
   factor = 1.0 + (gas.gamma - 1.0) * float(values['mach'])**2 / 2.0
@@ -76,12 +79,22 @@ def _analytical_state(exit_to_ambient_pressure_ratio: float) -> StraightAnalytic
     ),
     gas,
   )
+  return exit_state, ambient
+
+
+def _analytical_state(exit_to_ambient_pressure_ratio: float) -> StraightAnalyticalOperatingState:
+  exit_state, ambient = _analytical_components(exit_to_ambient_pressure_ratio)
   return StraightAnalyticalOperatingState(nozzle_exit=exit_state, ambient=ambient)
 
 
-def _visual_request() -> VisualSectionedTubeRequest:
+def _shock_cell_state(exit_to_ambient_pressure_ratio: float) -> ShockCellVisualOperatingState:
+  exit_state, ambient = _analytical_components(exit_to_ambient_pressure_ratio)
+  return ShockCellVisualOperatingState(nozzle_exit=exit_state, ambient=ambient)
+
+
+def _visual_request(frame_id: str) -> VisualSectionedTubeRequest:
   return VisualSectionedTubeRequest(
-    output_frame_id='source-local',
+    output_frame_id=frame_id,
     sampling=VisualSampling(
       maximum_section_count=16,
       maximum_axial_extent_m=8.0,
@@ -91,38 +104,74 @@ def _visual_request() -> VisualSectionedTubeRequest:
 
 
 def _run_visual_lane() -> dict[str, Any]:
-  provider = StraightAnalyticalProvider()
-  request = _visual_request()
-  case_summaries: list[dict[str, Any]] = []
-  for ratio in (1.0, 1.2, 0.85):
-    state = _analytical_state(ratio)
-    session = provider.create_session(
-      definition=StraightAnalyticalDefinition(nozzle_radius_m=1.0),
-    )
-    snapshot = session.snapshot(state)
-    result = snapshot.evaluate(VISUAL_SECTIONED_TUBE_V1, request)
-    case_summaries.append({
-      'exit_to_ambient_pressure_ratio': ratio,
-      'section_count': len(result.sections),
-      'applicability': result.metadata.applicability.status.value,
-      'provider_id': result.metadata.provenance.provider_id,
-      'radiation_claim': result.metadata.claims.radiation.value,
-    })
-
-  conformance = run_visual_provider_conformance(
-    provider.descriptor,
-    lambda: provider.create_session(
-      definition=StraightAnalyticalDefinition(nozzle_radius_m=1.0),
-    ).snapshot(_analytical_state(1.2)),
-    request,
+  pose = Pose(
+    frame_id='world',
+    translation_m=(0.0, 0.0, 0.0),
+    rotation_xyzw=(0.0, 0.0, 0.0, 1.0),
   )
+  provider_specs = (
+    (
+      StraightAnalyticalProvider(),
+      StraightAnalyticalDefinition(nozzle_radius_m=1.0),
+      _analytical_state,
+      'source-local',
+    ),
+    (
+      ShockCellVisualProvider(),
+      ShockCellVisualDefinition(nozzle_radius_m=1.0),
+      _shock_cell_state,
+      'straight-axisymmetric-xr',
+    ),
+  )
+  provider_reports: list[dict[str, Any]] = []
+  case_summaries: list[dict[str, Any]] = []
+  for provider, definition, state_factory, frame_id in provider_specs:
+    request = _visual_request(frame_id)
+    for ratio in (1.0, 1.2, 0.85):
+      state = state_factory(ratio)
+      session = provider.create_session(definition=definition)
+      snapshot = session.create_snapshot(
+        time_s=0.0,
+        source_pose=pose,
+        dynamic_state={'operating_state': state},
+        ambient_state={},
+      )
+      result = snapshot.evaluate(VISUAL_SECTIONED_TUBE_V1, request)
+      case_summaries.append({
+        'exit_to_ambient_pressure_ratio': ratio,
+        'section_count': len(result.sections),
+        'applicability': result.metadata.applicability.status.value,
+        'provider_id': result.metadata.provenance.provider_id,
+        'radiation_claim': result.metadata.claims.radiation.value,
+      })
+
+    conformance = run_visual_provider_conformance(
+      provider.descriptor,
+      lambda provider=provider, definition=definition, state_factory=state_factory, pose=pose: provider.create_session(
+        definition=definition,
+      ).create_snapshot(
+        time_s=0.0,
+        source_pose=pose,
+        dynamic_state={'operating_state': state_factory(1.2)},
+        ambient_state={},
+      ),
+      request,
+    )
+    provider_reports.append({
+      'provider_id': provider.descriptor.provider_id,
+      'contract_conformance': conformance.passed,
+      'deterministic_serialization': conformance.deterministic_serialization,
+    })
+  all_conformant = all(report['contract_conformance'] for report in provider_reports)
+  all_deterministic = all(report['deterministic_serialization'] for report in provider_reports)
   return {
     'lane_id': 'shock-cell-basic-v1',
     'product_id': VISUAL_SECTIONED_TUBE_V1.capability.wire_id,
-    'provider_id': provider.descriptor.provider_id,
-    'status': 'passed' if conformance.passed else 'failed',
-    'contract_conformance': conformance.passed,
-    'deterministic_serialization': conformance.deterministic_serialization,
+    'provider_ids': [report['provider_id'] for report in provider_reports],
+    'status': 'passed' if all_conformant and all_deterministic else 'failed',
+    'contract_conformance': all_conformant,
+    'deterministic_serialization': all_deterministic,
+    'provider_reports': provider_reports,
     'cases': case_summaries,
     'external_comparison': {
       'status': 'pending',

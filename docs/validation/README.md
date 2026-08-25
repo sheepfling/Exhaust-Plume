@@ -43,10 +43,10 @@ replacements for the still-missing alignment archive. Keep raw observations
 separate from derived tables, digitized curves, modeled states, and
 product-alignment records.
 
-The handoff currently reports 17 benchmark definitions, 19 source records, 60
+The recovered archive contains 17 benchmark definitions, 19 source records, 60
 indexed products, 78 alignment mappings, 11 validation gates, and 57 source-
-corpus tests. Those counts are claims about the referenced archive until the
-archive itself is recovered and independently verified.
+corpus tests. These counts establish corpus integrity; they do not by
+themselves establish provider-specific product validation.
 
 The intake gate is a prerequisite for external validation claims. Corpus
 integrity tests are not product validation: repository contract tests and
