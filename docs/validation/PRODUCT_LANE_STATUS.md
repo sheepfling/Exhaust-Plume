@@ -11,7 +11,7 @@ solver fidelity attached to a provider profile.
 | `planar-moc-primitives-v1` | No provider; standalone `exhaust_plume.models.moc` foundation | 15 scalar round trips, compatibility, an 8-cell open fan, pressure- and turn-prescribed attached/mild-overexpanded compression, reflected free-boundary march, a 44-cell connected open characteristic zone, and candidate post-shock total-pressure loss bookkeeping pass their local contracts | No product comparison; physical compression/shock closure, post-shock characteristic continuation, and external measurement mapping remain pending | Numerical planar characteristic diagnostics only; no public VIS/SIG/RAY/FPA claim |
 | `shock-cell-basic-v1` | `plume.straight-analytical` and `plume.shock-cell-analytical` -> `plume.visual.sectioned-tube@1` | Both bounded visual providers pass contract, deterministic-serialization, conformance, and declared study-envelope checks | Corpus structure is verified; provider-specific benchmark/operator comparison remains pending | Engineering-approximate straight visual geometry and named features only; no spectral, ray, detector, mixing, or curved-flow claim |
 | `shock-cell-reduced-order-v1` | `plume.shock-train-reduced-order` -> `plume.visual.sectioned-tube@1` | Explicit calibration, physical-versus-safety termination, reduced-order geometry labels, visual-only capability, and canonical conformance checks pass | CJ-UEJ archive is verified and used for component context; closure calibration/validation split and train-cell measurement operator are missing | Experimental visual envelope only; downstream cells are scaled reduced-order geometry; no resolved MOC, spectral, ray, detector, or FPA claim |
-| `signature-table-mvp-v1` | `signature.table-lookup` -> `plume.signature.spectral-radiant-intensity@1` | Table shape, interpolation, extrapolation, time-axis, partial-result, provenance, and conformance tests | Pending a verified source asset and intrinsic-signature evidence | Versioned table and interpolation behavior only; no geometry, ray field, atmosphere, optics, or detector claim |
+| `signature-table-mvp-v1` | `signature.table-lookup` -> `plume.signature.spectral-radiant-intensity@1` | Table shape, interpolation, extrapolation, fixed-angle exact-only tables, time-axis, partial-result, provenance, and conformance tests | Pending a verified source asset and intrinsic-signature evidence | Versioned table and interpolation behavior only; no geometry, ray field, atmosphere, optics, or detector claim |
 | `optical-transfer-v1` | `plume.gray-ray-transfer` -> `plume.optical.spectral-ray-transfer@1` | Exact finite-cylinder intervals, homogeneous slab/chord transfer, layer separation, miss semantics, and analytic/refinement checks | External sensor/path comparisons remain pending; gray analytic evidence is not corpus validation | Homogeneous gray transfer through a straight constant-radius support only; no chemistry, atmosphere, detector, or FPA claim |
 | `focal-plane-array-v1` | No provider; validated downstream adapters | Explicit camera/optics identity, ray-to-pixel expected-electron integration, and deterministic ADC expectation pass synthetic contract checks | Requires validated ray transfer plus camera/optics calibration and detector data | No externally validated FPA image, measured detector count, noise realization, or detection claim |
 
@@ -86,12 +86,12 @@ no-extrapolation comparator, but the 606-point corpus relation supplies no
 explicit branch ID and the providers supply no Mach-disk feature or operating
 branch channel, so its execution is recorded as blocked. It also keeps BSUV2, EMAP, and ALSI in their declared
 sensor-space or band-integrated measurement spaces instead of comparing them
-to the synthetic intrinsic signature table. The gray ray-transfer provider now
-passes the analytic local gate, while its external sensor-space comparison
-remains pending. The spectral probe records explicit no-overlap and
-partial-domain outcomes instead of extrapolating the synthetic providers; the
-residuals remain diagnostic only. FPA remains an explicit downstream boundary
-with no provider ID.
+to the synthetic intrinsic signature table. The typed spectral comparison
+boundary now blocks cross-space pairs before residual calculation. The gray
+ray-transfer provider now passes the analytic local gate, while its same-unit
+BSUV2 probe remains a no-overlap diagnostic pending provider-bound LOS/FOV and
+source/path scenario binding. FPA remains an explicit downstream boundary with
+no provider ID.
 
 The exact local execution is preserved in
 [`product_lane_validation_v1.json`](product_lane_validation_v1.json): VIS and

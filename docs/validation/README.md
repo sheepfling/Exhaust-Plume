@@ -64,11 +64,13 @@ VIS/SIG/RAY comparison mappings and the actual provider channels and corpus
 observation shapes, while leaving every comparison explicitly blocked. A blocked comparison is not a
 failed physics result: it means that the current provider does not produce the
 observable or operator required for a valid comparison. No external claim is
-accepted from this report. The report also executes the spectral-shape probe
-where possible: BSUV2 and EMAP UVVIS have no model-domain overlap, while EMAP
-FTIR produces only a partial-overlap diagnostic because the synthetic provider
-ends at 3 micrometres and the observation continues beyond 5 micrometres.
-Those residuals are diagnostics, not validation claims.
+accepted from this report. The typed spectral comparison boundary checks
+declared measurement space and units before any shape residual is computed.
+The intrinsic signature table is therefore blocked against the BSUV2
+sensor-space radiance and EMAP relative-shape curves without producing a
+residual. The gray ray provider uses the same radiance units as BSUV2, but its
+synthetic 1--3 micrometre fixture has no overlap with the 0.2--0.4 micrometre
+observation; that remains a non-claiming domain diagnostic.
 For the non-spectral VIS gate, the preflight also records the explicit
 branch-aware/no-extrapolation feature operator. The recovered HOTWAKE relation
 has 606 points but no declared branch ID, and the current providers do not

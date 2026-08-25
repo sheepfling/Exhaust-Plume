@@ -26,12 +26,26 @@ try:
     _run_signature_lane,
     _run_visual_lane,
   )
-  from exhaust_plume.validation.spectral_comparisons import compare_peak_normalized_spectral_shape
+  from exhaust_plume.validation.spectral_comparisons import (
+    INTRINSIC_SPECTRAL_RADIANT_INTENSITY_UNITS,
+    RELATIVE_SPECTRAL_SHAPE_UNITS,
+    SENSOR_SPACE_SPECTRAL_RADIANCE_UNITS,
+    SpectralCurve,
+    SpectralMeasurementSpace,
+    compare_declared_peak_normalized_spectral_shape,
+  )
   from exhaust_plume.validation.visual_comparisons import MACH_DISK_FEATURE_OPERATOR_ID
 except ModuleNotFoundError:  # pragma: no cover - direct script execution
   from validate_external_corpus_alignment import _read_csv, _read_json, preflight_corpus
   from validate_product_lanes import _run_fpa_boundary, _run_optical_lane, _run_signature_lane, _run_visual_lane
-  from exhaust_plume.validation.spectral_comparisons import compare_peak_normalized_spectral_shape
+  from exhaust_plume.validation.spectral_comparisons import (
+    INTRINSIC_SPECTRAL_RADIANT_INTENSITY_UNITS,
+    RELATIVE_SPECTRAL_SHAPE_UNITS,
+    SENSOR_SPACE_SPECTRAL_RADIANCE_UNITS,
+    SpectralCurve,
+    SpectralMeasurementSpace,
+    compare_declared_peak_normalized_spectral_shape,
+  )
   from exhaust_plume.validation.visual_comparisons import MACH_DISK_FEATURE_OPERATOR_ID
 
 
@@ -177,6 +191,7 @@ def _local_provider_inventory() -> dict[str, Any]:
     },
     'optical': {
       'provider_ids': [optical['provider_id']],
+      'output_units': SENSOR_SPACE_SPECTRAL_RADIANCE_UNITS,
       'status': optical['status'],
       'claim_ceiling': optical['claim_ceiling'],
       'analytic_transfer_passed': optical['analytic_slab_and_chord_passed'],
@@ -206,11 +221,20 @@ def _read_spectral_curve(
     wavelength_field: str,
     wavelength_scale: float,
     value_field: str,
-) -> tuple[tuple[float, ...], tuple[float, ...]]:
+    measurement_space: SpectralMeasurementSpace,
+    units: str,
+    source_semantics: str,
+) -> SpectralCurve:
   rows = _read_csv(archive, relative_path)
   wavelengths = tuple(float(row[wavelength_field]) * wavelength_scale for row in rows)
   values = tuple(float(row[value_field]) for row in rows)
-  return wavelengths, values
+  return SpectralCurve(
+    wavelengths_m=wavelengths,
+    values=values,
+    measurement_space=measurement_space,
+    units=units,
+    source_semantics=source_semantics,
+  )
 
 
 def _not_executed(reason: str) -> dict[str, Any]:
@@ -266,6 +290,9 @@ def execute_spectral_shape_probes(path: Path, providers: Mapping[str, Any]) -> d
       wavelength_field='wavelength_um',
       wavelength_scale=1.0e-6,
       value_field='spectral_radiance_w_m2_sr_m',
+      measurement_space=SpectralMeasurementSpace.SENSOR_SPACE_RADIANCE,
+      units=SENSOR_SPACE_SPECTRAL_RADIANCE_UNITS,
+      source_semantics='digitized published sensor-space LOS/FOV radiance markers',
     )
     uvvis = _read_spectral_curve(
       archive,
@@ -273,6 +300,9 @@ def execute_spectral_shape_probes(path: Path, providers: Mapping[str, Any]) -> d
       wavelength_field='wavelength_nm',
       wavelength_scale=1.0e-9,
       value_field='relative_intensity_recommended',
+      measurement_space=SpectralMeasurementSpace.RELATIVE_SHAPE,
+      units=RELATIVE_SPECTRAL_SHAPE_UNITS,
+      source_semantics='digitized published relative UV-visible spectral shape',
     )
     ftir = _read_spectral_curve(
       archive,
@@ -280,21 +310,29 @@ def execute_spectral_shape_probes(path: Path, providers: Mapping[str, Any]) -> d
       wavelength_field='wavelength_nm',
       wavelength_scale=1.0e-9,
       value_field='relative_intensity_recommended',
+      measurement_space=SpectralMeasurementSpace.RELATIVE_SHAPE,
+      units=RELATIVE_SPECTRAL_SHAPE_UNITS,
+      source_semantics='digitized published relative FTIR spectral envelope',
     )
   signature_probe = providers['signature']['measurement_probe']
   optical_probe = providers['optical']['measurement_probe']
-  optical_model = {
-    'wavelengths_m': optical_probe['wavelengths_m'],
-    'values': optical_probe['source_spectral_radiance_w_m2_sr_m'],
-  }
+  signature_model = SpectralCurve(
+    wavelengths_m=tuple(signature_probe['wavelengths_m']),
+    values=tuple(signature_probe['spectral_radiant_intensity_w_sr_m']),
+    measurement_space=SpectralMeasurementSpace.INTRINSIC_RADIANT_INTENSITY,
+    units=INTRINSIC_SPECTRAL_RADIANT_INTENSITY_UNITS,
+    source_semantics='synthetic signature-table provider output',
+  )
+  optical_model = SpectralCurve(
+    wavelengths_m=tuple(optical_probe['wavelengths_m']),
+    values=tuple(optical_probe['source_spectral_radiance_w_m2_sr_m']),
+    measurement_space=SpectralMeasurementSpace.SENSOR_SPACE_RADIANCE,
+    units=SENSOR_SPACE_SPECTRAL_RADIANCE_UNITS,
+    source_semantics='synthetic gray-ray source spectral radiance before FOV reduction',
+  )
 
-  def run(model: Mapping[str, Any], observed: tuple[tuple[float, ...], tuple[float, ...]]) -> dict[str, Any]:
-    result = compare_peak_normalized_spectral_shape(
-      model['wavelengths_m'],
-      model['values'],
-      observed[0],
-      observed[1],
-    )
+  def run(model: SpectralCurve, observed: SpectralCurve) -> dict[str, Any]:
+    result = compare_declared_peak_normalized_spectral_shape(model, observed)
     return asdict(result)
 
   return {
@@ -302,24 +340,15 @@ def execute_spectral_shape_probes(path: Path, providers: Mapping[str, Any]) -> d
       'visual Mach-disk feature extraction is not a spectral-shape comparison',
     ),
     'SIG-MVP-A-043': run(
-      {
-        'wavelengths_m': signature_probe['wavelengths_m'],
-        'values': signature_probe['spectral_radiant_intensity_w_sr_m'],
-      },
+      signature_model,
       bsuv2,
     ),
     'SIG-MVP-A-064': run(
-      {
-        'wavelengths_m': signature_probe['wavelengths_m'],
-        'values': signature_probe['spectral_radiant_intensity_w_sr_m'],
-      },
+      signature_model,
       uvvis,
     ),
     'SIG-MVP-A-066': run(
-      {
-        'wavelengths_m': signature_probe['wavelengths_m'],
-        'values': signature_probe['spectral_radiant_intensity_w_sr_m'],
-      },
+      signature_model,
       ftir,
     ),
     'SIG-MVP-A-073': _not_executed(

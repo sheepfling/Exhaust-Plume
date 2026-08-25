@@ -10,12 +10,35 @@ operator provenance remain separate validation gates.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
 from math import fsum, isfinite, sqrt
 
 from exhaust_plume.validation.measurement_operators import (
   peak_normalize_spectral_rows,
   sample_spectral_rows,
 )
+
+
+INTRINSIC_SPECTRAL_RADIANT_INTENSITY_UNITS = 'W sr^-1 m^-1'
+SENSOR_SPACE_SPECTRAL_RADIANCE_UNITS = 'W m^-2 sr^-1 m^-1'
+RELATIVE_SPECTRAL_SHAPE_UNITS = 'relative'
+
+
+class SpectralMeasurementSpace(str, Enum):
+  """Declared space of a spectral curve used by a validation comparison."""
+
+  INTRINSIC_RADIANT_INTENSITY = 'intrinsic-radiant-intensity'
+  SENSOR_SPACE_RADIANCE = 'sensor-space-radiance'
+  RELATIVE_SHAPE = 'relative-shape'
+
+
+_SPECTRAL_SPACE_UNITS = {
+  SpectralMeasurementSpace.INTRINSIC_RADIANT_INTENSITY:
+    INTRINSIC_SPECTRAL_RADIANT_INTENSITY_UNITS,
+  SpectralMeasurementSpace.SENSOR_SPACE_RADIANCE:
+    SENSOR_SPACE_SPECTRAL_RADIANCE_UNITS,
+  SpectralMeasurementSpace.RELATIVE_SHAPE: RELATIVE_SPECTRAL_SHAPE_UNITS,
+}
 
 
 def _axis(values: tuple[float, ...] | list[float], field_name: str) -> tuple[float, ...]:
@@ -40,6 +63,43 @@ def _values(values: tuple[float, ...] | list[float], field_name: str) -> tuple[f
 
 
 @dataclass(frozen=True, slots=True)
+class SpectralCurve:
+  """One-dimensional spectral data with an explicit measurement-space contract."""
+
+  wavelengths_m: tuple[float, ...]
+  values: tuple[float, ...]
+  measurement_space: SpectralMeasurementSpace | str
+  units: str
+  source_semantics: str = 'unspecified'
+
+  def __post_init__(self) -> None:
+    wavelengths = _axis(self.wavelengths_m, 'wavelengths_m')
+    values = _values(self.values, 'values')
+    if len(wavelengths) != len(values):
+      raise ValueError('wavelengths_m and values must have matching lengths')
+    ####
+    try:
+      measurement_space = SpectralMeasurementSpace(self.measurement_space)
+    except (TypeError, ValueError) as error:
+      allowed = ', '.join(space.value for space in SpectralMeasurementSpace)
+      raise ValueError(f'measurement_space must be one of: {allowed}') from error
+    ####
+    expected_units = _SPECTRAL_SPACE_UNITS[measurement_space]
+    if self.units != expected_units:
+      raise ValueError(
+        f'{measurement_space.value} requires units {expected_units!r}, not {self.units!r}'
+      )
+    ####
+    if not self.source_semantics:
+      raise ValueError('source_semantics must not be empty')
+    ####
+    object.__setattr__(self, 'wavelengths_m', wavelengths)
+    object.__setattr__(self, 'values', values)
+    object.__setattr__(self, 'measurement_space', measurement_space)
+  ####
+
+
+@dataclass(frozen=True, slots=True)
 class SpectralShapeComparison:
   """Residual and coverage diagnostics for one spectral-shape comparison."""
 
@@ -54,6 +114,19 @@ class SpectralShapeComparison:
   overlap_peak_location_error_m: float | None
   full_domain_relative_shape_rmse: float | None
   full_domain_peak_location_error_m: float | None
+  reason: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class DeclaredSpectralShapeComparison:
+  """Shape comparison gated by matching declared measurement spaces."""
+
+  status: str
+  model_space: str
+  observed_space: str
+  model_units: str
+  observed_units: str
+  shape_comparison: SpectralShapeComparison | None
   reason: str | None = None
 
 
@@ -180,4 +253,64 @@ def compare_peak_normalized_spectral_shape(
 ####
 
 
-__all__ = ('SpectralShapeComparison', 'compare_peak_normalized_spectral_shape')
+def compare_declared_peak_normalized_spectral_shape(
+  model: SpectralCurve,
+  observed: SpectralCurve,
+) -> DeclaredSpectralShapeComparison:
+  """Compare shapes only after the model and observation declare one space.
+
+  Intrinsic unresolved spectral radiant intensity, sensor-space radiance, and
+  relative published spectral shapes are different validation observables.
+  This gate prevents a numerically convenient normalization from silently
+  converting one into another.  A caller may first apply an explicit,
+  provider-bound measurement operator and construct a curve in the resulting
+  space before requesting this comparison.
+  """
+
+  model_measurement_space = SpectralMeasurementSpace(model.measurement_space)
+  observed_measurement_space = SpectralMeasurementSpace(observed.measurement_space)
+  model_space = model_measurement_space.value
+  observed_space = observed_measurement_space.value
+  if model_measurement_space is not observed_measurement_space:
+    return DeclaredSpectralShapeComparison(
+      status='blocked-measurement-space-mismatch',
+      model_space=model_space,
+      observed_space=observed_space,
+      model_units=model.units,
+      observed_units=observed.units,
+      shape_comparison=None,
+      reason=(
+        'model and observed spectral curves occupy different measurement spaces; '
+        'apply a declared provider-bound measurement operator before comparison'
+      ),
+    )
+  ####
+  comparison = compare_peak_normalized_spectral_shape(
+    model.wavelengths_m,
+    model.values,
+    observed.wavelengths_m,
+    observed.values,
+  )
+  return DeclaredSpectralShapeComparison(
+    status=comparison.status,
+    model_space=model_space,
+    observed_space=observed_space,
+    model_units=model.units,
+    observed_units=observed.units,
+    shape_comparison=comparison,
+    reason=comparison.reason,
+  )
+####
+
+
+__all__ = (
+  'DeclaredSpectralShapeComparison',
+  'INTRINSIC_SPECTRAL_RADIANT_INTENSITY_UNITS',
+  'RELATIVE_SPECTRAL_SHAPE_UNITS',
+  'SENSOR_SPACE_SPECTRAL_RADIANCE_UNITS',
+  'SpectralCurve',
+  'SpectralMeasurementSpace',
+  'SpectralShapeComparison',
+  'compare_declared_peak_normalized_spectral_shape',
+  'compare_peak_normalized_spectral_shape',
+)

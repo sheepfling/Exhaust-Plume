@@ -48,7 +48,14 @@ from exhaust_plume.validation.measurement_operators import (
   sample_spectral_rows,
 )
 from exhaust_plume.validation.spectral_comparisons import (
+  DeclaredSpectralShapeComparison,
+  INTRINSIC_SPECTRAL_RADIANT_INTENSITY_UNITS,
+  RELATIVE_SPECTRAL_SHAPE_UNITS,
+  SENSOR_SPACE_SPECTRAL_RADIANCE_UNITS,
+  SpectralCurve,
+  SpectralMeasurementSpace,
   SpectralShapeComparison,
+  compare_declared_peak_normalized_spectral_shape,
   compare_peak_normalized_spectral_shape,
 )
 from exhaust_plume.validation.sensor_operators import (
@@ -81,6 +88,7 @@ __all__ = (
   'EvidenceLevel',
   'EvidenceLevelSpec',
   'DetectorResponse',
+  'DeclaredSpectralShapeComparison',
   'FPA_PIXEL_DETECTOR_OPERATOR_ID',
   'FpaCameraOptics',
   'FpaDigitizationPolicy',
@@ -100,6 +108,11 @@ __all__ = (
   'SPECTRAL_SAMPLING_OPERATOR_ID',
   'SampledSpectrum',
   'SensorFovSpectrum',
+  'SENSOR_SPACE_SPECTRAL_RADIANCE_UNITS',
+  'INTRINSIC_SPECTRAL_RADIANT_INTENSITY_UNITS',
+  'RELATIVE_SPECTRAL_SHAPE_UNITS',
+  'SpectralCurve',
+  'SpectralMeasurementSpace',
   'SpectralShapeComparison',
   'StudyValidityEnvelope',
   'ValidationClaim',
@@ -117,6 +130,7 @@ __all__ = (
   'digitize_expected_electrons',
   'integrate_ray_transfer_to_fpa',
   'compare_peak_normalized_spectral_shape',
+  'compare_declared_peak_normalized_spectral_shape',
   'compare_mach_disk_pressure_relation',
   'peak_normalize_spectral_rows',
   'sample_spectral_rows',

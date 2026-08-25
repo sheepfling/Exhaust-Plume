@@ -2,7 +2,14 @@ from __future__ import annotations
 
 import pytest
 
-from exhaust_plume.validation import compare_peak_normalized_spectral_shape
+from exhaust_plume.validation import (
+  INTRINSIC_SPECTRAL_RADIANT_INTENSITY_UNITS,
+  SENSOR_SPACE_SPECTRAL_RADIANCE_UNITS,
+  SpectralCurve,
+  SpectralMeasurementSpace,
+  compare_declared_peak_normalized_spectral_shape,
+  compare_peak_normalized_spectral_shape,
+)
 
 
 def test_full_domain_spectral_shape_comparison_computes_residuals() -> None:
@@ -55,3 +62,58 @@ def test_spectral_shape_comparison_rejects_mismatched_or_invalid_inputs() -> Non
     compare_peak_normalized_spectral_shape((1.0, 2.0), (1.0,), (1.0, 2.0), (1.0, 2.0))
   with pytest.raises(ValueError, match='nonnegative'):
     compare_peak_normalized_spectral_shape((1.0, 2.0), (1.0, -1.0), (1.0, 2.0), (1.0, 2.0))
+
+
+def test_declared_spectral_comparison_blocks_cross_space_residuals() -> None:
+  model = SpectralCurve(
+    wavelengths_m=(1.0e-6, 2.0e-6, 3.0e-6),
+    values=(1.0, 2.0, 1.0),
+    measurement_space=SpectralMeasurementSpace.INTRINSIC_RADIANT_INTENSITY,
+    units=INTRINSIC_SPECTRAL_RADIANT_INTENSITY_UNITS,
+    source_semantics='unresolved source table',
+  )
+  observed = SpectralCurve(
+    wavelengths_m=(1.0e-6, 2.0e-6, 3.0e-6),
+    values=(10.0, 20.0, 10.0),
+    measurement_space=SpectralMeasurementSpace.SENSOR_SPACE_RADIANCE,
+    units=SENSOR_SPACE_SPECTRAL_RADIANCE_UNITS,
+    source_semantics='sensor-space observation',
+  )
+
+  result = compare_declared_peak_normalized_spectral_shape(model, observed)
+
+  assert result.status == 'blocked-measurement-space-mismatch'
+  assert result.shape_comparison is None
+  assert result.model_space == 'intrinsic-radiant-intensity'
+  assert result.observed_space == 'sensor-space-radiance'
+
+
+def test_declared_spectral_comparison_runs_only_for_matching_space() -> None:
+  model = SpectralCurve(
+    wavelengths_m=(1.0e-6, 2.0e-6, 3.0e-6),
+    values=(1.0, 2.0, 1.0),
+    measurement_space=SpectralMeasurementSpace.SENSOR_SPACE_RADIANCE,
+    units=SENSOR_SPACE_SPECTRAL_RADIANCE_UNITS,
+  )
+  observed = SpectralCurve(
+    wavelengths_m=(1.0e-6, 2.0e-6, 3.0e-6),
+    values=(10.0, 20.0, 10.0),
+    measurement_space=SpectralMeasurementSpace.SENSOR_SPACE_RADIANCE,
+    units=SENSOR_SPACE_SPECTRAL_RADIANCE_UNITS,
+  )
+
+  result = compare_declared_peak_normalized_spectral_shape(model, observed)
+
+  assert result.status == 'full-domain-computed'
+  assert result.shape_comparison is not None
+  assert result.shape_comparison.full_domain_relative_shape_rmse == pytest.approx(0.0)
+
+
+def test_spectral_curve_rejects_units_that_do_not_match_declared_space() -> None:
+  with pytest.raises(ValueError, match='requires units'):
+    SpectralCurve(
+      wavelengths_m=(1.0e-6, 2.0e-6),
+      values=(1.0, 2.0),
+      measurement_space=SpectralMeasurementSpace.INTRINSIC_RADIANT_INTENSITY,
+      units=SENSOR_SPACE_SPECTRAL_RADIANCE_UNITS,
+    )

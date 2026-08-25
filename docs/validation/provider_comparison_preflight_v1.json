@@ -180,24 +180,13 @@
         ]
       },
       "operator_execution": {
-        "coverage_fraction": 0.0,
-        "full_domain_peak_location_error_m": null,
-        "full_domain_relative_shape_rmse": null,
-        "model_domain_m": [
-          1e-06,
-          3e-06
-        ],
-        "observed_domain_m": [
-          2e-07,
-          3.982698961937716e-07
-        ],
-        "observed_sample_count": 13,
-        "overlap_domain_m": null,
-        "overlap_peak_location_error_m": null,
-        "overlap_relative_shape_rmse": null,
-        "overlap_sample_count": 0,
-        "reason": "model and observed wavelength domains do not overlap",
-        "status": "no-overlap"
+        "model_space": "intrinsic-radiant-intensity",
+        "model_units": "W sr^-1 m^-1",
+        "observed_space": "sensor-space-radiance",
+        "observed_units": "W m^-2 sr^-1 m^-1",
+        "reason": "model and observed spectral curves occupy different measurement spaces; apply a declared provider-bound measurement operator before comparison",
+        "shape_comparison": null,
+        "status": "blocked-measurement-space-mismatch"
       },
       "product_id": "plume.signature.spectral-radiant-intensity@1",
       "provider_ids": [
@@ -266,24 +255,13 @@
         ]
       },
       "operator_execution": {
-        "coverage_fraction": 0.0,
-        "full_domain_peak_location_error_m": null,
-        "full_domain_relative_shape_rmse": null,
-        "model_domain_m": [
-          1e-06,
-          3e-06
-        ],
-        "observed_domain_m": [
-          5.00459921e-07,
-          8.48620237e-07
-        ],
-        "observed_sample_count": 758,
-        "overlap_domain_m": null,
-        "overlap_peak_location_error_m": null,
-        "overlap_relative_shape_rmse": null,
-        "overlap_sample_count": 0,
-        "reason": "model and observed wavelength domains do not overlap",
-        "status": "no-overlap"
+        "model_space": "intrinsic-radiant-intensity",
+        "model_units": "W sr^-1 m^-1",
+        "observed_space": "relative-shape",
+        "observed_units": "relative",
+        "reason": "model and observed spectral curves occupy different measurement spaces; apply a declared provider-bound measurement operator before comparison",
+        "shape_comparison": null,
+        "status": "blocked-measurement-space-mismatch"
       },
       "product_id": "plume.signature.spectral-radiant-intensity@1",
       "provider_ids": [
@@ -352,27 +330,13 @@
         ]
       },
       "operator_execution": {
-        "coverage_fraction": 0.16688918553142323,
-        "full_domain_peak_location_error_m": null,
-        "full_domain_relative_shape_rmse": null,
-        "model_domain_m": [
-          1e-06,
-          3e-06
-        ],
-        "observed_domain_m": [
-          2.5078740160000004e-06,
-          5.456692913e-06
-        ],
-        "observed_sample_count": 708,
-        "overlap_domain_m": [
-          2.5078740160000004e-06,
-          3e-06
-        ],
-        "overlap_peak_location_error_m": 1.1811023600000005e-07,
-        "overlap_relative_shape_rmse": 0.5466641709779299,
-        "overlap_sample_count": 122,
-        "reason": "model does not cover the complete observed wavelength domain",
-        "status": "partial-overlap-diagnostic"
+        "model_space": "intrinsic-radiant-intensity",
+        "model_units": "W sr^-1 m^-1",
+        "observed_space": "relative-shape",
+        "observed_units": "relative",
+        "reason": "model and observed spectral curves occupy different measurement spaces; apply a declared provider-bound measurement operator before comparison",
+        "shape_comparison": null,
+        "status": "blocked-measurement-space-mismatch"
       },
       "product_id": "plume.signature.spectral-radiant-intensity@1",
       "provider_ids": [
@@ -511,23 +475,31 @@
         ]
       },
       "operator_execution": {
-        "coverage_fraction": 0.0,
-        "full_domain_peak_location_error_m": null,
-        "full_domain_relative_shape_rmse": null,
-        "model_domain_m": [
-          1e-06,
-          3e-06
-        ],
-        "observed_domain_m": [
-          2e-07,
-          3.982698961937716e-07
-        ],
-        "observed_sample_count": 13,
-        "overlap_domain_m": null,
-        "overlap_peak_location_error_m": null,
-        "overlap_relative_shape_rmse": null,
-        "overlap_sample_count": 0,
+        "model_space": "sensor-space-radiance",
+        "model_units": "W m^-2 sr^-1 m^-1",
+        "observed_space": "sensor-space-radiance",
+        "observed_units": "W m^-2 sr^-1 m^-1",
         "reason": "model and observed wavelength domains do not overlap",
+        "shape_comparison": {
+          "coverage_fraction": 0.0,
+          "full_domain_peak_location_error_m": null,
+          "full_domain_relative_shape_rmse": null,
+          "model_domain_m": [
+            1e-06,
+            3e-06
+          ],
+          "observed_domain_m": [
+            2e-07,
+            3.982698961937716e-07
+          ],
+          "observed_sample_count": 13,
+          "overlap_domain_m": null,
+          "overlap_peak_location_error_m": null,
+          "overlap_relative_shape_rmse": null,
+          "overlap_sample_count": 0,
+          "reason": "model and observed wavelength domains do not overlap",
+          "status": "no-overlap"
+        },
         "status": "no-overlap"
       },
       "product_id": "plume.optical.spectral-ray-transfer@1",
@@ -597,24 +569,13 @@
         ]
       },
       "operator_execution": {
-        "coverage_fraction": 0.0,
-        "full_domain_peak_location_error_m": null,
-        "full_domain_relative_shape_rmse": null,
-        "model_domain_m": [
-          1e-06,
-          3e-06
-        ],
-        "observed_domain_m": [
-          5.00459921e-07,
-          8.48620237e-07
-        ],
-        "observed_sample_count": 758,
-        "overlap_domain_m": null,
-        "overlap_peak_location_error_m": null,
-        "overlap_relative_shape_rmse": null,
-        "overlap_sample_count": 0,
-        "reason": "model and observed wavelength domains do not overlap",
-        "status": "no-overlap"
+        "model_space": "sensor-space-radiance",
+        "model_units": "W m^-2 sr^-1 m^-1",
+        "observed_space": "relative-shape",
+        "observed_units": "relative",
+        "reason": "model and observed spectral curves occupy different measurement spaces; apply a declared provider-bound measurement operator before comparison",
+        "shape_comparison": null,
+        "status": "blocked-measurement-space-mismatch"
       },
       "product_id": "plume.optical.spectral-ray-transfer@1",
       "provider_ids": [
@@ -683,27 +644,13 @@
         ]
       },
       "operator_execution": {
-        "coverage_fraction": 0.16688918553142323,
-        "full_domain_peak_location_error_m": null,
-        "full_domain_relative_shape_rmse": null,
-        "model_domain_m": [
-          1e-06,
-          3e-06
-        ],
-        "observed_domain_m": [
-          2.5078740160000004e-06,
-          5.456692913e-06
-        ],
-        "observed_sample_count": 708,
-        "overlap_domain_m": [
-          2.5078740160000004e-06,
-          3e-06
-        ],
-        "overlap_peak_location_error_m": 1.1811023600000005e-07,
-        "overlap_relative_shape_rmse": 0.48185931244267227,
-        "overlap_sample_count": 122,
-        "reason": "model does not cover the complete observed wavelength domain",
-        "status": "partial-overlap-diagnostic"
+        "model_space": "sensor-space-radiance",
+        "model_units": "W m^-2 sr^-1 m^-1",
+        "observed_space": "relative-shape",
+        "observed_units": "relative",
+        "reason": "model and observed spectral curves occupy different measurement spaces; apply a declared provider-bound measurement operator before comparison",
+        "shape_comparison": null,
+        "status": "blocked-measurement-space-mismatch"
       },
       "product_id": "plume.optical.spectral-ray-transfer@1",
       "provider_ids": [
@@ -1315,67 +1262,50 @@
   "corpus_status": "preflight-valid-pending-release-gates",
   "operator_executions": {
     "RAY-MVP-A-044": {
-      "coverage_fraction": 0.0,
-      "full_domain_peak_location_error_m": null,
-      "full_domain_relative_shape_rmse": null,
-      "model_domain_m": [
-        1e-06,
-        3e-06
-      ],
-      "observed_domain_m": [
-        2e-07,
-        3.982698961937716e-07
-      ],
-      "observed_sample_count": 13,
-      "overlap_domain_m": null,
-      "overlap_peak_location_error_m": null,
-      "overlap_relative_shape_rmse": null,
-      "overlap_sample_count": 0,
+      "model_space": "sensor-space-radiance",
+      "model_units": "W m^-2 sr^-1 m^-1",
+      "observed_space": "sensor-space-radiance",
+      "observed_units": "W m^-2 sr^-1 m^-1",
       "reason": "model and observed wavelength domains do not overlap",
+      "shape_comparison": {
+        "coverage_fraction": 0.0,
+        "full_domain_peak_location_error_m": null,
+        "full_domain_relative_shape_rmse": null,
+        "model_domain_m": [
+          1e-06,
+          3e-06
+        ],
+        "observed_domain_m": [
+          2e-07,
+          3.982698961937716e-07
+        ],
+        "observed_sample_count": 13,
+        "overlap_domain_m": null,
+        "overlap_peak_location_error_m": null,
+        "overlap_relative_shape_rmse": null,
+        "overlap_sample_count": 0,
+        "reason": "model and observed wavelength domains do not overlap",
+        "status": "no-overlap"
+      },
       "status": "no-overlap"
     },
     "RAY-MVP-A-065": {
-      "coverage_fraction": 0.0,
-      "full_domain_peak_location_error_m": null,
-      "full_domain_relative_shape_rmse": null,
-      "model_domain_m": [
-        1e-06,
-        3e-06
-      ],
-      "observed_domain_m": [
-        5.00459921e-07,
-        8.48620237e-07
-      ],
-      "observed_sample_count": 758,
-      "overlap_domain_m": null,
-      "overlap_peak_location_error_m": null,
-      "overlap_relative_shape_rmse": null,
-      "overlap_sample_count": 0,
-      "reason": "model and observed wavelength domains do not overlap",
-      "status": "no-overlap"
+      "model_space": "sensor-space-radiance",
+      "model_units": "W m^-2 sr^-1 m^-1",
+      "observed_space": "relative-shape",
+      "observed_units": "relative",
+      "reason": "model and observed spectral curves occupy different measurement spaces; apply a declared provider-bound measurement operator before comparison",
+      "shape_comparison": null,
+      "status": "blocked-measurement-space-mismatch"
     },
     "RAY-MVP-A-067": {
-      "coverage_fraction": 0.16688918553142323,
-      "full_domain_peak_location_error_m": null,
-      "full_domain_relative_shape_rmse": null,
-      "model_domain_m": [
-        1e-06,
-        3e-06
-      ],
-      "observed_domain_m": [
-        2.5078740160000004e-06,
-        5.456692913e-06
-      ],
-      "observed_sample_count": 708,
-      "overlap_domain_m": [
-        2.5078740160000004e-06,
-        3e-06
-      ],
-      "overlap_peak_location_error_m": 1.1811023600000005e-07,
-      "overlap_relative_shape_rmse": 0.48185931244267227,
-      "overlap_sample_count": 122,
-      "reason": "model does not cover the complete observed wavelength domain",
-      "status": "partial-overlap-diagnostic"
+      "model_space": "sensor-space-radiance",
+      "model_units": "W m^-2 sr^-1 m^-1",
+      "observed_space": "relative-shape",
+      "observed_units": "relative",
+      "reason": "model and observed spectral curves occupy different measurement spaces; apply a declared provider-bound measurement operator before comparison",
+      "shape_comparison": null,
+      "status": "blocked-measurement-space-mismatch"
     },
     "RAY-MVP-A-068": {
       "reason": "Gardon corpus record is a time history without a spectral curve",
@@ -1386,67 +1316,31 @@
       "status": "not-executed"
     },
     "SIG-MVP-A-043": {
-      "coverage_fraction": 0.0,
-      "full_domain_peak_location_error_m": null,
-      "full_domain_relative_shape_rmse": null,
-      "model_domain_m": [
-        1e-06,
-        3e-06
-      ],
-      "observed_domain_m": [
-        2e-07,
-        3.982698961937716e-07
-      ],
-      "observed_sample_count": 13,
-      "overlap_domain_m": null,
-      "overlap_peak_location_error_m": null,
-      "overlap_relative_shape_rmse": null,
-      "overlap_sample_count": 0,
-      "reason": "model and observed wavelength domains do not overlap",
-      "status": "no-overlap"
+      "model_space": "intrinsic-radiant-intensity",
+      "model_units": "W sr^-1 m^-1",
+      "observed_space": "sensor-space-radiance",
+      "observed_units": "W m^-2 sr^-1 m^-1",
+      "reason": "model and observed spectral curves occupy different measurement spaces; apply a declared provider-bound measurement operator before comparison",
+      "shape_comparison": null,
+      "status": "blocked-measurement-space-mismatch"
     },
     "SIG-MVP-A-064": {
-      "coverage_fraction": 0.0,
-      "full_domain_peak_location_error_m": null,
-      "full_domain_relative_shape_rmse": null,
-      "model_domain_m": [
-        1e-06,
-        3e-06
-      ],
-      "observed_domain_m": [
-        5.00459921e-07,
-        8.48620237e-07
-      ],
-      "observed_sample_count": 758,
-      "overlap_domain_m": null,
-      "overlap_peak_location_error_m": null,
-      "overlap_relative_shape_rmse": null,
-      "overlap_sample_count": 0,
-      "reason": "model and observed wavelength domains do not overlap",
-      "status": "no-overlap"
+      "model_space": "intrinsic-radiant-intensity",
+      "model_units": "W sr^-1 m^-1",
+      "observed_space": "relative-shape",
+      "observed_units": "relative",
+      "reason": "model and observed spectral curves occupy different measurement spaces; apply a declared provider-bound measurement operator before comparison",
+      "shape_comparison": null,
+      "status": "blocked-measurement-space-mismatch"
     },
     "SIG-MVP-A-066": {
-      "coverage_fraction": 0.16688918553142323,
-      "full_domain_peak_location_error_m": null,
-      "full_domain_relative_shape_rmse": null,
-      "model_domain_m": [
-        1e-06,
-        3e-06
-      ],
-      "observed_domain_m": [
-        2.5078740160000004e-06,
-        5.456692913e-06
-      ],
-      "observed_sample_count": 708,
-      "overlap_domain_m": [
-        2.5078740160000004e-06,
-        3e-06
-      ],
-      "overlap_peak_location_error_m": 1.1811023600000005e-07,
-      "overlap_relative_shape_rmse": 0.5466641709779299,
-      "overlap_sample_count": 122,
-      "reason": "model does not cover the complete observed wavelength domain",
-      "status": "partial-overlap-diagnostic"
+      "model_space": "intrinsic-radiant-intensity",
+      "model_units": "W sr^-1 m^-1",
+      "observed_space": "relative-shape",
+      "observed_units": "relative",
+      "reason": "model and observed spectral curves occupy different measurement spaces; apply a declared provider-bound measurement operator before comparison",
+      "shape_comparison": null,
+      "status": "blocked-measurement-space-mismatch"
     },
     "SIG-MVP-A-073": {
       "reason": "ALSI corpus record is a band-integrated thermal table without a spectral curve",
@@ -2397,6 +2291,7 @@
         "background_transmittance",
         "optical_depth"
       ],
+      "output_units": "W m^-2 sr^-1 m^-1",
       "provider_ids": [
         "plume.gray-ray-transfer"
       ],

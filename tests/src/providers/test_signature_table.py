@@ -180,6 +180,36 @@ def test_signature_table_rejects_extrapolation_by_default() -> None:
       wavelengths_m=(2.0e-6,),
     ))
   ####
+
+
+def test_signature_table_supports_single_exact_direction_node() -> None:
+  definition = SignatureTableDefinition(
+    frame_id='source-local',
+    wavelengths_m=(2.0e-7, 4.0e-7),
+    direction_cosine_nodes=(0.9,),
+    spectral_radiant_intensity_w_sr_m=((2.0, 4.0),),
+    angular_interpolation=LookupInterpolationPolicy.EXACT_ONLY,
+  )
+  result = _snapshot(definition).evaluate(
+    SPECTRAL_RADIANT_INTENSITY_V1,
+    SpectralSignatureRequest(
+      direction_frame_id='source-local',
+      source_to_observer_directions=((0.9, (1.0 - 0.9**2) ** 0.5, 0.0),),
+      wavelengths_m=(2.0e-7, 4.0e-7),
+    ),
+  )
+  assert result.spectral_radiant_intensity == ((2.0, 4.0),)
+  assert result.validity_mask == ((True, True),)
+
+
+def test_signature_table_rejects_single_direction_interpolation() -> None:
+  with pytest.raises(ProviderConfigurationError, match='single direction cosine node'):
+    SignatureTableDefinition(
+      frame_id='source-local',
+      wavelengths_m=(2.0e-7, 4.0e-7),
+      direction_cosine_nodes=(0.9,),
+      spectral_radiant_intensity_w_sr_m=((2.0, 4.0),),
+    )
 ####
 
 

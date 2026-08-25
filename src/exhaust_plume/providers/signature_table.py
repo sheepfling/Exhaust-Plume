@@ -144,7 +144,7 @@ class SignatureTableDefinition:
       raise ProviderConfigurationError('signature table frame_id, asset_id, and operating_point_id must not be empty')
     ####
     _validate_axis(self.wavelengths_m, 'wavelengths_m')
-    _validate_axis(self.direction_cosine_nodes, 'direction_cosine_nodes')
+    _validate_axis(self.direction_cosine_nodes, 'direction_cosine_nodes', minimum_count=1)
     if self.direction_cosine_nodes[0] < -1.0 or self.direction_cosine_nodes[-1] > 1.0:
       raise ProviderConfigurationError('direction cosine nodes must lie in [-1, 1]')
     ####
@@ -168,6 +168,13 @@ class SignatureTableDefinition:
         LookupInterpolationPolicy.EXACT_ONLY,
       ),
     )
+    if (
+      len(self.direction_cosine_nodes) == 1
+      and angular_interpolation is not LookupInterpolationPolicy.EXACT_ONLY
+    ):
+      raise ProviderConfigurationError(
+        'a single direction cosine node requires angular_interpolation=exact-only'
+      )
     time_interpolation = _coerce_policy(
       self.time_interpolation,
       'time_interpolation',
