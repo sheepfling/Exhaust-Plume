@@ -137,6 +137,11 @@ def test_attached_shock_to_centerline_returns_forward_candidate_segment() -> Non
   assert result.geometry_residual_m == pytest.approx(0.0, abs=1.0e-12)
   assert result.downstream_mach is not None and result.downstream_mach > 1.0
   assert result.downstream_pressure_Pa is not None and result.downstream_pressure_Pa > 101325.0
+  assert result.downstream_state is not None
+  assert result.downstream_state.x_m == pytest.approx(result.shock_end_m[0])
+  assert result.downstream_state.y_m == pytest.approx(result.shock_end_m[1], abs=1.0e-12)
+  assert result.downstream_state.theta_rad == pytest.approx(0.0)
+  assert result.downstream_state.mach == pytest.approx(result.downstream_mach)
   assert result.compression is not None
   assert result.compression.upstream_total_pressure_Pa is not None
   assert result.downstream_total_pressure_Pa is not None

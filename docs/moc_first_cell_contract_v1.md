@@ -32,7 +32,8 @@ The implementation in `exhaust_plume.models.moc` currently provides:
 - an assembled reflected characteristic lattice with axis-strip, interior,
   and free-boundary cells plus connected one-perimeter topology diagnostics;
 - a boundary-side attached shock-to-centerline segment candidate with explicit
-  turn, branch, downstream-state, and forward-endpoint diagnostics;
+  turn, branch, positioned downstream characteristic state, and
+  forward-endpoint diagnostics;
 - mesh connectivity diagnostics that distinguish a topologically bounded
   polygon from an unresolved physical boundary;
 - a shared averaged-characteristic fan/reflected interface whose combined
@@ -48,8 +49,10 @@ The reflected-boundary march and characteristic-zone assembler now assemble
 the centerline, interior, and pressure-matched boundary network. The result is
 still physically open until a compression/shock endpoint and post-shock
 characteristic continuation are solved. The current shock-to-centerline
-operation is only a boundary-side candidate; it does not prove that the
-downstream total-pressure bookkeeping closes across the full plume cell.
+operation reconstructs a positioned downstream supersonic state and its
+total-pressure loss, but it remains only a boundary-side candidate; it does
+not prove that downstream characteristics or total-pressure bookkeeping close
+across the full plume cell.
 No public provider is wired to these primitives yet. The module does not claim
 axisymmetric, reacting, viscous, or experimentally validated plume physics.
 

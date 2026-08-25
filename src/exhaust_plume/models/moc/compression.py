@@ -129,6 +129,7 @@ class MocShockToCenterlineResult:
   geometry_residual_m: float | None
   downstream_mach: float | None
   downstream_pressure_Pa: float | None
+  downstream_state: CharacteristicState | None = None
   message: str = ''
 
   @property
@@ -424,7 +425,14 @@ def solve_attached_shock_to_centerline(
     target_turn_rad=target_turn,
     branch=branch,
   )
-  if not compression.converged or compression.beta_rad is None:
+  downstream_mach = compression.downstream_mach
+  downstream_pressure = compression.downstream_pressure_Pa
+  if (
+      not compression.converged
+      or compression.beta_rad is None
+      or downstream_mach is None
+      or downstream_pressure is None
+  ):
     return MocShockToCenterlineResult(
       status=compression.status,
       shock_status=compression.shock_status,
@@ -437,8 +445,8 @@ def solve_attached_shock_to_centerline(
       shock_end_m=None,
       shock_angle_rad=None,
       geometry_residual_m=None,
-      downstream_mach=compression.downstream_mach,
-      downstream_pressure_Pa=compression.downstream_pressure_Pa,
+      downstream_mach=downstream_mach,
+      downstream_pressure_Pa=downstream_pressure,
       message=compression.message,
     )
   ####
@@ -501,8 +509,15 @@ def solve_attached_shock_to_centerline(
     shock_end_m=shock_end,
     shock_angle_rad=shock_angle,
     geometry_residual_m=geometry_residual,
-    downstream_mach=compression.downstream_mach,
-    downstream_pressure_Pa=compression.downstream_pressure_Pa,
+    downstream_mach=downstream_mach,
+    downstream_pressure_Pa=downstream_pressure,
+    downstream_state=CharacteristicState(
+      x_m=shock_end[0],
+      y_m=shock_end[1],
+      theta_rad=float(target_centerline_flow_angle_rad),
+      mach=downstream_mach,
+      gamma=upstream.gamma,
+    ),
   )
 ####
 

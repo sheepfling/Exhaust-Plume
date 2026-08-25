@@ -462,6 +462,17 @@ def build_moc_primitive_report() -> dict[str, Any]:
           'geometry_residual_m': shock_closure.geometry_residual_m,
           'downstream_mach': shock_closure.downstream_mach,
           'downstream_pressure_Pa': shock_closure.downstream_pressure_Pa,
+          'downstream_state': (
+            {
+              'x_m': shock_closure.downstream_state.x_m,
+              'y_m': shock_closure.downstream_state.y_m,
+              'theta_rad': shock_closure.downstream_state.theta_rad,
+              'mach': shock_closure.downstream_state.mach,
+              'gamma': shock_closure.downstream_state.gamma,
+            }
+            if shock_closure.downstream_state is not None
+            else None
+          ),
           'downstream_total_pressure_Pa': shock_closure.downstream_total_pressure_Pa,
           'total_pressure_ratio': shock_closure.total_pressure_ratio,
           'topology_status': 'not_assembled',
