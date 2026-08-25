@@ -16,8 +16,7 @@
       "blockers": [
         "current visual providers emit display channels only; no mach_disk_position observable is produced",
         "the bounded construction endpoint is not a physical Mach-disk endpoint",
-        "the external relation is an unordered hysteretic point cloud and requires branch-aware operator semantics",
-        "external measurement-operator namespace is not reconciled with the committed registry"
+        "the external relation is an unordered hysteretic point cloud and requires branch-aware operator semantics"
       ],
       "claim_status": "not_accepted",
       "comparison_id": "VIS-MVP-A-061",
@@ -129,8 +128,7 @@
       "blockers": [
         "the provider asset is a synthetic table fixture, not the BSUV2 operating point",
         "the current signature lane has no declared line-of-sight and field-of-view measurement operator",
-        "the corpus contains 13 digitized sensor-space markers, not intrinsic J_lambda truth",
-        "external measurement-operator namespace is not reconciled with the committed registry"
+        "the corpus contains 13 digitized sensor-space markers, not intrinsic J_lambda truth"
       ],
       "claim_status": "not_accepted",
       "comparison_id": "SIG-MVP-A-043",
@@ -218,8 +216,7 @@
       "blockers": [
         "the provider has no corpus-backed EMAP source asset or operating point",
         "the local spectral sampling and peak-normalization operators do not provide a corpus-backed EMAP source asset or operating point",
-        "normalized spectral shape cannot validate the provider absolute-radiance claim",
-        "external measurement-operator namespace is not reconciled with the committed registry"
+        "normalized spectral shape cannot validate the provider absolute-radiance claim"
       ],
       "claim_status": "not_accepted",
       "comparison_id": "SIG-MVP-A-064",
@@ -305,8 +302,7 @@
       "blockers": [
         "the provider has no corpus-backed EMAP FTIR source asset or operating point",
         "the local spectral sampling and peak-normalization operators do not provide the FTIR measurement volume or relative-calibration provenance",
-        "the FTIR product is a raster envelope and cannot validate absolute intrinsic J_lambda",
-        "external measurement-operator namespace is not reconciled with the committed registry"
+        "the FTIR product is a raster envelope and cannot validate absolute intrinsic J_lambda"
       ],
       "claim_status": "not_accepted",
       "comparison_id": "SIG-MVP-A-066",
@@ -394,8 +390,7 @@
       "benchmark_id": "RP-ALSI-001",
       "blockers": [
         "the signature contract emits wavelength-resolved intensity, not the ALSI band-integrated observable",
-        "the local band-integral helper has no detector response or formulation-sweep input to represent the ALSI measurement operator",
-        "external measurement-operator namespace is not reconciled with the committed registry"
+        "the local band-integral helper has no detector response or formulation-sweep input to represent the ALSI measurement operator"
       ],
       "claim_status": "not_accepted",
       "comparison_id": "SIG-MVP-A-073",
@@ -464,8 +459,7 @@
       "benchmark_id": "RP-BSUV2-001",
       "blockers": [
         "the gray provider has no BSUV2 plume field, line-of-sight, or field-of-view detector model",
-        "the external observable combines source, path, and sensor effects; the current provider only supplies homogeneous support transfer",
-        "external measurement-operator namespace is not reconciled with the committed registry"
+        "the external observable combines source, path, and sensor effects; the current provider only supplies homogeneous support transfer"
       ],
       "claim_status": "not_accepted",
       "comparison_id": "RAY-MVP-A-044",
@@ -555,8 +549,7 @@
       "blockers": [
         "the provider has no EMAP field or path-extinction scenario; spectral sampling and peak normalization are only post-processing helpers",
         "local spectral reduction operators can only act after a ray/source scenario is available; they do not create the missing EMAP field or path operator",
-        "the corpus records a normalized source-plus-path shape, not independent source radiance and transmittance",
-        "external measurement-operator namespace is not reconciled with the committed registry"
+        "the corpus records a normalized source-plus-path shape, not independent source radiance and transmittance"
       ],
       "claim_status": "not_accepted",
       "comparison_id": "RAY-MVP-A-065",
@@ -643,8 +636,7 @@
       "blockers": [
         "the gray provider has no EMAP field, path-extinction scenario, or FTIR measurement-volume model",
         "local spectral reduction operators can only act after a ray/source scenario is available; they do not create the missing field or path operator",
-        "the FTIR product is a raster envelope and does not separately identify source radiance and transmittance",
-        "external measurement-operator namespace is not reconciled with the committed registry"
+        "the FTIR product is a raster envelope and does not separately identify source radiance and transmittance"
       ],
       "claim_status": "not_accepted",
       "comparison_id": "RAY-MVP-A-067",
@@ -734,8 +726,7 @@
       "blockers": [
         "the gray provider has no time-dependent source state, surface pose, detector response, or conjugate thermal model",
         "the local band-integral helper is a spectral-array reduction before detector response, not a Gardon surface operator",
-        "the corpus trace is a digitized published display and is not a per-ray source-radiance truth set",
-        "external measurement-operator namespace is not reconciled with the committed registry"
+        "the corpus trace is a digitized published display and is not a per-ray source-radiance truth set"
       ],
       "claim_status": "not_accepted",
       "comparison_id": "RAY-MVP-A-068",
@@ -804,8 +795,7 @@
       "benchmark_id": "RP-ALSI-001",
       "blockers": [
         "the provider has no ALSI bandpass, projected-area, or image integration operator",
-        "the thermal corpus is band-integrated and is not a per-ray source-spectrum truth set",
-        "external measurement-operator namespace is not reconciled with the committed registry"
+        "the thermal corpus is band-integrated and is not a per-ray source-spectrum truth set"
       ],
       "claim_status": "not_accepted",
       "comparison_id": "RAY-MVP-A-074",
@@ -1744,46 +1734,536 @@
           "No single committed operator preserves the external image-area lineage, detector response, and projected-power semantics together.",
           "The projected-area signature operator is source-only and cannot be substituted automatically."
         ]
+      },
+      {
+        "alignment_ids": [
+          "MVP-A-069"
+        ],
+        "claim_status": "not_accepted",
+        "external_operator_id": "operator.align.pressure_and_radiation_time_histories",
+        "internal_operator_ids": [],
+        "mapping_kind": "no-safe-equivalent",
+        "product_ids": [
+          "support.unsteady-state@1"
+        ],
+        "review_status": "no-safe-equivalent-reviewed",
+        "scope": "Alignment of pressure and radiation histories in a supporting unsteady-state study.",
+        "unresolved_differences": [
+          "The committed registry has no temporal alignment operator that preserves the source time bases and cross-sensor lineage.",
+          "This is supporting capability evidence, not a primary VIS, SIG, or RAY product gate."
+        ]
+      },
+      {
+        "alignment_ids": [
+          "MVP-A-060"
+        ],
+        "claim_status": "not_accepted",
+        "external_operator_id": "operator.align.snapshot_time_to_pressure_trace",
+        "internal_operator_ids": [],
+        "mapping_kind": "no-safe-equivalent",
+        "product_ids": [
+          "support.unsteady-state@1"
+        ],
+        "review_status": "no-safe-equivalent-reviewed",
+        "scope": "Alignment of model snapshots to a time-dependent chamber-pressure trace.",
+        "unresolved_differences": [
+          "No committed operator declares interpolation, clock synchronization, or snapshot-to-trace uncertainty for this supporting capability."
+        ]
+      },
+      {
+        "alignment_ids": [
+          "MVP-A-003"
+        ],
+        "candidate_internal_operator_ids": [
+          "op.visual.support-envelope"
+        ],
+        "claim_status": "not_accepted",
+        "external_operator_id": "operator.ambient_flow_to_curved_centerline_component",
+        "internal_operator_ids": [],
+        "mapping_kind": "no-safe-equivalent",
+        "product_ids": [
+          "plume.visual.sectioned-tube@1"
+        ],
+        "review_status": "no-safe-equivalent-reviewed",
+        "scope": "Crossflow-driven curved-plume centerline component evidence.",
+        "unresolved_differences": [
+          "A support envelope is not a crossflow field or a centerline-deflection solver.",
+          "The current visual product is straight-axisymmetric and does not expose the required ambient-flow field."
+        ]
+      },
+      {
+        "alignment_ids": [
+          "MVP-A-007",
+          "MVP-A-009",
+          "MVP-A-011",
+          "MVP-A-013"
+        ],
+        "claim_status": "not_accepted",
+        "external_operator_id": "operator.ambient_velocity_to_deflection_envelope",
+        "internal_operator_ids": [
+          "op.visual.support-envelope"
+        ],
+        "mapping_kind": "one-to-one-scoped",
+        "product_ids": [
+          "plume.visual.sectioned-tube@1"
+        ],
+        "review_status": "semantic-match-reviewed-partial",
+        "scope": "Conservative support/deflection envelope after an explicitly supplied ambient-flow field.",
+        "unresolved_differences": [
+          "The internal support-envelope operator does not create the ambient velocity field or curved centerline response.",
+          "No current provider supplies the crossflow scenario or deflection uncertainty."
+        ]
+      },
+      {
+        "alignment_ids": [
+          "MVP-A-054"
+        ],
+        "claim_status": "not_accepted",
+        "external_operator_id": "operator.bin.particle_velocity_events",
+        "internal_operator_ids": [
+          "op.particle.l2f-counter"
+        ],
+        "mapping_kind": "one-to-one-scoped",
+        "product_ids": [
+          "support.particle-state@1"
+        ],
+        "review_status": "semantic-match-reviewed-scoped",
+        "scope": "Visible-window particle-velocity event counts using declared bins, detection limits, and event semantics.",
+        "unresolved_differences": [
+          "The current repository has no particle-state provider or L2F measurement asset."
+        ]
+      },
+      {
+        "alignment_ids": [
+          "MVP-A-032",
+          "MVP-A-033",
+          "MVP-A-034",
+          "MVP-A-035"
+        ],
+        "claim_status": "not_accepted",
+        "external_operator_id": "operator.case.configure_emap_materials",
+        "internal_operator_ids": [],
+        "mapping_kind": "no-safe-equivalent",
+        "product_ids": [
+          "support.particle-state@1",
+          "support.thermochemical-field@1"
+        ],
+        "review_status": "no-safe-equivalent-reviewed",
+        "scope": "EMAP material, feedstock, propellant, and formulation scenario configuration.",
+        "unresolved_differences": [
+          "Scenario configuration is not a measurement operator and has no committed equivalent in the operator registry."
+        ]
+      },
+      {
+        "alignment_ids": [
+          "MVP-A-071"
+        ],
+        "claim_status": "not_accepted",
+        "external_operator_id": "operator.case.select_alsi_formulation",
+        "internal_operator_ids": [],
+        "mapping_kind": "no-safe-equivalent",
+        "product_ids": [
+          "support.thermochemical-field@1"
+        ],
+        "review_status": "no-safe-equivalent-reviewed",
+        "scope": "Controlled aluminum-to-silicon formulation sweep selection.",
+        "unresolved_differences": [
+          "The committed registry has no formulation-sweep scenario operator or composition model."
+        ]
+      },
+      {
+        "alignment_ids": [
+          "MVP-A-031"
+        ],
+        "claim_status": "not_accepted",
+        "external_operator_id": "operator.case.select_emap_hot_fire",
+        "internal_operator_ids": [],
+        "mapping_kind": "no-safe-equivalent",
+        "product_ids": [
+          "support.scenario-definition@1"
+        ],
+        "review_status": "no-safe-equivalent-reviewed",
+        "scope": "EMAP hot-fire case linkage, nozzle, co-flow, and throat-restriction scenario selection.",
+        "unresolved_differences": [
+          "Scenario selection is upstream of product measurement and is not represented by a committed measurement operator."
+        ]
+      },
+      {
+        "alignment_ids": [
+          "MVP-A-030"
+        ],
+        "claim_status": "not_accepted",
+        "external_operator_id": "operator.case.select_emap_nozzle_state",
+        "internal_operator_ids": [],
+        "mapping_kind": "no-safe-equivalent",
+        "product_ids": [
+          "support.thermochemical-field@1"
+        ],
+        "review_status": "no-safe-equivalent-reviewed",
+        "scope": "Published one-dimensional chamber, throat, and nozzle-exit state selection.",
+        "unresolved_differences": [
+          "The current provider contracts do not encode the external nozzle-state asset or its source-condition lineage."
+        ]
+      },
+      {
+        "alignment_ids": [
+          "MVP-A-038"
+        ],
+        "claim_status": "not_accepted",
+        "external_operator_id": "operator.case.select_retalt_run",
+        "internal_operator_ids": [],
+        "mapping_kind": "no-safe-equivalent",
+        "product_ids": [
+          "support.scenario-definition@1"
+        ],
+        "review_status": "no-safe-equivalent-reviewed",
+        "scope": "RETALT hot GH2/GO2 plume and freestream operating-condition selection.",
+        "unresolved_differences": [
+          "No committed scenario-definition operator represents the RETALT run selection and provenance."
+        ]
+      },
+      {
+        "alignment_ids": [
+          "MVP-A-001"
+        ],
+        "claim_status": "not_accepted",
+        "external_operator_id": "operator.case.select_rotor_ige",
+        "internal_operator_ids": [],
+        "mapping_kind": "no-safe-equivalent",
+        "product_ids": [
+          "support.scenario-definition@1"
+        ],
+        "review_status": "no-safe-equivalent-reviewed",
+        "scope": "Rotor geometry, RPM, thrust coefficient, and ground-effect scenario selection.",
+        "unresolved_differences": [
+          "The exhaust-plume operator registry has no rotor/ground-effect scenario equivalent."
+        ]
+      },
+      {
+        "alignment_ids": [
+          "MVP-A-072"
+        ],
+        "claim_status": "not_accepted",
+        "external_operator_id": "operator.compare.source_equilibrium_context",
+        "internal_operator_ids": [],
+        "mapping_kind": "no-safe-equivalent",
+        "product_ids": [
+          "support.thermochemical-field@1"
+        ],
+        "review_status": "no-safe-equivalent-reviewed",
+        "scope": "Comparison of source-published equilibrium thermochemical context.",
+        "unresolved_differences": [
+          "Source-equilibrium context is a model/scenario comparison, not an implemented product measurement operator."
+        ]
+      },
+      {
+        "alignment_ids": [
+          "MVP-A-047"
+        ],
+        "claim_status": "not_accepted",
+        "external_operator_id": "operator.compute.transmittance_from_extinction",
+        "internal_operator_ids": [
+          "op.ray.transmissometer"
+        ],
+        "mapping_kind": "one-to-one-scoped",
+        "product_ids": [
+          "support.optical-medium@1"
+        ],
+        "review_status": "semantic-match-reviewed-partial",
+        "scope": "Transmission, optical depth, or path-averaged extinction at declared wavelengths and path geometry.",
+        "unresolved_differences": [
+          "The current gray provider exposes homogeneous transfer but no corpus-backed extinction or soot-density scenario.",
+          "The external record is supporting optical-medium evidence, not accepted RAY product validation."
+        ]
+      },
+      {
+        "alignment_ids": [
+          "MVP-A-041"
+        ],
+        "claim_status": "not_accepted",
+        "external_operator_id": "operator.extract.feature_frequency",
+        "internal_operator_ids": [
+          "op.temporal.frequency-feature"
+        ],
+        "mapping_kind": "one-to-one-scoped",
+        "product_ids": [
+          "plume.visual.sectioned-tube@1"
+        ],
+        "review_status": "semantic-match-reviewed-scoped",
+        "scope": "Named unsteady feature frequency with declared sample rate, window, reference scale, and feature definition.",
+        "unresolved_differences": [
+          "Current visual providers are steady and emit no time history or frequency channel."
+        ]
+      },
+      {
+        "alignment_ids": [
+          "MVP-A-058"
+        ],
+        "claim_status": "not_accepted",
+        "external_operator_id": "operator.extract.feature_frequency_and_mode",
+        "internal_operator_ids": [
+          "op.temporal.frequency-feature"
+        ],
+        "mapping_kind": "one-to-one-scoped",
+        "product_ids": [
+          "plume.visual.sectioned-tube@1"
+        ],
+        "review_status": "semantic-match-reviewed-scoped",
+        "scope": "Symmetric/antisymmetric frequency and mode feature extraction from a declared time or phase record.",
+        "unresolved_differences": [
+          "The current visual lane has no transient provider, mode metadata, or frequency output."
+        ]
+      },
+      {
+        "alignment_ids": [
+          "MVP-A-062"
+        ],
+        "claim_status": "not_accepted",
+        "external_operator_id": "operator.extract.local_field_mach_disk_position",
+        "internal_operator_ids": [
+          "op.visual.feature-extractor"
+        ],
+        "mapping_kind": "one-to-one-scoped",
+        "product_ids": [
+          "support.local-flow-field@1"
+        ],
+        "review_status": "semantic-match-reviewed-partial",
+        "scope": "Pressure-dependent Mach-disk location extracted from an explicitly supplied local flow field.",
+        "unresolved_differences": [
+          "The internal feature operator accepts the semantic feature but no local-field provider or branch-aware field output is implemented."
+        ]
+      },
+      {
+        "alignment_ids": [
+          "MVP-A-050",
+          "MVP-A-052"
+        ],
+        "claim_status": "not_accepted",
+        "external_operator_id": "operator.extract.shock_features_from_local_field",
+        "internal_operator_ids": [
+          "op.visual.feature-extractor"
+        ],
+        "mapping_kind": "one-to-one-scoped",
+        "product_ids": [
+          "plume.visual.sectioned-tube@1"
+        ],
+        "review_status": "semantic-match-reviewed-partial",
+        "scope": "Axial shock-feature phase and spacing extracted from a declared local-flow field and coordinate frame.",
+        "unresolved_differences": [
+          "Current visual providers expose display geometry only and no local-field shock-feature channel."
+        ]
+      },
+      {
+        "alignment_ids": [
+          "MVP-A-046"
+        ],
+        "claim_status": "not_accepted",
+        "external_operator_id": "operator.optics.scalar_extinction_envelope",
+        "internal_operator_ids": [
+          "op.ray.transmissometer"
+        ],
+        "mapping_kind": "one-to-one-scoped",
+        "product_ids": [
+          "plume.optical.spectral-ray-transfer@1"
+        ],
+        "review_status": "semantic-match-reviewed-partial",
+        "scope": "Scalar visible extinction or equivalent source-radiance envelope as a plausibility diagnostic.",
+        "unresolved_differences": [
+          "The transmissometer operator does not by itself produce source radiance or a conservative plume envelope.",
+          "The current gray provider is not a corpus-backed visible-extinction scenario."
+        ]
+      },
+      {
+        "alignment_ids": [
+          "MVP-A-055"
+        ],
+        "candidate_internal_operator_ids": [
+          "op.ray.projected-area-signature"
+        ],
+        "claim_status": "not_accepted",
+        "external_operator_id": "operator.particle_kinematics_to_optical_component",
+        "internal_operator_ids": [],
+        "mapping_kind": "no-safe-equivalent",
+        "product_ids": [
+          "plume.optical.spectral-ray-transfer@1"
+        ],
+        "review_status": "no-safe-equivalent-reviewed",
+        "scope": "Particle kinematics affecting residence time and optical emission.",
+        "unresolved_differences": [
+          "Projected-area integration is not a particle-kinematics or residence-time operator and cannot be substituted automatically.",
+          "No particle trajectory or emission-coupling provider is implemented."
+        ]
+      },
+      {
+        "alignment_ids": [
+          "MVP-A-020",
+          "MVP-A-022",
+          "MVP-A-024",
+          "MVP-A-026"
+        ],
+        "candidate_internal_operator_ids": [
+          "op.particle.collection-treatment",
+          "op.ray.projected-area-signature"
+        ],
+        "claim_status": "not_accepted",
+        "external_operator_id": "operator.particle_population_to_optical_component",
+        "internal_operator_ids": [],
+        "mapping_kind": "no-safe-equivalent",
+        "product_ids": [
+          "plume.optical.spectral-ray-transfer@1"
+        ],
+        "review_status": "no-safe-equivalent-reviewed",
+        "scope": "Particle-size population contribution to absorption, emission, and scattering.",
+        "unresolved_differences": [
+          "Particle collection is a population measurement operator, while projected-area summation is a source-only ray reduction; neither represents particle optical properties or scattering."
+        ]
+      },
+      {
+        "alignment_ids": [
+          "MVP-A-006",
+          "MVP-A-008",
+          "MVP-A-010",
+          "MVP-A-012"
+        ],
+        "claim_status": "not_accepted",
+        "external_operator_id": "operator.reduce.field_to_reported_extrema",
+        "internal_operator_ids": [
+          "op.engineering.statistical-envelope"
+        ],
+        "mapping_kind": "one-to-one-scoped",
+        "product_ids": [
+          "support.ambient-wake-field@1"
+        ],
+        "review_status": "semantic-match-reviewed-partial",
+        "scope": "Reported extrema or hazard envelope using a declared statistic, time window, sensor identity, and ambient subtraction policy.",
+        "unresolved_differences": [
+          "The current registry operator defines the reduction semantics but no ambient-wake field provider or full-scale sensor data are present."
+        ]
+      },
+      {
+        "alignment_ids": [
+          "MVP-A-059"
+        ],
+        "candidate_internal_operator_ids": [
+          "op.field.piv-plane"
+        ],
+        "claim_status": "not_accepted",
+        "external_operator_id": "operator.sample.hotwake_piv_locations",
+        "internal_operator_ids": [],
+        "mapping_kind": "no-safe-equivalent",
+        "product_ids": [
+          "support.measurement-operator@1"
+        ],
+        "review_status": "no-safe-equivalent-reviewed",
+        "scope": "PIV sampling coordinates and jet-on/jet-off state definition.",
+        "unresolved_differences": [
+          "The PIV-plane operator consumes a declared plane and vectors; it does not select the external sampling locations or experimental state."
+        ]
+      },
+      {
+        "alignment_ids": [
+          "MVP-A-002"
+        ],
+        "claim_status": "not_accepted",
+        "external_operator_id": "operator.sample.local_field_at_probe_stations",
+        "internal_operator_ids": [
+          "op.field.profile-probe"
+        ],
+        "mapping_kind": "one-to-one-scoped",
+        "product_ids": [
+          "support.ambient-wake-field@1"
+        ],
+        "review_status": "semantic-match-reviewed-partial",
+        "scope": "Normalized radial outwash profiles sampled at declared stations and normalized with a disclosed reference.",
+        "unresolved_differences": [
+          "The committed profile-probe semantics are compatible, but no ambient-wake field provider or external station geometry is implemented."
+        ]
+      },
+      {
+        "alignment_ids": [
+          "MVP-A-019",
+          "MVP-A-021",
+          "MVP-A-023",
+          "MVP-A-025"
+        ],
+        "claim_status": "not_accepted",
+        "external_operator_id": "operator.sample.particle_size_distribution",
+        "internal_operator_ids": [
+          "op.particle.collection-treatment"
+        ],
+        "mapping_kind": "one-to-one-scoped",
+        "product_ids": [
+          "support.particle-state@1"
+        ],
+        "review_status": "semantic-match-reviewed-scoped",
+        "scope": "Collected particle-size distribution after the declared probe position, exposure, treatment, and weighting convention.",
+        "unresolved_differences": [
+          "No particle population provider or corpus-backed collection protocol is implemented."
+        ]
+      },
+      {
+        "alignment_ids": [
+          "MVP-A-039"
+        ],
+        "claim_status": "not_accepted",
+        "external_operator_id": "operator.sample.surface_pressure_sensors",
+        "internal_operator_ids": [
+          "op.surface.sensor-array"
+        ],
+        "mapping_kind": "one-to-one-scoped",
+        "product_ids": [
+          "support.engineering-coupling@1"
+        ],
+        "review_status": "semantic-match-reviewed-partial",
+        "scope": "Sensor-resolved base pressure coefficient with disclosed sensor pose and normalization.",
+        "unresolved_differences": [
+          "The internal sensor-array contract is broader than this pressure-only record and no external base-pressure scenario is implemented."
+        ]
+      },
+      {
+        "alignment_ids": [
+          "MVP-A-014",
+          "MVP-A-015"
+        ],
+        "candidate_internal_operator_ids": [
+          "op.sensor.los-fov-spectrum",
+          "op.sensor.fpa-pixel-detector"
+        ],
+        "claim_status": "not_accepted",
+        "external_operator_id": "operator.sensor.black_brant_imager",
+        "internal_operator_ids": [],
+        "mapping_kind": "no-safe-equivalent",
+        "product_ids": [
+          "plume.optical.spectral-ray-transfer@1",
+          "plume.signature.spectral-radiant-intensity@1"
+        ],
+        "review_status": "no-safe-equivalent-reviewed",
+        "scope": "Black Brant flight/motor/atmosphere/observer/spectral-imager case definition and sensor integration.",
+        "unresolved_differences": [
+          "LOS/FOV spectral radiance and the FPA expected-electron adapter are separate partial operators; neither captures the complete imager case and calibration lineage."
+        ]
+      },
+      {
+        "alignment_ids": [
+          "MVP-A-040"
+        ],
+        "claim_status": "not_accepted",
+        "external_operator_id": "operator.surface.conjugate_thermal_response",
+        "internal_operator_ids": [
+          "op.surface.sensor-array"
+        ],
+        "mapping_kind": "one-to-one-scoped",
+        "product_ids": [
+          "support.engineering-coupling@1"
+        ],
+        "review_status": "semantic-match-reviewed-partial",
+        "scope": "Water-cooled model-base thermal response with disclosed surface pose, response model, and cooling assumptions.",
+        "unresolved_differences": [
+          "The internal sensor-array operator does not implement conjugate heat transfer, coolant response, or the external model-base asset."
+        ]
       }
     ],
     "scoped_reviewed_external_only": [
-      "operator.extract.sectioned_tube_mach_disk_position",
-      "operator.image.integrate_alsi_band_and_area",
-      "operator.sample.canonical_jet_probe_lines",
-      "operator.sensor.alsi_thermal_band",
-      "operator.sensor.bsuv2_los_fov",
-      "operator.spectrum.peak_normalize_after_los_transfer",
-      "operator.spectrum.peak_normalize_after_sensor_sampling",
-      "operator.surface.gardon_band_integral"
-    ],
-    "semantic_crosswalk": {
-      "entry_count": 8,
-      "errors": [],
-      "external_operator_ids": [
-        "operator.extract.sectioned_tube_mach_disk_position",
-        "operator.image.integrate_alsi_band_and_area",
-        "operator.sample.canonical_jet_probe_lines",
-        "operator.sensor.alsi_thermal_band",
-        "operator.sensor.bsuv2_los_fov",
-        "operator.spectrum.peak_normalize_after_los_transfer",
-        "operator.spectrum.peak_normalize_after_sensor_sampling",
-        "operator.surface.gardon_band_integral"
-      ],
-      "referenced_internal_operator_ids": [
-        "op.field.profile-probe",
-        "op.ray.projected-area-signature",
-        "op.ray.surface-radiometer",
-        "op.sensor.band-integral",
-        "op.sensor.bandpass-detector",
-        "op.sensor.los-fov-spectrum",
-        "op.sensor.peak-normalize-spectrum",
-        "op.sensor.spectral-sampling",
-        "op.visual.feature-extractor"
-      ],
-      "status": "valid",
-      "unknown_internal_operator_ids": []
-    },
-    "unreviewed_external_only": [
       "operator.align.pressure_and_radiation_time_histories",
       "operator.align.snapshot_time_to_pressure_trace",
       "operator.ambient_flow_to_curved_centerline_component",
@@ -1800,18 +2280,91 @@
       "operator.extract.feature_frequency",
       "operator.extract.feature_frequency_and_mode",
       "operator.extract.local_field_mach_disk_position",
+      "operator.extract.sectioned_tube_mach_disk_position",
       "operator.extract.shock_features_from_local_field",
+      "operator.image.integrate_alsi_band_and_area",
       "operator.optics.scalar_extinction_envelope",
       "operator.particle_kinematics_to_optical_component",
       "operator.particle_population_to_optical_component",
       "operator.reduce.field_to_reported_extrema",
+      "operator.sample.canonical_jet_probe_lines",
       "operator.sample.hotwake_piv_locations",
       "operator.sample.local_field_at_probe_stations",
       "operator.sample.particle_size_distribution",
       "operator.sample.surface_pressure_sensors",
+      "operator.sensor.alsi_thermal_band",
       "operator.sensor.black_brant_imager",
-      "operator.surface.conjugate_thermal_response"
-    ]
+      "operator.sensor.bsuv2_los_fov",
+      "operator.spectrum.peak_normalize_after_los_transfer",
+      "operator.spectrum.peak_normalize_after_sensor_sampling",
+      "operator.surface.conjugate_thermal_response",
+      "operator.surface.gardon_band_integral"
+    ],
+    "semantic_crosswalk": {
+      "entry_count": 35,
+      "errors": [],
+      "external_operator_ids": [
+        "operator.align.pressure_and_radiation_time_histories",
+        "operator.align.snapshot_time_to_pressure_trace",
+        "operator.ambient_flow_to_curved_centerline_component",
+        "operator.ambient_velocity_to_deflection_envelope",
+        "operator.bin.particle_velocity_events",
+        "operator.case.configure_emap_materials",
+        "operator.case.select_alsi_formulation",
+        "operator.case.select_emap_hot_fire",
+        "operator.case.select_emap_nozzle_state",
+        "operator.case.select_retalt_run",
+        "operator.case.select_rotor_ige",
+        "operator.compare.source_equilibrium_context",
+        "operator.compute.transmittance_from_extinction",
+        "operator.extract.feature_frequency",
+        "operator.extract.feature_frequency_and_mode",
+        "operator.extract.local_field_mach_disk_position",
+        "operator.extract.sectioned_tube_mach_disk_position",
+        "operator.extract.shock_features_from_local_field",
+        "operator.image.integrate_alsi_band_and_area",
+        "operator.optics.scalar_extinction_envelope",
+        "operator.particle_kinematics_to_optical_component",
+        "operator.particle_population_to_optical_component",
+        "operator.reduce.field_to_reported_extrema",
+        "operator.sample.canonical_jet_probe_lines",
+        "operator.sample.hotwake_piv_locations",
+        "operator.sample.local_field_at_probe_stations",
+        "operator.sample.particle_size_distribution",
+        "operator.sample.surface_pressure_sensors",
+        "operator.sensor.alsi_thermal_band",
+        "operator.sensor.black_brant_imager",
+        "operator.sensor.bsuv2_los_fov",
+        "operator.spectrum.peak_normalize_after_los_transfer",
+        "operator.spectrum.peak_normalize_after_sensor_sampling",
+        "operator.surface.conjugate_thermal_response",
+        "operator.surface.gardon_band_integral"
+      ],
+      "referenced_internal_operator_ids": [
+        "op.engineering.statistical-envelope",
+        "op.field.piv-plane",
+        "op.field.profile-probe",
+        "op.particle.collection-treatment",
+        "op.particle.l2f-counter",
+        "op.ray.projected-area-signature",
+        "op.ray.surface-radiometer",
+        "op.ray.transmissometer",
+        "op.sensor.band-integral",
+        "op.sensor.bandpass-detector",
+        "op.sensor.fpa-pixel-detector",
+        "op.sensor.los-fov-spectrum",
+        "op.sensor.peak-normalize-spectrum",
+        "op.sensor.spectral-sampling",
+        "op.surface.sensor-array",
+        "op.temporal.frequency-feature",
+        "op.visual.feature-extractor",
+        "op.visual.support-envelope"
+      ],
+      "status": "valid",
+      "unknown_internal_operator_ids": []
+    },
+    "semantic_crosswalk_status": "complete-scoped",
+    "unreviewed_external_only": []
   },
   "providers": {
     "focal_plane_array": {
@@ -1908,8 +2461,7 @@
     }
   },
   "release_blockers": [
-    "external operator crosswalk is unresolved",
-    "all current provider-specific external comparisons remain blocked by missing provider-bound measurement-space outputs, physical scenario assets, or reviewed operator crosswalks",
+    "all current provider-specific external comparisons remain blocked by missing provider-bound measurement-space outputs, physical scenario assets, or accepted product-specific measurement-operator mappings",
     "separately named MVP alignment archive is not yet verified"
   ],
   "release_ready": false,

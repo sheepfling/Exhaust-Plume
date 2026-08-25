@@ -31,9 +31,10 @@ python scripts/validate_external_corpus_alignment.py \
 
 The preflight verifies the 17 benchmark definitions, 19 source records, 60
 indexed products, 78 mappings, 20-row summary, seven cross-product rules, 11
-gates, and all 137 internal checksums. It reports unresolved operator IDs and
-provider-comparison gates as release blockers rather than treating a
-structurally valid corpus as product validation.
+gates, and all 137 internal checksums. It reports the exact external-versus-
+internal operator namespace difference, scoped semantic-crosswalk coverage,
+and provider-comparison gates rather than treating a structurally valid corpus
+as product validation.
 
 The recovered corpus intake evidence is recorded in
 [`corpus_intake_report_v1.json`](corpus_intake_report_v1.json). It matched the
@@ -74,11 +75,14 @@ has 606 points but no declared branch ID, and the current providers do not
 emit the required Mach-disk feature channel; this remains a blocked diagnostic,
 not an inferred comparison.
 
-The reviewed, gate-specific operator semantics are recorded in
+The reviewed, gate-specific operator semantics for all 35 external operator
+IDs are recorded in
 [`operator_semantic_crosswalk_v1.json`](operator_semantic_crosswalk_v1.json).
-This artifact documents scoped matches and explicit non-equivalences without
-closing the general external `operator.*` versus internal `op.*` namespace
-reconciliation gate.
+This artifact is a complete scoped review: it documents matches, partial
+pipelines, and explicit non-equivalences without treating the external
+`operator.*` namespace as an exact alias of the internal `op.*` namespace.
+Every entry remains `claim_status: not_accepted` until its provider-bound
+measurement comparison is accepted.
 
 The reproducible local lane run is preserved in
 [`product_lane_validation_v1.json`](product_lane_validation_v1.json). It shows
@@ -113,7 +117,7 @@ detection claim.
 
 The branch-level freeze is recorded in
 [`release_freeze_v1.json`](release_freeze_v1.json). It captures the current
-356-test, Ruff, Pyright, deterministic-asset, and installed-wheel checks while keeping
+357-test, Ruff, Pyright, deterministic-asset, and installed-wheel checks while keeping
 `release_ready` false until the external gates close.
 
 The intake gate is a prerequisite for external validation claims. Corpus

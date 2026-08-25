@@ -631,7 +631,7 @@ def _run_cross_product_consistency() -> dict[str, Any]:
     'claim_derivation': first.metadata.claims.derivation.value,
     'external_comparison': {
       'status': 'synthetic-only',
-      'reason': 'The adapter operator is verified against a homogeneous gray ray fixture; recovered sensor-space comparisons remain blocked by missing LOS/path/detector operators and the unresolved external namespace crosswalk.',
+      'reason': 'The adapter operator is verified against a homogeneous gray ray fixture; recovered sensor-space comparisons remain blocked by missing LOS/path/detector operators, while the exact external namespace remains distinct despite complete scoped semantic review.',
     },
     'claim_ceiling': 'Synthetic orthographic ray-to-signature consistency only; no experimental signature, atmosphere, detector, image, or FPA claim.',
   }
@@ -641,6 +641,7 @@ def _external_summary(path: Path | None) -> dict[str, Any]:
   if path is None:
     return {'status': 'not-provided'}
   report = preflight_corpus(path)
+  operator_reconciliation = report.get('operator_reconciliation', {})
   archive = {
     key: value for key, value in report['archive'].items()
     if key != 'path'
@@ -650,7 +651,9 @@ def _external_summary(path: Path | None) -> dict[str, Any]:
     'archive': archive,
     'content_counts': report.get('content_counts', {}),
     'gate_statuses': report.get('alignment', {}).get('validation_gate_statuses', {}),
-    'operator_crosswalk_status': report.get('operator_reconciliation', {}).get('crosswalk_status'),
+    'operator_crosswalk_status': operator_reconciliation.get('crosswalk_status'),
+    'semantic_crosswalk_status': operator_reconciliation.get('semantic_crosswalk_status'),
+    'unreviewed_external_operator_count': len(operator_reconciliation.get('unreviewed_external_only', [])),
     'release_blockers': report.get('release_blockers', []),
   }
 

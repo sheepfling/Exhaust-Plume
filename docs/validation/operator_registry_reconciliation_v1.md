@@ -1,8 +1,10 @@
 # Validation operator-registry reconciliation
 
-The recovered Version 8 corpus is content-valid, but its embedded alignment
-overlay is not wire-compatible with the committed operator registry yet. This
-is a contract reconciliation item, not a data-integrity failure.
+The recovered Version 8 corpus is content-valid. Its embedded alignment
+overlay uses a distinct external `operator.*` namespace, so it is not wire-
+compatible with the committed registry. A complete scoped semantic
+crosswalk is now recorded, while exact namespace identity remains false. This
+is a contract distinction, not a data-integrity failure.
 
 ## Observed inventories
 
@@ -28,8 +30,8 @@ embedded rule `MVP-X-001` names `adapter.far_field_from_rays@1`; its invariant
 and required context match the committed `op.ray.projected-area-signature`
 operator, and the implementation is exposed as the internal adapter
 `plume.adapter.far-field-from-rays`. This mapping is accepted for the
-synthetic cross-product consistency gate only. It does not reconcile the
-external sensor/feature operator namespace used by the VIS, SIG, and RAY
+synthetic cross-product consistency gate only. It is separate from the
+external sensor/feature operator crosswalk used by the VIS, SIG, and RAY
 measurement comparisons.
 
 A second narrow mapping is recorded for the cold component diagnostic only:
@@ -37,16 +39,18 @@ A second narrow mapping is recorded for the cold component diagnostic only:
 `op.field.profile-probe` semantics for disclosed `x/D`, `y/D`, probe/source
 uncertainty, and profile sampling. The mapping is explicitly scoped to
 `CJ-UEJ-001` supporting-component evidence; it does not reconcile the
-external `operator.*` namespace or authorize a primary VIS product claim.
+external `operator.*` namespace by exact alias or authorize a primary VIS
+product claim.
 
-The gate-specific semantic review is recorded in
+The complete semantic review is recorded in
 [`operator_semantic_crosswalk_v1.json`](operator_semantic_crosswalk_v1.json).
-It covers the seven unique external operators used by the ten primary-product
-gate mappings and preserves the existing CJ-UEJ supporting-component review.
-The review records one-to-one matches, ordered operator pipelines, partial
-matches, and one explicit no-safe-equivalent case. It is a typed governance
-artifact, not an automatic alias table: the overall namespace remains
-pending, provider execution remains separately gated, and every entry retains
+It covers all 35 external IDs, including the seven unique operators used by
+the ten primary-product gate mappings and the CJ-UEJ supporting-component
+review. The review records one-to-one matches, ordered operator pipelines,
+partial matches, and explicit no-safe-equivalent cases. It is a typed
+governance artifact, not an automatic alias table: the semantic crosswalk is
+`complete-scoped`, exact namespace identity remains pending, provider
+execution remains separately gated, and every entry retains
 `claim_status: not_accepted`.
 
 In particular, the crosswalk makes these boundaries explicit:
@@ -71,7 +75,7 @@ interpolation, peak normalization, and numeric band reduction while preserving
 validity masks. They deliberately do not implement line-of-sight geometry,
 atmospheric transfer, detector response, source calibration, or formulation
 sweeps. Their presence reduces an implementation gap but does not reconcile an
-external `operator.*` ID or close a product gate.
+external `operator.*` ID by exact namespace or close a product gate.
 
 The provider-comparison preflight also runs a bounded spectral-shape diagnostic
 against the recovered BSUV2 and EMAP curves. It records no-overlap and
@@ -93,8 +97,9 @@ a detection decision.
 The typed `ValidationRegistry` loads only the committed registry and therefore
 does not accept the recovered overlay as if it were already reconciled. The
 corpus may be used for source-corpus integrity and alignment analysis, but no
-external product claim is promoted to accepted status from an unresolved
-operator ID.
+external product claim is promoted to accepted status merely because a
+semantic crosswalk entry exists; every reviewed entry remains explicitly
+`not_accepted` until its provider-bound comparison closes.
 
 The separate `plume_mvp_validation_alignment_v1.zip` named by the handoff is
 still required. When recovered, compare its operator registry and crosswalk to

@@ -136,6 +136,11 @@ def reconcile_operator_ids(
     for item in REVIEWED_SEMANTIC_CROSSWALKS
     if item.get('external_operator_id')
   }
+  semantic_crosswalk_status = (
+    'complete-scoped'
+    if semantic_crosswalk['status'] == 'valid' and external_set <= reviewed_external_ids
+    else 'pending'
+  )
   return {
     'external_count': len(external_ids),
     'committed_count': len(committed_ids),
@@ -143,6 +148,7 @@ def reconcile_operator_ids(
     'committed_only': sorted(committed_set - external_set),
     'exact_namespace_match': external_set == committed_set,
     'crosswalk_status': 'reconciled' if external_set == committed_set else 'pending',
+    'semantic_crosswalk_status': semantic_crosswalk_status,
     'reviewed_semantic_crosswalks': [dict(item) for item in REVIEWED_SEMANTIC_CROSSWALKS],
     'semantic_crosswalk': semantic_crosswalk,
     'scoped_reviewed_external_only': sorted(external_set & reviewed_external_ids),
@@ -313,12 +319,12 @@ def preflight_corpus(path: Path) -> dict[str, Any]:
     errors.append('internal corpus checksums did not verify')
   if report['operator_reconciliation']['semantic_crosswalk']['status'] != 'valid':
     errors.append('committed semantic operator crosswalk is invalid')
-  operator_status = report['operator_reconciliation']['crosswalk_status']
+  operator_status = report['operator_reconciliation']['semantic_crosswalk_status']
   report.update({
     'status': 'preflight-valid-pending-release-gates' if not errors else 'invalid-content',
     'release_ready': False,
     'release_blockers': [
-      'external operator crosswalk is unresolved' if operator_status != 'reconciled' else None,
+      'external operator semantic crosswalk is incomplete' if operator_status != 'complete-scoped' else None,
       'provider-specific VIS/SIG/RAY comparisons are recorded but not accepted',
       'separately named MVP alignment archive is not yet verified',
     ],

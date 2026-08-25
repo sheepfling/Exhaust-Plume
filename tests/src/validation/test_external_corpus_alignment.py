@@ -71,3 +71,22 @@ def test_primary_gate_crosswalk_is_explicit_but_does_not_reconcile_namespace() -
     'operator.image.integrate_alsi_band_and_area',
   ]
   assert report['unreviewed_external_only'] == ['operator.unreviewed']
+
+
+def test_complete_scoped_crosswalk_covers_the_external_namespace_without_exact_aliasing() -> None:
+  external_alignment = tuple(
+    {'measurement_operator_id': entry['external_operator_id']}
+    for entry in REVIEWED_SEMANTIC_CROSSWALKS
+  )
+  registry_ids = (
+    row['operator_id']
+    for row in csv.DictReader(COMMITTED_OPERATOR_REGISTRY.open(newline='', encoding='utf-8'))
+  )
+
+  report = reconcile_operator_ids(external_alignment, registry_ids)
+
+  assert report['external_count'] == 35
+  assert report['semantic_crosswalk_status'] == 'complete-scoped'
+  assert report['semantic_crosswalk']['status'] == 'valid'
+  assert report['unreviewed_external_only'] == []
+  assert report['exact_namespace_match'] is False

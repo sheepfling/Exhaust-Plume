@@ -21,7 +21,7 @@ provider. The curved-support interval refinement is retained as a
 nonmonotonic geometry diagnostic and does not expand the provider’s morphology
 or claim ceiling.
 
-The resolved-to-unresolved operator evidence is recorded in
+The cross-product operator evidence is recorded in
 [`ray_signature_consistency_v1.json`](ray_signature_consistency_v1.json). It
 validates synthetic projected-area summation, ray misses, wavelength-grid
 identity, and parent snapshot lineage. It is an adapted, gray-approximate
@@ -63,8 +63,8 @@ following are true:
 
 The recovered archive now satisfies the integrity gate. Repository fixtures
 and regression tests remain engineering evidence, not experimental validation;
-the unresolved operator crosswalk, provider-specific comparisons, and separate
-alignment archive still block external claims.
+the exact external operator namespace remains distinct, while provider-specific
+comparisons and the separate alignment archive still block external claims.
 
 The provider-comparison preflight is recorded in
 [`provider_comparison_preflight_v1.json`](provider_comparison_preflight_v1.json).
@@ -116,8 +116,8 @@ T3 cross-product gate is `synthetic_only`. Those statuses describe the corpus
 alignment layer. The repository now has deterministic spectral-array
 sampling, peak-normalization, and numeric band-integration helpers, but still
 needs provider-bound LOS/path/detector operators, thresholds, source assets,
-and the unresolved operator crosswalk before it can accept any of the ten
-product comparisons.
+and accepted product-specific measurement-operator mappings before it can
+accept any of the ten product comparisons.
 
 ## Working branch
 
@@ -150,8 +150,8 @@ python3 scripts/validate_provider_comparisons.py \
 This command currently passes the VIS provider/conformance cases, SIG table
 interpolation cases, the synthetic ray-to-signature operator checks, and the
 negative FPA-advertisement boundary check. Its report intentionally remains
-`release_ready: false` until external measurement-operator comparisons and the
-operator crosswalk are complete.
+`release_ready: false` until external measurement-operator comparisons and
+product-specific gate acceptance are complete.
 
 The missing external archive is a release blocker, not a reason to weaken the
 fidelity boundaries or synthesize replacement measurements.

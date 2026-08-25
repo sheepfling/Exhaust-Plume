@@ -21,11 +21,12 @@
     },
     "operator_crosswalk_status": "pending",
     "release_blockers": [
-      "external operator crosswalk is unresolved",
       "provider-specific VIS/SIG/RAY comparisons are recorded but not accepted",
       "separately named MVP alignment archive is not yet verified"
     ],
-    "status": "preflight-valid-pending-release-gates"
+    "semantic_crosswalk_status": "complete-scoped",
+    "status": "preflight-valid-pending-release-gates",
+    "unreviewed_external_operator_count": 0
   },
   "external_status": "comparison-pending",
   "lanes": {
@@ -37,7 +38,7 @@
       "deterministic_serialization": true,
       "external_adapter_id": "adapter.far_field_from_rays@1",
       "external_comparison": {
-        "reason": "The adapter operator is verified against a homogeneous gray ray fixture; recovered sensor-space comparisons remain blocked by missing LOS/path/detector operators and the unresolved external namespace crosswalk.",
+        "reason": "The adapter operator is verified against a homogeneous gray ray fixture; recovered sensor-space comparisons remain blocked by missing LOS/path/detector operators, while the exact external namespace remains distinct despite complete scoped semantic review.",
         "status": "synthetic-only"
       },
       "lane_id": "ray-to-signature-consistency-v1",

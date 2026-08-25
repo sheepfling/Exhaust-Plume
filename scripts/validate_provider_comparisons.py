@@ -379,7 +379,7 @@ def build_comparison_plan(
 
   crosswalk_blocker = (
     'external measurement-operator namespace is not reconciled with the committed registry'
-    if operator_crosswalk_status != 'reconciled'
+    if operator_crosswalk_status not in {'reconciled', 'complete-scoped'}
     else None
   )
   visual_ids = list(providers['visual']['provider_ids'])
@@ -634,7 +634,10 @@ def build_provider_comparison_preflight(path: Path) -> dict[str, Any]:
   with ZipFile(path) as archive:
     observations = summarize_corpus_observations(archive)
   providers = _local_provider_inventory()
-  operator_status = corpus_report['operator_reconciliation']['crosswalk_status']
+  operator_status = corpus_report['operator_reconciliation'].get(
+    'semantic_crosswalk_status',
+    corpus_report['operator_reconciliation']['crosswalk_status'],
+  )
   operator_executions = execute_spectral_shape_probes(path, providers)
   visual_feature_execution = execute_visual_feature_probe(observations, providers)
   operator_executions['VIS-MVP-A-061'] = visual_feature_execution
@@ -653,8 +656,8 @@ def build_provider_comparison_preflight(path: Path) -> dict[str, Any]:
     'comparisons': comparisons,
     'unimplemented_product_boundaries': build_unimplemented_boundaries(providers),
     'release_blockers': [
-      'external operator crosswalk is unresolved',
-      'all current provider-specific external comparisons remain blocked by missing provider-bound measurement-space outputs, physical scenario assets, or reviewed operator crosswalks',
+      *(['external operator semantic crosswalk is incomplete'] if operator_status != 'complete-scoped' else []),
+      'all current provider-specific external comparisons remain blocked by missing provider-bound measurement-space outputs, physical scenario assets, or accepted product-specific measurement-operator mappings',
       'separately named MVP alignment archive is not yet verified',
     ],
   })
