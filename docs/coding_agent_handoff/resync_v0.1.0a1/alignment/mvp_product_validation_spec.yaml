@@ -1,0 +1,78 @@
+schema_version: 1.0.0
+purpose: Overlay the source-centric Version 7 corpus with product-centric MVP validation claims without altering source data.
+lifecycle:
+- PlumeProvider
+- PlumeSession
+- PlumeSnapshot
+primary_products:
+- plume.visual.sectioned-tube@1
+- plume.signature.spectral-radiant-intensity@1
+- plume.optical.spectral-ray-transfer@1
+supporting_products:
+- plume.spatial.support@1
+- plume.field.local-state@1
+- plume.optical.medium@1
+- plume.particles.population@1
+- plume.engineering.surface-response@1
+evidence_levels:
+  0: none_or_not_acquired
+  1: upstream_context
+  2: indirect_feature_or_envelope
+  3: quantitative_after_measurement_operator
+  4: direct_native_product_observable
+claim_record_required_fields:
+- claim_id
+- benchmark_id
+- product_id
+- product_version
+- measurement_operator_id
+- metric_id
+- applicability_domain
+- evidence_level
+- calibration_or_validation
+- uncertainty
+- provenance
+- limitations
+- status
+claim_rules:
+- Raw/digitized/model-derived source tables remain immutable and source-centric.
+- A benchmark may support several products through different operators and separately scoped claims.
+- Measured, digitized, modeled, derived, and envelope evidence are never silently merged.
+- Level 3 or 4 claims require a deterministic measurement operator and uncertainty treatment.
+- Sensor radiance, relative intensity, band power, and intrinsic J_lambda are different quantities.
+- Visual geometry, local fields, optical medium, ray transfer, and unresolved signature remain independent capabilities.
+release_suites:
+- suite_id: suite.vis.straight-mvp-v1
+  product_id: plume.visual.sectioned-tube@1
+  benchmarks:
+  - CJ-UEJ-001
+  - RP-HOTWAKE-001
+  - RP-RETALT-001
+  gate: Contract fixture plus shock-feature phase/spacing, hot Mach-disk location, and explicit geometry-claim limitations.
+- suite_id: suite.vis.washed-mvp-v1
+  product_id: plume.visual.sectioned-tube@1
+  benchmarks:
+  - RW-IGE-001
+  - FW-DWOW-001
+  - RW-VORTEX-001
+  gate: RW-IGE quantitative profiles and FAA envelope now; HART II required before a field-validated curved-wake claim.
+- suite_id: suite.sig.table-mvp-v1
+  product_id: plume.signature.spectral-radiant-intensity@1
+  benchmarks:
+  - RP-BSUV2-001
+  - RP-EMAP-RAD-001
+  - RP-ALSI-001
+  - RP-IR-001
+  gate: Native deterministic table provider passes contract tests; external data are reported as sensor-space/relative/band proxies until intrinsic closure is demonstrated.
+- suite_id: suite.ray.external-mvp-v1
+  product_id: plume.optical.spectral-ray-transfer@1
+  benchmarks:
+  - RP-BSUV2-001
+  - RP-EMAP-RAD-001
+  - RP-FASTRAC-001
+  - RP-ALSI-001
+  gate: Analytic slab/chord tests plus LOS spectral, surface heat-flux, extinction, and band-radiance comparisons.
+- suite_id: suite.cross-product-mvp-v1
+  product_id: cross_product
+  benchmarks: []
+  gate: XPROD-001 through XPROD-007 pass for every provider advertising multiple products.

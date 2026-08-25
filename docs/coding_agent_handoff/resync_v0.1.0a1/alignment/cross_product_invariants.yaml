@@ -1,0 +1,43 @@
+schema_version: 1.0.0
+source_architecture: PlumeProvider -> PlumeSession -> immutable PlumeSnapshot
+invariants:
+- id: XPROD-001
+  name: ray_to_signature_identity
+  equation: J_lambda(direction) = integral_over_projected_area L_lambda_source dA_perp
+  requirements:
+  - same snapshot_id, source state, time, direction, wavelength basis, and source-only radiance
+  - complete projected support and declared quadrature/truncation tolerance
+  - background transmittance is not folded into intrinsic J_lambda
+- id: XPROD-002
+  name: support_contains_nonzero_products
+  equation: nonzero spatial/ray source support subset_of advertised conservative support
+  requirements:
+  - same frame and snapshot
+  - support semantics are conservative rather than iso-contour truth
+- id: XPROD-003
+  name: miss_ray_behavior
+  equation: outside-support ray -> L_lambda_source = 0; tau_lambda_background follows declared background path semantics
+  requirements:
+  - explicit status/mask
+  - no placeholder radiance masquerading as valid data
+- id: XPROD-004
+  name: band_integration_consistency
+  equation: band(native signature) == band(projected ray integration) within spectral/quadrature tolerance
+  requirements:
+  - identical wavelength convention and detector weighting
+- id: XPROD-005
+  name: snapshot_derivation_coherence
+  equation: all co-reported products share snapshot_id or an explicit derivation chain
+  requirements:
+  - visual feature channels cannot be silently copied from a different provider/state
+- id: XPROD-006
+  name: no_unsupported_upward_inference
+  equation: signature-only evidence/provider cannot imply geometry, ray field, or local state
+  requirements:
+  - allowed downward derivations are explicit; unsupported upward inference is rejected
+- id: XPROD-007
+  name: claim_scope_and_provenance
+  equation: every validation result identifies benchmark, product, operator, metric, domain, uncertainty, and evidence role
+  requirements:
+  - calibration and validation cases remain disjoint
+  - limitations travel with the claim
