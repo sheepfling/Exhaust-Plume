@@ -1,0 +1,45 @@
+repository_quality:
+  commands:
+  - python -m ruff check .
+  - python -m pyright
+  - python -m pytest
+  - python -m build
+  - installed-wheel smoke
+  python_matrix:
+  - '3.10'
+  - '3.11'
+  - '3.12'
+  - '3.13'
+api_008:
+  canonical_authority: exhaust_plume.api
+  requirements:
+  - compatibility inventory complete
+  - canonical schemas generated from one model set
+  - a1 imports covered by compatibility tests
+  - provider conformance harness green
+washed_provider:
+  requirements:
+  - zero-wash straight equivalence
+  - rigid-transform invariance
+  - rotation-minimizing frame continuity
+  - torque reversal mirror symmetry
+  - mass/momentum/energy/tracer residuals
+  - explicit support and termination
+  - visual-only advertisement
+sidecar:
+  requirements:
+  - loopback-only bind
+  - strict JSON
+  - canonical schema parity
+  - structured error parity
+  - payload limits
+ray_advertisement:
+  requirements:
+  - slab
+  - chord
+  - layer ordering
+  - thin limit
+  - thick limit
+  - miss ray
+  - spatial refinement
+  - spectral refinement

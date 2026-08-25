@@ -1,0 +1,88 @@
+baseline:
+  repository: sheepfling/Exhaust-Plume
+  canonical_branch: main
+  main_commit: 49d6ffd1839258ce14319e157002005c6d2230e1
+  release_tag: v0.1.0a1
+  release_commit: 8b37e48b65321403bb3eb4ed0fdfe949dc9f1506
+  python_version_constant: 0.1.0.a1
+  distribution_version: 0.1.0a1
+  main_vs_tag: one merge commit ahead; no file-level differences
+  release_ci_evidence: No workflow run was returned for main@49d6ffd by the connected
+    GitHub query; rerun and record exact-main CI.
+milestones:
+- id: M0
+  name: Architecture and repository baseline
+  status: partial
+  evidence: Baseline and architecture docs exist but still describe the older a0/86195b
+    state.
+- id: M1
+  name: Provider contract foundation
+  status: partial
+  evidence: Provider/session/snapshot contracts exist, but two overlapping public
+    contract hierarchies remain.
+- id: M2
+  name: Corrected physics foundation and exit-state boundary
+  status: substantially_complete
+  evidence: Explicit gas/nozzle models, shock feasibility, geometry validity, and
+    compatibility paths are present.
+- id: M3
+  name: ShockCellAnalyticalProvider
+  status: implemented
+  evidence: Provider, support, zone-field, projected-area, and conservative exit handoff
+    exist.
+- id: M4
+  name: Validated first shock cell
+  status: partial
+  evidence: First-cell interfaces and analytical regressions exist; independent external
+    validation and full MOC evidence remain.
+- id: M5
+  name: Finite coherent shock train
+  status: not_started
+  evidence: Construction count remains a safety/request control; no calibrated physical
+    shock-train termination.
+- id: M6
+  name: Conservative provider handoff
+  status: partial
+  evidence: PlumeFluxSection exists, but duplicate representations and true downstream
+    shock-to-mixing handoff remain.
+- id: M7
+  name: Straight integral mixing provider
+  status: kernel_only
+  evidence: Straight continuation kernel exists; canonical provider and product adapters
+    do not.
+- id: M8
+  name: Gray radiative transfer
+  status: contract_only
+  evidence: Ray-transfer DTOs exist; physical ray intervals and transfer solver do
+    not.
+- id: M9
+  name: Far-field signature and consumer integration
+  status: partial
+  evidence: Table-backed signature and workflow exist; ray-derived signature consistency
+    does not.
+- id: M10
+  name: Direct SignatureTableProvider
+  status: implemented
+  evidence: Lookup-backed provider, interpolation policies, provenance, and CLI workflow
+    exist.
+- id: M11
+  name: Molecular spectral radiation
+  status: not_started
+  evidence: No spectroscopy/opacity or molecular transfer provider is claimed.
+- id: M12
+  name: Curved or washed integral provider
+  status: kernel_only
+  evidence: Curved solver, ambient fields, rotor wake, entrainment, buoyancy, and
+    geometry exist; canonical provider is missing.
+- id: M13
+  name: Thermochemistry and particles
+  status: not_started
+  evidence: Active plume path remains calorically perfect/frozen.
+- id: M14
+  name: Imported-field provider
+  status: not_started
+  evidence: No standard imported RANS/LES/CFD provider.
+- id: M15
+  name: GPU transient or general-3D provider
+  status: not_started
+  evidence: No accelerated/transient implementation.

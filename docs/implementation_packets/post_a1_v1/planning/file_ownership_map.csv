@@ -1,0 +1,8 @@
+path,role,owner_packet
+src/exhaust_plume/api,canonical public DTO/lifecycle/schema authority,A1-010
+src/exhaust_plume/models,provider-private computational physics,all physics packets
+src/exhaust_plume/contracts,compatibility/computational contracts pending classification,A1-010
+src/exhaust_plume/products,compatibility workflows and renderer-neutral outputs,A1-010/A1-050
+src/exhaust_plume/providers,provider implementations,A1-020/A1-040/A1-070/A1-080
+src/exhaust_plume/service,loopback transport only,A1-060
+src/exhaust_plume/compat,explicit a1 compatibility adapters,A1-010
