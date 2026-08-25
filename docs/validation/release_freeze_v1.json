@@ -3,7 +3,7 @@
   "schema_version": "plume.release-freeze@1",
   "branch": "work/validation-and-completion",
   "base_main_commit": "dd4d57611ba940c8fc4a9721d4b3464b6bbd7848",
-  "head_commit": "e78a5a596d66b8f6ae24a50cd74feb7b2a08c35e",
+  "head_commit": "a8741ed4064fadbe8cd7a87e102342292f621b2b",
   "remote_publish_status": "local-only-not-pushed-or-merged",
   "repository_quality": {
     "pytest": {
@@ -33,7 +33,10 @@
     "internal_checksums_verified": 137,
     "status": "preflight-valid-pending-release-gates",
     "source_corpus_tests": 57,
-    "source_corpus_tests_status": "passed-from-isolated-archive-extraction"
+    "source_corpus_tests_status": "passed-from-isolated-archive-extraction",
+    "provider_comparison_report": "provider_comparison_preflight_v1.json",
+    "gate_eligible_comparison_mappings": 10,
+    "gate_eligible_comparison_status": "all-blocked-not-accepted"
   },
   "component_validation": {
     "benchmark_id": "CJ-UEJ-001",
