@@ -124,10 +124,17 @@ integration, and deterministic expected-ADC-count adapter pass synthetic
 boundary checks. They make no externally validated image, measured detector,
 noise-realization, or detection claim.
 
-The branch-level freeze is recorded in
+The reduced-order first-cell correlation and planar MOC resolution evidence is
+recorded in
+[`first_cell_phase_1_report.md`](first_cell_phase_1_report.md). It passes the
+equation, matched-flow, scaling, and open-lattice diagnostic checks, but keeps
+the physical first-cell and external-reference gates open.
+
+The prior branch-level freeze is recorded in
 [`release_freeze_v1.json`](release_freeze_v1.json). It captures the current
-404-test, Ruff, Pyright, deterministic-asset, synthetic sensor-operator, and installed-wheel checks while keeping
-`release_ready` false until the external gates close.
+local quality and installed-wheel checks at its recorded source commit while
+keeping `release_ready` false until the external gates close. The first-cell
+tranche report is the more recent lane-specific evidence.
 
 The requirement-by-requirement audit is recorded in
 [`completion_requirement_audit_v1.json`](completion_requirement_audit_v1.json).
