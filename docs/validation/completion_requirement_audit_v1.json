@@ -1,7 +1,7 @@
 {
   "report_id": "exhaust-plume-completion-requirement-audit-v1",
   "schema_version": "plume.completion-requirement-audit@1",
-  "source_commit": "98d5161f0947d434f4d0c04383e427050bc95952",
+  "source_commit": "ce7be892e623714f22cdd6074047d1845d750d1b",
   "branch": "work/validation-and-completion",
   "base_main_commit": "dd4d57611ba940c8fc4a9721d4b3464b6bbd7848",
   "requirements": [
@@ -147,25 +147,38 @@
           "boundary_point_count": 9,
           "maximum_absolute_pressure_residual": 1.4361623714154308e-16,
           "maximum_absolute_tangent_residual": 0.0,
-          "maximum_absolute_geometry_residual": 1.1443916996305594e-16,
+          "maximum_absolute_geometry_residual": 5.551115123125783e-17,
+          "first_boundary_point_m": [0.26762119242516197, 0.1210932242424698],
+          "last_boundary_point_m": [0.7431488332818272, 0.1158153281924007],
           "closure_status": "open",
           "shock_closure": "candidate-open-cell",
           "shock_closure_candidate": {
             "status": "converged",
             "shock_status": "attached",
-            "shock_end_m": [0.8922526018896758, 0.0],
-            "geometry_residual_m": 0.0,
+            "shock_end_m": [0.8381801275335106, -1.3877787807814457e-17],
+            "geometry_residual_m": -1.3877787807814457e-17,
             "downstream_mach": 1.9526869005729972,
             "topology_status": "not_assembled"
           }
         },
-        "mesh_topology": "connected-one-boundary-cycle-no-nonmanifold-edges",
+        "reflected_characteristic_zone": {
+          "status": "converged_open",
+          "characteristic_count": 8,
+          "node_count": 45,
+          "cell_count": 44,
+          "topology": "open-connected-one-boundary-cycle-no-nonmanifold-edges",
+          "coverage_area_m2": 0.04041915264641294,
+          "coverage_area_residual_m2": 0.0,
+          "physical_closure_status": "open",
+          "shock_closure_status": "not_assembled"
+        },
+        "mesh_topology": "connected-one-boundary-cycle-no-nonmanifold-edges-and-zero-area-coverage-residual",
         "physical_first_cell": "not_assembled",
         "external_reference_comparison": "pending",
         "claim_status": "not_accepted",
         "blockers": [
-          "closed characteristic-cell topology and full post-shock bookkeeping are not assembled",
-          "the open fan resolution probe is diagnostic rather than convergence acceptance",
+          "full post-shock bookkeeping and physical shock closure are not assembled",
+          "the reflected-zone 4/8/16 resolution probe is diagnostic rather than convergence acceptance",
           "no independent planar MOC reference family is bound to the provider lane"
         ]
       }
@@ -174,11 +187,11 @@
       "requirement_id": "repository-release-quality",
       "status": "verified",
       "evidence": {
-        "pytest_passed": 409,
+        "pytest_passed": 410,
         "ruff": "passed",
         "pyright": "passed",
         "installed_wheel_smoke": "passed",
-        "wheel_sha256": "60eb33b468fb849ec59b8b623d58628ef79fa0f5f6bcee5b5a7a8b287f539ad6"
+        "wheel_sha256": "98716f1e3e9f435c59c59ed8a28142b8144d6b7d6c99b83d7ef6fc4c72e34445"
       }
     }
   ],
