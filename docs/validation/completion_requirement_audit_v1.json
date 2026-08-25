@@ -2,8 +2,8 @@
   "report_id": "exhaust-plume-completion-requirement-audit-v1",
   "schema_version": "plume.completion-requirement-audit@1",
   "source_commit": "b16f550b42331491430b18fcdbaf9275125e8b54",
-  "head_commit": "b16f550b42331491430b18fcdbaf9275125e8b54",
-  "head_commit_note": "The evidence snapshot includes the Visualization/Signature lane validation hardening recorded at b16f550.",
+  "head_commit": "964859fbe1150b81c5eb440a5a68ed8dfa7b2cc7",
+  "head_commit_note": "The evidence snapshot includes the Visualization/Signature lane validation hardening recorded at b16f550; the current ledger commit is documentation-only.",
   "branch": "work/validation-and-completion",
   "base_main_commit": "dd4d57611ba940c8fc4a9721d4b3464b6bbd7848",
   "requirements": [
