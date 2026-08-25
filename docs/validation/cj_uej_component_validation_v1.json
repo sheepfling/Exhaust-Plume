@@ -5,7 +5,7 @@
     "The source is convergent/choked while the current exit-state contract requires a near-sonic M>1 adapter.",
     "Only one bounded construction cell is available; physical shock-cell phase and spacing are not resolved.",
     "Construction-limit termination is not physical plume termination.",
-    "The external operator crosswalk is scoped to this component and is not a general namespace reconciliation."
+    "The component mapping is intentionally scoped to CJ-UEJ supporting evidence and does not authorize a primary VIS claim."
   ],
   "archive": {
     "actual_sha256": "79c2a34dd4c43bd976ceb8773fdccd78a2592d903bf03ca57c2aef82f882e9aa",
@@ -354,7 +354,10 @@
     "crosswalk_scope": "profile probe coordinates, source uncertainty, and disclosed averaging semantics only",
     "crosswalk_status": "semantic-match-reviewed-for-cj-uej-component-only",
     "external_operator_id": "operator.sample.canonical_jet_probe_lines",
-    "internal_operator_id": "op.field.profile-probe"
+    "internal_operator_id": "op.field.profile-probe",
+    "namespace_status": "pending",
+    "semantic_crosswalk_status": "complete-scoped",
+    "unreviewed_external_operator_count": 0
   },
   "profile_results": [
     {

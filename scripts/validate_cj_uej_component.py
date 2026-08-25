@@ -508,6 +508,11 @@ def build_cj_uej_component_report(
       'internal_operator_id': INTERNAL_OPERATOR_ID,
       'crosswalk_status': 'semantic-match-reviewed-for-cj-uej-component-only',
       'crosswalk_scope': 'profile probe coordinates, source uncertainty, and disclosed averaging semantics only',
+      'namespace_status': preflight.get('operator_reconciliation', {}).get('crosswalk_status'),
+      'semantic_crosswalk_status': preflight.get('operator_reconciliation', {}).get('semantic_crosswalk_status'),
+      'unreviewed_external_operator_count': len(
+        preflight.get('operator_reconciliation', {}).get('unreviewed_external_only', [])
+      ),
     },
     'validation_status': 'blocked-invalid-corpus',
     'claim_status': 'not_accepted',
@@ -620,7 +625,7 @@ def build_cj_uej_component_report(
       'The source is convergent/choked while the current exit-state contract requires a near-sonic M>1 adapter.',
       'Only one bounded construction cell is available; physical shock-cell phase and spacing are not resolved.',
       'Construction-limit termination is not physical plume termination.',
-      'The external operator crosswalk is scoped to this component and is not a general namespace reconciliation.',
+      'The component mapping is intentionally scoped to CJ-UEJ supporting evidence and does not authorize a primary VIS claim.',
     ],
   })
   return report
