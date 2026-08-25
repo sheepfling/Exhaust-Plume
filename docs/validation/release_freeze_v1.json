@@ -3,7 +3,7 @@
   "schema_version": "plume.release-freeze@1",
   "branch": "work/validation-and-completion",
   "base_main_commit": "dd4d57611ba940c8fc4a9721d4b3464b6bbd7848",
-  "head_commit": "45ea9edbf775ead0b8ebf69a8fa303f426b73e31",
+  "head_commit": "28f37fbebfda4fd95e44487acf1b17c55bea43a1",
   "remote_publish_status": "local-only-not-pushed-or-merged",
   "repository_quality": {
     "pytest": {
