@@ -505,6 +505,8 @@ def _descriptor(configuration: SignatureTableConfiguration) -> ProviderDescripto
     notes=(
       'definition-declared wavelength, direction-cosine, and optional time interpolation',
       f'extrapolation policy: {extrapolation_policy}',
+      'fidelity profile: signature-table-mvp-v1',
+      'tabulated source intensity only; no coupled flow, ray-transfer, or detector solution',
     ),
   )
 ####

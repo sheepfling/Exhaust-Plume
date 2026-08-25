@@ -35,6 +35,20 @@ provider-specific definition/configuration
 
 The shared lifecycle answers construction, resource ownership, time access, snapshot immutability, and capability discovery. It does **not** create a universal `PlumeResult`.
 
+## Fidelity lanes are separate providers
+
+The fast straight shock-cell model is intentionally frozen as a bounded
+`shock-cell-basic-v1` lane. It supplies visual geometry and explicitly named
+supporting handoffs; it does not advertise spectral signature, ray transfer, or
+focal-plane capability. The current signature product is an independent
+`signature-table-mvp-v1` lookup lane. Curved/washed flow, optical transfer, and
+detector/FPA work are later lanes with separate providers and validation gates.
+
+See [`solver_fidelity_boundaries.md`](solver_fidelity_boundaries.md) and its
+[machine-readable matrix](solver_fidelity_matrix_v1.json) for the change
+policy. A higher-fidelity comparison may produce evidence against the basic
+model, but it must not silently expand or retrain the basic provider.
+
 The three primary MVP products remain independently versioned:
 
 | Capability | Product | Included | Explicitly excluded |
