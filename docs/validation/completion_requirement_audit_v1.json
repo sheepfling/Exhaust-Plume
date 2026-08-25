@@ -1,7 +1,7 @@
 {
   "report_id": "exhaust-plume-completion-requirement-audit-v1",
   "schema_version": "plume.completion-requirement-audit@1",
-  "source_commit": "be1f02e",
+  "source_commit": "f9a405d",
   "branch": "work/validation-and-completion",
   "base_main_commit": "dd4d57611ba940c8fc4a9721d4b3464b6bbd7848",
   "requirements": [
