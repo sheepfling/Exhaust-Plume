@@ -8,7 +8,7 @@
   "repository_quality": {
     "pytest": {
       "status": "passed",
-      "tests_passed": 350,
+      "tests_passed": 351,
       "warnings": 18
     },
     "ruff": "passed",
@@ -58,9 +58,17 @@
     "shock_train_status": "partial_component_evidence-not_accepted",
     "shock_train_calibration_validation_split": "blocked-no-disjoint-cases"
   },
+  "operator_crosswalk": {
+    "artifact": "operator_semantic_crosswalk_v1.json",
+    "status": "valid-scoped-review-general-reconciliation-pending",
+    "entries": 8,
+    "primary_gate_external_operator_count": 7,
+    "primary_gate_alignment_count": 10,
+    "unreviewed_external_operator_count": 27
+  },
   "release_ready": false,
   "release_blockers": [
-    "general external operator crosswalk remains unresolved; the CJ mapping is component-scoped only",
+    "general external operator crosswalk remains unresolved; scoped gate mappings are documented but not executable equivalence",
     "all current provider-specific external comparisons remain blocked by missing provider-bound measurement-space outputs, physical scenario assets, or reviewed operator crosswalks",
     "reduced-order shock-train closure has no disjoint calibration/validation split or train-cell measurement operator",
     "separately named MVP alignment archive is not yet verified"

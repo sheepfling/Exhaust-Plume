@@ -39,6 +39,31 @@ uncertainty, and profile sampling. The mapping is explicitly scoped to
 `CJ-UEJ-001` supporting-component evidence; it does not reconcile the
 external `operator.*` namespace or authorize a primary VIS product claim.
 
+The gate-specific semantic review is recorded in
+[`operator_semantic_crosswalk_v1.json`](operator_semantic_crosswalk_v1.json).
+It covers the seven unique external operators used by the ten primary-product
+gate mappings and preserves the existing CJ-UEJ supporting-component review.
+The review records one-to-one matches, ordered operator pipelines, partial
+matches, and one explicit no-safe-equivalent case. It is a typed governance
+artifact, not an automatic alias table: the overall namespace remains
+pending, provider execution remains separately gated, and every entry retains
+`claim_status: not_accepted`.
+
+In particular, the crosswalk makes these boundaries explicit:
+
+- the Mach-disk feature operator is semantically scoped to
+  `op.visual.feature-extractor`, but the current visual provider still lacks
+  the feature channel;
+- the two spectral-shape operators are pipelines over sampling,
+  normalization, and (for RAY) LOS/FOV transfer, not intrinsic `J_lambda`
+  claims;
+- the Gardon and ALSI mappings are partial because surface response,
+  detector calibration, formulation sweeps, or image-area lineage are not
+  present in the current providers;
+- `operator.image.integrate_alsi_band_and_area` has no safe committed
+  equivalent and is deliberately not substituted with the source-only
+  projected-area operator.
+
 Three deterministic spectral-array helpers are now implemented and unit-tested
 under the committed namespace: `op.sensor.spectral-sampling`,
 `op.sensor.peak-normalize-spectrum`, and `op.sensor.band-integral`. They cover

@@ -1497,11 +1497,244 @@
     ],
     "reviewed_semantic_crosswalks": [
       {
+        "alignment_ids": [
+          "MVP-A-049",
+          "MVP-A-051"
+        ],
+        "claim_status": "not_accepted",
         "external_operator_id": "operator.sample.canonical_jet_probe_lines",
-        "internal_operator_id": "op.field.profile-probe",
-        "scope": "CJ-UEJ-001 supporting-component profile diagnostics only",
-        "status": "semantic-match-reviewed-for-cj-uej-component-only"
+        "internal_operator_ids": [
+          "op.field.profile-probe"
+        ],
+        "mapping_kind": "one-to-one-scoped",
+        "product_ids": [
+          "plume.field.local-state@1"
+        ],
+        "review_status": "semantic-match-reviewed-for-cj-uej-component-only",
+        "scope": "CJ-UEJ-001 supporting-component profile diagnostics with disclosed x/D, y/D, probe/source uncertainty, and profile sampling.",
+        "unresolved_differences": [
+          "This is not a primary VIS product operator mapping.",
+          "The component claim remains proposed and unaccepted."
+        ]
+      },
+      {
+        "alignment_ids": [
+          "MVP-A-043",
+          "MVP-A-044"
+        ],
+        "claim_status": "not_accepted",
+        "external_operator_id": "operator.sensor.bsuv2_los_fov",
+        "internal_operator_ids": [
+          "op.sensor.los-fov-spectrum"
+        ],
+        "mapping_kind": "one-to-one-scoped",
+        "product_ids": [
+          "plume.signature.spectral-radiant-intensity@1",
+          "plume.optical.spectral-ray-transfer@1"
+        ],
+        "review_status": "semantic-match-reviewed-partial",
+        "scope": "Combined line-of-sight and field-of-view sensor-space radiance; the external claim is not intrinsic source J_lambda.",
+        "unresolved_differences": [
+          "The committed operator is typed for the optical ray-transfer product; extending it to the SIG target requires an explicit product contract.",
+          "Current providers do not expose the required observer pose, FOV, atmospheric path, and sensor-response scenario."
+        ]
+      },
+      {
+        "alignment_ids": [
+          "MVP-A-061"
+        ],
+        "claim_status": "not_accepted",
+        "external_operator_id": "operator.extract.sectioned_tube_mach_disk_position",
+        "internal_operator_ids": [
+          "op.visual.feature-extractor"
+        ],
+        "mapping_kind": "one-to-one-scoped",
+        "product_ids": [
+          "plume.visual.sectioned-tube@1"
+        ],
+        "review_status": "semantic-match-reviewed-scoped",
+        "scope": "Mach-disk axial position versus chamber pressure, with branch-aware treatment of the unordered hysteretic point cloud.",
+        "unresolved_differences": [
+          "Current visual providers emit display channels and no mach_disk_position_m channel.",
+          "The bounded construction endpoint is not a physical Mach-disk endpoint."
+        ]
+      },
+      {
+        "alignment_ids": [
+          "MVP-A-064",
+          "MVP-A-066"
+        ],
+        "claim_status": "not_accepted",
+        "external_operator_id": "operator.spectrum.peak_normalize_after_sensor_sampling",
+        "internal_operator_ids": [
+          "op.sensor.spectral-sampling",
+          "op.sensor.peak-normalize-spectrum"
+        ],
+        "mapping_kind": "ordered-pipeline",
+        "product_ids": [
+          "plume.signature.spectral-radiant-intensity@1"
+        ],
+        "review_status": "semantic-match-reviewed-scoped",
+        "scope": "Sample a model spectrum onto the declared sensor grid and then compare peak-normalized relative shape.",
+        "unresolved_differences": [
+          "The current spectral probe has no overlap with the external UVVIS curve and only partial overlap with the FTIR curve.",
+          "The pipeline does not provide source calibration or absolute radiant-intensity validation."
+        ]
+      },
+      {
+        "alignment_ids": [
+          "MVP-A-065",
+          "MVP-A-067"
+        ],
+        "claim_status": "not_accepted",
+        "external_operator_id": "operator.spectrum.peak_normalize_after_los_transfer",
+        "internal_operator_ids": [
+          "op.sensor.los-fov-spectrum",
+          "op.sensor.spectral-sampling",
+          "op.sensor.peak-normalize-spectrum"
+        ],
+        "mapping_kind": "ordered-pipeline",
+        "product_ids": [
+          "plume.optical.spectral-ray-transfer@1"
+        ],
+        "review_status": "semantic-match-reviewed-scoped",
+        "scope": "Compare source-plus-path line-of-sight spectral shape after declared LOS/FOV transfer, sensor sampling, and peak normalization.",
+        "unresolved_differences": [
+          "Current optical probes are analytic or synthetic fixtures and are not bound to the external EMAP observer/path scenario.",
+          "The current spectral probe has no overlap with the external UVVIS curve and only partial overlap with the FTIR curve."
+        ]
+      },
+      {
+        "alignment_ids": [
+          "MVP-A-068"
+        ],
+        "claim_status": "not_accepted",
+        "external_operator_id": "operator.surface.gardon_band_integral",
+        "internal_operator_ids": [
+          "op.ray.surface-radiometer",
+          "op.sensor.band-integral"
+        ],
+        "mapping_kind": "composed-operators",
+        "product_ids": [
+          "plume.optical.spectral-ray-transfer@1"
+        ],
+        "review_status": "semantic-match-reviewed-partial",
+        "scope": "Ray-to-surface band-integrated radiative heat flux after declared surface geometry and gauge response.",
+        "unresolved_differences": [
+          "The current band-integral helper is a spectral-array reduction and does not supply a time-dependent surface pose, view factor, or Gardon response.",
+          "The provider comparison is not executed because the corpus observation is a time history rather than a spectral curve."
+        ]
+      },
+      {
+        "alignment_ids": [
+          "MVP-A-073"
+        ],
+        "claim_status": "not_accepted",
+        "external_operator_id": "operator.sensor.alsi_thermal_band",
+        "internal_operator_ids": [
+          "op.sensor.bandpass-detector",
+          "op.sensor.band-integral"
+        ],
+        "mapping_kind": "composed-operators",
+        "product_ids": [
+          "plume.signature.spectral-radiant-intensity@1"
+        ],
+        "review_status": "semantic-match-reviewed-partial",
+        "scope": "Band-integrated detector response and formulation trend, without promoting the result to a resolved spectrum.",
+        "unresolved_differences": [
+          "The committed operators do not encode the ALSI formulation sweep, calibration, or detector-specific response asset.",
+          "The corpus record is a band-integrated thermal table without a spectral curve, so the current spectral probe is not executed."
+        ]
+      },
+      {
+        "alignment_ids": [
+          "MVP-A-074"
+        ],
+        "candidate_internal_operator_ids": [
+          "op.sensor.bandpass-detector",
+          "op.sensor.band-integral",
+          "op.ray.projected-area-signature"
+        ],
+        "claim_status": "not_accepted",
+        "external_operator_id": "operator.image.integrate_alsi_band_and_area",
+        "internal_operator_ids": [],
+        "mapping_kind": "no-safe-equivalent",
+        "product_ids": [
+          "plume.optical.spectral-ray-transfer@1"
+        ],
+        "review_status": "no-safe-equivalent-reviewed",
+        "scope": "Band-integrated image/ray reduction for projected total power.",
+        "unresolved_differences": [
+          "No single committed operator preserves the external image-area lineage, detector response, and projected-power semantics together.",
+          "The projected-area signature operator is source-only and cannot be substituted automatically."
+        ]
       }
+    ],
+    "scoped_reviewed_external_only": [
+      "operator.extract.sectioned_tube_mach_disk_position",
+      "operator.image.integrate_alsi_band_and_area",
+      "operator.sample.canonical_jet_probe_lines",
+      "operator.sensor.alsi_thermal_band",
+      "operator.sensor.bsuv2_los_fov",
+      "operator.spectrum.peak_normalize_after_los_transfer",
+      "operator.spectrum.peak_normalize_after_sensor_sampling",
+      "operator.surface.gardon_band_integral"
+    ],
+    "semantic_crosswalk": {
+      "entry_count": 8,
+      "errors": [],
+      "external_operator_ids": [
+        "operator.extract.sectioned_tube_mach_disk_position",
+        "operator.image.integrate_alsi_band_and_area",
+        "operator.sample.canonical_jet_probe_lines",
+        "operator.sensor.alsi_thermal_band",
+        "operator.sensor.bsuv2_los_fov",
+        "operator.spectrum.peak_normalize_after_los_transfer",
+        "operator.spectrum.peak_normalize_after_sensor_sampling",
+        "operator.surface.gardon_band_integral"
+      ],
+      "referenced_internal_operator_ids": [
+        "op.field.profile-probe",
+        "op.ray.projected-area-signature",
+        "op.ray.surface-radiometer",
+        "op.sensor.band-integral",
+        "op.sensor.bandpass-detector",
+        "op.sensor.los-fov-spectrum",
+        "op.sensor.peak-normalize-spectrum",
+        "op.sensor.spectral-sampling",
+        "op.visual.feature-extractor"
+      ],
+      "status": "valid",
+      "unknown_internal_operator_ids": []
+    },
+    "unreviewed_external_only": [
+      "operator.align.pressure_and_radiation_time_histories",
+      "operator.align.snapshot_time_to_pressure_trace",
+      "operator.ambient_flow_to_curved_centerline_component",
+      "operator.ambient_velocity_to_deflection_envelope",
+      "operator.bin.particle_velocity_events",
+      "operator.case.configure_emap_materials",
+      "operator.case.select_alsi_formulation",
+      "operator.case.select_emap_hot_fire",
+      "operator.case.select_emap_nozzle_state",
+      "operator.case.select_retalt_run",
+      "operator.case.select_rotor_ige",
+      "operator.compare.source_equilibrium_context",
+      "operator.compute.transmittance_from_extinction",
+      "operator.extract.feature_frequency",
+      "operator.extract.feature_frequency_and_mode",
+      "operator.extract.local_field_mach_disk_position",
+      "operator.extract.shock_features_from_local_field",
+      "operator.optics.scalar_extinction_envelope",
+      "operator.particle_kinematics_to_optical_component",
+      "operator.particle_population_to_optical_component",
+      "operator.reduce.field_to_reported_extrema",
+      "operator.sample.hotwake_piv_locations",
+      "operator.sample.local_field_at_probe_stations",
+      "operator.sample.particle_size_distribution",
+      "operator.sample.surface_pressure_sensors",
+      "operator.sensor.black_brant_imager",
+      "operator.surface.conjugate_thermal_response"
     ]
   },
   "providers": {

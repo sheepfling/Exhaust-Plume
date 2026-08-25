@@ -1,0 +1,191 @@
+{
+  "report_id": "exhaust-plume-operator-semantic-crosswalk-v1",
+  "schema_version": "plume.operator-semantic-crosswalk@1",
+  "status": "scoped-review-complete-general-reconciliation-pending",
+  "review_scope": "All unique external operators attached to the ten primary-product gate-eligible mappings in the embedded Version 8 alignment overlay, plus the existing CJ-UEJ supporting-component mapping.",
+  "external_source": {
+    "archive": "plume_validation_data_v8.zip",
+    "archive_sha256": "79c2a34dd4c43bd976ceb8773fdccd78a2592d903bf03ca57c2aef82f882e9aa",
+    "relative_path": "data/mvp_data_product_alignment.json"
+  },
+  "internal_source": {
+    "relative_path": "docs/coding_agent_handoff/resync_v0.1.0a1/alignment/measurement_operator_registry.csv",
+    "namespace": "op.*"
+  },
+  "claim_policy": "A scoped semantic match documents comparable intent; it does not make a provider executable, close an external gate, or authorize an accepted product claim.",
+  "entries": [
+    {
+      "external_operator_id": "operator.sample.canonical_jet_probe_lines",
+      "internal_operator_ids": [
+        "op.field.profile-probe"
+      ],
+      "mapping_kind": "one-to-one-scoped",
+      "review_status": "semantic-match-reviewed-for-cj-uej-component-only",
+      "alignment_ids": [
+        "MVP-A-049",
+        "MVP-A-051"
+      ],
+      "product_ids": [
+        "plume.field.local-state@1"
+      ],
+      "scope": "CJ-UEJ-001 supporting-component profile diagnostics with disclosed x/D, y/D, probe/source uncertainty, and profile sampling.",
+      "unresolved_differences": [
+        "This is not a primary VIS product operator mapping.",
+        "The component claim remains proposed and unaccepted."
+      ],
+      "claim_status": "not_accepted"
+    },
+    {
+      "external_operator_id": "operator.sensor.bsuv2_los_fov",
+      "internal_operator_ids": [
+        "op.sensor.los-fov-spectrum"
+      ],
+      "mapping_kind": "one-to-one-scoped",
+      "review_status": "semantic-match-reviewed-partial",
+      "alignment_ids": [
+        "MVP-A-043",
+        "MVP-A-044"
+      ],
+      "product_ids": [
+        "plume.signature.spectral-radiant-intensity@1",
+        "plume.optical.spectral-ray-transfer@1"
+      ],
+      "scope": "Combined line-of-sight and field-of-view sensor-space radiance; the external claim is not intrinsic source J_lambda.",
+      "unresolved_differences": [
+        "The committed operator is typed for the optical ray-transfer product; extending it to the SIG target requires an explicit product contract.",
+        "Current providers do not expose the required observer pose, FOV, atmospheric path, and sensor-response scenario."
+      ],
+      "claim_status": "not_accepted"
+    },
+    {
+      "external_operator_id": "operator.extract.sectioned_tube_mach_disk_position",
+      "internal_operator_ids": [
+        "op.visual.feature-extractor"
+      ],
+      "mapping_kind": "one-to-one-scoped",
+      "review_status": "semantic-match-reviewed-scoped",
+      "alignment_ids": [
+        "MVP-A-061"
+      ],
+      "product_ids": [
+        "plume.visual.sectioned-tube@1"
+      ],
+      "scope": "Mach-disk axial position versus chamber pressure, with branch-aware treatment of the unordered hysteretic point cloud.",
+      "unresolved_differences": [
+        "Current visual providers emit display channels and no mach_disk_position_m channel.",
+        "The bounded construction endpoint is not a physical Mach-disk endpoint."
+      ],
+      "claim_status": "not_accepted"
+    },
+    {
+      "external_operator_id": "operator.spectrum.peak_normalize_after_sensor_sampling",
+      "internal_operator_ids": [
+        "op.sensor.spectral-sampling",
+        "op.sensor.peak-normalize-spectrum"
+      ],
+      "mapping_kind": "ordered-pipeline",
+      "review_status": "semantic-match-reviewed-scoped",
+      "alignment_ids": [
+        "MVP-A-064",
+        "MVP-A-066"
+      ],
+      "product_ids": [
+        "plume.signature.spectral-radiant-intensity@1"
+      ],
+      "scope": "Sample a model spectrum onto the declared sensor grid and then compare peak-normalized relative shape.",
+      "unresolved_differences": [
+        "The current spectral probe has no overlap with the external UVVIS curve and only partial overlap with the FTIR curve.",
+        "The pipeline does not provide source calibration or absolute radiant-intensity validation."
+      ],
+      "claim_status": "not_accepted"
+    },
+    {
+      "external_operator_id": "operator.spectrum.peak_normalize_after_los_transfer",
+      "internal_operator_ids": [
+        "op.sensor.los-fov-spectrum",
+        "op.sensor.spectral-sampling",
+        "op.sensor.peak-normalize-spectrum"
+      ],
+      "mapping_kind": "ordered-pipeline",
+      "review_status": "semantic-match-reviewed-scoped",
+      "alignment_ids": [
+        "MVP-A-065",
+        "MVP-A-067"
+      ],
+      "product_ids": [
+        "plume.optical.spectral-ray-transfer@1"
+      ],
+      "scope": "Compare source-plus-path line-of-sight spectral shape after declared LOS/FOV transfer, sensor sampling, and peak normalization.",
+      "unresolved_differences": [
+        "Current optical probes are analytic or synthetic fixtures and are not bound to the external EMAP observer/path scenario.",
+        "The current spectral probe has no overlap with the external UVVIS curve and only partial overlap with the FTIR curve."
+      ],
+      "claim_status": "not_accepted"
+    },
+    {
+      "external_operator_id": "operator.surface.gardon_band_integral",
+      "internal_operator_ids": [
+        "op.ray.surface-radiometer",
+        "op.sensor.band-integral"
+      ],
+      "mapping_kind": "composed-operators",
+      "review_status": "semantic-match-reviewed-partial",
+      "alignment_ids": [
+        "MVP-A-068"
+      ],
+      "product_ids": [
+        "plume.optical.spectral-ray-transfer@1"
+      ],
+      "scope": "Ray-to-surface band-integrated radiative heat flux after declared surface geometry and gauge response.",
+      "unresolved_differences": [
+        "The current band-integral helper is a spectral-array reduction and does not supply a time-dependent surface pose, view factor, or Gardon response.",
+        "The provider comparison is not executed because the corpus observation is a time history rather than a spectral curve."
+      ],
+      "claim_status": "not_accepted"
+    },
+    {
+      "external_operator_id": "operator.sensor.alsi_thermal_band",
+      "internal_operator_ids": [
+        "op.sensor.bandpass-detector",
+        "op.sensor.band-integral"
+      ],
+      "mapping_kind": "composed-operators",
+      "review_status": "semantic-match-reviewed-partial",
+      "alignment_ids": [
+        "MVP-A-073"
+      ],
+      "product_ids": [
+        "plume.signature.spectral-radiant-intensity@1"
+      ],
+      "scope": "Band-integrated detector response and formulation trend, without promoting the result to a resolved spectrum.",
+      "unresolved_differences": [
+        "The committed operators do not encode the ALSI formulation sweep, calibration, or detector-specific response asset.",
+        "The corpus record is a band-integrated thermal table without a spectral curve, so the current spectral probe is not executed."
+      ],
+      "claim_status": "not_accepted"
+    },
+    {
+      "external_operator_id": "operator.image.integrate_alsi_band_and_area",
+      "internal_operator_ids": [],
+      "candidate_internal_operator_ids": [
+        "op.sensor.bandpass-detector",
+        "op.sensor.band-integral",
+        "op.ray.projected-area-signature"
+      ],
+      "mapping_kind": "no-safe-equivalent",
+      "review_status": "no-safe-equivalent-reviewed",
+      "alignment_ids": [
+        "MVP-A-074"
+      ],
+      "product_ids": [
+        "plume.optical.spectral-ray-transfer@1"
+      ],
+      "scope": "Band-integrated image/ray reduction for projected total power.",
+      "unresolved_differences": [
+        "No single committed operator preserves the external image-area lineage, detector response, and projected-power semantics together.",
+        "The projected-area signature operator is source-only and cannot be substituted automatically."
+      ],
+      "claim_status": "not_accepted"
+    }
+  ]
+}

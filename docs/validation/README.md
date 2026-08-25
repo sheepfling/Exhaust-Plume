@@ -69,6 +69,12 @@ FTIR produces only a partial-overlap diagnostic because the synthetic provider
 ends at 3 micrometres and the observation continues beyond 5 micrometres.
 Those residuals are diagnostics, not validation claims.
 
+The reviewed, gate-specific operator semantics are recorded in
+[`operator_semantic_crosswalk_v1.json`](operator_semantic_crosswalk_v1.json).
+This artifact documents scoped matches and explicit non-equivalences without
+closing the general external `operator.*` versus internal `op.*` namespace
+reconciliation gate.
+
 The reproducible local lane run is preserved in
 [`product_lane_validation_v1.json`](product_lane_validation_v1.json). It shows
 independent VIS and SIG contract/operator acceptance, the analytic optical
@@ -102,7 +108,7 @@ detection claim.
 
 The branch-level freeze is recorded in
 [`release_freeze_v1.json`](release_freeze_v1.json). It captures the current
-349-test, Ruff, Pyright, deterministic-asset, and installed-wheel checks while keeping
+351-test, Ruff, Pyright, deterministic-asset, and installed-wheel checks while keeping
 `release_ready` false until the external gates close.
 
 The intake gate is a prerequisite for external validation claims. Corpus

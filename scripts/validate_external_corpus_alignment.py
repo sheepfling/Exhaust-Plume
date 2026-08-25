@@ -26,6 +26,7 @@ COMMITTED_OPERATOR_REGISTRY = (
   / 'alignment'
   / 'measurement_operator_registry.csv'
 )
+SEMANTIC_CROSSWALK = REPO_ROOT / 'docs' / 'validation' / 'operator_semantic_crosswalk_v1.json'
 PRIMARY_PRODUCTS = {
   'plume.visual.sectioned-tube@1',
   'plume.signature.spectral-radiant-intensity@1',
@@ -36,14 +37,58 @@ SIGNATURE_PRODUCT = 'plume.signature.spectral-radiant-intensity@1'
 RAY_PRODUCT = 'plume.optical.spectral-ray-transfer@1'
 
 
-REVIEWED_SEMANTIC_CROSSWALKS = (
-  {
-    'external_operator_id': 'operator.sample.canonical_jet_probe_lines',
-    'internal_operator_id': 'op.field.profile-probe',
-    'status': 'semantic-match-reviewed-for-cj-uej-component-only',
-    'scope': 'CJ-UEJ-001 supporting-component profile diagnostics only',
-  },
-)
+def _load_semantic_crosswalk() -> tuple[dict[str, Any], ...]:
+  payload = json.loads(SEMANTIC_CROSSWALK.read_text(encoding='utf-8'))
+  entries = payload.get('entries')
+  if not isinstance(entries, list) or not all(isinstance(entry, dict) for entry in entries):
+    raise ValueError('operator semantic crosswalk must contain an entries list of objects')
+  return tuple(dict(entry) for entry in entries)
+
+
+REVIEWED_SEMANTIC_CROSSWALKS = _load_semantic_crosswalk()
+
+
+def _validate_semantic_crosswalk(committed_operator_ids: Iterable[str]) -> dict[str, Any]:
+  committed_set = set(committed_operator_ids)
+  errors: list[str] = []
+  external_ids: list[str] = []
+  referenced_internal_ids: set[str] = set()
+  for index, entry in enumerate(REVIEWED_SEMANTIC_CROSSWALKS):
+    external_id = entry.get('external_operator_id')
+    if not isinstance(external_id, str) or not external_id:
+      errors.append(f'crosswalk entry {index} has no external operator ID')
+      continue
+    external_ids.append(external_id)
+    internal_ids = entry.get('internal_operator_ids')
+    if not isinstance(internal_ids, list) or not all(isinstance(item, str) for item in internal_ids):
+      errors.append(f'crosswalk entry {external_id} has invalid internal_operator_ids')
+      internal_ids = []
+    referenced_internal_ids.update(internal_ids)
+    candidates = entry.get('candidate_internal_operator_ids', [])
+    if not isinstance(candidates, list) or not all(isinstance(item, str) for item in candidates):
+      errors.append(f'crosswalk entry {external_id} has invalid candidate_internal_operator_ids')
+      candidates = []
+    referenced_internal_ids.update(candidates)
+    if entry.get('mapping_kind') == 'no-safe-equivalent' and internal_ids:
+      errors.append(f'no-safe-equivalent entry {external_id} has executable internal IDs')
+    if entry.get('claim_status') != 'not_accepted':
+      errors.append(f'crosswalk entry {external_id} does not retain not_accepted claim status')
+    for field in ('mapping_kind', 'review_status', 'scope', 'unresolved_differences'):
+      if field not in entry:
+        errors.append(f'crosswalk entry {external_id} is missing {field}')
+  duplicates = sorted({external_id for external_id in external_ids if external_ids.count(external_id) > 1})
+  errors.extend(f'duplicate crosswalk external operator ID: {external_id}' for external_id in duplicates)
+  unknown_internal_ids = sorted(referenced_internal_ids - committed_set)
+  if unknown_internal_ids:
+    errors.append(f'crosswalk references unknown internal operator IDs: {unknown_internal_ids!r}')
+  return {
+    'entry_count': len(REVIEWED_SEMANTIC_CROSSWALKS),
+    'external_operator_ids': sorted(set(external_ids)),
+    'referenced_internal_operator_ids': sorted(referenced_internal_ids),
+    'unknown_internal_operator_ids': unknown_internal_ids,
+    'errors': errors,
+    'status': 'valid' if not errors else 'invalid',
+  }
 
 
 def _resolve_member(archive: ZipFile, relative_path: str) -> str:
@@ -85,6 +130,12 @@ def reconcile_operator_ids(
   committed_ids = sorted(set(committed_operator_ids))
   external_set = set(external_ids)
   committed_set = set(committed_ids)
+  semantic_crosswalk = _validate_semantic_crosswalk(committed_set)
+  reviewed_external_ids = {
+    str(item['external_operator_id'])
+    for item in REVIEWED_SEMANTIC_CROSSWALKS
+    if item.get('external_operator_id')
+  }
   return {
     'external_count': len(external_ids),
     'committed_count': len(committed_ids),
@@ -93,6 +144,9 @@ def reconcile_operator_ids(
     'exact_namespace_match': external_set == committed_set,
     'crosswalk_status': 'reconciled' if external_set == committed_set else 'pending',
     'reviewed_semantic_crosswalks': [dict(item) for item in REVIEWED_SEMANTIC_CROSSWALKS],
+    'semantic_crosswalk': semantic_crosswalk,
+    'scoped_reviewed_external_only': sorted(external_set & reviewed_external_ids),
+    'unreviewed_external_only': sorted(external_set - reviewed_external_ids),
   }
 
 
@@ -257,6 +311,8 @@ def preflight_corpus(path: Path) -> dict[str, Any]:
   checksum_status = report['internal_checksums']['status']
   if checksum_status != 'verified':
     errors.append('internal corpus checksums did not verify')
+  if report['operator_reconciliation']['semantic_crosswalk']['status'] != 'valid':
+    errors.append('committed semantic operator crosswalk is invalid')
   operator_status = report['operator_reconciliation']['crosswalk_status']
   report.update({
     'status': 'preflight-valid-pending-release-gates' if not errors else 'invalid-content',
