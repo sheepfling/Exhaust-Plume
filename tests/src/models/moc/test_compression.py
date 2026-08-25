@@ -6,6 +6,7 @@ from exhaust_plume.models.moc import (
   MocPrimitiveStatus,
   solve_overexpanded_lip_shock,
   solve_attached_compression_to_pressure,
+  solve_attached_compression_to_turn,
 )
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput
 from exhaust_plume.models.nozzle.exit_state import derive_ambient_state, derive_uniform_nozzle_exit
@@ -65,6 +66,39 @@ def test_compression_reports_pressure_above_normal_shock_limit() -> None:
 
   assert result.status is MocPrimitiveStatus.OUTSIDE_DOMAIN
   assert result.shock_status is ShockSolveStatus.PRESSURE_ABOVE_NORMAL_SHOCK_LIMIT
+
+
+def test_attached_turn_compression_reconstructs_supersonic_downstream_state() -> None:
+  result = solve_attached_compression_to_turn(
+    upstream_mach=2.0,
+    gamma=1.4,
+    upstream_pressure_Pa=100000.0,
+    target_turn_rad=0.1,
+  )
+
+  assert result.converged
+  assert result.shock_status is ShockSolveStatus.ATTACHED
+  assert result.branch is ShockBranch.WEAK
+  assert result.downstream_flow_angle_rad == pytest.approx(0.1)
+  assert result.beta_rad is not None
+  assert result.downstream_mach is not None and result.downstream_mach > 1.0
+  assert result.downstream_pressure_Pa is not None and result.downstream_pressure_Pa > 100000.0
+  assert result.pressure_ratio is not None and result.pressure_ratio > 1.0
+  assert result.turn_residual == pytest.approx(0.0, abs=1.0e-12)
+
+
+def test_turn_compression_rejects_a_detached_turn() -> None:
+  result = solve_attached_compression_to_turn(
+    upstream_mach=2.0,
+    gamma=1.4,
+    upstream_pressure_Pa=100000.0,
+    target_turn_rad=1.0,
+  )
+
+  assert result.status is MocPrimitiveStatus.OUTSIDE_DOMAIN
+  assert result.shock_status is ShockSolveStatus.DETACHED_SHOCK_REQUIRED
+  assert result.beta_rad is None
+  assert result.downstream_pressure_Pa is None
 
 
 def test_mild_overexpanded_lip_shock_reaches_the_centerline() -> None:

@@ -23,6 +23,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   inverse_prandtl_meyer_angle_rad,
   prandtl_meyer_angle_rad,
   solve_attached_compression_to_pressure,
+  solve_attached_compression_to_turn,
   solve_ambient_pressure_free_boundary,
   solve_ambient_pressure_free_boundary_point,
   solve_overexpanded_lip_shock,
@@ -116,6 +117,18 @@ def build_moc_primitive_report() -> dict[str, Any]:
     upstream_pressure_Pa=100000.0,
     target_pressure_Pa=500000.0,
   )
+  turn_compression = solve_attached_compression_to_turn(
+    upstream_mach=2.0,
+    gamma=1.4,
+    upstream_pressure_Pa=100000.0,
+    target_turn_rad=0.1,
+  )
+  turn_compression_limit_case = solve_attached_compression_to_turn(
+    upstream_mach=2.0,
+    gamma=1.4,
+    upstream_pressure_Pa=100000.0,
+    target_turn_rad=1.0,
+  )
   free_boundary = solve_ambient_pressure_free_boundary(
     fan_exit,
     fan_ambient,
@@ -191,6 +204,19 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'normal_shock_limit_failure': {
         'status': compression_limit_case.status.value,
         'shock_status': compression_limit_case.shock_status.value,
+      },
+    },
+    'attached_turn_compression_foundation': {
+      'status': turn_compression.status.value,
+      'shock_status': turn_compression.shock_status.value,
+      'target_turn_rad': turn_compression.target_turn_rad,
+      'turn_residual': turn_compression.turn_residual,
+      'pressure_ratio': turn_compression.pressure_ratio,
+      'downstream_pressure_Pa': turn_compression.downstream_pressure_Pa,
+      'downstream_mach': turn_compression.downstream_mach,
+      'detached_turn_failure': {
+        'status': turn_compression_limit_case.status.value,
+        'shock_status': turn_compression_limit_case.shock_status.value,
       },
     },
     'mild_overexpanded_lip_shock_foundation': {
@@ -281,6 +307,23 @@ def build_moc_primitive_report() -> dict[str, Any]:
     ] if (
       compression_limit_case.status is not MocPrimitiveStatus.OUTSIDE_DOMAIN
       or compression_limit_case.shock_status is not ShockSolveStatus.PRESSURE_ABOVE_NORMAL_SHOCK_LIMIT
+    ) else []),
+    *([
+      {
+        'case': 'attached_turn_compression_foundation',
+        'status': turn_compression.status.value,
+        'message': turn_compression.message,
+      }
+    ] if not turn_compression.converged else []),
+    *([
+      {
+        'case': 'compression_detached_turn_failure',
+        'status': turn_compression_limit_case.status.value,
+        'message': turn_compression_limit_case.message,
+      }
+    ] if (
+      turn_compression_limit_case.status is not MocPrimitiveStatus.OUTSIDE_DOMAIN
+      or turn_compression_limit_case.shock_status is not ShockSolveStatus.DETACHED_SHOCK_REQUIRED
     ) else []),
     *([
       {

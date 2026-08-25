@@ -18,6 +18,9 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   ambient-pressure axis intersections;
 - an attached-compression pressure inversion with weak/strong branch status
   and a supersonic-downstream check;
+- a turn-prescribed attached-compression state solve with weak/strong branch
+  status, downstream supersonic-state reconstruction, and explicit detached
+  turn rejection;
 - a mild-overexpanded lip-shock branch with an explicit first centerline
   intersection and rejection of unsupported pressure ratios;
 - a local ambient-pressure tangent segment with explicit finite extent,
@@ -28,6 +31,9 @@ The implementation in `exhaust_plume.models.moc` currently provides:
 
 The fan mesh is intentionally open: it does not close the compression side,
 solve a free-boundary/shock endpoint, or claim a physical Mach-disk location.
+The turn-prescribed compression primitive is state-side evidence only: it
+does not select a shock location, assemble a reflected characteristic, or
+close the first-cell topology.
 No public provider is wired to these primitives yet. The module does not claim
 axisymmetric, reacting, viscous, or experimentally validated plume physics.
 

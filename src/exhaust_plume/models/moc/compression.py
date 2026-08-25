@@ -11,14 +11,17 @@ from exhaust_plume.util.aero.shock_validity import (
   ShockBranch,
   ShockSolveStatus,
   calculate_oblique_shock_pressure_ratio,
+  solve_shock_angle,
   solve_shock_to_pressure,
 )
 
 __all__ = (
   'MocCompressionResult',
   'MocLipShockResult',
+  'MocTurnCompressionResult',
   'solve_overexpanded_lip_shock',
   'solve_attached_compression_to_pressure',
+  'solve_attached_compression_to_turn',
 )
 
 
@@ -53,6 +56,36 @@ class MocLipShockResult:
   shock: MocCompressionResult | None
   shock_start_m: tuple[float, float] | None
   centerline_point_m: tuple[float, float] | None
+  message: str = ''
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocPrimitiveStatus.CONVERGED
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocTurnCompressionResult:
+  """Attached compression state for a prescribed flow turn.
+
+  This is the state-side primitive needed before a physical recompression
+  segment can be placed in a first-cell mesh.  ``target_turn_rad`` is the
+  positive turn added by the shock.  No shock location or mesh closure is
+  inferred here.
+  """
+
+  status: MocPrimitiveStatus
+  shock_status: ShockSolveStatus
+  branch: ShockBranch
+  upstream_mach: float
+  upstream_pressure_Pa: float
+  target_turn_rad: float
+  downstream_flow_angle_rad: float | None
+  pressure_ratio: float | None
+  turn_residual: float | None
+  beta_rad: float | None
+  downstream_mach: float | None
+  downstream_pressure_Pa: float | None
   message: str = ''
 
   @property
@@ -121,6 +154,121 @@ def solve_overexpanded_lip_shock(
     shock=shock,
     shock_start_m=(0.0, float(exit_state.radius_m)),
     centerline_point_m=(centerline_x, 0.0),
+  )
+####
+
+
+def solve_attached_compression_to_turn(
+  *,
+  upstream_mach: float,
+  gamma: float,
+  upstream_pressure_Pa: float,
+  target_turn_rad: float,
+  branch: ShockBranch = ShockBranch.WEAK,
+) -> MocTurnCompressionResult:
+  """Solve an attached shock for a prescribed positive flow turn.
+
+  Unlike :func:`solve_attached_compression_to_pressure`, this operation does
+  not force a pressure target.  It preserves the theta--beta--Mach branch
+  status, reconstructs the downstream supersonic state, and reports the
+  pressure rise produced by the turn.  This separation is required for a
+  recompression boundary: the shock geometry may be fixed by a flow-turn
+  condition while the downstream pressure is a diagnostic.
+  """
+
+  if not isfinite(float(upstream_mach)) or upstream_mach <= 1.0:
+    raise ValueError('upstream_mach must be finite and greater than one')
+  if not isfinite(float(gamma)) or gamma <= 1.0:
+    raise ValueError('gamma must be finite and greater than one')
+  if not isfinite(float(upstream_pressure_Pa)) or upstream_pressure_Pa <= 0.0:
+    raise ValueError('upstream_pressure_Pa must be finite and positive')
+  if not isfinite(float(target_turn_rad)) or target_turn_rad < 0.0:
+    raise ValueError('target_turn_rad must be finite and non-negative')
+  if not isinstance(branch, ShockBranch):
+    raise ValueError('branch must be a ShockBranch')
+  ####
+  solution = solve_shock_angle(
+    theta_rad=float(target_turn_rad),
+    mach=float(upstream_mach),
+    gamma=float(gamma),
+    branch=branch,
+  )
+  if solution.status is not ShockSolveStatus.ATTACHED or solution.beta_rad is None:
+    return MocTurnCompressionResult(
+      status=MocPrimitiveStatus.OUTSIDE_DOMAIN,
+      shock_status=solution.status,
+      branch=solution.branch,
+      upstream_mach=float(upstream_mach),
+      upstream_pressure_Pa=float(upstream_pressure_Pa),
+      target_turn_rad=float(target_turn_rad),
+      downstream_flow_angle_rad=None,
+      pressure_ratio=None,
+      turn_residual=solution.residual,
+      beta_rad=solution.beta_rad,
+      downstream_mach=None,
+      downstream_pressure_Pa=None,
+      message=solution.message,
+    )
+  ####
+  beta = float(solution.beta_rad)
+  theta = float(target_turn_rad)
+  normal_mach_upstream = float(upstream_mach) * sin(beta)
+  normal_mach_downstream_squared = (
+    1.0 + 0.5 * (float(gamma) - 1.0) * normal_mach_upstream**2
+  ) / (
+    float(gamma) * normal_mach_upstream**2 - 0.5 * (float(gamma) - 1.0)
+  )
+  denominator = sin(beta - theta)
+  downstream_mach = sqrt(normal_mach_downstream_squared) / denominator
+  pressure_ratio = calculate_oblique_shock_pressure_ratio(
+    mach=float(upstream_mach),
+    beta_rad=beta,
+    gamma=float(gamma),
+  )
+  turn_residual = solution.residual
+  downstream_pressure = float(upstream_pressure_Pa) * pressure_ratio
+  if (
+    not isfinite(downstream_mach)
+    or downstream_mach <= 1.0
+    or turn_residual is None
+    or abs(turn_residual) > 1.0e-10
+  ):
+    return MocTurnCompressionResult(
+      status=(
+        MocPrimitiveStatus.OUTSIDE_DOMAIN
+        if not isfinite(downstream_mach) or downstream_mach <= 1.0
+        else MocPrimitiveStatus.INVARIANT_FAILURE
+      ),
+      shock_status=solution.status,
+      branch=solution.branch,
+      upstream_mach=float(upstream_mach),
+      upstream_pressure_Pa=float(upstream_pressure_Pa),
+      target_turn_rad=theta,
+      downstream_flow_angle_rad=theta,
+      pressure_ratio=pressure_ratio,
+      turn_residual=turn_residual,
+      beta_rad=beta,
+      downstream_mach=downstream_mach,
+      downstream_pressure_Pa=downstream_pressure,
+      message=(
+        'attached compression state is not supersonic downstream'
+        if not isfinite(downstream_mach) or downstream_mach <= 1.0
+        else 'attached compression theta-beta-Mach residual exceeded tolerance'
+      ),
+    )
+  return MocTurnCompressionResult(
+    status=MocPrimitiveStatus.CONVERGED,
+    shock_status=solution.status,
+    branch=solution.branch,
+    upstream_mach=float(upstream_mach),
+    upstream_pressure_Pa=float(upstream_pressure_Pa),
+    target_turn_rad=theta,
+    downstream_flow_angle_rad=theta,
+    pressure_ratio=pressure_ratio,
+    turn_residual=turn_residual,
+    beta_rad=beta,
+    downstream_mach=downstream_mach,
+    downstream_pressure_Pa=downstream_pressure,
   )
 ####
 

@@ -67,6 +67,19 @@
         "shock_status": "pressure_above_normal_shock_limit"
       }
     },
+    "attached_turn_compression_foundation": {
+      "status": "converged",
+      "shock_status": "attached",
+      "target_turn_rad": 0.1,
+      "turn_residual": 7.077671781985373e-15,
+      "pressure_ratio": 1.3673991134896744,
+      "downstream_pressure_Pa": 136739.91134896743,
+      "downstream_mach": 1.7952608120292561,
+      "detached_turn_failure": {
+        "status": "outside_domain",
+        "shock_status": "detached_shock_required"
+      }
+    },
     "mild_overexpanded_lip_shock_foundation": {
       "status": "converged",
       "shock_status": "attached",
