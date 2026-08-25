@@ -1,0 +1,41 @@
+{
+  "report_id": "exhaust-plume-completion-release-freeze-v1",
+  "schema_version": "plume.release-freeze@1",
+  "branch": "work/validation-and-completion",
+  "base_main_commit": "dd4d57611ba940c8fc4a9721d4b3464b6bbd7848",
+  "head_commit": "2f3a3e89e70e384863308102c5c28e3c2aec90dc",
+  "remote_publish_status": "local-only-not-pushed-or-merged",
+  "repository_quality": {
+    "pytest": {
+      "status": "passed",
+      "tests_passed": 319,
+      "warnings": 18
+    },
+    "ruff": "passed",
+    "pyright": "passed",
+    "public_schema_fixture_determinism": "passed",
+    "fresh_wheel_build_and_installed_smoke": "passed",
+    "wheel_package_version": "0.1.0a2.dev0",
+    "known_installed_smoke_diagnostics": "legacy expansion-fan warnings and one expected unattainable pressure-target error log; smoke exited successfully"
+  },
+  "product_lanes": {
+    "visual": "passed-local-external-pending",
+    "signature": "passed-local-external-pending",
+    "optical": "passed-analytic-external-pending",
+    "ray_to_signature": "passed-synthetic-external-pending",
+    "focal_plane_array": "boundary-valid-not-implemented"
+  },
+  "validation_corpus": {
+    "archive_sha256": "79c2a34dd4c43bd976ceb8773fdccd78a2592d903bf03ca57c2aef82f882e9aa",
+    "archive_members": 138,
+    "internal_checksums_verified": 137,
+    "status": "preflight-valid-pending-release-gates"
+  },
+  "release_ready": false,
+  "release_blockers": [
+    "external operator crosswalk is unresolved",
+    "all current provider-specific external comparisons are blocked by missing measurement-space outputs or operators",
+    "separately named MVP alignment archive is not yet verified"
+  ],
+  "scope_boundary": "The completion branch contains bounded providers, explicit fidelity ceilings, analytic/synthetic validation, and reproducible evidence. It does not claim full thermochemical, curved-flow, sensor-space, or focal-plane-array validation."
+}

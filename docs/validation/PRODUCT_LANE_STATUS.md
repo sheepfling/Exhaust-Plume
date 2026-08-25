@@ -29,6 +29,10 @@ FPA boundary evidence is recorded in
 [`fpa_boundary_validation_v1.json`](fpa_boundary_validation_v1.json); the
 downstream lane has no provider ID and no detector or image claim.
 
+The branch-level quality and release freeze is recorded in
+[`release_freeze_v1.json`](release_freeze_v1.json). It is a local completion
+candidate, not an external-validation release: `release_ready` remains false.
+
 The basic and signature lanes are deliberately independent. The ray-to-signature
 adapter consumes a resolved ray result without changing either upstream
 provider. A comparison to a higher-fidelity solver may produce a residual

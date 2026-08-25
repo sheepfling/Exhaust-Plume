@@ -78,6 +78,11 @@ signature provider. The focal-plane-array boundary is recorded in
 [`fpa_boundary_validation_v1.json`](fpa_boundary_validation_v1.json); it has no
 provider and makes no image, detector, noise, or detection claim.
 
+The branch-level freeze is recorded in
+[`release_freeze_v1.json`](release_freeze_v1.json). It captures the 319-test,
+Ruff, Pyright, deterministic-asset, and installed-wheel checks while keeping
+`release_ready` false until the external gates close.
+
 The intake gate is a prerequisite for external validation claims. Corpus
 integrity tests are not product validation: repository contract tests and
 physics regressions must still be run through the named VIS, SIG, and future
