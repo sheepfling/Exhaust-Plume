@@ -3,7 +3,7 @@
   "schema_version": "plume.release-freeze@1",
   "branch": "work/validation-and-completion",
   "base_main_commit": "dd4d57611ba940c8fc4a9721d4b3464b6bbd7848",
-  "head_commit": "e877b2c3031e4737f1865bddd2984fe88d833449",
+  "head_commit": "11cd0e3f87ac5f1cedc9d5c541ea4e4341427d85",
   "validated_code_commit": "e877b2c3031e4737f1865bddd2984fe88d833449",
   "validated_code_commit_note": "The checked source and wheel evidence were produced at the prescribed post-shock-continuation code tranche; this evidence ledger refresh is documentation-only after that validation.",
   "completion_requirement_audit": "completion_requirement_audit_v1.json",

@@ -126,9 +126,10 @@ monotone for these three resolutions, with observed orders approximately
 converges monotonically with observed order approximately 2.00. These are
 metrics of the numerical open-lattice and boundary-side candidate only; they
 are not a convergence acceptance for a physical first cell because the shock
-endpoint has no assembled downstream characteristic continuation. The physical
-first-cell length and solver-to-correlation relative error are therefore
-recorded as **not available**.
+endpoint has no complete downstream characteristic field. The separate
+prescribed-boundary C- traces are a continuation primitive, not a closed
+post-shock solution. The physical first-cell length and solver-to-correlation
+relative error are therefore recorded as **not available**.
 
 ## Correlation comparison
 
@@ -173,7 +174,8 @@ overlaps 10 of the 19 centerline LDV-derived Mach points. The resulting
 diagnostic is RMSE `0.0657723`, normalized RMSE `0.2114230`, and
 digitization-uncertainty-weighted RMSE `4.38482`; refinement at `N=16,32,64`
 remains finite and open. These numbers are not a first-cell or VIS validation
-claim: the open mesh has no physical shock closure or post-shock continuation,
+claim: the open mesh has no physical shock closure or complete post-shock field;
+the prescribed-boundary C- traces are recorded separately and remain trace-only,
 and the source case does not supply a disjoint closure validation set.
 
 ## Validity failures and open gates
@@ -184,7 +186,8 @@ and the source case does not supply a disjoint closure validation set.
 - The open reflected characteristic zone is not a closed shock cell.
 - The direct lip-ray grid remains a diagnostic construction and is not
   substituted for the shared averaged-compatibility grid.
-- The post-shock candidate has no neighboring characteristic continuation.
+- The post-shock candidate has no complete neighboring characteristic field;
+  only prescribed-boundary C- traces are available.
 - No finite downstream shock train or physical termination is inferred.
 - No independent planar MOC reference family is bound to the current solver.
 - No disjoint calibration/validation split is available for reduced-order
@@ -194,7 +197,7 @@ and the source case does not supply a disjoint closure validation set.
 ## Quality and performance evidence
 
 After the current completion-branch updates, the repository suite reports
-`439 passed, 18 warnings`.
+`442 passed, 18 warnings`.
 Ruff and Pyright both pass. The full suite wall time was 13.60 s in the
 isolated completion worktree. The focused MOC resolution sweep completed in
 under 0.6 s including interpreter startup; solver-only timing and peak memory

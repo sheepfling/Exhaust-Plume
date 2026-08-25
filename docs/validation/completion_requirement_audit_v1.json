@@ -2,7 +2,7 @@
   "report_id": "exhaust-plume-completion-requirement-audit-v1",
   "schema_version": "plume.completion-requirement-audit@1",
   "source_commit": "e877b2c3031e4737f1865bddd2984fe88d833449",
-  "head_commit": "e877b2c3031e4737f1865bddd2984fe88d833449",
+  "head_commit": "11cd0e3f87ac5f1cedc9d5c541ea4e4341427d85",
   "head_commit_note": "The evidence snapshot follows the prescribed post-shock-continuation code tranche; this ledger refresh is documentation-only.",
   "branch": "work/validation-and-completion",
   "base_main_commit": "dd4d57611ba940c8fc4a9721d4b3464b6bbd7848",
@@ -195,7 +195,19 @@
           "downstream_total_pressure_Pa": 1849892.3539115468,
           "total_pressure_ratio": 0.9249461769557736,
           "pressure_loss_is_decreasing": true,
-          "continuation_status": "not_assembled"
+          "continuation_status": "prescribed-boundary-trace-only",
+          "post_shock_continuation": {
+            "status": "converged_prescribed_boundary",
+            "boundary_sample_count": 2,
+            "characteristic_family": "C-",
+            "centerline_point_count": 2,
+            "centerline_points_m": [
+              [0.9373938284262372, 0.0],
+              [0.8381801275335106, 0.0]
+            ],
+            "maximum_geometry_residual_m": 0.0,
+            "maximum_absolute_invariant_residual": 8.36886115962443e-13
+          }
         },
         "mesh_topology": "connected-one-boundary-cycle-no-nonmanifold-edges-and-zero-area-coverage-residual",
         "physical_first_cell": "not_assembled",
@@ -228,7 +240,7 @@
         },
         "claim_status": "not_accepted",
         "blockers": [
-          "post-shock characteristic continuation and physical shock closure are not assembled",
+          "complete post-shock characteristic field and physical shock closure are not assembled; only prescribed-boundary C- traces are available",
           "the reflected-zone 4/8/16 resolution probe is diagnostic rather than convergence acceptance",
           "the CJ-UEJ centerline comparison is supporting diagnostic evidence only; no independent planar MOC reference family is bound to the provider lane"
         ]

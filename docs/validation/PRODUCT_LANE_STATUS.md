@@ -8,7 +8,7 @@ solver fidelity attached to a provider profile.
 
 | Lane | Provider/product | Local evidence | External evidence | Claim ceiling |
 | --- | --- | --- | --- | --- |
-| `planar-moc-primitives-v1` | No provider; standalone `exhaust_plume.models.moc` foundation | 15 scalar round trips, compatibility, an 8-cell open fan, pressure- and turn-prescribed attached/mild-overexpanded compression, reflected free-boundary march, a 44-cell connected open characteristic zone, candidate post-shock total-pressure loss bookkeeping, and a separate CJ-UEJ centerline Mach component diagnostic pass their local contracts | CJ-UEJ MOC diagnostic quantifies 10/19 centerline points (RMSE 0.06577) but remains not accepted; physical compression/shock closure, post-shock characteristic continuation, disjoint closure evidence, and provider mapping remain pending | Numerical planar characteristic diagnostics only; no public VIS/SIG/RAY/FPA claim |
+| `planar-moc-primitives-v1` | No provider; standalone `exhaust_plume.models.moc` foundation | 15 scalar round trips, compatibility, an 8-cell open fan, pressure- and turn-prescribed attached/mild-overexpanded compression, reflected free-boundary march, a 44-cell connected open characteristic zone, candidate post-shock total-pressure loss bookkeeping, a prescribed-boundary downstream C- trace, and a separate CJ-UEJ centerline Mach component diagnostic pass their local contracts | CJ-UEJ MOC diagnostic quantifies 10/19 centerline points (RMSE 0.06577) but remains not accepted; full physical compression/shock closure, a sampled downstream state field/C+ interior, disjoint closure evidence, and provider mapping remain pending | Numerical planar characteristic diagnostics only; no public VIS/SIG/RAY/FPA claim |
 | `shock-cell-basic-v1` | `plume.straight-analytical` and `plume.shock-cell-analytical` -> `plume.visual.sectioned-tube@1` | Both bounded visual providers pass contract, deterministic-serialization, conformance, and declared study-envelope checks | Corpus structure is verified; provider-specific benchmark/operator comparison remains pending | Engineering-approximate straight visual geometry and named features only; no spectral, ray, detector, mixing, or curved-flow claim |
 | `shock-cell-reduced-order-v1` | `plume.shock-train-reduced-order` -> `plume.visual.sectioned-tube@1` | Explicit calibration, physical-versus-safety termination, reduced-order geometry labels, visual-only capability, and canonical conformance checks pass | CJ-UEJ archive is verified; the same-phase pressure-extrema spacing operator is diagnostic-only, and the closure calibration/validation split remains blocked | Experimental visual envelope only; downstream cells are scaled reduced-order geometry; no resolved MOC, spectral, ray, detector, or FPA claim |
 | `signature-table-mvp-v1` | `signature.table-lookup` -> `plume.signature.spectral-radiant-intensity@1` | Table shape, interpolation, extrapolation, fixed-angle exact-only tables, time-axis, partial-result, provenance, and conformance tests | Pending a verified source asset and intrinsic-signature evidence | Versioned table and interpolation behavior only; no geometry, ray field, atmosphere, optics, or detector claim |
@@ -72,13 +72,14 @@ comparisons and the separate alignment archive still block external claims.
 The standalone planar-MOC foundation is recorded in
 [`moc_primitive_validation_v1.json`](moc_primitive_validation_v1.json). Its
 reflected characteristic zone now has explicit connected one-perimeter mesh
-evidence and the shock candidate records total-pressure loss, but it remains
+evidence, the shock candidate records total-pressure loss, and a separate
+prescribed-boundary C- continuation reaches the symmetry line. It remains
 outside the public product lanes until the fan/reflected coordinate interface
-is joined to a physically closed compression/shock construction, post-shock
-characteristic continuation is added, and grid/refinement convergence is
-accepted. The shared averaged-characteristic interface now has zero residual;
-the separate direct lip-ray diagnostic differs by 0.1405629941 m and is not
-promoted into the combined mesh.
+is joined to a physically closed compression/shock construction, a complete
+downstream state field including the C+ interior is assembled, and
+grid/refinement convergence is accepted. The shared averaged-characteristic
+interface now has zero residual; the separate direct lip-ray diagnostic
+differs by 0.1405629941 m and is not promoted into the combined mesh.
 
 The provider-comparison preflight is recorded in
 [`provider_comparison_preflight_v1.json`](provider_comparison_preflight_v1.json).
@@ -95,6 +96,10 @@ ray-transfer provider now passes the analytic local gate, while its same-unit
 BSUV2 probe remains a no-overlap diagnostic pending provider-bound LOS/FOV and
 source/path scenario binding. FPA remains an explicit downstream boundary with
 no provider ID.
+
+The exact next-input and acceptance requirements for the ten blocked
+provider-bound comparisons are tracked in
+[`provider_validation_acquisition_matrix_v1.md`](provider_validation_acquisition_matrix_v1.md).
 
 The exact local execution is preserved in
 [`product_lane_validation_v1.json`](product_lane_validation_v1.json): VIS and

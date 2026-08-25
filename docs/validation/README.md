@@ -77,6 +77,10 @@ has 606 points but no declared branch ID, and the current providers do not
 emit the required Mach-disk feature channel; this remains a blocked diagnostic,
 not an inferred comparison.
 
+The exact provider-bound inputs, acceptance metrics, and next acquisition for
+each of those ten comparisons are recorded in
+[`provider_validation_acquisition_matrix_v1.md`](provider_validation_acquisition_matrix_v1.md).
+
 The reviewed, gate-specific operator semantics for all 35 external operator
 IDs are recorded in
 [`operator_semantic_crosswalk_v1.json`](operator_semantic_crosswalk_v1.json).

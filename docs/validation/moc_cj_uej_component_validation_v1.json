@@ -2,7 +2,7 @@
   "acceptance_blockers": [
     "The source is convergent/choked while the MOC exit-state contract requires an explicit near-sonic M > 1 adapter.",
     "The source does not publish total temperature; the adapter temperature and resulting velocity field are assumptions.",
-    "The open reflected characteristic lattice has no physical compression/shock closure or post-shock continuation.",
+    "The open reflected characteristic lattice has no physical compression/shock closure or complete post-shock field; the separate prescribed-boundary C- trace is not part of this comparison.",
     "Only the centerline Mach trace is compared; pressure, velocity, radial profiles, and shock-cell phase are not accepted here.",
     "The recovered corpus contains one benchmark case, so no disjoint calibration/validation split is available.",
     "The component diagnostic does not authorize a public MOC provider or a primary VIS claim."
