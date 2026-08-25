@@ -1,0 +1,12 @@
+{
+  "repository": "sheepfling/Exhaust-Plume",
+  "branch": "main",
+  "main_commit": "49d6ffd1839258ce14319e157002005c6d2230e1",
+  "main_message": "Merge 0.1.0a1 release into main",
+  "release_prep_commit": "8b37e48b65321403bb3eb4ed0fdfe949dc9f1506",
+  "tree_sha": "bfd587778b15da8e9b10213d7e680e48b5ae6e1e",
+  "package_version": "0.1.0a1",
+  "constant_version": "0.1.0.a1",
+  "resync_date": "2026-08-23",
+  "note": "main and the release-prep commit share the same tree SHA at this resync point"
+}

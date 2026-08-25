@@ -1,0 +1,39 @@
+baseline:
+  repository: sheepfling/Exhaust-Plume
+  branch: main
+  commit: 49d6ffd1839258ce14319e157002005c6d2230e1
+  release_commit: 8b37e48b65321403bb3eb4ed0fdfe949dc9f1506
+  tree: bfd587778b15da8e9b10213d7e680e48b5ae6e1e
+  version: 0.1.0a1
+critical_path:
+  - VAL-001
+  - VAL-002
+  - PHYS-001
+  - PHYS-002
+  - MIX-001
+  - MIX-002
+  - RAY-001
+  - RAY-002
+  - CROSS-001
+  - RAD-VAL-001
+parallel_paths:
+  curved:
+    - CURVE-001
+    - CURVE-002
+    - CURVE-003
+    - CURVE-004
+  spectral_fidelity:
+    - SPEC-001
+    - THERMO-001
+    - PART-001
+  imported_accelerated:
+    - IMPORT-001
+    - GPU-001
+rules:
+  - Experimental source data remain immutable observation products.
+  - Every experimental comparison uses an explicit measurement operator.
+  - A passing component gate cannot hide a failed product gate.
+  - Normalized spectra cannot support absolute-radiance claims.
+  - Signature data cannot be inverted into geometry or per-ray optical state without a separate model.
+  - Curved and straight plume morphologies share consumer contracts.
+  - Cell-count safety bounds are not physical plume termination.
