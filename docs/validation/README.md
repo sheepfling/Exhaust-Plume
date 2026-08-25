@@ -64,6 +64,15 @@ failed physics result: it means that the current provider does not produce the
 observable or operator required for a valid comparison. No external claim is
 accepted from this report.
 
+The first quantitative benchmark component record is
+[`cj_uej_component_validation_v1.json`](cj_uej_component_validation_v1.json).
+It is intentionally separate from the product preflight: `CJ-UEJ-001` is a
+cold gasdynamic precursor, and the current visual product emits display
+channels rather than a local flow field. The record quantifies the bounded
+shock-cell component where the declared probe-line operator can be applied,
+reports uncovered and ambiguous points, and keeps the claim proposed rather
+than treating partial residuals as VIS validation.
+
 The bounded gray optical lane has its own reproducible local evidence in
 [`optical_transfer_validation_v1.json`](optical_transfer_validation_v1.json).
 Its straight-cylinder analytic gate passes; the curved-support refinement is

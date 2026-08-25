@@ -36,6 +36,16 @@ SIGNATURE_PRODUCT = 'plume.signature.spectral-radiant-intensity@1'
 RAY_PRODUCT = 'plume.optical.spectral-ray-transfer@1'
 
 
+REVIEWED_SEMANTIC_CROSSWALKS = (
+  {
+    'external_operator_id': 'operator.sample.canonical_jet_probe_lines',
+    'internal_operator_id': 'op.field.profile-probe',
+    'status': 'semantic-match-reviewed-for-cj-uej-component-only',
+    'scope': 'CJ-UEJ-001 supporting-component profile diagnostics only',
+  },
+)
+
+
 def _resolve_member(archive: ZipFile, relative_path: str) -> str:
   candidates = tuple(
     name for name in archive.namelist()
@@ -82,6 +92,7 @@ def reconcile_operator_ids(
     'committed_only': sorted(committed_set - external_set),
     'exact_namespace_match': external_set == committed_set,
     'crosswalk_status': 'reconciled' if external_set == committed_set else 'pending',
+    'reviewed_semantic_crosswalks': [dict(item) for item in REVIEWED_SEMANTIC_CROSSWALKS],
   }
 
 

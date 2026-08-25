@@ -73,6 +73,17 @@ passes the analytic local gate, while its external sensor-space comparison
 remains pending. FPA remains an explicit downstream boundary with no provider
 ID.
 
+The canonical cold-jet benchmark now has a separate component diagnostic in
+[`cj_uej_component_validation_v1.json`](cj_uej_component_validation_v1.json).
+It applies the corpus probe-line operator to the bounded shock-cell zones and
+reports pressure, scalar-speed proxy, and Mach residuals with coverage and
+digitization weighting. The adapter keeps the source's `p0/pa` nozzle pressure
+ratio distinct from the derived choked-exit pressure and records its explicit
+near-sonic and total-temperature assumptions. This is quantitative supporting
+evidence only: the claim remains proposed/not accepted because the current
+solver is one construction cell, has no physical shock-train termination, and
+does not expose a local-field or validated VIS product.
+
 The recovered corpus changes that sentence for data availability, not for
 product acceptance. Its own gate registry reports VIS, SIG, and RAY T1
 component evidence as `ready` and their T2 product evidence as

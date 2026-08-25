@@ -963,6 +963,14 @@
       "operator.spectrum.peak_normalize_after_sensor_sampling",
       "operator.surface.conjugate_thermal_response",
       "operator.surface.gardon_band_integral"
+    ],
+    "reviewed_semantic_crosswalks": [
+      {
+        "external_operator_id": "operator.sample.canonical_jet_probe_lines",
+        "internal_operator_id": "op.field.profile-probe",
+        "scope": "CJ-UEJ-001 supporting-component profile diagnostics only",
+        "status": "semantic-match-reviewed-for-cj-uej-component-only"
+      }
     ]
   },
   "providers": {

@@ -32,6 +32,13 @@ synthetic cross-product consistency gate only. It does not reconcile the
 external sensor/feature operator namespace used by the VIS, SIG, and RAY
 measurement comparisons.
 
+A second narrow mapping is recorded for the cold component diagnostic only:
+`operator.sample.canonical_jet_probe_lines` maps to the committed
+`op.field.profile-probe` semantics for disclosed `x/D`, `y/D`, probe/source
+uncertainty, and profile sampling. The mapping is explicitly scoped to
+`CJ-UEJ-001` supporting-component evidence; it does not reconcile the
+external `operator.*` namespace or authorize a primary VIS product claim.
+
 ## Release treatment
 
 The typed `ValidationRegistry` loads only the committed registry and therefore
@@ -51,6 +58,8 @@ prefix replacement as an automatic mapping rule.
 - VIS can use the corpus's shock-feature mappings only after the feature
   operator is mapped to the canonical visual provider output and its metric
   domain is declared.
+- The CJ-UEJ component record may use the reviewed profile-probe mapping for
+  quantitative diagnostics, while its claim remains proposed and unaccepted.
 - SIG can use sensor-space and relative-shape mappings only with an explicit
   line-of-sight/band operator; they do not become intrinsic `J_lambda` claims.
 - RAY/FPA mappings remain downstream and require a ray-transfer provider,

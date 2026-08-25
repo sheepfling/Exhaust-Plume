@@ -1,0 +1,503 @@
+{
+  "acceptance_blockers": [
+    "The current public visual providers do not expose local-field channels or this component diagnostic as product output.",
+    "The source does not disclose total temperature; velocity evidence is assumption-sensitive.",
+    "The source is convergent/choked while the current exit-state contract requires a near-sonic M>1 adapter.",
+    "Only one bounded construction cell is available; physical shock-cell phase and spacing are not resolved.",
+    "Construction-limit termination is not physical plume termination.",
+    "The external operator crosswalk is scoped to this component and is not a general namespace reconciliation."
+  ],
+  "archive": {
+    "actual_sha256": "79c2a34dd4c43bd976ceb8773fdccd78a2592d903bf03ca57c2aef82f882e9aa",
+    "expected_sha256": "79c2a34dd4c43bd976ceb8773fdccd78a2592d903bf03ca57c2aef82f882e9aa",
+    "member_count": 138,
+    "status": "verified"
+  },
+  "benchmark_id": "CJ-UEJ-001",
+  "case": {
+    "adapter_exit_mach": 1.000001,
+    "adapter_gamma": 1.4,
+    "adapter_total_temperature_K": 300.0,
+    "ambient_pressure_Pa": 101325.0,
+    "ambient_temperature_K": 300.0,
+    "derived_exit_pressure_ratio_pe_over_pa": 1.1991982590520671,
+    "derived_exit_velocity_mps": 316.9691237641705,
+    "exit_diameter_m": 0.038,
+    "exit_radius_m": 0.019,
+    "source_ideally_expanded_jet_mach": 1.15,
+    "source_nozzle_pressure_ratio_p0_over_pa": 2.27
+  },
+  "claim": {
+    "applicability_domain": {
+      "coordinate": "x/D and y/D probe lines",
+      "model_lane": "bounded first-cell component diagnostic",
+      "working_fluid": "cold dry air"
+    },
+    "benchmark_id": "CJ-UEJ-001",
+    "claim_id": "VAL-002-CJ-UEJ-LOCAL-FIELD-DIAGNOSTIC",
+    "claim_role": "validation",
+    "evidence_level": 3,
+    "limitations": [
+      "The source does not publish a total-temperature boundary condition.",
+      "The source is a convergent/choked cold jet while the current exit contract requires M>1.",
+      "The current solver returns one bounded construction cell and uses a construction limit as termination.",
+      "Axial velocity is compared through a scalar-speed proxy because the zone state has no velocity vector.",
+      "This is supporting-component evidence and does not validate the visual product or a physical shock train."
+    ],
+    "measurement_operator_id": "op.field.profile-probe",
+    "metric_id": "metric.profile.nrmse",
+    "product_id": "plume.field.local-state@1",
+    "provenance": {
+      "corpus_archive_sha256": "79c2a34dd4c43bd976ceb8773fdccd78a2592d903bf03ca57c2aef82f882e9aa",
+      "operator_registry": "docs/coding_agent_handoff/resync_v0.1.0a1/alignment/measurement_operator_registry.csv",
+      "solver_component": "src/exhaust_plume/models/shock_cells/solve.py",
+      "source_metadata_member": "data/cj_uej_001_metadata.json"
+    },
+    "status": "proposed",
+    "uncertainty": {
+      "model_input_assumptions": {
+        "gamma": 1.4,
+        "near_sonic_exit_mach": 1.000001,
+        "total_temperature_K": 300.0
+      },
+      "source_digitization": "per-row corpus uncertainty fields"
+    }
+  },
+  "claim_status": "not_accepted",
+  "corpus_status": "preflight-valid-pending-release-gates",
+  "feature_summary": {
+    "claim_status": "not_accepted",
+    "internal_operator_id": "op.field.profile-probe",
+    "limitations": [
+      "The current solver exposes one bounded construction cell, not a finite physical shock train.",
+      "A piecewise zone boundary is not promoted to a physical shock-cell center."
+    ],
+    "observable": "static_pressure_ratio",
+    "observed_extrema": [
+      {
+        "kind": "minimum",
+        "value": 0.7761653466,
+        "x_over_D": 0.2634415937
+      },
+      {
+        "kind": "maximum",
+        "value": 1.2297934648,
+        "x_over_D": 0.5918325606
+      },
+      {
+        "kind": "minimum",
+        "value": 0.7551057687,
+        "x_over_D": 0.9870000549
+      },
+      {
+        "kind": "maximum",
+        "value": 1.2337566857,
+        "x_over_D": 1.3163196056
+      },
+      {
+        "kind": "minimum",
+        "value": 0.7801000613,
+        "x_over_D": 1.6447006696
+      },
+      {
+        "kind": "maximum",
+        "value": 1.1916651724,
+        "x_over_D": 1.974020525
+      },
+      {
+        "kind": "minimum",
+        "value": 0.8326913457,
+        "x_over_D": 2.303329411
+      },
+      {
+        "kind": "maximum",
+        "value": 1.1574720265,
+        "x_over_D": 2.631710475
+      },
+      {
+        "kind": "minimum",
+        "value": 0.8484720999,
+        "x_over_D": 2.9610205799
+      },
+      {
+        "kind": "maximum",
+        "value": 1.1535377437,
+        "x_over_D": 3.2894110897
+      },
+      {
+        "kind": "minimum",
+        "value": 0.8589878517,
+        "x_over_D": 3.6187406956
+      },
+      {
+        "kind": "maximum",
+        "value": 1.1403756695,
+        "x_over_D": 3.8821928016
+      },
+      {
+        "kind": "minimum",
+        "value": 0.8787167099,
+        "x_over_D": 4.2105635057
+      }
+    ],
+    "observed_extrema_spacing_over_D": [
+      0.3283909669,
+      0.3951674943,
+      0.32931955069999996,
+      0.328381064,
+      0.3293198554000001,
+      0.32930888599999997,
+      0.3283810640000002,
+      0.3293101048999998,
+      0.3283905098000002,
+      0.32932960589999993,
+      0.2634521059999999,
+      0.3283707040999997
+    ],
+    "operator_id": "operator.sample.canonical_jet_probe_lines",
+    "phase_and_spacing_status": "insufficient-resolved-features",
+    "predicted_extrema": [],
+    "predicted_extrema_spacing_over_D": [],
+    "profile_id": "centerline",
+    "skipped_predicted_rows": {
+      "outside_or_boundary_support": 58
+    }
+  },
+  "mach_results": [
+    {
+      "claim_status": "not_accepted",
+      "comparison_status": "quantified-diagnostic",
+      "coverage_fraction": 1.0,
+      "internal_operator_id": "op.field.profile-probe",
+      "method": "ldv_total_temperature_assumption",
+      "metric_ids": [
+        "metric.profile.nrmse"
+      ],
+      "metrics": {
+        "digitization_uncertainty_weighted_rmse": 7.338218125048949,
+        "maximum_absolute_error": 0.24232461792660454,
+        "mean_absolute_error": 0.08648799561472705,
+        "nrmse_by_observed_range": 0.29526690663726946,
+        "rmse": 0.11007327187573425
+      },
+      "observed_count": 19,
+      "observed_unit": "dimensionless",
+      "operator_id": "operator.sample.canonical_jet_probe_lines",
+      "predicted_count": 19,
+      "predicted_x_over_D_range": [
+        0.0533650502,
+        0.7383895082
+      ],
+      "profile_id": "centerline",
+      "quantity": "mach_number",
+      "skipped_rows": {},
+      "source_shift_variant": false
+    },
+    {
+      "claim_status": "not_accepted",
+      "comparison_status": "quantified-diagnostic",
+      "coverage_fraction": 1.0,
+      "internal_operator_id": "op.field.profile-probe",
+      "method": "pressure_as_measured",
+      "metric_ids": [
+        "metric.profile.nrmse"
+      ],
+      "metrics": {
+        "digitization_uncertainty_weighted_rmse": 11.402345530993994,
+        "maximum_absolute_error": 0.2750056516238861,
+        "mean_absolute_error": 0.14799099158649745,
+        "nrmse_by_observed_range": 0.44076286738750103,
+        "rmse": 0.17103518296490988
+      },
+      "observed_count": 11,
+      "observed_unit": "dimensionless",
+      "operator_id": "operator.sample.canonical_jet_probe_lines",
+      "predicted_count": 11,
+      "predicted_x_over_D_range": [
+        5.4e-08,
+        0.6576530593
+      ],
+      "profile_id": "centerline",
+      "quantity": "mach_number",
+      "skipped_rows": {},
+      "source_shift_variant": false
+    },
+    {
+      "claim_status": "not_accepted",
+      "comparison_status": "quantified-diagnostic",
+      "coverage_fraction": 0.9090909090909091,
+      "internal_operator_id": "op.field.profile-probe",
+      "method": "pressure_static_profile_shifted_downstream",
+      "metric_ids": [
+        "metric.profile.nrmse"
+      ],
+      "metrics": {
+        "digitization_uncertainty_weighted_rmse": 8.515584334165013,
+        "maximum_absolute_error": 0.26147248312660465,
+        "mean_absolute_error": 0.09927161441000001,
+        "nrmse_by_observed_range": 0.34700035678527247,
+        "rmse": 0.1277337650124752
+      },
+      "observed_count": 11,
+      "observed_unit": "dimensionless",
+      "operator_id": "operator.sample.canonical_jet_probe_lines",
+      "predicted_count": 10,
+      "predicted_x_over_D_range": [
+        0.1181614043,
+        0.7103178624
+      ],
+      "profile_id": "centerline",
+      "quantity": "mach_number",
+      "skipped_rows": {
+        "outside_or_boundary_support": 1
+      },
+      "source_shift_variant": true
+    },
+    {
+      "claim_status": "not_accepted",
+      "comparison_status": "quantified-diagnostic",
+      "coverage_fraction": 0.5454545454545454,
+      "internal_operator_id": "op.field.profile-probe",
+      "method": "ldv_total_temperature_assumption",
+      "metric_ids": [
+        "metric.profile.nrmse"
+      ],
+      "metrics": {
+        "digitization_uncertainty_weighted_rmse": 3.327314566810996,
+        "maximum_absolute_error": 0.13430120712660454,
+        "mean_absolute_error": 0.03703927937513223,
+        "nrmse_by_observed_range": 0.27384106787187196,
+        "rmse": 0.04990971850216493
+      },
+      "observed_count": 33,
+      "observed_unit": "dimensionless",
+      "operator_id": "operator.sample.canonical_jet_probe_lines",
+      "predicted_count": 18,
+      "predicted_x_over_D_range": [
+        0.0525932866,
+        0.6067369597
+      ],
+      "profile_id": "off_axis_y_over_d_0p25",
+      "quantity": "mach_number",
+      "skipped_rows": {
+        "outside_or_boundary_support": 11,
+        "overlapping_support": 4
+      },
+      "source_shift_variant": false
+    },
+    {
+      "claim_status": "not_accepted",
+      "comparison_status": "quantified-diagnostic",
+      "coverage_fraction": 0.6153846153846154,
+      "internal_operator_id": "op.field.profile-probe",
+      "method": "pressure_as_measured",
+      "metric_ids": [
+        "metric.profile.nrmse"
+      ],
+      "metrics": {
+        "digitization_uncertainty_weighted_rmse": 8.522143143374537,
+        "maximum_absolute_error": 0.26480557522660464,
+        "mean_absolute_error": 0.09743383005545607,
+        "nrmse_by_observed_range": 0.5152178953334031,
+        "rmse": 0.12783214715061805
+      },
+      "observed_count": 13,
+      "observed_unit": "dimensionless",
+      "operator_id": "operator.sample.canonical_jet_probe_lines",
+      "predicted_count": 8,
+      "predicted_x_over_D_range": [
+        3.93e-08,
+        0.5919563696
+      ],
+      "profile_id": "off_axis_y_over_d_0p25",
+      "quantity": "mach_number",
+      "skipped_rows": {
+        "outside_or_boundary_support": 3,
+        "overlapping_support": 2
+      },
+      "source_shift_variant": false
+    },
+    {
+      "claim_status": "not_accepted",
+      "comparison_status": "quantified-diagnostic",
+      "coverage_fraction": 0.46153846153846156,
+      "internal_operator_id": "op.field.profile-probe",
+      "method": "pressure_static_profile_shifted_downstream",
+      "metric_ids": [
+        "metric.profile.nrmse"
+      ],
+      "metrics": {
+        "digitization_uncertainty_weighted_rmse": 2.9365367927151382,
+        "maximum_absolute_error": 0.08383783992660465,
+        "mean_absolute_error": 0.036567924647747684,
+        "nrmse_by_observed_range": 0.5533371658292826,
+        "rmse": 0.04404805189072707
+      },
+      "observed_count": 13,
+      "observed_unit": "dimensionless",
+      "operator_id": "operator.sample.canonical_jet_probe_lines",
+      "predicted_count": 6,
+      "predicted_x_over_D_range": [
+        0.1316638387,
+        0.5919562001
+      ],
+      "profile_id": "off_axis_y_over_d_0p25",
+      "quantity": "mach_number",
+      "skipped_rows": {
+        "outside_or_boundary_support": 5,
+        "overlapping_support": 2
+      },
+      "source_shift_variant": true
+    }
+  ],
+  "operator": {
+    "crosswalk_scope": "profile probe coordinates, source uncertainty, and disclosed averaging semantics only",
+    "crosswalk_status": "semantic-match-reviewed-for-cj-uej-component-only",
+    "external_operator_id": "operator.sample.canonical_jet_probe_lines",
+    "internal_operator_id": "op.field.profile-probe"
+  },
+  "profile_results": [
+    {
+      "claim_status": "not_accepted",
+      "comparison_status": "quantified-diagnostic",
+      "coverage_fraction": 1.0,
+      "internal_operator_id": "op.field.profile-probe",
+      "metric_ids": [
+        "metric.profile.nrmse"
+      ],
+      "metrics": {
+        "digitization_uncertainty_weighted_rmse": 5.815779750819838,
+        "maximum_absolute_error": 56.88075225805619,
+        "mean_absolute_error": 20.805987632997045,
+        "nrmse_by_observed_range": 0.290986965057539,
+        "rmse": 26.17100887868927
+      },
+      "observable": "axial_velocity",
+      "observed_count": 19,
+      "observed_unit": "m/s",
+      "operator_id": "operator.sample.canonical_jet_probe_lines",
+      "predicted_count": 19,
+      "predicted_x_over_D_range": [
+        0.0537867138,
+        0.7384054426
+      ],
+      "profile_id": "centerline",
+      "quantity": "axial_speed_proxy",
+      "skipped_rows": {}
+    },
+    {
+      "claim_status": "not_accepted",
+      "comparison_status": "quantified-diagnostic",
+      "coverage_fraction": 0.15942028985507245,
+      "internal_operator_id": "op.field.profile-probe",
+      "metric_ids": [
+        "metric.profile.nrmse"
+      ],
+      "metrics": {
+        "digitization_uncertainty_weighted_rmse": 4.758794733616228,
+        "maximum_absolute_error": 0.3479054320502909,
+        "mean_absolute_error": 0.1870375600912359,
+        "nrmse_by_observed_range": 0.47207338879799243,
+        "rmse": 0.21414576301273022
+      },
+      "observable": "static_pressure_ratio",
+      "observed_count": 69,
+      "observed_unit": "dimensionless",
+      "operator_id": "operator.sample.canonical_jet_probe_lines",
+      "predicted_count": 11,
+      "predicted_x_over_D_range": [
+        0.0658479437,
+        0.7235485583
+      ],
+      "profile_id": "centerline",
+      "quantity": "static_pressure_ratio",
+      "skipped_rows": {
+        "outside_or_boundary_support": 58
+      }
+    },
+    {
+      "claim_status": "not_accepted",
+      "comparison_status": "quantified-diagnostic",
+      "coverage_fraction": 0.4,
+      "internal_operator_id": "op.field.profile-probe",
+      "metric_ids": [
+        "metric.profile.nrmse"
+      ],
+      "metrics": {
+        "digitization_uncertainty_weighted_rmse": 2.3593611126244327,
+        "maximum_absolute_error": 29.138317096456205,
+        "mean_absolute_error": 8.17283405199328,
+        "nrmse_by_observed_range": 0.23404909393925152,
+        "rmse": 10.617125006809948
+      },
+      "observable": "axial_velocity",
+      "observed_count": 45,
+      "observed_unit": "m/s",
+      "operator_id": "operator.sample.canonical_jet_probe_lines",
+      "predicted_count": 18,
+      "predicted_x_over_D_range": [
+        0.0528680329,
+        0.6066697914
+      ],
+      "profile_id": "off_axis_y_over_d_0p25",
+      "quantity": "axial_speed_proxy",
+      "skipped_rows": {
+        "outside_or_boundary_support": 23,
+        "overlapping_support": 4
+      }
+    },
+    {
+      "claim_status": "not_accepted",
+      "comparison_status": "quantified-diagnostic",
+      "coverage_fraction": 0.6129032258064516,
+      "internal_operator_id": "op.field.profile-probe",
+      "metric_ids": [
+        "metric.profile.nrmse"
+      ],
+      "metrics": {
+        "digitization_uncertainty_weighted_rmse": 3.3978976636798253,
+        "maximum_absolute_error": 0.34264104815029095,
+        "mean_absolute_error": 0.11704033298379785,
+        "nrmse_by_observed_range": 0.46887597211599,
+        "rmse": 0.15290539486559215
+      },
+      "observable": "static_pressure_ratio",
+      "observed_count": 31,
+      "observed_unit": "dimensionless",
+      "operator_id": "operator.sample.canonical_jet_probe_lines",
+      "predicted_count": 19,
+      "predicted_x_over_D_range": [
+        0.0259697245,
+        0.6057512628
+      ],
+      "profile_id": "off_axis_y_over_d_0p25",
+      "quantity": "static_pressure_ratio",
+      "skipped_rows": {
+        "outside_or_boundary_support": 8,
+        "overlapping_support": 4
+      }
+    }
+  ],
+  "release_ready": false,
+  "report_id": "exhaust-plume-cj-uej-component-validation-v1",
+  "solver": {
+    "cell_count": 1,
+    "component_id": "exhaust_plume.models.shock_cells.solve_shock_cells",
+    "construction_domain_x_over_D": [
+      0.0,
+      0.7749932878845341
+    ],
+    "requested_max_cells": 1,
+    "solver_pressure_residual": 0.19919825905206703,
+    "status": "converged_at_boundary",
+    "termination_reason": "max-cell-limit",
+    "zone_count": 6
+  },
+  "source_evidence_limits": [
+    "The case is a cold dry-air jet and is a gasdynamic precursor only.",
+    "Figure 2 LDV markers cover only the published near-exit extent.",
+    "Mach values are author-derived from LDV or pressure measurements, not direct Mach probes."
+  ],
+  "source_validation_role": "gasdynamic precursor for shock-cell pressure, velocity, and Mach geometry; not a chemically reacting rocket plume",
+  "validation_status": "partial_component_evidence"
+}

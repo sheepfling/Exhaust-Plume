@@ -21,3 +21,7 @@ def test_operator_reconciliation_does_not_guess_namespace_aliases() -> None:
     'op.sensor.bandpass-detector',
     'op.visual.feature-extractor',
   ]
+  assert report['reviewed_semantic_crosswalks'][0]['external_operator_id'] == (
+    'operator.sample.canonical_jet_probe_lines'
+  )
+  assert report['reviewed_semantic_crosswalks'][0]['internal_operator_id'] == 'op.field.profile-probe'
