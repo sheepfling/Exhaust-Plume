@@ -64,10 +64,12 @@ def test_optical_lane_passes_analytic_gray_transfer_without_promoting_external_c
 
 def test_fpa_boundary_does_not_advertise_an_unimplemented_provider() -> None:
   report = _run_fpa_boundary()
-  assert report['status'] == 'boundary-valid-not-implemented'
+  assert report['status'] == 'boundary-validated-downstream'
   assert report['provider_advertised'] is False
   assert report['ray_provider_prerequisite_present'] is True
   assert report['pixel_detector_contract_passed'] is True
+  assert report['camera_optics_contract_passed'] is True
+  assert report['digitization_contract_passed'] is True
   assert report['source_semantics'] == 'source-only'
 
 

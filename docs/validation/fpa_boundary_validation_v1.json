@@ -6,7 +6,7 @@
     "command": "python3 scripts/validate_product_lanes.py --output product-lane-report.json",
     "lane_id": "focal-plane-array-v1"
   },
-  "status": "boundary-valid-not-implemented",
+  "status": "boundary-validated-downstream",
   "provider_ids": [],
   "upstream": {
     "ray_provider_ids": [
@@ -25,10 +25,21 @@
   "implemented_boundary_operator": {
     "operator_id": "op.sensor.fpa-pixel-detector",
     "status": "passed-deterministic-synthetic-fixture",
+    "camera_optics_identity_preserved": true,
     "output": "expected electron image plus explicit validity and noise-variance fields",
     "does_not_claim": [
       "random noise realization",
-      "digitized counts",
+      "detection probability or threshold"
+    ]
+  },
+  "implemented_digitization_operator": {
+    "operator_id": "op.sensor.fpa-digitization",
+    "status": "passed-deterministic-synthetic-fixture",
+    "policy": "nearest-even rounding with explicit clipping and invalid-pixel mask preservation",
+    "output": "expected ADC counts and saturation mask",
+    "does_not_claim": [
+      "measured detector counts",
+      "random noise realization",
       "detection probability or threshold"
     ]
   },
@@ -39,13 +50,13 @@
     "noise_claimed": false,
     "detection_claimed": false
   },
-  "claim_ceiling": "Deterministic expected-electron adapter only; no externally validated FPA image, detector-count, noise-realization, or detection claim.",
+  "claim_ceiling": "Deterministic expected-electron and expected-ADC-count adapters only; no externally validated FPA image, measured detector-count, noise-realization, or detection claim.",
   "release_status": {
     "accepted_external_claim": false,
     "blockers": [
       "validated ray-transfer comparison is still pending for sensor-space use",
       "camera/optics calibration and external detector data are not implemented",
-      "digitization and detection policies are not implemented"
+      "random noise realization and detection policies are not implemented"
     ]
   }
 }

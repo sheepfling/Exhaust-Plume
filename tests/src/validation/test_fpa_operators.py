@@ -4,7 +4,11 @@ import pytest
 
 from exhaust_plume.validation import (
   DetectorResponse,
+  FpaCameraOptics,
+  FpaDigitizationPolicy,
+  FpaPixelImage,
   FpaPixelGeometry,
+  digitize_expected_electrons,
   integrate_ray_transfer_to_fpa,
 )
 
@@ -136,3 +140,70 @@ def test_fpa_operator_is_deterministic() -> None:
     **kwargs,
   )
   assert first == second
+
+
+def test_fpa_operator_preserves_declared_camera_optics_identity() -> None:
+  camera = FpaCameraOptics(
+    camera_id='camera-synthetic-01',
+    focal_length_m=0.05,
+    pixel_pitch_m=(5.0e-6, 5.0e-6),
+    principal_point_px=(0.5, 0.5),
+    aperture_area_m2=1.0e-4,
+  )
+  geometry = FpaPixelGeometry(
+    width_px=1,
+    height_px=1,
+    ray_pixel_indices_row_col=((0, 0),),
+    ray_collection_weights_m2_sr=(1.0e-6,),
+    camera_optics=camera,
+  )
+  result = integrate_ray_transfer_to_fpa(
+    (1.0e-6, 2.0e-6, 3.0e-6),
+    ((1.0, 1.0, 1.0),),
+    geometry=geometry,
+    detector=DetectorResponse(
+      wavelengths_m=(1.0e-6, 2.0e-6, 3.0e-6),
+      quantum_efficiency=(1.0, 1.0, 1.0),
+      optical_throughput=(1.0, 1.0, 1.0),
+    ),
+    exposure_s=1.0,
+  )
+  assert result.camera_optics_id == 'camera-synthetic-01'
+  assert result.camera_mapping_model_id == 'declared-ray-to-pixel-mapping-v1'
+
+
+def test_fpa_digitization_is_deterministic_and_preserves_invalid_pixels() -> None:
+  image = FpaPixelImage(
+    width_px=4,
+    height_px=1,
+    wavelengths_m=(1.0e-6, 2.0e-6),
+    exposure_s=1.0,
+    expected_electrons=((0.5, 2.5, 300.0, 5.0),),
+    dark_electrons=((0.0, 0.0, 0.0, 0.0),),
+    noise_variance_e2=((0.5, 2.5, 300.0, 5.0),),
+    validity_mask=((True, True, True, False),),
+    source_semantics='source-only',
+    detector_response_id='detector-test',
+    camera_optics_id='camera-synthetic-01',
+    camera_mapping_model_id='declared-ray-to-pixel-mapping-v1',
+  )
+  policy = FpaDigitizationPolicy(
+    electrons_per_count=1.0,
+    bit_depth=8,
+    invalid_count=9,
+  )
+  first = digitize_expected_electrons(image, policy=policy)
+  second = digitize_expected_electrons(image, policy=policy)
+  assert first == second
+  assert first.counts == ((0, 2, 255, 9),)
+  assert first.saturated_mask == ((False, False, True, False),)
+  assert first.validity_mask == image.validity_mask
+  assert first.camera_optics_id == 'camera-synthetic-01'
+  assert first.camera_mapping_model_id == 'declared-ray-to-pixel-mapping-v1'
+
+
+def test_fpa_digitization_rejects_unsupported_adc_conventions() -> None:
+  with pytest.raises(ValueError, match='nearest_even'):
+    FpaDigitizationPolicy(electrons_per_count=1.0, rounding_mode='floor')
+  with pytest.raises(ValueError, match='clip'):
+    FpaDigitizationPolicy(electrons_per_count=1.0, saturation_mode='wrap')

@@ -61,12 +61,15 @@ The three primary MVP products remain independently versioned:
 
 The focal-plane-array (FPA) area is tracked through the optical/RAY lane. The
 public contract in this tranche is the wavelength-resolved
-`plume.optical.spectral-ray-transfer@1` result; an FPA image, detector response,
-exposure, noise model, and pixel integration are downstream measurement
-adapters, not a second ray-transfer wire model. FPA validation therefore
-requires an explicit pixel/detector operator and cannot be inferred from a
-visual tube or an unresolved signature table. No provider advertises an FPA
-capability until that downstream contract and its validation gates exist.
+`plume.optical.spectral-ray-transfer@1` result; camera/optics mapping, detector
+response, exposure, expected noise variance, pixel integration, and
+deterministic expected-ADC conversion are downstream measurement adapters, not
+a second ray-transfer wire model. The repository now validates those boundary
+operators on synthetic fixtures, including camera identity and invalid-mask
+propagation. FPA validation therefore still requires an explicit pixel/detector
+operator and cannot be inferred from a visual tube or an unresolved signature
+table. No provider advertises an FPA capability, and no measured image claim is
+accepted, until provider-bound ray, camera, and detector validation gates exist.
 
 ## Supporting data products
 

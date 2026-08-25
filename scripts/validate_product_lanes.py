@@ -43,9 +43,13 @@ from exhaust_plume.validation.measurement_operators import (  # noqa: E402
   sample_spectral_rows,
 )
 from exhaust_plume.validation.fpa_operators import (  # noqa: E402
+  FPA_DIGITIZATION_OPERATOR_ID,
   DetectorResponse,
   FPA_PIXEL_DETECTOR_OPERATOR_ID,
+  FpaCameraOptics,
+  FpaDigitizationPolicy,
   FpaPixelGeometry,
+  digitize_expected_electrons,
   integrate_ray_transfer_to_fpa,
 )
 from exhaust_plume.validation.sensor_operators import (  # noqa: E402
@@ -562,6 +566,8 @@ def _run_fpa_boundary() -> dict[str, Any]:
     and fpa['focal_plane_array'] == 'downstream-adapter'
     and 'plume.optical.spectral-ray-transfer@1' in fpa['requires']
     and 'detector-response-contract' in fpa['requires']
+    and FPA_PIXEL_DETECTOR_OPERATOR_ID in fpa['implemented_boundary_operator_ids']
+    and FPA_DIGITIZATION_OPERATOR_ID in fpa['implemented_boundary_operator_ids']
   )
   pose = Pose(
     frame_id='world',
@@ -585,11 +591,19 @@ def _run_fpa_boundary() -> dict[str, Any]:
     ambient_state={},
   )
   ray_result = snapshot.evaluate(SPECTRAL_RAY_TRANSFER_V1, request)
+  camera = FpaCameraOptics(
+    camera_id='synthetic-camera-optics-v1',
+    focal_length_m=0.05,
+    pixel_pitch_m=(5.0e-6, 5.0e-6),
+    principal_point_px=(0.5, 0.5),
+    aperture_area_m2=1.0e-4,
+  )
   pixel_geometry = FpaPixelGeometry(
     width_px=2,
     height_px=1,
     ray_pixel_indices_row_col=((0, 0), (0, 0), (0, 1)),
     ray_collection_weights_m2_sr=(0.25, 0.75, 1.0),
+    camera_optics=camera,
   )
   detector = DetectorResponse(
     wavelengths_m=definition.wavelengths_m,
@@ -614,25 +628,54 @@ def _run_fpa_boundary() -> dict[str, Any]:
     exposure_s=1.0,
     validity_mask=ray_result.validity_mask,
   )
+  digitization_policy = FpaDigitizationPolicy(
+    electrons_per_count=1.0e12,
+    offset_counts=1.0,
+    bit_depth=16,
+    policy_id='synthetic-adc-v1',
+  )
+  digitized = digitize_expected_electrons(image, policy=digitization_policy)
+  digitized_repeat = digitize_expected_electrons(image, policy=digitization_policy)
   pixel_detector_passed = (
     image.source_semantics == 'source-only'
     and image.validity_mask == ((True, True),)
     and image.expected_electrons[0][0] > image.expected_electrons[0][1]
     and image == repeat
     and image.operator_id == FPA_PIXEL_DETECTOR_OPERATOR_ID
+    and image.camera_optics_id == camera.camera_id
+    and image.camera_mapping_model_id == camera.mapping_model_id
   )
+  digitization_passed = (
+    digitized == digitized_repeat
+    and digitized.validity_mask == image.validity_mask
+    and digitized.source_operator_id == FPA_PIXEL_DETECTOR_OPERATOR_ID
+    and digitized.digitization_policy_id == digitization_policy.policy_id
+    and digitized.operator_id == FPA_DIGITIZATION_OPERATOR_ID
+    and digitized.camera_optics_id == camera.camera_id
+    and digitized.camera_mapping_model_id == camera.mapping_model_id
+  )
+  boundary_passed = passed and pixel_detector_passed and digitization_passed
   return {
     'lane_id': 'focal-plane-array-v1',
-    'status': 'boundary-valid-not-implemented' if passed else 'failed',
+    'status': 'boundary-validated-downstream' if boundary_passed else 'failed',
     'provider_advertised': False,
     'ray_provider_prerequisite_present': optical['provider_ids'] != [],
     'ray_signature_adapter_present': True,
     'pixel_detector_operator_id': FPA_PIXEL_DETECTOR_OPERATOR_ID,
     'pixel_detector_contract_passed': pixel_detector_passed,
+    'camera_optics_id': camera.camera_id,
+    'camera_mapping_model_id': camera.mapping_model_id,
+    'camera_optics_contract_passed': image.camera_optics_id == camera.camera_id,
+    'digitization_operator_id': FPA_DIGITIZATION_OPERATOR_ID,
+    'digitization_policy_id': digitization_policy.policy_id,
+    'digitization_contract_passed': digitization_passed,
+    'digitized_counts': digitized.counts,
+    'digitized_validity_mask': digitized.validity_mask,
+    'digitized_saturated_mask': digitized.saturated_mask,
     'pixel_grid_shape': [1, 2],
     'pixel_validity_mask': image.validity_mask,
     'source_semantics': image.source_semantics,
-    'claim_ceiling': 'Deterministic expected-electron adapter only; no externally validated FPA image, detector-count, noise-realization, or detection claim.',
+    'claim_ceiling': 'Deterministic expected-electron and expected-ADC-count adapters only; no externally validated FPA image, measured detector-count, noise-realization, or detection claim.',
   }
 
 
@@ -750,7 +793,7 @@ def main(argv: list[str] | None = None) -> int:
   optical = _run_check('optical-transfer-v1', _run_optical_lane)
   cross_product = _run_check('ray-to-signature-consistency-v1', _run_cross_product_consistency)
   fpa = _run_check('focal-plane-array-v1', _run_fpa_boundary)
-  local_passed = all(result['status'] in {'passed', 'boundary-valid-not-implemented'} for result in (visual, signature, optical, cross_product, fpa))
+  local_passed = all(result['status'] in {'passed', 'boundary-validated-downstream'} for result in (visual, signature, optical, cross_product, fpa))
   report = {
     'report_id': 'exhaust-plume-product-lane-validation-v1',
     'local_status': 'passed' if local_passed else 'failed',

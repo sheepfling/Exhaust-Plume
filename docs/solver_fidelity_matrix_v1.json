@@ -132,7 +132,7 @@
     },
     {
       "lane_id": "focal-plane-array-v1",
-      "status": "planned-downstream",
+      "status": "validated-downstream",
       "provider_ids": [],
       "target_products": [
         "focal-plane-array"
@@ -145,7 +145,8 @@
         "noise-and-digitization-policy"
       ],
       "implemented_boundary_operator_ids": [
-        "op.sensor.fpa-pixel-detector"
+        "op.sensor.fpa-pixel-detector",
+        "op.sensor.fpa-digitization"
       ],
       "focal_plane_array": "downstream-adapter"
     }

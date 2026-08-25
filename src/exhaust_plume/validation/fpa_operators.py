@@ -16,6 +16,7 @@ from exhaust_plume.validation.measurement_operators import sample_spectral_rows
 
 
 FPA_PIXEL_DETECTOR_OPERATOR_ID = 'op.sensor.fpa-pixel-detector'
+FPA_DIGITIZATION_OPERATOR_ID = 'op.sensor.fpa-digitization'
 PLANCK_CONSTANT_J_S = 6.62607015e-34
 SPEED_OF_LIGHT_M_PER_S = 299792458.0
 
@@ -83,6 +84,50 @@ def _matrix(
 
 
 @dataclass(frozen=True, slots=True)
+class FpaCameraOptics:
+  """Declared camera/optics metadata for a ray-to-pixel mapping.
+
+  This record does not generate rays or infer a projection.  The caller must
+  provide the explicit pixel indices and ``m² sr`` collection weights in
+  :class:`FpaPixelGeometry`; this record preserves the camera/optics identity
+  that was used to produce that mapping.
+  """
+
+  camera_id: str
+  focal_length_m: float
+  pixel_pitch_m: tuple[float, float]
+  principal_point_px: tuple[float, float]
+  aperture_area_m2: float
+  mapping_model_id: str = 'declared-ray-to-pixel-mapping-v1'
+
+  def __post_init__(self) -> None:
+    if not self.camera_id:
+      raise ValueError('camera_id must not be empty')
+    ####
+    if not isfinite(self.focal_length_m) or self.focal_length_m <= 0.0:
+      raise ValueError('focal_length_m must be finite and positive')
+    ####
+    pixel_pitch = tuple(float(value) for value in self.pixel_pitch_m)
+    if len(pixel_pitch) != 2 or not all(isfinite(value) and value > 0.0 for value in pixel_pitch):
+      raise ValueError('pixel_pitch_m must contain two finite positive values')
+    ####
+    principal_point = tuple(float(value) for value in self.principal_point_px)
+    if len(principal_point) != 2 or not all(isfinite(value) for value in principal_point):
+      raise ValueError('principal_point_px must contain two finite values')
+    ####
+    if not isfinite(self.aperture_area_m2) or self.aperture_area_m2 <= 0.0:
+      raise ValueError('aperture_area_m2 must be finite and positive')
+    ####
+    if not self.mapping_model_id:
+      raise ValueError('mapping_model_id must not be empty')
+    ####
+    object.__setattr__(self, 'pixel_pitch_m', pixel_pitch)
+    object.__setattr__(self, 'principal_point_px', principal_point)
+  ####
+####
+
+
+@dataclass(frozen=True, slots=True)
 class FpaPixelGeometry:
   """Mapping from requested rays to pixels and collection weights.
 
@@ -95,6 +140,7 @@ class FpaPixelGeometry:
   height_px: int
   ray_pixel_indices_row_col: tuple[tuple[int, int], ...]
   ray_collection_weights_m2_sr: tuple[float, ...]
+  camera_optics: FpaCameraOptics | None = None
 
   def __post_init__(self) -> None:
     if isinstance(self.width_px, bool) or self.width_px < 1:
@@ -121,10 +167,22 @@ class FpaPixelGeometry:
     if len(indices) != len(weights) or any(weight <= 0.0 for weight in weights):
       raise ValueError('each ray must have one strictly positive collection weight')
     ####
+    if self.camera_optics is not None and not isinstance(self.camera_optics, FpaCameraOptics):
+      raise ValueError('camera_optics must be FpaCameraOptics when supplied')
+    ####
     object.__setattr__(self, 'ray_pixel_indices_row_col', indices)
     object.__setattr__(self, 'ray_collection_weights_m2_sr', weights)
   ####
-####
+
+  @property
+  def camera_optics_id(self) -> str | None:
+    return None if self.camera_optics is None else self.camera_optics.camera_id
+  ####
+
+  @property
+  def camera_mapping_model_id(self) -> str | None:
+    return None if self.camera_optics is None else self.camera_optics.mapping_model_id
+  ####
 
 
 @dataclass(frozen=True, slots=True)
@@ -207,7 +265,75 @@ class FpaPixelImage:
   validity_mask: tuple[tuple[bool, ...], ...]
   source_semantics: str
   detector_response_id: str
+  camera_optics_id: str | None = None
+  camera_mapping_model_id: str | None = None
   operator_id: str = FPA_PIXEL_DETECTOR_OPERATOR_ID
+
+
+@dataclass(frozen=True, slots=True)
+class FpaDigitizationPolicy:
+  """Deterministic expected-electron-to-counts policy.
+
+  The policy describes an ADC transfer function only.  It does not sample
+  shot/read noise, estimate detection probability, or turn an expected image
+  into a measured image.
+  """
+
+  electrons_per_count: float
+  offset_counts: float = 0.0
+  bit_depth: int = 16
+  rounding_mode: str = 'nearest_even'
+  saturation_mode: str = 'clip'
+  invalid_count: int = 0
+  policy_id: str = 'fpa-digitization-v1'
+
+  def __post_init__(self) -> None:
+    if not isfinite(self.electrons_per_count) or self.electrons_per_count <= 0.0:
+      raise ValueError('electrons_per_count must be finite and positive')
+    ####
+    if not isfinite(self.offset_counts):
+      raise ValueError('offset_counts must be finite')
+    ####
+    if isinstance(self.bit_depth, bool) or not isinstance(self.bit_depth, int) or not 1 <= self.bit_depth <= 32:
+      raise ValueError('bit_depth must be an integer from 1 through 32')
+    ####
+    if self.rounding_mode != 'nearest_even':
+      raise ValueError('only nearest_even rounding_mode is supported')
+    ####
+    if self.saturation_mode != 'clip':
+      raise ValueError('only clip saturation_mode is supported')
+    ####
+    if isinstance(self.invalid_count, bool) or not isinstance(self.invalid_count, int):
+      raise ValueError('invalid_count must be an integer')
+    ####
+    if not 0 <= self.invalid_count <= self.full_scale_counts:
+      raise ValueError('invalid_count must lie inside the ADC count range')
+    ####
+    if not self.policy_id:
+      raise ValueError('policy_id must not be empty')
+    ####
+
+  @property
+  def full_scale_counts(self) -> int:
+    return (1 << self.bit_depth) - 1
+  ####
+####
+
+
+@dataclass(frozen=True, slots=True)
+class FpaDigitizedExpectation:
+  """Deterministic ADC counts derived from an expected-electron image."""
+
+  width_px: int
+  height_px: int
+  counts: tuple[tuple[int, ...], ...]
+  validity_mask: BoolMatrix
+  saturated_mask: BoolMatrix
+  source_operator_id: str
+  digitization_policy_id: str
+  camera_optics_id: str | None
+  camera_mapping_model_id: str | None
+  operator_id: str = FPA_DIGITIZATION_OPERATOR_ID
 
 
 def _trapezoid_integral(axis: tuple[float, ...], values: tuple[float, ...]) -> float:
@@ -377,14 +503,91 @@ def integrate_ray_transfer_to_fpa(
       if background_included else 'source-only'
     ),
     detector_response_id=detector.response_id,
+    camera_optics_id=geometry.camera_optics_id,
+    camera_mapping_model_id=geometry.camera_mapping_model_id,
+  )
+####
+
+
+def digitize_expected_electrons(
+    image: FpaPixelImage,
+    *,
+    policy: FpaDigitizationPolicy,
+) -> FpaDigitizedExpectation:
+  """Apply an explicit deterministic ADC policy to expected electrons.
+
+  Valid pixels are converted as ``round(electrons / scale + offset)`` using
+  the declared nearest-even rule and then clipped to the declared ADC range.
+  Invalid pixels receive ``policy.invalid_count`` and remain invalid.  The
+  result is an expected digitized image, not a random detector realization.
+  """
+
+  if not isinstance(image, FpaPixelImage):
+    raise TypeError('image must be FpaPixelImage')
+  ####
+  if not isinstance(policy, FpaDigitizationPolicy):
+    raise TypeError('policy must be FpaDigitizationPolicy')
+  ####
+  expected = _matrix(
+    image.expected_electrons,
+    row_count=image.height_px,
+    column_count=image.width_px,
+    field_name='expected_electrons',
+    minimum=0.0,
+  )
+  if len(image.validity_mask) != image.height_px or any(
+      len(row) != image.width_px for row in image.validity_mask
+  ):
+    raise ValueError('validity_mask must match the declared image shape')
+  ####
+  counts_rows: list[tuple[int, ...]] = []
+  saturation_rows: list[tuple[bool, ...]] = []
+  for row_index in range(image.height_px):
+    count_row: list[int] = []
+    saturation_row: list[bool] = []
+    for column_index in range(image.width_px):
+      if not image.validity_mask[row_index][column_index]:
+        count_row.append(policy.invalid_count)
+        saturation_row.append(False)
+        continue
+      ####
+      unbounded_count = round(
+        expected[row_index][column_index] / policy.electrons_per_count
+        + policy.offset_counts,
+      )
+      saturated = (
+        unbounded_count < 0
+        or unbounded_count > policy.full_scale_counts
+      )
+      count_row.append(min(max(unbounded_count, 0), policy.full_scale_counts))
+      saturation_row.append(saturated)
+    ####
+    counts_rows.append(tuple(count_row))
+    saturation_rows.append(tuple(saturation_row))
+  ####
+  return FpaDigitizedExpectation(
+    width_px=image.width_px,
+    height_px=image.height_px,
+    counts=tuple(counts_rows),
+    validity_mask=image.validity_mask,
+    saturated_mask=tuple(saturation_rows),
+    source_operator_id=image.operator_id,
+    digitization_policy_id=policy.policy_id,
+    camera_optics_id=image.camera_optics_id,
+    camera_mapping_model_id=image.camera_mapping_model_id,
   )
 ####
 
 
 __all__ = (
+  'FPA_DIGITIZATION_OPERATOR_ID',
   'DetectorResponse',
   'FPA_PIXEL_DETECTOR_OPERATOR_ID',
+  'FpaCameraOptics',
+  'FpaDigitizationPolicy',
+  'FpaDigitizedExpectation',
   'FpaPixelGeometry',
   'FpaPixelImage',
+  'digitize_expected_electrons',
   'integrate_ray_transfer_to_fpa',
 )

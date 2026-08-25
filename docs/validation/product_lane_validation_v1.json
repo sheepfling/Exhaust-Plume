@@ -54,7 +54,31 @@
       "wavelength_grid_identity_preserved": true
     },
     "focal_plane_array": {
-      "claim_ceiling": "Deterministic expected-electron adapter only; no externally validated FPA image, detector-count, noise-realization, or detection claim.",
+      "camera_mapping_model_id": "declared-ray-to-pixel-mapping-v1",
+      "camera_optics_contract_passed": true,
+      "camera_optics_id": "synthetic-camera-optics-v1",
+      "claim_ceiling": "Deterministic expected-electron and expected-ADC-count adapters only; no externally validated FPA image, measured detector-count, noise-realization, or detection claim.",
+      "digitization_contract_passed": true,
+      "digitization_operator_id": "op.sensor.fpa-digitization",
+      "digitization_policy_id": "synthetic-adc-v1",
+      "digitized_counts": [
+        [
+          98,
+          1
+        ]
+      ],
+      "digitized_saturated_mask": [
+        [
+          false,
+          false
+        ]
+      ],
+      "digitized_validity_mask": [
+        [
+          true,
+          true
+        ]
+      ],
       "lane_id": "focal-plane-array-v1",
       "pixel_detector_contract_passed": true,
       "pixel_detector_operator_id": "op.sensor.fpa-pixel-detector",
@@ -72,7 +96,7 @@
       "ray_provider_prerequisite_present": true,
       "ray_signature_adapter_present": true,
       "source_semantics": "source-only",
-      "status": "boundary-valid-not-implemented"
+      "status": "boundary-validated-downstream"
     },
     "optical": {
       "analytic_slab_and_chord_passed": true,

@@ -25,10 +25,15 @@ from exhaust_plume.validation.envelope import (
   write_validity_report_json,
 )
 from exhaust_plume.validation.fpa_operators import (
+  FPA_DIGITIZATION_OPERATOR_ID,
   DetectorResponse,
   FPA_PIXEL_DETECTOR_OPERATOR_ID,
+  FpaCameraOptics,
+  FpaDigitizationPolicy,
+  FpaDigitizedExpectation,
   FpaPixelGeometry,
   FpaPixelImage,
+  digitize_expected_electrons,
   integrate_ray_transfer_to_fpa,
 )
 from exhaust_plume.validation.measurement_operators import (
@@ -69,6 +74,7 @@ __all__ = (
   'BAND_INTEGRATION_OPERATOR_ID',
   'BANDPASS_DETECTOR_OPERATOR_ID',
   'ATMOSPHERE_PATH_TRANSFER_OPERATOR_ID',
+  'FPA_DIGITIZATION_OPERATOR_ID',
   'ClaimRole',
   'ClaimStatus',
   'DEFAULT_STUDY_VALIDITY_ENVELOPE',
@@ -76,6 +82,9 @@ __all__ = (
   'EvidenceLevelSpec',
   'DetectorResponse',
   'FPA_PIXEL_DETECTOR_OPERATOR_ID',
+  'FpaCameraOptics',
+  'FpaDigitizationPolicy',
+  'FpaDigitizedExpectation',
   'FpaPixelGeometry',
   'FpaPixelImage',
   'MeasurementOperatorSpec',
@@ -105,6 +114,7 @@ __all__ = (
   'integrate_spectral_band_rows',
   'integrate_bandpass_detector_rows',
   'integrate_los_fov_spectrum',
+  'digitize_expected_electrons',
   'integrate_ray_transfer_to_fpa',
   'compare_peak_normalized_spectral_shape',
   'compare_mach_disk_pressure_relation',

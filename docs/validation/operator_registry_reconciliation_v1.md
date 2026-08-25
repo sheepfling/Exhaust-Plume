@@ -11,7 +11,7 @@ is a contract distinction, not a data-integrity failure.
 | Source | Product IDs | Alignment mappings | Operator IDs | Gate-eligible mappings |
 | --- | ---: | ---: | ---: | ---: |
 | Recovered `plume_validation_data_v8.zip` | 3 primary products | 78 | 35 `operator.*` IDs | 10 |
-| Committed alignment directory | 8 catalog products | N/A | 20 `op.*` IDs | N/A |
+| Committed alignment directory | 8 catalog products | N/A | 21 `op.*` IDs | N/A |
 
 The three primary product IDs agree exactly:
 
@@ -85,12 +85,14 @@ external validation. Non-spectral visual, Gardon time-history, and ALSI
 band-integrated mappings are explicitly recorded as not executed by that
 diagnostic.
 
-The downstream `op.sensor.fpa-pixel-detector` adapter is also implemented and
-unit-tested. It applies explicit ray-to-pixel collection weights, detector
-spectral response, exposure, dark-current, read-noise variance, and invalid-ray
-propagation to produce expected electrons. It is a deterministic measurement
-adapter only: it does not advertise an FPA provider, draw random noise, or make
-a detection decision.
+The downstream `op.sensor.fpa-pixel-detector` and
+`op.sensor.fpa-digitization` adapters are implemented and unit-tested. They
+apply explicit camera-identified ray-to-pixel collection weights, detector
+spectral response, exposure, dark-current, read-noise variance, invalid-ray
+propagation, and a declared deterministic ADC policy to produce expected
+electrons and expected counts. They are deterministic measurement adapters
+only: they do not advertise an FPA provider, draw random noise, or make a
+detection decision.
 
 ## Release treatment
 

@@ -2366,9 +2366,9 @@
   },
   "providers": {
     "focal_plane_array": {
-      "claim_ceiling": "Deterministic expected-electron adapter only; no externally validated FPA image, detector-count, noise-realization, or detection claim.",
+      "claim_ceiling": "Deterministic expected-electron and expected-ADC-count adapters only; no externally validated FPA image, measured detector-count, noise-realization, or detection claim.",
       "provider_ids": [],
-      "status": "boundary-valid-not-implemented"
+      "status": "boundary-validated-downstream"
     },
     "optical": {
       "analytic_transfer_passed": true,
@@ -2489,7 +2489,8 @@
         "plume.optical.spectral-ray-transfer@1",
         "camera and optics model",
         "op.sensor.fpa-pixel-detector expected-electron adapter",
-        "external detector calibration, digitization, and detection policy"
+        "op.sensor.fpa-digitization deterministic expected-ADC adapter",
+        "external detector calibration, measured-count, and detection policy"
       ],
       "status": "blocked_upstream_ray_and_external_detector"
     }

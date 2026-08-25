@@ -599,7 +599,8 @@ def build_unimplemented_boundaries(providers: Mapping[str, Any]) -> list[dict[st
         RAY_PRODUCT,
         'camera and optics model',
         'op.sensor.fpa-pixel-detector expected-electron adapter',
-        'external detector calibration, digitization, and detection policy',
+        'op.sensor.fpa-digitization deterministic expected-ADC adapter',
+        'external detector calibration, measured-count, and detection policy',
       ],
     },
   ]
