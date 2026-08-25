@@ -1,0 +1,57 @@
+{
+  "manifest_id": "exhaust-plume-validation-corpus-intake-v1",
+  "status": "external-pending",
+  "source_repository": "sheepfling/Exhaust-Plume",
+  "source_handoff": {
+    "pull_request": 5,
+    "head_commit": "f418aa84d3c6b96bd4b6c24b76296a5d9b2a9225",
+    "merged_main_commit": "dd4d57611ba940c8fc4a9721d4b3464b6bbd7848",
+    "validation_results": "docs/coding_agent_handoff/resync_v0.1.0a1/validation/VALIDATION_RESULTS_V8.md"
+  },
+  "release_gate": {
+    "required": true,
+    "rule": "No external-validation claim is releasable until both content-addressed archives are recovered and verified."
+  },
+  "archives": [
+    {
+      "archive_id": "validation-corpus-v8",
+      "filename": "plume_validation_data_v8.zip",
+      "sha256": "79c2a34dd4c43bd976ceb8773fdccd78a2592d903bf03ca57c2aef82f882e9aa",
+      "description": "Version 8 source-centric validation corpus",
+      "expected_summary": {
+        "corpus_version": "0.8.0",
+        "benchmark_definitions": 17,
+        "source_records": 19,
+        "indexed_products": 60,
+        "alignment_mappings": 78,
+        "cross_product_rules": 7,
+        "validation_gates": 11,
+        "source_corpus_tests": 57
+      },
+      "retrieval": {
+        "status": "missing",
+        "source_url": null,
+        "retrieved_at_utc": null,
+        "license_status": "unknown"
+      }
+    },
+    {
+      "archive_id": "mvp-validation-alignment-v1",
+      "filename": "plume_mvp_validation_alignment_v1.zip",
+      "sha256": "569aa7f0572f454a1a539b2fbecd977107aced9cab8eb2e65f01c814f8494ceb",
+      "description": "Product-alignment overlay and measurement-operator registry",
+      "expected_summary": {
+        "primary_products": 3,
+        "supporting_products": 5,
+        "measurement_operator_registry": true,
+        "cross_product_invariants": true
+      },
+      "retrieval": {
+        "status": "missing",
+        "source_url": null,
+        "retrieved_at_utc": null,
+        "license_status": "unknown"
+      }
+    }
+  ]
+}
