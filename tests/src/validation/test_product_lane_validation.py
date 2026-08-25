@@ -42,6 +42,8 @@ def test_fpa_boundary_does_not_advertise_an_unimplemented_provider() -> None:
   assert report['status'] == 'boundary-valid-not-implemented'
   assert report['provider_advertised'] is False
   assert report['ray_provider_prerequisite_present'] is True
+  assert report['pixel_detector_contract_passed'] is True
+  assert report['source_semantics'] == 'source-only'
 
 
 def test_ray_to_signature_consistency_is_synthetic_and_lineage_preserving() -> None:

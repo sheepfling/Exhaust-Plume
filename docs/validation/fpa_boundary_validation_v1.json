@@ -22,6 +22,16 @@
     "pixel-exposure-integration",
     "noise-and-digitization-policy"
   ],
+  "implemented_boundary_operator": {
+    "operator_id": "op.sensor.fpa-pixel-detector",
+    "status": "passed-deterministic-synthetic-fixture",
+    "output": "expected electron image plus explicit validity and noise-variance fields",
+    "does_not_claim": [
+      "random noise realization",
+      "digitized counts",
+      "detection probability or threshold"
+    ]
+  },
   "negative_boundary_checks": {
     "fpa_provider_advertised": false,
     "image_capability_advertised": false,
@@ -29,13 +39,13 @@
     "noise_claimed": false,
     "detection_claimed": false
   },
-  "claim_ceiling": "No FPA image, detector count, noise, or detection claim.",
+  "claim_ceiling": "Deterministic expected-electron adapter only; no externally validated FPA image, detector-count, noise-realization, or detection claim.",
   "release_status": {
     "accepted_external_claim": false,
     "blockers": [
-      "validated ray-transfer comparison is pending",
-      "camera/optics and detector contracts are not implemented",
-      "pixel exposure, noise, and digitization policies are not implemented"
+      "validated ray-transfer comparison is still pending for sensor-space use",
+      "camera/optics calibration and external detector data are not implemented",
+      "digitization and detection policies are not implemented"
     ]
   }
 }

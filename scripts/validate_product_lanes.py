@@ -42,6 +42,12 @@ from exhaust_plume.validation.measurement_operators import (  # noqa: E402
   peak_normalize_spectral_rows,
   sample_spectral_rows,
 )
+from exhaust_plume.validation.fpa_operators import (  # noqa: E402
+  DetectorResponse,
+  FPA_PIXEL_DETECTOR_OPERATOR_ID,
+  FpaPixelGeometry,
+  integrate_ray_transfer_to_fpa,
+)
 from exhaust_plume.providers import (  # noqa: E402
   GrayRayTransferDefinition,
   GrayRayTransferProvider,
@@ -468,13 +474,76 @@ def _run_fpa_boundary() -> dict[str, Any]:
     and 'plume.optical.spectral-ray-transfer@1' in fpa['requires']
     and 'detector-response-contract' in fpa['requires']
   )
+  pose = Pose(
+    frame_id='world',
+    translation_m=(0.0, 0.0, 0.0),
+    rotation_xyzw=(0.0, 0.0, 0.0, 1.0),
+  )
+  provider = GrayRayTransferProvider()
+  definition = _gray_definition()
+  request = SpectralRayTransferRequest(
+    ray_frame_id='sensor',
+    ray_origins_m=((-2.0, 0.0, 0.0), (-2.0, 0.0, 0.0), (-2.0, 2.0, 0.0)),
+    ray_directions=((1.0, 0.0, 0.0),) * 3,
+    ray_t_min_m=(0.0, 0.0, 0.0),
+    ray_t_max_m=(10.0, 10.0, 10.0),
+    wavelengths_m=definition.wavelengths_m,
+  )
+  snapshot = provider.create_session(definition=definition).create_snapshot(
+    time_s=0.0,
+    source_pose=pose,
+    dynamic_state={},
+    ambient_state={},
+  )
+  ray_result = snapshot.evaluate(SPECTRAL_RAY_TRANSFER_V1, request)
+  pixel_geometry = FpaPixelGeometry(
+    width_px=2,
+    height_px=1,
+    ray_pixel_indices_row_col=((0, 0), (0, 0), (0, 1)),
+    ray_collection_weights_m2_sr=(0.25, 0.75, 1.0),
+  )
+  detector = DetectorResponse(
+    wavelengths_m=definition.wavelengths_m,
+    quantum_efficiency=(1.0, 1.0, 1.0),
+    optical_throughput=(1.0, 1.0, 1.0),
+    dark_current_e_per_s=1.0,
+    read_noise_std_e=0.5,
+  )
+  image = integrate_ray_transfer_to_fpa(
+    definition.wavelengths_m,
+    ray_result.source_spectral_radiance,
+    geometry=pixel_geometry,
+    detector=detector,
+    exposure_s=1.0,
+    validity_mask=ray_result.validity_mask,
+  )
+  repeat = integrate_ray_transfer_to_fpa(
+    definition.wavelengths_m,
+    ray_result.source_spectral_radiance,
+    geometry=pixel_geometry,
+    detector=detector,
+    exposure_s=1.0,
+    validity_mask=ray_result.validity_mask,
+  )
+  pixel_detector_passed = (
+    image.source_semantics == 'source-only'
+    and image.validity_mask == ((True, True),)
+    and image.expected_electrons[0][0] > image.expected_electrons[0][1]
+    and image == repeat
+    and image.operator_id == FPA_PIXEL_DETECTOR_OPERATOR_ID
+  )
   return {
     'lane_id': 'focal-plane-array-v1',
     'status': 'boundary-valid-not-implemented' if passed else 'failed',
     'provider_advertised': False,
     'ray_provider_prerequisite_present': optical['provider_ids'] != [],
     'ray_signature_adapter_present': True,
-    'claim_ceiling': 'No FPA image, detector count, noise, or detection claim.',
+    'pixel_detector_operator_id': FPA_PIXEL_DETECTOR_OPERATOR_ID,
+    'pixel_detector_contract_passed': pixel_detector_passed,
+    'pixel_grid_shape': [1, 2],
+    'pixel_validity_mask': image.validity_mask,
+    'source_semantics': image.source_semantics,
+    'claim_ceiling': 'Deterministic expected-electron adapter only; no externally validated FPA image, detector-count, noise-realization, or detection claim.',
   }
 
 

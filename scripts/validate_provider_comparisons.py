@@ -443,12 +443,13 @@ def build_unimplemented_boundaries(providers: Mapping[str, Any]) -> list[dict[st
     {
       'product_id': 'plume.image.spectral-radiance@1',
       'provider_ids': list(providers['focal_plane_array']['provider_ids']),
-      'status': 'blocked_upstream_ray_and_detector',
+      'status': 'blocked_upstream_ray_and_external_detector',
       'claim_status': 'not_accepted',
       'required_prerequisites': [
         RAY_PRODUCT,
         'camera and optics model',
-        'detector response, exposure, pixel, and noise contract',
+        'op.sensor.fpa-pixel-detector expected-electron adapter',
+        'external detector calibration, digitization, and detection policy',
       ],
     },
   ]

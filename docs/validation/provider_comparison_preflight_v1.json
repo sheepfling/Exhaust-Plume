@@ -1146,7 +1146,7 @@
   },
   "corpus_status": "preflight-valid-pending-release-gates",
   "operator_reconciliation": {
-    "committed_count": 19,
+    "committed_count": 20,
     "committed_only": [
       "op.atmosphere.path-transfer",
       "op.engineering.statistical-envelope",
@@ -1160,6 +1160,7 @@
       "op.ray.transmissometer",
       "op.sensor.band-integral",
       "op.sensor.bandpass-detector",
+      "op.sensor.fpa-pixel-detector",
       "op.sensor.los-fov-spectrum",
       "op.sensor.peak-normalize-spectrum",
       "op.sensor.spectral-sampling",
@@ -1219,7 +1220,7 @@
   },
   "providers": {
     "focal_plane_array": {
-      "claim_ceiling": "No FPA image, detector count, noise, or detection claim.",
+      "claim_ceiling": "Deterministic expected-electron adapter only; no externally validated FPA image, detector-count, noise-realization, or detection claim.",
       "provider_ids": [],
       "status": "boundary-valid-not-implemented"
     },
@@ -1304,9 +1305,10 @@
       "required_prerequisites": [
         "plume.optical.spectral-ray-transfer@1",
         "camera and optics model",
-        "detector response, exposure, pixel, and noise contract"
+        "op.sensor.fpa-pixel-detector expected-electron adapter",
+        "external detector calibration, digitization, and detection policy"
       ],
-      "status": "blocked_upstream_ray_and_detector"
+      "status": "blocked_upstream_ray_and_external_detector"
     }
   ]
 }

@@ -24,6 +24,13 @@ from exhaust_plume.validation.envelope import (
   write_validity_report_csv,
   write_validity_report_json,
 )
+from exhaust_plume.validation.fpa_operators import (
+  DetectorResponse,
+  FPA_PIXEL_DETECTOR_OPERATOR_ID,
+  FpaPixelGeometry,
+  FpaPixelImage,
+  integrate_ray_transfer_to_fpa,
+)
 from exhaust_plume.validation.measurement_operators import (
   BAND_INTEGRATION_OPERATOR_ID,
   PEAK_NORMALIZATION_OPERATOR_ID,
@@ -45,6 +52,10 @@ __all__ = (
   'DEFAULT_STUDY_VALIDITY_ENVELOPE',
   'EvidenceLevel',
   'EvidenceLevelSpec',
+  'DetectorResponse',
+  'FPA_PIXEL_DETECTOR_OPERATOR_ID',
+  'FpaPixelGeometry',
+  'FpaPixelImage',
   'MeasurementOperatorSpec',
   'NozzleCaseAssessment',
   'NozzleValidityCase',
@@ -62,6 +73,7 @@ __all__ = (
   'evaluate_nozzle_case',
   'evaluate_validity_matrix',
   'integrate_spectral_band_rows',
+  'integrate_ray_transfer_to_fpa',
   'peak_normalize_spectral_rows',
   'sample_spectral_rows',
   'write_validity_report_csv',

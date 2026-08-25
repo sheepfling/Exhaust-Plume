@@ -12,7 +12,7 @@ solver fidelity attached to a provider profile.
 | `shock-cell-reduced-order-v1` | `plume.shock-train-reduced-order` -> `plume.visual.sectioned-tube@1` | Explicit calibration, physical-versus-safety termination, reduced-order geometry labels, visual-only capability, and canonical conformance checks pass | CJ-UEJ archive is verified and used for component context; closure calibration/validation split and train-cell measurement operator are missing | Experimental visual envelope only; downstream cells are scaled reduced-order geometry; no resolved MOC, spectral, ray, detector, or FPA claim |
 | `signature-table-mvp-v1` | `signature.table-lookup` -> `plume.signature.spectral-radiant-intensity@1` | Table shape, interpolation, extrapolation, time-axis, partial-result, provenance, and conformance tests | Pending a verified source asset and intrinsic-signature evidence | Versioned table and interpolation behavior only; no geometry, ray field, atmosphere, optics, or detector claim |
 | `optical-transfer-v1` | `plume.gray-ray-transfer` -> `plume.optical.spectral-ray-transfer@1` | Exact finite-cylinder intervals, homogeneous slab/chord transfer, layer separation, miss semantics, and analytic/refinement checks | External sensor/path comparisons remain pending; gray analytic evidence is not corpus validation | Homogeneous gray transfer through a straight constant-radius support only; no chemistry, atmosphere, detector, or FPA claim |
-| `focal-plane-array-v1` | No provider; downstream adapter | Boundary and dependency checks only | Requires validated ray transfer plus camera/optics/detector data | No FPA image, count, noise, or detection claim |
+| `focal-plane-array-v1` | No provider; downstream adapter | Deterministic ray-to-pixel expected-electron operator passes; camera/optics and external detector evidence remain pending | Requires validated ray transfer plus camera/optics/detector data | No externally validated FPA image, detector count, noise realization, or detection claim |
 
 The local optical evidence is recorded in
 [`optical_transfer_validation_v1.json`](optical_transfer_validation_v1.json).
@@ -28,7 +28,10 @@ identity, and parent snapshot lineage. It is an adapted, gray-approximate
 signature result and remains below the external-validation claim ceiling. The
 FPA boundary evidence is recorded in
 [`fpa_boundary_validation_v1.json`](fpa_boundary_validation_v1.json); the
-downstream lane has no provider ID and no detector or image claim.
+downstream lane has no provider ID. Its deterministic
+`op.sensor.fpa-pixel-detector` adapter is validated on a synthetic ray fixture,
+but it makes no externally validated image, detector-count, noise-realization,
+or detection claim.
 
 The branch-level quality and release freeze is recorded in
 [`release_freeze_v1.json`](release_freeze_v1.json). It is a local completion

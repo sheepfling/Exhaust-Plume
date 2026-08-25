@@ -19,10 +19,11 @@ ALIGNMENT = ROOT / 'docs' / 'coding_agent_handoff' / 'resync_v0.1.0a1' / 'alignm
 def test_alignment_registry_loads_committed_semantics_without_external_data() -> None:
   registry = ValidationRegistry.from_alignment_directory(ALIGNMENT)
   assert len(registry.product_ids) == 8
-  assert len(registry.operators) == 19
+  assert len(registry.operators) == 20
   assert len(registry.evidence_levels) == 5
   assert registry.source_archive_verified is False
   assert any(operator.operator_id == 'op.visual.feature-extractor' for operator in registry.operators)
+  assert any(operator.operator_id == 'op.sensor.fpa-pixel-detector' for operator in registry.operators)
 ####
 
 

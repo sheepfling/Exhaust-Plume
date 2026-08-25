@@ -9,7 +9,7 @@ is a contract reconciliation item, not a data-integrity failure.
 | Source | Product IDs | Alignment mappings | Operator IDs | Gate-eligible mappings |
 | --- | ---: | ---: | ---: | ---: |
 | Recovered `plume_validation_data_v8.zip` | 3 primary products | 78 | 35 `operator.*` IDs | 10 |
-| Committed alignment directory | 8 catalog products | N/A | 19 `op.*` IDs | N/A |
+| Committed alignment directory | 8 catalog products | N/A | 20 `op.*` IDs | N/A |
 
 The three primary product IDs agree exactly:
 
@@ -47,6 +47,13 @@ validity masks. They deliberately do not implement line-of-sight geometry,
 atmospheric transfer, detector response, source calibration, or formulation
 sweeps. Their presence reduces an implementation gap but does not reconcile an
 external `operator.*` ID or close a product gate.
+
+The downstream `op.sensor.fpa-pixel-detector` adapter is also implemented and
+unit-tested. It applies explicit ray-to-pixel collection weights, detector
+spectral response, exposure, dark-current, read-noise variance, and invalid-ray
+propagation to produce expected electrons. It is a deterministic measurement
+adapter only: it does not advertise an FPA provider, draw random noise, or make
+a detection decision.
 
 ## Release treatment
 

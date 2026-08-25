@@ -144,6 +144,9 @@
         "pixel-exposure-integration",
         "noise-and-digitization-policy"
       ],
+      "implemented_boundary_operator_ids": [
+        "op.sensor.fpa-pixel-detector"
+      ],
       "focal_plane_array": "downstream-adapter"
     }
   ]

@@ -86,7 +86,9 @@ passes synthetic projected-area, miss, wavelength-grid, and snapshot-lineage
 checks, but does not convert the gray ray provider into an externally validated
 signature provider. The focal-plane-array boundary is recorded in
 [`fpa_boundary_validation_v1.json`](fpa_boundary_validation_v1.json); it has no
-provider and makes no image, detector, noise, or detection claim.
+provider. Its deterministic pixel/detector adapter is boundary evidence only
+and makes no externally validated image, detector, noise-realization, or
+detection claim.
 
 The branch-level freeze is recorded in
 [`release_freeze_v1.json`](release_freeze_v1.json). It captures the current
