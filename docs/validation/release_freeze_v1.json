@@ -3,12 +3,12 @@
   "schema_version": "plume.release-freeze@1",
   "branch": "work/validation-and-completion",
   "base_main_commit": "dd4d57611ba940c8fc4a9721d4b3464b6bbd7848",
-  "head_commit": "f29dff0c0d8050fa5cb6e4d853eaa1a7cdd9a21e",
+  "head_commit": "e78a5a596d66b8f6ae24a50cd74feb7b2a08c35e",
   "remote_publish_status": "local-only-not-pushed-or-merged",
   "repository_quality": {
     "pytest": {
       "status": "passed",
-      "tests_passed": 336,
+      "tests_passed": 339,
       "warnings": 18
     },
     "ruff": "passed",
@@ -16,7 +16,7 @@
     "public_schema_fixture_determinism": "passed",
       "fresh_wheel_build_and_installed_smoke": "passed",
       "wheel_package_version": "0.1.0a2.dev0",
-      "wheel_sha256": "e21591ad39e3669175947f4aa095e062739d6eec3793be2b0cdfd3ea704b15cf",
+      "wheel_sha256": "fec89c13cd9210a36fbeafeb607e4d30feb0371c902b4a394eef6d56e05ff6b9",
     "known_installed_smoke_diagnostics": "legacy expansion-fan warnings and one expected unattainable pressure-target error log; smoke exited successfully"
   },
   "product_lanes": {
