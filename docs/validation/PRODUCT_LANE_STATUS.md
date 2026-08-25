@@ -39,6 +39,15 @@ Until the archive is recovered, the repository's fixtures and regression
 tests remain useful engineering evidence but are not reported as experimental
 validation.
 
+The recovered corpus changes that sentence for data availability, not for
+product acceptance. Its own gate registry reports VIS, SIG, and RAY T1
+component evidence as `ready` and their T2 product evidence as
+`partial_evidence`; all three T0 contract gates are `outside_corpus`, and the
+T3 cross-product gate is `synthetic_only`. Those statuses describe the corpus
+alignment layer. The repository still needs provider-specific operators,
+thresholds, and the unresolved operator crosswalk before it can accept a
+product claim.
+
 ## Working branch
 
 The clean completion work is isolated on `work/validation-and-completion`,
