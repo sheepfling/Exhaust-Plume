@@ -50,3 +50,15 @@ def test_compression_rejects_pressure_drop() -> None:
 
   assert result.status is MocPrimitiveStatus.OUTSIDE_DOMAIN
   assert result.shock_status is ShockSolveStatus.PRESSURE_BELOW_UPSTREAM
+
+
+def test_compression_reports_pressure_above_normal_shock_limit() -> None:
+  result = solve_attached_compression_to_pressure(
+    upstream_mach=2.0,
+    gamma=1.4,
+    upstream_pressure_Pa=100000.0,
+    target_pressure_Pa=500000.0,
+  )
+
+  assert result.status is MocPrimitiveStatus.OUTSIDE_DOMAIN
+  assert result.shock_status is ShockSolveStatus.PRESSURE_ABOVE_NORMAL_SHOCK_LIMIT

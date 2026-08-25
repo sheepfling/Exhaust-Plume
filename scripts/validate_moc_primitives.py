@@ -23,11 +23,13 @@ from exhaust_plume.models.moc import (  # noqa: E402
   inverse_prandtl_meyer_angle_rad,
   prandtl_meyer_angle_rad,
   solve_attached_compression_to_pressure,
+  solve_ambient_pressure_free_boundary,
   solve_underexpanded_expansion_fan,
   validate_moc_mesh,
 )
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput  # noqa: E402
 from exhaust_plume.models.nozzle.exit_state import derive_ambient_state, derive_uniform_nozzle_exit  # noqa: E402
+from exhaust_plume.util.aero.shock_validity import ShockSolveStatus  # noqa: E402
 
 
 def build_moc_primitive_report() -> dict[str, Any]:
@@ -96,6 +98,32 @@ def build_moc_primitive_report() -> dict[str, Any]:
     upstream_pressure_Pa=100000.0,
     target_pressure_Pa=180000.0,
   )
+  compression_limit_case = solve_attached_compression_to_pressure(
+    upstream_mach=2.0,
+    gamma=1.4,
+    upstream_pressure_Pa=100000.0,
+    target_pressure_Pa=500000.0,
+  )
+  free_boundary = solve_ambient_pressure_free_boundary(
+    fan_exit,
+    fan_ambient,
+    extent_m=0.2,
+  )
+  resolution_probe = []
+  for resolution in (4, 8, 16):
+    refined_fan = solve_underexpanded_expansion_fan(
+      fan_exit,
+      fan_ambient,
+      characteristic_count=resolution,
+    )
+    resolution_probe.append({
+      'characteristic_count': resolution,
+      'status': refined_fan.status.value,
+      'cell_count': len(refined_fan.cells),
+      'first_axis_x_m': refined_fan.centerline_points_m[0][0] if refined_fan.centerline_points_m else None,
+      'last_axis_x_m': refined_fan.centerline_points_m[-1][0] if refined_fan.centerline_points_m else None,
+      'terminal_pressure_residual': refined_fan.terminal_pressure_residual,
+    })
   geometry_results = {
     'interior': {
       'status': interior.status.value,
@@ -129,6 +157,23 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'theta_rad': compression.theta_rad,
       'beta_rad': compression.beta_rad,
       'downstream_mach': compression.downstream_mach,
+      'normal_shock_limit_failure': {
+        'status': compression_limit_case.status.value,
+        'shock_status': compression_limit_case.shock_status.value,
+      },
+    },
+    'ambient_pressure_free_boundary_foundation': {
+      'status': free_boundary.status.value,
+      'terminal_mach': free_boundary.terminal_mach,
+      'terminal_flow_angle_rad': free_boundary.terminal_flow_angle_rad,
+      'pressure_residual': free_boundary.pressure_residual,
+      'tangent_residual': free_boundary.tangent_residual,
+      'extent_m': 0.2,
+      'closure_status': 'open',
+    },
+    'fan_resolution_probe': {
+      'status': 'diagnostic-only-open-mesh',
+      'cases': resolution_probe,
     },
   }
   failures = [
@@ -172,12 +217,29 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'message': compression.message,
       }
     ] if not compression.converged else []),
+    *([
+      {
+        'case': 'compression_normal_shock_limit_failure',
+        'status': compression_limit_case.status.value,
+        'message': compression_limit_case.message,
+      }
+    ] if (
+      compression_limit_case.status is not MocPrimitiveStatus.OUTSIDE_DOMAIN
+      or compression_limit_case.shock_status is not ShockSolveStatus.PRESSURE_ABOVE_NORMAL_SHOCK_LIMIT
+    ) else []),
+    *([
+      {
+        'case': 'ambient_pressure_free_boundary_foundation',
+        'status': free_boundary.status.value,
+        'message': free_boundary.message,
+      }
+    ] if not free_boundary.converged else []),
   ]
   ####
   return {
     'report_id': 'exhaust-plume-moc-foundation-validation-v1',
     'model_fidelity': 'planar-moc-primitives',
-    'status': 'fan-compression-foundation-gate-passed-closure-pending' if not failures else 'moc-foundation-gate-failed',
+    'status': 'fan-compression-boundary-foundation-gate-passed-closure-pending' if not failures else 'moc-foundation-gate-failed',
     'claim_status': 'not_accepted',
     'provider_integration': 'not_started',
     'low_fidelity_promotion_detected': False,
@@ -209,7 +271,7 @@ def main(argv: list[str] | None = None) -> int:
   if args.output is not None:
     args.output.write_text(serialized, encoding='utf-8')
   print(serialized, end='')
-  return 0 if report['status'] == 'fan-compression-foundation-gate-passed-closure-pending' else 1
+  return 0 if report['status'] == 'fan-compression-boundary-foundation-gate-passed-closure-pending' else 1
 
 
 if __name__ == '__main__':

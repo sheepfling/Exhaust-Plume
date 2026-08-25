@@ -1,7 +1,7 @@
 {
   "report_id": "exhaust-plume-moc-foundation-validation-v1",
   "model_fidelity": "planar-moc-primitives",
-  "status": "fan-compression-foundation-gate-passed-closure-pending",
+  "status": "fan-compression-boundary-foundation-gate-passed-closure-pending",
   "claim_status": "not_accepted",
   "provider_integration": "not_started",
   "low_fidelity_promotion_detected": false,
@@ -61,7 +61,49 @@
       "pressure_residual": 1.6168794698185392e-16,
       "theta_rad": 0.19285624909427315,
       "beta_rad": 0.7064997155064409,
-      "downstream_mach": 1.6012815380508714
+      "downstream_mach": 1.6012815380508714,
+      "normal_shock_limit_failure": {
+        "status": "outside_domain",
+        "shock_status": "pressure_above_normal_shock_limit"
+      }
+    },
+    "ambient_pressure_free_boundary_foundation": {
+      "status": "converged",
+      "terminal_mach": 2.592983004690484,
+      "terminal_flow_angle_rad": 0.2596517756080572,
+      "pressure_residual": 1.4361623714154308e-16,
+      "tangent_residual": 0.0,
+      "extent_m": 0.2,
+      "closure_status": "open"
+    },
+    "fan_resolution_probe": {
+      "status": "diagnostic-only-open-mesh",
+      "cases": [
+        {
+          "characteristic_count": 4,
+          "status": "converged",
+          "cell_count": 4,
+          "first_axis_x_m": 0.08660254037833885,
+          "last_axis_x_m": 0.36465229919149933,
+          "terminal_pressure_residual": 1.4361623714154308e-16
+        },
+        {
+          "characteristic_count": 8,
+          "status": "converged",
+          "cell_count": 8,
+          "first_axis_x_m": 0.08660254037833885,
+          "last_axis_x_m": 0.36465229919149933,
+          "terminal_pressure_residual": 1.4361623714154308e-16
+        },
+        {
+          "characteristic_count": 16,
+          "status": "converged",
+          "cell_count": 16,
+          "first_axis_x_m": 0.08660254037833885,
+          "last_axis_x_m": 0.36465229919149933,
+          "terminal_pressure_residual": 1.4361623714154308e-16
+        }
+      ]
     }
   },
   "failures": [],

@@ -29,6 +29,10 @@ from exhaust_plume.models.moc.compression import (
   MocCompressionResult,
   solve_attached_compression_to_pressure,
 )
+from exhaust_plume.models.moc.boundary import (
+  MocFreeBoundaryResult,
+  solve_ambient_pressure_free_boundary,
+)
 from exhaust_plume.models.moc.topology import (
   MocTopologyResult,
   MocTopologyStatus,
@@ -43,6 +47,7 @@ __all__ = (
   'MocExpansionFanCell',
   'MocExpansionFanResult',
   'MocCompressionResult',
+  'MocFreeBoundaryResult',
   'MocTopologyResult',
   'MocTopologyStatus',
   'ScalarRootResult',
@@ -56,5 +61,6 @@ __all__ = (
   'supersonic_mach_from_stagnation_pressure_ratio',
   'solve_underexpanded_expansion_fan',
   'solve_attached_compression_to_pressure',
+  'solve_ambient_pressure_free_boundary',
   'validate_moc_mesh',
 )
