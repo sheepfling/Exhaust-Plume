@@ -62,6 +62,17 @@ from exhaust_plume.products.workflow_visual import (
     write_visual_obj,
     write_visual_result_json,
 )
+from exhaust_plume.products.workflow_gallery import (
+    GALLERY_MANIFEST_SCHEMA,
+    GalleryArtifact,
+    VisualizationGalleryManifest,
+    render_plume_flux_gallery,
+    render_product_gallery,
+    render_sectioned_tube_gallery,
+    render_spectral_radiant_intensity_gallery,
+    render_spectral_ray_transfer_gallery,
+    write_gallery_manifest,
+)
 
 PlumeProduct: TypeAlias = (
     ConservativeSupportProduct
@@ -84,6 +95,8 @@ __all__ = (
     'ENGINEERING_FLUX_SECTION_V1',
     'EngineeringFluxSectionProduct',
     'Fidelity',
+    'GALLERY_MANIFEST_SCHEMA',
+    'GalleryArtifact',
     'OPTICAL_SPECTRAL_RAY_TRANSFER_V1',
     'PlumeProduct',
     'ProductMetadata',
@@ -109,14 +122,21 @@ __all__ = (
     'load_spectral_signature_request',
     'load_straight_visual_definition',
     'render_signature_plots',
+    'render_plume_flux_gallery',
+    'render_product_gallery',
+    'render_sectioned_tube_gallery',
+    'render_spectral_radiant_intensity_gallery',
+    'render_spectral_ray_transfer_gallery',
     'render_visual_preview',
     'visual_definition_from_shock_cells',
     'visual_definition_from_zone_results',
     'write_signature_result_csv',
     'write_signature_result_json',
     'write_signature_table_asset',
+    'write_gallery_manifest',
     'write_straight_visual_asset',
     'write_visual_mesh_json',
     'write_visual_obj',
     'write_visual_result_json',
+    'VisualizationGalleryManifest',
 )

@@ -142,6 +142,31 @@ CSV, JSON, or mesh files must carry the source identity and view spec.
 No renderer should import solver-private zones, flow states, meshes, or
 provider configuration objects.
 
+## Implementation status after the static-gallery increment
+
+The current implementation has completed the renderer-neutral and static
+evaluation layers for the four strict `ProductResult` families:
+
+- `exhaust_plume.api.visualization` now exposes typed, selection-resolved
+  projections for visual stations/channels, signature directions/wavelengths,
+  ray IDs/wavelengths, and flux species.
+- `exhaust_plume.products.workflow_gallery` provides optional Matplotlib
+  galleries for overview/projection/channel/mesh-QA, spectra/heatmap/direction
+  sphere, ray bundle/source/transmittance/heatmaps, and flux vectors/scalars/
+  second-moment/species views.
+- Each gallery writes `visualization_spec.json` and `gallery_manifest.json`
+  with source identity, fidelity, validation, applicability, provenance,
+  warnings, masks/policies, selections, and artifact paths.
+- The strict ray contract still has no hit mask, optical depth, or intersection
+  interval. The gallery records that limitation and does not infer it from
+  zero radiance or unit transmittance. The strict visual contract likewise does
+  not acquire shock-diamond or plume-region claims from tessellation.
+
+The remaining work is the linked interactive gallery, explicit comparison and
+validation overlays, richer declared uncertainty rendering, and a downstream
+focal-plane lane only after an explicit camera/optics/detector result contract
+exists.
+
 ## Milestones and exit gates
 
 ### M0 — Shared foundation

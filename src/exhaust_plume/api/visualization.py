@@ -26,6 +26,7 @@ from exhaust_plume.api.contracts import (
   SpectralRadiantIntensityResult,
   SpectralRayTransferResult,
 )
+from exhaust_plume.api.visualization_spec import VisualizationSpec
 
 Vector3: TypeAlias = tuple[float, float, float]
 ScalarValue: TypeAlias = float | None
@@ -854,6 +855,237 @@ ProductVisualizationData: TypeAlias = (
 )
 
 
+@dataclass(frozen=True, slots=True)
+class SectionedTubeViewProjection:
+  """Selection-resolved geometry view without renderer-specific state."""
+
+  data: SectionedTubeLineData
+  station_index: int
+  selected_channel: SectionedTubeChannelLine | None
+
+  @property
+  def station_center_m(self) -> Vector3:
+    return self.data.geometry.centerline_m[self.station_index]
+  ####
+
+  @property
+  def station_normal_1(self) -> Vector3:
+    return self.data.geometry.normal_1[self.station_index]
+  ####
+
+  @property
+  def station_normal_2(self) -> Vector3:
+    return self.data.geometry.normal_2[self.station_index]
+  ####
+
+  @property
+  def station_semi_axes_m(self) -> tuple[float, float]:
+    return (
+      self.data.geometry.semi_axis_1_m[self.station_index],
+      self.data.geometry.semi_axis_2_m[self.station_index],
+    )
+  ####
+####
+
+
+@dataclass(frozen=True, slots=True)
+class SpectralRadiantIntensityViewProjection:
+  """Selection-resolved signature view with exact direction identity."""
+
+  grid: SpectralRadiantIntensityGrid
+  direction_index: int
+  wavelength_index: int
+
+  @property
+  def selected_direction(self) -> Vector3:
+    return self.grid.directions[self.direction_index]
+  ####
+
+  @property
+  def selected_wavelength_m(self) -> float:
+    return self.grid.wavelengths_m[self.wavelength_index]
+  ####
+
+  @property
+  def selected_values_W_sr_m(self) -> tuple[ScalarValue, ...]:
+    return self.grid.radiant_intensity_W_sr_m[self.direction_index]
+  ####
+####
+
+
+@dataclass(frozen=True, slots=True)
+class SpectralRayTransferViewProjection:
+  """Selection-resolved ray view with source and transmittance kept apart."""
+
+  data: SpectralRayTransferData
+  ray_index: int
+  wavelength_index: int
+
+  @property
+  def selected_line(self) -> SpectralRayTransferLine:
+    return self.data.lines[self.ray_index]
+  ####
+
+  @property
+  def selected_wavelength_m(self) -> float:
+    return self.data.wavelengths_m[self.wavelength_index]
+  ####
+####
+
+
+@dataclass(frozen=True, slots=True)
+class PlumeFluxViewProjection:
+  """Selection-resolved flux glyph view with optional species selection."""
+
+  glyph: PlumeFluxSectionGlyph
+  species_index: int | None
+
+  @property
+  def selected_species(self) -> tuple[str, float] | None:
+    if self.species_index is None:
+      return None
+    ####
+    return self.glyph.species_mass_flows_kgps[self.species_index]
+  ####
+####
+
+
+def _validate_view_spec(
+  result: ProductResult,
+  spec: VisualizationSpec,
+  product_prefix: str,
+) -> None:
+  spec.validate_for_result(result)
+  if not spec.view_kind.startswith(f'{product_prefix}.'):
+    raise ValueError(
+      f'view spec {spec.view_kind!r} is not valid for the {product_prefix} product'
+    )
+####
+
+
+def _selected_index(index: int | None, count: int, name: str, default: int = 0) -> int:
+  selected = default if index is None else index
+  if selected < 0 or selected >= count:
+    raise IndexError(f'{name} out of range: {selected}')
+  ####
+  return selected
+####
+
+
+def project_sectioned_tube_view(
+  result: SectionedTubeResult,
+  spec: VisualizationSpec,
+) -> SectionedTubeViewProjection:
+  """Resolve a visual station/channel selection against a tube result."""
+
+  _validate_view_spec(result, spec, 'visual')
+  selection = spec.selection
+  data = extract_sectioned_tube_line_data(result, channel_id=selection.channel_id)
+  station_index = _selected_index(
+    selection.station_index,
+    len(data.geometry.arc_length_m),
+    'station_index',
+    default=len(data.geometry.arc_length_m) // 2,
+  )
+  selected_channel: SectionedTubeChannelLine | None = None
+  if selection.channel_id is not None:
+    matching = tuple(
+      channel for channel in data.channels
+      if selection.component_index is None or channel.component_index == selection.component_index
+    )
+    if not matching:
+      raise IndexError(
+        f'component_index out of range for channel {selection.channel_id!r}: '
+        f'{selection.component_index}'
+      )
+    ####
+    selected_channel = matching[0]
+  elif selection.component_index is not None:
+    raise ValueError('component_index selection requires channel_id for a visual view')
+  ####
+  return SectionedTubeViewProjection(
+    data=data,
+    station_index=station_index,
+    selected_channel=selected_channel,
+  )
+####
+
+
+def project_spectral_radiant_intensity_view(
+  result: SpectralRadiantIntensityResult,
+  spec: VisualizationSpec,
+) -> SpectralRadiantIntensityViewProjection:
+  """Resolve direction and wavelength selections for a signature result."""
+
+  _validate_view_spec(result, spec, 'signature')
+  grid = extract_spectral_radiant_intensity_grid(result)
+  direction_index = _selected_index(
+    spec.selection.direction_index,
+    len(grid.directions),
+    'direction_index',
+  )
+  wavelength_index = _selected_index(
+    spec.selection.wavelength_index,
+    len(grid.wavelengths_m),
+    'wavelength_index',
+    default=len(grid.wavelengths_m) // 2,
+  )
+  return SpectralRadiantIntensityViewProjection(
+    grid=grid,
+    direction_index=direction_index,
+    wavelength_index=wavelength_index,
+  )
+####
+
+
+def project_spectral_ray_transfer_view(
+  result: SpectralRayTransferResult,
+  spec: VisualizationSpec,
+) -> SpectralRayTransferViewProjection:
+  """Resolve ray and wavelength selections without inferring intersections."""
+
+  _validate_view_spec(result, spec, 'ray-transfer')
+  data = extract_spectral_ray_transfer_data(result)
+  if spec.selection.ray_id is None:
+    ray_index = 0
+  else:
+    matching = tuple(index for index, line in enumerate(data.lines) if line.ray_id == spec.selection.ray_id)
+    if not matching:
+      raise KeyError(f'unknown ray_id {spec.selection.ray_id!r}')
+    ####
+    ray_index = matching[0]
+  ####
+  ray_index = _selected_index(ray_index, len(data.lines), 'ray_index')
+  wavelength_index = _selected_index(
+    spec.selection.wavelength_index,
+    len(data.wavelengths_m),
+    'wavelength_index',
+    default=len(data.wavelengths_m) // 2,
+  )
+  return SpectralRayTransferViewProjection(
+    data=data,
+    ray_index=ray_index,
+    wavelength_index=wavelength_index,
+  )
+####
+
+
+def project_plume_flux_view(
+  result: PlumeFluxSectionResult,
+  spec: VisualizationSpec,
+) -> PlumeFluxViewProjection:
+  """Resolve an optional species/component selection for a flux result."""
+
+  _validate_view_spec(result, spec, 'flux')
+  glyph = extract_plume_flux_section_glyph(result)
+  species_index = spec.selection.component_index
+  if species_index is not None:
+    _selected_index(species_index, len(glyph.species_mass_flows_kgps), 'component_index')
+  ####
+  return PlumeFluxViewProjection(glyph=glyph, species_index=species_index)
+####
+
+
 def extract_product_visualization_data(result: ProductResult) -> ProductVisualizationData:
   """Dispatch one standard API result to its product-specific visualization data.
 
@@ -888,7 +1120,11 @@ __all__ = (
   'SpectralRayTransferData',
   'SpectralRayTransferLine',
   'PlumeFluxSectionGlyph',
+  'PlumeFluxViewProjection',
   'ProductVisualizationData',
+  'SectionedTubeViewProjection',
+  'SpectralRadiantIntensityViewProjection',
+  'SpectralRayTransferViewProjection',
   'build_sectioned_tube_render_mesh',
   'extract_sectioned_tube_channel_lines',
   'extract_sectioned_tube_geometry',
@@ -899,4 +1135,8 @@ __all__ = (
   'extract_spectral_ray_transfer_lines',
   'extract_plume_flux_section_glyph',
   'extract_product_visualization_data',
+  'project_plume_flux_view',
+  'project_sectioned_tube_view',
+  'project_spectral_radiant_intensity_view',
+  'project_spectral_ray_transfer_view',
 )

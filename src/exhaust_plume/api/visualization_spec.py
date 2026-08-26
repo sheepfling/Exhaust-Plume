@@ -83,6 +83,7 @@ class VisualizationSpec(StrictFrozenModel):
   wavelength_display_unit: WavelengthDisplayUnit | None = None
   color_map: str = Field(default='viridis', min_length=1)
   mesh_radial_segments: int = Field(default=24, ge=3)
+  ray_display_length_m: float = Field(default=1.0, gt=0., allow_inf_nan=False)
   camera: CameraSpec | None = None
 
   @classmethod
