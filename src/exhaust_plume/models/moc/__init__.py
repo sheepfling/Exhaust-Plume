@@ -187,6 +187,11 @@ from exhaust_plume.models.moc.terminal_patch_solver import (
   solve_marched_attached_shock_chain_cell_from_terminal_reflection_patch,
   solve_marched_attached_shock_chain_cell_from_terminal_reflection_patch_or_termination,
 )
+from exhaust_plume.models.moc.first_cell import (
+  MocFirstCellCompositeStatus,
+  MocFirstCellCompositeResult,
+  assemble_first_cell_composite,
+)
 from exhaust_plume.models.moc.shock_chain import (
   MocTerminalShockCellFieldStatus,
   MocTerminalShockCellFieldResult,
@@ -430,6 +435,9 @@ __all__ = (
   'solve_marched_attached_shock_from_terminal_reflection_patch',
   'solve_marched_attached_shock_chain_cell_from_terminal_reflection_patch',
   'solve_marched_attached_shock_chain_cell_from_terminal_reflection_patch_or_termination',
+  'MocFirstCellCompositeStatus',
+  'MocFirstCellCompositeResult',
+  'assemble_first_cell_composite',
   'sample_reflected_zone_along_shock_path',
   'validate_fan_reflected_interface',
   'continue_post_shock_characteristics_to_centerline',

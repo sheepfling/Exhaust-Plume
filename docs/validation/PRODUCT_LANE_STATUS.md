@@ -120,7 +120,10 @@ mismatched subsonic field before attachment. Both additions remain
 research-lane contracts. The terminal-reflection-patch chain adapter also
 records the exact outgoing ``C-`` handoff as it enters the next shock solve and
 the canonical validation case ends at the verified normal-shock decision
-without appending a synthetic cell.
+without appending a synthetic cell. The first-cell composite now joins the
+strip and reflection patch into a measurable closed supersonic topology with
+explicit shock/ambient/centerline/outgoing-trace edges, while retaining the
+non-production closure and promotion gates.
 Each planner step also records a deterministic fingerprint of its complete
 state/total-pressure handoff, and the generic chain rejects a boundary called a
 `centerline-trace` unless its samples satisfy `y=0` and `theta=0`. These are

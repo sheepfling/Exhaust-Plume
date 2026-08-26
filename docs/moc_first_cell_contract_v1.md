@@ -145,6 +145,11 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   domain into the next shock solve, and returns either a coupled field solve or
   a typed bounded/normal-shock stop without fabricating an open or subsonic
   cell. Its downstream turn law remains explicitly research-only;
+- a first-cell composite assembler that joins the shock/ambient strip and
+  centerline-reflection patch at their shared terminal ``C+`` seam, checks
+  explicit shock/ambient/centerline/outgoing-``C-`` perimeter paths, and
+  exposes an independently measurable closed supersonic topology while
+  keeping physical closure and chain promotion blocked;
 - a physical mixed-regime termination adapter for the terminal-patch probe.
   After complete upstream coverage and a converged normal-shock terminal, it
   returns an explicit physical chain-stop decision while keeping the
@@ -321,6 +326,13 @@ is the field actually used by the next shock march and returns a
 `MocPostShockChainCellSolve` only for a complete nonterminal field. The
 canonical zero-turn case returns the existing typed normal-shock termination
 instead, so no open patch or subsonic state is promoted.
+The first-cell composite assembler then joins the strip and patch over the
+same terminal trace. Its union has one connected, topologically bounded
+supersonic mesh with explicit shock, ambient, centerline, and outgoing-trace
+edges, and the independent geometry operator measures the union without
+inferring any edge. This is a materially closed local topology, but its
+production physical-closure flag remains false until the reflected upstream
+field and downstream boundary condition are accepted.
 When complete upstream coverage is present, the same result can provide a
 physical chain-stop decision for that mixed-regime terminal. This decision
 does not set ``physical_closure_verified`` and cannot promote a cell; it only

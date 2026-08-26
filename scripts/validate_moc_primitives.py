@@ -49,6 +49,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_attached_shock_to_centerline,
   solve_terminal_compression_candidate,
   assemble_terminal_trace_centerline_patch,
+  assemble_first_cell_composite,
   solve_marched_attached_shock_from_terminal_reflection_patch,
   solve_marched_attached_shock_from_caustic_family_band,
   solve_normal_shock_terminal,
@@ -389,6 +390,8 @@ def _ambient_shock_strip_probe(
   )
   terminal_patch_shock_probe = None
   terminal_patch_chain_probe = None
+  first_cell_composite = None
+  first_cell_composite_measurement = None
   if terminal_patch.converged:
     terminal_patch_shock_probe = solve_marched_attached_shock_from_terminal_reflection_patch(
       terminal_patch,
@@ -430,6 +433,29 @@ def _ambient_shock_strip_probe(
           'nonterminal-cell-return-remains-research-only'
         ),
       }
+      first_cell_composite = assemble_first_cell_composite(
+        shock_fit,
+        strip,
+        terminal_patch,
+        position_tolerance_m=2.0e-4,
+      )
+      if first_cell_composite.converged:
+        first_cell_composite_measurement = measure_moc_shock_cell(
+          MocShockCellObservation(
+            cell_index=1,
+            shock_boundary_points_m=first_cell_composite.shock_boundary_points_m,
+            centerline_boundary_points_m=first_cell_composite.centerline_boundary_points_m,
+            cells=first_cell_composite.cells,
+            upstream_total_pressure_Pa=tuple(
+              sample.upstream_total_pressure_Pa
+              for sample in shock_fit.boundary_states
+            ),
+            downstream_total_pressure_Pa=tuple(
+              sample.downstream_total_pressure_Pa
+              for sample in shock_fit.boundary_states
+            ),
+          )
+        )
   accepted = (
     strip.status is MocAmbientShockStripStatus.CONVERGED_OPEN
     and strip.topology.forms_closed_zone
@@ -457,6 +483,18 @@ def _ambient_shock_strip_probe(
       else terminal_patch_shock_probe.as_report()
     ),
     'terminal_reflection_patch_chain_probe': terminal_patch_chain_probe,
+    'first_cell_composite': (
+      None
+      if first_cell_composite is None
+      else {
+        **first_cell_composite.as_report(),
+        'measurement_operator': (
+          None
+          if first_cell_composite_measurement is None
+          else first_cell_composite_measurement.as_report()
+        ),
+      }
+    ),
     'terminal_trace_acceptance_tolerance_m': 2.0e-4,
     'message': strip.message,
     'claim_status': (
@@ -731,6 +769,8 @@ def _terminal_reflection_patch_refinement_probe() -> list[dict[str, Any]]:
       trace_position_tolerance_m=trace_position_tolerance_m,
     )
     shock_probe = None
+    first_cell_composite = None
+    first_cell_measurement = None
     if patch.converged:
       shock_probe = solve_marched_attached_shock_from_terminal_reflection_patch(
         patch,
@@ -739,6 +779,27 @@ def _terminal_reflection_patch_refinement_probe() -> list[dict[str, Any]]:
         sample_count=len(patch.outgoing_trace_points_m),
         position_tolerance_m=trace_position_tolerance_m,
       )
+      first_cell_composite = assemble_first_cell_composite(
+        fit,
+        strip,
+        patch,
+        position_tolerance_m=trace_position_tolerance_m,
+      )
+      if first_cell_composite.converged:
+        first_cell_measurement = measure_moc_shock_cell(
+          MocShockCellObservation(
+            cell_index=1,
+            shock_boundary_points_m=first_cell_composite.shock_boundary_points_m,
+            centerline_boundary_points_m=first_cell_composite.centerline_boundary_points_m,
+            cells=first_cell_composite.cells,
+            upstream_total_pressure_Pa=tuple(
+              sample.upstream_total_pressure_Pa for sample in fit.boundary_states
+            ),
+            downstream_total_pressure_Pa=tuple(
+              sample.downstream_total_pressure_Pa for sample in fit.boundary_states
+            ),
+          )
+        )
     input_trace = patch.input_trace_validation
     output_trace = patch.outgoing_trace_validation
     probe.append({
@@ -779,6 +840,25 @@ def _terminal_reflection_patch_refinement_probe() -> list[dict[str, Any]]:
       ),
       'physical_terminal_verified': (
         None if shock_probe is None else shock_probe.physical_terminal_verified
+      ),
+      'first_cell_composite_status': (
+        None if first_cell_composite is None else first_cell_composite.status.value
+      ),
+      'first_cell_composite_topology_closed': (
+        None if first_cell_composite is None else first_cell_composite.topology_closed
+      ),
+      'first_cell_composite_boundary_conditions_verified': (
+        None
+        if first_cell_composite is None
+        else first_cell_composite.physical_boundary_conditions_verified
+      ),
+      'first_cell_composite_physical_closure_verified': (
+        None
+        if first_cell_composite is None
+        else first_cell_composite.physical_closure_verified
+      ),
+      'first_cell_composite_measurement': (
+        None if first_cell_measurement is None else first_cell_measurement.as_report()
       ),
     })
   return probe
@@ -2469,6 +2549,12 @@ def build_moc_primitive_report() -> dict[str, Any]:
       or case.get('shock_probe_coupling_sampled_count') != case.get('shock_probe_sample_count')
       or case.get('physical_closure_verified')
       or not case.get('physical_terminal_verified')
+      or case.get('first_cell_composite_status') != 'converged_closed_supersonic_composite'
+      or case.get('first_cell_composite_topology_closed') is not True
+      or case.get('first_cell_composite_boundary_conditions_verified') is not True
+      or case.get('first_cell_composite_physical_closure_verified') is not False
+      or not isinstance(case.get('first_cell_composite_measurement'), dict)
+      or case['first_cell_composite_measurement'].get('status') != 'converged'
     )
   ]
   terminal_composite_refinement_failures = [
@@ -2511,6 +2597,18 @@ def build_moc_primitive_report() -> dict[str, Any]:
   terminal_patch_chain_failure = (
     not isinstance(terminal_patch_chain_probe, dict)
     or terminal_patch_chain_probe.get('expected_physical_termination') is not True
+  )
+  first_cell_composite_probe = ambient_shock_strip_probe.get(
+    'first_cell_composite',
+  )
+  first_cell_composite_failure = (
+    not isinstance(first_cell_composite_probe, dict)
+    or first_cell_composite_probe.get('status')
+    != 'converged_closed_supersonic_composite'
+    or first_cell_composite_probe.get('topology_closed') is not True
+    or first_cell_composite_probe.get('physical_boundary_conditions_verified') is not True
+    or first_cell_composite_probe.get('physical_closure_verified') is not False
+    or first_cell_composite_probe.get('chain_promotion_blocked') is not True
   )
   caustic_family_restart_failure = (
     caustic_family_restart.get('accepted') is not True
@@ -3003,6 +3101,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
     },
     'solver_generated_ambient_shock_strip': ambient_shock_strip_probe,
     'solver_generated_terminal_patch_chain_probe': terminal_patch_chain_probe,
+    'solver_generated_first_cell_composite': first_cell_composite_probe,
     'ambient_attachment_closure_probe': ambient_attachment_closure_probe,
     'ambient_attachment_transition_probe': ambient_attachment_transition_probe,
     'solver_generated_shock_refinement': {
@@ -3458,6 +3557,22 @@ def build_moc_primitive_report() -> dict[str, Any]:
         ),
       }
     ] if terminal_patch_chain_failure else []),
+    *([
+      {
+        'case': 'solver_generated_first_cell_composite',
+        'status': (
+          'missing'
+          if not isinstance(first_cell_composite_probe, dict)
+          else str(first_cell_composite_probe.get('status', 'missing'))
+        ),
+        'message': (
+          'first-cell strip/patch union did not pass its physical-boundary '
+          'topology contract'
+          if not isinstance(first_cell_composite_probe, dict)
+          else str(first_cell_composite_probe.get('message', ''))
+        ),
+      }
+    ] if first_cell_composite_failure else []),
     *([
       {
         'case': 'ambient_attachment_closure_probe',

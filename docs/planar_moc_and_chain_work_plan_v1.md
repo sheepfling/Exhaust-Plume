@@ -229,6 +229,13 @@ not wait on this research closure.
   returns either a fully coupled next-field solve or a typed bounded/normal-
   shock stop. It never appends an open patch or fabricates a subsonic cell;
   the caller-supplied downstream turn remains research-only input.
+- Added a first-cell composite assembler. It cancels the shared terminal C+
+  seam between the physical shock/ambient strip and the centerline-reflection
+  patch, verifies the fitted shock, ambient streamline, centerline, and
+  outgoing C- paths are explicit boundary edges, and retains the outgoing
+  trace as typed continuation state. Its closed supersonic topology and
+  independent geometry measurement are evidence only; physical closure and
+  chain promotion remain hard-false.
 - Added a physical mixed-regime termination adapter for that probe. Once all
   upstream samples and the normal-shock terminal are verified, it returns an
   explicit `MocChainTerminationDecision` with `physical_termination=true`.
@@ -483,6 +490,14 @@ the next local solver result; the canonical case instead reaches the typed
 normal-shock stop. The adapter is a solver-backed research seam, not evidence
 that the patch's caller-supplied downstream turn is a production boundary
 condition.
+
+The first-cell composite assembler now joins the strip and reflection patch
+at their shared terminal ``C+`` edge. The union is a single connected mesh
+with explicit shock, ambient, centerline, and outgoing ``C-`` boundary paths;
+the independent shock-cell measurement operator checks its area and supplied
+shock loss. This closes the local supersonic topology while preserving the
+separate claim that the reflected upstream field, downstream boundary law,
+and external validation still have to pass before the first cell is promoted.
 
 The terminal-compression candidate is the next local boundary primitive after
 the open shock/ambient strip. It is intentionally weaker than a first-cell
