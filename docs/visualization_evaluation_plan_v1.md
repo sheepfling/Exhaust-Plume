@@ -97,13 +97,32 @@ transmittance when those fields are absent from the result.
 
 ### Downstream focal-plane lane
 
-Once an explicit detector/operator result exists, add:
+The downstream boundary is now explicit through
+`exhaust_plume.validation.fpa_visualization` and the FPA workflow modules. It
+consumes an explicit `FpaPixelImage` plus a source-bound ray identity; it does
+not add FPA to the public provider capability union. The evaluation surface
+includes:
 
 - pixel-integrated radiance or expected-electron image;
 - detector spectral response and bandpass view;
 - exposure/time-integration view;
 - expected ADC image and deterministic digitization settings;
 - invalid-pixel mask, noise policy, and camera/optics identity.
+
+The `FpaVisualizationSpec` and `FpaViewProjection` retain operator lineage,
+source digest, masks, selected pixel/wavelength, and the expected-output claim
+ceiling. `render_fpa_gallery` writes static PNG/CSV/JSON artifacts and
+`write_interactive_fpa_gallery` writes a standalone no-network explorer with
+linked layer/pixel controls and view-spec export. Declared camera metadata is
+limited to image-plane coordinates; the view does not infer ray directions,
+hit masks, optical depth, noise realizations, detections, or measured counts.
+
+The recovered Version 8 corpus is content-verified but has no camera,
+detector, pixel-image, or FPA observation member. The separate product-
+alignment archive is also still missing. The reproducible readiness result is
+[`fpa_visualization_readiness_v1.json`](validation/fpa_visualization_readiness_v1.json);
+its future detector-pixel-count measurement operator remains blocked pending
+the required observation dataset and metadata.
 
 This lane is downstream composition. It does not create an FPA provider or a
 measured-image claim by itself.
@@ -171,11 +190,13 @@ evaluation layers for the four strict `ProductResult` families:
   zero radiance or unit transmittance. The strict visual contract likewise does
   not acquire shock-diamond or plume-region claims from tessellation.
 
-The remaining work is richer declared uncertainty rendering and a downstream
-focal-plane lane only after an explicit camera/optics/detector result contract
-exists. Validation datasets, when available, must still enter through their
-declared measurement-space/operator contracts; a gallery cannot promote a
-diagnostic overlay into validation evidence.
+The FPA boundary, renderer-neutral projections, static gallery, interactive
+explorer, and validation-readiness checker are implemented. Remaining FPA work
+is measurement-data intake and comparison once a camera/optics/detector
+observation contract is supplied, plus richer declared uncertainty rendering
+for all products. Validation datasets must still enter through their declared
+measurement-space/operator contracts; a gallery cannot promote a diagnostic
+overlay into validation evidence.
 
 ## Milestones and exit gates
 
@@ -221,8 +242,10 @@ diagnostic overlay into validation evidence.
 
 - add lineage-aware overlays and residual plots;
 - add ray-to-signature consistency views only through the declared operator;
-- add FPA views only after explicit camera/detector result contracts and
-  validation evidence exist.
+- add the explicit downstream FPA result contract, deterministic views, and
+  no-inference guardrails;
+- add provider-bound FPA comparison only after camera/detector measurement
+  data and the external measurement operator are available.
 
 ### M6 — Release evidence
 

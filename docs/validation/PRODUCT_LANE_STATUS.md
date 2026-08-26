@@ -13,7 +13,7 @@ solver fidelity attached to a provider profile.
 | `shock-cell-reduced-order-v1` | `plume.shock-train-reduced-order` -> `plume.visual.sectioned-tube@1` | Explicit calibration, physical-versus-safety termination, reduced-order geometry labels, visual-only capability, and canonical conformance checks pass | CJ-UEJ archive is verified; the same-phase pressure-extrema spacing operator is diagnostic-only, and the closure calibration/validation split remains blocked | Experimental visual envelope only; downstream cells are scaled reduced-order geometry; no resolved MOC, spectral, ray, detector, or FPA claim |
 | `signature-table-mvp-v1` | `signature.table-lookup` -> `plume.signature.spectral-radiant-intensity@1` | Table shape, interpolation, no-extrapolation, fixed-angle exact-only tables, time-axis, partial-result, reproducible fixture digest, measurement-space mismatch guard, provenance, and conformance tests | Pending a verified source asset and intrinsic-signature evidence | Versioned table and interpolation behavior only; no geometry, ray field, atmosphere, optics, or detector claim |
 | `optical-transfer-v1` | `plume.gray-ray-transfer` -> `plume.optical.spectral-ray-transfer@1` | Exact finite-cylinder intervals, homogeneous slab/chord transfer, layer separation, miss semantics, and analytic/refinement checks | External sensor/path comparisons remain pending; gray analytic evidence is not corpus validation | Homogeneous gray transfer through a straight constant-radius support only; no chemistry, atmosphere, detector, or FPA claim |
-| `focal-plane-array-v1` | No provider; validated downstream adapters | Explicit camera/optics identity, ray-to-pixel expected-electron integration, and deterministic ADC expectation pass synthetic contract checks | Requires validated ray transfer plus camera/optics calibration and detector data | No externally validated FPA image, measured detector count, noise realization, or detection claim |
+| `focal-plane-array-v1` | No provider; validated downstream adapters and evaluation gallery | Explicit camera/optics identity, ray-to-pixel expected-electron integration, deterministic ADC expectation, source-bound projections, static gallery, and no-network interactive view pass local checks | Recovered corpus is hash-verified but has no FPA observation members; the separate alignment archive and camera/detector measurement contract remain pending | Deterministic expected-electron and expected-ADC-count views only; no externally validated FPA image, measured detector count, noise realization, or detection claim |
 
 The local optical evidence is recorded in
 [`optical_transfer_validation_v1.json`](optical_transfer_validation_v1.json).
@@ -35,6 +35,14 @@ a synthetic ray fixture. They preserve camera/optics identity and invalid
 masks, and produce expected ADC counts without sampling noise. They make no
 externally validated image, measured detector-count, noise-realization, or
 detection claim.
+
+The FPA visualization/readiness record is preserved in
+[`fpa_visualization_readiness_v1.json`](fpa_visualization_readiness_v1.json).
+It makes the future detector-pixel-count measurement operator and required
+camera/detector metadata explicit, while keeping the recovered corpus's lack
+of FPA observation data as a blocker. A static or interactive FPA gallery is
+therefore an evaluation surface over deterministic operator output, not an
+external validation result.
 
 The branch-level quality and release freeze is recorded in
 [`release_freeze_v1.json`](release_freeze_v1.json). It is a local completion

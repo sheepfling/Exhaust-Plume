@@ -1,0 +1,65 @@
+{
+  "schema": "plume.validation.fpa-readiness@1",
+  "report_id": "exhaust-plume-fpa-validation-readiness-v1",
+  "lane_id": "focal-plane-array-v1",
+  "status": "corpus-intake-pending",
+  "intake": {
+    "corpus": {
+      "archive_id": "validation-corpus-v8",
+      "filename": "plume_validation_data_v8.zip",
+      "expected_sha256": "79c2a34dd4c43bd976ceb8773fdccd78a2592d903bf03ca57c2aef82f882e9aa",
+      "actual_sha256": "79c2a34dd4c43bd976ceb8773fdccd78a2592d903bf03ca57c2aef82f882e9aa",
+      "status": "verified",
+      "member_count": 138,
+      "unsafe_members": [],
+      "duplicate_members": [],
+      "errors": []
+    },
+    "alignment": {
+      "archive_id": "mvp-validation-alignment-v1",
+      "filename": "plume_mvp_validation_alignment_v1.zip",
+      "expected_sha256": "569aa7f0572f454a1a539b2fbecd977107aced9cab8eb2e65f01c814f8494ceb",
+      "actual_sha256": null,
+      "status": "missing",
+      "member_count": 0,
+      "unsafe_members": [],
+      "duplicate_members": [],
+      "errors": ["archive file does not exist"]
+    },
+    "all_required_archives_verified": false
+  },
+  "measurement_contract": {
+    "measurement_space": "detector-pixel-counts",
+    "measurement_operator_id": "operator.sensor.fpa-detector-counts",
+    "measurement_operator_namespace": "future-external-measurement-contract",
+    "provider_operator_ids": [
+      "op.sensor.fpa-pixel-detector",
+      "op.sensor.fpa-digitization"
+    ],
+    "required_metadata": [
+      "camera_id",
+      "mapping_model_id",
+      "detector_response_id",
+      "exposure_s",
+      "wavelength_axis_m",
+      "adc_policy_id",
+      "frame_id",
+      "pixel_validity_mask"
+    ],
+    "candidate_observation_members": [],
+    "dataset_status": "not-present-in-corpus",
+    "comparison_status": "blocked-pending-fpa-measurement"
+  },
+  "implemented_downstream_boundary": {
+    "pixel_detector_operator_id": "op.sensor.fpa-pixel-detector",
+    "digitization_operator_id": "op.sensor.fpa-digitization",
+    "status": "boundary-validated-downstream",
+    "claim_ceiling": "Deterministic expected-electron and expected-ADC-count views only; no externally validated FPA image, measured detector-count, noise-realization, or detection claim."
+  },
+  "accepted_external_claim": false,
+  "blockers": [
+    "separately named MVP alignment archive is not verified",
+    "no FPA camera/detector/pixel observation dataset is present in the recovered corpus",
+    "no accepted external FPA measurement claim is emitted by this report"
+  ]
+}

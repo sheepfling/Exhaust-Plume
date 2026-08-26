@@ -145,6 +145,24 @@ integration, and deterministic expected-ADC-count adapter pass synthetic
 boundary checks. They make no externally validated image, measured detector,
 noise-realization, or detection claim.
 
+The downstream FPA visualization and measurement-space readiness result is
+recorded in
+[`fpa_visualization_readiness_v1.json`](fpa_visualization_readiness_v1.json).
+The checker can reproduce it with:
+
+```bash
+python scripts/verify_fpa_validation.py \
+  --corpus /path/to/plume_validation_data_v8.zip \
+  --alignment /path/to/plume_mvp_validation_alignment_v1.zip \
+  --output fpa-validation-readiness.json
+```
+
+The recovered Version 8 archive matches its expected digest but contains no
+camera, detector, pixel-image, or FPA observation member. The report therefore
+keeps the future detector-pixel-count measurement operator declared and the
+external comparison blocked. The interactive/static FPA views are evaluation
+artifacts over deterministic downstream expectations, not validation evidence.
+
 The reduced-order first-cell correlation and planar MOC resolution evidence is
 recorded in
 [`first_cell_phase_1_report.md`](first_cell_phase_1_report.md). It passes the

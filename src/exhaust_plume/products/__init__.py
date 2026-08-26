@@ -85,6 +85,16 @@ from exhaust_plume.products.workflow_comparison import (
     render_product_comparison,
     write_product_comparison_report,
 )
+from exhaust_plume.products.workflow_fpa import (
+    FPA_GALLERY_MANIFEST_SCHEMA,
+    FpaVisualizationGalleryManifest,
+    render_fpa_gallery,
+    write_fpa_gallery_manifest,
+)
+from exhaust_plume.products.workflow_fpa_interactive import (
+    FPA_INTERACTIVE_GALLERY_SCHEMA,
+    write_interactive_fpa_gallery,
+)
 
 PlumeProduct: TypeAlias = (
     ConservativeSupportProduct
@@ -108,6 +118,9 @@ __all__ = (
     'ENGINEERING_FLUX_SECTION_V1',
     'EngineeringFluxSectionProduct',
     'Fidelity',
+    'FPA_GALLERY_MANIFEST_SCHEMA',
+    'FPA_INTERACTIVE_GALLERY_SCHEMA',
+    'FpaVisualizationGalleryManifest',
     'GALLERY_MANIFEST_SCHEMA',
     'GalleryArtifact',
     'INTERACTIVE_GALLERY_SCHEMA',
@@ -140,6 +153,7 @@ __all__ = (
     'render_signature_plots',
     'render_plume_flux_gallery',
     'render_product_gallery',
+    'render_fpa_gallery',
     'render_sectioned_tube_gallery',
     'render_spectral_radiant_intensity_gallery',
     'render_spectral_ray_transfer_gallery',
@@ -151,6 +165,8 @@ __all__ = (
     'write_signature_table_asset',
     'write_gallery_manifest',
     'write_interactive_product_gallery',
+    'write_interactive_fpa_gallery',
+    'write_fpa_gallery_manifest',
     'write_product_comparison_report',
     'compare_product_results',
     'render_product_comparison',
