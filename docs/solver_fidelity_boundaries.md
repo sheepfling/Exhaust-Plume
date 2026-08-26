@@ -87,6 +87,13 @@ centerline with 16 traces and assembles 119 open-zone cells. That evidence
 closes the supersonic patch seam only. The final shock-side endpoint remains
 the typed normal-shock interface, so mixed-regime closure and chain promotion
 remain blocked.
+The terminal probe now keeps the shock branch explicit as well. The weak
+branch may reach the scalar normal-shock endpoint; a strong attached branch
+that becomes subsonic earlier is retained as a typed scalar boundary with its
+position, turn, Mach, pressure, and total-pressure loss. It is never coerced
+into a ``CharacteristicState`` and is not treated as a normal-shock terminal
+or a chain-promotable cell. The independent ``terminal_branch`` control makes
+that fidelity choice visible in staged-transition reports.
 It also has an explicitly labeled constant-`K+`
 simple-wave continuation: it preserves the open-strip topology and advances
 the shock probe through additional samples, but it remains an upstream

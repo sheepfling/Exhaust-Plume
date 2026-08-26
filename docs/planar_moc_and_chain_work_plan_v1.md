@@ -434,6 +434,13 @@ separate refinement record: its terminal-shock edge coverage and upstream
 state/pressure carry pass at all three resolutions. This establishes numerical
 behavior of the open transition and its supersonic-side topology, not
 acceptance of a physical first cell.
+The terminal probe is branch-aware as well: a strong attached branch that
+reaches a subsonic downstream state earlier is retained as a typed scalar
+boundary with its shock location and total-pressure loss. It is deliberately
+not represented as a ``CharacteristicState`` and cannot be mistaken for the
+weak branch's normal-shock termination. The validation artifact records both
+paths so branch selection remains a fidelity decision rather than a hidden
+solver flag.
 
 The verified post-shock result exposes the only seed-promotion adapter for this
 lane. An open zone, prescribed-boundary diagnostic, or scaled reduced-order

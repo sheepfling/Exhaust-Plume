@@ -88,7 +88,7 @@ from exhaust_plume.validation.moc_measurements import (  # noqa: E402
 )
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput  # noqa: E402
 from exhaust_plume.models.nozzle.exit_state import derive_ambient_state, derive_uniform_nozzle_exit  # noqa: E402
-from exhaust_plume.util.aero.shock_validity import ShockSolveStatus  # noqa: E402
+from exhaust_plume.util.aero.shock_validity import ShockBranch, ShockSolveStatus  # noqa: E402
 
 
 def _observed_refinement_order(
@@ -1816,6 +1816,14 @@ def build_moc_primitive_report() -> dict[str, Any]:
     downstream_flow_angle_rad=0.0,
     sample_count=5,
   )
+  marched_strong_subsonic_boundary = solve_marched_attached_shock_field(
+    lambda point: CharacteristicState(point[0], point[1], -0.2, 2.0, 1.4),
+    lambda _point: 100000.0,
+    (0.5, 0.5),
+    downstream_flow_angle_rad=0.0,
+    branch=ShockBranch.STRONG,
+    sample_count=5,
+  )
   free_boundary = solve_ambient_pressure_free_boundary(
     fan_exit,
     fan_ambient,
@@ -1981,6 +1989,15 @@ def build_moc_primitive_report() -> dict[str, Any]:
       **marched_subsonic_terminal.as_report(),
       'terminal_model_verified': marched_subsonic_terminal.terminal_model_verified,
       'claim_status': 'explicit-supersonic-moc-validity-boundary; chain-promotion-blocked',
+    },
+    'marched_strong_subsonic_boundary': {
+      **marched_strong_subsonic_boundary.as_report(),
+      'subsonic_boundary_verified': marched_strong_subsonic_boundary.subsonic_boundary_verified,
+      'terminal_model_verified': marched_strong_subsonic_boundary.terminal_model_verified,
+      'claim_status': (
+        'typed-strong-attached-subsonic-seam; no-supersonic-moc-state-fabricated; '
+        'chain-promotion-blocked'
+      ),
     },
     'mild_overexpanded_lip_shock_foundation': {
       'status': overexpanded_lip_shock.status.value,
@@ -2485,6 +2502,17 @@ def build_moc_primitive_report() -> dict[str, Any]:
     ] if (
       marched_subsonic_terminal.status.value != 'subsonic_terminal_required'
       or not marched_subsonic_terminal.terminal_model_verified
+    ) else []),
+    *([
+      {
+        'case': 'marched_strong_subsonic_boundary',
+        'status': marched_strong_subsonic_boundary.status.value,
+        'message': marched_strong_subsonic_boundary.message,
+      }
+    ] if (
+      marched_strong_subsonic_boundary.status.value != 'subsonic_terminal_required'
+      or not marched_strong_subsonic_boundary.subsonic_boundary_verified
+      or marched_strong_subsonic_boundary.terminal_model_verified
     ) else []),
     *([
       {

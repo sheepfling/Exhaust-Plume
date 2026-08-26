@@ -72,6 +72,7 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   ambient_attachment = report['geometry_cases']['ambient_attachment_closure_probe']
   ambient_transition = report['geometry_cases']['ambient_attachment_transition_probe']
   ambient_closure = report['geometry_cases']['ambient_pressure_closure_probe']
+  strong_subsonic_boundary = report['geometry_cases']['marched_strong_subsonic_boundary']
 
   assert generated['status'] == 'converged_free_boundary_field'
   assert generated['field_status'] == 'converged_closed'
@@ -92,6 +93,12 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert generated_chain_terminal['termination_reason'] == 'physical-termination'
   assert generated_chain_terminal['expected_physical_termination'] is True
   assert generated_chain_terminal['diagnostics']['termination_model'] == 'normal-shock-terminal'
+  assert strong_subsonic_boundary['status'] == 'subsonic_terminal_required'
+  assert strong_subsonic_boundary['subsonic_boundary_verified'] is True
+  assert strong_subsonic_boundary['terminal_model_verified'] is False
+  assert strong_subsonic_boundary['subsonic_shock_boundary']['branch'] == 'strong'
+  assert strong_subsonic_boundary['subsonic_shock_boundary']['subsonic'] is True
+  assert strong_subsonic_boundary['normal_shock_terminal'] is None
   assert ambient_closure['status'] == 'ambient_boundary_failure'
   assert ambient_closure['physical_closure_verified'] is False
   assert ambient_closure['upstream_coupling_verified'] is False

@@ -111,6 +111,8 @@
       "endpoint_m": null,
       "maximum_shock_angle_residual_rad": null,
       "field_status": null,
+      "subsonic_boundary_verified": false,
+      "subsonic_shock_boundary": null,
       "normal_shock_terminal": {
         "status": "converged",
         "converged": true,
@@ -130,6 +132,40 @@
       "message": "sample 0 reaches the symmetry line with zero flow turn; the typed subsonic terminal model is outside the supersonic MOC lane",
       "terminal_model_verified": true,
       "claim_status": "explicit-supersonic-moc-validity-boundary; chain-promotion-blocked"
+    },
+    "marched_strong_subsonic_boundary": {
+      "status": "subsonic_terminal_required",
+      "converged": false,
+      "physical_closure_verified": false,
+      "subsonic_terminal_required": true,
+      "sample_count": 0,
+      "endpoint_m": null,
+      "maximum_shock_angle_residual_rad": null,
+      "field_status": null,
+      "subsonic_boundary_verified": true,
+      "subsonic_shock_boundary": {
+        "status": "converged",
+        "converged": true,
+        "subsonic": true,
+        "shock_point_m": [
+          0.5,
+          0.5
+        ],
+        "downstream_flow_angle_rad": 0.2,
+        "downstream_mach": 0.6128862773335292,
+        "downstream_pressure_Pa": 442379.3541466353,
+        "upstream_total_pressure_Pa": 782444.9066867264,
+        "downstream_total_pressure_Pa": 570036.2969671972,
+        "total_pressure_ratio": 0.7285321843055043,
+        "beta_rad": 1.442657234658465,
+        "shock_angle_rad": -1.642657234658465,
+        "branch": "strong",
+        "message": ""
+      },
+      "normal_shock_terminal": null,
+      "message": "attached compression failed at sample 0: attached compression state is not supersonic downstream",
+      "terminal_model_verified": false,
+      "claim_status": "typed-strong-attached-subsonic-seam; no-supersonic-moc-state-fabricated; chain-promotion-blocked"
     },
     "mild_overexpanded_lip_shock_foundation": {
       "status": "converged",
@@ -1002,6 +1038,8 @@
         ],
         "maximum_shock_angle_residual_rad": 0.09213307164030521,
         "field_status": "invariant_failure",
+        "subsonic_boundary_verified": false,
+        "subsonic_shock_boundary": null,
         "normal_shock_terminal": null,
         "message": "generated shock boundary did not close its characteristic field: the terminal fitted shock state must satisfy centerline theta = 0"
       },
@@ -1087,6 +1125,8 @@
         ],
         "maximum_shock_angle_residual_rad": 0.0002933173985447679,
         "field_status": "converged_closed",
+        "subsonic_boundary_verified": false,
+        "subsonic_shock_boundary": null,
         "normal_shock_terminal": null,
         "message": "solver-generated attached-shock boundary reached the symmetry line and closed the post-shock characteristic field"
       },
@@ -1146,6 +1186,8 @@
           ],
           "maximum_shock_angle_residual_rad": null,
           "field_status": null,
+          "subsonic_boundary_verified": false,
+          "subsonic_shock_boundary": null,
           "normal_shock_terminal": null,
           "message": "upstream field callback returned no CharacteristicState at sample 1"
         },
@@ -1195,6 +1237,8 @@
             ],
             "maximum_shock_angle_residual_rad": null,
             "field_status": null,
+            "subsonic_boundary_verified": false,
+            "subsonic_shock_boundary": null,
             "normal_shock_terminal": null,
             "message": "upstream field callback returned no CharacteristicState at sample 1"
           },
@@ -1500,6 +1544,7 @@
         "upstream_coupling_verified": false,
         "physical_closure_verified": false,
         "chain_promotion_blocked": true,
+        "shock_branch": "weak",
         "physical_terminal_verified": true,
         "termination_decision_available": true,
         "physical_termination_decision": {
@@ -1532,6 +1577,8 @@
           ],
           "maximum_shock_angle_residual_rad": null,
           "field_status": null,
+          "subsonic_boundary_verified": false,
+          "subsonic_shock_boundary": null,
           "normal_shock_terminal": {
             "status": "converged",
             "converged": true,
@@ -1593,6 +1640,8 @@
         ],
         "maximum_shock_angle_residual_rad": 0.002030048607338353,
         "field_status": "converged_closed",
+        "subsonic_boundary_verified": false,
+        "subsonic_shock_boundary": null,
         "normal_shock_terminal": null,
         "message": "solver-generated attached-shock boundary reached the symmetry line and closed the post-shock characteristic field"
       },
@@ -1715,6 +1764,8 @@
           ],
           "maximum_shock_angle_residual_rad": 0.002030048607338353,
           "field_status": "converged_closed",
+          "subsonic_boundary_verified": false,
+          "subsonic_shock_boundary": null,
           "normal_shock_terminal": null,
           "message": "solver-generated attached-shock boundary reached the symmetry line and closed the post-shock characteristic field"
         },
@@ -1846,6 +1897,7 @@
         "upstream_coupling_verified": false,
         "physical_closure_verified": false,
         "chain_promotion_blocked": true,
+        "shock_branch": "weak",
         "physical_terminal_verified": true,
         "termination_decision_available": true,
         "physical_termination_decision": {
@@ -1878,6 +1930,8 @@
           ],
           "maximum_shock_angle_residual_rad": null,
           "field_status": null,
+          "subsonic_boundary_verified": false,
+          "subsonic_shock_boundary": null,
           "normal_shock_terminal": {
             "status": "converged",
             "converged": true,

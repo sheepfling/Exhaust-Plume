@@ -305,6 +305,13 @@ retained as diagnostic mesh evidence. The canonical 17-sample case produces
 16 centerline traces and a 119-cell open zone. Its final shock-side sample
 still terminates at the normal-shock interface above the axis, so the patch
 does not claim a subsonic state, mixed-regime closure, or chain promotion.
+The terminal probe also records branch-specific mixed-regime seams. A strong
+attached branch can reach ``M2 < 1`` before the weak branch reaches its scalar
+normal-shock endpoint; that result carries scalar Rankine--Hugoniot data and
+its shock point but no downstream ``CharacteristicState``. The branch is
+reported separately from the outer attachment branch, and neither the typed
+strong boundary nor the open supersonic patch relaxes the mixed-regime field
+or chain-promotion gate.
 The earlier boundary-conditioned triangular assembler is also no longer
 promotion-eligible by default: it does not carry verified shock-``C+`` /
 ambient-``C-`` family-orientation evidence. This guard prevents a numerically
