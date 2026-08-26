@@ -1385,6 +1385,255 @@
         ],
         "claim_status": "band-state-sampler-fed-shock-march-reaches-typed-subsonic-terminal; shock-field-and-chain-closure-pending"
       },
+      "caustic_family_band_terminal_field": {
+        "status": "diagnostic-open-band-terminal-field",
+        "accepted": true,
+        "cases": [
+          {
+            "anchor_edge_index": 0,
+            "start_point_m": [
+              0.9074022400998616,
+              0.018023309500579187
+            ],
+            "accepted": true,
+            "result": {
+              "status": "converged_open_caustic_band_terminal_field",
+              "converged": true,
+              "physical_closure_verified": false,
+              "chain_promotion_blocked": true,
+              "physical_terminal_verified": true,
+              "start_point_m": [
+                0.9074022400998616,
+                0.018023309500579187
+              ],
+              "shock": {
+                "status": "subsonic_terminal_required",
+                "converged": false,
+                "physical_closure_verified": false,
+                "subsonic_terminal_required": true,
+                "sample_count": 8,
+                "endpoint_m": [
+                  0.9385727958899844,
+                  0.002252913687572397
+                ],
+                "maximum_shock_angle_residual_rad": null,
+                "field_status": null,
+                "subsonic_boundary_verified": false,
+                "subsonic_shock_boundary": null,
+                "normal_shock_terminal": {
+                  "status": "converged",
+                  "converged": true,
+                  "subsonic": true,
+                  "shock_point_m": [
+                    0.9436765952998805,
+                    0.0
+                  ],
+                  "shock_normal_angle_rad": 1.5707963267948966,
+                  "downstream_flow_angle_rad": 0.0,
+                  "downstream_mach": 0.5072250845389011,
+                  "downstream_pressure_Pa": 796367.9376357083,
+                  "static_pressure_ratio": 7.491188445594478,
+                  "total_pressure_ratio": 0.47462635393176694,
+                  "message": ""
+                },
+                "message": "sample 8 reaches the symmetry line with zero flow turn; the typed subsonic terminal model is outside the supersonic MOC lane"
+              },
+              "shock_fit": {
+                "status": "converged_fitted",
+                "converged": true,
+                "sample_count": 8,
+                "maximum_shock_angle_residual_rad": 0.008690176785229653
+              },
+              "continuation": {
+                "status": "converged_open_boundary",
+                "converged": true,
+                "segment_count": 8,
+                "centerline_point_count": 8,
+                "maximum_geometry_residual_m": 1.734723475976807e-18,
+                "maximum_absolute_invariant_residual": 1.616484723854228e-12
+              },
+              "first_layer": {
+                "status": "converged_first_downstream_layer",
+                "converged": true,
+                "crossing_count": 7,
+                "minimum_forward_margin_m": 0.00018356085004922473,
+                "maximum_geometry_residual_m": 5.421010862427522e-18,
+                "maximum_absolute_invariant_residual": 1.482147737874584e-12
+              },
+              "zone": {
+                "status": "converged_open",
+                "converged": true,
+                "characteristic_count": 6,
+                "node_count": 28,
+                "cell_count": 27,
+                "topology_connected": true,
+                "topology_forms_closed_zone": true,
+                "topology_nonmanifold_edge_count": 0,
+                "physical_closure_status": "open",
+                "shock_closure_status": "prescribed-boundary-first-layer",
+                "maximum_geometry_residual_m": 6.5052130349130266e-18,
+                "maximum_absolute_invariant_residual": 1.7138512831138542e-12
+              },
+              "terminal_normal_shock": {
+                "status": "converged",
+                "converged": true,
+                "subsonic": true,
+                "shock_point_m": [
+                  0.9436765952998805,
+                  0.0
+                ],
+                "shock_normal_angle_rad": 1.5707963267948966,
+                "downstream_flow_angle_rad": 0.0,
+                "downstream_mach": 0.5072250845389011,
+                "downstream_pressure_Pa": 796367.9376357083,
+                "static_pressure_ratio": 7.491188445594478,
+                "total_pressure_ratio": 0.47462635393176694,
+                "message": ""
+              },
+              "chain_termination_decision": {
+                "physical_termination": false,
+                "reason": "open-physical-closure",
+                "message": "caustic-band shock and supersonic post-shock zone converged to a typed normal-shock terminal; mixed-regime closure remains pending",
+                "diagnostics": {
+                  "termination_model": "caustic-band-open-terminal-field",
+                  "physical_terminal_verified": true,
+                  "shock_sample_count": 8,
+                  "terminal_shock_point_m": [
+                    0.9436765952998805,
+                    0.0
+                  ],
+                  "terminal_downstream_mach": 0.5072250845389011,
+                  "post_shock_zone_cell_count": 27,
+                  "post_shock_zone_topology_forms_closed_zone": true
+                }
+              },
+              "message": "caustic-family band fed a solver-generated attached shock, an open supersonic post-shock zone, and a typed normal-shock terminal; mixed-regime closure and chain promotion remain blocked"
+            }
+          },
+          {
+            "anchor_edge_index": 1,
+            "start_point_m": [
+              0.9321326029775965,
+              0.014956576361320353
+            ],
+            "accepted": true,
+            "result": {
+              "status": "converged_open_caustic_band_terminal_field",
+              "converged": true,
+              "physical_closure_verified": false,
+              "chain_promotion_blocked": true,
+              "physical_terminal_verified": true,
+              "start_point_m": [
+                0.9321326029775965,
+                0.014956576361320353
+              ],
+              "shock": {
+                "status": "subsonic_terminal_required",
+                "converged": false,
+                "physical_closure_verified": false,
+                "subsonic_terminal_required": true,
+                "sample_count": 8,
+                "endpoint_m": [
+                  0.9564955607712178,
+                  0.0018695720451650435
+                ],
+                "maximum_shock_angle_residual_rad": null,
+                "field_status": null,
+                "subsonic_boundary_verified": false,
+                "subsonic_shock_boundary": null,
+                "normal_shock_terminal": {
+                  "status": "converged",
+                  "converged": true,
+                  "subsonic": true,
+                  "shock_point_m": [
+                    0.9606507344792572,
+                    0.0
+                  ],
+                  "shock_normal_angle_rad": 1.5707963267948966,
+                  "downstream_flow_angle_rad": 0.0,
+                  "downstream_mach": 0.5085045560063801,
+                  "downstream_pressure_Pa": 804854.3556756563,
+                  "static_pressure_ratio": 7.407058229951985,
+                  "total_pressure_ratio": 0.48009931425319424,
+                  "message": ""
+                },
+                "message": "sample 8 reaches the symmetry line with zero flow turn; the typed subsonic terminal model is outside the supersonic MOC lane"
+              },
+              "shock_fit": {
+                "status": "converged_fitted",
+                "converged": true,
+                "sample_count": 8,
+                "maximum_shock_angle_residual_rad": 0.012001125418481862
+              },
+              "continuation": {
+                "status": "converged_open_boundary",
+                "converged": true,
+                "segment_count": 8,
+                "centerline_point_count": 8,
+                "maximum_geometry_residual_m": 1.1103585416259206e-16,
+                "maximum_absolute_invariant_residual": 1.4728218644677327e-12
+              },
+              "first_layer": {
+                "status": "converged_first_downstream_layer",
+                "converged": true,
+                "crossing_count": 7,
+                "minimum_forward_margin_m": 0.00020028471467070652,
+                "maximum_geometry_residual_m": 4.607859233063394e-18,
+                "maximum_absolute_invariant_residual": 1.5897283489607617e-12
+              },
+              "zone": {
+                "status": "converged_open",
+                "converged": true,
+                "characteristic_count": 6,
+                "node_count": 28,
+                "cell_count": 27,
+                "topology_connected": true,
+                "topology_forms_closed_zone": true,
+                "topology_nonmanifold_edge_count": 0,
+                "physical_closure_status": "open",
+                "shock_closure_status": "prescribed-boundary-first-layer",
+                "maximum_geometry_residual_m": 5.421010862427522e-18,
+                "maximum_absolute_invariant_residual": 1.6976420269543269e-12
+              },
+              "terminal_normal_shock": {
+                "status": "converged",
+                "converged": true,
+                "subsonic": true,
+                "shock_point_m": [
+                  0.9606507344792572,
+                  0.0
+                ],
+                "shock_normal_angle_rad": 1.5707963267948966,
+                "downstream_flow_angle_rad": 0.0,
+                "downstream_mach": 0.5085045560063801,
+                "downstream_pressure_Pa": 804854.3556756563,
+                "static_pressure_ratio": 7.407058229951985,
+                "total_pressure_ratio": 0.48009931425319424,
+                "message": ""
+              },
+              "chain_termination_decision": {
+                "physical_termination": false,
+                "reason": "open-physical-closure",
+                "message": "caustic-band shock and supersonic post-shock zone converged to a typed normal-shock terminal; mixed-regime closure remains pending",
+                "diagnostics": {
+                  "termination_model": "caustic-band-open-terminal-field",
+                  "physical_terminal_verified": true,
+                  "shock_sample_count": 8,
+                  "terminal_shock_point_m": [
+                    0.9606507344792572,
+                    0.0
+                  ],
+                  "terminal_downstream_mach": 0.5085045560063801,
+                  "post_shock_zone_cell_count": 27,
+                  "post_shock_zone_topology_forms_closed_zone": true
+                }
+              },
+              "message": "caustic-family band fed a solver-generated attached shock, an open supersonic post-shock zone, and a typed normal-shock terminal; mixed-regime closure and chain promotion remain blocked"
+            }
+          }
+        ],
+        "claim_status": "solver-generated-open-post-shock-zone-and-typed-normal-shock-terminal; mixed-regime-closure-and-chain-promotion-pending"
+      },
       "claim_status": "centerline-C-minus-reflection-boundary-law; triangular-domain-remesh-or-shock-closure-pending"
     },
     "terminal_source_window_invariant_closure": {

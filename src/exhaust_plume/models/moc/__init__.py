@@ -133,6 +133,11 @@ from exhaust_plume.models.moc.caustic_restart import (
   MocCausticFamilyRestartStatus,
   restart_characteristic_family_from_caustic,
 )
+from exhaust_plume.models.moc.family_band_solver import (
+  MocCausticFamilyBandShockResult,
+  MocCausticFamilyBandShockStatus,
+  solve_marched_attached_shock_from_caustic_family_band,
+)
 from exhaust_plume.models.moc.coupled import (
   MocAmbientClosureResult,
   MocAmbientClosureStatus,
@@ -287,6 +292,8 @@ __all__ = (
   'MocCausticFamilyRestartStatus',
   'MocCausticFamilyBandResult',
   'MocCausticFamilyBandStatus',
+  'MocCausticFamilyBandShockResult',
+  'MocCausticFamilyBandShockStatus',
   'MocAmbientClosureResult',
   'MocAmbientClosureStatus',
   'MocAmbientAttachmentResult',
@@ -380,6 +387,7 @@ __all__ = (
   'build_caustic_shock_seed',
   'resolve_caustic_shock_seed',
   'restart_characteristic_family_from_caustic',
+  'solve_marched_attached_shock_from_caustic_family_band',
   'probe_source_strip_frontier',
   'extend_source_characteristic_strip_constant_k_plus',
   'extend_source_characteristic_strip_centerline_reflection',

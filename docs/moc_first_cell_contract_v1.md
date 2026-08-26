@@ -64,7 +64,11 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   open family band from the valid centerline/boundary traces. The band remains
   an open remesh/shock seam and cannot promote a chain cell; its state and
   pressure samplers are domain-bounded and refuse to extrapolate beyond the
-  new band;
+  new band. A production shock-band seam consumes the explicit input edge in
+  both canonical orientations, refits the supersonic shock samples, assembles
+  a 27-cell open post-shock characteristic zone, and records the typed
+  subsonic centerline terminal. The zone remains an open mixed-regime handoff
+  until a subsonic field and complete physical perimeter are solved;
 - a reusable triangular source-boundary characteristic-strip assembler and
   domain-bounded state/pressure sampler that reproduces the reflected-zone
   compatibility grid;

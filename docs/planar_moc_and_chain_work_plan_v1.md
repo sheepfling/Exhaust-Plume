@@ -88,6 +88,12 @@ not wait on this research closure.
   fronts from a fitted shock boundary, carries post-shock total pressure along
   the source lineage, closes the terminal characteristic fan to the symmetry
   line, and rejects zero-area or missing-edge constructions.
+- Added a production caustic-family-band shock seam. It consumes the bounded
+  band input edge in both canonical orientations, refits the solver-generated
+  supersonic shock samples, assembles a 27-cell open post-shock characteristic
+  zone, and retains the typed subsonic normal-shock terminal. The zone remains
+  a mixed-regime handoff with chain promotion blocked until the subsonic field
+  and complete physical perimeter are solved.
 - Added the only permitted promotion path from a verified closed post-shock
   field into a `RESOLVED_PLANAR_MOC` chain seed, retaining closure and residual
   diagnostics.
@@ -286,9 +292,12 @@ not wait on this research closure.
   two-triangle-per-step family band. The old triangular interior assembly is
   retained as an explicit geometry failure, so this is a typed open remesh/
   shock handoff rather than a fabricated shock state or physical chain cell.
-  The band has a bounded state/pressure sampler, and a generic shock march now
-  consumes both canonical orientations until the typed subsonic centerline
-  terminal; post-shock field and chain closure remain pending.
+  The band has a bounded state/pressure sampler, and a production shock-band
+  seam now consumes both canonical orientations from the explicit input edge:
+  it refits the supersonic shock samples, assembles a 27-cell open downstream
+  characteristic zone, and records the typed subsonic centerline terminal.
+  The zone is still an open mixed-regime handoff, so physical first-cell
+  closure and chain promotion remain pending.
 - Added axial-boundary, cell-index, domain-limit, and callback termination
   checks.
 - Added a hard fidelity boundary: scaled reduced-order candidates are

@@ -351,6 +351,36 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert all(case['shock']['status'] == 'subsonic_terminal_required' for case in band_shock['cases'])
   assert all(case['shock']['sample_count'] == 4 for case in band_shock['cases'])
   assert all(case['shock']['physical_closure_verified'] is False for case in band_shock['cases'])
+  band_terminal_field = centerline_reflection_extension[
+    'caustic_family_band_terminal_field'
+  ]
+  assert band_terminal_field['status'] == 'diagnostic-open-band-terminal-field'
+  assert band_terminal_field['accepted'] is True
+  assert len(band_terminal_field['cases']) == 2
+  assert all(
+    case['result']['status'] == 'converged_open_caustic_band_terminal_field'
+    and case['result']['converged'] is True
+    and case['result']['physical_terminal_verified'] is True
+    and case['result']['physical_closure_verified'] is False
+    and case['result']['chain_promotion_blocked'] is True
+    and case['result']['shock']['status'] == 'subsonic_terminal_required'
+    and case['result']['shock']['sample_count'] == 8
+    and case['result']['shock_fit']['status'] == 'converged_fitted'
+    and case['result']['shock_fit']['sample_count'] == 8
+    and case['result']['continuation']['status'] == 'converged_open_boundary'
+    and case['result']['continuation']['segment_count'] == 8
+    and case['result']['first_layer']['status'] == 'converged_first_downstream_layer'
+    and case['result']['first_layer']['crossing_count'] == 7
+    and case['result']['zone']['status'] == 'converged_open'
+    and case['result']['zone']['cell_count'] == 27
+    and case['result']['zone']['topology_connected'] is True
+    and case['result']['zone']['topology_forms_closed_zone'] is True
+    and case['result']['zone']['topology_nonmanifold_edge_count'] == 0
+    and case['result']['zone']['physical_closure_status'] == 'open'
+    and case['result']['chain_termination_decision']['physical_termination'] is False
+    and case['result']['chain_termination_decision']['reason'] == 'open-physical-closure'
+    for case in band_terminal_field['cases']
+  )
   assert centerline_reflection_extension['remesh']['chain_termination_available'] is True
   assert centerline_reflection_extension['remesh']['chain_termination_decision']['physical_termination'] is False
   assert centerline_reflection_extension['remesh']['chain_termination_decision']['reason'] == (

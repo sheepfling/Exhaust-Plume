@@ -46,6 +46,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_terminal_compression_candidate,
   assemble_terminal_trace_centerline_patch,
   solve_marched_attached_shock_from_terminal_reflection_patch,
+  solve_marched_attached_shock_from_caustic_family_band,
   solve_normal_shock_terminal,
   solve_marched_attached_shock_chain_cell,
   solve_marched_attached_shock_chain_cell_or_termination,
@@ -1567,6 +1568,98 @@ def _caustic_family_band_shock_probe(
   }
 
 
+def _caustic_family_band_terminal_field_probe(
+  seed: Any,
+  total_pressure_Pa: float,
+  ambient_pressure_Pa: float,
+) -> dict[str, Any]:
+  """Grow a solver-backed open post-shock zone from both family orientations."""
+
+  if seed is None:
+    return {
+      'status': 'missing_seed',
+      'accepted': False,
+      'cases': [],
+      'claim_status': 'caustic-family-band-terminal-field-pending',
+    }
+  cases: list[dict[str, Any]] = []
+  for anchor_edge_index in (0, 1):
+    restart = restart_characteristic_family_from_caustic(
+      seed,
+      total_pressure_Pa,
+      ambient_pressure_Pa,
+      anchor_edge_index=anchor_edge_index,
+      sample_count=6,
+    )
+    band = restart.family_band
+    if band is None or not band.converged:
+      cases.append({
+        'anchor_edge_index': anchor_edge_index,
+        'accepted': False,
+        'status': 'missing_open_family_band',
+        'result': None,
+      })
+      continue
+    start_point = (
+      0.5 * (band.input_edge_points_m[0][0] + band.input_edge_points_m[1][0]),
+      0.5 * (band.input_edge_points_m[0][1] + band.input_edge_points_m[1][1]),
+    )
+    try:
+      result = solve_marched_attached_shock_from_caustic_family_band(
+        band,
+        start_point,
+        sample_count=9,
+      )
+      report = result.as_report()
+      accepted = (
+        result.status.value == 'converged_open_caustic_band_terminal_field'
+        and result.converged
+        and result.physical_terminal_verified
+        and result.physical_closure_verified is False
+        and result.chain_promotion_blocked
+        and result.shock is not None
+        and result.shock.sample_count == 8
+        and result.shock_fit is not None
+        and result.shock_fit.converged
+        and result.shock_fit.maximum_shock_angle_residual_rad is not None
+        and result.shock_fit.maximum_shock_angle_residual_rad <= 0.1
+        and result.continuation is not None
+        and result.continuation.converged
+        and result.first_layer is not None
+        and result.first_layer.converged
+        and result.zone is not None
+        and result.zone.converged
+        and result.zone.cell_count == 27
+        and result.zone.topology.connected
+        and result.zone.topology.forms_closed_zone
+        and result.zone.topology.nonmanifold_edge_count == 0
+        and result.zone.physical_closure_status == 'open'
+      )
+      cases.append({
+        'anchor_edge_index': anchor_edge_index,
+        'start_point_m': start_point,
+        'accepted': accepted,
+        'result': report,
+      })
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      cases.append({
+        'anchor_edge_index': anchor_edge_index,
+        'start_point_m': start_point,
+        'accepted': False,
+        'result': None,
+        'message': f'caustic-band terminal field probe raised: {error}',
+      })
+  return {
+    'status': 'diagnostic-open-band-terminal-field',
+    'accepted': all(case['accepted'] is True for case in cases),
+    'cases': cases,
+    'claim_status': (
+      'solver-generated-open-post-shock-zone-and-typed-normal-shock-terminal; '
+      'mixed-regime-closure-and-chain-promotion-pending'
+    ),
+  }
+
+
 def _reflected_zone_shock_coupling_probe(
   reflected_zone: Any,
   reflected_boundary: Any,
@@ -1881,6 +1974,11 @@ def build_moc_primitive_report() -> dict[str, Any]:
     fan_ambient.pressure_Pa,
   )
   caustic_family_band_shock = _caustic_family_band_shock_probe(
+    caustic_shock_seed,
+    fan_exit.total_pressure_Pa,
+    fan_ambient.pressure_Pa,
+  )
+  caustic_family_band_terminal_field = _caustic_family_band_terminal_field_probe(
     caustic_shock_seed,
     fan_exit.total_pressure_Pa,
     fan_ambient.pressure_Pa,
@@ -2528,6 +2626,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
       ),
       'caustic_family_restart': caustic_family_restart,
       'caustic_family_band_shock': caustic_family_band_shock,
+      'caustic_family_band_terminal_field': caustic_family_band_terminal_field,
       'claim_status': (
         'centerline-C-minus-reflection-boundary-law; '
         'triangular-domain-remesh-or-shock-closure-pending'
