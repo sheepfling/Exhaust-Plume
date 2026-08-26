@@ -151,6 +151,13 @@ not wait on this research closure.
   without caller-supplied attachment angle. The result deliberately retains
   the linear-to-centerline law as a named reference and leaves the terminal
   trace open, so it cannot promote a first cell.
+- Added a staged shock-cell transition adapter. It composes the ambient
+  attachment, centerline reflection, and domain-bounded next-shock probe,
+  carries the reflected outgoing ``C-`` trace as a typed next-shock handoff,
+  and converts a verified normal-shock endpoint into an explicit physical
+  chain stop. The transition remains non-promotable because its downstream
+  condition is still a named centerline-normal-shock reference rather than a
+  closed mixed-regime field.
 - Added a typed terminal-compression candidate. It consumes the open strip's
   shock-sourced C+ trace, checks the endpoint's ambient static pressure, and
   solves a forward attached compression segment to the centerline. A declared
@@ -343,6 +350,13 @@ linear-to-centerline law as a reference. A centerline reflection, downstream
 compression/shock fit, and mixed-regime/perimeter closure are still required
 before a first cell or continued chain cell can be accepted.
 
+The staged shock-cell transition now composes those boundaries into one
+typed research result. It can carry the reflected outgoing ``C-`` front into
+the next-shock coupling probe and, when the supersonic lane reaches the
+verified normal-shock terminal, return a physical chain-stop decision. That
+stop is narrower than a closed cell: the subsonic downstream field and the
+full mixed-regime perimeter remain outside the planar supersonic-MOC lane.
+
 The terminal-compression candidate is the next local boundary primitive after
 the open shock/ambient strip. It is intentionally weaker than a first-cell
 closure: it solves the endpoint-to-centerline compression only. The next
@@ -477,6 +491,9 @@ Only after MOC-1 through MOC-5 pass:
   turn from ambient pressure. Its terminal trace still needs an
   axis/centerline closure; the linear-to-centerline law used to generate this
   open strip remains a named reference, not a physical first-cell closure.
+  The staged transition can now reflect that trace and carry a next-shock
+  handoff to a typed normal-shock stop, but this is termination evidence rather
+  than a closed mixed-regime cell.
   The scalar shoot continues to demonstrate the old internal-characteristic
   failure without weakening the gate.
 - The canonical marched shock now classifies a zero-turn/normal-shock endpoint

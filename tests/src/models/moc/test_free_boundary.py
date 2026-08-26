@@ -10,6 +10,7 @@ from exhaust_plume.models.moc import (
   MocFreeBoundaryShockStatus,
   MocInvariantClosureFamily,
   MocInvariantClosureStatus,
+  MocShockCellTransitionStatus,
   MocSourceStripContinuationStatus,
   assemble_reflected_characteristic_zone,
   solve_reflected_boundary_trace_extension,
@@ -20,6 +21,7 @@ from exhaust_plume.models.moc import (
   solve_marched_attached_shock_from_source_strip,
   solve_marched_attached_shock_with_ambient_pressure_closure,
   solve_marched_attached_shock_with_ambient_attachment_closure,
+  solve_marched_ambient_attachment_shock_cell_transition,
   solve_marched_attached_shock_with_ambient_pressure_closure_from_reflected_zone,
   solve_reflected_free_boundary,
   assemble_source_characteristic_strip,
@@ -275,6 +277,43 @@ def test_ambient_attachment_closure_rejects_a_non_straddling_pressure_bracket() 
   assert not result.converged
   assert result.chain_promotion_blocked is True
   assert 'does not straddle' in result.message
+
+
+def test_ambient_attachment_transition_carries_a_next_shock_handoff_to_terminal() -> None:
+  reference = _uniform_reference(17)
+  assert reference.shock_fit is not None
+  first = reference.shock_fit.boundary_states[0]
+  ambient_pressure = first.downstream_total_pressure_Pa / (
+    1.0 + 0.5 * (first.state.gamma - 1.0) * first.state.mach**2
+  ) ** (first.state.gamma / (first.state.gamma - 1.0))
+
+  result = solve_marched_ambient_attachment_shock_cell_transition(
+    lambda point: CharacteristicState(point[0], point[1], -0.2, 2.0, 1.4),
+    lambda _point: 100000.0,
+    (0.5, 0.5),
+    ambient_pressure,
+    0.0,
+    0.1,
+    sample_count=17,
+  )
+
+  assert result.status is MocShockCellTransitionStatus.PHYSICALLY_TERMINATED
+  assert result.converged
+  assert result.physical_termination
+  assert result.physical_closure_verified is False
+  assert result.chain_promotion_blocked is True
+  assert result.reflection_patch is not None
+  assert result.reflection_patch.converged
+  assert len(result.next_shock_handoff) >= 3
+  assert result.downstream_shock is not None
+  assert result.downstream_shock.physical_terminal_verified
+  decision = result.as_physical_termination_decision()
+  assert decision.physical_termination
+  assert decision.diagnostics['termination_model'] == 'normal-shock-terminal'
+  report = result.as_report()
+  assert report['downstream_condition_status'] == 'centerline-normal-shock-reference'
+  assert report['next_shock_handoff_sample_count'] == len(result.next_shock_handoff)
+  assert report['physical_closure_verified'] is False
 
 
 def test_reflected_zone_ambient_closure_keeps_upstream_coverage_domain_bounded() -> None:

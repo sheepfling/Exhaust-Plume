@@ -97,6 +97,11 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   the caller, but retains a named linear-to-centerline reference law and an
   open terminal trace, so it is not a closed first-cell or chain-promotion
   result;
+- a staged shock-cell transition adapter that composes ambient attachment,
+  centerline reflection, and the domain-bounded next-shock probe. It carries
+  the reflected outgoing ``C-`` trace as a typed next-shock handoff and can
+  return a physical chain-stop decision for a verified normal-shock terminal,
+  while keeping cell promotion blocked until a mixed-regime field is solved;
 - a typed terminal-compression candidate that validates that downstream
   shock-sourced ``C+`` trace, checks its ambient endpoint pressure, and solves
   a forward attached compression segment to the centerline. It remains a
@@ -227,6 +232,11 @@ attachment bracket, while `downstream_condition_status` remains
 `linear-centerline-reference`. This records a physical open boundary net, not
 the missing centerline reflection, next-shock fit, or mixed-regime perimeter
 closure required for a first cell.
+The staged transition consumes that open trace and exposes the reflected
+outgoing ``C-`` front to the next-shock probe. A verified normal-shock terminal
+can therefore stop the supersonic chain explicitly, but it does not set
+``physical_closure_verified``: the subsonic downstream field and mixed-regime
+perimeter are not represented by the current planar supersonic-MOC cell.
 The strip exposes that trace as typed `MocChainBoundarySample` values and
 reports independent `C+` characteristic-trace evidence (family invariant,
 forward margin, and discrete geometry residual). A finite trace report is not

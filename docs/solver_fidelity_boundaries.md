@@ -64,6 +64,12 @@ ambient-sourced ``C-`` physical-boundary assembly. Its marcher enforces
 ambient pressure and streamline tangency and retains the downstream terminal
 characteristic trace; it does not infer an axis closure or create a provider or
 chain seed.
+The staged shock-cell transition composes this attachment/strip with the
+centerline reflection and domain-bounded next-shock probe. It carries the
+reflected outgoing trace and can return a verified normal-shock chain stop,
+but it remains an open, non-promotable research transition because the
+downstream condition is a named centerline-normal-shock reference and the
+subsonic mixed-regime field is not solved.
 It also has an explicitly labeled constant-`K+`
 simple-wave continuation: it preserves the open-strip topology and advances
 the shock probe through additional samples, but it remains an upstream

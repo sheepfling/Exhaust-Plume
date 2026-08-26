@@ -69,6 +69,7 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   invariant_closure = report['geometry_cases']['terminal_source_window_invariant_closure']
   ambient_strip = report['geometry_cases']['solver_generated_ambient_shock_strip']
   ambient_attachment = report['geometry_cases']['ambient_attachment_closure_probe']
+  ambient_transition = report['geometry_cases']['ambient_attachment_transition_probe']
   ambient_closure = report['geometry_cases']['ambient_pressure_closure_probe']
 
   assert generated['status'] == 'converged_free_boundary_field'
@@ -104,6 +105,18 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert ambient_attachment['strip']['physical_closure_verified'] is False
   assert ambient_attachment['strip']['chain_promotion_blocked'] is True
   assert ambient_attachment['downstream_condition_status'] == 'linear-centerline-reference'
+  assert ambient_transition['status'] == 'physically_terminated_at_normal_shock'
+  assert ambient_transition['expected_physical_termination'] is True
+  assert ambient_transition['converged'] is True
+  assert ambient_transition['physical_termination'] is True
+  assert ambient_transition['physical_closure_verified'] is False
+  assert ambient_transition['chain_promotion_blocked'] is True
+  assert ambient_transition['next_shock_handoff_kind'] == 'terminal-characteristic-trace'
+  assert ambient_transition['next_shock_handoff_sample_count'] >= 3
+  assert ambient_transition['termination_decision_available'] is True
+  assert ambient_transition['physical_termination_decision']['reason'] == 'physical-termination'
+  assert ambient_transition['downstream_shock']['physical_terminal_verified'] is True
+  assert ambient_transition['reflection_patch']['physical_closure_verified'] is False
   terminal_candidate = ambient_strip['terminal_compression_candidate']
   terminal_patch = ambient_strip['terminal_reflection_patch']
   terminal_patch_shock_probe = ambient_strip['terminal_reflection_patch_shock_probe']
