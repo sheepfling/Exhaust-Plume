@@ -694,7 +694,8 @@
         "claim_status": "not_accepted",
         "message": "shock-cell geometry and explicit perimeter topology measured; external comparison and physical-closure acceptance remain separate gates"
       },
-      "claim_status": "solver-generated-chain-reference; upstream-field-coupling-pending"
+      "strict_upstream_coupling_mode": true,
+      "claim_status": "strict-upstream-coupled-chain-reference; reflected-field-coupling-pending"
     },
     "shock_seeded_post_shock_field": {
       "status": "converged_closed",

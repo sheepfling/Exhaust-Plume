@@ -538,6 +538,7 @@ def _solver_generated_chain_reference(
       solve_next,
       start_x_m=0.5,
       end_x_m=1.0,
+      require_upstream_shock_coupling=True,
     ),
     observations,
   )
@@ -1454,7 +1455,8 @@ def build_moc_primitive_report() -> dict[str, Any]:
       ),
       'observations': solver_generated_chain_observations,
       'measurement_operator': solver_generated_measurement.as_report(),
-      'claim_status': 'solver-generated-chain-reference; upstream-field-coupling-pending',
+      'strict_upstream_coupling_mode': True,
+      'claim_status': 'strict-upstream-coupled-chain-reference; reflected-field-coupling-pending',
     },
     'shock_seeded_post_shock_field': {
       'status': shock_seeded_field.status.value,
