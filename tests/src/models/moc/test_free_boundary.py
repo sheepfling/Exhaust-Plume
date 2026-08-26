@@ -5,6 +5,7 @@ import pytest
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput
 from exhaust_plume.models.moc import (
   CharacteristicState,
+  MocAmbientAttachmentStatus,
   MocAmbientClosureStatus,
   MocFreeBoundaryShockStatus,
   MocInvariantClosureFamily,
@@ -18,6 +19,7 @@ from exhaust_plume.models.moc import (
   solve_marched_attached_shock_from_reflected_zone,
   solve_marched_attached_shock_from_source_strip,
   solve_marched_attached_shock_with_ambient_pressure_closure,
+  solve_marched_attached_shock_with_ambient_attachment_closure,
   solve_marched_attached_shock_with_ambient_pressure_closure_from_reflected_zone,
   solve_reflected_free_boundary,
   assemble_source_characteristic_strip,
@@ -220,6 +222,59 @@ def test_ambient_pressure_closure_does_not_promote_a_pressure_root_without_tange
   assert result.ambient_boundary.maximum_absolute_tangent_residual is not None
   assert result.ambient_boundary.maximum_absolute_tangent_residual > 1.0e-2
   assert not result.physical_closure_verified
+
+
+def test_ambient_attachment_closure_matches_shock_attachment_and_keeps_strip_open() -> None:
+  reference = _uniform_reference(17)
+  assert reference.shock_fit is not None
+  first = reference.shock_fit.boundary_states[0]
+  ambient_pressure = first.downstream_total_pressure_Pa / (
+    1.0 + 0.5 * (first.state.gamma - 1.0) * first.state.mach**2
+  ) ** (first.state.gamma / (first.state.gamma - 1.0))
+
+  result = solve_marched_attached_shock_with_ambient_attachment_closure(
+    lambda point: CharacteristicState(
+      x_m=point[0],
+      y_m=point[1],
+      theta_rad=-0.2,
+      mach=2.0,
+      gamma=1.4,
+    ),
+    lambda _point: 100000.0,
+    (0.5, 0.5),
+    ambient_pressure,
+    0.0,
+    0.1,
+    sample_count=17,
+  )
+
+  assert result.status is MocAmbientAttachmentStatus.CONVERGED_OPEN_STRIP
+  assert result.converged
+  assert result.outer_downstream_flow_angle_rad == pytest.approx(0.05, abs=1.0e-10)
+  assert result.attachment_pressure_residual == pytest.approx(0.0, abs=1.0e-10)
+  assert result.shock is not None and result.shock.converged
+  assert result.ambient_march is not None and result.ambient_march.converged
+  assert result.strip is not None and result.strip.converged
+  assert result.strip.physical_closure_verified is False
+  assert result.physical_closure_verified is False
+  assert result.chain_promotion_blocked is True
+
+
+def test_ambient_attachment_closure_rejects_a_non_straddling_pressure_bracket() -> None:
+  result = solve_marched_attached_shock_with_ambient_attachment_closure(
+    lambda point: CharacteristicState(point[0], point[1], -0.2, 2.0, 1.4),
+    lambda _point: 100000.0,
+    (0.5, 0.5),
+    300000.0,
+    0.0,
+    0.05,
+    sample_count=9,
+  )
+
+  assert result.status is MocAmbientAttachmentStatus.BOUNDARY_BRACKET_FAILURE
+  assert not result.converged
+  assert result.chain_promotion_blocked is True
+  assert 'does not straddle' in result.message
 
 
 def test_reflected_zone_ambient_closure_keeps_upstream_coverage_domain_bounded() -> None:

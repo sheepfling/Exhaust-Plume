@@ -26,6 +26,12 @@ from exhaust_plume.models.moc.ambient_boundary import (
   MocAmbientPressureBoundaryResult,
   validate_post_shock_ambient_boundary,
 )
+from exhaust_plume.models.moc.ambient_shock_strip import (
+  MocAmbientShockBoundaryMarchResult,
+  MocAmbientShockStripResult,
+  march_post_shock_ambient_boundary,
+  assemble_ambient_shock_characteristic_strip,
+)
 from exhaust_plume.models.moc.chain import MocChainBoundarySample, MocChainCell
 from exhaust_plume.models.moc.compression import solve_attached_compression_to_turn
 from exhaust_plume.models.moc.free_boundary import (
@@ -46,6 +52,9 @@ __all__ = (
   'MocAmbientClosureStatus',
   'MocAmbientClosureResult',
   'solve_marched_attached_shock_with_ambient_pressure_closure',
+  'MocAmbientAttachmentStatus',
+  'MocAmbientAttachmentResult',
+  'solve_marched_attached_shock_with_ambient_attachment_closure',
   'MocInvariantClosureFamily',
   'MocInvariantClosureStatus',
   'MocInvariantClosureResult',
@@ -63,6 +72,19 @@ class MocAmbientClosureStatus(str, Enum):
   FIELD_FAILURE = 'ambient_closure_field_failure'
   AMBIENT_BOUNDARY_FAILURE = 'ambient_boundary_failure'
   SHOOTING_FAILURE = 'ambient_closure_shooting_failure'
+####
+
+
+class MocAmbientAttachmentStatus(str, Enum):
+  """Outcome for an ambient-matched shock attachment and open strip."""
+
+  CONVERGED_OPEN_STRIP = 'converged_ambient_attachment_open_strip'
+  INVALID_INPUT = 'invalid_input'
+  BOUNDARY_BRACKET_FAILURE = 'ambient_attachment_bracket_failure'
+  SHOCK_FAILURE = 'ambient_attachment_shock_failure'
+  AMBIENT_BOUNDARY_FAILURE = 'ambient_attachment_boundary_failure'
+  STRIP_FAILURE = 'ambient_attachment_strip_failure'
+  SHOOTING_FAILURE = 'ambient_attachment_shooting_failure'
 ####
 
 
@@ -91,6 +113,7 @@ class MocAmbientClosureResult:
   def converged(self) -> bool:
     return self.status is MocAmbientClosureStatus.CONVERGED_AMBIENT_CLOSED
   ####
+
 
   @property
   def physical_closure_verified(self) -> bool:
@@ -209,6 +232,481 @@ class MocAmbientClosureResult:
       diagnostics=diagnostics,
     )
   ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocAmbientAttachmentResult:
+  """An ambient-matched shock plus physical open-boundary strip.
+
+  This result closes only the shock/ambient attachment condition.  The
+  downstream terminal trace is retained by ``strip`` and remains open until
+  a centerline reflection and next-shock solve close the cell.  It is
+  therefore never a chain-cell promotion result.
+  """
+
+  status: MocAmbientAttachmentStatus
+  shock: MocFreeBoundaryShockResult | None
+  ambient_march: MocAmbientShockBoundaryMarchResult | None
+  strip: MocAmbientShockStripResult | None
+  ambient_pressure_Pa: float | None
+  outer_downstream_flow_angle_rad: float | None
+  outer_flow_angle_bracket: tuple[float, float] | None
+  attachment_pressure_residual: float | None
+  shooting_iterations: int
+  message: str = ''
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocAmbientAttachmentStatus.CONVERGED_OPEN_STRIP
+  ####
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    return False
+  ####
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    return True
+  ####
+
+  def as_report(self) -> dict[str, object]:
+    return {
+      'status': self.status.value,
+      'converged': self.converged,
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'ambient_pressure_Pa': self.ambient_pressure_Pa,
+      'outer_downstream_flow_angle_rad': self.outer_downstream_flow_angle_rad,
+      'outer_flow_angle_bracket': self.outer_flow_angle_bracket,
+      'attachment_pressure_residual': self.attachment_pressure_residual,
+      'shooting_iterations': self.shooting_iterations,
+      'shock': None if self.shock is None else self.shock.as_report(),
+      'ambient_march': (
+        None if self.ambient_march is None else self.ambient_march.as_report()
+      ),
+      'strip': None if self.strip is None else self.strip.as_report(),
+      'downstream_condition_status': 'linear-centerline-reference',
+      'message': self.message,
+    }
+  ####
+
+
+def _ambient_attachment_failure(
+  status: MocAmbientAttachmentStatus,
+  *,
+  ambient_pressure_Pa: float | None = None,
+  outer_downstream_flow_angle_rad: float | None = None,
+  outer_flow_angle_bracket: tuple[float, float] | None = None,
+  attachment_pressure_residual: float | None = None,
+  shooting_iterations: int = 0,
+  shock: MocFreeBoundaryShockResult | None = None,
+  ambient_march: MocAmbientShockBoundaryMarchResult | None = None,
+  strip: MocAmbientShockStripResult | None = None,
+  message: str,
+) -> MocAmbientAttachmentResult:
+  return MocAmbientAttachmentResult(
+    status=status,
+    shock=shock,
+    ambient_march=ambient_march,
+    strip=strip,
+    ambient_pressure_Pa=ambient_pressure_Pa,
+    outer_downstream_flow_angle_rad=outer_downstream_flow_angle_rad,
+    outer_flow_angle_bracket=outer_flow_angle_bracket,
+    attachment_pressure_residual=attachment_pressure_residual,
+    shooting_iterations=shooting_iterations,
+    message=message,
+  )
+####
+
+
+def solve_marched_attached_shock_with_ambient_attachment_closure(
+  upstream_state_at: Callable[[tuple[float, float]], CharacteristicState | None],
+  upstream_pressure_at: Callable[[tuple[float, float]], float | None],
+  start_point_m: tuple[float, float],
+  ambient_pressure_Pa: float,
+  outer_downstream_flow_angle_lower_rad: float,
+  outer_downstream_flow_angle_upper_rad: float,
+  *,
+  target_centerline_y_m: float = 0.0,
+  target_centerline_flow_angle_rad: float = 0.0,
+  incoming_handoff: Sequence[MocChainBoundarySample] | None = None,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  attachment_pressure_tolerance: float = 1.0e-8,
+  pressure_tolerance: float = 1.0e-8,
+  tangent_tolerance: float = 1.0e-8,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  maximum_boundary_iterations: int = 16,
+  maximum_shooting_iterations: int = 40,
+) -> MocAmbientAttachmentResult:
+  """Close the shock/ambient attachment before assembling an open strip.
+
+  The unknown is the downstream flow angle at the outer shock attachment.
+  Each bracket trial solves the local attached compression and matches its
+  downstream static pressure to the requested ambient pressure.  The selected
+  angle is then used only for the declared linear-to-centerline reference law
+  while the shock is marched and the physical ambient ``C-`` boundary is
+  generated from the shock ``C+`` sources.
+
+  This removes the attachment angle from the caller's fixed input, but it does
+  not close the downstream terminal trace.  The returned strip is therefore a
+  physical-boundary continuation seam, not a resolved first cell or a chain
+  promotion result.
+  """
+
+  if not callable(upstream_state_at) or not callable(upstream_pressure_at):
+    return _ambient_attachment_failure(
+      MocAmbientAttachmentStatus.INVALID_INPUT,
+      message='upstream state and pressure providers must be callable',
+    )
+  try:
+    start = (float(start_point_m[0]), float(start_point_m[1]))
+    ambient_pressure = float(ambient_pressure_Pa)
+    lower_angle = float(outer_downstream_flow_angle_lower_rad)
+    upper_angle = float(outer_downstream_flow_angle_upper_rad)
+    target_y = float(target_centerline_y_m)
+    target_angle = float(target_centerline_flow_angle_rad)
+  except (IndexError, TypeError, ValueError):
+    return _ambient_attachment_failure(
+      MocAmbientAttachmentStatus.INVALID_INPUT,
+      message='ambient attachment coordinates, pressure, and angle bracket must be numeric',
+    )
+  bracket = (lower_angle, upper_angle)
+  if not all(
+    isfinite(value)
+    for value in (*start, ambient_pressure, lower_angle, upper_angle, target_y, target_angle)
+  ):
+    return _ambient_attachment_failure(
+      MocAmbientAttachmentStatus.INVALID_INPUT,
+      ambient_pressure_Pa=ambient_pressure,
+      outer_flow_angle_bracket=bracket,
+      message='ambient attachment inputs must be finite',
+    )
+  if ambient_pressure <= 0.0:
+    return _ambient_attachment_failure(
+      MocAmbientAttachmentStatus.INVALID_INPUT,
+      ambient_pressure_Pa=ambient_pressure,
+      outer_flow_angle_bracket=bracket,
+      message='ambient_pressure_Pa must be finite and positive',
+    )
+  if target_y >= start[1]:
+    return _ambient_attachment_failure(
+      MocAmbientAttachmentStatus.INVALID_INPUT,
+      ambient_pressure_Pa=ambient_pressure,
+      outer_flow_angle_bracket=bracket,
+      message='target centerline ordinate must be below the shock start',
+    )
+  if lower_angle >= upper_angle:
+    return _ambient_attachment_failure(
+      MocAmbientAttachmentStatus.INVALID_INPUT,
+      ambient_pressure_Pa=ambient_pressure,
+      outer_flow_angle_bracket=bracket,
+      message='outer downstream flow-angle lower bound must be below its upper bound',
+    )
+  if not isinstance(branch, ShockBranch):
+    return _ambient_attachment_failure(
+      MocAmbientAttachmentStatus.INVALID_INPUT,
+      ambient_pressure_Pa=ambient_pressure,
+      outer_flow_angle_bracket=bracket,
+      message='branch must be a ShockBranch',
+    )
+  if isinstance(sample_count, bool) or not isinstance(sample_count, int) or sample_count < 3:
+    raise ValueError('sample_count must be an integer of at least three')
+  if (
+    isinstance(maximum_segment_iterations, bool)
+    or not isinstance(maximum_segment_iterations, int)
+    or maximum_segment_iterations < 1
+  ):
+    raise ValueError('maximum_segment_iterations must be a positive integer')
+  if (
+    isinstance(maximum_boundary_iterations, bool)
+    or not isinstance(maximum_boundary_iterations, int)
+    or maximum_boundary_iterations < 1
+  ):
+    raise ValueError('maximum_boundary_iterations must be a positive integer')
+  if (
+    isinstance(maximum_shooting_iterations, bool)
+    or not isinstance(maximum_shooting_iterations, int)
+    or maximum_shooting_iterations < 1
+  ):
+    raise ValueError('maximum_shooting_iterations must be a positive integer')
+  for name, value in (
+    ('position_tolerance_m', position_tolerance_m),
+    ('invariant_tolerance', invariant_tolerance),
+    ('attachment_pressure_tolerance', attachment_pressure_tolerance),
+    ('pressure_tolerance', pressure_tolerance),
+    ('tangent_tolerance', tangent_tolerance),
+    ('shock_angle_tolerance_rad', shock_angle_tolerance_rad),
+  ):
+    if not isfinite(float(value)) or value <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+
+  try:
+    upstream_state = upstream_state_at(start)
+    upstream_pressure = upstream_pressure_at(start)
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return _ambient_attachment_failure(
+      MocAmbientAttachmentStatus.SHOCK_FAILURE,
+      ambient_pressure_Pa=ambient_pressure,
+      outer_flow_angle_bracket=bracket,
+      message=f'upstream attachment callback failed: {error}',
+    )
+  if not isinstance(upstream_state, CharacteristicState):
+    return _ambient_attachment_failure(
+      MocAmbientAttachmentStatus.SHOCK_FAILURE,
+      ambient_pressure_Pa=ambient_pressure,
+      outer_flow_angle_bracket=bracket,
+      message='upstream attachment callback returned no CharacteristicState',
+    )
+  if (
+    abs(upstream_state.x_m - start[0]) > position_tolerance_m
+    or abs(upstream_state.y_m - start[1]) > position_tolerance_m
+  ):
+    return _ambient_attachment_failure(
+      MocAmbientAttachmentStatus.SHOCK_FAILURE,
+      ambient_pressure_Pa=ambient_pressure,
+      outer_flow_angle_bracket=bracket,
+      message='upstream attachment state does not lie at the shock start',
+    )
+  if upstream_pressure is None or not isfinite(float(upstream_pressure)) or upstream_pressure <= 0.0:
+    return _ambient_attachment_failure(
+      MocAmbientAttachmentStatus.SHOCK_FAILURE,
+      ambient_pressure_Pa=ambient_pressure,
+      outer_flow_angle_bracket=bracket,
+      message='upstream attachment pressure must be finite and positive',
+    )
+  upstream_pressure_value = float(upstream_pressure)
+
+  def attachment_residual(angle_rad: float) -> tuple[float | None, str]:
+    turn = angle_rad - upstream_state.theta_rad
+    if turn <= 0.0:
+      return None, 'attachment angle does not provide a positive compression turn'
+    try:
+      compression = solve_attached_compression_to_turn(
+        upstream_mach=upstream_state.mach,
+        gamma=upstream_state.gamma,
+        upstream_pressure_Pa=upstream_pressure_value,
+        target_turn_rad=turn,
+        branch=branch,
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      return None, f'attachment compression raised: {error}'
+    if not compression.converged or compression.downstream_pressure_Pa is None:
+      return None, f'attachment compression failed: {compression.message}'
+    residual = (
+      compression.downstream_pressure_Pa - ambient_pressure
+    ) / ambient_pressure
+    if not isfinite(residual):
+      return None, 'attachment pressure residual is not finite'
+    return float(residual), ''
+
+  lower_residual, lower_error = attachment_residual(lower_angle)
+  upper_residual, upper_error = attachment_residual(upper_angle)
+  if lower_residual is None or upper_residual is None:
+    return _ambient_attachment_failure(
+      MocAmbientAttachmentStatus.SHOCK_FAILURE,
+      ambient_pressure_Pa=ambient_pressure,
+      outer_flow_angle_bracket=bracket,
+      message=(
+        'ambient attachment requires both angle endpoints to produce an '
+        f'attached compression; lower={lower_error}; upper={upper_error}'
+      ),
+    )
+  selected_angle: float | None = None
+  selected_residual: float | None = None
+  shooting_iterations = 0
+  if abs(lower_residual) <= attachment_pressure_tolerance:
+    selected_angle = lower_angle
+    selected_residual = lower_residual
+  elif abs(upper_residual) <= attachment_pressure_tolerance:
+    selected_angle = upper_angle
+    selected_residual = upper_residual
+  elif lower_residual * upper_residual > 0.0:
+    return _ambient_attachment_failure(
+      MocAmbientAttachmentStatus.BOUNDARY_BRACKET_FAILURE,
+      ambient_pressure_Pa=ambient_pressure,
+      outer_flow_angle_bracket=bracket,
+      attachment_pressure_residual=upper_residual,
+      message=(
+        'outer downstream angle bracket does not straddle the ambient '
+        f'attachment pressure residual: lower={lower_residual}, upper={upper_residual}'
+      ),
+    )
+  else:
+    current_lower = lower_angle
+    current_upper = upper_angle
+    current_lower_residual = lower_residual
+    last_residual = upper_residual
+    for iteration in range(1, maximum_shooting_iterations + 1):
+      midpoint = 0.5 * (current_lower + current_upper)
+      midpoint_residual, midpoint_error = attachment_residual(midpoint)
+      if midpoint_residual is None:
+        return _ambient_attachment_failure(
+          MocAmbientAttachmentStatus.SHOOTING_FAILURE,
+          ambient_pressure_Pa=ambient_pressure,
+          outer_flow_angle_bracket=(current_lower, current_upper),
+          shooting_iterations=iteration,
+          message=(
+            'ambient attachment encountered an invalid midpoint and stopped: '
+            f'{midpoint_error}'
+          ),
+        )
+      shooting_iterations = iteration
+      last_residual = midpoint_residual
+      if abs(midpoint_residual) <= attachment_pressure_tolerance:
+        selected_angle = midpoint
+        selected_residual = midpoint_residual
+        break
+      if current_lower_residual * midpoint_residual <= 0.0:
+        current_upper = midpoint
+      else:
+        current_lower = midpoint
+        current_lower_residual = midpoint_residual
+    if selected_angle is None:
+      return _ambient_attachment_failure(
+        MocAmbientAttachmentStatus.SHOOTING_FAILURE,
+        ambient_pressure_Pa=ambient_pressure,
+        outer_flow_angle_bracket=(current_lower, current_upper),
+        attachment_pressure_residual=last_residual,
+        shooting_iterations=shooting_iterations,
+        message=(
+          'ambient attachment reached its angle-shooting limit before the '
+          f'pressure tolerance passed: residual={last_residual}'
+        ),
+      )
+  assert selected_residual is not None
+  denominator = start[1] - target_y
+
+  def downstream_angle_at(_index: int, point_m: tuple[float, float]) -> float:
+    fraction = (point_m[1] - target_y) / denominator
+    fraction = max(0.0, min(1.0, fraction))
+    return target_angle + (selected_angle - target_angle) * fraction
+
+  try:
+    shock = solve_marched_attached_shock_field(
+      upstream_state_at,
+      upstream_pressure_at,
+      start,
+      target_centerline_y_m=target_y,
+      downstream_flow_angle_at=downstream_angle_at,
+      incoming_handoff=incoming_handoff,
+      sample_count=sample_count,
+      branch=branch,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+      shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+      maximum_segment_iterations=maximum_segment_iterations,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return _ambient_attachment_failure(
+      MocAmbientAttachmentStatus.SHOCK_FAILURE,
+      ambient_pressure_Pa=ambient_pressure,
+      outer_downstream_flow_angle_rad=selected_angle,
+      outer_flow_angle_bracket=bracket,
+      attachment_pressure_residual=selected_residual,
+      shooting_iterations=shooting_iterations,
+      message=f'ambient attachment shock march raised: {error}',
+    )
+  if not shock.converged or shock.shock_fit is None:
+    return _ambient_attachment_failure(
+      MocAmbientAttachmentStatus.SHOCK_FAILURE,
+      ambient_pressure_Pa=ambient_pressure,
+      outer_downstream_flow_angle_rad=selected_angle,
+      outer_flow_angle_bracket=bracket,
+      attachment_pressure_residual=selected_residual,
+      shooting_iterations=shooting_iterations,
+      shock=shock,
+      message=f'ambient attachment shock march did not converge: {shock.message}',
+    )
+  try:
+    ambient_march = march_post_shock_ambient_boundary(
+      shock.shock_fit,
+      ambient_pressure,
+      target_centerline_y_m=target_y,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+      pressure_tolerance=pressure_tolerance,
+      maximum_iterations=maximum_boundary_iterations,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return _ambient_attachment_failure(
+      MocAmbientAttachmentStatus.AMBIENT_BOUNDARY_FAILURE,
+      ambient_pressure_Pa=ambient_pressure,
+      outer_downstream_flow_angle_rad=selected_angle,
+      outer_flow_angle_bracket=bracket,
+      attachment_pressure_residual=selected_residual,
+      shooting_iterations=shooting_iterations,
+      shock=shock,
+      message=f'ambient boundary march raised: {error}',
+    )
+  if not ambient_march.converged:
+    return _ambient_attachment_failure(
+      MocAmbientAttachmentStatus.AMBIENT_BOUNDARY_FAILURE,
+      ambient_pressure_Pa=ambient_pressure,
+      outer_downstream_flow_angle_rad=selected_angle,
+      outer_flow_angle_bracket=bracket,
+      attachment_pressure_residual=selected_residual,
+      shooting_iterations=shooting_iterations,
+      shock=shock,
+      ambient_march=ambient_march,
+      message=f'ambient boundary march did not converge: {ambient_march.message}',
+    )
+  try:
+    strip = assemble_ambient_shock_characteristic_strip(
+      shock.shock_fit,
+      ambient_march.boundary_samples,
+      ambient_pressure,
+      target_centerline_y_m=target_y,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+      pressure_tolerance=pressure_tolerance,
+      tangent_tolerance=tangent_tolerance,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return _ambient_attachment_failure(
+      MocAmbientAttachmentStatus.STRIP_FAILURE,
+      ambient_pressure_Pa=ambient_pressure,
+      outer_downstream_flow_angle_rad=selected_angle,
+      outer_flow_angle_bracket=bracket,
+      attachment_pressure_residual=selected_residual,
+      shooting_iterations=shooting_iterations,
+      shock=shock,
+      ambient_march=ambient_march,
+      message=f'ambient shock/ambient strip assembly raised: {error}',
+    )
+  if not strip.converged:
+    return _ambient_attachment_failure(
+      MocAmbientAttachmentStatus.STRIP_FAILURE,
+      ambient_pressure_Pa=ambient_pressure,
+      outer_downstream_flow_angle_rad=selected_angle,
+      outer_flow_angle_bracket=bracket,
+      attachment_pressure_residual=selected_residual,
+      shooting_iterations=shooting_iterations,
+      shock=shock,
+      ambient_march=ambient_march,
+      strip=strip,
+      message=f'ambient shock/ambient strip did not converge: {strip.message}',
+    )
+  return MocAmbientAttachmentResult(
+    status=MocAmbientAttachmentStatus.CONVERGED_OPEN_STRIP,
+    shock=shock,
+    ambient_march=ambient_march,
+    strip=strip,
+    ambient_pressure_Pa=ambient_pressure,
+    outer_downstream_flow_angle_rad=selected_angle,
+    outer_flow_angle_bracket=bracket,
+    attachment_pressure_residual=selected_residual,
+    shooting_iterations=shooting_iterations,
+    message=(
+      'ambient shock attachment converged and produced a physical open '
+      'shock/ambient strip; terminal centerline closure remains pending'
+    ),
+  )
+####
 
 
 @dataclass(frozen=True, slots=True)

@@ -145,6 +145,12 @@ not wait on this research closure.
   samples and checked independently as a shock-sourced C+ characteristic;
   its nonzero coarse-grid geometry residual is retained as a rejection
   diagnostic rather than hidden by the open-strip status.
+- Added a bracketed ambient-attachment closure. It solves the outer shock
+  turn from the local post-shock static-pressure/ambient residual, regenerates
+  the marched attached shock, and assembles the physical shock/ambient strip
+  without caller-supplied attachment angle. The result deliberately retains
+  the linear-to-centerline law as a named reference and leaves the terminal
+  trace open, so it cannot promote a first cell.
 - Added a typed terminal-compression candidate. It consumes the open strip's
   shock-sourced C+ trace, checks the endpoint's ambient static pressure, and
   solves a forward attached compression segment to the centerline. A declared
@@ -328,6 +334,15 @@ adds a strict outer-perimeter pressure/tangency gate; its canonical result is
 therefore a bounded field/coupling failure and cannot be promoted into the
 continued chain.
 
+The bracketed ambient-attachment adapter removes one caller-supplied boundary
+coordinate: it solves the outer shock turn against the local post-shock
+static-pressure/ambient condition before generating the physical shock/ambient
+strip. This is a stronger attachment seam than the fixed-angle reference, but
+it intentionally leaves the downstream terminal trace open and labels the
+linear-to-centerline law as a reference. A centerline reflection, downstream
+compression/shock fit, and mixed-regime/perimeter closure are still required
+before a first cell or continued chain cell can be accepted.
+
 The terminal-compression candidate is the next local boundary primitive after
 the open shock/ambient strip. It is intentionally weaker than a first-cell
 closure: it solves the endpoint-to-centerline compression only. The next
@@ -458,7 +473,10 @@ Only after MOC-1 through MOC-5 pass:
   internal-characteristic edge with a solved free boundary before a cell can
   be accepted physically. The new shock-sourced ambient strip demonstrates the
   corrected source-family orientation and carries the physical boundary
-  conditions, but its terminal trace still needs an axis/centerline closure.
+  conditions, and the bracketed attachment seam now solves the outer shock
+  turn from ambient pressure. Its terminal trace still needs an
+  axis/centerline closure; the linear-to-centerline law used to generate this
+  open strip remains a named reference, not a physical first-cell closure.
   The scalar shoot continues to demonstrate the old internal-characteristic
   failure without weakening the gate.
 - The canonical marched shock now classifies a zero-turn/normal-shock endpoint

@@ -50,6 +50,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_marched_attached_shock_from_source_strip,
   solve_marched_attached_shock_with_ambient_pressure_closure,
   solve_marched_attached_shock_with_ambient_pressure_closure_from_reflected_zone,
+  solve_marched_attached_shock_with_ambient_attachment_closure,
   solve_marched_attached_shock_with_constant_invariant_closure,
   solve_reflected_boundary_trace_extension,
   solve_uniform_attached_shock_field,
@@ -454,6 +455,69 @@ def _ambient_pressure_closure_probe() -> dict[str, Any]:
     'claim_status': (
       'scalar-ambient-shoot-reached-pressure-coordinate-but-full-perimeter-'
       'tangency-gate-remains-open'
+    ),
+  }
+
+
+def _ambient_attachment_closure_probe(
+  solver_generated_shock: MocFreeBoundaryShockResult,
+) -> dict[str, Any]:
+  """Solve ambient shock attachment before retaining the terminal trace open."""
+
+  shock_fit = solver_generated_shock.shock_fit
+  if (
+    shock_fit is None
+    or not shock_fit.converged
+    or not shock_fit.boundary_states
+    or not solver_generated_shock.upstream_states
+    or not solver_generated_shock.upstream_pressure_Pa
+    or not solver_generated_shock.shock_points_m
+  ):
+    return {
+      'status': 'shock_boundary_failure',
+      'converged': False,
+      'physical_closure_verified': False,
+      'chain_promotion_blocked': True,
+      'expected_open_strip': False,
+      'message': 'solver-generated shock fixture did not provide attachment inputs',
+      'claim_status': 'ambient-matched-attachment-and-open-strip-pending',
+    }
+
+  first = shock_fit.boundary_states[0]
+  downstream_state = first.state
+  ambient_pressure = first.downstream_total_pressure_Pa / (
+    1.0 + 0.5 * (downstream_state.gamma - 1.0)
+    * downstream_state.mach * downstream_state.mach
+  ) ** (downstream_state.gamma / (downstream_state.gamma - 1.0))
+  upstream_state = solver_generated_shock.upstream_states[0]
+  upstream_pressure = solver_generated_shock.upstream_pressure_Pa[0]
+  result = solve_marched_attached_shock_with_ambient_attachment_closure(
+    lambda point: CharacteristicState(
+      x_m=point[0],
+      y_m=point[1],
+      theta_rad=upstream_state.theta_rad,
+      mach=upstream_state.mach,
+      gamma=upstream_state.gamma,
+    ),
+    lambda _point: upstream_pressure,
+    solver_generated_shock.shock_points_m[0],
+    ambient_pressure,
+    0.0,
+    0.1,
+    sample_count=solver_generated_shock.sample_count,
+  )
+  return {
+    **result.as_report(),
+    'expected_open_strip': (
+      result.converged
+      and result.strip is not None
+      and result.strip.converged
+      and not result.physical_closure_verified
+      and result.chain_promotion_blocked
+    ),
+    'claim_status': (
+      'ambient-matched-shock-attachment-plus-physical-open-strip; '
+      'linear-centerline-reference-only; terminal-centerline-closure-pending'
     ),
   }
 
@@ -1247,6 +1311,9 @@ def build_moc_primitive_report() -> dict[str, Any]:
   shock_seeded_refinement_probe = _shock_seeded_field_refinement_probe()
   solver_generated_shock = _solver_generated_shock_fixture()
   ambient_shock_strip_probe = _ambient_shock_strip_probe(solver_generated_shock)
+  ambient_attachment_closure_probe = _ambient_attachment_closure_probe(
+    solver_generated_shock,
+  )
   solver_generated_shock_refinement_probe = _solver_generated_shock_refinement_probe()
   terminal_reflection_patch_refinement_probe = _terminal_reflection_patch_refinement_probe()
   solver_generated_chain_reference = None
@@ -1845,6 +1912,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'claim_status': 'solver-generated-boundary-conditioned-field; upstream-field-coupling-pending',
     },
     'solver_generated_ambient_shock_strip': ambient_shock_strip_probe,
+    'ambient_attachment_closure_probe': ambient_attachment_closure_probe,
     'solver_generated_shock_refinement': {
       'status': (
         'diagnostic-all-solver-generated-resolutions-converged'
@@ -2215,6 +2283,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'message': str(ambient_shock_strip_probe.get('message', '')),
       }
     ] if ambient_shock_strip_probe.get('accepted') is not True else []),
+    *([
+      {
+        'case': 'ambient_attachment_closure_probe',
+        'status': ambient_attachment_closure_probe['status'],
+        'message': str(ambient_attachment_closure_probe.get('message', '')),
+      }
+    ] if ambient_attachment_closure_probe.get('expected_open_strip') is not True else []),
     *([
       {
         'case': 'solver_generated_measurement_operator',

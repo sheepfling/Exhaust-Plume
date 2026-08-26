@@ -68,6 +68,7 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   planner = report['geometry_cases']['shock_cell_chain_planner_mock']
   invariant_closure = report['geometry_cases']['terminal_source_window_invariant_closure']
   ambient_strip = report['geometry_cases']['solver_generated_ambient_shock_strip']
+  ambient_attachment = report['geometry_cases']['ambient_attachment_closure_probe']
   ambient_closure = report['geometry_cases']['ambient_pressure_closure_probe']
 
   assert generated['status'] == 'converged_free_boundary_field'
@@ -91,6 +92,18 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert ambient_strip['strip']['topology_forms_closed_zone'] is True
   assert ambient_strip['strip']['physical_closure_verified'] is False
   assert ambient_strip['strip']['chain_promotion_blocked'] is True
+  assert ambient_attachment['status'] == 'converged_ambient_attachment_open_strip'
+  assert ambient_attachment['expected_open_strip'] is True
+  assert ambient_attachment['converged'] is True
+  assert ambient_attachment['physical_closure_verified'] is False
+  assert ambient_attachment['chain_promotion_blocked'] is True
+  assert ambient_attachment['outer_downstream_flow_angle_rad'] == pytest.approx(0.05)
+  assert ambient_attachment['attachment_pressure_residual'] == pytest.approx(0.0)
+  assert ambient_attachment['shooting_iterations'] == 1
+  assert ambient_attachment['strip']['status'] == 'converged_open_shock_ambient_strip'
+  assert ambient_attachment['strip']['physical_closure_verified'] is False
+  assert ambient_attachment['strip']['chain_promotion_blocked'] is True
+  assert ambient_attachment['downstream_condition_status'] == 'linear-centerline-reference'
   terminal_candidate = ambient_strip['terminal_compression_candidate']
   terminal_patch = ambient_strip['terminal_reflection_patch']
   terminal_patch_shock_probe = ambient_strip['terminal_reflection_patch_shock_probe']

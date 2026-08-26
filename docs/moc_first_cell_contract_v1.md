@@ -91,6 +91,12 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   that enforces the incoming ``K+`` law, ambient pressure, and streamline
   tangency. The result carries an explicit downstream terminal trace and is
   not chain-promotable until a centerline closure is solved;
+- a bracketed ambient-attachment closure that solves the outer shock turn from
+  the local post-shock static-pressure/ambient residual before regenerating
+  that physical shock/ambient strip. It removes the fixed attachment angle from
+  the caller, but retains a named linear-to-centerline reference law and an
+  open terminal trace, so it is not a closed first-cell or chain-promotion
+  result;
 - a typed terminal-compression candidate that validates that downstream
   shock-sourced ``C+`` trace, checks its ambient endpoint pressure, and solves
   a forward attached compression segment to the centerline. It remains a
@@ -215,6 +221,12 @@ assembler promotes its centerline handoff as
 The shock/ambient strip intentionally has no promotion adapter: its
 `terminal-characteristic-trace` is a real unresolved downstream boundary, not
 an inferred centerline or axial section.
+The bracketed ambient-attachment result has the same boundary: its
+`outer_downstream_flow_angle_rad` is solved from a local ambient-pressure
+attachment bracket, while `downstream_condition_status` remains
+`linear-centerline-reference`. This records a physical open boundary net, not
+the missing centerline reflection, next-shock fit, or mixed-regime perimeter
+closure required for a first cell.
 The strip exposes that trace as typed `MocChainBoundarySample` values and
 reports independent `C+` characteristic-trace evidence (family invariant,
 forward margin, and discrete geometry residual). A finite trace report is not
@@ -319,10 +331,12 @@ do not authorize replacing the basic provider or accepting a product claim.
 1. Extend the reflected MOC upstream state/pressure field far enough to cover
    the generated shock path, then replace both the uniform reference
    linear-turn law and the diagnostic constant-`K+` continuation assumption
-   with a solved post-shock boundary condition. The new ambient shooter is the
-   bounded research seam for that condition, but the current probes are not a
-   production free-boundary first-cell solution: one fails the full perimeter
-   gate and the canonical reflected case fails upstream coverage.
+   with a solved post-shock boundary condition. The new bracketed ambient
+   attachment shooter is the bounded research seam for the outer shock turn,
+   but its current open-strip result still uses a named linear-centerline
+   reference and is not a production free-boundary first-cell solution: the
+   remaining terminal closure and canonical reflected upstream coverage are
+   still open.
 2. Demonstrate grid/refinement convergence for the assembled reflected and
    post-shock zones, underexpanded, and mild attached overexpanded reference
    cases.
