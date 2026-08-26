@@ -125,6 +125,11 @@ not wait on this research closure.
   records the first missing reflected-zone sample; only a fully ambient-closed
   result with complete upstream coverage can become a continued MOC chain
   cell.
+- Added a typed normal-shock terminal primitive. It reconstructs the
+  subsonic Mach number, static-pressure rise, and total-pressure loss without
+  fabricating a subsonic `CharacteristicState`; the marched-shock result
+  carries that evidence when a zero-turn symmetry endpoint is reached, while
+  chain promotion remains blocked until a mixed-regime field is solved.
 - Added a separate boundary-conditioned triangular assembler. It couples a
   branch-checked shock trace and an independently accepted ambient trace
   through C+/C- intersections, then requires the remaining perimeter to
@@ -329,10 +334,11 @@ Only after MOC-1 through MOC-5 pass:
   be accepted physically. The scalar shoot now demonstrates this failure
   without weakening the gate.
 - The canonical marched shock now classifies a zero-turn/normal-shock endpoint
-  as `subsonic_terminal_required`. That is an explicit supersonic-MOC validity
-  boundary, not a reason to force a bracket or relabel the endpoint as a
-  converged supersonic cell; a future mixed-regime terminal model is still
-  required for that case.
+  as `subsonic_terminal_required` and carries a verified typed normal-shock
+  terminal diagnostic. That is an explicit supersonic-MOC validity boundary,
+  not a reason to force a bracket or relabel the endpoint as a converged
+  supersonic cell; a mixed-regime field and perimeter model is still required
+  for that case.
 - The invariant-conditioned shock shoot currently records a canonical
   no-bracket result; a selected constant downstream invariant is not yet an
   accepted physical free-boundary condition. No production solver yet supplies

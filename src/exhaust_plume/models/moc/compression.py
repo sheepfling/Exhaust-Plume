@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import cos, isfinite, sin, sqrt, tan
+from math import cos, isfinite, pi, sin, sqrt, tan
 
 from exhaust_plume.models.moc.primitives import CharacteristicState, MocPrimitiveStatus
 from exhaust_plume.models.nozzle.contracts import AmbientState, NozzleExitState
@@ -18,12 +18,14 @@ from exhaust_plume.util.aero.shock_validity import (
 __all__ = (
   'MocCompressionResult',
   'MocLipShockResult',
+  'MocNormalShockTerminalResult',
   'MocTurnCompressionResult',
   'MocShockToCenterlineResult',
   'solve_overexpanded_lip_shock',
   'solve_attached_compression_to_pressure',
   'solve_attached_compression_to_turn',
   'solve_attached_shock_to_centerline',
+  'solve_normal_shock_terminal',
 )
 
 
@@ -71,6 +73,239 @@ class MocLipShockResult:
   @property
   def converged(self) -> bool:
     return self.status is MocPrimitiveStatus.CONVERGED
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocNormalShockTerminalResult:
+  """Subsonic terminal state produced by a normal shock.
+
+  This is deliberately not represented as a :class:`CharacteristicState`:
+  the downstream Mach number is subsonic and therefore cannot enter the
+  supersonic planar-MOC compatibility network.  The result is a typed
+  terminal diagnostic for a marcher that reaches a mixed-regime boundary; it
+  is not, by itself, evidence that the surrounding shock-cell perimeter has
+  closed.
+  """
+
+  status: MocPrimitiveStatus
+  shock_point_m: tuple[float, float] | None
+  upstream_state: CharacteristicState | None
+  upstream_pressure_Pa: float | None
+  shock_normal_angle_rad: float | None
+  downstream_flow_angle_rad: float | None
+  downstream_mach: float | None
+  downstream_pressure_Pa: float | None
+  upstream_total_pressure_Pa: float | None
+  downstream_total_pressure_Pa: float | None
+  static_pressure_ratio: float | None
+  total_pressure_ratio: float | None
+  message: str = ''
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocPrimitiveStatus.CONVERGED
+  ####
+
+  @property
+  def subsonic(self) -> bool:
+    return self.converged and self.downstream_mach is not None and self.downstream_mach < 1.0
+  ####
+
+  def as_report(self) -> dict[str, object]:
+    return {
+      'status': self.status.value,
+      'converged': self.converged,
+      'subsonic': self.subsonic,
+      'shock_point_m': self.shock_point_m,
+      'shock_normal_angle_rad': self.shock_normal_angle_rad,
+      'downstream_flow_angle_rad': self.downstream_flow_angle_rad,
+      'downstream_mach': self.downstream_mach,
+      'downstream_pressure_Pa': self.downstream_pressure_Pa,
+      'static_pressure_ratio': self.static_pressure_ratio,
+      'total_pressure_ratio': self.total_pressure_ratio,
+      'message': self.message,
+    }
+####
+
+
+def solve_normal_shock_terminal(
+  upstream: CharacteristicState,
+  *,
+  upstream_pressure_Pa: float,
+  shock_point_m: tuple[float, float] | None = None,
+) -> MocNormalShockTerminalResult:
+  """Solve the thermodynamic terminal jump for a normal shock.
+
+  The upstream state remains supersonic and the downstream state is returned
+  as scalar flow/thermodynamic values because it is subsonic.  This primitive
+  intentionally does not create a downstream characteristic lattice or
+  promote a chain cell; callers must perform a separate mixed-regime and
+  perimeter-closure acceptance step.
+  """
+
+  if not isinstance(upstream, CharacteristicState):
+    return MocNormalShockTerminalResult(
+      status=MocPrimitiveStatus.INVALID_INPUT,
+      shock_point_m=None,
+      upstream_state=None,
+      upstream_pressure_Pa=None,
+      shock_normal_angle_rad=None,
+      downstream_flow_angle_rad=None,
+      downstream_mach=None,
+      downstream_pressure_Pa=None,
+      upstream_total_pressure_Pa=None,
+      downstream_total_pressure_Pa=None,
+      static_pressure_ratio=None,
+      total_pressure_ratio=None,
+      message='upstream must be a CharacteristicState',
+    )
+
+  try:
+    pressure = float(upstream_pressure_Pa)
+  except (TypeError, ValueError):
+    return MocNormalShockTerminalResult(
+      status=MocPrimitiveStatus.INVALID_INPUT,
+      shock_point_m=None,
+      upstream_state=upstream,
+      upstream_pressure_Pa=None,
+      shock_normal_angle_rad=None,
+      downstream_flow_angle_rad=None,
+      downstream_mach=None,
+      downstream_pressure_Pa=None,
+      upstream_total_pressure_Pa=None,
+      downstream_total_pressure_Pa=None,
+      static_pressure_ratio=None,
+      total_pressure_ratio=None,
+      message='upstream_pressure_Pa must be finite and positive',
+    )
+  if not isfinite(pressure) or pressure <= 0.0:
+    return MocNormalShockTerminalResult(
+      status=MocPrimitiveStatus.INVALID_INPUT,
+      shock_point_m=None,
+      upstream_state=upstream,
+      upstream_pressure_Pa=pressure,
+      shock_normal_angle_rad=None,
+      downstream_flow_angle_rad=None,
+      downstream_mach=None,
+      downstream_pressure_Pa=None,
+      upstream_total_pressure_Pa=None,
+      downstream_total_pressure_Pa=None,
+      static_pressure_ratio=None,
+      total_pressure_ratio=None,
+      message='upstream_pressure_Pa must be finite and positive',
+    )
+
+  point = (upstream.x_m, upstream.y_m)
+  if shock_point_m is not None:
+    try:
+      if len(shock_point_m) != 2:
+        raise ValueError
+      point = (float(shock_point_m[0]), float(shock_point_m[1]))
+    except (IndexError, TypeError, ValueError):
+      return MocNormalShockTerminalResult(
+        status=MocPrimitiveStatus.INVALID_INPUT,
+        shock_point_m=None,
+        upstream_state=upstream,
+        upstream_pressure_Pa=pressure,
+        shock_normal_angle_rad=None,
+        downstream_flow_angle_rad=None,
+        downstream_mach=None,
+        downstream_pressure_Pa=None,
+        upstream_total_pressure_Pa=None,
+        downstream_total_pressure_Pa=None,
+        static_pressure_ratio=None,
+        total_pressure_ratio=None,
+        message='shock_point_m must contain two finite coordinates',
+      )
+    if not all(isfinite(value) for value in point):
+      return MocNormalShockTerminalResult(
+        status=MocPrimitiveStatus.INVALID_INPUT,
+        shock_point_m=None,
+        upstream_state=upstream,
+        upstream_pressure_Pa=pressure,
+        shock_normal_angle_rad=None,
+        downstream_flow_angle_rad=None,
+        downstream_mach=None,
+        downstream_pressure_Pa=None,
+        upstream_total_pressure_Pa=None,
+        downstream_total_pressure_Pa=None,
+        static_pressure_ratio=None,
+        total_pressure_ratio=None,
+        message='shock_point_m must contain two finite coordinates',
+      )
+
+  gamma = upstream.gamma
+  mach = upstream.mach
+  static_pressure_ratio = 1.0 + (2.0 * gamma / (gamma + 1.0)) * (mach**2 - 1.0)
+  downstream_mach_squared = (
+    1.0 + 0.5 * (gamma - 1.0) * mach**2
+  ) / (
+    gamma * mach**2 - 0.5 * (gamma - 1.0)
+  )
+  downstream_mach = sqrt(downstream_mach_squared)
+  total_pressure_ratio = (
+    ((gamma + 1.0) * mach**2 / ((gamma - 1.0) * mach**2 + 2.0))
+    ** (gamma / (gamma - 1.0))
+    * ((gamma + 1.0) / (2.0 * gamma * mach**2 - (gamma - 1.0)))
+    ** (1.0 / (gamma - 1.0))
+  )
+  downstream_pressure = pressure * static_pressure_ratio
+  upstream_total_pressure = _isentropic_total_pressure(
+    static_pressure_Pa=pressure,
+    mach=mach,
+    gamma=gamma,
+  )
+  downstream_total_pressure = _isentropic_total_pressure(
+    static_pressure_Pa=downstream_pressure,
+    mach=downstream_mach,
+    gamma=gamma,
+  )
+  values = (
+    static_pressure_ratio,
+    downstream_mach,
+    downstream_pressure,
+    total_pressure_ratio,
+    upstream_total_pressure,
+    downstream_total_pressure,
+  )
+  if (
+    any(not isfinite(value) for value in values)
+    or downstream_mach <= 0.0
+    or downstream_mach >= 1.0
+    or static_pressure_ratio <= 1.0
+    or total_pressure_ratio <= 0.0
+    or total_pressure_ratio >= 1.0
+  ):
+    return MocNormalShockTerminalResult(
+      status=MocPrimitiveStatus.INVARIANT_FAILURE,
+      shock_point_m=point,
+      upstream_state=upstream,
+      upstream_pressure_Pa=pressure,
+      shock_normal_angle_rad=upstream.theta_rad + 0.5 * pi,
+      downstream_flow_angle_rad=upstream.theta_rad,
+      downstream_mach=downstream_mach,
+      downstream_pressure_Pa=downstream_pressure,
+      upstream_total_pressure_Pa=upstream_total_pressure,
+      downstream_total_pressure_Pa=downstream_total_pressure,
+      static_pressure_ratio=static_pressure_ratio,
+      total_pressure_ratio=total_pressure_ratio,
+      message='normal-shock terminal invariants are outside the physical subsonic domain',
+    )
+  return MocNormalShockTerminalResult(
+    status=MocPrimitiveStatus.CONVERGED,
+    shock_point_m=point,
+    upstream_state=upstream,
+    upstream_pressure_Pa=pressure,
+    shock_normal_angle_rad=upstream.theta_rad + 0.5 * pi,
+    downstream_flow_angle_rad=upstream.theta_rad,
+    downstream_mach=downstream_mach,
+    downstream_pressure_Pa=downstream_pressure,
+    upstream_total_pressure_Pa=upstream_total_pressure,
+    downstream_total_pressure_Pa=downstream_total_pressure,
+    static_pressure_ratio=static_pressure_ratio,
+    total_pressure_ratio=total_pressure_ratio,
+  )
 ####
 
 

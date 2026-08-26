@@ -9,6 +9,7 @@ from exhaust_plume.models.moc import (
   solve_attached_compression_to_pressure,
   solve_attached_compression_to_turn,
   solve_attached_shock_to_centerline,
+  solve_normal_shock_terminal,
 )
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput
 from exhaust_plume.models.nozzle.exit_state import derive_ambient_state, derive_uniform_nozzle_exit
@@ -95,6 +96,47 @@ def test_attached_turn_compression_reconstructs_supersonic_downstream_state() ->
   assert result.total_pressure_ratio == pytest.approx(
     result.downstream_total_pressure_Pa / result.upstream_total_pressure_Pa,
   )
+
+
+def test_normal_shock_terminal_returns_explicit_subsonic_state() -> None:
+  upstream = CharacteristicState(
+    x_m=1.25,
+    y_m=0.0,
+    theta_rad=0.1,
+    mach=2.0,
+    gamma=1.4,
+  )
+
+  result = solve_normal_shock_terminal(
+    upstream,
+    upstream_pressure_Pa=100000.0,
+    shock_point_m=(1.25, 0.0),
+  )
+
+  assert result.converged
+  assert result.subsonic
+  assert result.shock_point_m == (1.25, 0.0)
+  assert result.downstream_flow_angle_rad == pytest.approx(0.1)
+  assert result.downstream_mach == pytest.approx(0.5773502691896257)
+  assert result.static_pressure_ratio == pytest.approx(4.5)
+  assert result.downstream_pressure_Pa == pytest.approx(450000.0)
+  assert result.total_pressure_ratio == pytest.approx(0.7208738614847455)
+  assert result.upstream_total_pressure_Pa is not None
+  assert result.downstream_total_pressure_Pa is not None
+  assert result.downstream_total_pressure_Pa < result.upstream_total_pressure_Pa
+  assert result.as_report()['subsonic'] is True
+
+
+def test_normal_shock_terminal_rejects_invalid_pressure_without_fabricating_state() -> None:
+  result = solve_normal_shock_terminal(
+    CharacteristicState(x_m=0.0, y_m=0.0, theta_rad=0.0, mach=2.0, gamma=1.4),
+    upstream_pressure_Pa=0.0,
+  )
+
+  assert result.status is MocPrimitiveStatus.INVALID_INPUT
+  assert not result.converged
+  assert result.downstream_mach is None
+  assert result.downstream_pressure_Pa is None
 
 
 def test_turn_compression_rejects_a_detached_turn() -> None:

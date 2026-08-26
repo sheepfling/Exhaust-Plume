@@ -73,8 +73,9 @@ closure remains open. The independent `op.moc.shock-cell-geometry` and
 perimeter topology, and supplied shock-loss lineage for the reference and
 planner fixtures, but remain `not_accepted` without external observations.
 The strict chain mode rejects a prescribed seed that lacks carried upstream
-shock states, and the marcher reports `subsonic_terminal_required` when a
-normal-shock endpoint leaves the supersonic MOC validity lane. The existing
+shock states, and the marcher reports `subsonic_terminal_required` while
+carrying a typed normal-shock terminal diagnostic when an endpoint leaves the
+supersonic MOC validity lane. The existing
 basic and reduced-order visual lanes remain unchanged until a separate MOC
 assembler passes free-boundary/compression closure, refinement, and external
 measurement gates.

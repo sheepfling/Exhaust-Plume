@@ -23,7 +23,11 @@ from typing import TYPE_CHECKING, Callable, Sequence
 if TYPE_CHECKING:
   from exhaust_plume.models.moc.coupled import MocAmbientClosureResult
 
-from exhaust_plume.models.moc.compression import solve_attached_compression_to_turn
+from exhaust_plume.models.moc.compression import (
+  MocNormalShockTerminalResult,
+  solve_attached_compression_to_turn,
+  solve_normal_shock_terminal,
+)
 from exhaust_plume.models.moc.boundary import MocReflectedBoundaryResult
 from exhaust_plume.models.moc.chain import MocChainBoundarySample, MocChainCell
 from exhaust_plume.models.moc.post_shock import (
@@ -90,6 +94,7 @@ class MocFreeBoundaryShockResult:
   maximum_shock_angle_residual_rad: float | None
   endpoint_m: tuple[float, float] | None
   message: str = ''
+  normal_shock_terminal: MocNormalShockTerminalResult | None = None
 
   @property
   def converged(self) -> bool:
@@ -118,6 +123,13 @@ class MocFreeBoundaryShockResult:
     return None if self.field is None else self.field.status
   ####
 
+  @property
+  def terminal_model_verified(self) -> bool:
+    """Whether a typed normal-shock terminal was reconstructed."""
+
+    return self.normal_shock_terminal is not None and self.normal_shock_terminal.converged
+  ####
+
   def as_report(self) -> dict[str, object]:
     return {
       'status': self.status.value,
@@ -128,6 +140,11 @@ class MocFreeBoundaryShockResult:
       'endpoint_m': self.endpoint_m,
       'maximum_shock_angle_residual_rad': self.maximum_shock_angle_residual_rad,
       'field_status': None if self.field_status is None else self.field_status.value,
+      'normal_shock_terminal': (
+        None
+        if self.normal_shock_terminal is None
+        else self.normal_shock_terminal.as_report()
+      ),
       'message': self.message,
     }
 ####
@@ -280,6 +297,7 @@ def _failure(
   downstream_angles: Sequence[float] = (),
   shock_angle_residuals: Sequence[float] = (),
   endpoint_m: tuple[float, float] | None = None,
+  normal_shock_terminal: MocNormalShockTerminalResult | None = None,
   message: str,
 ) -> MocFreeBoundaryShockResult:
   residuals = tuple(float(value) for value in shock_angle_residuals)
@@ -295,6 +313,7 @@ def _failure(
     maximum_shock_angle_residual_rad=max((abs(value) for value in residuals), default=None),
     endpoint_m=endpoint_m,
     message=message,
+    normal_shock_terminal=normal_shock_terminal,
   )
 ####
 
@@ -391,8 +410,10 @@ def solve_marched_attached_shock_field(
   upstream_states: list[CharacteristicState] = []
   upstream_pressures: list[float] = []
   downstream_angles: list[float] = []
+  normal_shock_terminal: MocNormalShockTerminalResult | None = None
 
   def evaluate(point: tuple[float, float], index: int) -> tuple[_MarchSample | None, str | None, MocFreeBoundaryShockStatus]:
+    nonlocal normal_shock_terminal
     try:
       state = upstream_state_at(point)
       pressure = upstream_pressure_at(point)
@@ -425,10 +446,14 @@ def solve_marched_attached_shock_field(
         abs(turn) <= position_tolerance_m
         and abs(target_y) <= position_tolerance_m
       ):
+        normal_shock_terminal = solve_normal_shock_terminal(
+          state,
+          upstream_pressure_Pa=float(pressure),
+          shock_point_m=point,
+        )
         return None, (
           f'sample {index} reaches the symmetry line with zero flow turn; '
-          'a normal shock would require a subsonic terminal model outside '
-          'the supersonic MOC lane'
+          'the typed subsonic terminal model is outside the supersonic MOC lane'
         ), MocFreeBoundaryShockStatus.SUBSONIC_TERMINAL_REQUIRED
       return None, f'sample {index} does not require a positive compression turn', MocFreeBoundaryShockStatus.COMPRESSION_FAILURE
     compression = solve_attached_compression_to_turn(
@@ -485,7 +510,11 @@ def solve_marched_attached_shock_field(
   current_point = start
   current_sample, error, error_status = evaluate(current_point, 0)
   if current_sample is None:
-    return _failure(error_status, message=error or 'initial shock sample failed')
+    return _failure(
+      error_status,
+      normal_shock_terminal=normal_shock_terminal,
+      message=error or 'initial shock sample failed',
+    )
   points.append(current_sample.point_m)
   upstream_states.append(current_sample.upstream_state)
   upstream_pressures.append(current_sample.upstream_pressure_Pa)
@@ -508,6 +537,7 @@ def solve_marched_attached_shock_field(
           upstream_pressures=upstream_pressures,
           downstream_angles=downstream_angles,
           endpoint_m=points[-1] if points else None,
+          normal_shock_terminal=normal_shock_terminal,
           message=error or f'shock sample {index} failed',
         )
       next_sample = candidate_sample
@@ -527,6 +557,7 @@ def solve_marched_attached_shock_field(
             upstream_pressures=upstream_pressures,
             downstream_angles=downstream_angles,
             endpoint_m=points[-1] if points else None,
+            normal_shock_terminal=normal_shock_terminal,
             message=final_error or f'shock sample {index} failed at its converged endpoint',
           )
         next_sample = final_sample

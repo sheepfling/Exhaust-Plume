@@ -38,7 +38,9 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_attached_compression_to_pressure,
   solve_attached_compression_to_turn,
   solve_attached_shock_to_centerline,
+  solve_normal_shock_terminal,
   solve_marched_attached_shock_chain_cell,
+  solve_marched_attached_shock_field,
   solve_marched_attached_shock_from_reflected_zone,
   solve_marched_attached_shock_from_source_strip,
   solve_marched_attached_shock_with_ambient_pressure_closure,
@@ -1104,6 +1106,24 @@ def build_moc_primitive_report() -> dict[str, Any]:
     upstream_pressure_Pa=100000.0,
     target_turn_rad=1.0,
   )
+  normal_shock_terminal = solve_normal_shock_terminal(
+    CharacteristicState(
+      x_m=1.25,
+      y_m=0.0,
+      theta_rad=0.1,
+      mach=2.0,
+      gamma=1.4,
+    ),
+    upstream_pressure_Pa=100000.0,
+    shock_point_m=(1.25, 0.0),
+  )
+  marched_subsonic_terminal = solve_marched_attached_shock_field(
+    lambda point: CharacteristicState(point[0], point[1], 0.0, 2.0, 1.4),
+    lambda _point: 100000.0,
+    (0.5, 0.5),
+    downstream_flow_angle_rad=0.0,
+    sample_count=5,
+  )
   free_boundary = solve_ambient_pressure_free_boundary(
     fan_exit,
     fan_ambient,
@@ -1258,6 +1278,17 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'status': turn_compression_limit_case.status.value,
         'shock_status': turn_compression_limit_case.shock_status.value,
       },
+    },
+    'normal_shock_terminal_foundation': {
+      **normal_shock_terminal.as_report(),
+      'upstream_total_pressure_Pa': normal_shock_terminal.upstream_total_pressure_Pa,
+      'downstream_total_pressure_Pa': normal_shock_terminal.downstream_total_pressure_Pa,
+      'claim_status': 'typed-subsonic-terminal-diagnostic; mixed-regime-field-closure-pending',
+    },
+    'marched_subsonic_terminal_boundary': {
+      **marched_subsonic_terminal.as_report(),
+      'terminal_model_verified': marched_subsonic_terminal.terminal_model_verified,
+      'claim_status': 'explicit-supersonic-moc-validity-boundary; chain-promotion-blocked',
     },
     'mild_overexpanded_lip_shock_foundation': {
       'status': overexpanded_lip_shock.status.value,
@@ -1696,6 +1727,23 @@ def build_moc_primitive_report() -> dict[str, Any]:
     ] if (
       turn_compression_limit_case.status is not MocPrimitiveStatus.OUTSIDE_DOMAIN
       or turn_compression_limit_case.shock_status is not ShockSolveStatus.DETACHED_SHOCK_REQUIRED
+    ) else []),
+    *([
+      {
+        'case': 'normal_shock_terminal_foundation',
+        'status': normal_shock_terminal.status.value,
+        'message': normal_shock_terminal.message,
+      }
+    ] if not normal_shock_terminal.converged or not normal_shock_terminal.subsonic else []),
+    *([
+      {
+        'case': 'marched_subsonic_terminal_boundary',
+        'status': marched_subsonic_terminal.status.value,
+        'message': marched_subsonic_terminal.message,
+      }
+    ] if (
+      marched_subsonic_terminal.status.value != 'subsonic_terminal_required'
+      or not marched_subsonic_terminal.terminal_model_verified
     ) else []),
     *([
       {

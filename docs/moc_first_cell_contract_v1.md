@@ -157,6 +157,11 @@ scalar pressure coordinate, but it retains the full vector pressure/tangency
 gate. The synthetic pressure-root probe therefore returns a bounded
 `ambient_boundary_failure`, and the canonical reflected-zone probe returns a
 bounded upstream-domain failure rather than manufacturing a first cell.
+When a marched shock reaches a zero-turn symmetry endpoint, the solver also
+records a `MocNormalShockTerminalResult` with the normal-shock static and
+total-pressure jump. Its downstream Mach remains scalar rather than entering
+the supersonic `CharacteristicState` type; this is terminal evidence only,
+not mixed-regime closure or chain-cell promotion.
 The prescribed field still promotes only the
 `TERMINAL_CHARACTERISTIC_TRACE` kind. The separate ambient-closed triangular
 assembler promotes its centerline handoff as

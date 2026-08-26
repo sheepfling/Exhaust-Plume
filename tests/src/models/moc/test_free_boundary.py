@@ -431,6 +431,11 @@ def test_zero_turn_symmetry_endpoint_reports_subsonic_terminal_boundary() -> Non
   assert result.subsonic_terminal_required
   assert not result.converged
   assert 'subsonic terminal model' in result.message
+  assert result.normal_shock_terminal is not None
+  assert result.normal_shock_terminal.converged
+  assert result.normal_shock_terminal.subsonic
+  assert result.terminal_model_verified
+  assert result.normal_shock_terminal.shock_point_m is not None
 
 
 def test_marched_shock_rejects_an_upstream_state_not_at_the_shock_point() -> None:
