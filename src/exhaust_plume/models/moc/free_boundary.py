@@ -34,15 +34,24 @@ from exhaust_plume.models.moc.post_shock import (
 )
 from exhaust_plume.models.moc.primitives import CharacteristicState
 from exhaust_plume.models.moc.source_strip import MocSourceCharacteristicStripResult
+from exhaust_plume.models.moc.zone import (
+  MocReflectedCharacteristicZoneResult,
+  MocReflectedZoneShockCouplingResult,
+  MocReflectedZoneShockCouplingStatus,
+  sample_reflected_zone_along_shock_path,
+)
 from exhaust_plume.util.aero.shock_validity import ShockBranch
 
 __all__ = (
   'MocFreeBoundaryShockResult',
   'MocFreeBoundaryShockStatus',
+  'MocReflectedZoneShockSolveResult',
   'solve_marched_attached_shock_field',
   'solve_marched_attached_shock_from_source_strip',
+  'solve_marched_attached_shock_from_reflected_zone',
   'solve_reflected_boundary_trace_extension',
   'solve_marched_attached_shock_chain_cell',
+  'solve_marched_attached_shock_chain_cell_from_reflected_zone',
   'solve_uniform_attached_shock_field',
 )
 
@@ -117,6 +126,61 @@ class MocFreeBoundaryShockResult:
       'message': self.message,
     }
 ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedZoneShockSolveResult:
+  """A shock march with an explicit reflected-zone upstream coupling probe.
+
+  The reflected characteristic zone owns the upstream domain.  This wrapper
+  records both the generated shock result and the independent domain-bounded
+  resampling result, so a successful post-shock field cannot be mistaken for
+  an upstream-coupled solve when the path has left the solved zone.  The
+  downstream flow-angle condition remains caller-supplied; solving that
+  condition and the ambient outer perimeter are separate future gates.
+  """
+
+  shock: MocFreeBoundaryShockResult
+  coupling: MocReflectedZoneShockCouplingResult
+  message: str = ''
+
+  @property
+  def converged(self) -> bool:
+    """Whether both the shock field and every upstream sample converged."""
+
+    return self.shock.converged and self.coupling.converged
+  ####
+
+  @property
+  def upstream_coupling_verified(self) -> bool:
+    """Whether the generated shock path is fully covered by the reflected zone."""
+
+    return self.converged and (
+      len(self.shock.shock_points_m) == len(self.coupling.shock_points_m)
+      and len(self.shock.upstream_states) == len(self.coupling.upstream_states)
+      and len(self.shock.upstream_pressure_Pa) == len(self.coupling.upstream_pressure_Pa)
+    )
+  ####
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    """Whether numerical shock/field closure passed after upstream coupling."""
+
+    return self.upstream_coupling_verified and self.shock.physical_closure_verified
+  ####
+
+  def as_report(self) -> dict[str, object]:
+    return {
+      'status': self.shock.status.value,
+      'converged': self.converged,
+      'upstream_coupling_verified': self.upstream_coupling_verified,
+      'physical_closure_verified': self.physical_closure_verified,
+      'shock': self.shock.as_report(),
+      'coupling': self.coupling.as_report(),
+      'downstream_condition_status': 'caller-supplied',
+      'message': self.message,
+    }
+  ####
 
 
 @dataclass(frozen=True, slots=True)
@@ -566,6 +630,133 @@ def solve_marched_attached_shock_from_source_strip(
 ####
 
 
+def _coupling_result_for_shock_path(
+  reflected_zone: MocReflectedCharacteristicZoneResult,
+  shock: MocFreeBoundaryShockResult,
+  *,
+  position_tolerance_m: float,
+) -> MocReflectedZoneShockCouplingResult:
+  """Extract an independent coupling result from a generated shock path."""
+
+  if len(shock.shock_points_m) >= 2:
+    return sample_reflected_zone_along_shock_path(
+      reflected_zone,
+      shock.shock_points_m,
+      position_tolerance_m=position_tolerance_m,
+    )
+  status = (
+    MocReflectedZoneShockCouplingStatus.OUTSIDE_DOMAIN
+    if shock.status is MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE
+    else MocReflectedZoneShockCouplingStatus.INVALID_INPUT
+  )
+  return MocReflectedZoneShockCouplingResult(
+    status=status,
+    shock_points_m=shock.shock_points_m,
+    upstream_states=shock.upstream_states,
+    upstream_pressure_Pa=shock.upstream_pressure_Pa,
+    first_missing_sample_index=(
+      shock.sample_count
+      if status is MocReflectedZoneShockCouplingStatus.OUTSIDE_DOMAIN
+      else None
+    ),
+    message=(
+      'shock march stopped before it produced a complete path for the '
+      f'reflected-zone coupling probe: {shock.message}'
+    ),
+  )
+####
+
+
+def solve_marched_attached_shock_from_reflected_zone(
+  reflected_zone: MocReflectedCharacteristicZoneResult,
+  start_point_m: tuple[float, float],
+  *,
+  target_centerline_y_m: float = 0.0,
+  downstream_flow_angle_at: Callable[[int, tuple[float, float]], float] | None = None,
+  downstream_flow_angle_rad: float | None = None,
+  incoming_handoff: Sequence[MocChainBoundarySample] | None = None,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+) -> MocReflectedZoneShockSolveResult:
+  """March an attached shock against a solved reflected upstream zone.
+
+  The shock march calls the zone's domain-bounded state and pressure samplers
+  at every candidate point.  A second, independent path sampling pass records
+  the exact coverage and first missing sample.  The function therefore
+  distinguishes a genuinely covered upstream path from a post-shock field
+  that only happened to close after a callback or extrapolation.
+
+  ``downstream_flow_angle_at``/``downstream_flow_angle_rad`` remain an explicit
+  caller-supplied boundary condition.  This function closes the upstream
+  coupling seam; it does not claim that the downstream turn law or ambient
+  outer perimeter has been solved.
+  """
+
+  if not isinstance(reflected_zone, MocReflectedCharacteristicZoneResult):
+    shock = _failure(
+      MocFreeBoundaryShockStatus.INVALID_INPUT,
+      message='reflected_zone must be a MocReflectedCharacteristicZoneResult',
+    )
+    coupling = sample_reflected_zone_along_shock_path(reflected_zone, ())
+    return MocReflectedZoneShockSolveResult(
+      shock=shock,
+      coupling=coupling,
+      message='reflected-zone shock solve rejected an invalid upstream zone',
+    )
+  if not reflected_zone.converged:
+    shock = _failure(
+      MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE,
+      message=f'reflected upstream zone is not converged: {reflected_zone.message}',
+    )
+    coupling = sample_reflected_zone_along_shock_path(reflected_zone, ())
+    return MocReflectedZoneShockSolveResult(
+      shock=shock,
+      coupling=coupling,
+      message='reflected-zone shock solve stopped at the upstream field boundary',
+    )
+
+  shock = solve_marched_attached_shock_field(
+    reflected_zone.state_at,
+    reflected_zone.static_pressure_at,
+    start_point_m,
+    target_centerline_y_m=target_centerline_y_m,
+    downstream_flow_angle_at=downstream_flow_angle_at,
+    downstream_flow_angle_rad=downstream_flow_angle_rad,
+    incoming_handoff=incoming_handoff,
+    sample_count=sample_count,
+    branch=branch,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+    shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+    maximum_segment_iterations=maximum_segment_iterations,
+  )
+  coupling = _coupling_result_for_shock_path(
+    reflected_zone,
+    shock,
+    position_tolerance_m=position_tolerance_m,
+  )
+  if shock.converged and coupling.converged:
+    message = (
+      'attached shock and post-shock field converged with complete reflected '
+      'upstream state/pressure coverage; downstream boundary condition remains '
+      'caller-supplied'
+    )
+  elif not coupling.converged:
+    message = f'reflected upstream coupling did not cover the shock path: {coupling.message}'
+  else:
+    message = shock.message
+  return MocReflectedZoneShockSolveResult(
+    shock=shock,
+    coupling=coupling,
+    message=message,
+  )
+####
+
+
 def solve_reflected_boundary_trace_extension(
   reflected_boundary: MocReflectedBoundaryResult,
   upstream_pressure_Pa: float,
@@ -726,6 +917,86 @@ def solve_marched_attached_shock_chain_cell(
       f'continued marched shock cell failed: {result.status.value}: {result.message}'
     )
   return MocPostShockChainCellSolve(field=result.field, end_x_m=float(end_x_m))
+####
+
+
+def solve_marched_attached_shock_chain_cell_from_reflected_zone(
+  current_cell: MocChainCell,
+  next_cell_index: int,
+  incoming_handoff: Sequence[MocChainBoundarySample],
+  reflected_zone: MocReflectedCharacteristicZoneResult,
+  *,
+  start_point_m: tuple[float, float],
+  end_x_m: float,
+  target_centerline_y_m: float = 0.0,
+  downstream_flow_angle_at: Callable[[int, tuple[float, float]], float] | None = None,
+  downstream_flow_angle_rad: float | None = None,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+) -> MocPostShockChainCellSolve:
+  """Solve one continued chain cell from a reflected-zone upstream field.
+
+  The prior cell's exact terminal trace is passed into the generated field and
+  checked before returning a chain-cell solve.  A path that leaves the solved
+  reflected zone raises with its bounded coupling status; it is never turned
+  into a prescribed or reduced-order cell.
+  """
+
+  if not isinstance(current_cell, MocChainCell):
+    raise TypeError('current_cell must be a MocChainCell')
+  if (
+    isinstance(next_cell_index, bool)
+    or not isinstance(next_cell_index, int)
+    or next_cell_index != current_cell.cell_index + 1
+  ):
+    raise ValueError('next_cell_index must immediately follow current_cell.cell_index')
+  handoff = tuple(incoming_handoff)
+  if handoff != current_cell.continuation_boundary:
+    raise ValueError('incoming_handoff must exactly match the current cell boundary')
+  if len(handoff) < 3:
+    raise ValueError('continued reflected-zone shock cells require at least three handoff samples')
+  if not isfinite(float(end_x_m)) or end_x_m <= current_cell.end_x_m:
+    raise ValueError('continued cell end_x_m must be strictly downstream of the current cell')
+  if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
+    raise ValueError('position_tolerance_m must be finite and positive')
+  start = _finite_point(start_point_m, 'start_point_m')
+  if start[0] <= current_cell.end_x_m + position_tolerance_m:
+    raise ValueError('continued shock start point must be downstream of the current cell')
+
+  solved = solve_marched_attached_shock_from_reflected_zone(
+    reflected_zone,
+    start,
+    target_centerline_y_m=target_centerline_y_m,
+    downstream_flow_angle_at=downstream_flow_angle_at,
+    downstream_flow_angle_rad=downstream_flow_angle_rad,
+    incoming_handoff=handoff,
+    sample_count=sample_count,
+    branch=branch,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+    shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+    maximum_segment_iterations=maximum_segment_iterations,
+  )
+  if not solved.converged or solved.shock.field is None:
+    raise ValueError(
+      'continued reflected-zone shock cell did not converge: '
+      f'{solved.shock.status.value}; {solved.message}'
+    )
+  field = solved.shock.field
+  expected_states = tuple(sample.state for sample in handoff)
+  expected_pressures = tuple(sample.total_pressure_Pa for sample in handoff)
+  if (
+    field.incoming_handoff_states != expected_states
+    or field.incoming_handoff_total_pressure_Pa != expected_pressures
+  ):
+    raise ValueError(
+      'continued reflected-zone field did not retain the exact incoming handoff'
+    )
+  return MocPostShockChainCellSolve(field=field, end_x_m=float(end_x_m))
 ####
 
 

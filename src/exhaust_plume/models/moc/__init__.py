@@ -53,10 +53,13 @@ from exhaust_plume.models.moc.ambient_boundary import (
 from exhaust_plume.models.moc.free_boundary import (
   MocFreeBoundaryShockResult,
   MocFreeBoundaryShockStatus,
+  MocReflectedZoneShockSolveResult,
   solve_marched_attached_shock_field,
+  solve_marched_attached_shock_from_reflected_zone,
   solve_marched_attached_shock_from_source_strip,
   solve_reflected_boundary_trace_extension,
   solve_marched_attached_shock_chain_cell,
+  solve_marched_attached_shock_chain_cell_from_reflected_zone,
   solve_uniform_attached_shock_field,
 )
 from exhaust_plume.models.moc.topology import (
@@ -156,6 +159,7 @@ __all__ = (
   'MocAmbientPressureBoundaryResult',
   'MocFreeBoundaryShockResult',
   'MocFreeBoundaryShockStatus',
+  'MocReflectedZoneShockSolveResult',
   'MocTopologyResult',
   'MocTopologyStatus',
   'MocCharacteristicCell',
@@ -221,9 +225,11 @@ __all__ = (
   'validate_ambient_pressure_boundary',
   'validate_post_shock_ambient_boundary',
   'solve_marched_attached_shock_field',
+  'solve_marched_attached_shock_from_reflected_zone',
   'solve_marched_attached_shock_from_source_strip',
   'solve_reflected_boundary_trace_extension',
   'solve_marched_attached_shock_chain_cell',
+  'solve_marched_attached_shock_chain_cell_from_reflected_zone',
   'solve_uniform_attached_shock_field',
   'assemble_reflected_characteristic_zone',
   'assemble_source_characteristic_strip',

@@ -9,9 +9,12 @@ from exhaust_plume.models.moc import (
   MocInvariantClosureFamily,
   MocInvariantClosureStatus,
   MocSourceStripContinuationStatus,
+  assemble_reflected_characteristic_zone,
   solve_reflected_boundary_trace_extension,
+  solve_marched_attached_shock_chain_cell_from_reflected_zone,
   solve_marched_attached_shock_chain_cell,
   solve_marched_attached_shock_field,
+  solve_marched_attached_shock_from_reflected_zone,
   solve_marched_attached_shock_from_source_strip,
   solve_reflected_free_boundary,
   assemble_source_characteristic_strip,
@@ -114,6 +117,80 @@ def test_reflected_boundary_trace_extension_is_explicitly_labeled() -> None:
   assert result.field.physical_closure_verified
   assert result.endpoint_m is not None
   assert result.endpoint_m[1] == pytest.approx(0.0, abs=1.0e-12)
+
+
+def test_reflected_zone_shock_solver_keeps_upstream_coverage_domain_bounded() -> None:
+  reflected_boundary, ambient = _reflected_boundary_reference()
+  gas = CaloricallyPerfectGas.dry_air()
+  exit_state = derive_uniform_nozzle_exit(
+    NozzleExitInput(
+      mach=2.0,
+      total_pressure_Pa=2.0e6,
+      total_temperature_K=900.0,
+      exit_radius_m=0.05,
+    ),
+    gas,
+  )
+  fan = solve_underexpanded_expansion_fan(exit_state, ambient, characteristic_count=8)
+  zone = assemble_reflected_characteristic_zone(
+    fan,
+    reflected_boundary,
+    total_pressure_Pa=exit_state.total_pressure_Pa,
+  )
+  start = reflected_boundary.boundary_points_m[-1]
+
+  result = solve_marched_attached_shock_from_reflected_zone(
+    zone,
+    start,
+    downstream_flow_angle_at=lambda _index, point: 0.05 * max(
+      0.0,
+      min(1.0, point[1] / start[1]),
+    ),
+    sample_count=9,
+  )
+
+  assert result.shock.status is MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE
+  assert not result.converged
+  assert not result.upstream_coupling_verified
+  assert result.coupling.status.value == 'outside_reflected_zone_domain'
+  assert result.coupling.sampled_count == 1
+  assert result.coupling.first_missing_sample_index == 1
+  assert result.as_report()['downstream_condition_status'] == 'caller-supplied'
+
+
+def test_reflected_zone_chain_adapter_rejects_a_shock_outside_the_solved_zone() -> None:
+  reflected_boundary, ambient = _reflected_boundary_reference()
+  gas = CaloricallyPerfectGas.dry_air()
+  exit_state = derive_uniform_nozzle_exit(
+    NozzleExitInput(
+      mach=2.0,
+      total_pressure_Pa=2.0e6,
+      total_temperature_K=900.0,
+      exit_radius_m=0.05,
+    ),
+    gas,
+  )
+  fan = solve_underexpanded_expansion_fan(exit_state, ambient, characteristic_count=8)
+  zone = assemble_reflected_characteristic_zone(
+    fan,
+    reflected_boundary,
+    total_pressure_Pa=exit_state.total_pressure_Pa,
+  )
+  seed = _uniform_reference(17)
+  assert seed.field is not None
+  current = seed.field.as_coupled_chain_cell(start_x_m=0.5, end_x_m=1.0)
+
+  with pytest.raises(ValueError, match='did not converge'):
+    solve_marched_attached_shock_chain_cell_from_reflected_zone(
+      current,
+      2,
+      current.continuation_boundary,
+      zone,
+      start_point_m=(1.1, 0.1),
+      end_x_m=1.5,
+      downstream_flow_angle_rad=0.05,
+      sample_count=9,
+    )
 
 
 def test_source_strip_march_stops_at_the_first_missing_upstream_sample() -> None:

@@ -40,6 +40,11 @@ not wait on this research closure.
   first missing upstream sample and the last valid state/pressure pair, making
   the future characteristic-strip seam executable without treating a domain
   miss as physical closure.
+- Added a reflected-zone shock solver entry point and continued-cell adapter.
+  They feed the domain-bounded reflected state/pressure callbacks directly into
+  the attached-shock march, independently resample the generated path, and
+  reject a next cell when the shock leaves the solved upstream lattice. The
+  downstream turn condition remains explicitly caller-supplied.
 - Added a reusable triangular source-boundary characteristic-strip solver. It
   reconstructs the axis/free-boundary C+/C- lattice with explicit diagonal
   seam checks and exposes a domain-bounded pressure-aware field for later
@@ -218,6 +223,14 @@ invent a downstream physical law. A converged invariant-conditioned field is
 therefore still research evidence until the selected invariant, case domain,
 and independent measurements are validated.
 
+The reflected-zone shock solver now closes the upstream callback seam without
+claiming a complete first-cell solution. Its independent coverage report is a
+required input to the continued-cell adapter; the canonical reflected zone
+still ends before the candidate shock can reach the symmetry line, so the
+expected result is a bounded `upstream_field_failure` rather than an
+extrapolated cell. A future solve must extend or re-mesh the upstream
+characteristic domain and replace the caller-supplied downstream turn law.
+
 The verified post-shock result exposes the only seed-promotion adapter for this
 lane. An open zone, prescribed-boundary diagnostic, or scaled reduced-order
 cell cannot use that adapter. The continued-cell callback remains an explicit
@@ -282,11 +295,11 @@ Only after MOC-1 through MOC-5 pass:
   explicit linear downstream-turn law. It closes a higher-fidelity reference
   field, but is not yet coupled to the reflected MOC upstream state/pressure
   field or a solved downstream boundary condition.
-- The reflected-zone sampler currently exposes only the assembled lattice. The
-  candidate shock leaves that domain after its boundary start. A terminal
-  source-window continuation now makes that domain boundary explicit, but the
-  full continuation still reaches a characteristic caustic and the physical
-  upstream extension/continuation solve is still required.
+- The reflected-zone shock entry point now consumes the assembled lattice
+  directly, but the canonical candidate still leaves that domain after its
+  boundary start. A terminal source-window continuation makes that boundary
+  explicit, but the full continuation still reaches a characteristic caustic
+  and the physical upstream extension/continuation solve is still required.
 - The trace-extension reference uses a constant terminal boundary trace; it is
   useful for deterministic plumbing and refinement, but it is not the physical
   upstream characteristic strip.

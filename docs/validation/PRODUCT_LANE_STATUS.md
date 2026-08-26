@@ -94,6 +94,10 @@ extension remains diagnostic-only. The report also records a terminal
 source-window attempt after the full continuation reaches a characteristic
 caustic, plus a bracketed constant-invariant shock closure attempt; the
 canonical bracket does not straddle a centerline closure and is not promoted.
+The reflected-zone shock entry point now drives the attached-shock march from
+the solved reflected state/pressure callbacks and independently reports the
+first outside-domain sample; the canonical attempt is expected to stop there,
+so no continued cell is promoted from that result.
 The same report now runs the independent MOC shock-cell geometry and chain
 operators over the prescribed field, solver-generated reference, and
 three-cell planner mock. Those operators verify explicit perimeter topology,

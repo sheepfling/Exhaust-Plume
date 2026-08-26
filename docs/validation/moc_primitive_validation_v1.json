@@ -431,7 +431,42 @@
         ],
         "message": "reflected characteristic zone has no upstream state at shock sample 1"
       },
-      "claim_status": "reflected-field-domain-bounded-probe; shock-path-extension-pending"
+      "reflected_zone_solver": {
+        "status": "upstream_field_failure",
+        "converged": false,
+        "upstream_coupling_verified": false,
+        "physical_closure_verified": false,
+        "shock": {
+          "status": "upstream_field_failure",
+          "converged": false,
+          "physical_closure_verified": false,
+          "subsonic_terminal_required": false,
+          "sample_count": 1,
+          "endpoint_m": [
+            0.7431488332818272,
+            0.1158153281924007
+          ],
+          "maximum_shock_angle_residual_rad": null,
+          "field_status": null,
+          "message": "upstream field callback returned no CharacteristicState at sample 1"
+        },
+        "coupling": {
+          "status": "outside_reflected_zone_domain",
+          "converged": false,
+          "requested_sample_count": 1,
+          "sampled_count": 1,
+          "first_missing_sample_index": 1,
+          "last_valid_point_m": [
+            0.7431488332818272,
+            0.1158153281924007
+          ],
+          "message": "shock march stopped before it produced a complete path for the reflected-zone coupling probe: upstream field callback returned no CharacteristicState at sample 1"
+        },
+        "downstream_condition_status": "caller-supplied",
+        "message": "reflected upstream coupling did not cover the shock path: shock march stopped before it produced a complete path for the reflected-zone coupling probe: upstream field callback returned no CharacteristicState at sample 1"
+      },
+      "reflected_zone_solver_expected_bounded_failure": true,
+      "claim_status": "reflected-field-domain-bounded-shock-solver; downstream-boundary-and-shock-path-extension-pending"
     },
     "reflected_boundary_trace_extension": {
       "status": "converged_free_boundary_field",

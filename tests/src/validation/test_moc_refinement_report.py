@@ -89,10 +89,15 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert simple_wave_extension['shock_probe']['sample_count'] > 1
   assert simple_wave_extension['shock_probe']['claim_status'] == 'constant-k-plus-simple-wave-extension; shock-closure-pending'
   assert reflected_probe['status'] == 'upstream_field_failure'
-  assert reflected_probe['claim_status'] == 'reflected-field-domain-bounded-probe; shock-path-extension-pending'
+  assert reflected_probe['claim_status'] == (
+    'reflected-field-domain-bounded-shock-solver; downstream-boundary-and-'
+    'shock-path-extension-pending'
+  )
   assert reflected_probe['coupling']['status'] == 'outside_reflected_zone_domain'
   assert reflected_probe['coupling']['sampled_count'] == 1
   assert reflected_probe['coupling']['first_missing_sample_index'] == 1
+  assert reflected_probe['reflected_zone_solver_expected_bounded_failure'] is True
+  assert reflected_probe['reflected_zone_solver']['upstream_coupling_verified'] is False
   assert trace_extension['accepted'] is True
   assert trace_extension['field_status'] == 'converged_closed'
   assert trace_extension['shock_closure_status'] == 'reflected-boundary-trace-extension'

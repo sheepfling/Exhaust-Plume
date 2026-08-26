@@ -38,6 +38,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_attached_compression_to_turn,
   solve_attached_shock_to_centerline,
   solve_marched_attached_shock_chain_cell,
+  solve_marched_attached_shock_from_reflected_zone,
   solve_marched_attached_shock_from_source_strip,
   solve_marched_attached_shock_with_constant_invariant_closure,
   solve_reflected_boundary_trace_extension,
@@ -592,6 +593,15 @@ def _reflected_zone_shock_coupling_probe(
     ),
     sample_count=9,
   )
+  reflected_zone_solver = solve_marched_attached_shock_from_reflected_zone(
+    reflected_zone,
+    start,
+    downstream_flow_angle_at=lambda _index, point: 0.05 * max(
+      0.0,
+      min(1.0, point[1] / start[1]),
+    ),
+    sample_count=9,
+  )
   return {
     'status': result.status.value,
     'sample_count': result.sample_count,
@@ -599,8 +609,15 @@ def _reflected_zone_shock_coupling_probe(
     'last_valid_point_m': result.shock_points_m[-1] if result.shock_points_m else None,
     'message': result.message,
     'coupling': coupling.as_report(),
+    'reflected_zone_solver': reflected_zone_solver.as_report(),
+    'reflected_zone_solver_expected_bounded_failure': (
+      reflected_zone_solver.shock.status.value == 'upstream_field_failure'
+      and not reflected_zone_solver.upstream_coupling_verified
+      and reflected_zone_solver.coupling.first_missing_sample_index == 1
+    ),
     'claim_status': (
-      'reflected-field-domain-bounded-probe; shock-path-extension-pending'
+      'reflected-field-domain-bounded-shock-solver; downstream-boundary-and-'
+      'shock-path-extension-pending'
     ),
   }
 
