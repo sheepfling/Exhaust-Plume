@@ -138,6 +138,7 @@ def test_centerline_reflection_extension_carries_a_physical_boundary_law() -> No
     assert restart.converged
     assert restart.physical_closure_verified is False
     assert restart.chain_promotion_blocked is True
+    assert restart.caustic_handoff_verified is True
     assert restart.anchor_edge_index == 0
     assert restart.boundary_sample_count == 6
     assert restart.minimum_forward_progress_m is not None
@@ -154,6 +155,11 @@ def test_centerline_reflection_extension_carries_a_physical_boundary_law() -> No
   assert restart.family_band.step_count == 5
   assert restart.family_band.topology.connected
   assert restart.family_band.topology.forms_closed_zone
+  assert restart.family_band.caustic_handoff_verified is True
+  assert restart.family_band.anchor_point_m == restart.anchor_point_m
+  assert restart.family_band.anchor_state == restart.anchor_state
+  assert restart.family_band.anchor_to_input_min_forward_progress_m is not None
+  assert restart.family_band.anchor_to_input_min_forward_progress_m > 0.0
   assert restart.family_band.physical_closure_verified is False
   assert restart.family_band.chain_promotion_blocked is True
   band_termination = restart.family_band.as_chain_termination_decision()
@@ -162,6 +168,14 @@ def test_centerline_reflection_extension_carries_a_physical_boundary_law() -> No
   assert band_termination.diagnostics['termination_model'] == (
     'caustic-family-open-band'
   )
+  restart_termination = restart.as_chain_termination_decision()
+  assert restart_termination.physical_termination is False
+  assert restart_termination.reason is MocChainTerminationReason.CHARACTERISTIC_CAUSTIC
+  assert restart_termination.diagnostics['termination_model'] == (
+    'caustic-new-family-open-handoff'
+  )
+  assert restart_termination.diagnostics['old_family_bridge_verified'] is False
+  assert restart_termination.diagnostics['shock_entropy_closure_verified'] is False
   first_triangle = restart.family_band.cells[0].vertices_xr_m
   centroid = tuple(sum(vertex[index] for vertex in first_triangle) / 3.0 for index in (0, 1))
   assert restart.family_band.state_at(centroid) is not None

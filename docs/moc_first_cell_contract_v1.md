@@ -69,6 +69,12 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   a 27-cell open post-shock characteristic zone, and records the typed
   subsonic centerline terminal. The zone remains an open mixed-regime handoff
   until a subsonic field and complete physical perimeter are solved;
+- the caustic restart retains the selected one-sided seed point/state as the
+  family-band anchor and verifies that the new band's input edge is strictly
+  downstream of it. A successful handoff exposes a typed non-physical
+  ``characteristic-caustic`` chain decision; a failed band assembly propagates
+  as a restart failure. Neither result bridges the old family, fits a shock,
+  or promotes an open band into a chain cell;
 - the caustic-band terminal seam's refinement probe reaches the same typed
   terminal at 5, 7, 9, and 11 shock samples in both canonical orientations,
   with open-zone cell counts 5, 14, 27, and 44 and decreasing tangent-fit

@@ -1020,6 +1020,7 @@
             "converged": true,
             "physical_closure_verified": false,
             "chain_promotion_blocked": true,
+            "caustic_handoff_verified": true,
             "anchor_edge_index": 0,
             "anchor_point_m": [
               0.6584201957653014,
@@ -1081,6 +1082,7 @@
               "converged": true,
               "physical_closure_verified": false,
               "chain_promotion_blocked": true,
+              "caustic_handoff_verified": true,
               "band_kind": "centerline-ambient-two-triangle-characteristic-band",
               "centerline_sample_count": 6,
               "boundary_sample_count": 6,
@@ -1107,6 +1109,18 @@
                   0.0360466190007769
                 ]
               ],
+              "anchor_point_m": [
+                0.6584201957653014,
+                0.056970655192732075
+              ],
+              "anchor_state": {
+                "x_m": 0.6584201957653014,
+                "y_m": 0.056970655192732075,
+                "theta_rad": 0.06251802535060723,
+                "mach": 2.9524960898197605,
+                "gamma": 1.4
+              },
+              "anchor_to_input_min_forward_progress_m": 0.1819239062993564,
               "topology": {
                 "status": "open",
                 "connected": true,
@@ -1151,6 +1165,43 @@
               },
               "message": "caustic restart produced a connected open two-triangle family band; shock fitting, downstream closure, and chain promotion remain blocked"
             },
+            "chain_termination_decision": {
+              "physical_termination": false,
+              "reason": "characteristic-caustic",
+              "message": "one-sided caustic handoff reached a new-family open band, but the old-family bridge and shock/entropy closure remain unresolved",
+              "diagnostics": {
+                "termination_model": "caustic-new-family-open-handoff",
+                "anchor_edge_index": 0,
+                "anchor_point_m": [
+                  0.6584201957653014,
+                  0.056970655192732075
+                ],
+                "family_band_input_edge_points_m": [
+                  [
+                    0.8403441020646578,
+                    0.0
+                  ],
+                  [
+                    0.9744603781350654,
+                    0.036046619001158374
+                  ]
+                ],
+                "family_band_output_edge_points_m": [
+                  [
+                    1.8124665380590022,
+                    0.0
+                  ],
+                  [
+                    1.872774749187774,
+                    0.0360466190007769
+                  ]
+                ],
+                "family_band_cell_count": 10,
+                "old_family_bridge_verified": false,
+                "shock_entropy_closure_verified": false,
+                "seed_flow_angle_jump_rad": 0.038652307596209426
+              }
+            },
             "message": "one-sided caustic family restart converged as an open centerline/ambient boundary; triangular interior remesh and shock closure remain separate gates",
             "accepted": true
           },
@@ -1159,6 +1210,7 @@
             "converged": true,
             "physical_closure_verified": false,
             "chain_promotion_blocked": true,
+            "caustic_handoff_verified": true,
             "anchor_edge_index": 1,
             "anchor_point_m": [
               0.6584201957653014,
@@ -1220,6 +1272,7 @@
               "converged": true,
               "physical_closure_verified": false,
               "chain_promotion_blocked": true,
+              "caustic_handoff_verified": true,
               "band_kind": "centerline-ambient-two-triangle-characteristic-band",
               "centerline_sample_count": 6,
               "boundary_sample_count": 6,
@@ -1246,6 +1299,18 @@
                   0.02991315272307008
                 ]
               ],
+              "anchor_point_m": [
+                0.6584201957653014,
+                0.056970655192732075
+              ],
+              "anchor_state": {
+                "x_m": 0.6584201957653014,
+                "y_m": 0.056970655192732075,
+                "theta_rad": 0.10117033294681665,
+                "mach": 3.0302230997840525,
+                "gamma": 1.4
+              },
+              "anchor_to_input_min_forward_progress_m": 0.20668023115258682,
               "topology": {
                 "status": "open",
                 "connected": true,
@@ -1289,6 +1354,43 @@
                 }
               },
               "message": "caustic restart produced a connected open two-triangle family band; shock fitting, downstream closure, and chain promotion remain blocked"
+            },
+            "chain_termination_decision": {
+              "physical_termination": false,
+              "reason": "characteristic-caustic",
+              "message": "one-sided caustic handoff reached a new-family open band, but the old-family bridge and shock/entropy closure remain unresolved",
+              "diagnostics": {
+                "termination_model": "caustic-new-family-open-handoff",
+                "anchor_edge_index": 1,
+                "anchor_point_m": [
+                  0.6584201957653014,
+                  0.056970655192732075
+                ],
+                "family_band_input_edge_points_m": [
+                  [
+                    0.8651004269178882,
+                    0.0
+                  ],
+                  [
+                    0.9991647790373048,
+                    0.029913152722640706
+                  ]
+                ],
+                "family_band_output_edge_points_m": [
+                  [
+                    1.7590035901230712,
+                    0.0
+                  ],
+                  [
+                    1.8037198706441409,
+                    0.02991315272307008
+                  ]
+                ],
+                "family_band_cell_count": 10,
+                "old_family_bridge_verified": false,
+                "shock_entropy_closure_verified": false,
+                "seed_flow_angle_jump_rad": 0.038652307596209426
+              }
             },
             "message": "one-sided caustic family restart converged as an open centerline/ambient boundary; triangular interior remesh and shock closure remain separate gates",
             "accepted": true

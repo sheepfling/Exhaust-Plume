@@ -54,6 +54,7 @@ class MocCausticFamilyRestartStatus(str, Enum):
   SEED_FAILURE = 'caustic_seed_failure'
   CENTERLINE_FAILURE = 'caustic_restart_centerline_failure'
   AMBIENT_BOUNDARY_FAILURE = 'caustic_restart_ambient_boundary_failure'
+  BAND_FAILURE = 'caustic_restart_family_band_failure'
 
 
 class MocCausticFamilyBandStatus(str, Enum):
@@ -86,6 +87,38 @@ class MocCausticFamilyBandResult:
   maximum_absolute_geometry_residual_m: float | None
   maximum_absolute_invariant_residual: float | None
   message: str = ''
+  anchor_point_m: tuple[float, float] | None = None
+  anchor_state: CharacteristicState | None = None
+  anchor_to_input_min_forward_progress_m: float | None = None
+
+  def __post_init__(self) -> None:
+    if (self.anchor_point_m is None) != (self.anchor_state is None):
+      raise ValueError(
+        'caustic family band anchor point and state must be supplied together'
+      )
+    if self.anchor_point_m is not None:
+      if len(self.anchor_point_m) != 2 or not all(
+        isfinite(float(value)) for value in self.anchor_point_m
+      ):
+        raise ValueError('caustic family band anchor point must be finite')
+      assert self.anchor_state is not None
+      if not isinstance(self.anchor_state, CharacteristicState):
+        raise TypeError(
+          'caustic family band anchor state must be a CharacteristicState'
+        )
+      if (
+        abs(self.anchor_state.x_m - float(self.anchor_point_m[0])) > 1.0e-10
+        or abs(self.anchor_state.y_m - float(self.anchor_point_m[1])) > 1.0e-10
+      ):
+        raise ValueError(
+          'caustic family band anchor state must lie on its anchor point'
+        )
+    if self.anchor_to_input_min_forward_progress_m is not None and not isfinite(
+      float(self.anchor_to_input_min_forward_progress_m)
+    ):
+      raise ValueError(
+        'caustic family band anchor progress must be finite when supplied'
+      )
 
   @property
   def converged(self) -> bool:
@@ -100,6 +133,54 @@ class MocCausticFamilyBandResult:
   @property
   def chain_promotion_blocked(self) -> bool:
     return True
+
+  @property
+  def caustic_handoff_verified(self) -> bool:
+    """Whether the band retains an exact one-sided caustic anchor."""
+
+    if (
+      not self.converged
+      or self.anchor_point_m is None
+      or self.anchor_state is None
+      or self.anchor_to_input_min_forward_progress_m is None
+      or len(self.input_edge_points_m) != 2
+      or len(self.centerline_states) < 2
+      or len(self.boundary_states) < 2
+    ):
+      return False
+    if any(
+      len(point) != 2
+      or any(not isfinite(float(value)) for value in point)
+      for point in self.input_edge_points_m
+    ):
+      return False
+    expected_input_edge = (
+      (self.centerline_states[0].x_m, self.centerline_states[0].y_m),
+      (self.boundary_states[0].x_m, self.boundary_states[0].y_m),
+    )
+    if any(
+      abs(actual - expected) > 1.0e-10
+      for actual_point, expected_point in zip(
+        self.input_edge_points_m,
+        expected_input_edge,
+        strict=True,
+      )
+      for actual, expected in zip(actual_point, expected_point, strict=True)
+    ):
+      return False
+    actual_progress = min(
+      point[0] - self.anchor_point_m[0] for point in self.input_edge_points_m
+    )
+    if (
+      actual_progress <= 0.0
+      or abs(actual_progress - self.anchor_to_input_min_forward_progress_m)
+      > 1.0e-10
+    ):
+      return False
+    return all(
+      state.x_m > self.anchor_point_m[0]
+      for state in (*self.centerline_states, *self.boundary_states)
+    )
 
   def as_chain_termination_decision(self) -> MocChainTerminationDecision:
     """Return the explicit non-physical stop at the open band outlet."""
@@ -214,6 +295,7 @@ class MocCausticFamilyBandResult:
       'converged': self.converged,
       'physical_closure_verified': self.physical_closure_verified,
       'chain_promotion_blocked': self.chain_promotion_blocked,
+      'caustic_handoff_verified': self.caustic_handoff_verified,
       'band_kind': 'centerline-ambient-two-triangle-characteristic-band',
       'centerline_sample_count': len(self.centerline_states),
       'boundary_sample_count': len(self.boundary_states),
@@ -222,6 +304,21 @@ class MocCausticFamilyBandResult:
       'cell_count': self.cell_count,
       'input_edge_points_m': [list(point) for point in self.input_edge_points_m],
       'output_edge_points_m': [list(point) for point in self.output_edge_points_m],
+      'anchor_point_m': self.anchor_point_m,
+      'anchor_state': (
+        None
+        if self.anchor_state is None
+        else {
+          'x_m': self.anchor_state.x_m,
+          'y_m': self.anchor_state.y_m,
+          'theta_rad': self.anchor_state.theta_rad,
+          'mach': self.anchor_state.mach,
+          'gamma': self.anchor_state.gamma,
+        }
+      ),
+      'anchor_to_input_min_forward_progress_m': (
+        self.anchor_to_input_min_forward_progress_m
+      ),
       'topology': {
         'status': self.topology.status.value,
         'connected': self.topology.connected,
@@ -278,6 +375,64 @@ class MocCausticFamilyRestartResult:
     return True
 
   @property
+  def caustic_handoff_verified(self) -> bool:
+    """Whether the selected one-sided seed reaches the new-family band."""
+
+    if (
+      not self.converged
+      or self.seed is None
+      or not self.seed.converged
+      or self.anchor_edge_index not in (0, 1)
+      or self.anchor_point_m is None
+      or self.anchor_state is None
+      or self.family_band is None
+      or not self.family_band.caustic_handoff_verified
+      or self.family_band.anchor_point_m is None
+      or self.family_band.anchor_state is None
+    ):
+      return False
+    selected_edge = self.seed.edge_states[self.anchor_edge_index]
+    if selected_edge.state is None or selected_edge.point_m is None:
+      return False
+    return bool(
+      self.family_band.anchor_point_m == self.anchor_point_m
+      and self.family_band.anchor_state == self.anchor_state
+      and selected_edge.point_m == self.anchor_point_m
+      and selected_edge.state == self.anchor_state
+    )
+
+  def as_chain_termination_decision(self) -> MocChainTerminationDecision:
+    """Expose the unresolved old-family/new-family caustic handoff."""
+
+    if not self.caustic_handoff_verified:
+      raise ValueError(
+        'a caustic restart chain decision requires an exact one-sided '
+        'handoff into a converged open family band'
+      )
+    assert self.seed is not None
+    assert self.family_band is not None
+    assert self.anchor_point_m is not None
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=MocChainTerminationReason.CHARACTERISTIC_CAUSTIC,
+      message=(
+        'one-sided caustic handoff reached a new-family open band, but the '
+        'old-family bridge and shock/entropy closure remain unresolved'
+      ),
+      diagnostics={
+        'termination_model': 'caustic-new-family-open-handoff',
+        'anchor_edge_index': self.anchor_edge_index,
+        'anchor_point_m': self.anchor_point_m,
+        'family_band_input_edge_points_m': self.family_band.input_edge_points_m,
+        'family_band_output_edge_points_m': self.family_band.output_edge_points_m,
+        'family_band_cell_count': self.family_band.cell_count,
+        'old_family_bridge_verified': False,
+        'shock_entropy_closure_verified': False,
+        'seed_flow_angle_jump_rad': self.seed.flow_angle_jump_rad,
+      },
+    )
+
+  @property
   def boundary_sample_count(self) -> int:
     return len(self.boundary_states)
 
@@ -287,6 +442,7 @@ class MocCausticFamilyRestartResult:
       'converged': self.converged,
       'physical_closure_verified': self.physical_closure_verified,
       'chain_promotion_blocked': self.chain_promotion_blocked,
+      'caustic_handoff_verified': self.caustic_handoff_verified,
       'anchor_edge_index': self.anchor_edge_index,
       'anchor_point_m': self.anchor_point_m,
       'anchor_state': (
@@ -325,6 +481,11 @@ class MocCausticFamilyRestartResult:
       ),
       'family_band': (
         None if self.family_band is None else self.family_band.as_report()
+      ),
+      'chain_termination_decision': (
+        None
+        if not self.caustic_handoff_verified
+        else self.as_chain_termination_decision().as_report()
       ),
       'message': self.message,
     }
@@ -427,6 +588,8 @@ def _assemble_open_family_band(
   position_tolerance_m: float,
   invariant_tolerance: float,
   seed_geometry_residual_m: float | None,
+  anchor_point_m: tuple[float, float] | None,
+  anchor_state: CharacteristicState | None,
 ) -> MocCausticFamilyBandResult:
   """Assemble the connected two-triangle band carried by the restart trace."""
 
@@ -442,6 +605,11 @@ def _assemble_open_family_band(
      (boundary_states[-1].x_m, boundary_states[-1].y_m))
     if centerline_states and boundary_states
     else ()
+  )
+  anchor_progress = (
+    min(point[0] - anchor_point_m[0] for point in input_edge)
+    if anchor_point_m is not None and input_edge
+    else None
   )
 
   def _failure(
@@ -471,7 +639,30 @@ def _assemble_open_family_band(
         default=None,
       ),
       message=message,
+      anchor_point_m=anchor_point_m,
+      anchor_state=anchor_state,
+      anchor_to_input_min_forward_progress_m=anchor_progress,
     )
+
+  if (anchor_point_m is None) != (anchor_state is None):
+    return _failure(
+      MocCausticFamilyBandStatus.INVALID_INPUT,
+      'caustic family band anchor point and state must be supplied together',
+    )
+  if anchor_point_m is not None and anchor_state is not None:
+    if (
+      abs(anchor_state.x_m - anchor_point_m[0]) > position_tolerance_m
+      or abs(anchor_state.y_m - anchor_point_m[1]) > position_tolerance_m
+    ):
+      return _failure(
+        MocCausticFamilyBandStatus.INVALID_INPUT,
+        'caustic family band anchor state does not match its anchor point',
+      )
+    if anchor_progress is None or anchor_progress <= position_tolerance_m:
+      return _failure(
+        MocCausticFamilyBandStatus.GEOMETRY_FAILURE,
+        'caustic family band input edge is not downstream of its anchor',
+      )
 
   if len(centerline_states) != len(boundary_states) or len(centerline_states) < 2:
     return _failure(
@@ -633,6 +824,9 @@ def _assemble_open_family_band(
       'caustic restart produced a connected open two-triangle family band; '
       'shock fitting, downstream closure, and chain promotion remain blocked'
     ),
+    anchor_point_m=anchor_point_m,
+    anchor_state=anchor_state,
+    anchor_to_input_min_forward_progress_m=anchor_progress,
   )
 
 
@@ -850,9 +1044,15 @@ def restart_characteristic_family_from_caustic(
     position_tolerance_m=position_tolerance_m,
     invariant_tolerance=invariant_tolerance,
     seed_geometry_residual_m=anchor.geometry_residual_m,
+    anchor_point_m=anchor.point_m,
+    anchor_state=anchor_state,
   )
   return MocCausticFamilyRestartResult(
-    status=MocCausticFamilyRestartStatus.CONVERGED_OPEN_BOUNDARY,
+    status=(
+      MocCausticFamilyRestartStatus.CONVERGED_OPEN_BOUNDARY
+      if family_band.converged
+      else MocCausticFamilyRestartStatus.BAND_FAILURE
+    ),
     seed=seed,
     anchor_edge_index=anchor_edge_index,
     anchor_point_m=anchor.point_m,
@@ -872,5 +1072,7 @@ def restart_characteristic_family_from_caustic(
       'one-sided caustic family restart converged as an open '
       'centerline/ambient boundary; triangular interior remesh and shock '
       'closure remain separate gates'
+      if family_band.converged
+      else f'caustic family band assembly failed: {family_band.message}'
     ),
   )

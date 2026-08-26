@@ -348,6 +348,16 @@ not wait on this research closure.
   characteristic zone, and records the typed subsonic centerline terminal.
   The zone is still an open mixed-regime handoff, so physical first-cell
   closure and chain promotion remain pending.
+- Hardened the caustic restart handoff for continued-chain planning. The
+  selected one-sided seed edge is now retained as an exact anchor in the
+  family-band result, the band proves that its input edge is downstream of
+  that anchor, and restart reports a typed band-assembly failure instead of
+  claiming an open-boundary restart when the band cannot be built. The
+  restart also exposes a non-physical ``characteristic-caustic`` chain stop
+  with explicit ``old_family_bridge_verified=false`` and
+  ``shock_entropy_closure_verified=false`` diagnostics. This closes the
+  state/geometry bookkeeping seam only; it does not close the physical first
+  cell or promote a planner/mock cell.
 - Added a terminal-to-mixed-regime handoff adapter. The terminal composite and
   caustic-band result now route caller-supplied scalar subsonic perimeter data
   through the mixed-regime validator, while an empty/open perimeter returns a
@@ -657,6 +667,11 @@ Only after MOC-1 through MOC-5 pass:
   before upstream coupling is complete. A bounded shock probe can consume the
   band samples through a typed subsonic terminal, but it does not create a
   post-shock field or promote a chain cell.
+- The selected seed-to-band anchor is now checked exactly and a family-band
+  assembly failure propagates to the parent restart status. The resulting
+  chain decision remains a non-physical characteristic-caustic stop until an
+  old-family bridge and shock/entropy closure are solved; this is handoff
+  bookkeeping, not physical first-cell closure.
 - Ambient-pressure closure now reports upstream shock-state coupling as a
   separate gate. The research adapter can retain a locally ambient-closed
   field, but its strict coupled chain adapter refuses promotion until the

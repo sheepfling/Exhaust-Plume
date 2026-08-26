@@ -423,8 +423,46 @@ def _ambient_shock_strip_probe(
         sample_count=len(terminal_patch.outgoing_trace_points_m),
         position_tolerance_m=2.0e-4,
       )
+      terminal_patch_chain_report = (
+        terminal_patch_chain_result.as_report()
+        if isinstance(terminal_patch_chain_result, MocChainTerminationDecision)
+        else {
+          'status': 'cell_solve',
+          'converged': terminal_patch_chain_result.field.converged,
+          'physical_closure_verified': (
+            terminal_patch_chain_result.field.physical_closure_verified
+          ),
+          'chain_promotion_blocked': True,
+          'end_x_m': terminal_patch_chain_result.end_x_m,
+          'field': {
+            'status': terminal_patch_chain_result.field.status.value,
+            'converged': terminal_patch_chain_result.field.converged,
+            'physical_closure_verified': (
+              terminal_patch_chain_result.field.physical_closure_verified
+            ),
+            'upstream_shock_coupling_verified': (
+              terminal_patch_chain_result.field.upstream_shock_coupling_verified
+            ),
+            'characteristic_layer_count': (
+              terminal_patch_chain_result.field.characteristic_layer_count
+            ),
+            'node_count': terminal_patch_chain_result.field.node_count,
+            'cell_count': terminal_patch_chain_result.field.cell_count,
+            'physical_closure_status': (
+              terminal_patch_chain_result.field.physical_closure_status
+            ),
+            'shock_closure_status': (
+              terminal_patch_chain_result.field.shock_closure_status
+            ),
+            'incoming_handoff_sample_count': len(
+              terminal_patch_chain_result.field.incoming_handoff_states
+            ),
+            'message': terminal_patch_chain_result.field.message,
+          },
+        }
+      )
       terminal_patch_chain_probe = {
-        **terminal_patch_chain_result.as_report(),
+        **terminal_patch_chain_report,
         'expected_physical_termination': (
           isinstance(terminal_patch_chain_result, MocChainTerminationDecision)
           and terminal_patch_chain_result.physical_termination
@@ -1557,6 +1595,7 @@ def _caustic_family_restart_probe(
       result.converged
       and result.physical_closure_verified is False
       and result.chain_promotion_blocked
+      and result.caustic_handoff_verified
       and result.boundary_sample_count == 6
       and result.minimum_forward_progress_m is not None
       and result.minimum_forward_progress_m > 0.0
@@ -1571,8 +1610,16 @@ def _caustic_family_restart_probe(
       and result.family_band.cell_count == 10
       and result.family_band.topology.connected
       and result.family_band.topology.forms_closed_zone
+      and result.family_band.caustic_handoff_verified
+      and result.family_band.anchor_point_m == result.anchor_point_m
+      and result.family_band.anchor_state == result.anchor_state
+      and result.family_band.anchor_to_input_min_forward_progress_m is not None
+      and result.family_band.anchor_to_input_min_forward_progress_m > 0.0
       and result.family_band.physical_closure_verified is False
       and result.family_band.chain_promotion_blocked
+      and result.as_chain_termination_decision().physical_termination is False
+      and result.as_chain_termination_decision().reason is MocChainTerminationReason.CHARACTERISTIC_CAUSTIC
+      and result.as_chain_termination_decision().diagnostics['old_family_bridge_verified'] is False
     )
     cases.append(report)
   return {
