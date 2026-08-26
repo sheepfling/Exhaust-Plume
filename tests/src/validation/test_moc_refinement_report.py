@@ -325,6 +325,15 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
     'no_positive_compression_turn',
   ]
   assert caustic_shock_resolution['candidates'][0]['compression']['converged'] is True
+  caustic_restart = centerline_reflection_extension['caustic_family_restart']
+  assert caustic_restart['status'] == 'diagnostic-open-new-family-boundary-restarts'
+  assert caustic_restart['accepted'] is True
+  assert len(caustic_restart['cases']) == 2
+  assert all(case['status'] == 'converged_open_caustic_family_boundary' for case in caustic_restart['cases'])
+  assert all(case['physical_closure_verified'] is False for case in caustic_restart['cases'])
+  assert all(case['chain_promotion_blocked'] is True for case in caustic_restart['cases'])
+  assert all(case['boundary_sample_count'] == 6 for case in caustic_restart['cases'])
+  assert all(case['source_strip']['converged'] is False for case in caustic_restart['cases'])
   assert centerline_reflection_extension['remesh']['chain_termination_available'] is True
   assert centerline_reflection_extension['remesh']['chain_termination_decision']['physical_termination'] is False
   assert centerline_reflection_extension['remesh']['chain_termination_decision']['reason'] == (

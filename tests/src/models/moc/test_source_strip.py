@@ -3,6 +3,7 @@ from __future__ import annotations
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput
 from exhaust_plume.models.moc import (
   MocChainTerminationReason,
+  MocCausticFamilyRestartStatus,
   MocCausticShockResolutionStatus,
   MocSourceStripCausticStatus,
   MocSourceStripCausticSeedStatus,
@@ -12,6 +13,7 @@ from exhaust_plume.models.moc import (
   extend_source_characteristic_strip_centerline_reflection,
   build_caustic_shock_seed,
   resolve_caustic_shock_seed,
+  restart_characteristic_family_from_caustic,
   solve_underexpanded_expansion_fan,
   solve_reflected_free_boundary,
 )
@@ -125,3 +127,24 @@ def test_centerline_reflection_extension_carries_a_physical_boundary_law() -> No
     assert termination.diagnostics['termination_model'] == (
       'unresolved-characteristic-caustic'
     )
+    restart = restart_characteristic_family_from_caustic(
+      seed,
+      exit_state.total_pressure_Pa,
+      ambient.pressure_Pa,
+      anchor_edge_index=0,
+      sample_count=6,
+    )
+    assert restart.status is MocCausticFamilyRestartStatus.CONVERGED_OPEN_BOUNDARY
+    assert restart.converged
+    assert restart.physical_closure_verified is False
+    assert restart.chain_promotion_blocked is True
+    assert restart.anchor_edge_index == 0
+    assert restart.boundary_sample_count == 6
+    assert restart.minimum_forward_progress_m is not None
+    assert restart.minimum_forward_progress_m > 0.0
+    assert restart.maximum_absolute_pressure_residual is not None
+    assert restart.maximum_absolute_pressure_residual <= 1.0e-10
+    assert restart.maximum_absolute_tangent_residual is not None
+    assert restart.maximum_absolute_tangent_residual <= 1.0e-10
+    assert restart.source_strip is not None
+    assert restart.source_strip.converged is False

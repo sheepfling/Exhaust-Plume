@@ -278,6 +278,14 @@ not wait on this research closure.
   attached but does not match the opposite one-sided state, while the reverse
   orientation has no positive compression turn; the typed result therefore
   rejects both candidates and keeps chain promotion blocked.
+- Added a one-sided caustic new-family restart primitive. For each crossing
+  edge it reflects the selected C- anchor to the centerline, marches a
+  pressure-matched/tangent C+ boundary, and independently checks pressure,
+  tangent, geometry, and forward-progress residuals. Both canonical
+  orientations produce six finite boundary samples. The old triangular
+  interior assembly is retained as an explicit geometry failure, so this is an
+  open remesh/shock handoff rather than a fabricated connected field or chain
+  cell.
 - Added axial-boundary, cell-index, domain-limit, and callback termination
   checks.
 - Added a hard fidelity boundary: scaled reduced-order candidates are
@@ -551,6 +559,12 @@ Only after MOC-1 through MOC-5 pass:
   the local Rankine--Hugoniot probe rejects both orientations (the forward
   candidate has approximately ``-6.2%`` Mach and ``+32.8%`` static-pressure
   residuals), so a coupled shock/new-family solve is still required.
+  The new-family restart can now advance either one-sided anchor to a
+  pressure-matched/tangent boundary with six finite samples and residuals below
+  tolerance, but its original triangular cross-ray assembly still fails at
+  the first non-forward node. The restart is therefore an open boundary
+  handoff only; a connected interior remesh or physically fitted shock must
+  still bridge the caustic before upstream coupling is complete.
 - Ambient-pressure closure now reports upstream shock-state coupling as a
   separate gate. The research adapter can retain a locally ambient-closed
   field, but its strict coupled chain adapter refuses promotion until the

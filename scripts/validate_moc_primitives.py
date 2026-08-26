@@ -76,6 +76,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   assemble_ambient_shock_characteristic_strip,
   build_caustic_shock_seed,
   resolve_caustic_shock_seed,
+  restart_characteristic_family_from_caustic,
   extend_source_characteristic_strip_centerline_reflection,
   extend_source_characteristic_strip_constant_k_plus,
   march_post_shock_ambient_boundary,
@@ -1421,6 +1422,56 @@ def _reflected_zone_chain_boundary_probe(
   }
 
 
+def _caustic_family_restart_probe(
+  seed: Any,
+  total_pressure_Pa: float,
+  ambient_pressure_Pa: float,
+) -> dict[str, Any]:
+  """Run both one-sided open-family restart orientations at the caustic."""
+
+  if seed is None:
+    return {
+      'status': 'missing_seed',
+      'accepted': False,
+      'cases': [],
+      'claim_status': 'caustic-new-family-restart-pending',
+    }
+  cases: list[dict[str, Any]] = []
+  for anchor_edge_index in (0, 1):
+    result = restart_characteristic_family_from_caustic(
+      seed,
+      total_pressure_Pa,
+      ambient_pressure_Pa,
+      anchor_edge_index=anchor_edge_index,
+      sample_count=6,
+    )
+    report = result.as_report()
+    report['accepted'] = (
+      result.converged
+      and result.physical_closure_verified is False
+      and result.chain_promotion_blocked
+      and result.boundary_sample_count == 6
+      and result.minimum_forward_progress_m is not None
+      and result.minimum_forward_progress_m > 0.0
+      and result.maximum_absolute_pressure_residual is not None
+      and result.maximum_absolute_pressure_residual <= 1.0e-10
+      and result.maximum_absolute_tangent_residual is not None
+      and result.maximum_absolute_tangent_residual <= 1.0e-10
+      and result.source_strip is not None
+      and not result.source_strip.converged
+    )
+    cases.append(report)
+  return {
+    'status': 'diagnostic-open-new-family-boundary-restarts',
+    'accepted': all(case['accepted'] is True for case in cases),
+    'cases': cases,
+    'claim_status': (
+      'one-sided-new-family-boundary-restart-only; interior-remesh-and-'
+      'shock-closure-pending'
+    ),
+  }
+
+
 def _reflected_zone_shock_coupling_probe(
   reflected_zone: Any,
   reflected_boundary: Any,
@@ -1729,6 +1780,11 @@ def build_moc_primitive_report() -> dict[str, Any]:
     if caustic_shock_seed is None
     else resolve_caustic_shock_seed(caustic_shock_seed)
   )
+  caustic_family_restart = _caustic_family_restart_probe(
+    caustic_shock_seed,
+    fan_exit.total_pressure_Pa,
+    fan_ambient.pressure_Pa,
+  )
   reflected_zone_shock_coupling = _reflected_zone_shock_coupling_probe(
     reflected_zone,
     reflected_boundary,
@@ -1989,6 +2045,9 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or reflected_zone_chain_boundary_probe.get('physical_termination') is not False
     or reflected_zone_chain_boundary_probe.get('status') != 'solver-terminated'
     or reflected_zone_chain_boundary_probe.get('termination_reason') != 'upstream-field-boundary'
+  )
+  caustic_family_restart_failure = (
+    caustic_family_restart.get('accepted') is not True
   )
   overexpanded_exit = derive_uniform_nozzle_exit(
     NozzleExitInput(
@@ -2364,6 +2423,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
         if caustic_shock_resolution is None
         else caustic_shock_resolution.as_report()
       ),
+      'caustic_family_restart': caustic_family_restart,
       'claim_status': (
         'centerline-C-minus-reflection-boundary-law; '
         'triangular-domain-remesh-or-shock-closure-pending'
@@ -2925,6 +2985,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'message': str(reflected_zone_chain_boundary_probe.get('message', '')),
       }
     ] if reflected_zone_chain_boundary_failure else []),
+    *([
+      {
+        'case': 'caustic_family_restart',
+        'status': str(caustic_family_restart.get('status', 'missing')),
+        'message': str(caustic_family_restart.get('message', '')),
+      }
+    ] if caustic_family_restart_failure else []),
     *([
       {
         'case': 'solver_generated_chain_reference',

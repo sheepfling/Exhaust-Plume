@@ -56,6 +56,11 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   typed non-physical ``upstream-field-boundary`` stop with those coupling
   diagnostics instead of extrapolating or turning a finite-domain miss into a
   physical endpoint;
+- a one-sided caustic new-family restart that reflects each selected C- edge
+  to the centerline and marches an ambient-pressure/tangent C+ boundary with
+  explicit pressure, tangent, geometry, and forward-progress residuals. It
+  records the old triangular interior assembly separately when the first
+  cross-ray is not forward, so the restart remains an open remesh/shock seam;
 - a reusable triangular source-boundary characteristic-strip assembler and
   domain-bounded state/pressure sampler that reproduces the reflected-zone
   compatibility grid;

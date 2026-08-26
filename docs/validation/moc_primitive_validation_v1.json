@@ -1011,6 +1011,141 @@
         "selected_candidate": null,
         "message": "neither one-sided orientation supplies an entropy-admissible matched shock state; a new-family/remesh solve is required"
       },
+      "caustic_family_restart": {
+        "status": "diagnostic-open-new-family-boundary-restarts",
+        "accepted": true,
+        "cases": [
+          {
+            "status": "converged_open_caustic_family_boundary",
+            "converged": true,
+            "physical_closure_verified": false,
+            "chain_promotion_blocked": true,
+            "anchor_edge_index": 0,
+            "anchor_point_m": [
+              0.6584201957653014,
+              0.056970655192732075
+            ],
+            "anchor_state": {
+              "x_m": 0.6584201957653014,
+              "y_m": 0.056970655192732075,
+              "theta_rad": 0.06251802535060723,
+              "mach": 2.9524960898197605,
+              "gamma": 1.4
+            },
+            "centerline_sample_count": 6,
+            "boundary_sample_count": 6,
+            "boundary_points_m": [
+              [
+                0.9744603781350654,
+                0.036046619001158374
+              ],
+              [
+                1.095076800393742,
+                0.03604661900110716
+              ],
+              [
+                1.363309352533525,
+                0.03604661900099325
+              ],
+              [
+                1.4839257747916486,
+                0.036046619000942026
+              ],
+              [
+                1.7521583269302028,
+                0.03604661900082812
+              ],
+              [
+                1.872774749187774,
+                0.0360466190007769
+              ]
+            ],
+            "total_pressure_Pa": 2000000.0,
+            "ambient_pressure_Pa": 101325.0,
+            "maximum_absolute_pressure_residual": 1.4361623714154308e-16,
+            "maximum_absolute_tangent_residual": 0.0,
+            "maximum_absolute_geometry_residual_m": 2.7755575615628914e-17,
+            "minimum_forward_progress_m": 0.12061642225757119,
+            "source_strip": {
+              "status": "geometry_failure",
+              "converged": false,
+              "node_count": 3,
+              "cell_count": 0,
+              "topology_status": "invalid_input",
+              "topology_forms_closed_zone": false,
+              "topology_nonmanifold_edge_count": 0,
+              "message": "characteristic node (2, 0) failed: characteristic intersection is not forward: behind_first_ray"
+            },
+            "message": "one-sided caustic family restart converged as an open centerline/ambient boundary; triangular interior remesh and shock closure remain separate gates",
+            "accepted": true
+          },
+          {
+            "status": "converged_open_caustic_family_boundary",
+            "converged": true,
+            "physical_closure_verified": false,
+            "chain_promotion_blocked": true,
+            "anchor_edge_index": 1,
+            "anchor_point_m": [
+              0.6584201957653014,
+              0.056970655192732075
+            ],
+            "anchor_state": {
+              "x_m": 0.6584201957653014,
+              "y_m": 0.056970655192732075,
+              "theta_rad": 0.10117033294681665,
+              "mach": 3.0302230997840525,
+              "gamma": 1.4
+            },
+            "centerline_sample_count": 6,
+            "boundary_sample_count": 6,
+            "boundary_points_m": [
+              [
+                0.9991647790373048,
+                0.029913152722640706
+              ],
+              [
+                1.0885973400782836,
+                0.029913152722688435
+              ],
+              [
+                1.3567260443185225,
+                0.029913152722831526
+              ],
+              [
+                1.446158605360072,
+                0.029913152722879255
+              ],
+              [
+                1.714287309602021,
+                0.029913152723022352
+              ],
+              [
+                1.8037198706441409,
+                0.02991315272307008
+              ]
+            ],
+            "total_pressure_Pa": 2000000.0,
+            "ambient_pressure_Pa": 101325.0,
+            "maximum_absolute_pressure_residual": 1.4361623714154308e-16,
+            "maximum_absolute_tangent_residual": 0.0,
+            "maximum_absolute_geometry_residual_m": 1.1350472413070596e-17,
+            "minimum_forward_progress_m": 0.08943256104097874,
+            "source_strip": {
+              "status": "geometry_failure",
+              "converged": false,
+              "node_count": 3,
+              "cell_count": 0,
+              "topology_status": "invalid_input",
+              "topology_forms_closed_zone": false,
+              "topology_nonmanifold_edge_count": 0,
+              "message": "characteristic node (2, 0) failed: characteristic intersection is not forward: behind_first_ray"
+            },
+            "message": "one-sided caustic family restart converged as an open centerline/ambient boundary; triangular interior remesh and shock closure remain separate gates",
+            "accepted": true
+          }
+        ],
+        "claim_status": "one-sided-new-family-boundary-restart-only; interior-remesh-and-shock-closure-pending"
+      },
       "claim_status": "centerline-C-minus-reflection-boundary-law; triangular-domain-remesh-or-shock-closure-pending"
     },
     "terminal_source_window_invariant_closure": {
