@@ -409,9 +409,10 @@ class MocPostShockCharacteristicFieldResult:
   state on a front with ``C-`` from the earlier state.  The resulting fronts
   shrink to one terminal state; its ``C-`` characteristic is continued to the
   symmetry line and the terminal characteristic path is assembled into the
-  physical perimeter.  That path is a terminal trace for a later solver, not
-  an axial section.  Total pressure is transported along the ``C-`` source
-  lineage and is never reset to the upstream shock value.
+  physical perimeter.  That carried path is a composite downstream field
+  perimeter for a later solver, not one invariant-preserving characteristic
+  trace and not an axial section.  Total pressure is transported along the
+  ``C-`` source lineage and is never reset to the upstream shock value.
   """
 
   status: MocPostShockFieldStatus
@@ -576,7 +577,7 @@ class MocPostShockCharacteristicFieldResult:
           strict=True,
         )
       ),
-      continuation_boundary_kind=MocChainBoundaryKind.TERMINAL_CHARACTERISTIC_TRACE,
+      continuation_boundary_kind=MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER,
     )
   ####
 
@@ -620,9 +621,10 @@ class MocPostShockCharacteristicFieldResult:
 class MocPostShockChainCellSolve:
   """One state-carrying downstream cell returned by a local MOC solver.
 
-  The solver is responsible for propagating the prior cell's terminal trace
-  to a new shock boundary and assembling the returned field with
-  ``incoming_handoff`` recorded.
+  The solver is responsible for propagating the prior cell's carried boundary
+  (a composite post-shock field perimeter or a separately declared
+  characteristic trace) to a new shock boundary and assembling the returned
+  field with ``incoming_handoff`` recorded.
   """
 
   field: MocPostShockCharacteristicFieldResult
@@ -946,10 +948,10 @@ def assemble_post_shock_characteristic_field(
   structured failure; no geometric fallback is inserted.
 
   ``incoming_handoff`` is optional for the first cell.  For a continued cell,
-  the caller supplies the prior cell's terminal characteristic trace and the
-  returned field records that trace as consumed.  The trace is not assumed to
-  be an axial section and is not reused as the next shock geometry; a local
-  continuation solver must propagate it to its own shock boundary first.
+  the caller supplies the prior cell's typed carried boundary and the returned
+  field records that boundary as consumed.  It is not assumed to be an axial
+  section and is not reused as the next shock geometry; a local continuation
+  solver must propagate it to its own shock boundary first.
   """
 
   if not isinstance(shock_fit, MocShockBoundaryFitResult):

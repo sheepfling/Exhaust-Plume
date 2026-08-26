@@ -87,10 +87,11 @@ not wait on this research closure.
   field into a `RESOLVED_PLANAR_MOC` chain seed, retaining closure and residual
   diagnostics.
 - Added typed downstream characteristic-state/total-pressure handoff samples
-  and a state-carrying chain adapter. The field labels that handoff as a
-  terminal characteristic trace, not an axial section. Every next field must
-  report the exact incoming trace it consumed before its cell can be appended;
-  its newly propagated shock boundary is validated separately.
+  and a state-carrying chain adapter. The shock-seeded field labels its
+  composite carried edge as a post-shock field perimeter, not a single
+  characteristic or an axial section. Every next field must report the exact
+  incoming boundary it consumed before its cell can be appended; its newly
+  propagated shock boundary is validated separately.
 - Added a deterministic prescribed-boundary chain-planner mock to the
   primitive validation report. It exercises three resolved callback cells,
   carries total-pressure loss across the mock steps, and remains explicitly
@@ -234,15 +235,18 @@ not wait on this research closure.
 Use the state-carrying callback behind
 `continue_post_shock_characteristic_chain` as the local MOC solver boundary:
 
-1. take the previous cell's terminal characteristic trace and total-pressure
-   field;
-2. propagate that trace to the next local shock boundary; an axial section is
-   a separate boundary kind and must not be inferred from the trace;
+1. take the previous cell's typed carried boundary and total-pressure field;
+   for the shock-seeded field this is a composite post-shock perimeter, while
+   a separately solved characteristic handoff remains a distinct boundary
+   kind;
+2. propagate that carried boundary to the next local shock boundary; an axial
+   section is a separate boundary kind and must not be inferred from it;
 3. solve the next compression/expansion boundary and post-shock field;
-4. record the exact incoming trace in `incoming_handoff`, return a new field
+4. record the exact incoming boundary in `incoming_handoff`, return a new field
    and cell with `resolved-planar-moc` fidelity, or return a structured
-   validity/termination result; the adapter verifies that the consumed trace
-   is unchanged and that upstream total pressure does not reset upward;
+   validity/termination result; the adapter verifies that the consumed
+   boundary is unchanged and that upstream total pressure does not reset
+   upward;
 5. stop on physical model limits, not on an arbitrary count, while retaining
    count and axial distance as safety limits. A physical endpoint must be
    returned as an explicit `MocChainTerminationDecision`; `None` and safety

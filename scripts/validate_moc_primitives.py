@@ -24,6 +24,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocPostShockBoundaryState,
   MocPostShockChainCellSolve,
   MocPostShockCharacteristicFieldResult,
+  MocChainBoundaryKind,
   MocChainTerminationDecision,
   MocChainTerminationReason,
   MocChainStatus,
@@ -721,13 +722,73 @@ def _shock_cell_chain_planner_mock(
   )
 
 
+def _planner_boundary_validation(cell: Any) -> dict[str, Any]:
+  """Report the boundary contract without calling every boundary a C trace."""
+
+  kind = cell.continuation_boundary_kind
+  if kind is MocChainBoundaryKind.TERMINAL_CHARACTERISTIC_TRACE:
+    return {
+      'boundary_kind': kind.value,
+      'trace': validate_characteristic_trace(
+        cell.continuation_boundary,
+        CharacteristicFamily.MINUS,
+      ).as_report(),
+    }
+  if kind is not MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER:
+    return {
+      'boundary_kind': kind.value,
+      'trace': {
+        'status': 'not_applicable',
+        'converged': False,
+        'family': None,
+        'sample_count': len(cell.continuation_boundary),
+        'message': 'planner fixture has no characteristic-trace validator for this boundary kind',
+      },
+    }
+  points = tuple(sample.point_m for sample in cell.continuation_boundary)
+  segment_lengths = tuple(
+    ((second[0] - first[0]) ** 2 + (second[1] - first[1]) ** 2) ** 0.5
+    for first, second in zip(points[:-1], points[1:], strict=True)
+  )
+  forward_x = all(
+    second[0] > first[0]
+    for first, second in zip(points[:-1], points[1:], strict=True)
+  )
+  nonnegative_y = all(point[1] >= -1.0e-10 for point in points)
+  distinct = all(length > 1.0e-10 for length in segment_lengths)
+  return {
+    'boundary_kind': kind.value,
+    'trace': {
+      'status': 'not_applicable',
+      'converged': False,
+      'family': None,
+      'sample_count': len(points),
+      'message': (
+        'composite post-shock field perimeter; characteristic invariant '
+        'validation is intentionally not applied'
+      ),
+    },
+    'geometry': {
+      'status': 'converged' if forward_x and nonnegative_y and distinct else 'failure',
+      'sample_count': len(points),
+      'forward_x': forward_x,
+      'nonnegative_y': nonnegative_y,
+      'distinct_segments': distinct,
+      'minimum_segment_length_m': min(segment_lengths, default=None),
+      'path_length_m': sum(segment_lengths),
+      'start_m': points[0] if points else None,
+      'end_m': points[-1] if points else None,
+    },
+  }
+
+
 def _solver_generated_chain_reference(
   seed_field: MocPostShockCharacteristicFieldResult,
 ) -> tuple[Any, list[dict[str, Any]]]:
   """Exercise generated shock cells with an explicit carried-state callback.
 
   The upstream state and pressure callbacks deliberately derive their
-  thermodynamic level from the incoming trace so the chain can verify
+  thermodynamic level from the incoming boundary so the chain can verify
   monotonic total-pressure carry. They are still a reference field, not the
   reflected-zone solution required for production promotion.
   """
@@ -1186,10 +1247,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
   shock_cell_chain_trace_validation = [
     {
       'cell_index': cell.cell_index,
-      'trace': validate_characteristic_trace(
-        cell.continuation_boundary,
-        CharacteristicFamily.MINUS,
-      ).as_report(),
+      **_planner_boundary_validation(cell),
     }
     for cell in shock_cell_chain_mock.cells
   ]
@@ -1843,7 +1901,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'maximum_post_shock_total_pressure_ratio': shock_seeded_field.maximum_post_shock_total_pressure_ratio,
       'continuation_boundary_sample_count': len(shock_seeded_field.continuation_boundary_states),
       'incoming_handoff_sample_count': len(shock_seeded_field.incoming_handoff_states),
-      'continuation_boundary_kind': 'terminal-characteristic-trace',
+      'continuation_boundary_kind': 'post-shock-field-perimeter',
       'physical_closure_status': shock_seeded_field.physical_closure_status,
       'shock_closure_status': shock_seeded_field.shock_closure_status,
       'upstream_shock_coupling_verified': shock_seeded_field.upstream_shock_coupling_verified,

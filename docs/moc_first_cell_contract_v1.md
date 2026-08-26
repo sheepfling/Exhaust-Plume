@@ -149,12 +149,14 @@ compatibility evidence. Only that verified result can be adapted into a
 resolved planar-MOC chain seed. The shock-seeded assembler supplies a
 boundary-conditioned full characteristic fan and exposes its terminal path as
 typed state/total-pressure handoff samples. That path is explicitly a
-`terminal-characteristic-trace`, not an axial cut plane. A continued solver
-must propagate the trace to its own next shock boundary and record the exact
-incoming trace through `incoming_handoff`; the separate chain adapter checks
-that the trace was consumed unchanged and that total pressure did not reset
-upward before appending the cell. It does not invent a next shock location or
-promote the reduced-order shock train. An executable prescribed-boundary
+`post-shock-field-perimeter`: it is an ordered composite edge made of multiple
+characteristic segments, not one invariant-preserving characteristic and not
+an axial cut plane. A continued solver must propagate the perimeter to its own
+next shock boundary and record the exact incoming boundary through
+`incoming_handoff`; the separate chain adapter checks that the boundary was
+consumed unchanged and that total pressure did not reset upward before
+appending the cell. It does not invent a next shock location or promote the
+reduced-order shock train. An executable prescribed-boundary
 planner mock exercises this contract in the primitive validation report; the
 solver-generated chain reference now exercises the same handoff with generated
 shock boundaries. Both remain callback-conditioned evidence rather than
@@ -188,7 +190,9 @@ total-pressure jump. Its downstream Mach remains scalar rather than entering
 the supersonic `CharacteristicState` type; this is terminal evidence only,
 not mixed-regime closure or chain-cell promotion.
 The prescribed field still promotes only the
-`TERMINAL_CHARACTERISTIC_TRACE` kind. The separate ambient-closed triangular
+`POST_SHOCK_FIELD_PERIMETER` kind for its composite downstream edge. A
+separately solved single characteristic remains
+`TERMINAL_CHARACTERISTIC_TRACE`. The separate ambient-closed triangular
 assembler promotes its centerline handoff as
 `MocChainBoundaryKind.CENTERLINE_TRACE`; a later true axial cut must declare
 `MocChainBoundaryKind.AXIAL_SECTION`.

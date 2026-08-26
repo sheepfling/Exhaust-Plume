@@ -11,6 +11,7 @@ from exhaust_plume.models.moc import (
   MocCharacteristicCell,
   MocCharacteristicNode,
   MocCellClosureStatus,
+  MocChainBoundaryKind,
   MocChainGeometryFidelity,
   MocChainTerminationDecision,
   MocChainStatus,
@@ -413,6 +414,10 @@ def test_post_shock_chain_re_solves_with_state_and_pressure_handoff() -> None:
     maximum_shock_angle_residual_rad=0.0,
   )
   seed_field = assemble_post_shock_characteristic_field(seed_fit)
+  assert seed_field.as_chain_cell(
+    start_x_m=0.7,
+    end_x_m=1.0,
+  ).continuation_boundary_kind is MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER
   calls: list[tuple[int, int, float]] = []
 
   def solve_next(current, index, handoff):

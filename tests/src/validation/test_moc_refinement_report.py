@@ -163,9 +163,12 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert planner['resolved'] is True
   assert planner['cell_count'] == 3
   assert planner['state_carry_count'] == 3
+  assert planner['continuation_boundary_kinds'] == ['post-shock-field-perimeter']
   assert len(planner['terminal_trace_validation']) == 3
   assert all(
-    entry['trace']['family'] == 'C-'
+    entry['boundary_kind'] == 'post-shock-field-perimeter'
+    and entry['trace']['status'] == 'not_applicable'
+    and entry['geometry']['status'] == 'converged'
     for entry in planner['terminal_trace_validation']
   )
   assert invariant_closure['status'] == 'shooting_failure'

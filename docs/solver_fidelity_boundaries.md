@@ -37,8 +37,8 @@ shock-to-centerline candidate, post-shock first layer, a shock-seeded
 boundary-conditioned full C+/C- field, mild-overexpanded lip-compression
 branch, local ambient-pressure tangent residual, and mesh topology checks pass
 with finite residuals. The full-field fixture carries total pressure into its
-nodes and exposes a typed terminal-characteristic-trace handoff; a stateful
-chain adapter rejects changed consumed traces, total-pressure resets, and
+nodes and exposes a typed post-shock-field-perimeter handoff; a stateful chain
+adapter rejects changed consumed boundaries, total-pressure resets, and
 reduced-order fidelity. A deterministic three-cell prescribed-boundary planner
 mock and a three-cell solver-generated chain reference exercise that adapter,
 but both remain explicitly callback-conditioned and non-physical. The field

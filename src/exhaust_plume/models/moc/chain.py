@@ -9,8 +9,9 @@ cell.
 The continuation callback is intentionally small.  A later solver can use it
 to re-solve the next local characteristic problem, while this module owns the
 common axial ordering, topology, fidelity, and safety-limit checks.  Carried
-boundaries are typed as either a terminal characteristic trace or a true axial
-section so a trace is not silently treated as a planar cut.
+boundaries are typed as either a single characteristic trace, a composite
+post-shock field perimeter, or a true axial section so one boundary is not
+silently treated as another.
 """
 
 from __future__ import annotations
@@ -64,6 +65,7 @@ class MocChainBoundaryKind(str, Enum):
   """Geometric meaning of a carried downstream state boundary."""
 
   TERMINAL_CHARACTERISTIC_TRACE = 'terminal-characteristic-trace'
+  POST_SHOCK_FIELD_PERIMETER = 'post-shock-field-perimeter'
   CENTERLINE_TRACE = 'centerline-trace'
   AXIAL_SECTION = 'axial-section'
 ####
@@ -388,6 +390,10 @@ class MocChainCell:
   cell's physical closure is separate from the mesh topology: a topologically
   bounded polygon is not promoted to a physical shock closure unless the
   producing solver explicitly marks ``physical_closure=CLOSED``.
+
+  A ``POST_SHOCK_FIELD_PERIMETER`` is an ordered, state-carrying edge made of
+  multiple characteristic segments.  It is deliberately distinct from a
+  single invariant-preserving ``TERMINAL_CHARACTERISTIC_TRACE``.
   """
 
   cell_index: int
@@ -673,6 +679,11 @@ def _validate_state_carry(cell: MocChainCell) -> str | None:
     x_value = sample.state.x_m
     if previous_x is not None and x_value <= previous_x:
       return f'continuation boundary sample {index} is not strictly downstream in x'
+    if (
+      cell.continuation_boundary_kind is MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER
+      and sample.state.y_m < -1.0e-10
+    ):
+      return f'post-shock field perimeter sample {index} lies below the symmetry line'
     previous_x = x_value
   return None
 ####

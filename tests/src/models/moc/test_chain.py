@@ -278,6 +278,35 @@ def test_axial_section_boundary_rejects_nonplanar_state_samples() -> None:
   ####
 
 
+def test_post_shock_field_perimeter_rejects_samples_below_symmetry() -> None:
+  cell = _stateful_cell(
+    1,
+    0.0,
+    boundary_kind=MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER,
+  )
+  boundary = list(cell.continuation_boundary)
+  boundary[1] = MocChainBoundarySample(
+    state=CharacteristicState(
+      x_m=boundary[1].state.x_m,
+      y_m=-0.01,
+      theta_rad=boundary[1].state.theta_rad,
+      mach=boundary[1].state.mach,
+      gamma=boundary[1].state.gamma,
+    ),
+    total_pressure_Pa=boundary[1].total_pressure_Pa,
+  )
+  result = continue_moc_cell_chain(
+    replace(cell, continuation_boundary=tuple(boundary)),
+    lambda _current, _index: None,
+    MocChainContinuationPolicy(require_state_carry=True),
+  )
+
+  assert result.status is MocChainStatus.STATE_BOUNDARY
+  assert result.termination_reason is MocChainTerminationReason.STATE_NOT_CARRIED
+  assert 'below the symmetry line' in result.message
+  ####
+
+
 def test_characteristic_trace_validator_accepts_a_forward_c_plus_trace() -> None:
   base = CharacteristicState(
     x_m=0.0,
