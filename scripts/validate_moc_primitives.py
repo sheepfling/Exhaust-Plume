@@ -57,6 +57,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   sample_reflected_zone_along_shock_path,
   validate_fan_reflected_interface,
   validate_closed_post_shock_field,
+  validate_post_shock_ambient_boundary,
   validate_moc_mesh,
 )
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput  # noqa: E402
@@ -196,14 +197,8 @@ def _sampled_attached_shock_gate() -> tuple[Any, Any, Any]:
   return shock_fit, continuation, closed_gate
 
 
-def _shock_seeded_field_fixture() -> MocPostShockCharacteristicFieldResult:
-  """Assemble a varied prescribed field to exercise the full-field contract.
-
-  This fixture is deliberately not a free-boundary solution.  It supplies a
-  turning post-shock boundary so the characteristic fan has finite cell area;
-  the report records it as a solver-contract fixture rather than validation
-  or provider evidence.
-  """
+def _shock_seeded_field_fit() -> MocShockBoundaryFitResult:
+  """Return the varied prescribed shock fit used by the field fixture."""
 
   points = (
     (0.76, 0.165),
@@ -226,13 +221,24 @@ def _shock_seeded_field_fixture() -> MocPostShockCharacteristicFieldResult:
     )
     for index, point in enumerate(points)
   )
-  fit = MocShockBoundaryFitResult(
+  return MocShockBoundaryFitResult(
     status=MocShockBoundaryFitStatus.CONVERGED_FITTED,
     boundary_states=samples,
     shock_angle_residuals_rad=(0.0,) * len(samples),
     maximum_shock_angle_residual_rad=0.0,
   )
-  return assemble_post_shock_characteristic_field(fit)
+
+
+def _shock_seeded_field_fixture() -> MocPostShockCharacteristicFieldResult:
+  """Assemble a varied prescribed field to exercise the full-field contract.
+
+  This fixture is deliberately not a free-boundary solution.  It supplies a
+  turning post-shock boundary so the characteristic fan has finite cell area;
+  the report records it as a solver-contract fixture rather than validation
+  or provider evidence.
+  """
+
+  return assemble_post_shock_characteristic_field(_shock_seeded_field_fit())
 
 
 def _shock_seeded_field_refinement_probe() -> list[dict[str, Any]]:
@@ -832,6 +838,11 @@ def build_moc_primitive_report() -> dict[str, Any]:
     ))
   sampled_shock_fit, sampled_continuation, sampled_closed_gate = _sampled_attached_shock_gate()
   shock_seeded_field = _shock_seeded_field_fixture()
+  shock_seeded_ambient_boundary = validate_post_shock_ambient_boundary(
+    shock_seeded_field,
+    _shock_seeded_field_fit(),
+    fan_ambient.pressure_Pa,
+  )
   shock_seeded_refinement_probe = _shock_seeded_field_refinement_probe()
   solver_generated_shock = _solver_generated_shock_fixture()
   solver_generated_shock_refinement_probe = _solver_generated_shock_refinement_probe()
@@ -1366,6 +1377,15 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'shock_closure_status': shock_seeded_field.shock_closure_status,
       'message': shock_seeded_field.message,
       'claim_status': 'synthetic-prescribed-field-contract-only; canonical-free-boundary-pending',
+    },
+    'shock_seeded_ambient_boundary': {
+      **shock_seeded_ambient_boundary.as_report(),
+      'pressure_residuals': shock_seeded_ambient_boundary.pressure_residuals,
+      'tangent_residuals': shock_seeded_ambient_boundary.tangent_residuals,
+      'claim_status': (
+        'explicit-outer-perimeter-gate; synthetic-field-rejected-until-'
+        'ambient-pressure-and-tangency-coupling'
+      ),
     },
     'shock_seeded_field_refinement': {
       'status': (

@@ -62,6 +62,7 @@ class MocChainBoundaryKind(str, Enum):
   """Geometric meaning of a carried downstream state boundary."""
 
   TERMINAL_CHARACTERISTIC_TRACE = 'terminal-characteristic-trace'
+  CENTERLINE_TRACE = 'centerline-trace'
   AXIAL_SECTION = 'axial-section'
 ####
 

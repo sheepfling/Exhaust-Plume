@@ -618,6 +618,30 @@
       "message": "shock-seeded post-shock C+/C- characteristic field converged with explicit shock and centerline boundary edges",
       "claim_status": "synthetic-prescribed-field-contract-only; canonical-free-boundary-pending"
     },
+    "shock_seeded_ambient_boundary": {
+      "status": "pressure_failure",
+      "converged": false,
+      "physical_closure_verified": false,
+      "sample_count": 5,
+      "ambient_pressure_Pa": 101325.0,
+      "maximum_absolute_pressure_residual": 4.526984963850418,
+      "maximum_absolute_tangent_residual": 0.6517267835648117,
+      "message": "post-shock outer perimeter validation failed: ambient-pressure boundary static-pressure residual exceeded tolerance",
+      "pressure_residuals": [
+        1.2703986758777372,
+        1.6615010095423561,
+        2.1040249598937497,
+        2.603530729449952,
+        4.526984963850418
+      ],
+      "tangent_residuals": [
+        -0.5135702677701842,
+        -0.5417671744611535,
+        -0.5725503503630992,
+        -0.6517267835648117
+      ],
+      "claim_status": "explicit-outer-perimeter-gate; synthetic-field-rejected-until-ambient-pressure-and-tangency-coupling"
+    },
     "shock_seeded_field_refinement": {
       "status": "diagnostic-all-prescribed-resolutions-converged",
       "cases": [

@@ -43,6 +43,13 @@ from exhaust_plume.models.moc.boundary import (
   solve_ambient_pressure_free_boundary,
   solve_reflected_free_boundary,
 )
+from exhaust_plume.models.moc.ambient_boundary import (
+  MocAmbientBoundarySample,
+  MocAmbientBoundaryStatus,
+  MocAmbientPressureBoundaryResult,
+  validate_ambient_pressure_boundary,
+  validate_post_shock_ambient_boundary,
+)
 from exhaust_plume.models.moc.free_boundary import (
   MocFreeBoundaryShockResult,
   MocFreeBoundaryShockStatus,
@@ -85,6 +92,11 @@ from exhaust_plume.models.moc.coupled import (
   MocInvariantClosureStatus,
   solve_marched_attached_shock_with_constant_invariant_closure,
   solve_marched_attached_shock_chain_cell_with_constant_invariant_closure,
+)
+from exhaust_plume.models.moc.physical_cell import (
+  MocPhysicalPostShockFieldResult,
+  MocPhysicalPostShockFieldStatus,
+  assemble_ambient_boundary_post_shock_field,
 )
 from exhaust_plume.models.moc.post_shock import (
   MocPostShockBoundaryState,
@@ -139,6 +151,9 @@ __all__ = (
   'MocFreeBoundaryResult',
   'MocFreeBoundaryPointResult',
   'MocReflectedBoundaryResult',
+  'MocAmbientBoundarySample',
+  'MocAmbientBoundaryStatus',
+  'MocAmbientPressureBoundaryResult',
   'MocFreeBoundaryShockResult',
   'MocFreeBoundaryShockStatus',
   'MocTopologyResult',
@@ -158,6 +173,8 @@ __all__ = (
   'MocInvariantClosureFamily',
   'MocInvariantClosureResult',
   'MocInvariantClosureStatus',
+  'MocPhysicalPostShockFieldResult',
+  'MocPhysicalPostShockFieldStatus',
   'MocPostShockBoundaryState',
   'MocPostShockCharacteristicSegment',
   'MocPostShockContinuationResult',
@@ -201,6 +218,8 @@ __all__ = (
   'solve_ambient_pressure_free_boundary',
   'solve_ambient_pressure_free_boundary_point',
   'solve_reflected_free_boundary',
+  'validate_ambient_pressure_boundary',
+  'validate_post_shock_ambient_boundary',
   'solve_marched_attached_shock_field',
   'solve_marched_attached_shock_from_source_strip',
   'solve_reflected_boundary_trace_extension',
@@ -212,6 +231,7 @@ __all__ = (
   'extend_source_characteristic_strip_constant_k_plus',
   'solve_marched_attached_shock_with_constant_invariant_closure',
   'solve_marched_attached_shock_chain_cell_with_constant_invariant_closure',
+  'assemble_ambient_boundary_post_shock_field',
   'sample_reflected_zone_along_shock_path',
   'validate_fan_reflected_interface',
   'continue_post_shock_characteristics_to_centerline',

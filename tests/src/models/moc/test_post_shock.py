@@ -16,6 +16,7 @@ from exhaust_plume.models.moc import (
   MocChainStatus,
   MocChainTerminationReason,
   MocPostShockBoundaryState,
+  MocAmbientBoundaryStatus,
   MocPostShockChainCellSolve,
   MocPostShockClosureStatus,
   MocPostShockCharacteristicFieldResult,
@@ -35,6 +36,7 @@ from exhaust_plume.models.moc import (
   fit_attached_shock_boundary,
   solve_attached_compression_to_turn,
   validate_closed_post_shock_field,
+  validate_post_shock_ambient_boundary,
 )
 
 
@@ -287,6 +289,26 @@ def test_shock_seeded_post_shock_field_closes_a_characteristic_fan() -> None:
       end_x_m=1.5,
       diagnostics={'physical_closure_verified': False},
     )
+
+
+def test_shock_seeded_field_does_not_promote_internal_characteristic_as_ambient_edge() -> None:
+  samples = _prescribed_boundary()
+  shock_fit = MocShockBoundaryFitResult(
+    status=MocShockBoundaryFitStatus.CONVERGED_FITTED,
+    boundary_states=samples,
+    shock_angle_residuals_rad=(0.0,) * len(samples),
+    maximum_shock_angle_residual_rad=0.0,
+  )
+  field = assemble_post_shock_characteristic_field(shock_fit)
+
+  result = validate_post_shock_ambient_boundary(field, shock_fit, 101325.0)
+
+  assert result.status is MocAmbientBoundaryStatus.PRESSURE_FAILURE
+  assert not result.converged
+  assert len(result.points_m) == 5
+  assert result.maximum_absolute_pressure_residual is not None
+  assert result.maximum_absolute_pressure_residual > 1.0
+  assert 'outer perimeter validation failed' in result.message
 
 
 def test_shock_seeded_field_rejects_a_zero_area_uniform_turn_closure() -> None:

@@ -59,6 +59,7 @@ def _stateful_cell(
   start_x_m: float,
   *,
   total_pressure_Pa: float = 1.0e6,
+  boundary_kind: MocChainBoundaryKind = MocChainBoundaryKind.TERMINAL_CHARACTERISTIC_TRACE,
 ) -> MocChainCell:
   boundary = tuple(
     MocChainBoundarySample(
@@ -81,6 +82,7 @@ def _stateful_cell(
     geometry_fidelity=MocChainGeometryFidelity.RESOLVED_PLANAR_MOC,
     physical_closure=MocCellClosureStatus.CLOSED,
     continuation_boundary=boundary,
+    continuation_boundary_kind=boundary_kind,
   )
 
 
@@ -207,6 +209,24 @@ def test_stateful_moc_chain_preserves_boundary_samples_across_cells() -> None:
     {'cell_index': 2, 'minimum_Pa': 1.0e6, 'maximum_Pa': 1.0e6},
   ]
   assert calls == [(2, 3), (3, 3)]
+
+
+def test_centerline_trace_is_a_distinct_state_carry_boundary() -> None:
+  seed = _stateful_cell(
+    1,
+    0.0,
+    boundary_kind=MocChainBoundaryKind.CENTERLINE_TRACE,
+  )
+
+  result = continue_moc_cell_chain(
+    seed,
+    lambda _current, _index: None,
+    MocChainContinuationPolicy(require_state_carry=True),
+  )
+
+  assert result.status is MocChainStatus.SOLVER_TERMINATED
+  assert result.resolved
+  assert result.as_report()['continuation_boundary_kinds'] == ['centerline-trace']
 
 
 def test_chain_pressure_report_flags_a_carried_pressure_increase() -> None:

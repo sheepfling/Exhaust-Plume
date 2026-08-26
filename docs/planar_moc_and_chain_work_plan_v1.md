@@ -103,6 +103,17 @@ not wait on this research closure.
   now reports its outgoing total-pressure range and the chain report records
   whether those carried maxima are nonincreasing. This is a handoff
   bookkeeping check, not a substitute for a physical shock-loss proof.
+- Added an explicit ambient-pressure outer-perimeter gate. It extracts the
+  mesh boundary left after removing the shock and centerline edges, requires
+  solver-carried state/total-pressure samples on that trace, and checks both
+  static-pressure matching and flow tangency. The synthetic shrinking-front
+  field now records this gate as a pressure/tangency failure rather than
+  allowing a topological perimeter to stand in for a free boundary.
+- Added a separate boundary-conditioned triangular assembler. It couples a
+  branch-checked shock trace and an independently accepted ambient trace
+  through C+/C- intersections, then requires the remaining perimeter to
+  reproduce the centerline before exposing a resolved chain handoff. No
+  production free-boundary shooter is wired to it yet.
 - Added axial-boundary, cell-index, domain-limit, and callback termination
   checks.
 - Added a hard fidelity boundary: scaled reduced-order candidates are
@@ -257,6 +268,11 @@ Only after MOC-1 through MOC-5 pass:
 - The trace-extension reference uses a constant terminal boundary trace; it is
   useful for deterministic plumbing and refinement, but it is not the physical
   upstream characteristic strip.
+- The shock-seeded field's remaining polygon perimeter is now explicitly
+  measurable, but the prescribed fixture fails the ambient-pressure and
+  streamline-tangency gate. A coupled solver still has to replace that
+  internal-characteristic edge with a solved free boundary before a cell can
+  be accepted physically.
 - The invariant-conditioned shock shoot currently records a canonical
   no-bracket result; a selected constant downstream invariant is not yet an
   accepted physical free-boundary condition. No production solver yet supplies

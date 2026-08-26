@@ -66,6 +66,15 @@ The implementation in `exhaust_plume.models.moc` currently provides:
 - a closed post-shock field acceptance gate that requires solver-supplied
   converged nodes, explicit shock and centerline boundary edges, connected
   topology, and strict pressure loss before producing a chain seed;
+- an explicit ambient-pressure outer-perimeter gate that removes the shock
+  and centerline edges from a candidate mesh, reconstructs the remaining
+  solver-carried state trace, and checks both static-pressure matching and
+  flow/boundary tangency;
+- a separate boundary-conditioned triangular assembler that accepts a
+  branch-checked shock trace plus an independently accepted ambient trace and
+  only exposes a resolved chain handoff after the characteristic net closes on
+  the centerline. It is an acceptance primitive for the future free-boundary
+  shooter, not that shooter itself;
 - a separate MOC cell-chain continuation contract that rejects open cells,
   non-bounded meshes, axial gaps, and scaled reduced-order fidelity;
 - a typed chain termination decision that distinguishes a physical endpoint
@@ -134,9 +143,15 @@ accepted.
 The mesh topology intentionally remains reported as `OPEN`: its boundary edges
 are the physical shock/centerline perimeter. `physical_closure_status` and the
 field status carry the separate evidence that this prescribed-boundary fan is
-closed for promotion. If a later solver provides a true axial handoff, it must
-declare `MocChainBoundaryKind.AXIAL_SECTION`; the current field promotes only
-the `TERMINAL_CHARACTERISTIC_TRACE` kind.
+closed for numerical promotion, but that is not an ambient free-boundary
+acceptance. `validate_post_shock_ambient_boundary` is the additional external
+condition gate; the current prescribed fixture fails it because its remaining
+perimeter is an internal characteristic with pressure and tangency residuals.
+The prescribed field still promotes only the
+`TERMINAL_CHARACTERISTIC_TRACE` kind. The separate ambient-closed triangular
+assembler promotes its centerline handoff as
+`MocChainBoundaryKind.CENTERLINE_TRACE`; a later true axial cut must declare
+`MocChainBoundaryKind.AXIAL_SECTION`.
 No public provider is wired to these primitives yet. The module does not claim
 axisymmetric, reacting, viscous, or experimentally validated plume physics.
 
@@ -208,7 +223,8 @@ do not authorize replacing the basic provider or accepting a product claim.
    constant-`K+` continuation assumption with a solved post-shock boundary
    condition. The current solver-generated field is higher-fidelity
    boundary-conditioned evidence, but not yet a production free-boundary
-   first-cell solution.
+   first-cell solution. The new outer-perimeter gate is the acceptance seam
+   that the coupled solver must satisfy.
 2. Demonstrate grid/refinement convergence for the assembled reflected and
    post-shock zones, underexpanded, and mild attached overexpanded reference
    cases.
