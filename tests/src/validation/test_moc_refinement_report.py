@@ -58,6 +58,7 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   generated = report['geometry_cases']['solver_generated_attached_shock_field']
   refinement = report['geometry_cases']['solver_generated_shock_refinement']
   generated_chain = report['geometry_cases']['solver_generated_chain_reference']
+  generated_chain_planner = report['geometry_cases']['solver_generated_chain_planner']
   generated_chain_terminal = report['geometry_cases']['solver_generated_chain_terminal_probe']
   source_strip = report['geometry_cases']['reflected_source_characteristic_strip']
   simple_wave_extension = report['geometry_cases']['reflected_source_strip_constant_k_plus_extension']
@@ -87,6 +88,16 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert generated_chain['cell_count'] == 3
   assert generated_chain['state_carry_count'] == 3
   assert generated_chain['physical_termination'] is False
+  assert generated_chain_planner['planner_kind'] == 'solver-generated-reference'
+  assert generated_chain_planner['planning_only'] is True
+  assert generated_chain_planner['production_claim_allowed'] is False
+  assert generated_chain_planner['planner_step_count'] == 3
+  assert [step['next_cell_index'] for step in generated_chain_planner['planner_steps']] == [2, 3, 4]
+  assert all(
+    step['boundary_kind'] == 'post-shock-field-perimeter'
+    and step['incoming_handoff_sample_count'] >= 3
+    for step in generated_chain_planner['planner_steps']
+  )
   assert generated_chain_terminal['accepted'] is True
   assert generated_chain_terminal['status'] == 'physically-terminated'
   assert generated_chain_terminal['physical_termination'] is True

@@ -1255,7 +1255,7 @@ def _planner_boundary_validation(cell: Any) -> dict[str, Any]:
 
 def _solver_generated_chain_reference(
   seed_field: MocPostShockCharacteristicFieldResult,
-) -> tuple[Any, list[dict[str, Any]]]:
+) -> tuple[Any, list[dict[str, Any]], Any]:
   """Exercise generated shock cells with an explicit carried-state callback.
 
   The upstream state and pressure callbacks deliberately derive their
@@ -1311,16 +1311,15 @@ def _solver_generated_chain_reference(
       sample_count=9,
     )
 
-  return (
-    continue_post_shock_characteristic_chain(
-      seed_field,
-      solve_next,
-      start_x_m=0.5,
-      end_x_m=1.0,
-      require_upstream_shock_coupling=True,
-    ),
-    observations,
+  planner = plan_post_shock_characteristic_chain(
+    seed_field,
+    solve_next,
+    start_x_m=0.5,
+    end_x_m=1.0,
+    require_upstream_shock_coupling=True,
+    planner_kind=MocChainPlannerKind.SOLVER_GENERATED_REFERENCE,
   )
+  return planner.chain, observations, planner
 
 
 def _solver_generated_chain_terminal_probe(
@@ -2345,8 +2344,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
   )
   solver_generated_chain_reference = None
   solver_generated_chain_observations: list[dict[str, Any]] = []
+  solver_generated_chain_planner = None
   if solver_generated_shock.field is not None and solver_generated_shock.field.converged:
-    solver_generated_chain_reference, solver_generated_chain_observations = _solver_generated_chain_reference(
+    (
+      solver_generated_chain_reference,
+      solver_generated_chain_observations,
+      solver_generated_chain_planner,
+    ) = _solver_generated_chain_reference(
       solver_generated_shock.field,
     )
   solver_generated_chain_terminal_probe = _solver_generated_chain_terminal_probe(
@@ -2442,6 +2446,11 @@ def build_moc_primitive_report() -> dict[str, Any]:
     if solver_generated_chain_reference is None
     else solver_generated_chain_reference.as_report()
   )
+  solver_generated_chain_planner_report = (
+    None
+    if solver_generated_chain_planner is None
+    else solver_generated_chain_planner.as_report()
+  )
   shock_cell_chain_mock_report = shock_cell_chain_mock.as_report()
   solver_generated_chain_pressure_lineage_ok = (
     solver_generated_chain_report is not None
@@ -2479,6 +2488,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
   ]
   solver_generated_chain_failure = (
     solver_generated_chain_reference is None
+    or solver_generated_chain_planner is None
     or not solver_generated_chain_reference.resolved
     or solver_generated_chain_reference.cell_count != 3
     or solver_generated_chain_reference.physical_termination
@@ -2487,6 +2497,10 @@ def build_moc_primitive_report() -> dict[str, Any]:
       for cell in solver_generated_chain_reference.cells
     )
     or not solver_generated_chain_pressure_lineage_ok
+    or solver_generated_chain_planner.planner_kind is not MocChainPlannerKind.SOLVER_GENERATED_REFERENCE
+    or not solver_generated_chain_planner.as_report()['planning_only']
+    or solver_generated_chain_planner.production_claim_allowed
+    or len(solver_generated_chain_planner.steps) != 3
   )
   solver_generated_chain_terminal_failure = (
     solver_generated_chain_terminal_probe.get('expected_physical_termination') is not True
@@ -3074,6 +3088,38 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'measurement_operator': solver_generated_measurement.as_report(),
       'strict_upstream_coupling_mode': True,
       'claim_status': 'strict-upstream-coupled-chain-reference; reflected-field-coupling-pending',
+    },
+    'solver_generated_chain_planner': {
+      'planner_kind': (
+        None
+        if solver_generated_chain_planner is None
+        else solver_generated_chain_planner.planner_kind.value
+      ),
+      'planning_only': (
+        None
+        if solver_generated_chain_planner_report is None
+        else solver_generated_chain_planner_report['planning_only']
+      ),
+      'production_claim_allowed': (
+        None
+        if solver_generated_chain_planner is None
+        else solver_generated_chain_planner.production_claim_allowed
+      ),
+      'planner_step_count': (
+        None
+        if solver_generated_chain_planner is None
+        else len(solver_generated_chain_planner.steps)
+      ),
+      'planner_steps': (
+        []
+        if solver_generated_chain_planner is None
+        else [step.as_report() for step in solver_generated_chain_planner.steps]
+      ),
+      'claim_status': (
+        None
+        if solver_generated_chain_planner is None
+        else solver_generated_chain_planner.claim_status
+      ),
     },
     'solver_generated_chain_terminal_probe': {
       **solver_generated_chain_terminal_probe,
