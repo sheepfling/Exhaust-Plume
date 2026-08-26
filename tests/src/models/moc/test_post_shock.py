@@ -12,6 +12,7 @@ from exhaust_plume.models.moc import (
   MocCharacteristicNode,
   MocCellClosureStatus,
   MocChainGeometryFidelity,
+  MocChainTerminationDecision,
   MocChainStatus,
   MocChainTerminationReason,
   MocPostShockBoundaryState,
@@ -411,6 +412,32 @@ def test_post_shock_chain_re_solves_with_state_and_pressure_handoff() -> None:
     (2, 5, pytest.approx(1.8e6)),
     (3, 6, pytest.approx(1.6e6)),
   ]
+
+
+def test_post_shock_chain_accepts_explicit_physical_termination() -> None:
+  seed_fit = MocShockBoundaryFitResult(
+    status=MocShockBoundaryFitStatus.CONVERGED_FITTED,
+    boundary_states=_prescribed_boundary(),
+    shock_angle_residuals_rad=(0.0,) * 4,
+    maximum_shock_angle_residual_rad=0.0,
+  )
+  seed_field = assemble_post_shock_characteristic_field(seed_fit)
+
+  result = continue_post_shock_characteristic_chain(
+    seed_field,
+    lambda _current, _index, _handoff: MocChainTerminationDecision(
+      physical_termination=True,
+      message='post-shock pressure and angle tolerances reached',
+    ),
+    start_x_m=0.7,
+    end_x_m=1.0,
+  )
+
+  assert result.status is MocChainStatus.PHYSICALLY_TERMINATED
+  assert result.termination_reason is MocChainTerminationReason.PHYSICAL_TERMINATION
+  assert result.physical_termination is True
+  assert result.cell_count == 1
+  assert result.resolved
 
 
 def test_post_shock_chain_rejects_a_changed_state_handoff() -> None:

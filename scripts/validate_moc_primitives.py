@@ -22,6 +22,8 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocPostShockBoundaryState,
   MocPostShockChainCellSolve,
   MocPostShockCharacteristicFieldResult,
+  MocChainTerminationDecision,
+  MocChainTerminationReason,
   MocShockBoundaryFitResult,
   MocShockBoundaryFitStatus,
   MocTopologyStatus,
@@ -360,7 +362,11 @@ def _shock_cell_chain_planner_mock(
       'current_end_x_m': current.end_x_m,
     })
     if cell_index >= 4:
-      return None
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
+        message='planner mock exhausted its prescribed three-cell fixture',
+      )
     points = (
       (1.00, 0.20),
       (1.02, 0.14),

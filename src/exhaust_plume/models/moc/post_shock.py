@@ -30,6 +30,7 @@ from exhaust_plume.models.moc.chain import (
   MocChainCell,
   MocChainGeometryFidelity,
   MocChainContinuationPolicy,
+  MocChainTerminationDecision,
   MocChainResult,
   MocChainStatus,
   MocChainTerminationReason,
@@ -1417,7 +1418,7 @@ def assemble_post_shock_characteristic_field(
 
 MocPostShockFieldContinuationSolver = Callable[
   [MocChainCell, int, tuple[MocChainBoundarySample, ...]],
-  MocPostShockChainCellSolve | None,
+  MocPostShockChainCellSolve | MocChainTerminationDecision | None,
 ]
 
 
@@ -1562,16 +1563,19 @@ def continue_post_shock_characteristic_chain(
   def solve_cell(
     current: MocChainCell,
     cell_index: int,
-  ) -> MocChainCell | None:
+  ) -> MocChainCell | MocChainTerminationDecision | None:
     try:
       solved = solve_next(current, cell_index, current.continuation_boundary)
     except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
       raise ValueError(f'local post-shock MOC solve failed: {error}') from error
     if solved is None:
       return None
+    if isinstance(solved, MocChainTerminationDecision):
+      return solved
     if not isinstance(solved, MocPostShockChainCellSolve):
       raise ValueError(
-        'solve_next must return MocPostShockChainCellSolve or None'
+        'solve_next must return MocPostShockChainCellSolve, '
+        'MocChainTerminationDecision, or None'
       )
     if not solved.field.converged:
       raise ValueError(

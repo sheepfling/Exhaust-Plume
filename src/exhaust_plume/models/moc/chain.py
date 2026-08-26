@@ -32,6 +32,7 @@ __all__ = (
   'MocChainCell',
   'MocChainContinuationPolicy',
   'MocChainGeometryFidelity',
+  'MocChainTerminationDecision',
   'MocChainResult',
   'MocChainStatus',
   'MocChainTerminationReason',
@@ -68,6 +69,7 @@ class MocChainBoundaryKind(str, Enum):
 class MocChainStatus(str, Enum):
   """Structured outcome for continuation and its safety boundaries."""
 
+  PHYSICALLY_TERMINATED = 'physically-terminated'
   SOLVER_TERMINATED = 'solver-terminated'
   TRUNCATED = 'truncated'
   OPEN_CELL = 'open-cell'
@@ -82,6 +84,7 @@ class MocChainStatus(str, Enum):
 class MocChainTerminationReason(str, Enum):
   """Why a chain continuation stopped."""
 
+  PHYSICAL_TERMINATION = 'physical-termination'
   SOLVER_RETURNED_NO_NEXT_CELL = 'solver-returned-no-next-cell'
   MAX_CELL_LIMIT = 'max-cell-limit'
   AXIAL_DOMAIN_LIMIT = 'axial-domain-limit'
@@ -114,6 +117,38 @@ class MocChainBoundarySample:
   def point_m(self) -> tuple[float, float]:
     return self.state.x_m, self.state.y_m
 ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocChainTerminationDecision:
+  """Explicit solver-side decision to stop a continued cell chain.
+
+  Returning ``None`` from a continuation callback remains a backward-compatible
+  numerical stop and never implies physical equilibration.  A solver that has
+  actually satisfied its physical termination condition must return this
+  typed decision with ``physical_termination=True`` instead.  The distinction
+  is intentionally made at the callback boundary so a planner or a numerical
+  safety limit cannot accidentally be reported as a physical end state.
+  """
+
+  physical_termination: bool
+  reason: MocChainTerminationReason = MocChainTerminationReason.PHYSICAL_TERMINATION
+  message: str = ''
+  diagnostics: dict[str, Any] | MappingProxyType = field(default_factory=dict)
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.physical_termination, bool):
+      raise TypeError('physical_termination must be a bool')
+    if not isinstance(self.reason, MocChainTerminationReason):
+      raise TypeError('reason must be a MocChainTerminationReason')
+    if self.physical_termination != (
+        self.reason is MocChainTerminationReason.PHYSICAL_TERMINATION
+    ):
+      raise ValueError(
+        'physical termination decisions must use the physical-termination reason'
+      )
+    object.__setattr__(self, 'diagnostics', MappingProxyType(dict(self.diagnostics)))
+  ####
 
 
 @dataclass(frozen=True, slots=True)
@@ -310,7 +345,9 @@ class MocChainResult:
 ####
 
 
-MocCellContinuationSolver = Callable[[MocChainCell, int], MocChainCell | None]
+MocCellContinuationSolver = Callable[
+  [MocChainCell, int], MocChainCell | MocChainTerminationDecision | None
+]
 
 
 def _result(
@@ -470,6 +507,26 @@ def continue_moc_cell_chain(
         status=MocChainStatus.SOLVER_FAILURE,
         reason=MocChainTerminationReason.SOLVER_ERROR,
         message=f'next MOC cell solver failed: {error}',
+      )
+    if isinstance(candidate, MocChainTerminationDecision):
+      return _result(
+        tuple(cells),
+        status=(
+          MocChainStatus.PHYSICALLY_TERMINATED
+          if candidate.physical_termination
+          else MocChainStatus.SOLVER_TERMINATED
+        ),
+        reason=candidate.reason,
+        physical_termination=candidate.physical_termination,
+        message=(
+          candidate.message
+          or (
+            'MOC continuation reached an explicit physical termination condition'
+            if candidate.physical_termination
+            else 'MOC continuation returned an explicit solver termination decision'
+          )
+        ),
+        diagnostics=dict(candidate.diagnostics),
       )
     if candidate is None:
       return _result(

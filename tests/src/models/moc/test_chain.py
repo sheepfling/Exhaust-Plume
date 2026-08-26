@@ -9,6 +9,7 @@ from exhaust_plume.models.moc import (
   MocChainCell,
   MocChainContinuationPolicy,
   MocChainGeometryFidelity,
+  MocChainTerminationDecision,
   MocChainStatus,
   MocChainTerminationReason,
   MocCharacteristicCell,
@@ -130,6 +131,23 @@ def test_resolved_moc_chain_continues_until_solver_returns_none() -> None:
   assert result.resolved
   assert calls == [2, 3]
   assert result.as_report()['geometry_fidelity_counts'] == {'resolved-planar-moc': 2}
+
+
+def test_explicit_physical_termination_is_not_inferred_from_none() -> None:
+  result = continue_moc_cell_chain(
+    _cell(1, 0.0),
+    lambda _current, _index: MocChainTerminationDecision(
+      physical_termination=True,
+      message='ambient-equilibrium condition satisfied',
+      diagnostics={'termination_metric': 2.0e-6},
+    ),
+  )
+
+  assert result.status is MocChainStatus.PHYSICALLY_TERMINATED
+  assert result.termination_reason is MocChainTerminationReason.PHYSICAL_TERMINATION
+  assert result.physical_termination is True
+  assert result.cell_count == 1
+  assert result.as_report()['diagnostics'] == {'termination_metric': 2.0e-6}
 
 
 def test_reduced_order_candidate_is_rejected_at_moc_fidelity_boundary() -> None:

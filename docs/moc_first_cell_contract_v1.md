@@ -68,6 +68,8 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   topology, and strict pressure loss before producing a chain seed;
 - a separate MOC cell-chain continuation contract that rejects open cells,
   non-bounded meshes, axial gaps, and scaled reduced-order fidelity;
+- a typed chain termination decision that distinguishes a physical endpoint
+  from a planner/numerical callback stop;
 - mesh connectivity diagnostics that distinguish a topologically bounded
   polygon from an unresolved physical boundary;
 - a shared averaged-characteristic fan/reflected interface whose combined

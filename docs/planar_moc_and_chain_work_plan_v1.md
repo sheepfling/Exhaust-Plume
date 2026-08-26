@@ -90,6 +90,11 @@ not wait on this research closure.
 - Added an MOC chain continuation contract. It accepts only connected,
   topologically bounded meshes with explicit physical closure and resolved
   planar-MOC fidelity.
+- Added a typed chain termination decision. A callback returning `None` remains
+  a non-physical numerical stop; only an explicit physical-termination
+  decision can set `physical_termination=true`. The planner mock now uses the
+  non-physical typed stop so its three-cell result cannot be mistaken for a
+  predicted chain endpoint.
 - Added axial-boundary, cell-index, domain-limit, and callback termination
   checks.
 - Added a hard fidelity boundary: scaled reduced-order candidates are
@@ -145,7 +150,9 @@ Use the state-carrying callback behind
    validity/termination result; the adapter verifies that the consumed trace
    is unchanged and that upstream total pressure does not reset upward;
 5. stop on physical model limits, not on an arbitrary count, while retaining
-   count and axial distance as safety limits.
+   count and axial distance as safety limits. A physical endpoint must be
+   returned as an explicit `MocChainTerminationDecision`; `None` and safety
+   truncation remain non-physical.
 
 The existing reduced-order `solve_shock_train` remains the separate Level B
 implementation. It must not be used as this callback.
