@@ -40,6 +40,10 @@ __all__ = (
   'MocSourceStripFrontierResult',
   'MocSourceStripCausticStatus',
   'MocSourceStripCausticEventResult',
+  'MocSourceStripCausticEdgeStatus',
+  'MocSourceStripCausticEdgeStateResult',
+  'MocSourceStripCausticSeedStatus',
+  'MocSourceStripCausticShockSeedResult',
   'MocSourceStripRemeshStatus',
   'MocSourceStripRemeshResult',
   'MocSourceStripContinuationStatus',
@@ -49,6 +53,7 @@ __all__ = (
   'assemble_source_characteristic_strip_window',
   'probe_source_strip_frontier',
   'remesh_source_strip_frontier',
+  'build_caustic_shock_seed',
   'extend_source_characteristic_strip_constant_k_plus',
   'extend_source_characteristic_strip_centerline_reflection',
 )
@@ -123,6 +128,27 @@ class MocSourceStripCausticStatus(str, Enum):
   DETECTED = 'caustic_detected'
   NOT_DETECTED = 'no_local_caustic_detected'
   INVALID_INPUT = 'invalid_input'
+####
+
+
+class MocSourceStripCausticEdgeStatus(str, Enum):
+  """Outcome for one-sided state reconstruction on a crossing edge."""
+
+  CONVERGED = 'converged_one_sided_caustic_edge'
+  INVALID_INPUT = 'invalid_input'
+  GEOMETRY_FAILURE = 'caustic_edge_geometry_failure'
+  INVARIANT_FAILURE = 'caustic_edge_invariant_failure'
+####
+
+
+class MocSourceStripCausticSeedStatus(str, Enum):
+  """Outcome for the bounded pre-shock caustic handoff."""
+
+  CONVERGED_ONE_SIDED_SEED = 'converged_one_sided_caustic_seed'
+  INVALID_INPUT = 'invalid_input'
+  EVENT_FAILURE = 'caustic_event_failure'
+  EDGE_FAILURE = 'caustic_edge_state_failure'
+  INVARIANT_FAILURE = 'caustic_seed_invariant_failure'
 ####
 
 
@@ -202,6 +228,113 @@ class MocSourceStripCausticEventResult:
         for edge in self.crossing_edge_states
       ],
       'caustic_point_m': self.caustic_point_m,
+      'message': self.message,
+    }
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocSourceStripCausticEdgeStateResult:
+  """One-sided state evidence reconstructed at a caustic crossing.
+
+  The state is an interpolation along one already-solved characteristic edge.
+  It is intentionally labeled one-sided and cannot be used as a downstream
+  shock state or as a chain-cell boundary without a separate shock solve.
+  """
+
+  status: MocSourceStripCausticEdgeStatus
+  edge_index: int | None
+  fraction: float | None
+  point_m: tuple[float, float] | None
+  state: CharacteristicState | None
+  static_pressure_Pa: float | None
+  family: CharacteristicFamily | None
+  maximum_absolute_invariant_residual: float | None
+  geometry_residual_m: float | None
+  message: str = ''
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocSourceStripCausticEdgeStatus.CONVERGED
+  ####
+
+  def as_report(self) -> dict[str, object]:
+    return {
+      'status': self.status.value,
+      'converged': self.converged,
+      'edge_index': self.edge_index,
+      'fraction': self.fraction,
+      'point_m': self.point_m,
+      'state': (
+        None
+        if self.state is None
+        else {
+          'x_m': self.state.x_m,
+          'y_m': self.state.y_m,
+          'theta_rad': self.state.theta_rad,
+          'mach': self.state.mach,
+          'gamma': self.state.gamma,
+        }
+      ),
+      'static_pressure_Pa': self.static_pressure_Pa,
+      'family': None if self.family is None else self.family.value,
+      'maximum_absolute_invariant_residual': self.maximum_absolute_invariant_residual,
+      'geometry_residual_m': self.geometry_residual_m,
+      'message': self.message,
+    }
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocSourceStripCausticShockSeedResult:
+  """Bounded one-sided evidence for a future caustic shock/new-family solve.
+
+  This result deliberately stops before Rankine--Hugoniot fitting.  The two
+  edge states are pre-shock, one-sided reconstructions at the crossing; no
+  downstream state, shock curve, entropy jump, or chain-cell promotion is
+  implied by ``CONVERGED_ONE_SIDED_SEED``.
+  """
+
+  status: MocSourceStripCausticSeedStatus
+  event: MocSourceStripCausticEventResult | None
+  edge_states: tuple[MocSourceStripCausticEdgeStateResult, ...]
+  total_pressure_Pa: float | None
+  flow_angle_jump_rad: float | None
+  static_pressure_jump_Pa: float | None
+  message: str = ''
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocSourceStripCausticSeedStatus.CONVERGED_ONE_SIDED_SEED
+  ####
+
+  @property
+  def shock_state_solved(self) -> bool:
+    return False
+  ####
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    return False
+  ####
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    return True
+  ####
+
+  def as_report(self) -> dict[str, object]:
+    return {
+      'status': self.status.value,
+      'converged': self.converged,
+      'shock_state_solved': self.shock_state_solved,
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'total_pressure_Pa': self.total_pressure_Pa,
+      'flow_angle_jump_rad': self.flow_angle_jump_rad,
+      'static_pressure_jump_Pa': self.static_pressure_jump_Pa,
+      'event': None if self.event is None else self.event.as_report(),
+      'edge_states': [edge.as_report() for edge in self.edge_states],
       'message': self.message,
     }
 ####
@@ -799,6 +932,358 @@ def _caustic_event_for_cell(
       'could be isolated'
     ),
   )
+
+
+def _caustic_edge_failure(
+  status: MocSourceStripCausticEdgeStatus,
+  *,
+  edge_index: int | None,
+  message: str,
+  fraction: float | None = None,
+  point_m: tuple[float, float] | None = None,
+  family: CharacteristicFamily | None = None,
+  maximum_absolute_invariant_residual: float | None = None,
+  geometry_residual_m: float | None = None,
+) -> MocSourceStripCausticEdgeStateResult:
+  return MocSourceStripCausticEdgeStateResult(
+    status=status,
+    edge_index=edge_index,
+    fraction=fraction,
+    point_m=point_m,
+    state=None,
+    static_pressure_Pa=None,
+    family=family,
+    maximum_absolute_invariant_residual=maximum_absolute_invariant_residual,
+    geometry_residual_m=geometry_residual_m,
+    message=message,
+  )
+####
+
+
+def _reconstruct_caustic_edge_state(
+  edge_index: int,
+  segment: tuple[tuple[float, float], tuple[float, float]],
+  endpoint_states: tuple[CharacteristicState, CharacteristicState],
+  crossing_point: tuple[float, float],
+  total_pressure_Pa: float,
+  *,
+  position_tolerance_m: float,
+  invariant_tolerance: float,
+) -> MocSourceStripCausticEdgeStateResult:
+  """Reconstruct one state at a crossing without extrapolating the edge."""
+
+  first_point, second_point = segment
+  first_state, second_state = endpoint_states
+  if not all(
+    isinstance(state, CharacteristicState)
+    for state in endpoint_states
+  ):
+    return _caustic_edge_failure(
+      MocSourceStripCausticEdgeStatus.INVALID_INPUT,
+      edge_index=edge_index,
+      message='caustic edge endpoints must be CharacteristicState values',
+    )
+  if (
+    abs(first_state.x_m - first_point[0]) > position_tolerance_m
+    or abs(first_state.y_m - first_point[1]) > position_tolerance_m
+    or abs(second_state.x_m - second_point[0]) > position_tolerance_m
+    or abs(second_state.y_m - second_point[1]) > position_tolerance_m
+  ):
+    return _caustic_edge_failure(
+      MocSourceStripCausticEdgeStatus.INVALID_INPUT,
+      edge_index=edge_index,
+      point_m=crossing_point,
+      message='caustic edge endpoint states must lie on their edge segment',
+    )
+  if abs(first_state.gamma - second_state.gamma) > invariant_tolerance:
+    return _caustic_edge_failure(
+      MocSourceStripCausticEdgeStatus.INVALID_INPUT,
+      edge_index=edge_index,
+      point_m=crossing_point,
+      message='caustic edge endpoint states use different gamma values',
+    )
+  if not isfinite(float(total_pressure_Pa)) or total_pressure_Pa <= 0.0:
+    return _caustic_edge_failure(
+      MocSourceStripCausticEdgeStatus.INVALID_INPUT,
+      edge_index=edge_index,
+      point_m=crossing_point,
+      message='total_pressure_Pa must be finite and positive',
+    )
+  direction = (
+    second_point[0] - first_point[0],
+    second_point[1] - first_point[1],
+  )
+  length_squared = direction[0] ** 2 + direction[1] ** 2
+  length = sqrt(length_squared)
+  if length <= position_tolerance_m:
+    return _caustic_edge_failure(
+      MocSourceStripCausticEdgeStatus.GEOMETRY_FAILURE,
+      edge_index=edge_index,
+      point_m=crossing_point,
+      message='caustic crossing edge has zero or unresolved length',
+    )
+  offset = (
+    crossing_point[0] - first_point[0],
+    crossing_point[1] - first_point[1],
+  )
+  fraction = (offset[0] * direction[0] + offset[1] * direction[1]) / length_squared
+  geometry_residual = abs(
+    offset[0] * direction[1] - offset[1] * direction[0]
+  ) / length
+  fraction_tolerance = position_tolerance_m / max(length, 1.0)
+  if (
+    fraction < -fraction_tolerance
+    or fraction > 1.0 + fraction_tolerance
+    or geometry_residual > position_tolerance_m
+  ):
+    return _caustic_edge_failure(
+      MocSourceStripCausticEdgeStatus.GEOMETRY_FAILURE,
+      edge_index=edge_index,
+      fraction=fraction,
+      point_m=crossing_point,
+      geometry_residual_m=geometry_residual,
+      message='caustic point does not lie on the bounded crossing edge',
+    )
+  fraction = max(0.0, min(1.0, fraction))
+  k_plus_residual = abs(first_state.k_plus - second_state.k_plus)
+  k_minus_residual = abs(first_state.k_minus - second_state.k_minus)
+  family = (
+    CharacteristicFamily.PLUS
+    if k_plus_residual <= k_minus_residual
+    else CharacteristicFamily.MINUS
+  )
+  endpoint_invariant_residual = min(k_plus_residual, k_minus_residual)
+  if endpoint_invariant_residual > invariant_tolerance:
+    return _caustic_edge_failure(
+      MocSourceStripCausticEdgeStatus.INVARIANT_FAILURE,
+      edge_index=edge_index,
+      fraction=fraction,
+      point_m=crossing_point,
+      family=family,
+      maximum_absolute_invariant_residual=endpoint_invariant_residual,
+      geometry_residual_m=geometry_residual,
+      message=(
+        'crossing edge does not preserve either characteristic invariant '
+        f'(K+ residual={k_plus_residual}, K- residual={k_minus_residual})'
+      ),
+    )
+  theta = first_state.theta_rad + fraction * (
+    second_state.theta_rad - first_state.theta_rad
+  )
+  nu = first_state.nu_rad + fraction * (second_state.nu_rad - first_state.nu_rad)
+  inverse = inverse_prandtl_meyer_angle_rad(nu, first_state.gamma)
+  if not inverse.converged or inverse.value is None:
+    return _caustic_edge_failure(
+      MocSourceStripCausticEdgeStatus.INVARIANT_FAILURE,
+      edge_index=edge_index,
+      fraction=fraction,
+      point_m=crossing_point,
+      family=family,
+      maximum_absolute_invariant_residual=endpoint_invariant_residual,
+      geometry_residual_m=geometry_residual,
+      message=f'caustic edge Prandtl-Meyer reconstruction failed: {inverse.message}',
+    )
+  state = CharacteristicState(
+    x_m=float(crossing_point[0]),
+    y_m=float(crossing_point[1]),
+    theta_rad=theta,
+    mach=inverse.value,
+    gamma=first_state.gamma,
+  )
+  interpolated_invariant = (
+    state.k_plus
+    if family is CharacteristicFamily.PLUS
+    else state.k_minus
+  )
+  reference_invariant = (
+    first_state.k_plus
+    if family is CharacteristicFamily.PLUS
+    else first_state.k_minus
+  )
+  interpolated_invariant_residual = abs(
+    interpolated_invariant - reference_invariant
+  )
+  if interpolated_invariant_residual > invariant_tolerance:
+    return _caustic_edge_failure(
+      MocSourceStripCausticEdgeStatus.INVARIANT_FAILURE,
+      edge_index=edge_index,
+      fraction=fraction,
+      point_m=crossing_point,
+      family=family,
+      maximum_absolute_invariant_residual=max(
+        endpoint_invariant_residual,
+        interpolated_invariant_residual,
+      ),
+      geometry_residual_m=geometry_residual,
+      message=(
+        'interpolated caustic edge state does not preserve its inferred '
+        f'{family.value} invariant'
+      ),
+    )
+  static_pressure = float(total_pressure_Pa) / (
+    1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
+  ) ** (state.gamma / (state.gamma - 1.0))
+  return MocSourceStripCausticEdgeStateResult(
+    status=MocSourceStripCausticEdgeStatus.CONVERGED,
+    edge_index=edge_index,
+    fraction=fraction,
+    point_m=(float(crossing_point[0]), float(crossing_point[1])),
+    state=state,
+    static_pressure_Pa=static_pressure,
+    family=family,
+    maximum_absolute_invariant_residual=max(
+      endpoint_invariant_residual,
+      interpolated_invariant_residual,
+    ),
+    geometry_residual_m=geometry_residual,
+    message=(
+      f'one-sided pre-shock state reconstructed along a bounded '
+      f'{family.value} edge; '
+      'Rankine-Hugoniot/shock fitting remains pending'
+    ),
+  )
+####
+
+
+def build_caustic_shock_seed(
+  event: MocSourceStripCausticEventResult,
+  total_pressure_Pa: float,
+  *,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+) -> MocSourceStripCausticShockSeedResult:
+  """Build bounded one-sided pre-shock evidence at a caustic crossing.
+
+  The event must already have been detected by a source-row remesh.  The
+  crossing states are reconstructed independently on the two measured edges;
+  no state is extrapolated from the old strip and no downstream shock state is
+  synthesized.  A converged result is therefore a handoff for a future
+  entropy/new-family solve, never a physical cell or a chain seed.
+  """
+
+  if not isinstance(event, MocSourceStripCausticEventResult):
+    return MocSourceStripCausticShockSeedResult(
+      status=MocSourceStripCausticSeedStatus.INVALID_INPUT,
+      event=None,
+      edge_states=(),
+      total_pressure_Pa=None,
+      flow_angle_jump_rad=None,
+      static_pressure_jump_Pa=None,
+      message='event must be a MocSourceStripCausticEventResult',
+    )
+  try:
+    total_pressure = float(total_pressure_Pa)
+  except (TypeError, ValueError):
+    total_pressure = float('nan')
+  if not isfinite(total_pressure) or total_pressure <= 0.0:
+    return MocSourceStripCausticShockSeedResult(
+      status=MocSourceStripCausticSeedStatus.INVALID_INPUT,
+      event=event,
+      edge_states=(),
+      total_pressure_Pa=None,
+      flow_angle_jump_rad=None,
+      static_pressure_jump_Pa=None,
+      message='total_pressure_Pa must be finite and positive',
+    )
+  for name, value in (
+    ('position_tolerance_m', position_tolerance_m),
+    ('invariant_tolerance', invariant_tolerance),
+  ):
+    if not isfinite(float(value)) or value <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+  if not event.detected:
+    return MocSourceStripCausticShockSeedResult(
+      status=MocSourceStripCausticSeedStatus.EVENT_FAILURE,
+      event=event,
+      edge_states=(),
+      total_pressure_Pa=total_pressure,
+      flow_angle_jump_rad=None,
+      static_pressure_jump_Pa=None,
+      message='caustic shock seed requires a detected caustic event',
+    )
+  if event.caustic_point_m is None:
+    return MocSourceStripCausticShockSeedResult(
+      status=MocSourceStripCausticSeedStatus.EVENT_FAILURE,
+      event=event,
+      edge_states=(),
+      total_pressure_Pa=total_pressure,
+      flow_angle_jump_rad=None,
+      static_pressure_jump_Pa=None,
+      message='detected caustic event has no bounded crossing point',
+    )
+  if (
+    len(event.crossing_edge_indices) != 1
+    or len(event.crossing_segments_m) != 2
+    or len(event.crossing_edge_states) != 2
+  ):
+    return MocSourceStripCausticShockSeedResult(
+      status=MocSourceStripCausticSeedStatus.EVENT_FAILURE,
+      event=event,
+      edge_states=(),
+      total_pressure_Pa=total_pressure,
+      flow_angle_jump_rad=None,
+      static_pressure_jump_Pa=None,
+      message=(
+        'detected caustic event must carry one crossing edge pair with two '
+        'bounded segments and two endpoint-state pairs'
+      ),
+    )
+  edge_indices = event.crossing_edge_indices[0]
+  edges = tuple(
+    _reconstruct_caustic_edge_state(
+      edge_index=edge_index,
+      segment=segment,
+      endpoint_states=endpoint_states,
+      crossing_point=event.caustic_point_m,
+      total_pressure_Pa=total_pressure,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+    )
+    for edge_index, segment, endpoint_states in zip(
+      edge_indices,
+      event.crossing_segments_m,
+      event.crossing_edge_states,
+      strict=True,
+    )
+  )
+  if any(edge.status is MocSourceStripCausticEdgeStatus.INVARIANT_FAILURE for edge in edges):
+    status = MocSourceStripCausticSeedStatus.INVARIANT_FAILURE
+  elif any(not edge.converged for edge in edges):
+    status = MocSourceStripCausticSeedStatus.EDGE_FAILURE
+  else:
+    status = MocSourceStripCausticSeedStatus.CONVERGED_ONE_SIDED_SEED
+  if (
+    len(edges) == 2
+    and isinstance(edges[0].state, CharacteristicState)
+    and isinstance(edges[1].state, CharacteristicState)
+  ):
+    resolved_states = (edges[0].state, edges[1].state)
+    flow_angle_jump = abs(
+      resolved_states[0].theta_rad - resolved_states[1].theta_rad
+    )
+  else:
+    flow_angle_jump = None
+  pressures = tuple(
+    edge.static_pressure_Pa
+    for edge in edges
+    if edge.static_pressure_Pa is not None
+  )
+  pressure_jump = abs(pressures[0] - pressures[1]) if len(pressures) == 2 else None
+  return MocSourceStripCausticShockSeedResult(
+    status=status,
+    event=event,
+    edge_states=edges,
+    total_pressure_Pa=total_pressure,
+    flow_angle_jump_rad=flow_angle_jump,
+    static_pressure_jump_Pa=pressure_jump,
+    message=(
+      'bounded one-sided caustic seed converged; downstream shock state, '
+      'entropy jump, and characteristic-family remesh remain pending'
+      if status is MocSourceStripCausticSeedStatus.CONVERGED_ONE_SIDED_SEED
+      else 'caustic one-sided seed could not reconstruct both crossing edges'
+    ),
+  )
+####
 
 
 def probe_source_strip_frontier(

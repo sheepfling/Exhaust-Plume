@@ -66,6 +66,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_underexpanded_expansion_fan,
   assemble_source_characteristic_strip,
   assemble_ambient_shock_characteristic_strip,
+  build_caustic_shock_seed,
   extend_source_characteristic_strip_centerline_reflection,
   extend_source_characteristic_strip_constant_k_plus,
   march_post_shock_ambient_boundary,
@@ -1144,6 +1145,17 @@ def build_moc_primitive_report() -> dict[str, Any]:
       additional_sample_count=1,
     )
   )
+  caustic_shock_seed = (
+    None
+    if (
+      reflected_centerline_reflection_extension.remesh is None
+      or reflected_centerline_reflection_extension.remesh.caustic_event is None
+    )
+    else build_caustic_shock_seed(
+      reflected_centerline_reflection_extension.remesh.caustic_event,
+      fan_exit.total_pressure_Pa,
+    )
+  )
   reflected_zone_shock_coupling = _reflected_zone_shock_coupling_probe(
     reflected_zone,
     reflected_boundary,
@@ -1713,6 +1725,11 @@ def build_moc_primitive_report() -> dict[str, Any]:
     },
     'reflected_source_strip_centerline_reflection_extension': {
       **reflected_centerline_reflection_extension.as_report(),
+      'caustic_shock_seed': (
+        None
+        if caustic_shock_seed is None
+        else caustic_shock_seed.as_report()
+      ),
       'claim_status': (
         'centerline-C-minus-reflection-boundary-law; '
         'triangular-domain-remesh-or-shock-closure-pending'

@@ -166,6 +166,13 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert centerline_reflection_extension['remesh']['caustic_event']['boundary_interval'] == 0
   assert centerline_reflection_extension['remesh']['caustic_event']['requires_new_characteristic_family'] is True
   assert centerline_reflection_extension['remesh']['caustic_event']['caustic_point_m'][0] > 0.0
+  caustic_seed = centerline_reflection_extension['caustic_shock_seed']
+  assert caustic_seed['status'] == 'converged_one_sided_caustic_seed'
+  assert caustic_seed['converged'] is True
+  assert caustic_seed['shock_state_solved'] is False
+  assert caustic_seed['physical_closure_verified'] is False
+  assert caustic_seed['chain_promotion_blocked'] is True
+  assert [edge['family'] for edge in caustic_seed['edge_states']] == ['C-', 'C-']
   assert centerline_reflection_extension['remesh']['chain_termination_available'] is True
   assert centerline_reflection_extension['remesh']['chain_termination_decision']['physical_termination'] is False
   assert centerline_reflection_extension['remesh']['chain_termination_decision']['reason'] == (

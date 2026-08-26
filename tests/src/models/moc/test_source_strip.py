@@ -4,10 +4,12 @@ from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput
 from exhaust_plume.models.moc import (
   MocChainTerminationReason,
   MocSourceStripCausticStatus,
+  MocSourceStripCausticSeedStatus,
   MocSourceStripFrontierStatus,
   MocSourceStripRemeshStatus,
   MocSourceStripContinuationStatus,
   extend_source_characteristic_strip_centerline_reflection,
+  build_caustic_shock_seed,
   solve_underexpanded_expansion_fan,
   solve_reflected_free_boundary,
 )
@@ -89,6 +91,18 @@ def test_centerline_reflection_extension_carries_a_physical_boundary_law() -> No
     assert len(result.remesh.caustic_event.crossing_edge_states) == 2
     assert all(len(edge) == 2 for edge in result.remesh.caustic_event.crossing_edge_states)
     assert result.remesh.caustic_event.crossing_edge_states[0][0].gamma == 1.4
+    seed = build_caustic_shock_seed(
+      result.remesh.caustic_event,
+      exit_state.total_pressure_Pa,
+    )
+    assert seed.status is MocSourceStripCausticSeedStatus.CONVERGED_ONE_SIDED_SEED
+    assert seed.converged is True
+    assert seed.shock_state_solved is False
+    assert seed.physical_closure_verified is False
+    assert seed.chain_promotion_blocked is True
+    assert len(seed.edge_states) == 2
+    assert all(edge.family.value == 'C-' for edge in seed.edge_states)
+    assert seed.flow_angle_jump_rad is not None and seed.flow_angle_jump_rad > 0.0
     assert result.remesh.chain_termination_available is True
     termination = result.remesh.as_chain_termination_decision()
     assert termination.physical_termination is False

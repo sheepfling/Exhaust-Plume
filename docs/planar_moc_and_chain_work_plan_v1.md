@@ -201,10 +201,16 @@ not wait on this research closure.
   frontier intervals, failed intervals, and retained local patch count. The
   decision is deliberately not ``physical_termination``; only a future
   new-family or shock solver can resume the chain from this seam.
-- The caustic handoff also retains the solved endpoint states on each crossing
-  characteristic edge. It does not interpolate a state at the crossing or
-  turn those one-sided samples into a shock; they are input evidence for the
-  future entropy/new-family solve.
+- The caustic event handoff also retains the solved endpoint states on each
+  crossing characteristic edge. The event itself does not interpolate a state
+  at the crossing or turn those one-sided samples into a shock; they are input
+  evidence for the future entropy/new-family solve.
+- Added a bounded caustic shock-formation seed. It reconstructs the two
+  one-sided crossing states only along their inferred characteristic family
+  (``C-`` in the canonical reflected case), records the flow/static-pressure
+  jump, and rejects a seed when the edge geometry or invariant evidence does
+  not pass. The seed explicitly has no downstream shock state, entropy jump,
+  physical closure, or chain-promotion path.
 - Added axial-boundary, cell-index, domain-limit, and callback termination
   checks.
 - Added a hard fidelity boundary: scaled reduced-order candidates are
@@ -428,6 +434,8 @@ Only after MOC-1 through MOC-5 pass:
   upstream field can feed a production shock fit. The chain layer now records
   this as a non-physical ``characteristic-caustic`` stop, so a numerical
   boundary cannot be mistaken for a physical plume termination.
+  The bounded seed now supplies two one-sided ``C-`` states at that crossing;
+  the remaining Rankine--Hugoniot/new-family solve is still required.
 - The trace-extension reference uses a constant terminal boundary trace; it is
   useful for deterministic plumbing and refinement, but it is not the physical
   upstream characteristic strip.

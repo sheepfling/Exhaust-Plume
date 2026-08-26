@@ -627,6 +627,156 @@
         "message": "local remesh retained valid candidate cells but the frontier still contains a caustic/new-family seam; no disconnected bridge was invented"
       },
       "message": "centerline C- reflection and ambient-pressure C+ boundary march converged as an open upstream source strip; shock fitting and downstream closure remain pending; extended strip failed: characteristic node (9, 3) failed: characteristic intersection is not forward: behind_first_ray",
+      "caustic_shock_seed": {
+        "status": "converged_one_sided_caustic_seed",
+        "converged": true,
+        "shock_state_solved": false,
+        "physical_closure_verified": false,
+        "chain_promotion_blocked": true,
+        "total_pressure_Pa": 2000000.0,
+        "flow_angle_jump_rad": 0.038652307596209426,
+        "static_pressure_jump_Pa": 6440.409798680703,
+        "event": {
+          "status": "caustic_detected",
+          "detected": true,
+          "requires_new_characteristic_family": true,
+          "source_index": 9,
+          "boundary_interval": 0,
+          "cell_kind": "source-interior-remesh",
+          "cell_vertices_m": [
+            [
+              0.4683482814625336,
+              0.07630592638927608
+            ],
+            [
+              0.49832052030771545,
+              0.08236594455174404
+            ],
+            [
+              0.9360187044349169,
+              0.012937496267543026
+            ],
+            [
+              0.9561643101842414,
+              0.02668231290616628
+            ]
+          ],
+          "crossing_edge_indices": [
+            [
+              1,
+              3
+            ]
+          ],
+          "crossing_segments_m": [
+            [
+              [
+                0.49832052030771545,
+                0.08236594455174404
+              ],
+              [
+                0.9360187044349169,
+                0.012937496267543026
+              ]
+            ],
+            [
+              [
+                0.9561643101842414,
+                0.02668231290616628
+              ],
+              [
+                0.4683482814625336,
+                0.07630592638927608
+              ]
+            ]
+          ],
+          "crossing_edge_states": [
+            [
+              {
+                "x_m": 0.49832052030771545,
+                "y_m": 0.08236594455174404,
+                "theta_rad": -0.032456471949407595,
+                "mach": 3.2454051290624193,
+                "gamma": 1.4
+              },
+              {
+                "x_m": 0.9360187044349169,
+                "y_m": 0.012937496267543026,
+                "theta_rad": 0.2271953036572404,
+                "mach": 2.5117452789745585,
+                "gamma": 1.4
+              }
+            ],
+            [
+              {
+                "x_m": 0.9561643101842414,
+                "y_m": 0.02668231290616628,
+                "theta_rad": 0.2596517756084945,
+                "mach": 2.59298300469527,
+                "gamma": 1.4
+              },
+              {
+                "x_m": 0.4683482814625336,
+                "y_m": 0.07630592638927608,
+                "theta_rad": 1.8465229345565604e-12,
+                "mach": 3.3536117745607044,
+                "gamma": 1.4
+              }
+            ]
+          ],
+          "caustic_point_m": [
+            0.6584201957653014,
+            0.056970655192732075
+          ],
+          "message": "local characteristic remesh edges cross at a caustic; the crossing is retained as a handoff point and no shock state is fabricated"
+        },
+        "edge_states": [
+          {
+            "status": "converged_one_sided_caustic_edge",
+            "converged": true,
+            "edge_index": 1,
+            "fraction": 0.36577642143257943,
+            "point_m": [
+              0.6584201957653014,
+              0.056970655192732075
+            ],
+            "state": {
+              "x_m": 0.6584201957653014,
+              "y_m": 0.056970655192732075,
+              "theta_rad": 0.06251802535060723,
+              "mach": 2.9524960898197605,
+              "gamma": 1.4
+            },
+            "static_pressure_Pa": 58477.95657993019,
+            "family": "C-",
+            "maximum_absolute_invariant_residual": 1.2176926134088717e-12,
+            "geometry_residual_m": 3.914348629300345e-18,
+            "message": "one-sided pre-shock state reconstructed along a bounded C- edge; Rankine-Hugoniot/shock fitting remains pending"
+          },
+          {
+            "status": "converged_one_sided_caustic_edge",
+            "converged": true,
+            "edge_index": 3,
+            "fraction": 0.6103614823792493,
+            "point_m": [
+              0.6584201957653014,
+              0.056970655192732075
+            ],
+            "state": {
+              "x_m": 0.6584201957653014,
+              "y_m": 0.056970655192732075,
+              "theta_rad": 0.10117033294681665,
+              "mach": 3.0302230997840525,
+              "gamma": 1.4
+            },
+            "static_pressure_Pa": 52037.54678124949,
+            "family": "C-",
+            "maximum_absolute_invariant_residual": 2.681632693679603e-12,
+            "geometry_residual_m": 3.5378437999061015e-18,
+            "message": "one-sided pre-shock state reconstructed along a bounded C- edge; Rankine-Hugoniot/shock fitting remains pending"
+          }
+        ],
+        "message": "bounded one-sided caustic seed converged; downstream shock state, entropy jump, and characteristic-family remesh remain pending"
+      },
       "claim_status": "centerline-C-minus-reflection-boundary-law; triangular-domain-remesh-or-shock-closure-pending"
     },
     "terminal_source_window_invariant_closure": {
