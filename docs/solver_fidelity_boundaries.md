@@ -57,9 +57,16 @@ continuation now records a valid local patch separately from a full-strip
 caustic, and a bracketed constant-invariant downstream shoot consumes that
 patch without extrapolation. The canonical shoot currently returns a
 no-bracket diagnostic, so the coupled upstream characteristic-strip/shock-path
-closure remains open. The existing basic and reduced-order visual lanes remain
-unchanged until a separate MOC assembler passes free-boundary/compression
-closure, refinement, and measurement-operator gates.
+closure remains open. The independent `op.moc.shock-cell-geometry` and
+`op.moc.shock-cell-chain` operators now measure explicit shock-cell geometry,
+perimeter topology, and supplied shock-loss lineage for the reference and
+planner fixtures, but remain `not_accepted` without external observations.
+The strict chain mode rejects a prescribed seed that lacks carried upstream
+shock states, and the marcher reports `subsonic_terminal_required` when a
+normal-shock endpoint leaves the supersonic MOC validity lane. The existing
+basic and reduced-order visual lanes remain unchanged until a separate MOC
+assembler passes free-boundary/compression closure, refinement, and external
+measurement gates.
 
 ## What is done for the basic solver
 
