@@ -344,6 +344,15 @@ class MocMixedRegimeBoundaryResult:
   maximum_terminal_total_pressure_residual_Pa: float | None
   maximum_total_pressure_gain_Pa: float | None
   message: str = ''
+  supersonic_patch: tuple[MocPostShockBoundaryState, ...] = ()
+
+  def __post_init__(self) -> None:
+    patch = tuple(self.supersonic_patch)
+    if any(not isinstance(sample, MocPostShockBoundaryState) for sample in patch):
+      raise TypeError(
+        'supersonic_patch must contain MocPostShockBoundaryState values'
+      )
+    object.__setattr__(self, 'supersonic_patch', patch)
 
   @property
   def converged(self) -> bool:
@@ -386,6 +395,9 @@ class MocMixedRegimeBoundaryResult:
       'maximum_terminal_static_pressure_residual_Pa': self.maximum_terminal_static_pressure_residual_Pa,
       'maximum_terminal_total_pressure_residual_Pa': self.maximum_terminal_total_pressure_residual_Pa,
       'maximum_total_pressure_gain_Pa': self.maximum_total_pressure_gain_Pa,
+      'supersonic_patch_points_m': [
+        list(sample.point_m) for sample in self.supersonic_patch
+      ],
       'terminal': terminal_report,
       'message': self.message,
     }
@@ -841,6 +853,16 @@ def run_mixed_regime_closure_solver(
         'sample count from the requested seam'
       ),
     )
+  if field.boundary.supersonic_patch != request.supersonic_patch:
+    return MocMixedRegimeClosureResult(
+      status=MocMixedRegimeClosureStatus.SEAM_FAILURE,
+      request=request,
+      field=field,
+      message=(
+        'mixed-regime field does not retain the exact supersonic patch '
+        'states and pressure-loss samples from the requested seam'
+      ),
+    )
   if not field.converged or not field.boundary.converged:
     return MocMixedRegimeClosureResult(
       status=MocMixedRegimeClosureStatus.FIELD_FAILURE,
@@ -875,6 +897,7 @@ def _failure(
   *,
   terminal: MocMixedRegimeTerminal | None = None,
   supersonic_patch_sample_count: int = 0,
+  supersonic_patch: Sequence[MocPostShockBoundaryState] = (),
   subsonic_samples: Sequence[MocMixedRegimeFieldSample] = (),
   perimeter_points_m: Sequence[tuple[float, float]] = (),
   supersonic_patch_verified: bool = False,
@@ -893,6 +916,7 @@ def _failure(
     status=status,
     terminal=terminal,
     supersonic_patch_sample_count=supersonic_patch_sample_count,
+    supersonic_patch=tuple(supersonic_patch),
     subsonic_samples=tuple(subsonic_samples),
     perimeter_points_m=tuple(perimeter_points_m),
     supersonic_patch_verified=supersonic_patch_verified,
@@ -1203,6 +1227,7 @@ def validate_mixed_regime_boundary(
     status=MocMixedRegimeBoundaryStatus.CONVERGED_BOUNDARY_HANDOFF,
     terminal=terminal,
     supersonic_patch_sample_count=len(patch),
+    supersonic_patch=patch,
     subsonic_samples=samples,
     perimeter_points_m=points,
     supersonic_patch_verified=patch_verified,

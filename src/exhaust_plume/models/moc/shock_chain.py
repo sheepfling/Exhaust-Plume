@@ -343,6 +343,14 @@ class MocTerminalShockCellFieldResult:
         'mixed-regime field does not retain the complete supersonic terminal '
         'patch sample count'
       )
+    if (
+      mixed_regime_field.boundary.supersonic_patch
+      != self.terminal_shock_supersonic_downstream_states
+    ):
+      raise ValueError(
+        'mixed-regime field does not retain the exact supersonic terminal '
+        'patch states and pressure-loss samples'
+      )
     return replace(self, mixed_regime_field=mixed_regime_field)
 
   def as_physical_termination_decision(self) -> MocChainTerminationDecision:

@@ -180,6 +180,56 @@ def test_mixed_regime_closure_callback_requires_the_exact_terminal_seam() -> Non
   assert not mismatch_result.converged
 
 
+def test_mixed_regime_closure_rejects_same_length_but_different_supersonic_patch() -> None:
+  terminal = _terminal()
+  patch = _supersonic_patch()
+  boundary = validate_mixed_regime_boundary(
+    terminal,
+    patch,
+    supersonic_patch_converged=True,
+    subsonic_samples=_samples(terminal),
+  )
+  field = solve_mixed_regime_subsonic_field(boundary)
+  altered_patch = (
+    patch[0],
+    MocPostShockBoundaryState(
+      point_m=patch[1].point_m,
+      state=CharacteristicState(
+        x_m=patch[1].state.x_m,
+        y_m=patch[1].state.y_m,
+        theta_rad=patch[1].state.theta_rad + 0.01,
+        mach=patch[1].state.mach,
+        gamma=patch[1].state.gamma,
+      ),
+      upstream_total_pressure_Pa=patch[1].upstream_total_pressure_Pa,
+      downstream_total_pressure_Pa=patch[1].downstream_total_pressure_Pa,
+    ),
+  )
+  altered_boundary = validate_mixed_regime_boundary(
+    terminal,
+    altered_patch,
+    supersonic_patch_converged=True,
+    subsonic_samples=_samples(terminal),
+  )
+  altered_field = replace(field, boundary=altered_boundary)
+  request = MocMixedRegimePerimeterRequest(
+    terminal=terminal,
+    terminal_point_m=terminal.shock_point_m,
+    terminal_downstream_mach=terminal.downstream_mach,
+    terminal_downstream_flow_angle_rad=terminal.downstream_flow_angle_rad,
+    terminal_downstream_pressure_Pa=terminal.downstream_pressure_Pa,
+    terminal_downstream_total_pressure_Pa=terminal.downstream_total_pressure_Pa,
+    terminal_total_pressure_ratio=terminal.total_pressure_ratio,
+    supersonic_patch=patch,
+  )
+
+  result = run_mixed_regime_closure_solver(request, lambda _request: altered_field)
+
+  assert result.status is MocMixedRegimeClosureStatus.SEAM_FAILURE
+  assert not result.converged
+  assert 'exact supersonic patch' in result.message
+
+
 def test_mixed_regime_perimeter_request_rejects_inconsistent_terminal_scalars() -> None:
   terminal = _terminal()
   assert terminal.shock_point_m is not None
