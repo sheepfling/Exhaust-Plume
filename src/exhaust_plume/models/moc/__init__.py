@@ -86,6 +86,8 @@ from exhaust_plume.models.moc.zone import (
 )
 from exhaust_plume.models.moc.source_strip import (
   MocSourceCharacteristicStripResult,
+  MocSourceStripCausticEventResult,
+  MocSourceStripCausticStatus,
   MocSourceStripFrontierResult,
   MocSourceStripFrontierStatus,
   MocSourceStripRemeshResult,
@@ -214,6 +216,8 @@ __all__ = (
   'MocReflectedCharacteristicZoneResult',
   'MocZoneAssemblyStatus',
   'MocSourceCharacteristicStripResult',
+  'MocSourceStripCausticEventResult',
+  'MocSourceStripCausticStatus',
   'MocSourceStripFrontierResult',
   'MocSourceStripFrontierStatus',
   'MocSourceStripRemeshResult',

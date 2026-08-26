@@ -189,8 +189,10 @@ not wait on this research closure.
   caustic when the old triangular mesh is reassembled. The continuation now
   reports the disjoint forward frontier intervals and first invalid ray
   explicitly and attempts only the valid local remesh cells; the canonical
-  candidate rejects its first self-intersecting patch cell and leaves the
-  bounded frontier as a remesh/shock-closure seam, not a promotion.
+  candidate rejects its first self-intersecting patch cell and records the
+  bounded crossing point and crossing characteristic edges as a typed
+  caustic handoff. It leaves the bounded frontier as a remesh/shock-closure
+  seam, not a promotion, and does not fabricate a shock state at the event.
 - Added axial-boundary, cell-index, domain-limit, and callback termination
   checks.
 - Added a hard fidelity boundary: scaled reduced-order candidates are
@@ -406,7 +408,10 @@ Only after MOC-1 through MOC-5 pass:
   and the physical upstream extension/continuation solve is still required.
 - The canonical reflected continuation now identifies that caustic as two
   disjoint forward intervals (`0..2` and `8..9`) for the new axis row. Those
-  intervals cannot be stitched into one triangular strip; a physical remesher
+  intervals cannot be stitched into one triangular strip. The first local
+  polygon crossing is now measured at approximately
+  ``(0.6584202, 0.0569707)`` in the canonical case, but that geometric event
+  carries no downstream state; a physical remesher/new-family shock solver
   must bridge or terminate the characteristic family before the upstream
   field can feed a production shock fit.
 - The trace-extension reference uses a constant terminal boundary trace; it is

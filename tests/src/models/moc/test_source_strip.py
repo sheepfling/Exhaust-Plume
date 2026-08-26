@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput
 from exhaust_plume.models.moc import (
+  MocSourceStripCausticStatus,
   MocSourceStripFrontierStatus,
   MocSourceStripRemeshStatus,
   MocSourceStripContinuationStatus,
@@ -77,3 +78,9 @@ def test_centerline_reflection_extension_carries_a_physical_boundary_law() -> No
     assert result.remesh.status is MocSourceStripRemeshStatus.CAUSTIC_REQUIRES_NEW_FAMILY
     assert result.remesh.failed_boundary_index == 0
     assert result.remesh.patch_cell_count == 1
+    assert result.remesh.caustic_event is not None
+    assert result.remesh.caustic_event.status is MocSourceStripCausticStatus.DETECTED
+    assert result.remesh.caustic_event.boundary_interval == 0
+    assert result.remesh.caustic_event.caustic_point_m is not None
+    assert result.remesh.caustic_event.requires_new_characteristic_family
+    assert result.remesh.caustic_event.crossing_edge_indices == ((1, 3),)

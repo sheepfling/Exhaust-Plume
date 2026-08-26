@@ -34,6 +34,8 @@ __all__ = (
   'MocSourceStripStatus',
   'MocSourceStripFrontierStatus',
   'MocSourceStripFrontierResult',
+  'MocSourceStripCausticStatus',
+  'MocSourceStripCausticEventResult',
   'MocSourceStripRemeshStatus',
   'MocSourceStripRemeshResult',
   'MocSourceStripContinuationStatus',
@@ -111,6 +113,67 @@ class MocSourceStripFrontierResult:
 ####
 
 
+class MocSourceStripCausticStatus(str, Enum):
+  """Outcome for a local source-row caustic-event extraction."""
+
+  DETECTED = 'caustic_detected'
+  NOT_DETECTED = 'no_local_caustic_detected'
+  INVALID_INPUT = 'invalid_input'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocSourceStripCausticEventResult:
+  """A geometric caustic event that must hand off to a new family or shock.
+
+  The event intentionally carries no fabricated post-shock state.  It records
+  the first local remesh polygon whose characteristic edges cross and the
+  crossing point that a future shock/new-family solver must consume.
+  """
+
+  status: MocSourceStripCausticStatus
+  source_index: int
+  boundary_interval: int | None = None
+  cell_kind: str | None = None
+  cell_vertices_m: tuple[tuple[float, float], ...] = ()
+  crossing_edge_indices: tuple[tuple[int, int], ...] = ()
+  crossing_segments_m: tuple[
+    tuple[tuple[float, float], tuple[float, float]],
+    ...
+  ] = ()
+  caustic_point_m: tuple[float, float] | None = None
+  message: str = ''
+
+  @property
+  def detected(self) -> bool:
+    return self.status is MocSourceStripCausticStatus.DETECTED
+  ####
+
+  @property
+  def requires_new_characteristic_family(self) -> bool:
+    return self.detected
+  ####
+
+  def as_report(self) -> dict[str, object]:
+    return {
+      'status': self.status.value,
+      'detected': self.detected,
+      'requires_new_characteristic_family': self.requires_new_characteristic_family,
+      'source_index': self.source_index,
+      'boundary_interval': self.boundary_interval,
+      'cell_kind': self.cell_kind,
+      'cell_vertices_m': [list(point) for point in self.cell_vertices_m],
+      'crossing_edge_indices': [list(pair) for pair in self.crossing_edge_indices],
+      'crossing_segments_m': [
+        [list(segment[0]), list(segment[1])]
+        for segment in self.crossing_segments_m
+      ],
+      'caustic_point_m': self.caustic_point_m,
+      'message': self.message,
+    }
+####
+
+
 class MocSourceStripRemeshStatus(str, Enum):
   """Outcome of a local source-row remesh attempt."""
 
@@ -133,6 +196,7 @@ class MocSourceStripRemeshResult:
   frontier: MocSourceStripFrontierResult | None
   failed_boundary_index: int | None
   message: str = ''
+  caustic_event: MocSourceStripCausticEventResult | None = None
 
   @property
   def converged(self) -> bool:
@@ -167,6 +231,9 @@ class MocSourceStripRemeshResult:
       },
       'frontier': None if self.frontier is None else self.frontier.as_report(),
       'failed_boundary_index': self.failed_boundary_index,
+      'caustic_event': (
+        None if self.caustic_event is None else self.caustic_event.as_report()
+      ),
       'message': self.message,
     }
 ####
@@ -512,6 +579,124 @@ def _distance(first: tuple[float, float], second: tuple[float, float]) -> float:
   return ((first[0] - second[0]) ** 2 + (first[1] - second[1]) ** 2) ** 0.5
 
 
+def _cross_2d(
+  first: tuple[float, float],
+  second: tuple[float, float],
+) -> float:
+  return first[0] * second[1] - first[1] * second[0]
+
+
+def _segment_intersection_point(
+  first_start: tuple[float, float],
+  first_end: tuple[float, float],
+  second_start: tuple[float, float],
+  second_end: tuple[float, float],
+  *,
+  tolerance_m: float,
+) -> tuple[float, float] | None:
+  """Return a bounded segment intersection without extrapolating a bridge."""
+
+  first_direction = (
+    first_end[0] - first_start[0],
+    first_end[1] - first_start[1],
+  )
+  second_direction = (
+    second_end[0] - second_start[0],
+    second_end[1] - second_start[1],
+  )
+  denominator = _cross_2d(first_direction, second_direction)
+  scale = max(
+    1.0,
+    abs(first_direction[0]),
+    abs(first_direction[1]),
+    abs(second_direction[0]),
+    abs(second_direction[1]),
+  )
+  if abs(denominator) <= tolerance_m * scale:
+    return None
+  offset = (
+    second_start[0] - first_start[0],
+    second_start[1] - first_start[1],
+  )
+  first_parameter = _cross_2d(offset, second_direction) / denominator
+  second_parameter = _cross_2d(offset, first_direction) / denominator
+  parameter_tolerance = tolerance_m / scale
+  if not (
+    -parameter_tolerance <= first_parameter <= 1.0 + parameter_tolerance
+    and -parameter_tolerance <= second_parameter <= 1.0 + parameter_tolerance
+  ):
+    return None
+  bounded_parameter = max(0.0, min(1.0, first_parameter))
+  return (
+    first_start[0] + bounded_parameter * first_direction[0],
+    first_start[1] + bounded_parameter * first_direction[1],
+  )
+
+
+def _caustic_event_for_cell(
+  vertices: Sequence[tuple[float, float]],
+  *,
+  source_index: int,
+  boundary_interval: int | None,
+  cell_kind: str,
+  tolerance_m: float,
+) -> MocSourceStripCausticEventResult:
+  """Extract the crossing that makes a local remesh polygon non-simple."""
+
+  cell_vertices = tuple(
+    (float(point[0]), float(point[1]))
+    for point in vertices
+  )
+  if len(cell_vertices) != 4:
+    return MocSourceStripCausticEventResult(
+      status=MocSourceStripCausticStatus.NOT_DETECTED,
+      source_index=source_index,
+      boundary_interval=boundary_interval,
+      cell_kind=cell_kind,
+      cell_vertices_m=cell_vertices,
+      message='local remesh failure was not a four-sided characteristic crossing',
+    )
+  edges = tuple(
+    (
+      cell_vertices[index],
+      cell_vertices[(index + 1) % len(cell_vertices)],
+    )
+    for index in range(len(cell_vertices))
+  )
+  for first_edge, second_edge in ((0, 2), (1, 3)):
+    crossing = _segment_intersection_point(
+      *edges[first_edge],
+      *edges[second_edge],
+      tolerance_m=tolerance_m,
+    )
+    if crossing is not None:
+      return MocSourceStripCausticEventResult(
+        status=MocSourceStripCausticStatus.DETECTED,
+        source_index=source_index,
+        boundary_interval=boundary_interval,
+        cell_kind=cell_kind,
+        cell_vertices_m=cell_vertices,
+        crossing_edge_indices=((first_edge, second_edge),),
+        crossing_segments_m=(edges[first_edge], edges[second_edge]),
+        caustic_point_m=crossing,
+        message=(
+          'local characteristic remesh edges cross at a caustic; the crossing '
+          'is retained as a handoff point and no shock state is fabricated'
+        ),
+      )
+  return MocSourceStripCausticEventResult(
+    status=MocSourceStripCausticStatus.NOT_DETECTED,
+    source_index=source_index,
+    boundary_interval=boundary_interval,
+    cell_kind=cell_kind,
+    cell_vertices_m=cell_vertices,
+    message=(
+      'local remesh cell was rejected, but no bounded four-edge crossing '
+      'could be isolated'
+    ),
+  )
+
+
 def probe_source_strip_frontier(
   plus_source: CharacteristicState,
   minus_source_states: Sequence[CharacteristicState],
@@ -780,6 +965,7 @@ def remesh_source_strip_frontier(
     status: MocSourceStripRemeshStatus,
     message: str,
     failed_boundary_index: int | None = None,
+    caustic_event: MocSourceStripCausticEventResult | None = None,
   ) -> MocSourceStripRemeshResult:
     combined = (*base_strip.cells, *patch_cells)
     topology = validate_moc_mesh(combined) if combined else None
@@ -792,67 +978,97 @@ def remesh_source_strip_frontier(
       frontier=frontier,
       failed_boundary_index=failed_boundary_index,
       message=message,
+      caustic_event=caustic_event,
     )
 
+  axis_vertices = (
+    (base_strip.plus_source_states[-1].x_m, base_strip.plus_source_states[-1].y_m),
+    (plus_source.x_m, plus_source.y_m),
+    new_nodes[0].point_m,
+    base_nodes[(old_index, 0)].point_m,
+  ) if 0 in new_nodes and (old_index, 0) in base_nodes else ()
   try:
-    old_axis_node = base_nodes[(old_index, 0)]
-    new_axis_node = new_nodes[0]
+    if not axis_vertices:
+      raise KeyError('axis remesh vertices are not available')
     patch_cells.append(
       MocCharacteristicCell(
         cell_index=len(patch_cells),
         cell_kind='source-axis-remesh',
-        vertices_xr_m=(
-          (base_strip.plus_source_states[-1].x_m, base_strip.plus_source_states[-1].y_m),
-          (plus_source.x_m, plus_source.y_m),
-          new_axis_node.point_m,
-          old_axis_node.point_m,
-        ),
+        vertices_xr_m=axis_vertices,
         centerline_indices=(old_index, source_index),
         boundary_indices=(0,),
       )
     )
   except (KeyError, ValueError) as error:
+    caustic_event = (
+      _caustic_event_for_cell(
+        axis_vertices,
+        source_index=source_index,
+        boundary_interval=0,
+        cell_kind='source-axis-remesh',
+        tolerance_m=position_tolerance_m,
+      )
+      if axis_vertices
+      else None
+    )
     return _failure(
       MocSourceStripRemeshStatus.CAUSTIC_REQUIRES_NEW_FAMILY,
       f'axis remesh cell could not be assembled: {error}',
       0,
+      caustic_event,
     )
 
   for start, end in frontier.valid_index_ranges:
     for boundary_index in range(start, end):
+      cell_kind = 'source-remesh-unknown'
+      cell_vertices: tuple[tuple[float, float], ...] = ()
       try:
         if boundary_index == old_index:
           if boundary_index not in new_nodes or source_index not in new_nodes:
             raise KeyError('outer remesh diagonal is not available')
-          patch_cells.append(
-            MocCharacteristicCell(
-              cell_index=len(patch_cells),
-              cell_kind='source-boundary-remesh',
-              vertices_xr_m=(
-                base_nodes[(old_index, old_index)].point_m,
-                new_nodes[boundary_index].point_m,
-                new_nodes[source_index].point_m,
-              ),
-              centerline_indices=(source_index,),
-              boundary_indices=(boundary_index, source_index),
-            )
+          cell_kind = 'source-boundary-remesh'
+          cell_vertices = (
+            base_nodes[(old_index, old_index)].point_m,
+            new_nodes[boundary_index].point_m,
+            new_nodes[source_index].point_m,
           )
         elif boundary_index < old_index:
-          patch_cells.append(
-            MocCharacteristicCell(
-              cell_index=len(patch_cells),
-              cell_kind='source-interior-remesh',
-              vertices_xr_m=(
-                base_nodes[(old_index, boundary_index)].point_m,
-                base_nodes[(old_index, boundary_index + 1)].point_m,
-                new_nodes[boundary_index + 1].point_m,
-                new_nodes[boundary_index].point_m,
-              ),
-              centerline_indices=(old_index, source_index),
-              boundary_indices=(boundary_index, boundary_index + 1),
-            )
+          cell_kind = 'source-interior-remesh'
+          cell_vertices = (
+            base_nodes[(old_index, boundary_index)].point_m,
+            base_nodes[(old_index, boundary_index + 1)].point_m,
+            new_nodes[boundary_index + 1].point_m,
+            new_nodes[boundary_index].point_m,
           )
+        else:
+          continue
+        patch_cells.append(
+          MocCharacteristicCell(
+            cell_index=len(patch_cells),
+            cell_kind=cell_kind,
+            vertices_xr_m=cell_vertices,
+            centerline_indices=(
+              (source_index,)
+              if boundary_index == old_index
+              else (old_index, source_index)
+            ),
+            boundary_indices=(
+              (boundary_index, source_index)
+              if boundary_index == old_index
+              else (boundary_index, boundary_index + 1)
+            ),
+          )
+        )
       except (KeyError, ValueError) as error:
+        caustic_event = _caustic_event_for_cell(
+          cell_vertices,
+          source_index=source_index,
+          boundary_interval=boundary_index,
+          cell_kind=(
+            cell_kind
+          ),
+          tolerance_m=position_tolerance_m,
+        )
         return _failure(
           MocSourceStripRemeshStatus.CAUSTIC_REQUIRES_NEW_FAMILY,
           (
@@ -860,6 +1076,7 @@ def remesh_source_strip_frontier(
             f'assembled without crossing a caustic: {error}'
           ),
           boundary_index,
+          caustic_event,
         )
   combined_topology = validate_moc_mesh((*base_strip.cells, *patch_cells))
   if not combined_topology.connected or combined_topology.nonmanifold_edge_count:
@@ -871,6 +1088,7 @@ def remesh_source_strip_frontier(
       topology=combined_topology,
       frontier=frontier,
       failed_boundary_index=None,
+      caustic_event=None,
       message=f'remeshed source patch topology failed: {combined_topology.message}',
     )
   if frontier.has_disjoint_ranges:
@@ -882,6 +1100,7 @@ def remesh_source_strip_frontier(
       topology=combined_topology,
       frontier=frontier,
       failed_boundary_index=frontier.first_invalid_index,
+      caustic_event=None,
       message=(
         'disjoint forward intervals remain after local remesh; a new '
         'characteristic family or a physical termination law is required'
@@ -895,6 +1114,7 @@ def remesh_source_strip_frontier(
     topology=combined_topology,
     frontier=frontier,
     failed_boundary_index=None,
+    caustic_event=None,
     message=(
       'local source-row remesh produced a connected open patch; full '
       'upstream and physical-boundary closure remain separate gates'

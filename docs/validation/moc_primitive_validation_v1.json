@@ -496,6 +496,65 @@
           "message": "candidate source row has disjoint forward intervals; a connected triangular strip requires an explicit remesh across the caustic"
         },
         "failed_boundary_index": 0,
+        "caustic_event": {
+          "status": "caustic_detected",
+          "detected": true,
+          "requires_new_characteristic_family": true,
+          "source_index": 9,
+          "boundary_interval": 0,
+          "cell_kind": "source-interior-remesh",
+          "cell_vertices_m": [
+            [
+              0.4683482814625336,
+              0.07630592638927608
+            ],
+            [
+              0.49832052030771545,
+              0.08236594455174404
+            ],
+            [
+              0.9360187044349169,
+              0.012937496267543026
+            ],
+            [
+              0.9561643101842414,
+              0.02668231290616628
+            ]
+          ],
+          "crossing_edge_indices": [
+            [
+              1,
+              3
+            ]
+          ],
+          "crossing_segments_m": [
+            [
+              [
+                0.49832052030771545,
+                0.08236594455174404
+              ],
+              [
+                0.9360187044349169,
+                0.012937496267543026
+              ]
+            ],
+            [
+              [
+                0.9561643101842414,
+                0.02668231290616628
+              ],
+              [
+                0.4683482814625336,
+                0.07630592638927608
+              ]
+            ]
+          ],
+          "caustic_point_m": [
+            0.6584201957653014,
+            0.056970655192732075
+          ],
+          "message": "local characteristic remesh edges cross at a caustic; the crossing is retained as a handoff point and no shock state is fabricated"
+        },
         "message": "remesh cell at boundary interval 0 could not be assembled without crossing a caustic: characteristic cell polygon is invalid: self_intersection"
       },
       "message": "centerline C- reflection and ambient-pressure C+ boundary march converged as an open upstream source strip; shock fitting and downstream closure remain pending; extended strip failed: characteristic node (9, 3) failed: characteristic intersection is not forward: behind_first_ray",
