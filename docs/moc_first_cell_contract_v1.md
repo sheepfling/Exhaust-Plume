@@ -38,6 +38,11 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   downstream `C-` characteristics from sampled shock states to the symmetry
   line while checking forward geometry, invariant residuals, and total-
   pressure loss;
+- a first downstream post-shock cross-characteristic layer from the continued
+  centerline states and sampled shock states, with forward-margin and
+  compatibility diagnostics while physical closure remains pending;
+- a separate MOC cell-chain continuation contract that rejects open cells,
+  non-bounded meshes, axial gaps, and scaled reduced-order fidelity;
 - mesh connectivity diagnostics that distinguish a topologically bounded
   polygon from an unresolved physical boundary;
 - a shared averaged-characteristic fan/reflected interface whose combined
@@ -60,7 +65,11 @@ across the full plume cell. The prescribed-boundary continuation primitive now
 proves individual downstream `C-` traces when a sampled post-shock boundary is
 supplied. It deliberately does not fit the shock or synthesize the missing
 downstream `C+` interior field from the two-point candidate, so canonical
-first-cell closure remains open.
+first-cell closure remains open. The first downstream cross-characteristic
+layer is an explicit partial sub-gate, not a physical closure claim. The
+separate chain contract is an acceptance boundary for a future re-solved
+continuation callback; it is not a solver implementation and does not promote
+the reduced-order shock train.
 No public provider is wired to these primitives yet. The module does not claim
 axisymmetric, reacting, viscous, or experimentally validated plume physics.
 
@@ -128,11 +137,13 @@ do not authorize replacing the basic provider or accepting a product claim.
 ## Next gates before provider integration
 
 1. Supply a sampled, shock-fitted downstream boundary and assemble/validate
-   the characteristic zones adjacent to the shock-to-centerline candidate,
-   including explicit post-shock total-pressure bookkeeping and shock-endpoint
-   topology.
-2. Demonstrate grid/refinement convergence for the assembled reflected zone,
-   underexpanded, and mild attached overexpanded reference cases.
+   the complete characteristic zones adjacent to the shock-to-centerline
+   candidate, including explicit post-shock total-pressure bookkeeping and
+   shock-endpoint topology. The current first cross-characteristic layer is
+   only the first numerical sub-gate.
+2. Demonstrate grid/refinement convergence for the assembled reflected and
+   post-shock zones, underexpanded, and mild attached overexpanded reference
+   cases.
 3. Compare an independent cold-jet case through an explicit measurement
    operator and uncertainty model.
 4. Only then route an explicitly versioned MOC provider through the visual

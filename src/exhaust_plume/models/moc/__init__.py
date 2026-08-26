@@ -63,7 +63,21 @@ from exhaust_plume.models.moc.post_shock import (
   MocPostShockCharacteristicSegment,
   MocPostShockContinuationResult,
   MocPostShockContinuationStatus,
+  MocPostShockCrossCharacteristic,
+  MocPostShockFirstLayerResult,
+  MocPostShockFirstLayerStatus,
+  assemble_post_shock_first_layer,
   continue_post_shock_characteristics_to_centerline,
+)
+from exhaust_plume.models.moc.chain import (
+  MocCellClosureStatus,
+  MocChainCell,
+  MocChainContinuationPolicy,
+  MocChainGeometryFidelity,
+  MocChainResult,
+  MocChainStatus,
+  MocChainTerminationReason,
+  continue_moc_cell_chain,
 )
 
 __all__ = (
@@ -92,6 +106,16 @@ __all__ = (
   'MocPostShockCharacteristicSegment',
   'MocPostShockContinuationResult',
   'MocPostShockContinuationStatus',
+  'MocPostShockCrossCharacteristic',
+  'MocPostShockFirstLayerResult',
+  'MocPostShockFirstLayerStatus',
+  'MocCellClosureStatus',
+  'MocChainCell',
+  'MocChainContinuationPolicy',
+  'MocChainGeometryFidelity',
+  'MocChainResult',
+  'MocChainStatus',
+  'MocChainTerminationReason',
   'ScalarRootResult',
   'centerline_characteristic_point',
   'characteristic_invariants',
@@ -112,5 +136,7 @@ __all__ = (
   'assemble_reflected_characteristic_zone',
   'validate_fan_reflected_interface',
   'continue_post_shock_characteristics_to_centerline',
+  'assemble_post_shock_first_layer',
+  'continue_moc_cell_chain',
   'validate_moc_mesh',
 )

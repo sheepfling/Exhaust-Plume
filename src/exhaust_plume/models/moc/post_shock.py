@@ -21,6 +21,7 @@ from exhaust_plume.models.moc.primitives import (
   CharacteristicState,
   MocPrimitiveStatus,
   centerline_characteristic_point,
+  interior_characteristic_point,
 )
 
 __all__ = (
@@ -28,6 +29,10 @@ __all__ = (
   'MocPostShockCharacteristicSegment',
   'MocPostShockContinuationResult',
   'MocPostShockContinuationStatus',
+  'MocPostShockCrossCharacteristic',
+  'MocPostShockFirstLayerResult',
+  'MocPostShockFirstLayerStatus',
+  'assemble_post_shock_first_layer',
   'continue_post_shock_characteristics_to_centerline',
 )
 
@@ -36,6 +41,16 @@ class MocPostShockContinuationStatus(str, Enum):
   """Structured outcome for prescribed post-shock continuation."""
 
   CONVERGED_PRESCRIBED_BOUNDARY = 'converged_prescribed_boundary'
+  INVALID_INPUT = 'invalid_input'
+  GEOMETRY_FAILURE = 'geometry_failure'
+  INVARIANT_FAILURE = 'invariant_failure'
+####
+
+
+class MocPostShockFirstLayerStatus(str, Enum):
+  """Outcome for the first downstream cross-characteristic layer."""
+
+  CONVERGED_FIRST_LAYER = 'converged_first_downstream_layer'
   INVALID_INPUT = 'invalid_input'
   GEOMETRY_FAILURE = 'geometry_failure'
   INVARIANT_FAILURE = 'invariant_failure'
@@ -112,6 +127,188 @@ class MocPostShockContinuationResult:
   @property
   def converged(self) -> bool:
     return self.status is MocPostShockContinuationStatus.CONVERGED_PRESCRIBED_BOUNDARY
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocPostShockCrossCharacteristic:
+  """One first-layer intersection of an axis ``C+`` and shock ``C-``."""
+
+  index: int
+  axis_source_state: CharacteristicState
+  shock_source_state: CharacteristicState
+  point_result: CharacteristicPointResult
+
+  @property
+  def point_m(self) -> tuple[float, float] | None:
+    return self.point_result.point_m
+  ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocPostShockFirstLayerResult:
+  """First post-shock cross-characteristic layer, without closure promotion.
+
+  This is the next numerical layer after the prescribed ``C-`` traces.  It
+  supplies the geometry needed to begin a downstream characteristic field,
+  but it intentionally does not claim a complete shock-adjacent cell mesh or
+  a physical first-cell closure.
+  """
+
+  status: MocPostShockFirstLayerStatus
+  crossings: tuple[MocPostShockCrossCharacteristic, ...]
+  maximum_geometry_residual_m: float | None
+  maximum_absolute_invariant_residual: float | None
+  minimum_forward_margin_m: float | None
+  message: str = ''
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocPostShockFirstLayerStatus.CONVERGED_FIRST_LAYER
+  ####
+
+
+def _first_layer_failure(
+    status: MocPostShockFirstLayerStatus,
+    *,
+    crossings: tuple[MocPostShockCrossCharacteristic, ...] = (),
+    message: str,
+) -> MocPostShockFirstLayerResult:
+  return MocPostShockFirstLayerResult(
+    status=status,
+    crossings=crossings,
+    maximum_geometry_residual_m=max(
+      (
+        abs(crossing.point_result.geometry_residual)
+        for crossing in crossings
+        if crossing.point_result.geometry_residual is not None
+      ),
+      default=None,
+    ),
+    maximum_absolute_invariant_residual=max(
+      (
+        max(
+          abs(value)
+          for value in (
+            crossing.point_result.invariant_residual_plus,
+            crossing.point_result.invariant_residual_minus,
+          )
+          if value is not None
+        )
+        for crossing in crossings
+        if crossing.point_result.invariant_residual_plus is not None
+        or crossing.point_result.invariant_residual_minus is not None
+      ),
+      default=None,
+    ),
+    minimum_forward_margin_m=min(
+      (
+        crossing.point_result.point_m[0] - max(
+          crossing.axis_source_state.x_m,
+          crossing.shock_source_state.x_m,
+        )
+        for crossing in crossings
+        if crossing.point_result.point_m is not None
+      ),
+      default=None,
+    ),
+    message=message,
+  )
+
+
+def assemble_post_shock_first_layer(
+    continuation: MocPostShockContinuationResult,
+    *,
+    position_tolerance_m: float = 1.0e-10,
+    invariant_tolerance: float = 1.0e-10,
+) -> MocPostShockFirstLayerResult:
+  """Build the first downstream cross-characteristic layer.
+
+  For adjacent prescribed shock samples ``S_i`` and centerline endpoints
+  ``A_i``, the next forward layer uses the compatible intersection of ``C+``
+  from ``A_{i+1}`` and ``C-`` from ``S_i``.  All points must be forward and
+  invariant-compatible.  The resulting layer is a diagnostic building block;
+  shock fitting, finite-cell topology, and total-pressure assignment remain
+  explicit subsequent gates.
+  """
+
+  if not isinstance(continuation, MocPostShockContinuationResult):
+    return _first_layer_failure(
+      MocPostShockFirstLayerStatus.INVALID_INPUT,
+      message='continuation must be a MocPostShockContinuationResult',
+    )
+  if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
+    raise ValueError('position_tolerance_m must be finite and positive')
+  if not isfinite(float(invariant_tolerance)) or invariant_tolerance <= 0.0:
+    raise ValueError('invariant_tolerance must be finite and positive')
+  if not continuation.converged:
+    return _first_layer_failure(
+      MocPostShockFirstLayerStatus.INVALID_INPUT,
+      message=(
+        'post-shock first layer requires converged prescribed-boundary '
+        f'traces: {continuation.message}'
+      ),
+    )
+  if len(continuation.segments) < 2:
+    return _first_layer_failure(
+      MocPostShockFirstLayerStatus.INVALID_INPUT,
+      message='post-shock first layer requires at least two continuation segments',
+    )
+  ####
+
+  crossings: list[MocPostShockCrossCharacteristic] = []
+  for index in range(len(continuation.segments) - 1):
+    current = continuation.segments[index]
+    next_segment = continuation.segments[index + 1]
+    point_result = interior_characteristic_point(
+      next_segment.centerline_state,
+      current.shock_state,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+    )
+    crossing = MocPostShockCrossCharacteristic(
+      index=index,
+      axis_source_state=next_segment.centerline_state,
+      shock_source_state=current.shock_state,
+      point_result=point_result,
+    )
+    crossings.append(crossing)
+    if not point_result.converged or point_result.point_m is None or point_result.state is None:
+      status = (
+        MocPostShockFirstLayerStatus.INVARIANT_FAILURE
+        if point_result.status is MocPrimitiveStatus.INVARIANT_FAILURE
+        else MocPostShockFirstLayerStatus.GEOMETRY_FAILURE
+      )
+      return _first_layer_failure(
+        status,
+        crossings=tuple(crossings),
+        message=f'post-shock cross-characteristic {index} failed: {point_result.message}',
+      )
+    if point_result.point_m[1] < -position_tolerance_m:
+      return _first_layer_failure(
+        MocPostShockFirstLayerStatus.GEOMETRY_FAILURE,
+        crossings=tuple(crossings),
+        message=f'post-shock cross-characteristic {index} crossed below the symmetry line',
+      )
+    if point_result.point_m[0] <= max(
+        next_segment.centerline_state.x_m,
+        current.shock_state.x_m,
+    ) + position_tolerance_m:
+      return _first_layer_failure(
+        MocPostShockFirstLayerStatus.GEOMETRY_FAILURE,
+        crossings=tuple(crossings),
+        message=f'post-shock cross-characteristic {index} has no forward margin',
+      )
+  ####
+
+  return _first_layer_failure(
+    MocPostShockFirstLayerStatus.CONVERGED_FIRST_LAYER,
+    crossings=tuple(crossings),
+    message=(
+      'first downstream post-shock cross-characteristic layer converged; '
+      'shock fitting, finite-cell topology, and physical closure remain pending'
+    ),
+  )
 ####
 
 

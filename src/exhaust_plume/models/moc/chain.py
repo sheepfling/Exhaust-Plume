@@ -1,0 +1,438 @@
+"""Fidelity-isolated continuation contracts for a planar MOC cell chain.
+
+The existing shock-train module is deliberately reduced-order.  This module
+provides the separate continuation boundary for a future re-solved planar
+MOC chain.  It accepts only explicitly closed, resolved MOC cells and never
+converts a scaled template or a prescribed-boundary diagnostic into a MOC
+cell.
+
+The continuation callback is intentionally small.  A later solver can use it
+to re-solve the next local characteristic problem, while this module owns the
+common axial ordering, topology, fidelity, and safety-limit checks.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from enum import Enum
+from math import isfinite
+from types import MappingProxyType
+from typing import Any
+
+from exhaust_plume.models.moc.topology import MocTopologyResult, validate_moc_mesh
+
+__all__ = (
+  'MocCellClosureStatus',
+  'MocChainCell',
+  'MocChainContinuationPolicy',
+  'MocChainGeometryFidelity',
+  'MocChainResult',
+  'MocChainStatus',
+  'MocChainTerminationReason',
+  'continue_moc_cell_chain',
+)
+
+
+class MocCellClosureStatus(str, Enum):
+  """Physical closure state of one planar-MOC cell."""
+
+  CLOSED = 'closed'
+  OPEN = 'open'
+  PENDING = 'pending'
+####
+
+
+class MocChainGeometryFidelity(str, Enum):
+  """Geometry provenance allowed at the MOC-chain boundary."""
+
+  RESOLVED_PLANAR_MOC = 'resolved-planar-moc'
+  PRESCRIBED_BOUNDARY_DIAGNOSTIC = 'prescribed-boundary-diagnostic'
+  SCALED_REDUCED_ORDER = 'scaled-reduced-order'
+####
+
+
+class MocChainStatus(str, Enum):
+  """Structured outcome for continuation and its safety boundaries."""
+
+  SOLVER_TERMINATED = 'solver-terminated'
+  TRUNCATED = 'truncated'
+  OPEN_CELL = 'open-cell'
+  TOPOLOGY_FAILURE = 'topology-failure'
+  FIDELITY_BOUNDARY = 'fidelity-boundary'
+  INVALID_INPUT = 'invalid-input'
+  SOLVER_FAILURE = 'solver-failure'
+####
+
+
+class MocChainTerminationReason(str, Enum):
+  """Why a chain continuation stopped."""
+
+  SOLVER_RETURNED_NO_NEXT_CELL = 'solver-returned-no-next-cell'
+  MAX_CELL_LIMIT = 'max-cell-limit'
+  AXIAL_DOMAIN_LIMIT = 'axial-domain-limit'
+  OPEN_PHYSICAL_CLOSURE = 'open-physical-closure'
+  TOPOLOGY_INVALID = 'topology-invalid'
+  FIDELITY_NOT_ALLOWED = 'fidelity-not-allowed'
+  INVALID_INPUT = 'invalid-input'
+  SOLVER_ERROR = 'solver-error'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocChainCell:
+  """One explicitly bounded cell supplied to the MOC continuation lane.
+
+  ``mesh`` contains polygon-like objects exposing ``vertices_xr_m``.  The
+  cell's physical closure is separate from the mesh topology: a topologically
+  bounded polygon is not promoted to a physical shock closure unless the
+  producing solver explicitly marks ``physical_closure=CLOSED``.
+  """
+
+  cell_index: int
+  start_x_m: float
+  end_x_m: float
+  mesh: tuple[object, ...]
+  geometry_fidelity: MocChainGeometryFidelity
+  physical_closure: MocCellClosureStatus
+  diagnostics: dict[str, Any] | MappingProxyType = field(default_factory=dict)
+
+  def __post_init__(self) -> None:
+    if isinstance(self.cell_index, bool) or self.cell_index < 1:
+      raise ValueError('cell_index must be a positive integer')
+    for name in ('start_x_m', 'end_x_m'):
+      value = float(getattr(self, name))
+      if not isfinite(value) or value < 0.0:
+        raise ValueError(f'{name} must be finite and nonnegative')
+    if self.end_x_m <= self.start_x_m:
+      raise ValueError('cell end_x_m must be strictly downstream of start_x_m')
+    if not isinstance(self.geometry_fidelity, MocChainGeometryFidelity):
+      raise TypeError('geometry_fidelity must be a MocChainGeometryFidelity')
+    if not isinstance(self.physical_closure, MocCellClosureStatus):
+      raise TypeError('physical_closure must be a MocCellClosureStatus')
+    mesh = tuple(self.mesh)
+    if not mesh:
+      raise ValueError('mesh must contain at least one polygon-like cell')
+    object.__setattr__(self, 'mesh', mesh)
+    object.__setattr__(self, 'diagnostics', MappingProxyType(dict(self.diagnostics)))
+  ####
+
+  @property
+  def topology(self) -> MocTopologyResult:
+    """Return topology diagnostics for this cell's supplied mesh."""
+
+    return validate_moc_mesh(self.mesh)
+  ####
+
+  @property
+  def mesh_is_well_formed(self) -> bool:
+    """Whether the supplied polygons form one connected bounded patch."""
+
+    topology = self.topology
+    return topology.connected and topology.forms_closed_zone and not topology.nonmanifold_edge_count
+  ####
+
+  @property
+  def resolved(self) -> bool:
+    """Whether the cell is eligible for a resolved-MOC chain."""
+
+    return (
+      self.geometry_fidelity is MocChainGeometryFidelity.RESOLVED_PLANAR_MOC
+      and self.physical_closure is MocCellClosureStatus.CLOSED
+      and self.mesh_is_well_formed
+    )
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocChainContinuationPolicy:
+  """Safety and fidelity policy for a re-solved planar-MOC chain."""
+
+  max_cells: int = 16
+  max_axial_distance_m: float | None = None
+  position_tolerance_m: float = 1.0e-10
+  allowed_fidelities: tuple[MocChainGeometryFidelity, ...] = (
+    MocChainGeometryFidelity.RESOLVED_PLANAR_MOC,
+  )
+
+  def __post_init__(self) -> None:
+    if isinstance(self.max_cells, bool) or self.max_cells < 1:
+      raise ValueError('max_cells must be a positive integer')
+    if self.max_axial_distance_m is not None and (
+        not isfinite(float(self.max_axial_distance_m))
+        or self.max_axial_distance_m <= 0.0
+    ):
+      raise ValueError('max_axial_distance_m must be finite and positive when supplied')
+    if not isfinite(float(self.position_tolerance_m)) or self.position_tolerance_m <= 0.0:
+      raise ValueError('position_tolerance_m must be finite and positive')
+    fidelities = tuple(self.allowed_fidelities)
+    if not fidelities or any(
+        not isinstance(fidelity, MocChainGeometryFidelity)
+        for fidelity in fidelities
+    ):
+      raise ValueError('allowed_fidelities must contain at least one valid fidelity')
+    if len(set(fidelities)) != len(fidelities):
+      raise ValueError('allowed_fidelities must not contain duplicates')
+    if any(
+        fidelity is not MocChainGeometryFidelity.RESOLVED_PLANAR_MOC
+        for fidelity in fidelities
+    ):
+      raise ValueError(
+        'a resolved planar-MOC chain may allow only '
+        'RESOLVED_PLANAR_MOC fidelity'
+      )
+    object.__setattr__(self, 'allowed_fidelities', fidelities)
+  ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocChainResult:
+  """Continuation output with explicit termination and fidelity metadata."""
+
+  cells: tuple[MocChainCell, ...]
+  status: MocChainStatus
+  termination_reason: MocChainTerminationReason
+  physical_termination: bool
+  message: str = ''
+  diagnostics: dict[str, Any] | MappingProxyType = field(default_factory=dict)
+
+  def __post_init__(self) -> None:
+    object.__setattr__(self, 'cells', tuple(self.cells))
+    object.__setattr__(self, 'diagnostics', MappingProxyType(dict(self.diagnostics)))
+  ####
+
+  @property
+  def cell_count(self) -> int:
+    return len(self.cells)
+  ####
+
+  @property
+  def end_x_m(self) -> float | None:
+    return None if not self.cells else self.cells[-1].end_x_m
+  ####
+
+  @property
+  def resolved(self) -> bool:
+    return bool(self.cells) and all(cell.resolved for cell in self.cells)
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    fidelity_counts: dict[str, int] = {}
+    for cell in self.cells:
+      key = cell.geometry_fidelity.value
+      fidelity_counts[key] = fidelity_counts.get(key, 0) + 1
+    return {
+      'status': self.status.value,
+      'termination_reason': self.termination_reason.value,
+      'physical_termination': self.physical_termination,
+      'cell_count': self.cell_count,
+      'end_x_m': self.end_x_m,
+      'resolved': self.resolved,
+      'geometry_fidelity_counts': fidelity_counts,
+      'diagnostics': dict(self.diagnostics),
+      'message': self.message,
+    }
+####
+
+
+MocCellContinuationSolver = Callable[[MocChainCell, int], MocChainCell | None]
+
+
+def _result(
+    cells: tuple[MocChainCell, ...],
+    *,
+    status: MocChainStatus,
+    reason: MocChainTerminationReason,
+    physical_termination: bool = False,
+    message: str,
+    diagnostics: dict[str, Any] | None = None,
+) -> MocChainResult:
+  return MocChainResult(
+    cells=cells,
+    status=status,
+    termination_reason=reason,
+    physical_termination=physical_termination,
+    message=message,
+    diagnostics={} if diagnostics is None else diagnostics,
+  )
+####
+
+
+def _validate_cell_mesh(cell: MocChainCell) -> str | None:
+  topology = cell.topology
+  if topology.status.value == 'invalid_input':
+    return topology.message
+  if not topology.connected:
+    return topology.message
+  if topology.nonmanifold_edge_count:
+    return topology.message
+  if not topology.forms_closed_zone:
+    return topology.message
+  return None
+####
+
+
+def continue_moc_cell_chain(
+    seed: MocChainCell,
+    solve_next: MocCellContinuationSolver,
+    policy: MocChainContinuationPolicy | None = None,
+) -> MocChainResult:
+  """Continue a chain using a caller-supplied re-solved MOC cell callback.
+
+  The callback is never called for an open or diagnostically prescribed seed.
+  A reduced-order candidate is rejected at the fidelity boundary rather than
+  appended and relabeled.  Returning ``None`` is an explicit solver-side
+  termination and is not treated as physical equilibration by this contract.
+  """
+
+  if not isinstance(seed, MocChainCell):
+    return _result(
+      (),
+      status=MocChainStatus.INVALID_INPUT,
+      reason=MocChainTerminationReason.INVALID_INPUT,
+      message='seed must be a MocChainCell',
+    )
+  if not callable(solve_next):
+    return _result(
+      (),
+      status=MocChainStatus.INVALID_INPUT,
+      reason=MocChainTerminationReason.INVALID_INPUT,
+      message='solve_next must be callable',
+    )
+  if policy is None:
+    policy = MocChainContinuationPolicy()
+  if seed.cell_index != 1:
+    return _result(
+      (seed,),
+      status=MocChainStatus.INVALID_INPUT,
+      reason=MocChainTerminationReason.INVALID_INPUT,
+      message='MOC chain seed must have cell_index=1',
+    )
+  if seed.geometry_fidelity not in policy.allowed_fidelities:
+    return _result(
+      (seed,),
+      status=MocChainStatus.FIDELITY_BOUNDARY,
+      reason=MocChainTerminationReason.FIDELITY_NOT_ALLOWED,
+      message=(
+        f'seed fidelity {seed.geometry_fidelity.value!r} is not allowed in '
+        'the resolved planar-MOC chain'
+      ),
+    )
+  mesh_error = _validate_cell_mesh(seed)
+  if mesh_error is not None:
+    return _result(
+      (seed,),
+      status=MocChainStatus.TOPOLOGY_FAILURE,
+      reason=MocChainTerminationReason.TOPOLOGY_INVALID,
+      message=f'MOC chain seed mesh is not a connected bounded patch: {mesh_error}',
+    )
+  if seed.physical_closure is not MocCellClosureStatus.CLOSED:
+    return _result(
+      (seed,),
+      status=MocChainStatus.OPEN_CELL,
+      reason=MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
+      message=(
+        'MOC chain continuation is held until the seed has an explicit '
+        f'physical closure; received {seed.physical_closure.value!r}'
+      ),
+    )
+  ####
+
+  cells = [seed]
+  while True:
+    current = cells[-1]
+    if len(cells) >= policy.max_cells:
+      return _result(
+        tuple(cells),
+        status=MocChainStatus.TRUNCATED,
+        reason=MocChainTerminationReason.MAX_CELL_LIMIT,
+        message='MOC chain reached the configured maximum cell count',
+      )
+    if policy.max_axial_distance_m is not None and current.end_x_m >= policy.max_axial_distance_m:
+      return _result(
+        tuple(cells),
+        status=MocChainStatus.TRUNCATED,
+        reason=MocChainTerminationReason.AXIAL_DOMAIN_LIMIT,
+        message='MOC chain reached the configured axial domain limit',
+      )
+    try:
+      candidate = solve_next(current, current.cell_index + 1)
+    except (ArithmeticError, FloatingPointError, ValueError) as error:
+      return _result(
+        tuple(cells),
+        status=MocChainStatus.SOLVER_FAILURE,
+        reason=MocChainTerminationReason.SOLVER_ERROR,
+        message=f'next MOC cell solver failed: {error}',
+      )
+    if candidate is None:
+      return _result(
+        tuple(cells),
+        status=MocChainStatus.SOLVER_TERMINATED,
+        reason=MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
+        message=(
+          'MOC continuation callback returned no next cell; physical '
+          'termination was not inferred'
+        ),
+      )
+    if not isinstance(candidate, MocChainCell):
+      return _result(
+        tuple(cells),
+        status=MocChainStatus.INVALID_INPUT,
+        reason=MocChainTerminationReason.INVALID_INPUT,
+        message='MOC continuation callback must return MocChainCell or None',
+      )
+    if candidate.cell_index != current.cell_index + 1:
+      return _result(
+        tuple(cells),
+        status=MocChainStatus.INVALID_INPUT,
+        reason=MocChainTerminationReason.INVALID_INPUT,
+        message='continued MOC cell indices must increase by one',
+      )
+    if abs(candidate.start_x_m - current.end_x_m) > policy.position_tolerance_m:
+      return _result(
+        tuple(cells),
+        status=MocChainStatus.INVALID_INPUT,
+        reason=MocChainTerminationReason.INVALID_INPUT,
+        message='continued MOC cells must share an axial boundary',
+      )
+    if policy.max_axial_distance_m is not None and candidate.end_x_m > policy.max_axial_distance_m + policy.position_tolerance_m:
+      return _result(
+        tuple(cells),
+        status=MocChainStatus.TRUNCATED,
+        reason=MocChainTerminationReason.AXIAL_DOMAIN_LIMIT,
+        message='next MOC cell exceeds the configured axial domain limit',
+      )
+    if candidate.geometry_fidelity not in policy.allowed_fidelities:
+      return _result(
+        tuple(cells),
+        status=MocChainStatus.FIDELITY_BOUNDARY,
+        reason=MocChainTerminationReason.FIDELITY_NOT_ALLOWED,
+        message=(
+          f'continued cell {candidate.cell_index} has fidelity '
+          f'{candidate.geometry_fidelity.value!r}; reduced-order continuation '
+          'belongs to the shock-train lane'
+        ),
+      )
+    mesh_error = _validate_cell_mesh(candidate)
+    cells.append(candidate)
+    if mesh_error is not None:
+      return _result(
+        tuple(cells),
+        status=MocChainStatus.TOPOLOGY_FAILURE,
+        reason=MocChainTerminationReason.TOPOLOGY_INVALID,
+        message=(
+          f'MOC cell {candidate.cell_index} mesh is not a connected bounded '
+          f'patch: {mesh_error}'
+        ),
+      )
+    if candidate.physical_closure is not MocCellClosureStatus.CLOSED:
+      return _result(
+        tuple(cells),
+        status=MocChainStatus.OPEN_CELL,
+        reason=MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
+        message=(
+          f'MOC cell {candidate.cell_index} continuation returned '
+          f'{candidate.physical_closure.value!r} physical closure'
+        ),
+      )
+  ####

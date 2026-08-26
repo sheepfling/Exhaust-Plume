@@ -5,7 +5,9 @@ import pytest
 from exhaust_plume.models.moc import (
   CharacteristicState,
   MocPostShockBoundaryState,
+  MocPostShockFirstLayerStatus,
   MocPostShockContinuationStatus,
+  assemble_post_shock_first_layer,
   continue_post_shock_characteristics_to_centerline,
 )
 
@@ -47,6 +49,21 @@ def test_prescribed_post_shock_c_minus_traces_reach_centerline() -> None:
   assert result.segments[-1].centerline_point_m == pytest.approx((0.82, 0.0))
   assert all(segment.centerline_state.theta_rad == pytest.approx(0.0) for segment in result.segments)
   assert 'shock fitting' in result.message
+
+
+def test_post_shock_first_downstream_cross_layer_is_explicitly_partial() -> None:
+  continuation = continue_post_shock_characteristics_to_centerline(_prescribed_boundary())
+
+  result = assemble_post_shock_first_layer(continuation)
+
+  assert result.status is MocPostShockFirstLayerStatus.CONVERGED_FIRST_LAYER
+  assert result.converged
+  assert len(result.crossings) == 3
+  assert result.minimum_forward_margin_m is not None
+  assert result.minimum_forward_margin_m > 0.0
+  assert result.maximum_absolute_invariant_residual is not None
+  assert result.maximum_absolute_invariant_residual < 1.0e-10
+  assert 'physical closure remain pending' in result.message
 
 
 def test_post_shock_continuation_requires_total_pressure_loss() -> None:
