@@ -7,6 +7,7 @@ from exhaust_plume.models.moc import (
   CharacteristicState,
   MocAmbientAttachmentStatus,
   MocAmbientClosureStatus,
+  MocChainTerminationReason,
   MocFreeBoundaryShockStatus,
   MocInvariantClosureFamily,
   MocInvariantClosureStatus,
@@ -15,6 +16,7 @@ from exhaust_plume.models.moc import (
   assemble_reflected_characteristic_zone,
   solve_reflected_boundary_trace_extension,
   solve_marched_attached_shock_chain_cell_from_reflected_zone,
+  solve_marched_attached_shock_chain_cell_from_reflected_zone_or_termination,
   solve_marched_attached_shock_chain_cell,
   solve_marched_attached_shock_chain_cell_or_termination,
   solve_marched_attached_shock_field,
@@ -435,6 +437,25 @@ def test_reflected_zone_chain_adapter_rejects_a_shock_outside_the_solved_zone() 
       downstream_flow_angle_rad=0.05,
       sample_count=9,
     )
+
+  decision = solve_marched_attached_shock_chain_cell_from_reflected_zone_or_termination(
+    current,
+    2,
+    current.continuation_boundary,
+    zone,
+    start_point_m=(1.1, 0.1),
+    end_x_m=1.5,
+    downstream_flow_angle_rad=0.05,
+    sample_count=9,
+  )
+
+  assert decision.physical_termination is False
+  assert decision.reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+  assert decision.diagnostics['termination_model'] == (
+    'reflected-zone-upstream-field-boundary'
+  )
+  assert decision.diagnostics['coupling_status'] == 'outside_reflected_zone_domain'
+  assert decision.diagnostics['first_missing_sample_index'] == 0
 
 
 def test_source_strip_march_stops_at_the_first_missing_upstream_sample() -> None:

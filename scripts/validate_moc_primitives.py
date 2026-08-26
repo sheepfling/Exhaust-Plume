@@ -26,6 +26,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocPostShockBoundaryState,
   MocPostShockChainCellSolve,
   MocPostShockCharacteristicFieldResult,
+  MocReflectedCharacteristicZoneResult,
   MocChainBoundaryKind,
   MocChainTerminationDecision,
   MocChainTerminationReason,
@@ -48,6 +49,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_normal_shock_terminal,
   solve_marched_attached_shock_chain_cell,
   solve_marched_attached_shock_chain_cell_or_termination,
+  solve_marched_attached_shock_chain_cell_from_reflected_zone_or_termination,
   solve_marched_attached_shock_field,
   solve_marched_attached_shock_from_reflected_zone,
   solve_marched_attached_shock_from_source_strip,
@@ -1355,6 +1357,71 @@ def _solver_generated_chain_terminal_probe(
   }
 
 
+def _reflected_zone_chain_boundary_probe(
+  reflected_zone: MocReflectedCharacteristicZoneResult,
+  seed_field: MocPostShockCharacteristicFieldResult | None,
+) -> dict[str, Any]:
+  """Expose a bounded reflected-zone chain stop without raising or extrapolating."""
+
+  if not reflected_zone.converged or seed_field is None or not seed_field.converged:
+    return {
+      'status': 'invalid_input',
+      'accepted': False,
+      'physical_termination': False,
+      'message': 'reflected-zone chain-boundary probe requires converged inputs',
+      'claim_status': 'typed-upstream-field-boundary-stop-pending',
+    }
+  if not reflected_zone.boundary_states:
+    return {
+      'status': 'invalid_input',
+      'accepted': False,
+      'physical_termination': False,
+      'message': 'reflected-zone chain-boundary probe requires a boundary anchor',
+      'claim_status': 'typed-upstream-field-boundary-stop-pending',
+    }
+  start_point = reflected_zone.boundary_states[-1]
+  try:
+    current = seed_field.as_coupled_chain_cell(start_x_m=0.0, end_x_m=0.5)
+  except (TypeError, ValueError) as error:
+    return {
+      'status': 'invalid_seed',
+      'accepted': False,
+      'physical_termination': False,
+      'message': f'reflected-zone chain-boundary seed rejected: {error}',
+      'claim_status': 'typed-upstream-field-boundary-stop-pending',
+    }
+  result = solve_marched_attached_shock_chain_cell_from_reflected_zone_or_termination(
+    current,
+    2,
+    current.continuation_boundary,
+    reflected_zone,
+    start_point_m=(start_point.x_m, start_point.y_m),
+    end_x_m=1.5,
+    downstream_flow_angle_rad=0.05,
+    sample_count=9,
+  )
+  if isinstance(result, MocChainTerminationDecision):
+    decision = result.as_report()
+    return {
+      'status': decision['reason'],
+      'accepted': (
+        decision['physical_termination'] is False
+        and decision['reason'] == 'upstream-field-boundary'
+        and decision['diagnostics']['coupling_status'] == 'outside_reflected_zone_domain'
+      ),
+      **decision,
+      'claim_status': 'typed-nonphysical-upstream-field-boundary-stop',
+    }
+  return {
+    'status': 'unexpected_converged_cell',
+    'accepted': False,
+    'physical_termination': False,
+    'cell_index': result.field.cell_count,
+    'message': 'reflected-zone chain-boundary probe unexpectedly produced a cell',
+    'claim_status': 'typed-upstream-field-boundary-stop-pending',
+  }
+
+
 def _reflected_zone_shock_coupling_probe(
   reflected_zone: Any,
   reflected_boundary: Any,
@@ -1747,6 +1814,10 @@ def build_moc_primitive_report() -> dict[str, Any]:
   )
   shock_seeded_refinement_probe = _shock_seeded_field_refinement_probe()
   solver_generated_shock = _solver_generated_shock_fixture()
+  reflected_zone_chain_boundary_probe = _reflected_zone_chain_boundary_probe(
+    reflected_zone,
+    solver_generated_shock.field,
+  )
   ambient_shock_strip_probe = _ambient_shock_strip_probe(solver_generated_shock)
   ambient_attachment_closure_probe = _ambient_attachment_closure_probe(
     solver_generated_shock,
@@ -1913,6 +1984,11 @@ def build_moc_primitive_report() -> dict[str, Any]:
     mixed_regime_boundary_probe.get('accepted') is not True
     or mixed_regime_boundary_probe.get('physical_closure_verified') is not False
     or mixed_regime_boundary_probe.get('chain_promotion_blocked') is not True
+  )
+  reflected_zone_chain_boundary_failure = (
+    reflected_zone_chain_boundary_probe.get('accepted') is not True
+    or reflected_zone_chain_boundary_probe.get('physical_termination') is not False
+    or reflected_zone_chain_boundary_probe.get('reason') != 'upstream-field-boundary'
   )
   overexpanded_exit = derive_uniform_nozzle_exit(
     NozzleExitInput(
@@ -2296,6 +2372,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
     'terminal_source_window_invariant_closure': terminal_source_window_invariant_closure,
     'ambient_pressure_closure_probe': ambient_pressure_closure_probe,
     'reflected_zone_shock_coupling': reflected_zone_shock_coupling,
+    'reflected_zone_chain_boundary_probe': reflected_zone_chain_boundary_probe,
     'reflected_boundary_trace_extension': {
       'status': reflected_trace_extension.status.value,
       'accepted': reflected_trace_extension.converged,
@@ -2841,6 +2918,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'message': str(mixed_regime_boundary_probe.get('message', '')),
       }
     ] if mixed_regime_boundary_failure else []),
+    *([
+      {
+        'case': 'reflected_zone_chain_boundary_probe',
+        'status': str(reflected_zone_chain_boundary_probe.get('status', 'missing')),
+        'message': str(reflected_zone_chain_boundary_probe.get('message', '')),
+      }
+    ] if reflected_zone_chain_boundary_failure else []),
     *([
       {
         'case': 'solver_generated_chain_reference',

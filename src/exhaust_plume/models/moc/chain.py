@@ -104,6 +104,7 @@ class MocChainTerminationReason(str, Enum):
   SOLVER_RETURNED_NO_NEXT_CELL = 'solver-returned-no-next-cell'
   MAX_CELL_LIMIT = 'max-cell-limit'
   AXIAL_DOMAIN_LIMIT = 'axial-domain-limit'
+  UPSTREAM_FIELD_BOUNDARY = 'upstream-field-boundary'
   OPEN_PHYSICAL_CLOSURE = 'open-physical-closure'
   TOPOLOGY_INVALID = 'topology-invalid'
   FIDELITY_NOT_ALLOWED = 'fidelity-not-allowed'

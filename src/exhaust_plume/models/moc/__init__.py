@@ -76,6 +76,7 @@ from exhaust_plume.models.moc.free_boundary import (
   solve_marched_attached_shock_chain_cell,
   solve_marched_attached_shock_chain_cell_or_termination,
   solve_marched_attached_shock_chain_cell_from_reflected_zone,
+  solve_marched_attached_shock_chain_cell_from_reflected_zone_or_termination,
   solve_uniform_attached_shock_field,
 )
 from exhaust_plume.models.moc.topology import (
@@ -360,6 +361,7 @@ __all__ = (
   'solve_marched_attached_shock_chain_cell',
   'solve_marched_attached_shock_chain_cell_or_termination',
   'solve_marched_attached_shock_chain_cell_from_reflected_zone',
+  'solve_marched_attached_shock_chain_cell_from_reflected_zone_or_termination',
   'solve_uniform_attached_shock_field',
   'assemble_reflected_characteristic_zone',
   'assemble_source_characteristic_strip',

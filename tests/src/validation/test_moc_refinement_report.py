@@ -65,6 +65,7 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
     'reflected_source_strip_centerline_reflection_extension'
   ]
   reflected_probe = report['geometry_cases']['reflected_zone_shock_coupling']
+  reflected_chain_boundary = report['geometry_cases']['reflected_zone_chain_boundary_probe']
   trace_extension = report['geometry_cases']['reflected_boundary_trace_extension']
   planner = report['geometry_cases']['shock_cell_chain_planner_mock']
   invariant_closure = report['geometry_cases']['terminal_source_window_invariant_closure']
@@ -94,6 +95,14 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert generated_chain_terminal['termination_reason'] == 'physical-termination'
   assert generated_chain_terminal['expected_physical_termination'] is True
   assert generated_chain_terminal['diagnostics']['termination_model'] == 'normal-shock-terminal'
+  assert reflected_chain_boundary['accepted'] is True
+  assert reflected_chain_boundary['physical_termination'] is False
+  assert reflected_chain_boundary['reason'] == 'upstream-field-boundary'
+  assert reflected_chain_boundary['diagnostics']['coupling_status'] == (
+    'outside_reflected_zone_domain'
+  )
+  assert reflected_chain_boundary['diagnostics']['coupling_sampled_count'] == 1
+  assert reflected_chain_boundary['diagnostics']['first_missing_sample_index'] == 1
   assert strong_subsonic_boundary['status'] == 'subsonic_terminal_required'
   assert strong_subsonic_boundary['subsonic_boundary_verified'] is True
   assert strong_subsonic_boundary['terminal_model_verified'] is False

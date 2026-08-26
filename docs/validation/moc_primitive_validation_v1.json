@@ -1262,6 +1262,27 @@
       "reflected_zone_ambient_solver_expected_bounded_failure": true,
       "claim_status": "reflected-field-domain-bounded-shock-solver; downstream-boundary-and-shock-path-extension-pending"
     },
+    "reflected_zone_chain_boundary_probe": {
+      "status": "upstream-field-boundary",
+      "accepted": true,
+      "physical_termination": false,
+      "reason": "upstream-field-boundary",
+      "message": "continued reflected-zone shock path stopped before a complete upstream-coupled cell was solved; no physical endpoint was inferred",
+      "diagnostics": {
+        "termination_model": "reflected-zone-upstream-field-boundary",
+        "coupling_status": "outside_reflected_zone_domain",
+        "coupling_sampled_count": 1,
+        "first_missing_sample_index": 1,
+        "last_valid_point_m": [
+          0.7431488332818272,
+          0.1158153281924007
+        ],
+        "next_cell_index": 2,
+        "shock_status": "upstream_field_failure",
+        "message": "reflected upstream coupling did not cover the shock path: shock march stopped before it produced a complete path for the reflected-zone coupling probe: upstream field callback returned no CharacteristicState at sample 1"
+      },
+      "claim_status": "typed-nonphysical-upstream-field-boundary-stop"
+    },
     "reflected_boundary_trace_extension": {
       "status": "converged_free_boundary_field",
       "accepted": true,

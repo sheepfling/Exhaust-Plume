@@ -45,6 +45,11 @@ not wait on this research closure.
   the attached-shock march, independently resample the generated path, and
   reject a next cell when the shock leaves the solved upstream lattice. The
   downstream turn condition remains explicitly caller-supplied.
+- Added a reflected-zone continued-cell ``or_termination`` adapter. It turns
+  an incomplete upstream coupling into a typed non-physical
+  ``upstream-field-boundary`` chain stop with the sampled count, first missing
+  index, and last valid point, so the chain can report the finite-domain seam
+  without raising, extrapolating, or inferring plume termination.
 - Added a reusable triangular source-boundary characteristic-strip solver. It
   reconstructs the axis/free-boundary C+/C- lattice with explicit diagonal
   seam checks and exposes a domain-bounded pressure-aware field for later

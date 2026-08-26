@@ -69,6 +69,7 @@ __all__ = (
   'solve_marched_attached_shock_chain_cell',
   'solve_marched_attached_shock_chain_cell_or_termination',
   'solve_marched_attached_shock_chain_cell_from_reflected_zone',
+  'solve_marched_attached_shock_chain_cell_from_reflected_zone_or_termination',
   'solve_uniform_attached_shock_field',
 )
 
@@ -1386,6 +1387,113 @@ def solve_marched_attached_shock_chain_cell_from_reflected_zone(
   ):
     raise ValueError(
       'continued reflected-zone field did not retain the exact incoming handoff'
+    )
+  return MocPostShockChainCellSolve(field=field, end_x_m=float(end_x_m))
+####
+
+
+def solve_marched_attached_shock_chain_cell_from_reflected_zone_or_termination(
+  current_cell: MocChainCell,
+  next_cell_index: int,
+  incoming_handoff: Sequence[MocChainBoundarySample],
+  reflected_zone: MocReflectedCharacteristicZoneResult,
+  *,
+  start_point_m: tuple[float, float],
+  end_x_m: float,
+  target_centerline_y_m: float = 0.0,
+  downstream_flow_angle_at: Callable[[int, tuple[float, float]], float] | None = None,
+  downstream_flow_angle_rad: float | None = None,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+) -> MocPostShockChainCellSolve | MocChainTerminationDecision:
+  """Solve a reflected-zone cell or return its typed upstream-boundary stop.
+
+  A reflected characteristic zone is a finite solved domain.  When the next
+  shock leaves that domain, the result is a non-physical solver termination
+  with the first missing sample retained in diagnostics.  This lets a chain
+  report a bounded upstream-field seam without converting it into a physical
+  plume endpoint or silently retrying with extrapolated state.
+  """
+
+  if not isinstance(current_cell, MocChainCell):
+    raise TypeError('current_cell must be a MocChainCell')
+  if (
+    isinstance(next_cell_index, bool)
+    or not isinstance(next_cell_index, int)
+    or next_cell_index != current_cell.cell_index + 1
+  ):
+    raise ValueError('next_cell_index must immediately follow current_cell.cell_index')
+  handoff = tuple(incoming_handoff)
+  if handoff != current_cell.continuation_boundary:
+    raise ValueError('incoming_handoff must exactly match the current cell boundary')
+  if len(handoff) < 3:
+    raise ValueError('continued reflected-zone shock cells require at least three handoff samples')
+  if not isfinite(float(end_x_m)) or end_x_m <= current_cell.end_x_m:
+    raise ValueError('continued cell end_x_m must be strictly downstream of the current cell')
+  if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
+    raise ValueError('position_tolerance_m must be finite and positive')
+  start = _finite_point(start_point_m, 'start_point_m')
+  if start[0] <= current_cell.end_x_m + position_tolerance_m:
+    raise ValueError('continued shock start point must be downstream of the current cell')
+
+  solved = solve_marched_attached_shock_from_reflected_zone(
+    reflected_zone,
+    start,
+    target_centerline_y_m=target_centerline_y_m,
+    downstream_flow_angle_at=downstream_flow_angle_at,
+    downstream_flow_angle_rad=downstream_flow_angle_rad,
+    incoming_handoff=handoff,
+    sample_count=sample_count,
+    branch=branch,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+    shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+    maximum_segment_iterations=maximum_segment_iterations,
+  )
+  if not solved.converged or solved.shock.field is None:
+    reason = (
+      MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+      if solved.coupling.status is MocReflectedZoneShockCouplingStatus.OUTSIDE_DOMAIN
+      else MocChainTerminationReason.SOLVER_ERROR
+    )
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=reason,
+      message=(
+        'continued reflected-zone shock path stopped before a complete '
+        'upstream-coupled cell was solved; no physical endpoint was inferred'
+      ),
+      diagnostics={
+        'termination_model': 'reflected-zone-upstream-field-boundary',
+        'coupling_status': solved.coupling.status.value,
+        'coupling_sampled_count': solved.coupling.sampled_count,
+        'first_missing_sample_index': solved.coupling.first_missing_sample_index,
+        'last_valid_point_m': solved.coupling.last_valid_point_m,
+        'next_cell_index': next_cell_index,
+        'shock_status': solved.shock.status.value,
+        'message': solved.message,
+      },
+    )
+  field = solved.shock.field
+  expected_states = tuple(sample.state for sample in handoff)
+  expected_pressures = tuple(sample.total_pressure_Pa for sample in handoff)
+  if (
+    field.incoming_handoff_states != expected_states
+    or field.incoming_handoff_total_pressure_Pa != expected_pressures
+  ):
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=MocChainTerminationReason.STATE_NOT_CARRIED,
+      message='continued reflected-zone field did not retain the exact incoming handoff',
+      diagnostics={
+        'termination_model': 'reflected-zone-state-handoff',
+        'next_cell_index': next_cell_index,
+        'message': 'incoming state or total-pressure samples changed during the solve',
+      },
     )
   return MocPostShockChainCellSolve(field=field, end_x_m=float(end_x_m))
 ####

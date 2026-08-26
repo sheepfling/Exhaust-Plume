@@ -52,6 +52,10 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   extrapolate once a candidate shock leaves the solved upstream lattice;
 - a typed reflected-zone shock-path coupling probe that records partial
   upstream samples and the first missing characteristic-strip point;
+- a reflected-zone continued-cell ``or_termination`` adapter that returns a
+  typed non-physical ``upstream-field-boundary`` stop with those coupling
+  diagnostics instead of extrapolating or turning a finite-domain miss into a
+  physical endpoint;
 - a reusable triangular source-boundary characteristic-strip assembler and
   domain-bounded state/pressure sampler that reproduces the reflected-zone
   compatibility grid;
