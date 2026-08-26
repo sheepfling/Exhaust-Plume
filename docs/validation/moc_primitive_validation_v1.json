@@ -1263,11 +1263,27 @@
       "claim_status": "reflected-field-domain-bounded-shock-solver; downstream-boundary-and-shock-path-extension-pending"
     },
     "reflected_zone_chain_boundary_probe": {
-      "status": "upstream-field-boundary",
-      "accepted": true,
+      "status": "solver-terminated",
+      "termination_reason": "upstream-field-boundary",
       "physical_termination": false,
-      "reason": "upstream-field-boundary",
-      "message": "continued reflected-zone shock path stopped before a complete upstream-coupled cell was solved; no physical endpoint was inferred",
+      "cell_count": 1,
+      "end_x_m": 0.5,
+      "resolved": true,
+      "state_carry_count": 1,
+      "continuation_boundary_kinds": [
+        "post-shock-field-perimeter"
+      ],
+      "continuation_total_pressure_ranges_Pa": [
+        {
+          "cell_index": 1,
+          "minimum_Pa": 749635.1347251647,
+          "maximum_Pa": 764819.179280032
+        }
+      ],
+      "continuation_boundary_maxima_nonincreasing": null,
+      "geometry_fidelity_counts": {
+        "resolved-planar-moc": 1
+      },
       "diagnostics": {
         "termination_model": "reflected-zone-upstream-field-boundary",
         "coupling_status": "outside_reflected_zone_domain",
@@ -1281,6 +1297,8 @@
         "shock_status": "upstream_field_failure",
         "message": "reflected upstream coupling did not cover the shock path: shock march stopped before it produced a complete path for the reflected-zone coupling probe: upstream field callback returned no CharacteristicState at sample 1"
       },
+      "message": "continued reflected-zone shock path stopped before a complete upstream-coupled cell was solved; no physical endpoint was inferred",
+      "accepted": true,
       "claim_status": "typed-nonphysical-upstream-field-boundary-stop"
     },
     "reflected_boundary_trace_extension": {

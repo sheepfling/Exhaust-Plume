@@ -97,7 +97,11 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert generated_chain_terminal['diagnostics']['termination_model'] == 'normal-shock-terminal'
   assert reflected_chain_boundary['accepted'] is True
   assert reflected_chain_boundary['physical_termination'] is False
-  assert reflected_chain_boundary['reason'] == 'upstream-field-boundary'
+  assert reflected_chain_boundary['status'] == 'solver-terminated'
+  assert reflected_chain_boundary['termination_reason'] == 'upstream-field-boundary'
+  assert reflected_chain_boundary['cell_count'] == 1
+  assert reflected_chain_boundary['state_carry_count'] == 1
+  assert reflected_chain_boundary['resolved'] is True
   assert reflected_chain_boundary['diagnostics']['coupling_status'] == (
     'outside_reflected_zone_domain'
   )
