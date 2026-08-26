@@ -189,6 +189,10 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   every carried state and total-pressure sample. Its prescribed-boundary
   planner mode is an executable mock with a hard
   ``production_claim_allowed=false`` ceiling;
+- a terminal-reflection-patch planner wrapper that audits one exact outgoing
+  ``C-`` handoff and its typed normal-shock stop through the generic chain
+  planner. It stops after that finite patch domain; later cells require a new
+  upstream field and solver adapter;
 - mesh connectivity diagnostics that distinguish a topologically bounded
   polygon from an unresolved physical boundary;
 - a shared averaged-characteristic fan/reflected interface whose combined
@@ -240,6 +244,11 @@ chain reference now runs through the same planner wrapper and records each
 generated handoff step with strict upstream-coupling mode enabled. Both remain
 callback-conditioned evidence rather than physical free-boundary chain
 evidence.
+The terminal-reflection-patch planner uses the same audit path for the
+solver-backed one-step handoff. It records the patch boundary kind and exact
+sample count before the adapter runs, and a second step cannot reuse the
+terminal patch outside its solved domain. Its typed normal-shock result is a
+physical chain stop, not a promoted subsonic cell.
 The constant-`K+` source-strip continuation is another upstream-only diagnostic
 fixture: in the canonical case it preserves an open 231-node/230-cell strip
 and advances the domain-bounded shock probe before stopping at the next

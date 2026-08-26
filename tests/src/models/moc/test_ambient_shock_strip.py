@@ -8,6 +8,7 @@ from exhaust_plume.models.moc import (
   CharacteristicState,
   CharacteristicFamily,
   MocChainBoundaryKind,
+  MocChainPlannerKind,
   MocChainTerminationDecision,
   MocAmbientShockBoundaryMarchStatus,
   MocAmbientShockStripStatus,
@@ -18,6 +19,7 @@ from exhaust_plume.models.moc import (
   assemble_ambient_shock_characteristic_strip,
   assemble_terminal_trace_centerline_patch,
   march_post_shock_ambient_boundary,
+  plan_terminal_reflection_patch_chain,
   solve_terminal_compression_candidate,
   solve_marched_attached_shock_chain_cell_from_terminal_reflection_patch,
   solve_marched_attached_shock_chain_cell_from_terminal_reflection_patch_or_termination,
@@ -322,6 +324,31 @@ def test_terminal_patch_chain_adapter_consumes_exact_handoff_and_stops_at_typed_
   assert isinstance(result, MocChainTerminationDecision)
   assert result.physical_termination
   assert result.diagnostics['termination_model'] == 'normal-shock-terminal'
+
+
+def test_terminal_patch_planner_audits_one_step_handoff_and_typed_stop() -> None:
+  current, patch = _terminal_patch_chain_fixture()
+
+  result = plan_terminal_reflection_patch_chain(
+    current,
+    patch,
+    start_point_m=patch.outgoing_trace_points_m[0],
+    end_x_m=2.0,
+    downstream_flow_angle_rad=0.0,
+    sample_count=len(current.continuation_boundary),
+    position_tolerance_m=1.0e-3,
+  )
+
+  assert result.planner_kind is MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
+  assert result.production_claim_allowed is False
+  assert result.chain.physical_termination
+  assert result.chain.cell_count == 1
+  assert len(result.steps) == 1
+  assert result.steps[0].boundary_kind is MocChainBoundaryKind.TERMINAL_CHARACTERISTIC_TRACE
+  assert result.steps[0].incoming_handoff_sample_count == len(
+    current.continuation_boundary
+  )
+  assert result.as_report()['planning_only'] is True
 
 
 def test_terminal_patch_chain_adapter_rejects_mismatched_handoff_before_solving() -> None:

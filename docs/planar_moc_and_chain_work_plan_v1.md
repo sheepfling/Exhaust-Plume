@@ -120,6 +120,10 @@ not wait on this research closure.
   deterministic full state/pressure handoff fingerprint before every callback,
   while retaining a hard non-production claim ceiling for the prescribed-
   boundary mock.
+- Added a terminal-reflection-patch planner wrapper that routes the exact
+  outgoing ``C-`` handoff through the generic planner and records the typed
+  normal-shock stop. It permits only the patch's one solved domain step;
+  later cells require a new upstream field and solver adapter.
 - Promoted the prescribed three-cell continuation fixture into the public
   isolated planner module as `MocPrescribedPostShockChainMock` with a
   `plan_prescribed_post_shock_chain_mock` convenience entry point. The

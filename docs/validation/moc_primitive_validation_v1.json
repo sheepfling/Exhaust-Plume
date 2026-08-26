@@ -2641,7 +2641,65 @@
           "upstream_sample_count": 17
         },
         "expected_physical_termination": true,
-        "claim_status": "terminal-reflection-patch-exact-handoff-to-typed-normal-shock-stop; nonterminal-cell-return-remains-research-only"
+        "claim_status": "terminal-reflection-patch-exact-handoff-to-typed-normal-shock-stop; nonterminal-cell-return-remains-research-only",
+        "planner": {
+          "planner_kind": "upstream-coupled-research",
+          "planning_only": true,
+          "production_claim_allowed": false,
+          "claim_status": "terminal-reflection-patch-planner-handoff; one-step-domain; mixed-regime-or-new-field-continuation-pending",
+          "step_count": 1,
+          "steps": [
+            {
+              "current_cell_index": 1,
+              "next_cell_index": 2,
+              "current_end_x_m": 1.0,
+              "boundary_kind": "terminal-characteristic-trace",
+              "incoming_handoff_sample_count": 18,
+              "incoming_total_pressure_range_Pa": [
+                764819.179280032,
+                764819.179280032
+              ],
+              "incoming_handoff_fingerprint": "3f7439763432257c65bb5ca7eb5905ea00252259c3c1b0f4c745743cfb07adf1"
+            }
+          ],
+          "chain": {
+            "status": "physically-terminated",
+            "termination_reason": "physical-termination",
+            "physical_termination": true,
+            "cell_count": 1,
+            "end_x_m": 1.0,
+            "resolved": true,
+            "state_carry_count": 1,
+            "continuation_boundary_kinds": [
+              "terminal-characteristic-trace"
+            ],
+            "continuation_total_pressure_ranges_Pa": [
+              {
+                "cell_index": 1,
+                "minimum_Pa": 764819.179280032,
+                "maximum_Pa": 764819.179280032
+              }
+            ],
+            "continuation_boundary_maxima_nonincreasing": null,
+            "geometry_fidelity_counts": {
+              "resolved-planar-moc": 1
+            },
+            "diagnostics": {
+              "termination_model": "normal-shock-terminal",
+              "shock_point_m": [
+                1.932444024737439,
+                0.0
+              ],
+              "downstream_mach": 0.7425535304699773,
+              "downstream_pressure_Pa": 508788.89535898657,
+              "total_pressure_ratio": 0.9598520994838985,
+              "upstream_sample_count": 17
+            },
+            "message": "supersonic terminal-patch march reached a verified subsonic normal shock; continued supersonic MOC cells stop at the mixed-regime boundary"
+          },
+          "diagnostics": {}
+        },
+        "planner_expected_physical_termination": true
       },
       "first_cell_composite": {
         "status": "converged_closed_supersonic_composite",
@@ -2749,7 +2807,65 @@
         "upstream_sample_count": 17
       },
       "expected_physical_termination": true,
-      "claim_status": "terminal-reflection-patch-exact-handoff-to-typed-normal-shock-stop; nonterminal-cell-return-remains-research-only"
+      "claim_status": "terminal-reflection-patch-exact-handoff-to-typed-normal-shock-stop; nonterminal-cell-return-remains-research-only",
+      "planner": {
+        "planner_kind": "upstream-coupled-research",
+        "planning_only": true,
+        "production_claim_allowed": false,
+        "claim_status": "terminal-reflection-patch-planner-handoff; one-step-domain; mixed-regime-or-new-field-continuation-pending",
+        "step_count": 1,
+        "steps": [
+          {
+            "current_cell_index": 1,
+            "next_cell_index": 2,
+            "current_end_x_m": 1.0,
+            "boundary_kind": "terminal-characteristic-trace",
+            "incoming_handoff_sample_count": 18,
+            "incoming_total_pressure_range_Pa": [
+              764819.179280032,
+              764819.179280032
+            ],
+            "incoming_handoff_fingerprint": "3f7439763432257c65bb5ca7eb5905ea00252259c3c1b0f4c745743cfb07adf1"
+          }
+        ],
+        "chain": {
+          "status": "physically-terminated",
+          "termination_reason": "physical-termination",
+          "physical_termination": true,
+          "cell_count": 1,
+          "end_x_m": 1.0,
+          "resolved": true,
+          "state_carry_count": 1,
+          "continuation_boundary_kinds": [
+            "terminal-characteristic-trace"
+          ],
+          "continuation_total_pressure_ranges_Pa": [
+            {
+              "cell_index": 1,
+              "minimum_Pa": 764819.179280032,
+              "maximum_Pa": 764819.179280032
+            }
+          ],
+          "continuation_boundary_maxima_nonincreasing": null,
+          "geometry_fidelity_counts": {
+            "resolved-planar-moc": 1
+          },
+          "diagnostics": {
+            "termination_model": "normal-shock-terminal",
+            "shock_point_m": [
+              1.932444024737439,
+              0.0
+            ],
+            "downstream_mach": 0.7425535304699773,
+            "downstream_pressure_Pa": 508788.89535898657,
+            "total_pressure_ratio": 0.9598520994838985,
+            "upstream_sample_count": 17
+          },
+          "message": "supersonic terminal-patch march reached a verified subsonic normal shock; continued supersonic MOC cells stop at the mixed-regime boundary"
+        },
+        "diagnostics": {}
+      },
+      "planner_expected_physical_termination": true
     },
     "solver_generated_first_cell_composite": {
       "status": "converged_closed_supersonic_composite",

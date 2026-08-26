@@ -235,6 +235,7 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   terminal_candidate = ambient_strip['terminal_compression_candidate']
   terminal_patch = ambient_strip['terminal_reflection_patch']
   terminal_patch_shock_probe = ambient_strip['terminal_reflection_patch_shock_probe']
+  terminal_patch_chain_probe = ambient_strip['terminal_reflection_patch_chain_probe']
   assert ambient_strip['terminal_trace_acceptance_tolerance_m'] == pytest.approx(2.0e-4)
   assert terminal_candidate['status'] == 'converged_local_compression_candidate'
   assert terminal_candidate['converged'] is True
@@ -260,6 +261,11 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert terminal_patch_shock_probe['physical_termination_decision']['diagnostics']['termination_model'] == 'normal-shock-terminal'
   assert terminal_patch_shock_probe['coupling']['converged'] is True
   assert terminal_patch_shock_probe['shock']['normal_shock_terminal']['subsonic'] is True
+  assert terminal_patch_chain_probe['planner_expected_physical_termination'] is True
+  assert terminal_patch_chain_probe['planner']['planner_kind'] == 'upstream-coupled-research'
+  assert terminal_patch_chain_probe['planner']['planning_only'] is True
+  assert terminal_patch_chain_probe['planner']['production_claim_allowed'] is False
+  assert terminal_patch_chain_probe['planner']['step_count'] == 1
   terminal_patch_refinement = report['geometry_cases']['terminal_reflection_patch_refinement']
   assert terminal_patch_refinement['status'] == (
     'diagnostic-terminal-patch-resolutions-reach-mixed-regime-gate'

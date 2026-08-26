@@ -35,6 +35,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocChainStatus,
   MocChainPlannerKind,
   plan_post_shock_characteristic_chain,
+  plan_terminal_reflection_patch_chain,
   MocShockBoundaryFitResult,
   MocShockBoundaryFitStatus,
   MocTopologyStatus,
@@ -390,6 +391,7 @@ def _ambient_shock_strip_probe(
   )
   terminal_patch_shock_probe = None
   terminal_patch_chain_probe = None
+  terminal_patch_chain_planner = None
   first_cell_composite = None
   first_cell_composite_measurement = None
   if terminal_patch.converged:
@@ -433,6 +435,22 @@ def _ambient_shock_strip_probe(
           'nonterminal-cell-return-remains-research-only'
         ),
       }
+      terminal_patch_chain_planner = plan_terminal_reflection_patch_chain(
+        current_cell,
+        terminal_patch,
+        start_point_m=terminal_patch.outgoing_trace_points_m[0],
+        end_x_m=2.0,
+        downstream_flow_angle_rad=0.0,
+        sample_count=len(current_cell.continuation_boundary),
+        position_tolerance_m=2.0e-4,
+      )
+      terminal_patch_chain_probe['planner'] = terminal_patch_chain_planner.as_report()
+      terminal_patch_chain_probe['planner_expected_physical_termination'] = (
+        terminal_patch_chain_planner.chain.physical_termination
+        and terminal_patch_chain_planner.planner_kind is MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
+        and not terminal_patch_chain_planner.production_claim_allowed
+        and len(terminal_patch_chain_planner.steps) == 1
+      )
       first_cell_composite = assemble_first_cell_composite(
         shock_fit,
         strip,
@@ -2597,6 +2615,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
   terminal_patch_chain_failure = (
     not isinstance(terminal_patch_chain_probe, dict)
     or terminal_patch_chain_probe.get('expected_physical_termination') is not True
+    or terminal_patch_chain_probe.get('planner_expected_physical_termination') is not True
   )
   first_cell_composite_probe = ambient_shock_strip_probe.get(
     'first_cell_composite',

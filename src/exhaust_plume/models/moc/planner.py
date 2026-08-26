@@ -14,7 +14,7 @@ from enum import Enum
 from hashlib import sha256
 from math import isfinite
 from types import MappingProxyType
-from typing import Any
+from typing import Any, Callable
 
 from exhaust_plume.models.moc.chain import (
   MocChainBoundaryKind,
@@ -38,6 +38,11 @@ from exhaust_plume.models.moc.post_shock import (
   continue_post_shock_characteristic_chain,
 )
 from exhaust_plume.models.moc.primitives import CharacteristicState
+from exhaust_plume.models.moc.terminal_patch import MocTerminalReflectionPatchResult
+from exhaust_plume.models.moc.terminal_patch_solver import (
+  solve_marched_attached_shock_chain_cell_from_terminal_reflection_patch_or_termination,
+)
+from exhaust_plume.util.aero.shock_validity import ShockBranch
 
 __all__ = (
   'MocChainPlannerKind',
@@ -47,6 +52,7 @@ __all__ = (
   'plan_moc_chain',
   'plan_post_shock_characteristic_chain',
   'plan_prescribed_post_shock_chain_mock',
+  'plan_terminal_reflection_patch_chain',
 )
 
 
@@ -499,6 +505,92 @@ def plan_moc_chain(
       _default_claim_status(planner_kind)
       if claim_status is None
       else claim_status
+    ),
+  )
+####
+
+
+def plan_terminal_reflection_patch_chain(
+  seed: MocChainCell,
+  patch: MocTerminalReflectionPatchResult,
+  *,
+  start_point_m: tuple[float, float],
+  end_x_m: float,
+  target_centerline_y_m: float = 0.0,
+  downstream_flow_angle_at: Callable[[int, tuple[float, float]], float] | None = None,
+  downstream_flow_angle_rad: float | None = None,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 2.0e-4,
+  invariant_tolerance: float = 1.0e-10,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  policy: MocChainContinuationPolicy | None = None,
+) -> MocChainPlannerResult:
+  """Plan one terminal-reflection handoff through the generic chain audit.
+
+  A terminal reflection patch is a finite upstream domain for one next-shock
+  solve, not a reusable downstream field for an arbitrary number of later
+  cells.  This wrapper therefore allows the adapter to be invoked once and
+  records any returned cell or typed termination through ``plan_moc_chain``.
+  A second callback invocation receives an explicit non-physical solver stop
+  rather than reusing the terminal patch outside its solved domain.
+  """
+
+  if not isinstance(patch, MocTerminalReflectionPatchResult):
+    raise TypeError('patch must be a MocTerminalReflectionPatchResult')
+  if (downstream_flow_angle_at is None) == (downstream_flow_angle_rad is None):
+    raise ValueError('supply exactly one downstream flow-angle provider')
+  attempted = False
+
+  def solve_next(
+    current: MocChainCell,
+    next_cell_index: int,
+  ) -> MocChainCell | MocChainTerminationDecision:
+    nonlocal attempted
+    if attempted:
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
+        message=(
+          'terminal reflection patch planner completed its one-step domain; '
+          'a later cell requires a new upstream field and solver adapter'
+        ),
+      )
+    attempted = True
+    solved = solve_marched_attached_shock_chain_cell_from_terminal_reflection_patch_or_termination(
+      current,
+      next_cell_index,
+      current.continuation_boundary,
+      patch,
+      start_point_m=start_point_m,
+      end_x_m=end_x_m,
+      target_centerline_y_m=target_centerline_y_m,
+      downstream_flow_angle_at=downstream_flow_angle_at,
+      downstream_flow_angle_rad=downstream_flow_angle_rad,
+      sample_count=sample_count,
+      branch=branch,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+      shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+      maximum_segment_iterations=maximum_segment_iterations,
+    )
+    if isinstance(solved, MocChainTerminationDecision):
+      return solved
+    return solved.field.as_coupled_chain_cell(
+      start_x_m=current.end_x_m,
+      end_x_m=solved.end_x_m,
+      cell_index=next_cell_index,
+    )
+
+  return plan_moc_chain(
+    seed,
+    solve_next,
+    policy=policy,
+    planner_kind=MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH,
+    claim_status=(
+      'terminal-reflection-patch-planner-handoff; '
+      'one-step-domain; mixed-regime-or-new-field-continuation-pending'
     ),
   )
 ####

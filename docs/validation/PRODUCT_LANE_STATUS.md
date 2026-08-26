@@ -124,6 +124,10 @@ without appending a synthetic cell. The first-cell composite now joins the
 strip and reflection patch into a measurable closed supersonic topology with
 explicit shock/ambient/centerline/outgoing-trace edges, while retaining the
 non-production closure and promotion gates.
+The terminal-reflection-patch handoff is also auditable through the generic
+planner as a one-step upstream-coupled research run; it records the exact
+boundary before invoking the solver and cannot reuse the finite patch domain
+for a later cell.
 Each planner step also records a deterministic fingerprint of its complete
 state/total-pressure handoff, and the generic chain rejects a boundary called a
 `centerline-trace` unless its samples satisfy `y=0` and `theta=0`. These are
