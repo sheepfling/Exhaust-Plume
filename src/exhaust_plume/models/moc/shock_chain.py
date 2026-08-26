@@ -88,6 +88,9 @@ class MocTerminalShockCellFieldResult:
   source_strip_cell_count: int
   source_patch_cell_count: int
   clipped_patch_cell_count: int
+  terminal_shock_boundary_edge_count: int
+  terminal_shock_boundary_coverage_verified: bool
+  terminal_shock_boundary_maximum_geometry_residual_m: float | None
   message: str = ''
 
   @property
@@ -151,6 +154,11 @@ class MocTerminalShockCellFieldResult:
       'source_strip_cell_count': self.source_strip_cell_count,
       'source_patch_cell_count': self.source_patch_cell_count,
       'clipped_patch_cell_count': self.clipped_patch_cell_count,
+      'terminal_shock_boundary_edge_count': self.terminal_shock_boundary_edge_count,
+      'terminal_shock_boundary_coverage_verified': self.terminal_shock_boundary_coverage_verified,
+      'terminal_shock_boundary_maximum_geometry_residual_m': (
+        self.terminal_shock_boundary_maximum_geometry_residual_m
+      ),
       'terminal_normal_shock': (
         None
         if self.terminal_normal_shock is None
@@ -181,6 +189,9 @@ def _terminal_field_failure(
   source_strip_cell_count: int = 0,
   source_patch_cell_count: int = 0,
   clipped_patch_cell_count: int = 0,
+  terminal_shock_boundary_edge_count: int = 0,
+  terminal_shock_boundary_coverage_verified: bool = False,
+  terminal_shock_boundary_maximum_geometry_residual_m: float | None = None,
   message: str,
 ) -> MocTerminalShockCellFieldResult:
   return MocTerminalShockCellFieldResult(
@@ -197,6 +208,11 @@ def _terminal_field_failure(
     source_strip_cell_count=source_strip_cell_count,
     source_patch_cell_count=source_patch_cell_count,
     clipped_patch_cell_count=clipped_patch_cell_count,
+    terminal_shock_boundary_edge_count=terminal_shock_boundary_edge_count,
+    terminal_shock_boundary_coverage_verified=terminal_shock_boundary_coverage_verified,
+    terminal_shock_boundary_maximum_geometry_residual_m=(
+      terminal_shock_boundary_maximum_geometry_residual_m
+    ),
     message=message,
   )
 ####
@@ -361,6 +377,34 @@ def _clip_polygon_to_terminal_shock_upstream_side(
     previous = current
     previous_value = current_value
     previous_inside = current_inside
+  if len(output) >= 2:
+    expanded: list[tuple[float, float]] = []
+    for first, second in zip(output, (*output[1:], output[0])):
+      expanded.append(first)
+      first_distance = _terminal_shock_signed_distance(
+        first,
+        shock_points,
+        tolerance_m=tolerance_m,
+      )
+      second_distance = _terminal_shock_signed_distance(
+        second,
+        shock_points,
+        tolerance_m=tolerance_m,
+      )
+      if (
+        abs(first_distance) <= tolerance_m
+        and abs(second_distance) <= tolerance_m
+        and abs(second[1] - first[1]) > tolerance_m
+      ):
+        corners = [
+          point for point in shock_points[1:-1]
+          if min(first[1], second[1]) + tolerance_m < point[1] < max(first[1], second[1]) - tolerance_m
+        ]
+        corners.sort(
+          key=lambda point: abs(point[1] - first[1])
+        )
+        expanded.extend(corners)
+    output = expanded
   return _clean_clipped_polygon(output)
 ####
 
@@ -384,6 +428,101 @@ def _triangulate_clipped_polygon(
     (vertices[0], vertices[index], vertices[index + 1])
     for index in range(1, len(vertices) - 1)
   )
+####
+
+
+def _terminal_shock_boundary_coverage(
+  cells: Sequence[MocCharacteristicCell],
+  shock_points: Sequence[tuple[float, float]],
+  *,
+  position_tolerance_m: float,
+  mesh_vertex_tolerance_m: float,
+) -> tuple[int, bool, float | None]:
+  """Check that the clipped mesh carries the complete terminal-shock edge."""
+
+  if len(shock_points) < 2:
+    return 0, False, None
+  edge_counts: dict[
+    tuple[tuple[int, int], tuple[int, int]],
+    int,
+  ] = {}
+  edge_points: dict[
+    tuple[tuple[int, int], tuple[int, int]],
+    tuple[tuple[float, float], tuple[float, float]],
+  ] = {}
+  for cell in cells:
+    vertices = cell.vertices_xr_m
+    for first, second in zip(vertices, (*vertices[1:], vertices[0])):
+      first_key = (
+        round(first[0] / mesh_vertex_tolerance_m),
+        round(first[1] / mesh_vertex_tolerance_m),
+      )
+      second_key = (
+        round(second[0] / mesh_vertex_tolerance_m),
+        round(second[1] / mesh_vertex_tolerance_m),
+      )
+      key = (
+        (first_key, second_key)
+        if first_key <= second_key
+        else (second_key, first_key)
+      )
+      edge_counts[key] = edge_counts.get(key, 0) + 1
+      edge_points.setdefault(key, (first, second))
+
+  target_low = min(point[1] for point in shock_points)
+  target_high = max(point[1] for point in shock_points)
+  shock_edges: list[tuple[float, float]] = []
+  residuals: list[float] = []
+  for key, count in edge_counts.items():
+    if count != 1:
+      continue
+    first, second = edge_points[key]
+    low = min(first[1], second[1])
+    high = max(first[1], second[1])
+    if high < target_low - position_tolerance_m or low > target_high + position_tolerance_m:
+      continue
+    ordinates = [first[1], second[1]]
+    ordinates.extend(
+      point[1]
+      for point in shock_points
+      if low - position_tolerance_m <= point[1] <= high + position_tolerance_m
+    )
+    edge_residual = 0.0
+    for ordinate in ordinates:
+      if abs(second[1] - first[1]) <= mesh_vertex_tolerance_m:
+        edge_x = 0.5 * (first[0] + second[0])
+      else:
+        fraction = (ordinate - first[1]) / (second[1] - first[1])
+        edge_x = first[0] + fraction * (second[0] - first[0])
+      shock_x = _terminal_shock_x_at_y(
+        shock_points,
+        ordinate,
+        tolerance_m=position_tolerance_m,
+      )
+      if shock_x is None:
+        edge_residual = float('inf')
+        break
+      edge_residual = max(edge_residual, abs(edge_x - shock_x))
+    if edge_residual <= position_tolerance_m:
+      shock_edges.append((low, high))
+      residuals.append(edge_residual)
+
+  shock_edges.sort()
+  merged: list[tuple[float, float]] = []
+  for low, high in shock_edges:
+    if merged and low <= merged[-1][1] + position_tolerance_m:
+      merged[-1] = (merged[-1][0], max(merged[-1][1], high))
+    else:
+      merged.append((low, high))
+  covered = bool(merged) and (
+    merged[0][0] <= target_low + position_tolerance_m
+    and merged[-1][1] >= target_high - position_tolerance_m
+    and all(
+      second[0] <= first[1] + position_tolerance_m
+      for first, second in zip(merged, merged[1:])
+    )
+  )
+  return len(shock_edges), covered, max(residuals, default=None)
 ####
 
 
@@ -486,6 +625,28 @@ def assemble_terminal_shock_cell_field(
       upstream_pressures=upstream_pressures,
       message='normal-shock terminal does not expose a finite shock point',
     )
+  if (
+    terminal.upstream_state is None
+    or terminal.upstream_pressure_Pa is None
+    or not isfinite(float(terminal.upstream_pressure_Pa))
+    or terminal.upstream_pressure_Pa <= 0.0
+    or abs(terminal.upstream_state.x_m - terminal_point[0]) > position_tolerance_m
+    or abs(terminal.upstream_state.y_m - terminal_point[1]) > position_tolerance_m
+  ):
+    return _terminal_field_failure(
+      MocTerminalShockCellFieldStatus.SHOCK_FAILURE,
+      source_strip_cell_count=strip.cell_count,
+      source_patch_cell_count=reflection_patch.cell_count,
+      terminal_normal_shock=terminal,
+      upstream_states=upstream_states,
+      upstream_pressures=upstream_pressures,
+      message=(
+        'normal-shock terminal does not expose a finite upstream state and '
+        'pressure at its boundary point'
+      ),
+    )
+  upstream_states = (*upstream_states, terminal.upstream_state)
+  upstream_pressures = (*upstream_pressures, float(terminal.upstream_pressure_Pa))
   terminal_shock_points = (*shock_samples, terminal_point)
   expected_start = reflection_patch.outgoing_trace_points_m[0]
   if (
@@ -630,6 +791,16 @@ def assemble_terminal_shock_cell_field(
     cells,
     vertex_tolerance_m=mesh_vertex_tolerance_m,
   )
+  (
+    terminal_shock_edge_count,
+    terminal_shock_coverage_verified,
+    terminal_shock_geometry_residual,
+  ) = _terminal_shock_boundary_coverage(
+    cells,
+    terminal_shock_points,
+    position_tolerance_m=position_tolerance_m,
+    mesh_vertex_tolerance_m=mesh_vertex_tolerance_m,
+  )
   if not topology.connected or not topology.forms_closed_zone or topology.nonmanifold_edge_count:
     return _terminal_field_failure(
       MocTerminalShockCellFieldStatus.TOPOLOGY_FAILURE,
@@ -638,11 +809,34 @@ def assemble_terminal_shock_cell_field(
       source_strip_cell_count=strip.cell_count,
       source_patch_cell_count=reflection_patch.cell_count,
       clipped_patch_cell_count=clipped_count,
+      terminal_shock_boundary_edge_count=terminal_shock_edge_count,
+      terminal_shock_boundary_coverage_verified=terminal_shock_coverage_verified,
+      terminal_shock_boundary_maximum_geometry_residual_m=terminal_shock_geometry_residual,
       terminal_shock_points=terminal_shock_points,
       terminal_normal_shock=terminal,
       upstream_states=upstream_states,
       upstream_pressures=upstream_pressures,
       message=f'terminal composite topology failed: {topology.message}',
+    )
+  if not terminal_shock_coverage_verified:
+    return _terminal_field_failure(
+      MocTerminalShockCellFieldStatus.GEOMETRY_FAILURE,
+      cells=cells,
+      topology=topology,
+      source_strip_cell_count=strip.cell_count,
+      source_patch_cell_count=reflection_patch.cell_count,
+      clipped_patch_cell_count=clipped_count,
+      terminal_shock_boundary_edge_count=terminal_shock_edge_count,
+      terminal_shock_boundary_coverage_verified=False,
+      terminal_shock_boundary_maximum_geometry_residual_m=terminal_shock_geometry_residual,
+      terminal_shock_points=terminal_shock_points,
+      terminal_normal_shock=terminal,
+      upstream_states=upstream_states,
+      upstream_pressures=upstream_pressures,
+      message=(
+        'terminal composite topology is bounded but does not expose the '
+        'complete solver-generated terminal-shock boundary'
+      ),
     )
   centerline_points = tuple(
     point for point in reflection_patch.axis_points_m
@@ -664,6 +858,9 @@ def assemble_terminal_shock_cell_field(
     source_strip_cell_count=strip.cell_count,
     source_patch_cell_count=reflection_patch.cell_count,
     clipped_patch_cell_count=clipped_count,
+    terminal_shock_boundary_edge_count=terminal_shock_edge_count,
+    terminal_shock_boundary_coverage_verified=terminal_shock_coverage_verified,
+    terminal_shock_boundary_maximum_geometry_residual_m=terminal_shock_geometry_residual,
     message=(
       'shock/ambient strip and reflected characteristic patch were clipped '
       'to a closed supersonic region at the verified normal shock; subsonic '
@@ -961,7 +1158,7 @@ def solve_marched_ambient_attachment_shock_cell_transition(
       reflection_patch,
       downstream_shock,
       target_centerline_y_m=target_centerline_y_m,
-      position_tolerance_m=trace_tolerance,
+      position_tolerance_m=max(position_tolerance_m, 1.0e-9),
       mesh_vertex_tolerance_m=max(position_tolerance_m, 1.0e-9),
     )
     if terminal_field.converged:

@@ -75,6 +75,8 @@ the transition at that shock and verify one-perimeter mesh topology. That
 checkpoint preserves the fidelity boundary: it records inherited
 characteristic-cell evidence only, leaves the downstream subsonic field
 unsolved, and therefore cannot set physical closure or promote a chain cell.
+The checkpoint rejects a mesh unless the complete solver-generated shock edge
+is present and the terminal upstream state/pressure sample is carried with it.
 It also has an explicitly labeled constant-`K+`
 simple-wave continuation: it preserves the open-strip topology and advances
 the shock probe through additional samples, but it remains an upstream

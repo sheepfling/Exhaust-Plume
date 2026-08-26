@@ -183,6 +183,12 @@ not wait on this research closure.
   explicit `MocChainTerminationDecision` with `physical_termination=true`.
   This stops a supersonic chain without relabeling the unresolved subsonic
   field as a closed MOC cell.
+- Added a separate 9/17/33-sample refinement probe for the assembled terminal
+  supersonic composite. Each case carries the complete terminal shock edge,
+  the matching upstream state/pressure samples, and the same typed
+  normal-shock stop; the coarse case retains its declared mesh-scale trace
+  tolerance. This is terminal-topology and boundary-coverage evidence only,
+  not mixed-regime closure or chain-cell promotion.
 - Added an independent MOC shock-cell measurement operator. It extracts
   shock/centerline boundaries, axial extent, boundary lengths, radius, mesh
   area, perimeter-area closure, and optional shock total-pressure loss only
@@ -391,12 +397,19 @@ post-shock subsonic ``CharacteristicState``. The field therefore reports
 ``supersonic_region_closed`` while keeping ``mixed_regime_field_complete``
 and ``physical_closure_verified`` false; it is a geometry/topology checkpoint,
 not a promoted first cell.
+The checkpoint also requires the terminal-shock boundary itself to appear as
+a complete one-perimeter mesh edge set and carries the normal-shock endpoint
+upstream state/pressure sample. A bounded mesh without that explicit shock
+coverage is rejected as geometry failure.
 
 The same seam has 9/17/33-sample refinement evidence. The reflected patch
 axis endpoint converges toward the 33-sample result, every resolution covers
 its requested upstream shock samples, and every case reaches the same typed
-mixed-regime gate. This establishes numerical behavior of the open transition,
-not acceptance of a physical first cell.
+mixed-regime gate. The assembled supersonic terminal composite now has a
+separate refinement record: its terminal-shock edge coverage and upstream
+state/pressure carry pass at all three resolutions. This establishes numerical
+behavior of the open transition and its supersonic-side topology, not
+acceptance of a physical first cell.
 
 The verified post-shock result exposes the only seed-promotion adapter for this
 lane. An open zone, prescribed-boundary diagnostic, or scaled reduced-order

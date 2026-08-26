@@ -125,6 +125,8 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   shock/ambient strip and reflected characteristic patch to the upstream side
   of the solver-generated normal shock. It exposes a connected, one-perimeter
   supersonic-region topology gate and inherited characteristic-cell evidence,
+  requires explicit coverage of the complete terminal-shock boundary and its
+  endpoint upstream state/pressure sample,
   while reporting ``mixed_regime_field_complete`` and
   ``physical_closure_verified`` as hard-false until the downstream subsonic
   field is solved;
@@ -282,6 +284,12 @@ flags describe topology and inherited source-cell evidence only; they do not
 claim a solved downstream state. ``mixed_regime_field_complete`` remains
 false, so the composite region is still a terminal research artifact rather
 than a chain-promotable first cell.
+The validation report separately refines this composite at 9/17/33 samples;
+each case carries the complete terminal-shock edge and matching upstream
+state/pressure samples to approximately ``1e-9 m`` geometry residual. The
+coarse case retains its declared mesh-scale trace tolerance. This is
+supersonic-side topology evidence only and does not relax the mixed-regime
+closure gate.
 The earlier boundary-conditioned triangular assembler is also no longer
 promotion-eligible by default: it does not carry verified shock-``C+`` /
 ambient-``C-`` family-orientation evidence. This guard prevents a numerically

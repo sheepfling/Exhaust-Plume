@@ -126,6 +126,11 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert terminal_field['topology_forms_closed_zone'] is True
   assert terminal_field['topology_connected'] is True
   assert terminal_field['clipped_patch_cell_count'] > 0
+  assert terminal_field['terminal_shock_boundary_sample_count'] == 17
+  assert terminal_field['terminal_shock_upstream_sample_count'] == 17
+  assert terminal_field['terminal_shock_boundary_edge_count'] > 0
+  assert terminal_field['terminal_shock_boundary_coverage_verified'] is True
+  assert terminal_field['terminal_shock_boundary_maximum_geometry_residual_m'] <= 1.0e-8
   assert ambient_transition['reflection_patch']['physical_closure_verified'] is False
   terminal_candidate = ambient_strip['terminal_compression_candidate']
   terminal_patch = ambient_strip['terminal_reflection_patch']
@@ -169,6 +174,25 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   )
   axis_end_x = [case['axis_end_m'][0] for case in terminal_patch_refinement['cases']]
   assert abs(axis_end_x[-1] - axis_end_x[-2]) < abs(axis_end_x[-2] - axis_end_x[-3])
+  terminal_composite_refinement = report['geometry_cases']['terminal_composite_refinement']
+  assert terminal_composite_refinement['status'] == (
+    'diagnostic-terminal-composite-resolutions-reach-supersonic-terminal-gate'
+  )
+  assert [case['sample_count'] for case in terminal_composite_refinement['cases']] == [9, 17, 33]
+  assert all(
+    case['status'] == 'physically_terminated_at_normal_shock'
+    and case['terminal_field_status'] == 'converged_closed_supersonic_terminal_region'
+    and case['terminal_field_converged'] is True
+    and case['supersonic_region_closed'] is True
+    and case['topology_forms_closed_zone'] is True
+    and case['topology_nonmanifold_edge_count'] == 0
+    and case['terminal_shock_boundary_sample_count'] == case['sample_count']
+    and case['terminal_shock_upstream_sample_count'] == case['sample_count']
+    and case['terminal_shock_boundary_coverage_verified'] is True
+    and case['terminal_shock_boundary_maximum_geometry_residual_m'] <= 1.0e-8
+    and case['physical_terminal_verified'] is True
+    for case in terminal_composite_refinement['cases']
+  )
   assert source_strip['status'] == 'converged_open_source_strip'
   assert source_strip['node_count'] == 45
   assert source_strip['cell_count'] == 44

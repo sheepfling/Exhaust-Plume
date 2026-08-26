@@ -584,6 +584,7 @@ def _ambient_attachment_transition_probe(
       and result.terminal_field.supersonic_region_closed
       and result.terminal_field.characteristic_field_evidence_verified
       and not result.terminal_field.mixed_regime_field_complete
+      and result.terminal_field.terminal_shock_boundary_coverage_verified
     ),
     'claim_status': (
       'staged-ambient-attachment-to-centerline-reflection-to-next-shock; '
@@ -731,6 +732,120 @@ def _terminal_reflection_patch_refinement_probe() -> list[dict[str, Any]]:
       ),
     })
   return probe
+
+
+def _terminal_composite_refinement_probe(
+  solver_generated_shock: MocFreeBoundaryShockResult,
+) -> list[dict[str, Any]]:
+  """Record refinement of the assembled supersonic terminal composite."""
+
+  shock_fit = solver_generated_shock.shock_fit
+  if shock_fit is None or not shock_fit.converged or not shock_fit.boundary_states:
+    return [{
+      'sample_count': None,
+      'trace_position_tolerance_m': None,
+      'status': 'shock_boundary_failure',
+      'terminal_field_status': None,
+      'message': 'solver-generated shock fixture did not provide a terminal input',
+    }]
+  first = shock_fit.boundary_states[0]
+  state = first.state
+  ambient_pressure = first.downstream_total_pressure_Pa / (
+    1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
+  ) ** (state.gamma / (state.gamma - 1.0))
+  probe: list[dict[str, Any]] = []
+  for sample_count in (9, 17, 33):
+    trace_position_tolerance_m = 1.0e-3 if sample_count == 9 else 2.0e-4
+    result = solve_marched_ambient_attachment_shock_cell_transition(
+      lambda point: CharacteristicState(
+        x_m=point[0],
+        y_m=point[1],
+        theta_rad=-0.2,
+        mach=2.0,
+        gamma=1.4,
+      ),
+      lambda _point: 100000.0,
+      (0.5, 0.5),
+      ambient_pressure,
+      0.0,
+      0.1,
+      sample_count=sample_count,
+      trace_position_tolerance_m=trace_position_tolerance_m,
+    )
+    field = result.terminal_field
+    shock = result.downstream_shock
+    terminal = None if shock is None else shock.shock.normal_shock_terminal
+    probe.append({
+      'sample_count': sample_count,
+      'trace_position_tolerance_m': trace_position_tolerance_m,
+      'status': result.status.value,
+      'converged': result.converged,
+      'physical_termination': result.physical_termination,
+      'physical_closure_verified': result.physical_closure_verified,
+      'chain_promotion_blocked': result.chain_promotion_blocked,
+      'downstream_condition_status': result.downstream_condition_status,
+      'terminal_field_status': None if field is None else field.status.value,
+      'terminal_field_converged': None if field is None else field.converged,
+      'supersonic_region_closed': None if field is None else field.supersonic_region_closed,
+      'terminal_field_cell_count': None if field is None else len(field.cells),
+      'topology_forms_closed_zone': None if field is None else field.topology.forms_closed_zone,
+      'topology_nonmanifold_edge_count': None if field is None else field.topology.nonmanifold_edge_count,
+      'terminal_shock_boundary_sample_count': (
+        None if field is None else len(field.terminal_shock_boundary_points_m)
+      ),
+      'terminal_shock_upstream_sample_count': (
+        None if field is None else len(field.terminal_shock_upstream_states)
+      ),
+      'terminal_shock_boundary_edge_count': (
+        None if field is None else field.terminal_shock_boundary_edge_count
+      ),
+      'terminal_shock_boundary_coverage_verified': (
+        None if field is None else field.terminal_shock_boundary_coverage_verified
+      ),
+      'terminal_shock_boundary_maximum_geometry_residual_m': (
+        None
+        if field is None
+        else field.terminal_shock_boundary_maximum_geometry_residual_m
+      ),
+      'shock_status': None if shock is None else shock.shock.status.value,
+      'shock_sample_count': None if shock is None else shock.shock.sample_count,
+      'physical_terminal_verified': (
+        None if shock is None else shock.physical_terminal_verified
+      ),
+      'terminal_downstream_mach': None if terminal is None else terminal.downstream_mach,
+      'terminal_point_m': None if terminal is None else terminal.shock_point_m,
+      'message': result.message,
+    })
+  return probe
+
+
+def _terminal_composite_refinement_case_failed(case: dict[str, Any]) -> bool:
+  """Return whether one terminal-composite refinement case missed a gate."""
+
+  residual = case.get('terminal_shock_boundary_maximum_geometry_residual_m')
+  sample_count = case.get('sample_count')
+  return (
+    case.get('status') != 'physically_terminated_at_normal_shock'
+    or case.get('converged') is not True
+    or case.get('physical_termination') is not True
+    or case.get('physical_closure_verified') is not False
+    or case.get('chain_promotion_blocked') is not True
+    or case.get('terminal_field_status') != 'converged_closed_supersonic_terminal_region'
+    or case.get('terminal_field_converged') is not True
+    or case.get('supersonic_region_closed') is not True
+    or case.get('topology_forms_closed_zone') is not True
+    or case.get('topology_nonmanifold_edge_count')
+    or case.get('terminal_shock_boundary_sample_count') != sample_count
+    or case.get('terminal_shock_upstream_sample_count') != sample_count
+    or not case.get('terminal_shock_boundary_edge_count')
+    or case.get('terminal_shock_boundary_coverage_verified') is not True
+    or not isinstance(residual, (int, float))
+    or residual > 1.0e-8
+    or case.get('shock_status') != 'subsonic_terminal_required'
+    or not isinstance(sample_count, int)
+    or case.get('shock_sample_count') != sample_count - 1
+    or case.get('physical_terminal_verified') is not True
+  )
 
 
 def _shock_cell_chain_planner_mock(
@@ -1389,6 +1504,9 @@ def build_moc_primitive_report() -> dict[str, Any]:
   )
   solver_generated_shock_refinement_probe = _solver_generated_shock_refinement_probe()
   terminal_reflection_patch_refinement_probe = _terminal_reflection_patch_refinement_probe()
+  terminal_composite_refinement_probe = _terminal_composite_refinement_probe(
+    solver_generated_shock,
+  )
   solver_generated_chain_reference = None
   solver_generated_chain_observations: list[dict[str, Any]] = []
   if solver_generated_shock.field is not None and solver_generated_shock.field.converged:
@@ -1512,6 +1630,10 @@ def build_moc_primitive_report() -> dict[str, Any]:
       or case.get('physical_closure_verified')
       or not case.get('physical_terminal_verified')
     )
+  ]
+  terminal_composite_refinement_failures = [
+    case for case in terminal_composite_refinement_probe
+    if _terminal_composite_refinement_case_failed(case)
   ]
   solver_generated_chain_failure = (
     solver_generated_chain_reference is None
@@ -2008,6 +2130,18 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'mixed-regime-downstream-field-pending'
       ),
     },
+    'terminal_composite_refinement': {
+      'status': (
+        'diagnostic-terminal-composite-resolutions-reach-supersonic-terminal-gate'
+        if not terminal_composite_refinement_failures
+        else 'diagnostic-terminal-composite-resolution-failure'
+      ),
+      'cases': terminal_composite_refinement_probe,
+      'claim_status': (
+        'supersonic-terminal-topology-and-boundary-coverage-refinement-only; '
+        'mixed-regime-downstream-field-pending'
+      ),
+    },
     'solver_generated_chain_reference': {
       'status': (
         None
@@ -2392,6 +2526,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'message': str(terminal_reflection_patch_refinement_failures),
       }
     ] if terminal_reflection_patch_refinement_failures else []),
+    *([
+      {
+        'case': 'terminal_composite_refinement',
+        'status': 'resolution_failure',
+        'message': str(terminal_composite_refinement_failures),
+      }
+    ] if terminal_composite_refinement_failures else []),
     *([
       {
         'case': 'solver_generated_chain_reference',
