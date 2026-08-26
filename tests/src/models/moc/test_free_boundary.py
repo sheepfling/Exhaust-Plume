@@ -349,6 +349,17 @@ def test_ambient_attachment_transition_carries_a_next_shock_handoff_to_terminal(
   assert result.terminal_field.terminal_shock_boundary_coverage_verified
   assert result.terminal_field.terminal_shock_boundary_maximum_geometry_residual_m is not None
   assert result.terminal_field.terminal_shock_boundary_maximum_geometry_residual_m <= 1.0e-8
+  mixed_boundary = result.terminal_field.validate_mixed_regime_boundary(())
+  assert mixed_boundary.status.value == 'subsonic_field_failure'
+  assert mixed_boundary.supersonic_patch_verified
+  assert mixed_boundary.physical_closure_verified is False
+  assert mixed_boundary.chain_promotion_blocked
+  terminal_field_decision = result.terminal_field.as_chain_termination_decision()
+  assert terminal_field_decision.physical_termination is False
+  assert terminal_field_decision.reason is MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+  assert terminal_field_decision.diagnostics['termination_model'] == (
+    'terminal-supersonic-region-open-mixed-regime'
+  )
   decision = result.as_physical_termination_decision()
   assert decision.physical_termination
   assert decision.diagnostics['termination_model'] == 'normal-shock-terminal'

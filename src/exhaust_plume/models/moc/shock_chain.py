@@ -14,7 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from enum import Enum
 from math import isfinite
-from typing import Callable, Sequence
+from typing import Callable, Sequence, cast
 
 from exhaust_plume.models.moc.ambient_shock_strip import MocAmbientShockStripResult
 from exhaust_plume.models.moc.chain import (
@@ -29,7 +29,12 @@ from exhaust_plume.models.moc.coupled import (
   solve_marched_attached_shock_with_ambient_attachment_closure,
 )
 from exhaust_plume.models.moc.primitives import CharacteristicState
-from exhaust_plume.models.moc.mixed_regime import MocMixedRegimeFieldResult
+from exhaust_plume.models.moc.mixed_regime import (
+  MocMixedRegimeBoundaryResult,
+  MocMixedRegimeFieldResult,
+  MocMixedRegimeFieldSample,
+  validate_mixed_regime_boundary as validate_scalar_mixed_regime_boundary,
+)
 from exhaust_plume.models.moc.post_shock import (
   MocPostShockBoundaryState,
   MocPostShockCharacteristicZoneResult,
@@ -161,6 +166,78 @@ class MocTerminalShockCellFieldResult:
       and self.terminal_normal_shock.converged
     )
 
+  def validate_mixed_regime_boundary(
+    self,
+    subsonic_samples: Sequence[MocMixedRegimeFieldSample],
+    *,
+    perimeter_points_m: Sequence[tuple[float, float]] | None = None,
+    position_tolerance_m: float = 1.0e-10,
+    state_tolerance: float = 1.0e-10,
+    pressure_tolerance: float = 1.0e-8,
+  ) -> MocMixedRegimeBoundaryResult:
+    """Validate a caller-supplied scalar perimeter at the terminal seam.
+
+    The terminal composite owns the verified supersonic patch and normal-shock
+    seam, but it does not own the downstream subsonic perimeter.  Callers must
+    therefore supply scalar subsonic samples and their ordered, closed
+    geometry.  No ``CharacteristicState`` is constructed for the subsonic
+    side and no point is inferred from the open post-shock zone.
+    """
+
+    return validate_scalar_mixed_regime_boundary(
+      cast(MocNormalShockTerminalResult, self.terminal_normal_shock),
+      self.terminal_shock_supersonic_downstream_states,
+      supersonic_patch_converged=self.terminal_supersonic_downstream_patch_converged,
+      subsonic_samples=subsonic_samples,
+      perimeter_points_m=perimeter_points_m,
+      position_tolerance_m=position_tolerance_m,
+      state_tolerance=state_tolerance,
+      pressure_tolerance=pressure_tolerance,
+    )
+  ####
+
+  def as_chain_termination_decision(self) -> MocChainTerminationDecision:
+    """Return the strongest typed chain stop supported by this result.
+
+    A closed supersonic composite with no mixed-regime field is a valid
+    non-promotable boundary, not a resolved chain cell.  Once a physical
+    mixed-regime field has been attached, this delegates to the stricter
+    physical termination decision.  This gives a planner an explicit stop
+    while preserving the fidelity boundary.
+    """
+
+    if self.physical_termination_verified:
+      return self.as_physical_termination_decision()
+    if not self.converged or self.terminal_normal_shock is None:
+      raise ValueError(
+        'a terminal shock-cell chain decision requires a converged terminal '
+        'field with a typed normal-shock result'
+      )
+    terminal = self.terminal_normal_shock
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
+      message=(
+        'supersonic terminal topology converged, but the downstream '
+        'mixed-regime perimeter/field is not closed; chain promotion stops '
+        'at the explicit fidelity boundary'
+      ),
+      diagnostics={
+        'termination_model': 'terminal-supersonic-region-open-mixed-regime',
+        'supersonic_region_closed': self.supersonic_region_closed,
+        'mixed_regime_field_complete': self.mixed_regime_field_complete,
+        'terminal_shock_point_m': terminal.shock_point_m,
+        'terminal_downstream_mach': terminal.downstream_mach,
+        'terminal_field_cell_count': len(self.cells),
+        'post_shock_patch_cell_count': (
+          None
+          if self.terminal_shock_supersonic_downstream_zone is None
+          else self.terminal_shock_supersonic_downstream_zone.cell_count
+        ),
+      },
+    )
+  ####
+
   def with_mixed_regime_field(
     self,
     mixed_regime_field: MocMixedRegimeFieldResult,
@@ -230,6 +307,11 @@ class MocTerminalShockCellFieldResult:
       'physical_closure_verified': self.physical_closure_verified,
       'chain_promotion_blocked': self.chain_promotion_blocked,
       'physical_termination_verified': self.physical_termination_verified,
+      'chain_termination_decision': (
+        None
+        if not self.converged or self.terminal_normal_shock is None
+        else self.as_chain_termination_decision().as_report()
+      ),
       'terminal_supersonic_downstream_patch_converged': (
         self.terminal_supersonic_downstream_patch_converged
       ),

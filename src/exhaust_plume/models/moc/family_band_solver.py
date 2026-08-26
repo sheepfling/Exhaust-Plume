@@ -16,9 +16,11 @@ the open post-shock zone without changing the lower-fidelity providers.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum
 from math import isfinite
+from typing import cast
 
 from exhaust_plume.models.moc.caustic_restart import MocCausticFamilyBandResult
 from exhaust_plume.models.moc.chain import (
@@ -30,6 +32,11 @@ from exhaust_plume.models.moc.free_boundary import (
   MocFreeBoundaryShockResult,
   MocFreeBoundaryShockStatus,
   solve_marched_attached_shock_field,
+)
+from exhaust_plume.models.moc.mixed_regime import (
+  MocMixedRegimeBoundaryResult,
+  MocMixedRegimeFieldSample,
+  validate_mixed_regime_boundary as validate_scalar_mixed_regime_boundary,
 )
 from exhaust_plume.models.moc.post_shock import (
   MocPostShockCharacteristicZoneResult,
@@ -115,6 +122,41 @@ class MocCausticFamilyBandShockResult:
   @property
   def post_shock_zone_converged(self) -> bool:
     return self.zone is not None and self.zone.converged
+
+  def validate_mixed_regime_boundary(
+    self,
+    subsonic_samples: Sequence[MocMixedRegimeFieldSample],
+    *,
+    perimeter_points_m: Sequence[tuple[float, float]] | None = None,
+    position_tolerance_m: float = 1.0e-10,
+    state_tolerance: float = 1.0e-10,
+    pressure_tolerance: float = 1.0e-8,
+  ) -> MocMixedRegimeBoundaryResult:
+    """Validate a scalar downstream perimeter at the band terminal.
+
+    The band/shock result supplies only the verified supersonic patch and the
+    scalar normal-shock terminal.  The downstream perimeter remains caller
+    owned.  This method is the explicit handoff into the mixed-regime
+    validator; an empty or open input returns a structured failure and never
+    gets repaired from the topological open zone.
+    """
+
+    patch = () if self.shock_fit is None else self.shock_fit.boundary_states
+    return validate_scalar_mixed_regime_boundary(
+      cast(MocNormalShockTerminalResult, self.terminal_normal_shock),
+      patch,
+      supersonic_patch_converged=(
+        self.shock_fit is not None
+        and self.shock_fit.converged
+        and self.post_shock_zone_converged
+      ),
+      subsonic_samples=subsonic_samples,
+      perimeter_points_m=perimeter_points_m,
+      position_tolerance_m=position_tolerance_m,
+      state_tolerance=state_tolerance,
+      pressure_tolerance=pressure_tolerance,
+    )
+  ####
 
   def as_chain_termination_decision(self) -> MocChainTerminationDecision:
     """Expose an explicit open stop; never promote the open zone."""

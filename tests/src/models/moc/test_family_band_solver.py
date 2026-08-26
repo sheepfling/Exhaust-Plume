@@ -107,6 +107,11 @@ def test_caustic_band_grows_open_post_shock_zone_to_typed_terminal() -> None:
     assert termination.diagnostics['termination_model'] == (
       'caustic-band-open-terminal-field'
     )
+    mixed_boundary = result.validate_mixed_regime_boundary(())
+    assert mixed_boundary.status.value == 'subsonic_field_failure'
+    assert mixed_boundary.supersonic_patch_verified
+    assert mixed_boundary.physical_closure_verified is False
+    assert mixed_boundary.chain_promotion_blocked
 
 
 def test_caustic_band_shock_solver_does_not_extrapolate_outside_input_domain() -> None:

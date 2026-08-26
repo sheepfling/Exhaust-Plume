@@ -1508,6 +1508,43 @@
                 }
               },
               "message": "caustic-family band fed a solver-generated attached shock, an open supersonic post-shock zone, and a typed normal-shock terminal; mixed-regime closure and chain promotion remain blocked"
+            },
+            "mixed_regime_boundary_gate": {
+              "status": "subsonic_field_failure",
+              "converged": false,
+              "physical_closure_verified": false,
+              "mixed_regime_field_complete": false,
+              "chain_promotion_blocked": true,
+              "supersonic_patch_sample_count": 8,
+              "subsonic_sample_count": 0,
+              "perimeter_sample_count": 0,
+              "supersonic_patch_verified": true,
+              "subsonic_state_samples_verified": false,
+              "terminal_continuity_verified": false,
+              "perimeter_geometry_verified": false,
+              "total_pressure_lineage_verified": false,
+              "maximum_terminal_mach_residual": null,
+              "maximum_terminal_flow_angle_residual_rad": null,
+              "maximum_terminal_static_pressure_residual_Pa": null,
+              "maximum_terminal_total_pressure_residual_Pa": null,
+              "maximum_total_pressure_gain_Pa": null,
+              "terminal": {
+                "status": "converged",
+                "converged": true,
+                "subsonic": true,
+                "shock_point_m": [
+                  0.9436765952998805,
+                  0.0
+                ],
+                "shock_normal_angle_rad": 1.5707963267948966,
+                "downstream_flow_angle_rad": 0.0,
+                "downstream_mach": 0.5072250845389011,
+                "downstream_pressure_Pa": 796367.9376357083,
+                "static_pressure_ratio": 7.491188445594478,
+                "total_pressure_ratio": 0.47462635393176694,
+                "message": ""
+              },
+              "message": "subsonic perimeter requires at least four scalar samples"
             }
           },
           {
@@ -1629,6 +1666,43 @@
                 }
               },
               "message": "caustic-family band fed a solver-generated attached shock, an open supersonic post-shock zone, and a typed normal-shock terminal; mixed-regime closure and chain promotion remain blocked"
+            },
+            "mixed_regime_boundary_gate": {
+              "status": "subsonic_field_failure",
+              "converged": false,
+              "physical_closure_verified": false,
+              "mixed_regime_field_complete": false,
+              "chain_promotion_blocked": true,
+              "supersonic_patch_sample_count": 8,
+              "subsonic_sample_count": 0,
+              "perimeter_sample_count": 0,
+              "supersonic_patch_verified": true,
+              "subsonic_state_samples_verified": false,
+              "terminal_continuity_verified": false,
+              "perimeter_geometry_verified": false,
+              "total_pressure_lineage_verified": false,
+              "maximum_terminal_mach_residual": null,
+              "maximum_terminal_flow_angle_residual_rad": null,
+              "maximum_terminal_static_pressure_residual_Pa": null,
+              "maximum_terminal_total_pressure_residual_Pa": null,
+              "maximum_total_pressure_gain_Pa": null,
+              "terminal": {
+                "status": "converged",
+                "converged": true,
+                "subsonic": true,
+                "shock_point_m": [
+                  0.9606507344792572,
+                  0.0
+                ],
+                "shock_normal_angle_rad": 1.5707963267948966,
+                "downstream_flow_angle_rad": 0.0,
+                "downstream_mach": 0.5085045560063801,
+                "downstream_pressure_Pa": 804854.3556756563,
+                "static_pressure_ratio": 7.407058229951985,
+                "total_pressure_ratio": 0.48009931425319424,
+                "message": ""
+              },
+              "message": "subsonic perimeter requires at least four scalar samples"
             }
           }
         ],
@@ -2913,6 +2987,23 @@
         "physical_closure_verified": false,
         "chain_promotion_blocked": true,
         "physical_termination_verified": false,
+        "chain_termination_decision": {
+          "physical_termination": false,
+          "reason": "open-physical-closure",
+          "message": "supersonic terminal topology converged, but the downstream mixed-regime perimeter/field is not closed; chain promotion stops at the explicit fidelity boundary",
+          "diagnostics": {
+            "termination_model": "terminal-supersonic-region-open-mixed-regime",
+            "supersonic_region_closed": true,
+            "mixed_regime_field_complete": false,
+            "terminal_shock_point_m": [
+              1.932441612053076,
+              0.0
+            ],
+            "terminal_downstream_mach": 0.7425533106434078,
+            "terminal_field_cell_count": 333,
+            "post_shock_patch_cell_count": 119
+          }
+        },
         "terminal_supersonic_downstream_patch_converged": true,
         "node_count": null,
         "cell_count": 333,
@@ -3436,6 +3527,24 @@
         "physical_closure_verified": true,
         "chain_promotion_blocked": true,
         "physical_termination_verified": true,
+        "chain_termination_decision": {
+          "physical_termination": true,
+          "reason": "physical-termination",
+          "message": "terminal supersonic MOC region and the declared elliptic subsonic field both converged; the supersonic chain stops at the mixed-regime cell",
+          "diagnostics": {
+            "termination_model": "normal-shock-plus-elliptic-subsonic-field",
+            "shock_point_m": [
+              1.932441612053076,
+              0.0
+            ],
+            "downstream_mach": 0.7425533106434078,
+            "downstream_pressure_Pa": 508788.91048239,
+            "total_pressure_ratio": 0.9598519734029278,
+            "mixed_regime_model": "elliptic-isentropic-subsonic-reference",
+            "mixed_regime_node_count": 5,
+            "mixed_regime_cell_count": 4
+          }
+        },
         "terminal_supersonic_downstream_patch_converged": true,
         "node_count": null,
         "cell_count": 333,

@@ -305,6 +305,13 @@ not wait on this research closure.
   characteristic zone, and records the typed subsonic centerline terminal.
   The zone is still an open mixed-regime handoff, so physical first-cell
   closure and chain promotion remain pending.
+- Added a terminal-to-mixed-regime handoff adapter. The terminal composite and
+  caustic-band result now route caller-supplied scalar subsonic perimeter data
+  through the mixed-regime validator, while an empty/open perimeter returns a
+  typed subsonic-field failure. The terminal composite also exposes an
+  explicit non-physical `OPEN_PHYSICAL_CLOSURE` chain decision until a real
+  mixed-regime field is attached; no boundary point is inferred from the open
+  zone.
 - Added axial-boundary, cell-index, domain-limit, and callback termination
   checks.
 - Added a hard fidelity boundary: scaled reduced-order candidates are

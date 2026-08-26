@@ -1611,6 +1611,7 @@ def _caustic_family_band_terminal_field_probe(
         sample_count=9,
       )
       report = result.as_report()
+      mixed_boundary = result.validate_mixed_regime_boundary(())
       accepted = (
         result.status.value == 'converged_open_caustic_band_terminal_field'
         and result.converged
@@ -1634,12 +1635,17 @@ def _caustic_family_band_terminal_field_probe(
         and result.zone.topology.forms_closed_zone
         and result.zone.topology.nonmanifold_edge_count == 0
         and result.zone.physical_closure_status == 'open'
+        and mixed_boundary.status.value == 'subsonic_field_failure'
+        and mixed_boundary.supersonic_patch_verified
+        and mixed_boundary.physical_closure_verified is False
+        and mixed_boundary.chain_promotion_blocked
       )
       cases.append({
         'anchor_edge_index': anchor_edge_index,
         'start_point_m': start_point,
         'accepted': accepted,
         'result': report,
+        'mixed_regime_boundary_gate': mixed_boundary.as_report(),
       })
     except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
       cases.append({
