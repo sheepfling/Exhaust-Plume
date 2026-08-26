@@ -189,6 +189,11 @@ not wait on this research closure.
   normal-shock stop; the coarse case retains its declared mesh-scale trace
   tolerance. This is terminal-topology and boundary-coverage evidence only,
   not mixed-regime closure or chain-cell promotion.
+- The terminal composite now also carries the independently fitted
+  downstream supersonic states along the oblique portion of that shock. The
+  subsonic normal-shock endpoint remains a scalar terminal result rather than
+  being forced into ``CharacteristicState``; this is a boundary handoff for a
+  future mixed-regime solve, not a completed downstream field.
 - Added an independent MOC shock-cell measurement operator. It extracts
   shock/centerline boundaries, axial extent, boundary lengths, radius, mesh
   area, perimeter-area closure, and optional shock total-pressure loss only

@@ -796,6 +796,16 @@ def _terminal_composite_refinement_probe(
       'terminal_shock_upstream_sample_count': (
         None if field is None else len(field.terminal_shock_upstream_states)
       ),
+      'terminal_shock_supersonic_downstream_sample_count': (
+        None
+        if field is None
+        else len(field.terminal_shock_supersonic_downstream_states)
+      ),
+      'terminal_shock_supersonic_downstream_maximum_angle_residual_rad': (
+        None
+        if field is None
+        else field.terminal_shock_supersonic_downstream_maximum_angle_residual_rad
+      ),
       'terminal_shock_boundary_edge_count': (
         None if field is None else field.terminal_shock_boundary_edge_count
       ),
@@ -824,6 +834,11 @@ def _terminal_composite_refinement_case_failed(case: dict[str, Any]) -> bool:
 
   residual = case.get('terminal_shock_boundary_maximum_geometry_residual_m')
   sample_count = case.get('sample_count')
+  downstream_residual = case.get(
+    'terminal_shock_supersonic_downstream_maximum_angle_residual_rad'
+  )
+  if not isinstance(sample_count, int):
+    return True
   return (
     case.get('status') != 'physically_terminated_at_normal_shock'
     or case.get('converged') is not True
@@ -837,12 +852,14 @@ def _terminal_composite_refinement_case_failed(case: dict[str, Any]) -> bool:
     or case.get('topology_nonmanifold_edge_count')
     or case.get('terminal_shock_boundary_sample_count') != sample_count
     or case.get('terminal_shock_upstream_sample_count') != sample_count
+    or case.get('terminal_shock_supersonic_downstream_sample_count') != sample_count - 1
+    or not isinstance(downstream_residual, (int, float))
+    or downstream_residual > 1.0e-2
     or not case.get('terminal_shock_boundary_edge_count')
     or case.get('terminal_shock_boundary_coverage_verified') is not True
     or not isinstance(residual, (int, float))
     or residual > 1.0e-8
     or case.get('shock_status') != 'subsonic_terminal_required'
-    or not isinstance(sample_count, int)
     or case.get('shock_sample_count') != sample_count - 1
     or case.get('physical_terminal_verified') is not True
   )

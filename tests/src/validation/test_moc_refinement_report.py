@@ -128,6 +128,8 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert terminal_field['clipped_patch_cell_count'] > 0
   assert terminal_field['terminal_shock_boundary_sample_count'] == 17
   assert terminal_field['terminal_shock_upstream_sample_count'] == 17
+  assert terminal_field['terminal_shock_supersonic_downstream_sample_count'] == 16
+  assert terminal_field['terminal_shock_supersonic_downstream_maximum_angle_residual_rad'] <= 1.0e-2
   assert terminal_field['terminal_shock_boundary_edge_count'] > 0
   assert terminal_field['terminal_shock_boundary_coverage_verified'] is True
   assert terminal_field['terminal_shock_boundary_maximum_geometry_residual_m'] <= 1.0e-8
@@ -188,6 +190,8 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
     and case['topology_nonmanifold_edge_count'] == 0
     and case['terminal_shock_boundary_sample_count'] == case['sample_count']
     and case['terminal_shock_upstream_sample_count'] == case['sample_count']
+    and case['terminal_shock_supersonic_downstream_sample_count'] == case['sample_count'] - 1
+    and case['terminal_shock_supersonic_downstream_maximum_angle_residual_rad'] <= 1.0e-2
     and case['terminal_shock_boundary_coverage_verified'] is True
     and case['terminal_shock_boundary_maximum_geometry_residual_m'] <= 1.0e-8
     and case['physical_terminal_verified'] is True

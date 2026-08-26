@@ -323,6 +323,15 @@ def test_ambient_attachment_transition_carries_a_next_shock_handoff_to_terminal(
   assert len(result.terminal_field.terminal_shock_upstream_pressure_Pa) == len(
     result.terminal_field.terminal_shock_boundary_points_m
   )
+  assert len(result.terminal_field.terminal_shock_supersonic_downstream_states) == (
+    len(result.terminal_field.terminal_shock_boundary_points_m) - 1
+  )
+  assert all(
+    sample.state.mach > 1.0
+    for sample in result.terminal_field.terminal_shock_supersonic_downstream_states
+  )
+  assert result.terminal_field.terminal_shock_supersonic_downstream_maximum_angle_residual_rad is not None
+  assert result.terminal_field.terminal_shock_supersonic_downstream_maximum_angle_residual_rad <= 1.0e-2
   assert result.terminal_field.terminal_shock_boundary_edge_count > 0
   assert result.terminal_field.terminal_shock_boundary_coverage_verified
   assert result.terminal_field.terminal_shock_boundary_maximum_geometry_residual_m is not None

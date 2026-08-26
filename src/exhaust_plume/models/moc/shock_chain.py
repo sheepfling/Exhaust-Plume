@@ -28,6 +28,10 @@ from exhaust_plume.models.moc.coupled import (
   solve_marched_attached_shock_with_ambient_attachment_closure,
 )
 from exhaust_plume.models.moc.primitives import CharacteristicState
+from exhaust_plume.models.moc.post_shock import (
+  MocPostShockBoundaryState,
+  fit_attached_shock_boundary,
+)
 from exhaust_plume.models.moc.terminal_patch import (
   MocTerminalReflectionPatchResult,
   assemble_terminal_trace_centerline_patch,
@@ -84,6 +88,8 @@ class MocTerminalShockCellFieldResult:
   terminal_shock_boundary_points_m: tuple[tuple[float, float], ...]
   terminal_shock_upstream_states: tuple[CharacteristicState, ...]
   terminal_shock_upstream_pressure_Pa: tuple[float, ...]
+  terminal_shock_supersonic_downstream_states: tuple[MocPostShockBoundaryState, ...]
+  terminal_shock_supersonic_downstream_maximum_angle_residual_rad: float | None
   terminal_normal_shock: MocNormalShockTerminalResult | None
   source_strip_cell_count: int
   source_patch_cell_count: int
@@ -151,6 +157,12 @@ class MocTerminalShockCellFieldResult:
       'centerline_boundary_sample_count': len(self.centerline_boundary_points_m),
       'terminal_shock_boundary_sample_count': len(self.terminal_shock_boundary_points_m),
       'terminal_shock_upstream_sample_count': len(self.terminal_shock_upstream_states),
+      'terminal_shock_supersonic_downstream_sample_count': (
+        len(self.terminal_shock_supersonic_downstream_states)
+      ),
+      'terminal_shock_supersonic_downstream_maximum_angle_residual_rad': (
+        self.terminal_shock_supersonic_downstream_maximum_angle_residual_rad
+      ),
       'source_strip_cell_count': self.source_strip_cell_count,
       'source_patch_cell_count': self.source_patch_cell_count,
       'clipped_patch_cell_count': self.clipped_patch_cell_count,
@@ -185,6 +197,8 @@ def _terminal_field_failure(
   terminal_shock_points: Sequence[tuple[float, float]] = (),
   upstream_states: Sequence[CharacteristicState] = (),
   upstream_pressures: Sequence[float] = (),
+  supersonic_downstream_states: Sequence[MocPostShockBoundaryState] = (),
+  supersonic_downstream_maximum_angle_residual_rad: float | None = None,
   terminal_normal_shock: MocNormalShockTerminalResult | None = None,
   source_strip_cell_count: int = 0,
   source_patch_cell_count: int = 0,
@@ -204,6 +218,10 @@ def _terminal_field_failure(
     terminal_shock_boundary_points_m=tuple(terminal_shock_points),
     terminal_shock_upstream_states=tuple(upstream_states),
     terminal_shock_upstream_pressure_Pa=tuple(float(value) for value in upstream_pressures),
+    terminal_shock_supersonic_downstream_states=tuple(supersonic_downstream_states),
+    terminal_shock_supersonic_downstream_maximum_angle_residual_rad=(
+      supersonic_downstream_maximum_angle_residual_rad
+    ),
     terminal_normal_shock=terminal_normal_shock,
     source_strip_cell_count=source_strip_cell_count,
     source_patch_cell_count=source_patch_cell_count,
@@ -534,6 +552,7 @@ def assemble_terminal_shock_cell_field(
   target_centerline_y_m: float = 0.0,
   position_tolerance_m: float = 1.0e-9,
   mesh_vertex_tolerance_m: float = 1.0e-9,
+  shock_angle_tolerance_rad: float = 1.0e-2,
 ) -> MocTerminalShockCellFieldResult:
   """Close the composite supersonic topology at a normal-shock terminal.
 
@@ -564,10 +583,15 @@ def assemble_terminal_shock_cell_field(
     ('target_centerline_y_m', target_centerline_y_m),
     ('position_tolerance_m', position_tolerance_m),
     ('mesh_vertex_tolerance_m', mesh_vertex_tolerance_m),
+    ('shock_angle_tolerance_rad', shock_angle_tolerance_rad),
   ):
     if not isfinite(float(value)):
       raise ValueError(f'{name} must be finite')
-  if position_tolerance_m <= 0.0 or mesh_vertex_tolerance_m <= 0.0:
+  if (
+    position_tolerance_m <= 0.0
+    or mesh_vertex_tolerance_m <= 0.0
+    or shock_angle_tolerance_rad <= 0.0
+  ):
     raise ValueError('terminal shock tolerances must be positive')
   if not strip.converged:
     return _terminal_field_failure(
@@ -645,6 +669,61 @@ def assemble_terminal_shock_cell_field(
         'pressure at its boundary point'
       ),
     )
+  downstream_angles = tuple(downstream_shock.shock.downstream_flow_angles_rad)
+  if len(downstream_angles) != len(shock_samples):
+    return _terminal_field_failure(
+      MocTerminalShockCellFieldStatus.SHOCK_FAILURE,
+      source_strip_cell_count=strip.cell_count,
+      source_patch_cell_count=reflection_patch.cell_count,
+      terminal_normal_shock=terminal,
+      upstream_states=upstream_states,
+      upstream_pressures=upstream_pressures,
+      message=(
+        'terminal shock does not carry a complete downstream turn trace for '
+        'its supersonic boundary samples'
+      ),
+    )
+  try:
+    supersonic_downstream_fit = fit_attached_shock_boundary(
+      upstream_states,
+      upstream_pressures,
+      shock_samples,
+      downstream_angles,
+      branch=ShockBranch.WEAK,
+      position_tolerance_m=position_tolerance_m,
+      shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return _terminal_field_failure(
+      MocTerminalShockCellFieldStatus.SHOCK_FAILURE,
+      source_strip_cell_count=strip.cell_count,
+      source_patch_cell_count=reflection_patch.cell_count,
+      terminal_normal_shock=terminal,
+      upstream_states=upstream_states,
+      upstream_pressures=upstream_pressures,
+      message=f'terminal supersonic downstream state fit raised: {error}',
+    )
+  if not supersonic_downstream_fit.converged:
+    return _terminal_field_failure(
+      MocTerminalShockCellFieldStatus.SHOCK_FAILURE,
+      source_strip_cell_count=strip.cell_count,
+      source_patch_cell_count=reflection_patch.cell_count,
+      terminal_normal_shock=terminal,
+      upstream_states=upstream_states,
+      upstream_pressures=upstream_pressures,
+      supersonic_downstream_states=supersonic_downstream_fit.boundary_states,
+      supersonic_downstream_maximum_angle_residual_rad=(
+        supersonic_downstream_fit.maximum_shock_angle_residual_rad
+      ),
+      message=(
+        'terminal shock supersonic downstream states did not pass attached '
+        f'boundary verification: {supersonic_downstream_fit.message}'
+      ),
+    )
+  supersonic_downstream_states = supersonic_downstream_fit.boundary_states
+  supersonic_downstream_maximum_angle_residual_rad = (
+    supersonic_downstream_fit.maximum_shock_angle_residual_rad
+  )
   upstream_states = (*upstream_states, terminal.upstream_state)
   upstream_pressures = (*upstream_pressures, float(terminal.upstream_pressure_Pa))
   terminal_shock_points = (*shock_samples, terminal_point)
@@ -854,6 +933,10 @@ def assemble_terminal_shock_cell_field(
     terminal_shock_boundary_points_m=terminal_shock_points,
     terminal_shock_upstream_states=upstream_states,
     terminal_shock_upstream_pressure_Pa=upstream_pressures,
+    terminal_shock_supersonic_downstream_states=supersonic_downstream_states,
+    terminal_shock_supersonic_downstream_maximum_angle_residual_rad=(
+      supersonic_downstream_maximum_angle_residual_rad
+    ),
     terminal_normal_shock=terminal,
     source_strip_cell_count=strip.cell_count,
     source_patch_cell_count=reflection_patch.cell_count,
@@ -1160,6 +1243,7 @@ def solve_marched_ambient_attachment_shock_cell_transition(
       target_centerline_y_m=target_centerline_y_m,
       position_tolerance_m=max(position_tolerance_m, 1.0e-9),
       mesh_vertex_tolerance_m=max(position_tolerance_m, 1.0e-9),
+      shock_angle_tolerance_rad=shock_angle_tolerance_rad,
     )
     if terminal_field.converged:
       status = MocShockCellTransitionStatus.PHYSICALLY_TERMINATED

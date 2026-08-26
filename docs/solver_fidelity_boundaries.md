@@ -77,6 +77,10 @@ characteristic-cell evidence only, leaves the downstream subsonic field
 unsolved, and therefore cannot set physical closure or promote a chain cell.
 The checkpoint rejects a mesh unless the complete solver-generated shock edge
 is present and the terminal upstream state/pressure sample is carried with it.
+The oblique portion of that edge also carries independently fitted downstream
+supersonic states; the centerline normal-shock endpoint remains scalar because
+the subsonic state is outside the ``CharacteristicState`` contract. This is a
+mixed-regime handoff seam only, not a closed downstream field.
 It also has an explicitly labeled constant-`K+`
 simple-wave continuation: it preserves the open-strip topology and advances
 the shock probe through additional samples, but it remains an upstream

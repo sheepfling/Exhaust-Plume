@@ -290,6 +290,11 @@ state/pressure samples to approximately ``1e-9 m`` geometry residual. The
 coarse case retains its declared mesh-scale trace tolerance. This is
 supersonic-side topology evidence only and does not relax the mixed-regime
 closure gate.
+The composite also carries independently fitted downstream supersonic states
+along the oblique portion of the terminal shock. The subsonic normal-shock
+endpoint remains a scalar terminal result rather than being forced into
+``CharacteristicState``; this is a handoff for a future mixed-regime solve,
+not a completed downstream field.
 The earlier boundary-conditioned triangular assembler is also no longer
 promotion-eligible by default: it does not carry verified shock-``C+`` /
 ambient-``C-`` family-orientation evidence. This guard prevents a numerically
