@@ -185,6 +185,19 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
     and case['chain_promotion_blocked'] is True
     for case in elliptic_refinement
   )
+  terminal_attachment_refinement = mixed_regime_boundary['terminal_attachment_refinement']
+  assert [case['radial_divisions'] for case in terminal_attachment_refinement] == [2, 3, 4]
+  assert all(
+    case['mixed_regime_field_complete'] is True
+    and case['physical_closure_verified'] is True
+    and case['physical_termination_verified'] is True
+    and case['chain_promotion_blocked'] is True
+    and case['termination_decision']['physical_termination'] is True
+    and case['termination_decision']['diagnostics']['mixed_regime_model'] == (
+      'elliptic-isentropic-radial-reference'
+    )
+    for case in terminal_attachment_refinement
+  )
   terminal_attachment = mixed_regime_boundary['terminal_attachment_contract_fixture']
   terminal_attachment_closure = mixed_regime_boundary['terminal_attachment_closure_result']
   assert terminal_attachment_closure['status'] == 'converged_mixed_regime_closure'

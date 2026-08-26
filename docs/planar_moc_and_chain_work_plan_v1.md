@@ -334,6 +334,11 @@ not wait on this research closure.
   scalar reference model: it does not provide the missing canonical
   subsonic boundary condition, a nonlinear compressible potential solve, or a
   continued supersonic chain handoff.
+- Exercised the refined reference through the terminal composite's exact seam
+  validator at 2/3/4 radial divisions. Each case retains the same normal-shock
+  terminal and supersonic patch, produces an explicit physical-stop decision,
+  and keeps chain promotion blocked; this is attachment/refinement evidence,
+  not canonical mixed-regime acceptance.
 - Added an independent MOC shock-cell measurement operator. It extracts
   shock/centerline boundaries, axial extent, boundary lengths, radius, mesh
   area, perimeter-area closure, and optional shock total-pressure loss only

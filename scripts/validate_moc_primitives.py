@@ -1268,6 +1268,23 @@ def _mixed_regime_boundary_probe(
     )
     for radial_divisions in (2, 3, 4)
   )
+  terminal_attachment_refinement: tuple[dict[str, Any], ...] = ()
+  if field is not None and all(
+    result.physical_closure_verified for result in contract_field_refinement
+  ):
+    attachment_cases: list[dict[str, Any]] = []
+    for result in contract_field_refinement:
+      attached = field.with_mixed_regime_field(result)
+      attachment_cases.append({
+        'radial_divisions': result.radial_divisions,
+        'model': result.model,
+        'mixed_regime_field_complete': attached.mixed_regime_field_complete,
+        'physical_closure_verified': attached.physical_closure_verified,
+        'physical_termination_verified': attached.physical_termination_verified,
+        'chain_promotion_blocked': attached.chain_promotion_blocked,
+        'termination_decision': attached.as_physical_termination_decision().as_report(),
+      })
+    terminal_attachment_refinement = tuple(attachment_cases)
   terminal_attachment_fixture = None
   terminal_attachment_termination_decision = None
   terminal_attachment_closure = None
@@ -1291,6 +1308,12 @@ def _mixed_regime_boundary_probe(
       and contract_fixture.converged
       and contract_field.physical_closure_verified
       and all(result.physical_closure_verified for result in contract_field_refinement)
+      and len(terminal_attachment_refinement) == len(contract_field_refinement)
+      and all(
+        case['physical_termination_verified'] is True
+        and case['chain_promotion_blocked'] is True
+        for case in terminal_attachment_refinement
+      )
       and terminal_attachment_closure is not None
       and terminal_attachment_closure.converged
       and contract_fixture.physical_closure_verified is False
@@ -1304,6 +1327,7 @@ def _mixed_regime_boundary_probe(
     'elliptic_subsonic_field_refinement': [
       result.as_report() for result in contract_field_refinement
     ],
+    'terminal_attachment_refinement': list(terminal_attachment_refinement),
     'terminal_attachment_closure_result': (
       None
       if terminal_attachment_closure is None
