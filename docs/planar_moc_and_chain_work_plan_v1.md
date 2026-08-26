@@ -36,6 +36,10 @@ not wait on this research closure.
 - Added a domain-bounded reflected-zone sampler for compatible state and
   static-pressure callbacks. A shock probe now fails explicitly when it leaves
   the solved reflected lattice instead of silently extrapolating upstream flow.
+- Added a typed reflected-zone shock-path coupling probe. It records the exact
+  first missing upstream sample and the last valid state/pressure pair, making
+  the future characteristic-strip seam executable without treating a domain
+  miss as physical closure.
 - Added a separately labeled reflected-boundary trace-extension reference. It
   can generate a closed shock field from the terminal boundary trace, while
   retaining the upstream characteristic-strip coupling gate.

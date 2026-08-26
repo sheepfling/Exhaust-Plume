@@ -50,6 +50,8 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   new solver-generated shock field before returning a chain-cell solve result;
 - a domain-bounded reflected-zone state/pressure sampler that refuses to
   extrapolate once a candidate shock leaves the solved upstream lattice;
+- a typed reflected-zone shock-path coupling probe that records partial
+  upstream samples and the first missing characteristic-strip point;
 - an explicitly labeled reflected-boundary trace-extension reference that
   generates a closed shock field without claiming a solved upstream strip;
 - a shock-seeded shrinking-front C+/C- characteristic-field assembler with

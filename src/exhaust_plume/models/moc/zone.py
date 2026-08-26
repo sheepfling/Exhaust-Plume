@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 from math import isfinite, sqrt
+from typing import Sequence
 
 import numpy as np
 
@@ -31,9 +32,12 @@ __all__ = (
   'MocCharacteristicNode',
   'MocFanReflectedInterfaceResult',
   'MocInterfaceStatus',
+  'MocReflectedZoneShockCouplingResult',
+  'MocReflectedZoneShockCouplingStatus',
   'MocZoneAssemblyStatus',
   'MocReflectedCharacteristicZoneResult',
   'assemble_reflected_characteristic_zone',
+  'sample_reflected_zone_along_shock_path',
   'validate_fan_reflected_interface',
 )
 
@@ -57,6 +61,16 @@ class MocInterfaceStatus(str, Enum):
 ####
 
 
+class MocReflectedZoneShockCouplingStatus(str, Enum):
+  """Outcome of sampling a candidate shock inside the solved reflected zone."""
+
+  CONVERGED_REFLECTED_ZONE_FIELD = 'converged_reflected_zone_field'
+  INVALID_INPUT = 'invalid_input'
+  OUTSIDE_DOMAIN = 'outside_reflected_zone_domain'
+  PRESSURE_FAILURE = 'pressure_failure'
+####
+
+
 @dataclass(frozen=True, slots=True)
 class MocFanReflectedInterfaceResult:
   """Coordinate residuals between the fan grid and reflected march.
@@ -75,6 +89,55 @@ class MocFanReflectedInterfaceResult:
   @property
   def aligned(self) -> bool:
     return self.status is MocInterfaceStatus.ALIGNED
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedZoneShockCouplingResult:
+  """Domain-bounded upstream samples along a candidate shock path.
+
+  A converged result means every requested point was found in the already
+  solved reflected lattice.  ``OUTSIDE_DOMAIN`` is deliberately a normal
+  solver outcome: it identifies the first point for which an upstream
+  characteristic strip is still missing instead of extrapolating the last
+  reflected state.
+  """
+
+  status: MocReflectedZoneShockCouplingStatus
+  shock_points_m: tuple[tuple[float, float], ...]
+  upstream_states: tuple[CharacteristicState, ...]
+  upstream_pressure_Pa: tuple[float, ...]
+  first_missing_sample_index: int | None
+  message: str = ''
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocReflectedZoneShockCouplingStatus.CONVERGED_REFLECTED_ZONE_FIELD
+  ####
+
+  @property
+  def sampled_count(self) -> int:
+    return len(self.upstream_states)
+  ####
+
+  @property
+  def last_valid_point_m(self) -> tuple[float, float] | None:
+    if not self.upstream_states:
+      return None
+    state = self.upstream_states[-1]
+    return state.x_m, state.y_m
+  ####
+
+  def as_report(self) -> dict[str, object]:
+    return {
+      'status': self.status.value,
+      'converged': self.converged,
+      'requested_sample_count': len(self.shock_points_m),
+      'sampled_count': self.sampled_count,
+      'first_missing_sample_index': self.first_missing_sample_index,
+      'last_valid_point_m': self.last_valid_point_m,
+      'message': self.message,
+    }
 ####
 
 
@@ -239,6 +302,108 @@ class MocReflectedCharacteristicZoneResult:
     ) ** (state.gamma / (state.gamma - 1.0))
     return self.total_pressure_Pa / pressure_ratio
   ####
+####
+
+
+def sample_reflected_zone_along_shock_path(
+  zone: MocReflectedCharacteristicZoneResult,
+  shock_points_m: Sequence[tuple[float, float]],
+  *,
+  position_tolerance_m: float = 1.0e-10,
+) -> MocReflectedZoneShockCouplingResult:
+  """Sample a candidate shock path without extrapolating the reflected zone.
+
+  The path is ordered from its outer attachment toward the centerline.  This
+  helper is intentionally only a coupling probe: it does not generate a
+  missing characteristic strip or alter the open reflected-zone mesh.
+  """
+
+  if not isinstance(zone, MocReflectedCharacteristicZoneResult):
+    return MocReflectedZoneShockCouplingResult(
+      status=MocReflectedZoneShockCouplingStatus.INVALID_INPUT,
+      shock_points_m=(),
+      upstream_states=(),
+      upstream_pressure_Pa=(),
+      first_missing_sample_index=None,
+      message='zone must be a MocReflectedCharacteristicZoneResult',
+    )
+  try:
+    points = tuple(
+      (float(point[0]), float(point[1]))
+      for point in shock_points_m
+    )
+  except (TypeError, IndexError, ValueError):
+    return MocReflectedZoneShockCouplingResult(
+      status=MocReflectedZoneShockCouplingStatus.INVALID_INPUT,
+      shock_points_m=(),
+      upstream_states=(),
+      upstream_pressure_Pa=(),
+      first_missing_sample_index=None,
+      message='shock_points_m must contain finite two-coordinate points',
+    )
+  if len(points) < 2 or any(not all(isfinite(value) for value in point) for point in points):
+    return MocReflectedZoneShockCouplingResult(
+      status=MocReflectedZoneShockCouplingStatus.INVALID_INPUT,
+      shock_points_m=points,
+      upstream_states=(),
+      upstream_pressure_Pa=(),
+      first_missing_sample_index=None,
+      message='shock path coupling requires at least two finite points',
+    )
+  if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
+    raise ValueError('position_tolerance_m must be finite and positive')
+  for index, (previous, current) in enumerate(zip(points, points[1:]), start=1):
+    if current[0] <= previous[0] + position_tolerance_m or current[1] > previous[1] + position_tolerance_m:
+      return MocReflectedZoneShockCouplingResult(
+        status=MocReflectedZoneShockCouplingStatus.INVALID_INPUT,
+        shock_points_m=points,
+        upstream_states=(),
+        upstream_pressure_Pa=(),
+        first_missing_sample_index=index,
+        message=(
+          'shock path must be strictly downstream in x and nonincreasing in y'
+        ),
+      )
+  ####
+
+  states: list[CharacteristicState] = []
+  pressures: list[float] = []
+  for index, point in enumerate(points):
+    state = zone.state_at(point, position_tolerance_m=position_tolerance_m)
+    pressure = zone.static_pressure_at(point, position_tolerance_m=position_tolerance_m)
+    if state is None:
+      return MocReflectedZoneShockCouplingResult(
+        status=MocReflectedZoneShockCouplingStatus.OUTSIDE_DOMAIN,
+        shock_points_m=points,
+        upstream_states=tuple(states),
+        upstream_pressure_Pa=tuple(pressures),
+        first_missing_sample_index=index,
+        message=(
+          f'reflected characteristic zone has no upstream state at shock sample {index}'
+        ),
+      )
+    if pressure is None or not isfinite(float(pressure)) or float(pressure) <= 0.0:
+      return MocReflectedZoneShockCouplingResult(
+        status=MocReflectedZoneShockCouplingStatus.PRESSURE_FAILURE,
+        shock_points_m=points,
+        upstream_states=tuple(states),
+        upstream_pressure_Pa=tuple(pressures),
+        first_missing_sample_index=index,
+        message=(
+          f'reflected characteristic zone has no valid static pressure at shock sample {index}'
+        ),
+      )
+    states.append(state)
+    pressures.append(float(pressure))
+  ####
+  return MocReflectedZoneShockCouplingResult(
+    status=MocReflectedZoneShockCouplingStatus.CONVERGED_REFLECTED_ZONE_FIELD,
+    shock_points_m=points,
+    upstream_states=tuple(states),
+    upstream_pressure_Pa=tuple(pressures),
+    first_missing_sample_index=None,
+    message='every shock sample lies inside the solved reflected characteristic zone',
+  )
 ####
 
 

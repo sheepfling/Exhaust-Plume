@@ -48,6 +48,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_reflected_free_boundary,
   solve_overexpanded_lip_shock,
   solve_underexpanded_expansion_fan,
+  sample_reflected_zone_along_shock_path,
   validate_fan_reflected_interface,
   validate_closed_post_shock_field,
   validate_moc_mesh,
@@ -512,6 +513,23 @@ def _reflected_zone_shock_coupling_probe(
       'message': 'reflected boundary shock probe requires a positive start ordinate',
       'claim_status': 'reflected-field-shock-coupling-pending',
     }
+  upstream_pressure = reflected_zone.static_pressure_at(start)
+  if upstream_pressure is None:
+    return {
+      'status': 'pressure_failure',
+      'sample_count': 0,
+      'message': 'reflected zone could not provide terminal upstream pressure',
+      'claim_status': 'reflected-field-shock-coupling-pending',
+    }
+  trace_extension = solve_reflected_boundary_trace_extension(
+    reflected_boundary,
+    upstream_pressure,
+    sample_count=9,
+  )
+  coupling = sample_reflected_zone_along_shock_path(
+    reflected_zone,
+    trace_extension.shock_points_m,
+  )
   result = solve_marched_attached_shock_field(
     reflected_zone.state_at,
     reflected_zone.static_pressure_at,
@@ -528,6 +546,7 @@ def _reflected_zone_shock_coupling_probe(
     'shock_start_m': start,
     'last_valid_point_m': result.shock_points_m[-1] if result.shock_points_m else None,
     'message': result.message,
+    'coupling': coupling.as_report(),
     'claim_status': (
       'reflected-field-domain-bounded-probe; shock-path-extension-pending'
     ),

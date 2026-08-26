@@ -75,6 +75,9 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert generated_chain['physical_termination'] is False
   assert reflected_probe['status'] == 'upstream_field_failure'
   assert reflected_probe['claim_status'] == 'reflected-field-domain-bounded-probe; shock-path-extension-pending'
+  assert reflected_probe['coupling']['status'] == 'outside_reflected_zone_domain'
+  assert reflected_probe['coupling']['sampled_count'] == 1
+  assert reflected_probe['coupling']['first_missing_sample_index'] == 1
   assert trace_extension['accepted'] is True
   assert trace_extension['field_status'] == 'converged_closed'
   assert trace_extension['shock_closure_status'] == 'reflected-boundary-trace-extension'

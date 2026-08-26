@@ -210,6 +210,18 @@
         0.1158153281924007
       ],
       "message": "upstream field callback returned no CharacteristicState at sample 1",
+      "coupling": {
+        "status": "outside_reflected_zone_domain",
+        "converged": false,
+        "requested_sample_count": 9,
+        "sampled_count": 1,
+        "first_missing_sample_index": 1,
+        "last_valid_point_m": [
+          0.7431488332818272,
+          0.1158153281924007
+        ],
+        "message": "reflected characteristic zone has no upstream state at shock sample 1"
+      },
       "claim_status": "reflected-field-domain-bounded-probe; shock-path-extension-pending"
     },
     "reflected_boundary_trace_extension": {

@@ -5,9 +5,12 @@ import pytest
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput
 from exhaust_plume.models.moc import (
   MocInterfaceStatus,
+  MocReflectedZoneShockCouplingStatus,
   MocZoneAssemblyStatus,
   assemble_reflected_characteristic_zone,
+  sample_reflected_zone_along_shock_path,
   solve_reflected_free_boundary,
+  solve_reflected_boundary_trace_extension,
   solve_underexpanded_expansion_fan,
   validate_fan_reflected_interface,
   validate_moc_mesh,
@@ -97,6 +100,48 @@ def test_reflected_zone_sampler_is_pressure_aware_and_domain_bounded() -> None:
   assert zone.static_pressure_at(sample_point) > 0.0
   assert zone.state_at((1.0, 0.5)) is None
   assert zone.static_pressure_at((1.0, 0.5)) is None
+
+
+def test_reflected_zone_shock_coupling_reports_first_missing_strip_sample() -> None:
+  gas = CaloricallyPerfectGas.dry_air()
+  exit_state = derive_uniform_nozzle_exit(
+    NozzleExitInput(
+      mach=2.0,
+      total_pressure_Pa=2.0e6,
+      total_temperature_K=900.0,
+      exit_radius_m=0.05,
+    ),
+    gas,
+  )
+  ambient = derive_ambient_state(
+    AmbientInput(pressure_Pa=101325.0, temperature_K=300.0),
+    gas,
+  )
+  fan = solve_underexpanded_expansion_fan(exit_state, ambient, characteristic_count=8)
+  reflected_boundary = solve_reflected_free_boundary(fan, exit_state, ambient)
+  zone = assemble_reflected_characteristic_zone(
+    fan,
+    reflected_boundary,
+    total_pressure_Pa=exit_state.total_pressure_Pa,
+  )
+  start = reflected_boundary.boundary_points_m[-1]
+  pressure = zone.static_pressure_at(start)
+  assert pressure is not None
+  trace_extension = solve_reflected_boundary_trace_extension(
+    reflected_boundary,
+    pressure,
+    sample_count=9,
+  )
+
+  coupling = sample_reflected_zone_along_shock_path(
+    zone,
+    trace_extension.shock_points_m,
+  )
+
+  assert coupling.status is MocReflectedZoneShockCouplingStatus.OUTSIDE_DOMAIN
+  assert coupling.sampled_count == 1
+  assert coupling.first_missing_sample_index == 1
+  assert coupling.last_valid_point_m == pytest.approx(start)
 
 
 def test_fan_reflected_interface_reuses_compatibility_grid_and_connects_cells() -> None:
