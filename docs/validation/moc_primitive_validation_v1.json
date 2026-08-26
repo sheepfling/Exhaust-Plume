@@ -312,6 +312,7 @@
         "message": "triangular source-boundary characteristic strip converged; shock and downstream closure remain separate"
       },
       "frontier": null,
+      "remesh": null,
       "message": "constant-K+ simple-wave source continuation converged as an open upstream strip; physical shock fitting and downstream closure remain pending",
       "shock_probe": {
         "status": "upstream_field_failure",
@@ -372,6 +373,7 @@
             "message": "triangular source-boundary characteristic strip converged; shock and downstream closure remain separate"
           },
           "frontier": null,
+          "remesh": null,
           "message": "constant-K+ simple-wave source continuation converged as an open upstream strip; physical shock fitting and downstream closure remain pending"
         },
         "claim_status": "constant-k-plus-simple-wave-extension; shock-closure-pending"
@@ -450,6 +452,51 @@
         "first_invalid_index": 3,
         "maximum_geometry_residual_m": 4.683753385137379e-17,
         "message": "candidate source row has disjoint forward intervals; a connected triangular strip requires an explicit remesh across the caustic"
+      },
+      "remesh": {
+        "status": "caustic_requires_new_characteristic_family",
+        "converged": false,
+        "source_index": 9,
+        "node_count": 5,
+        "patch_cell_count": 1,
+        "connected_with_base": true,
+        "topology": {
+          "status": "open",
+          "connected": true,
+          "forms_closed_zone": true,
+          "boundary_component_count": 1,
+          "boundary_edge_count": 28,
+          "nonmanifold_edge_count": 0
+        },
+        "frontier": {
+          "status": "converged_source_frontier_probe",
+          "converged": true,
+          "source_index": 9,
+          "boundary_sample_count": 10,
+          "valid_boundary_indices": [
+            0,
+            1,
+            2,
+            8,
+            9
+          ],
+          "valid_index_ranges": [
+            [
+              0,
+              2
+            ],
+            [
+              8,
+              9
+            ]
+          ],
+          "has_disjoint_ranges": true,
+          "first_invalid_index": 3,
+          "maximum_geometry_residual_m": 4.683753385137379e-17,
+          "message": "candidate source row has disjoint forward intervals; a connected triangular strip requires an explicit remesh across the caustic"
+        },
+        "failed_boundary_index": 0,
+        "message": "remesh cell at boundary interval 0 could not be assembled without crossing a caustic: characteristic cell polygon is invalid: self_intersection"
       },
       "message": "centerline C- reflection and ambient-pressure C+ boundary march converged as an open upstream source strip; shock fitting and downstream closure remain pending; extended strip failed: characteristic node (9, 3) failed: characteristic intersection is not forward: behind_first_ray",
       "claim_status": "centerline-C-minus-reflection-boundary-law; triangular-domain-remesh-or-shock-closure-pending"
@@ -530,6 +577,7 @@
           "message": "characteristic node (170, 2) failed: characteristic intersection is not forward: behind_first_ray"
         },
         "frontier": null,
+        "remesh": null,
         "message": "constant-K+ source continuation exposes a converged terminal source window; the full continuation reached a characteristic caustic and physical shock fitting/downstream closure remain pending"
       },
       "shock_start_m": [

@@ -188,8 +188,9 @@ not wait on this research closure.
   domain retains the generated samples but currently stops at a forward-ray
   caustic when the old triangular mesh is reassembled. The continuation now
   reports the disjoint forward frontier intervals and first invalid ray
-  explicitly; that bounded frontier is a remesh/shock-closure seam, not a
-  promotion.
+  explicitly and attempts only the valid local remesh cells; the canonical
+  candidate rejects its first self-intersecting patch cell and leaves the
+  bounded frontier as a remesh/shock-closure seam, not a promotion.
 - Added axial-boundary, cell-index, domain-limit, and callback termination
   checks.
 - Added a hard fidelity boundary: scaled reduced-order candidates are

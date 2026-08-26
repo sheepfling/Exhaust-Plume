@@ -152,6 +152,11 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert centerline_reflection_extension['frontier']['valid_index_ranges'] == [[0, 2], [8, 9]]
   assert centerline_reflection_extension['frontier']['first_invalid_index'] == 3
   assert centerline_reflection_extension['frontier']['has_disjoint_ranges'] is True
+  assert centerline_reflection_extension['remesh']['status'] == (
+    'caustic_requires_new_characteristic_family'
+  )
+  assert centerline_reflection_extension['remesh']['failed_boundary_index'] == 0
+  assert centerline_reflection_extension['remesh']['patch_cell_count'] == 1
   assert centerline_reflection_extension['claim_status'] == (
     'centerline-C-minus-reflection-boundary-law; '
     'triangular-domain-remesh-or-shock-closure-pending'

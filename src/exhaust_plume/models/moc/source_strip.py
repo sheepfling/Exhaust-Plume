@@ -34,12 +34,15 @@ __all__ = (
   'MocSourceStripStatus',
   'MocSourceStripFrontierStatus',
   'MocSourceStripFrontierResult',
+  'MocSourceStripRemeshStatus',
+  'MocSourceStripRemeshResult',
   'MocSourceStripContinuationStatus',
   'MocSourceCharacteristicStripResult',
   'MocSourceStripContinuationResult',
   'assemble_source_characteristic_strip',
   'assemble_source_characteristic_strip_window',
   'probe_source_strip_frontier',
+  'remesh_source_strip_frontier',
   'extend_source_characteristic_strip_constant_k_plus',
   'extend_source_characteristic_strip_centerline_reflection',
 )
@@ -103,6 +106,67 @@ class MocSourceStripFrontierResult:
       'has_disjoint_ranges': self.has_disjoint_ranges,
       'first_invalid_index': self.first_invalid_index,
       'maximum_geometry_residual_m': self.maximum_geometry_residual_m,
+      'message': self.message,
+    }
+####
+
+
+class MocSourceStripRemeshStatus(str, Enum):
+  """Outcome of a local source-row remesh attempt."""
+
+  CONVERGED_OPEN_PATCH = 'converged_open_remesh_patch'
+  CAUSTIC_REQUIRES_NEW_FAMILY = 'caustic_requires_new_characteristic_family'
+  TOPOLOGY_FAILURE = 'remesh_topology_failure'
+  INVALID_INPUT = 'invalid_input'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocSourceStripRemeshResult:
+  """A bounded local remesh candidate, never an implicit full-strip repair."""
+
+  status: MocSourceStripRemeshStatus
+  source_index: int
+  nodes: tuple[MocCharacteristicNode, ...]
+  cells: tuple[MocCharacteristicCell, ...]
+  topology: MocTopologyResult | None
+  frontier: MocSourceStripFrontierResult | None
+  failed_boundary_index: int | None
+  message: str = ''
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocSourceStripRemeshStatus.CONVERGED_OPEN_PATCH
+  ####
+
+  @property
+  def patch_cell_count(self) -> int:
+    return len(self.cells)
+  ####
+
+  @property
+  def connected_with_base(self) -> bool:
+    return self.topology is not None and self.topology.connected
+  ####
+
+  def as_report(self) -> dict[str, object]:
+    return {
+      'status': self.status.value,
+      'converged': self.converged,
+      'source_index': self.source_index,
+      'node_count': len(self.nodes),
+      'patch_cell_count': self.patch_cell_count,
+      'connected_with_base': self.connected_with_base,
+      'topology': None if self.topology is None else {
+        'status': self.topology.status.value,
+        'connected': self.topology.connected,
+        'forms_closed_zone': self.topology.forms_closed_zone,
+        'boundary_component_count': self.topology.boundary_component_count,
+        'boundary_edge_count': self.topology.boundary_edge_count,
+        'nonmanifold_edge_count': self.topology.nonmanifold_edge_count,
+      },
+      'frontier': None if self.frontier is None else self.frontier.as_report(),
+      'failed_boundary_index': self.failed_boundary_index,
       'message': self.message,
     }
 ####
@@ -403,6 +467,7 @@ class MocSourceStripContinuationResult:
   source_window_total_count: int | None = None
   continuation_law: str = 'constant-k-plus-simple-wave'
   frontier: MocSourceStripFrontierResult | None = None
+  remesh: MocSourceStripRemeshResult | None = None
 
   @property
   def converged(self) -> bool:
@@ -427,6 +492,7 @@ class MocSourceStripContinuationResult:
       'strip': None if self.strip is None else self.strip.as_report(),
       'full_strip': None if self.full_strip is None else self.full_strip.as_report(),
       'frontier': None if self.frontier is None else self.frontier.as_report(),
+      'remesh': None if self.remesh is None else self.remesh.as_report(),
       'message': self.message,
     }
 ####
@@ -565,6 +631,274 @@ def probe_source_strip_frontier(
     first_invalid_index=first_invalid_index,
     maximum_geometry_residual_m=max(geometry_residuals, default=None),
     message=message,
+  )
+
+
+def remesh_source_strip_frontier(
+  base_strip: MocSourceCharacteristicStripResult,
+  plus_source: CharacteristicState,
+  minus_source_states: Sequence[CharacteristicState],
+  frontier: MocSourceStripFrontierResult,
+  *,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+) -> MocSourceStripRemeshResult:
+  """Attempt a local source-row remesh without inventing a caustic bridge.
+
+  The existing strip remains authoritative.  Only cells whose adjacent
+  characteristic intersections and polygons validate are added to the local
+  candidate.  A disjoint frontier or a self-intersecting candidate returns a
+  structured non-promotable result rather than forcing a connected mesh.
+  """
+
+  if not isinstance(frontier, MocSourceStripFrontierResult):
+    return MocSourceStripRemeshResult(
+      status=MocSourceStripRemeshStatus.INVALID_INPUT,
+      source_index=0,
+      nodes=(),
+      cells=(),
+      topology=None,
+      frontier=None,
+      failed_boundary_index=None,
+      message='frontier must be a MocSourceStripFrontierResult',
+    )
+  source_index = frontier.source_index
+  if not isinstance(base_strip, MocSourceCharacteristicStripResult):
+    return MocSourceStripRemeshResult(
+      status=MocSourceStripRemeshStatus.INVALID_INPUT,
+      source_index=source_index,
+      nodes=(),
+      cells=(),
+      topology=None,
+      frontier=frontier,
+      failed_boundary_index=None,
+      message='base_strip must be a MocSourceCharacteristicStripResult',
+    )
+  if not base_strip.converged:
+    return MocSourceStripRemeshResult(
+      status=MocSourceStripRemeshStatus.INVALID_INPUT,
+      source_index=source_index,
+      nodes=(),
+      cells=(),
+      topology=None,
+      frontier=frontier,
+      failed_boundary_index=None,
+      message='base_strip must be a converged open source strip',
+    )
+  if not isinstance(plus_source, CharacteristicState):
+    return MocSourceStripRemeshResult(
+      status=MocSourceStripRemeshStatus.INVALID_INPUT,
+      source_index=source_index,
+      nodes=(),
+      cells=(),
+      topology=None,
+      frontier=frontier,
+      failed_boundary_index=None,
+      message='plus_source must be a CharacteristicState',
+    )
+  try:
+    minus = tuple(minus_source_states)
+  except TypeError:
+    minus = ()
+  if (
+    source_index != len(base_strip.plus_source_states)
+    or len(minus) != source_index + 1
+    or any(not isinstance(state, CharacteristicState) for state in minus)
+  ):
+    return MocSourceStripRemeshResult(
+      status=MocSourceStripRemeshStatus.INVALID_INPUT,
+      source_index=source_index,
+      nodes=(),
+      cells=(),
+      topology=None,
+      frontier=frontier,
+      failed_boundary_index=None,
+      message=(
+        'remesh requires one new plus source and one new minus source beyond '
+        'the converged base strip'
+      ),
+    )
+  if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
+    raise ValueError('position_tolerance_m must be finite and positive')
+  if not isfinite(float(invariant_tolerance)) or invariant_tolerance <= 0.0:
+    raise ValueError('invariant_tolerance must be finite and positive')
+  valid_indices = set(frontier.valid_boundary_indices)
+  if any(index < 0 or index >= len(minus) for index in valid_indices):
+    return MocSourceStripRemeshResult(
+      status=MocSourceStripRemeshStatus.INVALID_INPUT,
+      source_index=source_index,
+      nodes=(),
+      cells=(),
+      topology=None,
+      frontier=frontier,
+      failed_boundary_index=None,
+      message='frontier contains an out-of-range boundary index',
+    )
+  base_nodes = {
+    (node.centerline_index, node.boundary_index): node
+    for node in base_strip.nodes
+  }
+  new_nodes: dict[int, MocCharacteristicNode] = {}
+  for boundary_index in sorted(valid_indices):
+    point_result = interior_characteristic_point(
+      plus_source,
+      minus[boundary_index],
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+    )
+    if (
+      not point_result.converged
+      or point_result.point_m is None
+      or point_result.state is None
+      or point_result.point_m[1] < -position_tolerance_m
+    ):
+      return MocSourceStripRemeshResult(
+        status=MocSourceStripRemeshStatus.CAUSTIC_REQUIRES_NEW_FAMILY,
+        source_index=source_index,
+        nodes=tuple(new_nodes.values()),
+        cells=(),
+        topology=None,
+        frontier=frontier,
+        failed_boundary_index=boundary_index,
+        message=(
+          f'frontier boundary {boundary_index} cannot be remeshed as a '
+          f'forward characteristic: {point_result.message}'
+        ),
+      )
+    new_nodes[boundary_index] = MocCharacteristicNode(
+      centerline_index=source_index,
+      boundary_index=boundary_index,
+      point_m=point_result.point_m,
+      state=point_result.state,
+      point_result=point_result,
+      total_pressure_Pa=base_strip.total_pressure_Pa,
+    )
+  old_index = source_index - 1
+  patch_cells: list[MocCharacteristicCell] = []
+
+  def _failure(
+    status: MocSourceStripRemeshStatus,
+    message: str,
+    failed_boundary_index: int | None = None,
+  ) -> MocSourceStripRemeshResult:
+    combined = (*base_strip.cells, *patch_cells)
+    topology = validate_moc_mesh(combined) if combined else None
+    return MocSourceStripRemeshResult(
+      status=status,
+      source_index=source_index,
+      nodes=tuple(new_nodes.values()),
+      cells=tuple(patch_cells),
+      topology=topology,
+      frontier=frontier,
+      failed_boundary_index=failed_boundary_index,
+      message=message,
+    )
+
+  try:
+    old_axis_node = base_nodes[(old_index, 0)]
+    new_axis_node = new_nodes[0]
+    patch_cells.append(
+      MocCharacteristicCell(
+        cell_index=len(patch_cells),
+        cell_kind='source-axis-remesh',
+        vertices_xr_m=(
+          (base_strip.plus_source_states[-1].x_m, base_strip.plus_source_states[-1].y_m),
+          (plus_source.x_m, plus_source.y_m),
+          new_axis_node.point_m,
+          old_axis_node.point_m,
+        ),
+        centerline_indices=(old_index, source_index),
+        boundary_indices=(0,),
+      )
+    )
+  except (KeyError, ValueError) as error:
+    return _failure(
+      MocSourceStripRemeshStatus.CAUSTIC_REQUIRES_NEW_FAMILY,
+      f'axis remesh cell could not be assembled: {error}',
+      0,
+    )
+
+  for start, end in frontier.valid_index_ranges:
+    for boundary_index in range(start, end):
+      try:
+        if boundary_index == old_index:
+          if boundary_index not in new_nodes or source_index not in new_nodes:
+            raise KeyError('outer remesh diagonal is not available')
+          patch_cells.append(
+            MocCharacteristicCell(
+              cell_index=len(patch_cells),
+              cell_kind='source-boundary-remesh',
+              vertices_xr_m=(
+                base_nodes[(old_index, old_index)].point_m,
+                new_nodes[boundary_index].point_m,
+                new_nodes[source_index].point_m,
+              ),
+              centerline_indices=(source_index,),
+              boundary_indices=(boundary_index, source_index),
+            )
+          )
+        elif boundary_index < old_index:
+          patch_cells.append(
+            MocCharacteristicCell(
+              cell_index=len(patch_cells),
+              cell_kind='source-interior-remesh',
+              vertices_xr_m=(
+                base_nodes[(old_index, boundary_index)].point_m,
+                base_nodes[(old_index, boundary_index + 1)].point_m,
+                new_nodes[boundary_index + 1].point_m,
+                new_nodes[boundary_index].point_m,
+              ),
+              centerline_indices=(old_index, source_index),
+              boundary_indices=(boundary_index, boundary_index + 1),
+            )
+          )
+      except (KeyError, ValueError) as error:
+        return _failure(
+          MocSourceStripRemeshStatus.CAUSTIC_REQUIRES_NEW_FAMILY,
+          (
+            f'remesh cell at boundary interval {boundary_index} could not be '
+            f'assembled without crossing a caustic: {error}'
+          ),
+          boundary_index,
+        )
+  combined_topology = validate_moc_mesh((*base_strip.cells, *patch_cells))
+  if not combined_topology.connected or combined_topology.nonmanifold_edge_count:
+    return MocSourceStripRemeshResult(
+      status=MocSourceStripRemeshStatus.TOPOLOGY_FAILURE,
+      source_index=source_index,
+      nodes=tuple(new_nodes.values()),
+      cells=tuple(patch_cells),
+      topology=combined_topology,
+      frontier=frontier,
+      failed_boundary_index=None,
+      message=f'remeshed source patch topology failed: {combined_topology.message}',
+    )
+  if frontier.has_disjoint_ranges:
+    return MocSourceStripRemeshResult(
+      status=MocSourceStripRemeshStatus.CAUSTIC_REQUIRES_NEW_FAMILY,
+      source_index=source_index,
+      nodes=tuple(new_nodes.values()),
+      cells=tuple(patch_cells),
+      topology=combined_topology,
+      frontier=frontier,
+      failed_boundary_index=frontier.first_invalid_index,
+      message=(
+        'disjoint forward intervals remain after local remesh; a new '
+        'characteristic family or a physical termination law is required'
+      ),
+    )
+  return MocSourceStripRemeshResult(
+    status=MocSourceStripRemeshStatus.CONVERGED_OPEN_PATCH,
+    source_index=source_index,
+    nodes=tuple(new_nodes.values()),
+    cells=tuple(patch_cells),
+    topology=combined_topology,
+    frontier=frontier,
+    failed_boundary_index=None,
+    message=(
+      'local source-row remesh produced a connected open patch; full '
+      'upstream and physical-boundary closure remain separate gates'
+    ),
   )
 
 
@@ -1231,6 +1565,7 @@ def _finish_centerline_reflection_continuation(
   original_sample_count: int,
   source_window_start_index: int,
   frontier: MocSourceStripFrontierResult | None,
+  remesh: MocSourceStripRemeshResult | None,
   message: str,
 ) -> MocSourceStripContinuationResult:
   """Attach source-window semantics to a completed reflection march."""
@@ -1248,6 +1583,7 @@ def _finish_centerline_reflection_continuation(
     'source_window_total_count': len(plus),
     'continuation_law': 'centerline-c-minus-reflection-plus-ambient-pressure',
     'frontier': frontier,
+    'remesh': remesh,
   }
   if source_window_start_index == 0:
     if full_strip.converged:
@@ -1541,6 +1877,18 @@ def extend_source_characteristic_strip_centerline_reflection(
       invariant_tolerance=invariant_tolerance,
     )
   )
+  remesh = (
+    None
+    if frontier is None
+    else remesh_source_strip_frontier(
+      initial_strip,
+      extended_plus[-1],
+      extended_minus,
+      frontier,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+    )
+  )
   return _finish_centerline_reflection_continuation(
     initial_strip,
     full_strip,
@@ -1549,6 +1897,7 @@ def extend_source_characteristic_strip_centerline_reflection(
     original_sample_count=len(minus),
     source_window_start_index=source_window_start_index,
     frontier=frontier,
+    remesh=remesh,
     message=(
       'centerline C- reflection and ambient-pressure C+ boundary march '
       'converged as an open upstream source strip; shock fitting and '

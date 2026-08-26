@@ -3,6 +3,7 @@ from __future__ import annotations
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput
 from exhaust_plume.models.moc import (
   MocSourceStripFrontierStatus,
+  MocSourceStripRemeshStatus,
   MocSourceStripContinuationStatus,
   extend_source_characteristic_strip_centerline_reflection,
   solve_underexpanded_expansion_fan,
@@ -72,3 +73,7 @@ def test_centerline_reflection_extension_carries_a_physical_boundary_law() -> No
     assert result.frontier.valid_index_ranges == ((0, 2), (8, 9))
     assert result.frontier.first_invalid_index == 3
     assert result.frontier.has_disjoint_ranges is True
+    assert result.remesh is not None
+    assert result.remesh.status is MocSourceStripRemeshStatus.CAUSTIC_REQUIRES_NEW_FAMILY
+    assert result.remesh.failed_boundary_index == 0
+    assert result.remesh.patch_cell_count == 1
