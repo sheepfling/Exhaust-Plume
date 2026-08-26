@@ -146,6 +146,12 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   )
   assert centerline_reflection_extension['added_sample_count'] == 1
   assert centerline_reflection_extension['source_window_count'] == 10
+  assert centerline_reflection_extension['frontier']['status'] == (
+    'converged_source_frontier_probe'
+  )
+  assert centerline_reflection_extension['frontier']['valid_index_ranges'] == [[0, 2], [8, 9]]
+  assert centerline_reflection_extension['frontier']['first_invalid_index'] == 3
+  assert centerline_reflection_extension['frontier']['has_disjoint_ranges'] is True
   assert centerline_reflection_extension['claim_status'] == (
     'centerline-C-minus-reflection-boundary-law; '
     'triangular-domain-remesh-or-shock-closure-pending'

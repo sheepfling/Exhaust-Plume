@@ -86,11 +86,14 @@ from exhaust_plume.models.moc.zone import (
 )
 from exhaust_plume.models.moc.source_strip import (
   MocSourceCharacteristicStripResult,
+  MocSourceStripFrontierResult,
+  MocSourceStripFrontierStatus,
   MocSourceStripStatus,
   MocSourceStripContinuationResult,
   MocSourceStripContinuationStatus,
   assemble_source_characteristic_strip,
   assemble_source_characteristic_strip_window,
+  probe_source_strip_frontier,
   extend_source_characteristic_strip_centerline_reflection,
   extend_source_characteristic_strip_constant_k_plus,
 )
@@ -209,6 +212,8 @@ __all__ = (
   'MocReflectedCharacteristicZoneResult',
   'MocZoneAssemblyStatus',
   'MocSourceCharacteristicStripResult',
+  'MocSourceStripFrontierResult',
+  'MocSourceStripFrontierStatus',
   'MocSourceStripStatus',
   'MocSourceStripContinuationResult',
   'MocSourceStripContinuationStatus',
@@ -289,6 +294,7 @@ __all__ = (
   'assemble_reflected_characteristic_zone',
   'assemble_source_characteristic_strip',
   'assemble_source_characteristic_strip_window',
+  'probe_source_strip_frontier',
   'extend_source_characteristic_strip_constant_k_plus',
   'extend_source_characteristic_strip_centerline_reflection',
   'solve_marched_attached_shock_with_ambient_pressure_closure',

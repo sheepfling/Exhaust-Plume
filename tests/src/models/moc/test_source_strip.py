@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput
 from exhaust_plume.models.moc import (
+  MocSourceStripFrontierStatus,
   MocSourceStripContinuationStatus,
   extend_source_characteristic_strip_centerline_reflection,
   solve_underexpanded_expansion_fan,
@@ -65,3 +66,9 @@ def test_centerline_reflection_extension_carries_a_physical_boundary_law() -> No
   assert result.converged is (
     result.status is MocSourceStripContinuationStatus.CONVERGED_CENTERLINE_REFLECTION
   )
+  if result.status is MocSourceStripContinuationStatus.STRIP_FAILURE:
+    assert result.frontier is not None
+    assert result.frontier.status is MocSourceStripFrontierStatus.CONVERGED
+    assert result.frontier.valid_index_ranges == ((0, 2), (8, 9))
+    assert result.frontier.first_invalid_index == 3
+    assert result.frontier.has_disjoint_ranges is True

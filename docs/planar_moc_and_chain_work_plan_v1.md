@@ -186,8 +186,10 @@ not wait on this research closure.
   ``theta=0``, and marches the reflected ``C+`` characteristic to the
   ambient-pressure/tangent boundary at each step. The canonical source
   domain retains the generated samples but currently stops at a forward-ray
-  caustic when the old triangular mesh is reassembled; that bounded failure is
-  evidence for the required remesh/shock-closure seam, not a promotion.
+  caustic when the old triangular mesh is reassembled. The continuation now
+  reports the disjoint forward frontier intervals and first invalid ray
+  explicitly; that bounded frontier is a remesh/shock-closure seam, not a
+  promotion.
 - Added axial-boundary, cell-index, domain-limit, and callback termination
   checks.
 - Added a hard fidelity boundary: scaled reduced-order candidates are
@@ -401,6 +403,11 @@ Only after MOC-1 through MOC-5 pass:
   boundary start. A terminal source-window continuation makes that boundary
   explicit, but the full continuation still reaches a characteristic caustic
   and the physical upstream extension/continuation solve is still required.
+- The canonical reflected continuation now identifies that caustic as two
+  disjoint forward intervals (`0..2` and `8..9`) for the new axis row. Those
+  intervals cannot be stitched into one triangular strip; a physical remesher
+  must bridge or terminate the characteristic family before the upstream
+  field can feed a production shock fit.
 - The trace-extension reference uses a constant terminal boundary trace; it is
   useful for deterministic plumbing and refinement, but it is not the physical
   upstream characteristic strip.

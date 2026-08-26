@@ -32,11 +32,14 @@ from exhaust_plume.models.moc.zone import MocCharacteristicCell, MocCharacterist
 
 __all__ = (
   'MocSourceStripStatus',
+  'MocSourceStripFrontierStatus',
+  'MocSourceStripFrontierResult',
   'MocSourceStripContinuationStatus',
   'MocSourceCharacteristicStripResult',
   'MocSourceStripContinuationResult',
   'assemble_source_characteristic_strip',
   'assemble_source_characteristic_strip_window',
+  'probe_source_strip_frontier',
   'extend_source_characteristic_strip_constant_k_plus',
   'extend_source_characteristic_strip_centerline_reflection',
 )
@@ -49,6 +52,59 @@ class MocSourceStripStatus(str, Enum):
   INVALID_INPUT = 'invalid_input'
   GEOMETRY_FAILURE = 'geometry_failure'
   TOPOLOGY_FAILURE = 'topology_failure'
+####
+
+
+class MocSourceStripFrontierStatus(str, Enum):
+  """Outcome for a local forward-intersection frontier probe."""
+
+  CONVERGED = 'converged_source_frontier_probe'
+  INVALID_INPUT = 'invalid_input'
+  NO_FORWARD_SEGMENTS = 'no_forward_frontier_segments'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocSourceStripFrontierResult:
+  """Forward intervals available for a new axis/source row.
+
+  This is deliberately not a source strip.  Disjoint intervals identify a
+  characteristic caustic or remeshing seam; they cannot be stitched into a
+  single triangular field without a new local solve.
+  """
+
+  status: MocSourceStripFrontierStatus
+  source_index: int
+  boundary_sample_count: int
+  valid_boundary_indices: tuple[int, ...]
+  valid_index_ranges: tuple[tuple[int, int], ...]
+  first_invalid_index: int | None
+  maximum_geometry_residual_m: float | None
+  message: str = ''
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocSourceStripFrontierStatus.CONVERGED
+  ####
+
+  @property
+  def has_disjoint_ranges(self) -> bool:
+    return len(self.valid_index_ranges) > 1
+  ####
+
+  def as_report(self) -> dict[str, object]:
+    return {
+      'status': self.status.value,
+      'converged': self.converged,
+      'source_index': self.source_index,
+      'boundary_sample_count': self.boundary_sample_count,
+      'valid_boundary_indices': list(self.valid_boundary_indices),
+      'valid_index_ranges': [list(value) for value in self.valid_index_ranges],
+      'has_disjoint_ranges': self.has_disjoint_ranges,
+      'first_invalid_index': self.first_invalid_index,
+      'maximum_geometry_residual_m': self.maximum_geometry_residual_m,
+      'message': self.message,
+    }
 ####
 
 
@@ -346,6 +402,7 @@ class MocSourceStripContinuationResult:
   source_window_start_index: int = 0
   source_window_total_count: int | None = None
   continuation_law: str = 'constant-k-plus-simple-wave'
+  frontier: MocSourceStripFrontierResult | None = None
 
   @property
   def converged(self) -> bool:
@@ -369,6 +426,7 @@ class MocSourceStripContinuationResult:
       'source_window_total_count': self.source_window_total_count,
       'strip': None if self.strip is None else self.strip.as_report(),
       'full_strip': None if self.full_strip is None else self.full_strip.as_report(),
+      'frontier': None if self.frontier is None else self.frontier.as_report(),
       'message': self.message,
     }
 ####
@@ -386,6 +444,128 @@ def _finite_point(point_m: tuple[float, float], name: str) -> tuple[float, float
 
 def _distance(first: tuple[float, float], second: tuple[float, float]) -> float:
   return ((first[0] - second[0]) ** 2 + (first[1] - second[1]) ** 2) ** 0.5
+
+
+def probe_source_strip_frontier(
+  plus_source: CharacteristicState,
+  minus_source_states: Sequence[CharacteristicState],
+  *,
+  source_index: int,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+) -> MocSourceStripFrontierResult:
+  """Probe which boundary rays remain forward for one new source state.
+
+  The probe never repairs, reorders, or interpolates a characteristic row. It
+  exists to expose the local remeshing intervals when a full triangular strip
+  reaches a caustic.
+  """
+
+  if not isinstance(plus_source, CharacteristicState):
+    return MocSourceStripFrontierResult(
+      status=MocSourceStripFrontierStatus.INVALID_INPUT,
+      source_index=source_index,
+      boundary_sample_count=0,
+      valid_boundary_indices=(),
+      valid_index_ranges=(),
+      first_invalid_index=None,
+      maximum_geometry_residual_m=None,
+      message='plus_source must be a CharacteristicState',
+    )
+  if (
+    isinstance(source_index, bool)
+    or not isinstance(source_index, int)
+    or source_index < 0
+  ):
+    raise ValueError('source_index must be a non-negative integer')
+  if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
+    raise ValueError('position_tolerance_m must be finite and positive')
+  if not isfinite(float(invariant_tolerance)) or invariant_tolerance <= 0.0:
+    raise ValueError('invariant_tolerance must be finite and positive')
+  try:
+    minus = tuple(minus_source_states)
+  except TypeError:
+    return MocSourceStripFrontierResult(
+      status=MocSourceStripFrontierStatus.INVALID_INPUT,
+      source_index=source_index,
+      boundary_sample_count=0,
+      valid_boundary_indices=(),
+      valid_index_ranges=(),
+      first_invalid_index=None,
+      maximum_geometry_residual_m=None,
+      message='minus_source_states must be an iterable of CharacteristicState values',
+    )
+  if not minus or any(not isinstance(state, CharacteristicState) for state in minus):
+    return MocSourceStripFrontierResult(
+      status=MocSourceStripFrontierStatus.INVALID_INPUT,
+      source_index=source_index,
+      boundary_sample_count=len(minus),
+      valid_boundary_indices=(),
+      valid_index_ranges=(),
+      first_invalid_index=None,
+      maximum_geometry_residual_m=None,
+      message='minus_source_states must contain CharacteristicState values',
+    )
+  if any(abs(state.gamma - plus_source.gamma) > invariant_tolerance for state in minus):
+    return MocSourceStripFrontierResult(
+      status=MocSourceStripFrontierStatus.INVALID_INPUT,
+      source_index=source_index,
+      boundary_sample_count=len(minus),
+      valid_boundary_indices=(),
+      valid_index_ranges=(),
+      first_invalid_index=None,
+      maximum_geometry_residual_m=None,
+      message='source states must use one common gamma',
+    )
+  valid_indices: list[int] = []
+  first_invalid_index: int | None = None
+  geometry_residuals: list[float] = []
+  for index, boundary_state in enumerate(minus):
+    point_result = interior_characteristic_point(
+      plus_source,
+      boundary_state,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+    )
+    if (
+      point_result.converged
+      and point_result.point_m is not None
+      and point_result.state is not None
+      and point_result.point_m[1] >= -position_tolerance_m
+    ):
+      valid_indices.append(index)
+      if point_result.geometry_residual is not None:
+        geometry_residuals.append(abs(point_result.geometry_residual))
+    elif first_invalid_index is None:
+      first_invalid_index = index
+  ranges: list[tuple[int, int]] = []
+  for index in valid_indices:
+    if not ranges or index != ranges[-1][1] + 1:
+      ranges.append((index, index))
+    else:
+      ranges[-1] = (ranges[-1][0], index)
+  if not valid_indices:
+    status = MocSourceStripFrontierStatus.NO_FORWARD_SEGMENTS
+    message = 'the candidate source row has no forward characteristic intersections'
+  elif len(ranges) > 1:
+    status = MocSourceStripFrontierStatus.CONVERGED
+    message = (
+      'candidate source row has disjoint forward intervals; a connected '
+      'triangular strip requires an explicit remesh across the caustic'
+    )
+  else:
+    status = MocSourceStripFrontierStatus.CONVERGED
+    message = 'candidate source row has one connected forward interval'
+  return MocSourceStripFrontierResult(
+    status=status,
+    source_index=source_index,
+    boundary_sample_count=len(minus),
+    valid_boundary_indices=tuple(valid_indices),
+    valid_index_ranges=tuple(ranges),
+    first_invalid_index=first_invalid_index,
+    maximum_geometry_residual_m=max(geometry_residuals, default=None),
+    message=message,
+  )
 
 
 def _failure(
@@ -1050,6 +1230,7 @@ def _finish_centerline_reflection_continuation(
   *,
   original_sample_count: int,
   source_window_start_index: int,
+  frontier: MocSourceStripFrontierResult | None,
   message: str,
 ) -> MocSourceStripContinuationResult:
   """Attach source-window semantics to a completed reflection march."""
@@ -1066,6 +1247,7 @@ def _finish_centerline_reflection_continuation(
     'source_window_start_index': source_window_start_index,
     'source_window_total_count': len(plus),
     'continuation_law': 'centerline-c-minus-reflection-plus-ambient-pressure',
+    'frontier': frontier,
   }
   if source_window_start_index == 0:
     if full_strip.converged:
@@ -1348,6 +1530,17 @@ def extend_source_characteristic_strip_centerline_reflection(
     position_tolerance_m=position_tolerance_m,
     invariant_tolerance=invariant_tolerance,
   )
+  frontier = (
+    None
+    if full_strip.converged
+    else probe_source_strip_frontier(
+      extended_plus[-1],
+      extended_minus,
+      source_index=len(extended_plus) - 1,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+    )
+  )
   return _finish_centerline_reflection_continuation(
     initial_strip,
     full_strip,
@@ -1355,6 +1548,7 @@ def extend_source_characteristic_strip_centerline_reflection(
     extended_minus,
     original_sample_count=len(minus),
     source_window_start_index=source_window_start_index,
+    frontier=frontier,
     message=(
       'centerline C- reflection and ambient-pressure C+ boundary march '
       'converged as an open upstream source strip; shock fitting and '
