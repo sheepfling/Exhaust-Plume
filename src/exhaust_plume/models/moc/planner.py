@@ -29,14 +29,12 @@ from exhaust_plume.models.moc.chain import (
 )
 from exhaust_plume.models.moc.caustic_restart import MocCausticFamilyBandResult
 from exhaust_plume.models.moc.post_shock import (
-  MocPostShockBoundaryState,
   MocPostShockChainCellSolve,
   MocPostShockCharacteristicFieldResult,
   MocPostShockFieldContinuationSolver,
-  MocShockBoundaryFitResult,
-  MocShockBoundaryFitStatus,
   assemble_post_shock_characteristic_field,
   continue_post_shock_characteristic_chain,
+  fit_attached_shock_boundary,
 )
 from exhaust_plume.models.moc.primitives import CharacteristicState
 from exhaust_plume.models.moc.terminal_patch import MocTerminalReflectionPatchResult
@@ -253,13 +251,31 @@ class MocPrescribedPostShockChainMock:
   cell_axial_length_m: float = 0.50
   shock_start_offset_m: float = 0.20
   shock_sample_spacing_m: float = 0.02
-  shock_ordinates_m: tuple[float, ...] = (0.20, 0.14, 0.08, 0.04, 0.0)
-  downstream_flow_angles_rad: tuple[float, ...] = (-0.30, -0.20, -0.10, -0.05, 0.0)
-  upstream_flow_angle_start_rad: float = -0.35
-  upstream_flow_angle_step_rad: float = 0.08
+  # The default line is tangent to a weak attached shock for M=2, gamma=1.4.
+  # It is deliberately still prescribed geometry, but the local fit below now
+  # proves that it is compatible with the requested attached-shock branch
+  # before the field is assembled.  The varying downstream angles keep the
+  # characteristic mesh nondegenerate.
+  shock_ordinates_m: tuple[float, ...] = (
+    0.08237108456402913,
+    0.06177831342302184,
+    0.04118554228201456,
+    0.020592771141007285,
+    0.0,
+  )
+  downstream_flow_angles_rad: tuple[float, ...] = (-0.16, -0.12, -0.08, -0.04, 0.0)
+  upstream_flow_angle_start_rad: float = -0.22316537247754467
+  upstream_flow_angle_step_rad: float = 0.01953284223794056
+  upstream_flow_angles_rad: tuple[float, ...] = (
+    -0.22316537247754467,
+    -0.204175961115758,
+    -0.18482733549527713,
+    -0.16511536988179235,
+    -0.14503421352578244,
+  )
   mach: float = 2.0
   gamma: float = 1.4
-  pressure_loss_ratio: float = 8.0 / 9.0
+  pressure_loss_ratio: float | None = None
 
   def __post_init__(self) -> None:
     if (
@@ -281,11 +297,14 @@ class MocPrescribedPostShockChainMock:
     ):
       if not isfinite(float(value)) or value <= lower_bound:
         raise ValueError(f'{name} must be finite and greater than {lower_bound}')
-    if (
+    if self.pressure_loss_ratio is not None and (
       not isfinite(float(self.pressure_loss_ratio))
       or not 0.0 < self.pressure_loss_ratio < 1.0
     ):
-      raise ValueError('pressure_loss_ratio must be finite and strictly between zero and one')
+      raise ValueError(
+        'pressure_loss_ratio must be finite and strictly between zero and one '
+        'when supplied'
+      )
     try:
       ordinates = tuple(float(value) for value in self.shock_ordinates_m)
       downstream_angles = tuple(float(value) for value in self.downstream_flow_angles_rad)
@@ -311,8 +330,27 @@ class MocPrescribedPostShockChainMock:
     ):
       if not isfinite(float(value)):
         raise ValueError(f'{name} must be finite')
+    try:
+      configured_upstream_angles = (
+        tuple(float(value) for value in self.upstream_flow_angles_rad)
+        if self.upstream_flow_angles_rad is not None
+        else tuple(
+          float(self.upstream_flow_angle_start_rad)
+          + float(self.upstream_flow_angle_step_rad) * index
+          for index in range(len(downstream_angles))
+        )
+      )
+    except (TypeError, ValueError) as error:
+      raise ValueError('upstream_flow_angles_rad must be a numeric sequence') from error
+    if len(configured_upstream_angles) != len(downstream_angles):
+      raise ValueError(
+        'upstream_flow_angles_rad must match the downstream angle sample count'
+      )
+    if any(not isfinite(value) for value in configured_upstream_angles):
+      raise ValueError('upstream flow angles must be finite')
     object.__setattr__(self, 'shock_ordinates_m', ordinates)
     object.__setattr__(self, 'downstream_flow_angles_rad', downstream_angles)
+    object.__setattr__(self, 'upstream_flow_angles_rad', configured_upstream_angles)
 
   @property
   def sample_count(self) -> int:
@@ -335,9 +373,14 @@ class MocPrescribedPostShockChainMock:
       'downstream_flow_angles_rad': self.downstream_flow_angles_rad,
       'upstream_flow_angle_start_rad': self.upstream_flow_angle_start_rad,
       'upstream_flow_angle_step_rad': self.upstream_flow_angle_step_rad,
+      'upstream_flow_angles_rad': self.upstream_flow_angles_rad,
       'mach': self.mach,
       'gamma': self.gamma,
       'pressure_loss_ratio': self.pressure_loss_ratio,
+      'pressure_loss_ratio_role': (
+        'optional expected total-pressure ratio; never used to fabricate '
+        'post-shock states'
+      ),
       'claim_status': (
         'prescribed-next-shock-geometry-fixture; '
         'not-free-boundary-chain-evidence'
@@ -375,54 +418,67 @@ class MocPrescribedPostShockChainMock:
     upstream_total_pressure_Pa = max(
       sample.total_pressure_Pa for sample in handoff
     )
-    downstream_total_pressure_Pa = (
-      self.pressure_loss_ratio * upstream_total_pressure_Pa
-    )
     shock_start_x_m = current.end_x_m + self.shock_start_offset_m
     shock_points = tuple(
       (shock_start_x_m + self.shock_sample_spacing_m * index, ordinate)
       for index, ordinate in enumerate(self.shock_ordinates_m)
     )
-    boundary_states = tuple(
-      MocPostShockBoundaryState(
-        point_m=point,
-        state=CharacteristicState(
-          x_m=point[0],
-          y_m=point[1],
-          theta_rad=angle,
-          mach=self.mach,
-          gamma=self.gamma,
-        ),
-        upstream_total_pressure_Pa=upstream_total_pressure_Pa,
-        downstream_total_pressure_Pa=downstream_total_pressure_Pa,
-      )
-      for point, angle in zip(
-        shock_points,
-        self.downstream_flow_angles_rad,
-        strict=True,
-      )
-    )
+    upstream_angles = self.upstream_flow_angles_rad
+    if upstream_angles is None:
+      raise ValueError('upstream_flow_angles_rad was not normalized by the fixture')
     upstream_states = tuple(
       CharacteristicState(
         x_m=point[0],
         y_m=point[1],
-        theta_rad=(
-          self.upstream_flow_angle_start_rad
-          + self.upstream_flow_angle_step_rad * index
-        ),
+        theta_rad=upstream_angles[index],
         mach=self.mach,
         gamma=self.gamma,
       )
       for index, point in enumerate(shock_points)
     )
-    fit = MocShockBoundaryFitResult(
-      status=MocShockBoundaryFitStatus.CONVERGED_FITTED,
-      boundary_states=boundary_states,
-      shock_angle_residuals_rad=(0.0,) * self.sample_count,
-      maximum_shock_angle_residual_rad=0.0,
-      upstream_states=upstream_states,
-      upstream_total_pressure_Pa=(upstream_total_pressure_Pa,) * self.sample_count,
+    upstream_static_pressure_Pa = upstream_total_pressure_Pa / (
+      1.0 + 0.5 * (self.gamma - 1.0) * self.mach**2
+    ) ** (self.gamma / (self.gamma - 1.0))
+    fit = fit_attached_shock_boundary(
+      upstream_states,
+      (upstream_static_pressure_Pa,) * self.sample_count,
+      shock_points,
+      self.downstream_flow_angles_rad,
+      branch=ShockBranch.WEAK,
     )
+    if not fit.converged:
+      raise ValueError(
+        'prescribed post-shock chain planner mock rejected its shock geometry '
+        f'with the local attached-shock fit: {fit.message}'
+      )
+    # Use the solver-backed fit as the source of truth for the characteristic
+    # field.  This prevents the mock from silently fabricating zero residuals
+    # or a total-pressure loss across a cell.
+    if any(
+      abs(angle - fitted.state.theta_rad) > 1.0e-12
+      for angle, fitted in zip(
+        self.downstream_flow_angles_rad,
+        fit.boundary_states,
+        strict=True,
+      )
+    ):
+      raise ValueError(
+        'prescribed post-shock chain planner mock fit changed its requested '
+        'downstream flow angles'
+      )
+    if self.pressure_loss_ratio is not None:
+      fitted_pressure_ratios = tuple(
+        sample.downstream_total_pressure_Pa / sample.upstream_total_pressure_Pa
+        for sample in fit.boundary_states
+      )
+      if any(
+        abs(ratio - self.pressure_loss_ratio) > 1.0e-8
+        for ratio in fitted_pressure_ratios
+      ):
+        raise ValueError(
+          'prescribed pressure_loss_ratio disagrees with the attached-shock '
+          'fit; omit it to accept solver-computed pressure loss'
+        )
     field = assemble_post_shock_characteristic_field(
       fit,
       incoming_handoff=handoff,

@@ -664,6 +664,51 @@ def test_prescribed_post_shock_chain_mock_is_reusable_and_nonproduction() -> Non
   assert planner.diagnostics['prescribed_chain_mock']['production_claim_allowed'] is False
 
 
+def test_prescribed_chain_mock_uses_a_solver_backed_attached_shock_fit() -> None:
+  seed_fit = MocShockBoundaryFitResult(
+    status=MocShockBoundaryFitStatus.CONVERGED_FITTED,
+    boundary_states=_prescribed_boundary(),
+    shock_angle_residuals_rad=(0.0,) * 4,
+    maximum_shock_angle_residual_rad=0.0,
+  )
+  seed_field = assemble_post_shock_characteristic_field(seed_fit)
+  seed_cell = seed_field.as_chain_cell(start_x_m=0.7, end_x_m=1.0)
+  mock = MocPrescribedPostShockChainMock()
+
+  solved = mock.solve_next(seed_cell, 2, seed_cell.continuation_boundary)
+
+  assert isinstance(solved, MocPostShockChainCellSolve)
+  assert solved.field.shock_closure_status == 'fitted-attached-shock'
+  assert solved.field.upstream_shock_coupling_verified is True
+  assert solved.field.maximum_shock_angle_residual_rad is not None
+  assert solved.field.maximum_shock_angle_residual_rad < 1.0e-8
+  assert solved.field.pressure_loss_verified is True
+  assert solved.field.upstream_total_pressure_range_Pa is not None
+  assert solved.field.downstream_total_pressure_range_Pa is not None
+  assert solved.field.downstream_total_pressure_range_Pa[1] < solved.field.upstream_total_pressure_range_Pa[0]
+  assert len({round(state.mach, 8) for state in solved.field.shock_boundary_states}) > 1
+  assert solved.field.incoming_handoff_total_pressure_Pa == tuple(
+    sample.total_pressure_Pa for sample in seed_cell.continuation_boundary
+  )
+
+
+def test_prescribed_chain_mock_rejects_geometry_without_attached_fit() -> None:
+  seed_fit = MocShockBoundaryFitResult(
+    status=MocShockBoundaryFitStatus.CONVERGED_FITTED,
+    boundary_states=_prescribed_boundary(),
+    shock_angle_residuals_rad=(0.0,) * 4,
+    maximum_shock_angle_residual_rad=0.0,
+  )
+  seed_field = assemble_post_shock_characteristic_field(seed_fit)
+  seed_cell = seed_field.as_chain_cell(start_x_m=0.7, end_x_m=1.0)
+  mock = MocPrescribedPostShockChainMock(
+    shock_ordinates_m=(0.20, 0.14, 0.08, 0.04, 0.0),
+  )
+
+  with pytest.raises(ValueError, match='rejected its shock geometry'):
+    mock.solve_next(seed_cell, 2, seed_cell.continuation_boundary)
+
+
 def test_post_shock_chain_accepts_explicit_physical_termination() -> None:
   seed_fit = MocShockBoundaryFitResult(
     status=MocShockBoundaryFitStatus.CONVERGED_FITTED,

@@ -863,6 +863,7 @@ class MocPostShockCharacteristicFieldResult:
   physical_closure_status: str
   shock_closure_status: str
   message: str = ''
+  maximum_shock_angle_residual_rad: float | None = None
   incoming_handoff_states: tuple[CharacteristicState, ...] = ()
   incoming_handoff_total_pressure_Pa: tuple[float, ...] = ()
   shock_boundary_states: tuple[CharacteristicState, ...] = ()
@@ -905,6 +906,16 @@ class MocPostShockCharacteristicFieldResult:
       raise ValueError(
         'shock boundary total pressures must match the shock boundary point count'
       )
+    if (
+      self.maximum_shock_angle_residual_rad is not None
+      and (
+        not isfinite(float(self.maximum_shock_angle_residual_rad))
+        or self.maximum_shock_angle_residual_rad < 0.0
+      )
+    ):
+      raise ValueError(
+        'maximum_shock_angle_residual_rad must be finite and nonnegative when supplied'
+      )
   ####
 
   @property
@@ -932,6 +943,7 @@ class MocPostShockCharacteristicFieldResult:
       and len(self.shock_boundary_points_m) >= 3
       and len(self.upstream_boundary_states) == len(self.shock_boundary_points_m)
       and len(self.upstream_boundary_total_pressure_Pa) == len(self.shock_boundary_points_m)
+      and self.maximum_shock_angle_residual_rad is not None
       and all(
         abs(state.x_m - point[0]) <= 1.0e-10
         and abs(state.y_m - point[1]) <= 1.0e-10
@@ -1168,6 +1180,7 @@ class MocPostShockCharacteristicFieldResult:
       'cell_count': self.cell_count,
       'maximum_geometry_residual_m': self.maximum_geometry_residual_m,
       'maximum_absolute_invariant_residual': self.maximum_absolute_invariant_residual,
+      'maximum_shock_angle_residual_rad': self.maximum_shock_angle_residual_rad,
       'minimum_forward_margin_m': self.minimum_forward_margin_m,
       'minimum_post_shock_total_pressure_ratio': self.minimum_post_shock_total_pressure_ratio,
       'maximum_post_shock_total_pressure_ratio': self.maximum_post_shock_total_pressure_ratio,
@@ -2087,6 +2100,7 @@ def assemble_post_shock_characteristic_field(
     maximum_post_shock_total_pressure_ratio=max(pressure_ratios),
     physical_closure_status='closed-characteristic-fan',
     shock_closure_status='fitted-attached-shock',
+    maximum_shock_angle_residual_rad=shock_fit.maximum_shock_angle_residual_rad,
     message=(
       'shock-seeded post-shock C+/C- characteristic field converged with '
       'explicit shock and centerline boundary edges'

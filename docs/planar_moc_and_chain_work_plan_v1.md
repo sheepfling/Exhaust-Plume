@@ -157,6 +157,12 @@ not wait on this research closure.
   validation script now only adds observations around that reusable fixture;
   its prescribed shock geometry remains planning evidence and cannot satisfy
   the free-boundary or product-promotion gates.
+- Hardened the prescribed planner mock so every continued cell passes its
+  prescribed curve through the real branch-checked attached-shock fitter. The
+  default fixture is a nondegenerate varying-state shock line, the returned
+  field retains the fitted maximum shock-angle residual, and incompatible
+  geometry fails before characteristic assembly. An optional pressure-loss
+  ratio is now an assertion only; it can never fabricate post-shock states.
 - Tightened chain-boundary semantics so a carried `CENTERLINE_TRACE` must
   actually lie on `y=0` with `theta=0`; a generic downstream polyline cannot be
   relabeled as an axis handoff.
@@ -477,14 +483,16 @@ The existing reduced-order `solve_shock_train` remains the separate Level B
 implementation. It must not be used as this callback.
 
 The validation script's planner mock is only an executable contract fixture:
-it supplies the next shock boundary directly so that handoff, pressure-loss,
-and fidelity checks can run. Its prescribed boundary advances with each
-planned cell, and the report checks the carried total-pressure maxima without
-calling that bookkeeping a physical endpoint. A separate generated-chain
-reference now runs the same continuation adapter with solver-generated
-boundaries, but its upstream field and linear downstream-turn law remain
-explicit callbacks. Neither is evidence for production automatic shock
-placement, physical termination, or external validation.
+it supplies the next shock curve directly, then runs that curve through the
+real branch-checked attached-shock fitter so handoff, pressure-loss, and
+fidelity checks exercise a physically meaningful local seam. Its prescribed
+boundary advances with each planned cell, and the report checks the carried
+total-pressure maxima without calling that bookkeeping a physical endpoint.
+A separate generated-chain reference now runs the same continuation adapter
+with solver-generated boundaries, but its upstream field and linear
+downstream-turn law remain explicit callbacks. Neither is evidence for
+production automatic shock placement, physical termination, or external
+validation.
 
 The continuation adapter also exposes a strict upstream-coupled mode. It
 rejects the prescribed planner seed before callback execution and requires
