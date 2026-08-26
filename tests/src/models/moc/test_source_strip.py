@@ -144,7 +144,15 @@ def test_centerline_reflection_extension_carries_a_physical_boundary_law() -> No
     assert restart.minimum_forward_progress_m > 0.0
     assert restart.maximum_absolute_pressure_residual is not None
     assert restart.maximum_absolute_pressure_residual <= 1.0e-10
-    assert restart.maximum_absolute_tangent_residual is not None
-    assert restart.maximum_absolute_tangent_residual <= 1.0e-10
-    assert restart.source_strip is not None
-    assert restart.source_strip.converged is False
+  assert restart.maximum_absolute_tangent_residual is not None
+  assert restart.maximum_absolute_tangent_residual <= 1.0e-10
+  assert restart.source_strip is not None
+  assert restart.source_strip.converged is False
+  assert restart.family_band is not None
+  assert restart.family_band.converged
+  assert restart.family_band.cell_count == 10
+  assert restart.family_band.step_count == 5
+  assert restart.family_band.topology.connected
+  assert restart.family_band.topology.forms_closed_zone
+  assert restart.family_band.physical_closure_verified is False
+  assert restart.family_band.chain_promotion_blocked is True

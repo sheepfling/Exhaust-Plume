@@ -60,7 +60,9 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   to the centerline and marches an ambient-pressure/tangent C+ boundary with
   explicit pressure, tangent, geometry, and forward-progress residuals. It
   records the old triangular interior assembly separately when the first
-  cross-ray is not forward, so the restart remains an open remesh/shock seam;
+  cross-ray is not forward, then assembles a connected two-triangle-per-step
+  open family band from the valid centerline/boundary traces. The band remains
+  an open remesh/shock seam and cannot promote a chain cell;
 - a reusable triangular source-boundary characteristic-strip assembler and
   domain-bounded state/pressure sampler that reproduces the reflected-zone
   compatibility grid;

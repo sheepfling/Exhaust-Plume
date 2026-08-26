@@ -282,10 +282,10 @@ not wait on this research closure.
   edge it reflects the selected C- anchor to the centerline, marches a
   pressure-matched/tangent C+ boundary, and independently checks pressure,
   tangent, geometry, and forward-progress residuals. Both canonical
-  orientations produce six finite boundary samples. The old triangular
-  interior assembly is retained as an explicit geometry failure, so this is an
-  open remesh/shock handoff rather than a fabricated connected field or chain
-  cell.
+  orientations produce six finite boundary samples and a connected ten-cell
+  two-triangle-per-step family band. The old triangular interior assembly is
+  retained as an explicit geometry failure, so this is a typed open remesh/
+  shock handoff rather than a fabricated shock state or physical chain cell.
 - Added axial-boundary, cell-index, domain-limit, and callback termination
   checks.
 - Added a hard fidelity boundary: scaled reduced-order candidates are
@@ -561,10 +561,11 @@ Only after MOC-1 through MOC-5 pass:
   residuals), so a coupled shock/new-family solve is still required.
   The new-family restart can now advance either one-sided anchor to a
   pressure-matched/tangent boundary with six finite samples and residuals below
-  tolerance, but its original triangular cross-ray assembly still fails at
-  the first non-forward node. The restart is therefore an open boundary
-  handoff only; a connected interior remesh or physically fitted shock must
-  still bridge the caustic before upstream coupling is complete.
+  tolerance, then carry those traces through a connected ten-cell
+  two-triangle-per-step open band. Its original triangular cross-ray assembly
+  still fails at the first non-forward node, and the band has no shock or
+  entropy closure; a physically fitted shock must still bridge the caustic
+  before upstream coupling is complete.
 - Ambient-pressure closure now reports upstream shock-state coupling as a
   separate gate. The research adapter can retain a locally ambient-closed
   field, but its strict coupled chain adapter refuses promotion until the

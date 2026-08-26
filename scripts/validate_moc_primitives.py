@@ -1459,6 +1459,13 @@ def _caustic_family_restart_probe(
       and result.maximum_absolute_tangent_residual <= 1.0e-10
       and result.source_strip is not None
       and not result.source_strip.converged
+      and result.family_band is not None
+      and result.family_band.converged
+      and result.family_band.cell_count == 10
+      and result.family_band.topology.connected
+      and result.family_band.topology.forms_closed_zone
+      and result.family_band.physical_closure_verified is False
+      and result.family_band.chain_promotion_blocked
     )
     cases.append(report)
   return {

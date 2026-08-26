@@ -123,10 +123,11 @@ perimeter topology, and supplied shock-loss lineage for the reference and
 planner fixtures, but remain `not_accepted` without external observations.
 At the detected source-strip caustic, a separate one-sided new-family restart
 now reflects either selected C- anchor to the centerline and advances six
-ambient-pressure/tangent C+ boundary samples with finite residuals. Its legacy
-triangular interior assembly remains an explicit non-forward geometry failure,
-so the restart is an open remesh/shock seam and cannot promote a continued
-cell.
+ambient-pressure/tangent C+ boundary samples with finite residuals, then
+assembles a connected ten-cell two-triangle-per-step open family band. Its
+legacy triangular interior assembly remains an explicit non-forward geometry
+failure, and the band has no shock or entropy closure, so it cannot promote a
+continued cell.
 The strict chain mode rejects a prescribed seed that lacks carried upstream
 shock states, and the marcher reports `subsonic_terminal_required` while
 carrying a typed normal-shock terminal diagnostic when an endpoint leaves the
