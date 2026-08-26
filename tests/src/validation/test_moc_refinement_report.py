@@ -466,6 +466,21 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
     'no_positive_compression_turn',
   ]
   assert caustic_shock_resolution['candidates'][0]['compression']['converged'] is True
+  caustic_shock_bridge = centerline_reflection_extension['caustic_shock_bridge']
+  assert caustic_shock_bridge['status'] == (
+    'diagnostic-invariant-conditioned-caustic-shock-bridge'
+  )
+  assert caustic_shock_bridge['accepted'] is True
+  assert caustic_shock_bridge['bridge']['status'] == (
+    'converged_local_caustic_shock_compatibility'
+  )
+  assert caustic_shock_bridge['bridge']['converged'] is True
+  assert caustic_shock_bridge['bridge']['entropy_admissible'] is True
+  assert caustic_shock_bridge['bridge']['invariant_residual'] is not None
+  assert abs(caustic_shock_bridge['bridge']['invariant_residual']) <= 1.0e-10
+  assert caustic_shock_bridge['bridge']['shock_curve_verified'] is False
+  assert caustic_shock_bridge['bridge']['physical_closure_verified'] is False
+  assert caustic_shock_bridge['bridge']['chain_promotion_blocked'] is True
   caustic_restart = centerline_reflection_extension['caustic_family_restart']
   assert caustic_restart['status'] == 'diagnostic-open-new-family-boundary-restarts'
   assert caustic_restart['accepted'] is True

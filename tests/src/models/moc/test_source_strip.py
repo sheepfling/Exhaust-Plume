@@ -2,10 +2,14 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+import pytest
+
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput
 from exhaust_plume.models.moc import (
+  CharacteristicFamily,
   MocChainTerminationReason,
   MocCausticFamilyRestartStatus,
+  MocCausticShockBridgeStatus,
   MocCausticShockResolutionStatus,
   MocSourceStripCausticStatus,
   MocSourceStripCausticSeedStatus,
@@ -15,6 +19,7 @@ from exhaust_plume.models.moc import (
   extend_source_characteristic_strip_centerline_reflection,
   build_caustic_shock_seed,
   resolve_caustic_shock_seed,
+  solve_caustic_shock_bridge,
   restart_characteristic_family_from_caustic,
   solve_underexpanded_expansion_fan,
   solve_reflected_free_boundary,
@@ -122,6 +127,38 @@ def test_centerline_reflection_extension_carries_a_physical_boundary_law() -> No
     assert shock_resolution.candidates[0].mach_residual_relative < -0.06
     assert shock_resolution.candidates[1].flow_turn_rad is not None
     assert shock_resolution.candidates[1].flow_turn_rad < 0.0
+    target_invariant = seed.edge_states[1].state.k_plus
+    shock_bridge = solve_caustic_shock_bridge(
+      seed,
+      CharacteristicFamily.PLUS,
+      target_invariant,
+      upstream_edge_index=0,
+    )
+    assert shock_bridge.status is MocCausticShockBridgeStatus.CONVERGED_LOCAL_COMPATIBILITY
+    assert shock_bridge.converged is True
+    assert shock_bridge.entropy_admissible is True
+    assert shock_bridge.downstream_state is not None
+    assert shock_bridge.compression is not None
+    assert shock_bridge.invariant_residual is not None
+    assert abs(shock_bridge.invariant_residual) <= 1.0e-10
+    assert shock_bridge.downstream_state.k_plus == pytest.approx(
+      target_invariant,
+      abs=1.0e-10,
+    )
+    assert shock_bridge.compression.total_pressure_ratio is not None
+    assert 0.0 < shock_bridge.compression.total_pressure_ratio < 1.0
+    assert shock_bridge.shock_curve_verified is False
+    assert shock_bridge.physical_closure_verified is False
+    assert shock_bridge.chain_promotion_blocked is True
+    unreachable_bridge = solve_caustic_shock_bridge(
+      seed,
+      CharacteristicFamily.PLUS,
+      seed.edge_states[0].state.k_plus,
+      upstream_edge_index=0,
+    )
+    assert unreachable_bridge.status is MocCausticShockBridgeStatus.INVARIANT_BRACKET_FAILURE
+    assert unreachable_bridge.converged is False
+    assert unreachable_bridge.chain_promotion_blocked is True
     assert result.remesh.chain_termination_available is True
     termination = result.remesh.as_chain_termination_decision()
     assert termination.physical_termination is False

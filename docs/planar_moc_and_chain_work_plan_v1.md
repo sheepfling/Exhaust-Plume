@@ -394,6 +394,14 @@ not wait on this research closure.
   attached but does not match the opposite one-sided state, while the reverse
   orientation has no positive compression turn; the typed result therefore
   rejects both candidates and keeps chain promotion blocked.
+- Added an explicit invariant-conditioned local caustic shock bridge. It
+  selects one one-sided upstream state and solves an attached compression
+  against a caller-supplied downstream characteristic invariant, retaining
+  strict total-pressure-loss evidence and a local shock angle. The canonical
+  target now produces a local compatibility state without treating the
+  opposite one-sided reconstruction as downstream. This remains a local
+  shock-state result only: shock-curve fitting, downstream characteristic
+  field closure, mixed-regime closure, and chain promotion stay blocked.
 - Added a one-sided caustic new-family restart primitive. For each crossing
   edge it reflects the selected C- anchor to the centerline, marches a
   pressure-matched/tangent C+ boundary, and independently checks pressure,
@@ -738,7 +746,10 @@ Only after MOC-1 through MOC-5 pass:
   The bounded seed now supplies two one-sided ``C-`` states at that crossing;
   the local Rankine--Hugoniot probe rejects both orientations (the forward
   candidate has approximately ``-6.2%`` Mach and ``+32.8%`` static-pressure
-  residuals), so a coupled shock/new-family solve is still required.
+  residuals), so a coupled shock/new-family solve is still required. An
+  explicit-invariant local bridge can now solve an entropy-admissible state
+  for a caller-selected downstream ``K+`` target, but it deliberately does
+  not claim a shock curve, downstream field, or physical first-cell closure.
   The new-family restart can now advance either one-sided anchor to a
   pressure-matched/tangent boundary with six finite samples and residuals below
   tolerance, then carry those traces through a connected anchor-wedge plus

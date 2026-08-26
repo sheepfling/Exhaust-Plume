@@ -34,6 +34,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocChainTerminationReason,
   MocChainStatus,
   MocChainPlannerKind,
+  MocCausticShockBridgeStatus,
   plan_caustic_family_band_chain,
   plan_post_shock_characteristic_chain,
   plan_post_shock_field_chain,
@@ -87,6 +88,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   assemble_ambient_shock_characteristic_strip,
   build_caustic_shock_seed,
   resolve_caustic_shock_seed,
+  solve_caustic_shock_bridge,
   restart_characteristic_family_from_caustic,
   extend_source_characteristic_strip_centerline_reflection,
   extend_source_characteristic_strip_constant_k_plus,
@@ -1765,6 +1767,51 @@ def _caustic_family_restart_probe(
   }
 
 
+def _caustic_shock_bridge_probe(seed: Any) -> dict[str, Any]:
+  """Audit the explicit-invariant local shock bridge at the caustic."""
+
+  if (
+    seed is None
+    or len(getattr(seed, 'edge_states', ())) != 2
+    or seed.edge_states[1].state is None
+  ):
+    return {
+      'status': 'missing_seed_or_edge_state',
+      'accepted': False,
+      'bridge': None,
+      'claim_status': 'caustic-local-shock-bridge-pending',
+    }
+  target_invariant = seed.edge_states[1].state.k_plus
+  bridge = solve_caustic_shock_bridge(
+    seed,
+    CharacteristicFamily.PLUS,
+    target_invariant,
+    upstream_edge_index=0,
+  )
+  report = bridge.as_report()
+  report['accepted'] = (
+    bridge.status is MocCausticShockBridgeStatus.CONVERGED_LOCAL_COMPATIBILITY
+    and bridge.converged
+    and bridge.entropy_admissible
+    and bridge.invariant_residual is not None
+    and abs(bridge.invariant_residual) <= 1.0e-10
+    and bridge.downstream_state is not None
+    and abs(bridge.downstream_state.k_plus - target_invariant) <= 1.0e-10
+    and bridge.shock_curve_verified is False
+    and bridge.physical_closure_verified is False
+    and bridge.chain_promotion_blocked
+  )
+  return {
+    'status': 'diagnostic-invariant-conditioned-caustic-shock-bridge',
+    'accepted': report['accepted'],
+    'bridge': report,
+    'claim_status': (
+      'local-invariant-conditioned-shock-state-only; shock-curve-and-'
+      'downstream-field-pending'
+    ),
+  }
+
+
 def _caustic_family_band_shock_probe(
   seed: Any,
   total_pressure_Pa: float,
@@ -2599,6 +2646,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
     if caustic_shock_seed is None
     else resolve_caustic_shock_seed(caustic_shock_seed)
   )
+  caustic_shock_bridge = _caustic_shock_bridge_probe(caustic_shock_seed)
   caustic_family_restart = _caustic_family_restart_probe(
     caustic_shock_seed,
     fan_exit.total_pressure_Pa,
@@ -2991,6 +3039,9 @@ def build_moc_primitive_report() -> dict[str, Any]:
   caustic_family_restart_failure = (
     caustic_family_restart.get('accepted') is not True
   )
+  caustic_shock_bridge_failure = (
+    caustic_shock_bridge.get('accepted') is not True
+  )
   caustic_family_band_shock_failure = (
     caustic_family_band_shock.get('accepted') is not True
   )
@@ -3371,6 +3422,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
         if caustic_shock_resolution is None
         else caustic_shock_resolution.as_report()
       ),
+      'caustic_shock_bridge': caustic_shock_bridge,
       'caustic_family_restart': caustic_family_restart,
       'caustic_family_band_shock': caustic_family_band_shock,
       'caustic_family_band_terminal_field': caustic_family_band_terminal_field,
@@ -4094,6 +4146,17 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'message': str(reflected_zone_chain_boundary_probe.get('message', '')),
       }
     ] if reflected_zone_chain_boundary_failure else []),
+    *([
+      {
+        'case': 'caustic_shock_bridge',
+        'status': str(caustic_shock_bridge.get('status', 'missing')),
+        'message': str(
+          caustic_shock_bridge.get('bridge', {}).get('message', '')
+          if isinstance(caustic_shock_bridge.get('bridge'), dict)
+          else caustic_shock_bridge.get('claim_status', '')
+        ),
+      }
+    ] if caustic_shock_bridge_failure else []),
     *([
       {
         'case': 'caustic_family_restart',

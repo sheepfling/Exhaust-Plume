@@ -132,9 +132,12 @@ from exhaust_plume.models.moc.source_strip import (
 from exhaust_plume.models.moc.caustic_shock import (
   MocCausticShockCandidateStatus,
   MocCausticShockResolutionStatus,
+  MocCausticShockBridgeStatus,
   MocSourceStripCausticShockCandidateResult,
   MocSourceStripCausticShockResolutionResult,
+  MocCausticShockBridgeResult,
   resolve_caustic_shock_seed,
+  solve_caustic_shock_bridge,
 )
 from exhaust_plume.models.moc.caustic_restart import (
   MocCausticFamilyBandResult,
@@ -344,8 +347,10 @@ __all__ = (
   'MocSourceStripContinuationStatus',
   'MocCausticShockCandidateStatus',
   'MocCausticShockResolutionStatus',
+  'MocCausticShockBridgeStatus',
   'MocSourceStripCausticShockCandidateResult',
   'MocSourceStripCausticShockResolutionResult',
+  'MocCausticShockBridgeResult',
   'MocCausticFamilyRestartResult',
   'MocCausticFamilyRestartStatus',
   'MocCausticFamilyBandResult',
@@ -458,6 +463,7 @@ __all__ = (
   'assemble_source_characteristic_strip_window',
   'build_caustic_shock_seed',
   'resolve_caustic_shock_seed',
+  'solve_caustic_shock_bridge',
   'restart_characteristic_family_from_caustic',
   'solve_marched_attached_shock_from_caustic_family_band',
   'solve_marched_attached_shock_chain_cell_from_caustic_family_band',
