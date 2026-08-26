@@ -25,7 +25,9 @@ if TYPE_CHECKING:
 
 from exhaust_plume.models.moc.compression import (
   MocNormalShockTerminalResult,
+  MocSubsonicShockBoundaryResult,
   solve_attached_compression_to_turn,
+  solve_attached_subsonic_compression_to_turn,
   solve_normal_shock_terminal,
 )
 from exhaust_plume.models.moc.boundary import MocReflectedBoundaryResult
@@ -101,6 +103,7 @@ class MocFreeBoundaryShockResult:
   endpoint_m: tuple[float, float] | None
   message: str = ''
   normal_shock_terminal: MocNormalShockTerminalResult | None = None
+  subsonic_shock_boundary: MocSubsonicShockBoundaryResult | None = None
 
   @property
   def converged(self) -> bool:
@@ -136,6 +139,17 @@ class MocFreeBoundaryShockResult:
     return self.normal_shock_terminal is not None and self.normal_shock_terminal.converged
   ####
 
+  @property
+  def subsonic_boundary_verified(self) -> bool:
+    """Whether a positioned attached-shock subsonic seam was retained."""
+
+    return (
+      self.subsonic_shock_boundary is not None
+      and self.subsonic_shock_boundary.converged
+      and self.subsonic_shock_boundary.subsonic
+    )
+  ####
+
   def as_report(self) -> dict[str, object]:
     return {
       'status': self.status.value,
@@ -146,6 +160,12 @@ class MocFreeBoundaryShockResult:
       'endpoint_m': self.endpoint_m,
       'maximum_shock_angle_residual_rad': self.maximum_shock_angle_residual_rad,
       'field_status': None if self.field_status is None else self.field_status.value,
+      'subsonic_boundary_verified': self.subsonic_boundary_verified,
+      'subsonic_shock_boundary': (
+        None
+        if self.subsonic_shock_boundary is None
+        else self.subsonic_shock_boundary.as_report()
+      ),
       'normal_shock_terminal': (
         None
         if self.normal_shock_terminal is None
@@ -304,6 +324,7 @@ def _failure(
   shock_angle_residuals: Sequence[float] = (),
   endpoint_m: tuple[float, float] | None = None,
   normal_shock_terminal: MocNormalShockTerminalResult | None = None,
+  subsonic_shock_boundary: MocSubsonicShockBoundaryResult | None = None,
   message: str,
 ) -> MocFreeBoundaryShockResult:
   residuals = tuple(float(value) for value in shock_angle_residuals)
@@ -320,6 +341,7 @@ def _failure(
     endpoint_m=endpoint_m,
     message=message,
     normal_shock_terminal=normal_shock_terminal,
+    subsonic_shock_boundary=subsonic_shock_boundary,
   )
 ####
 
@@ -417,9 +439,10 @@ def solve_marched_attached_shock_field(
   upstream_pressures: list[float] = []
   downstream_angles: list[float] = []
   normal_shock_terminal: MocNormalShockTerminalResult | None = None
+  subsonic_shock_boundary: MocSubsonicShockBoundaryResult | None = None
 
   def evaluate(point: tuple[float, float], index: int) -> tuple[_MarchSample | None, str | None, MocFreeBoundaryShockStatus]:
-    nonlocal normal_shock_terminal
+    nonlocal normal_shock_terminal, subsonic_shock_boundary
     try:
       state = upstream_state_at(point)
       pressure = upstream_pressure_at(point)
@@ -481,6 +504,14 @@ def solve_marched_attached_shock_field(
         if compression.downstream_mach is not None and compression.downstream_mach <= 1.0
         else MocFreeBoundaryShockStatus.COMPRESSION_FAILURE
       )
+      if failure_status is MocFreeBoundaryShockStatus.SUBSONIC_TERMINAL_REQUIRED:
+        subsonic_shock_boundary = solve_attached_subsonic_compression_to_turn(
+          state,
+          upstream_pressure_Pa=float(pressure),
+          target_turn_rad=turn,
+          branch=branch,
+          shock_point_m=point,
+        )
       return None, f'attached compression failed at sample {index}: {compression.message}', failure_status
     shock_angle = state.theta_rad - compression.beta_rad
     if not isfinite(shock_angle) or sin(shock_angle) >= -position_tolerance_m:
@@ -519,6 +550,7 @@ def solve_marched_attached_shock_field(
     return _failure(
       error_status,
       normal_shock_terminal=normal_shock_terminal,
+      subsonic_shock_boundary=subsonic_shock_boundary,
       message=error or 'initial shock sample failed',
     )
   points.append(current_sample.point_m)
@@ -544,6 +576,7 @@ def solve_marched_attached_shock_field(
           downstream_angles=downstream_angles,
           endpoint_m=points[-1] if points else None,
           normal_shock_terminal=normal_shock_terminal,
+          subsonic_shock_boundary=subsonic_shock_boundary,
           message=error or f'shock sample {index} failed',
         )
       next_sample = candidate_sample
@@ -564,6 +597,7 @@ def solve_marched_attached_shock_field(
             downstream_angles=downstream_angles,
             endpoint_m=points[-1] if points else None,
             normal_shock_terminal=normal_shock_terminal,
+            subsonic_shock_boundary=subsonic_shock_boundary,
             message=final_error or f'shock sample {index} failed at its converged endpoint',
           )
         next_sample = final_sample

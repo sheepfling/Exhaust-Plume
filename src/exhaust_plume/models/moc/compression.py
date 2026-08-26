@@ -19,11 +19,13 @@ __all__ = (
   'MocCompressionResult',
   'MocLipShockResult',
   'MocNormalShockTerminalResult',
+  'MocSubsonicShockBoundaryResult',
   'MocTurnCompressionResult',
   'MocShockToCenterlineResult',
   'solve_overexpanded_lip_shock',
   'solve_attached_compression_to_pressure',
   'solve_attached_compression_to_turn',
+  'solve_attached_subsonic_compression_to_turn',
   'solve_attached_shock_to_centerline',
   'solve_normal_shock_terminal',
 )
@@ -107,6 +109,7 @@ class MocNormalShockTerminalResult:
     return self.status is MocPrimitiveStatus.CONVERGED
   ####
 
+
   @property
   def subsonic(self) -> bool:
     return self.converged and self.downstream_mach is not None and self.downstream_mach < 1.0
@@ -126,6 +129,223 @@ class MocNormalShockTerminalResult:
       'total_pressure_ratio': self.total_pressure_ratio,
       'message': self.message,
     }
+  ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocSubsonicShockBoundaryResult:
+  """A positioned attached-shock state whose downstream flow is subsonic.
+
+  The downstream state is intentionally scalar rather than a
+  :class:`CharacteristicState`: subsonic flow cannot enter the supersonic
+  compatibility network.  This result is the branch-aware mixed-regime seam
+  used when a strong attached shock reaches the subsonic side before a normal
+  shock or subsonic field has been closed.
+  """
+
+  status: MocPrimitiveStatus
+  shock_point_m: tuple[float, float] | None
+  upstream_state: CharacteristicState | None
+  upstream_pressure_Pa: float | None
+  downstream_flow_angle_rad: float | None
+  downstream_mach: float | None
+  downstream_pressure_Pa: float | None
+  upstream_total_pressure_Pa: float | None
+  downstream_total_pressure_Pa: float | None
+  total_pressure_ratio: float | None
+  beta_rad: float | None
+  shock_angle_rad: float | None
+  branch: ShockBranch | None
+  message: str = ''
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocPrimitiveStatus.CONVERGED
+  ####
+
+  @property
+  def subsonic(self) -> bool:
+    return (
+      self.converged
+      and self.downstream_mach is not None
+      and 0.0 < self.downstream_mach < 1.0
+    )
+  ####
+
+  def as_report(self) -> dict[str, object]:
+    return {
+      'status': self.status.value,
+      'converged': self.converged,
+      'subsonic': self.subsonic,
+      'shock_point_m': self.shock_point_m,
+      'downstream_flow_angle_rad': self.downstream_flow_angle_rad,
+      'downstream_mach': self.downstream_mach,
+      'downstream_pressure_Pa': self.downstream_pressure_Pa,
+      'upstream_total_pressure_Pa': self.upstream_total_pressure_Pa,
+      'downstream_total_pressure_Pa': self.downstream_total_pressure_Pa,
+      'total_pressure_ratio': self.total_pressure_ratio,
+      'beta_rad': self.beta_rad,
+      'shock_angle_rad': self.shock_angle_rad,
+      'branch': None if self.branch is None else self.branch.value,
+      'message': self.message,
+    }
+  ####
+
+
+def solve_attached_subsonic_compression_to_turn(
+  upstream: CharacteristicState,
+  *,
+  upstream_pressure_Pa: float,
+  target_turn_rad: float,
+  branch: ShockBranch = ShockBranch.STRONG,
+  shock_point_m: tuple[float, float] | None = None,
+) -> MocSubsonicShockBoundaryResult:
+  """Solve and retain a positioned attached compression with ``M2 < 1``.
+
+  The existing turn solver deliberately rejects subsonic downstream states so
+  they cannot enter the supersonic MOC lane.  This adapter preserves the
+  already-computed Rankine--Hugoniot scalar values as a separate mixed-regime
+  boundary artifact instead of discarding them or coercing them into a
+  ``CharacteristicState``.
+  """
+
+  if not isinstance(upstream, CharacteristicState):
+    return MocSubsonicShockBoundaryResult(
+      status=MocPrimitiveStatus.INVALID_INPUT,
+      shock_point_m=None,
+      upstream_state=None,
+      upstream_pressure_Pa=None,
+      downstream_flow_angle_rad=None,
+      downstream_mach=None,
+      downstream_pressure_Pa=None,
+      upstream_total_pressure_Pa=None,
+      downstream_total_pressure_Pa=None,
+      total_pressure_ratio=None,
+      beta_rad=None,
+      shock_angle_rad=None,
+      branch=None,
+      message='upstream must be a CharacteristicState',
+    )
+  if shock_point_m is None:
+    point = (upstream.x_m, upstream.y_m)
+  else:
+    try:
+      point = (float(shock_point_m[0]), float(shock_point_m[1]))
+    except (IndexError, TypeError, ValueError):
+      return MocSubsonicShockBoundaryResult(
+        status=MocPrimitiveStatus.INVALID_INPUT,
+        shock_point_m=None,
+        upstream_state=upstream,
+        upstream_pressure_Pa=None,
+        downstream_flow_angle_rad=None,
+        downstream_mach=None,
+        downstream_pressure_Pa=None,
+        upstream_total_pressure_Pa=None,
+        downstream_total_pressure_Pa=None,
+        total_pressure_ratio=None,
+        beta_rad=None,
+        shock_angle_rad=None,
+        branch=None,
+        message='shock_point_m must contain two finite coordinates',
+      )
+    if not all(isfinite(value) for value in point):
+      return MocSubsonicShockBoundaryResult(
+        status=MocPrimitiveStatus.INVALID_INPUT,
+        shock_point_m=None,
+        upstream_state=upstream,
+        upstream_pressure_Pa=None,
+        downstream_flow_angle_rad=None,
+        downstream_mach=None,
+        downstream_pressure_Pa=None,
+        upstream_total_pressure_Pa=None,
+        downstream_total_pressure_Pa=None,
+        total_pressure_ratio=None,
+        beta_rad=None,
+        shock_angle_rad=None,
+        branch=None,
+        message='shock_point_m must contain two finite coordinates',
+      )
+  if not isinstance(branch, ShockBranch):
+    return MocSubsonicShockBoundaryResult(
+      status=MocPrimitiveStatus.INVALID_INPUT,
+      shock_point_m=point,
+      upstream_state=upstream,
+      upstream_pressure_Pa=None,
+      downstream_flow_angle_rad=None,
+      downstream_mach=None,
+      downstream_pressure_Pa=None,
+      upstream_total_pressure_Pa=None,
+      downstream_total_pressure_Pa=None,
+      total_pressure_ratio=None,
+      beta_rad=None,
+      shock_angle_rad=None,
+      branch=None,
+      message='branch must be a ShockBranch',
+    )
+  compression = solve_attached_compression_to_turn(
+    upstream_mach=upstream.mach,
+    gamma=upstream.gamma,
+    upstream_pressure_Pa=float(upstream_pressure_Pa),
+    target_turn_rad=float(target_turn_rad),
+    branch=branch,
+  )
+  if (
+    compression.downstream_mach is None
+    or compression.downstream_mach <= 0.0
+    or compression.downstream_mach >= 1.0
+    or compression.downstream_pressure_Pa is None
+    or compression.upstream_total_pressure_Pa is None
+    or compression.downstream_total_pressure_Pa is None
+    or compression.total_pressure_ratio is None
+    or compression.beta_rad is None
+    or compression.downstream_flow_angle_rad is None
+    or compression.status is not MocPrimitiveStatus.OUTSIDE_DOMAIN
+  ):
+    return MocSubsonicShockBoundaryResult(
+      status=(
+        compression.status
+        if compression.status not in (
+          MocPrimitiveStatus.CONVERGED,
+          MocPrimitiveStatus.OUTSIDE_DOMAIN,
+        )
+        else MocPrimitiveStatus.INVARIANT_FAILURE
+      ),
+      shock_point_m=point,
+      upstream_state=upstream,
+      upstream_pressure_Pa=float(upstream_pressure_Pa),
+      downstream_flow_angle_rad=compression.downstream_flow_angle_rad,
+      downstream_mach=compression.downstream_mach,
+      downstream_pressure_Pa=compression.downstream_pressure_Pa,
+      upstream_total_pressure_Pa=compression.upstream_total_pressure_Pa,
+      downstream_total_pressure_Pa=compression.downstream_total_pressure_Pa,
+      total_pressure_ratio=compression.total_pressure_ratio,
+      beta_rad=compression.beta_rad,
+      shock_angle_rad=(
+        upstream.theta_rad - compression.beta_rad
+        if compression.beta_rad is not None
+        else None
+      ),
+      branch=branch,
+      message=(
+        'attached compression did not produce a validated subsonic boundary: '
+        f'{compression.message}'
+      ),
+    )
+  return MocSubsonicShockBoundaryResult(
+    status=MocPrimitiveStatus.CONVERGED,
+    shock_point_m=point,
+    upstream_state=upstream,
+    upstream_pressure_Pa=float(upstream_pressure_Pa),
+    downstream_flow_angle_rad=compression.downstream_flow_angle_rad,
+    downstream_mach=compression.downstream_mach,
+    downstream_pressure_Pa=compression.downstream_pressure_Pa,
+    upstream_total_pressure_Pa=compression.upstream_total_pressure_Pa,
+    downstream_total_pressure_Pa=compression.downstream_total_pressure_Pa,
+    total_pressure_ratio=compression.total_pressure_ratio,
+    beta_rad=compression.beta_rad,
+    shock_angle_rad=upstream.theta_rad - compression.beta_rad,
+    branch=branch,
+  )
 ####
 
 

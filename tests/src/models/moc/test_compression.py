@@ -5,6 +5,7 @@ import pytest
 from exhaust_plume.models.moc import (
   CharacteristicState,
   MocPrimitiveStatus,
+  solve_attached_subsonic_compression_to_turn,
   solve_overexpanded_lip_shock,
   solve_attached_compression_to_pressure,
   solve_attached_compression_to_turn,
@@ -96,6 +97,46 @@ def test_attached_turn_compression_reconstructs_supersonic_downstream_state() ->
   assert result.total_pressure_ratio == pytest.approx(
     result.downstream_total_pressure_Pa / result.upstream_total_pressure_Pa,
   )
+
+
+def test_strong_attached_compression_is_retained_as_a_typed_subsonic_boundary() -> None:
+  upstream = CharacteristicState(
+    x_m=0.5,
+    y_m=0.5,
+    theta_rad=0.0,
+    mach=2.0,
+    gamma=1.4,
+  )
+
+  result = solve_attached_subsonic_compression_to_turn(
+    upstream,
+    upstream_pressure_Pa=100000.0,
+    target_turn_rad=0.05,
+    branch=ShockBranch.STRONG,
+    shock_point_m=(0.75, 0.25),
+  )
+
+  assert result.converged
+  assert result.subsonic
+  assert result.branch is ShockBranch.STRONG
+  assert result.shock_point_m == (0.75, 0.25)
+  assert result.downstream_mach is not None and result.downstream_mach < 1.0
+  assert result.downstream_pressure_Pa is not None
+  assert result.as_report()['branch'] == 'strong'
+
+
+def test_subsonic_boundary_adapter_does_not_promote_a_weak_supersonic_state() -> None:
+  result = solve_attached_subsonic_compression_to_turn(
+    CharacteristicState(0.5, 0.5, 0.0, 2.0, 1.4),
+    upstream_pressure_Pa=100000.0,
+    target_turn_rad=0.05,
+    branch=ShockBranch.WEAK,
+  )
+
+  assert result.status is MocPrimitiveStatus.INVARIANT_FAILURE
+  assert not result.converged
+  assert not result.subsonic
+  assert result.downstream_mach is not None and result.downstream_mach > 1.0
 
 
 def test_normal_shock_terminal_returns_explicit_subsonic_state() -> None:

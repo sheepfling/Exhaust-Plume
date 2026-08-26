@@ -32,6 +32,7 @@ from exhaust_plume.models.moc import (
   solve_uniform_attached_shock_field,
 )
 from exhaust_plume.models.nozzle.exit_state import derive_ambient_state, derive_uniform_nozzle_exit
+from exhaust_plume.util.aero.shock_validity import ShockBranch
 
 
 def _uniform_reference(sample_count: int):
@@ -575,6 +576,26 @@ def test_zero_turn_symmetry_endpoint_reports_subsonic_terminal_boundary() -> Non
   assert result.normal_shock_terminal.subsonic
   assert result.terminal_model_verified
   assert result.normal_shock_terminal.shock_point_m is not None
+
+
+def test_strong_branch_retains_subsonic_boundary_without_fabricating_moc_state() -> None:
+  result = solve_marched_attached_shock_field(
+    lambda point: CharacteristicState(point[0], point[1], -0.2, 2.0, 1.4),
+    lambda _point: 100000.0,
+    (0.5, 0.5),
+    downstream_flow_angle_rad=0.0,
+    branch=ShockBranch.STRONG,
+    sample_count=5,
+  )
+
+  assert result.status is MocFreeBoundaryShockStatus.SUBSONIC_TERMINAL_REQUIRED
+  assert result.subsonic_boundary_verified
+  assert result.subsonic_shock_boundary is not None
+  assert result.subsonic_shock_boundary.branch is ShockBranch.STRONG
+  assert result.subsonic_shock_boundary.subsonic
+  assert result.normal_shock_terminal is None
+  assert result.field is None
+  assert result.as_report()['subsonic_boundary_verified'] is True
 
 
 def test_marched_shock_rejects_an_upstream_state_not_at_the_shock_point() -> None:

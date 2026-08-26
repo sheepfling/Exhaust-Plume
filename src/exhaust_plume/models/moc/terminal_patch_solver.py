@@ -29,6 +29,7 @@ from exhaust_plume.models.moc.terminal_patch import (
   MocTerminalReflectionPatchResult,
 )
 from exhaust_plume.models.moc.primitives import CharacteristicState
+from exhaust_plume.util.aero.shock_validity import ShockBranch
 
 __all__ = (
   'MocTerminalPatchShockCouplingStatus',
@@ -96,6 +97,7 @@ class MocTerminalReflectionPatchShockSolveResult:
   incoming_handoff: tuple[MocChainBoundarySample, ...]
   downstream_condition_status: str
   message: str = ''
+  shock_branch: ShockBranch = ShockBranch.WEAK
 
   @property
   def converged(self) -> bool:
@@ -194,6 +196,7 @@ class MocTerminalReflectionPatchShockSolveResult:
       'upstream_coupling_verified': self.upstream_coupling_verified,
       'physical_closure_verified': self.physical_closure_verified,
       'chain_promotion_blocked': self.chain_promotion_blocked,
+      'shock_branch': self.shock_branch.value,
       'physical_terminal_verified': self.physical_terminal_verified,
       'termination_decision_available': self.physical_terminal_verified,
       'physical_termination_decision': termination_decision,
@@ -348,6 +351,7 @@ def solve_marched_attached_shock_from_terminal_reflection_patch(
   downstream_flow_angle_rad: float | None = None,
   incoming_handoff: Sequence[MocChainBoundarySample] | None = None,
   sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
   position_tolerance_m: float = 1.0e-10,
   invariant_tolerance: float = 1.0e-10,
   shock_angle_tolerance_rad: float = 1.0e-2,
@@ -362,6 +366,8 @@ def solve_marched_attached_shock_from_terminal_reflection_patch(
   such, so even a locally converged shock field cannot be promoted here.
   """
 
+  if not isinstance(branch, ShockBranch):
+    raise ValueError('branch must be a ShockBranch')
   if not isinstance(patch, MocTerminalReflectionPatchResult):
     message = 'patch must be a MocTerminalReflectionPatchResult'
     return MocTerminalReflectionPatchShockSolveResult(
@@ -377,6 +383,7 @@ def solve_marched_attached_shock_from_terminal_reflection_patch(
       incoming_handoff=(),
       downstream_condition_status='caller-supplied',
       message=message,
+      shock_branch=branch,
     )
   if not patch.converged or len(patch.outgoing_trace_points_m) < 3:
     message = f'terminal reflection patch is not usable: {patch.message}'
@@ -393,6 +400,7 @@ def solve_marched_attached_shock_from_terminal_reflection_patch(
       incoming_handoff=(),
       downstream_condition_status='caller-supplied',
       message=message,
+      shock_branch=branch,
     )
   try:
     start = (float(start_point_m[0]), float(start_point_m[1]))
@@ -411,6 +419,7 @@ def solve_marched_attached_shock_from_terminal_reflection_patch(
       incoming_handoff=(),
       downstream_condition_status='caller-supplied',
       message=message,
+      shock_branch=branch,
     )
   if not all(isfinite(value) for value in start):
     raise ValueError('start_point_m must contain two finite coordinates')
@@ -436,6 +445,7 @@ def solve_marched_attached_shock_from_terminal_reflection_patch(
     downstream_flow_angle_rad=downstream_flow_angle_rad,
     incoming_handoff=handoff,
     sample_count=sample_count,
+    branch=branch,
     position_tolerance_m=position_tolerance_m,
     invariant_tolerance=invariant_tolerance,
     shock_angle_tolerance_rad=shock_angle_tolerance_rad,
@@ -465,4 +475,5 @@ def solve_marched_attached_shock_from_terminal_reflection_patch(
     incoming_handoff=handoff,
     downstream_condition_status='caller-supplied',
     message=message,
+    shock_branch=branch,
   )

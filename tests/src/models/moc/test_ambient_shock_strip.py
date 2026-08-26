@@ -20,6 +20,7 @@ from exhaust_plume.models.moc import (
   solve_marched_attached_shock_from_terminal_reflection_patch,
   solve_marched_attached_shock_field,
 )
+from exhaust_plume.util.aero.shock_validity import ShockBranch
 
 
 def _shock_reference():
@@ -224,6 +225,40 @@ def test_terminal_reflection_patch_is_domain_bounded_and_reaches_typed_mixed_reg
   assert decision.physical_termination is True
   assert decision.message.startswith('supersonic terminal-patch march')
   assert decision.as_report()['diagnostics']['termination_model'] == 'normal-shock-terminal'
+
+
+def test_terminal_reflection_patch_retains_a_strong_subsonic_branch_seam() -> None:
+  shock_fit = _shock_reference()
+  ambient_pressure = _ambient_pressure(shock_fit)
+  march = march_post_shock_ambient_boundary(shock_fit, ambient_pressure)
+  strip = assemble_ambient_shock_characteristic_strip(
+    shock_fit,
+    march.boundary_samples,
+    ambient_pressure,
+  )
+  patch = assemble_terminal_trace_centerline_patch(
+    strip,
+    trace_position_tolerance_m=1.0e-3,
+  )
+  assert patch.converged
+
+  result = solve_marched_attached_shock_from_terminal_reflection_patch(
+    patch,
+    patch.outgoing_trace_points_m[0],
+    downstream_flow_angle_rad=0.0,
+    branch=ShockBranch.STRONG,
+    sample_count=len(patch.outgoing_trace_points_m),
+    position_tolerance_m=1.0e-3,
+  )
+
+  assert result.shock_branch is ShockBranch.STRONG
+  assert result.shock.status is MocFreeBoundaryShockStatus.SUBSONIC_TERMINAL_REQUIRED
+  assert result.shock.subsonic_boundary_verified
+  assert result.shock.subsonic_shock_boundary is not None
+  assert result.shock.subsonic_shock_boundary.branch is ShockBranch.STRONG
+  assert result.physical_terminal_verified is False
+  assert result.chain_promotion_blocked is True
+  assert result.as_report()['shock_branch'] == 'strong'
 
 
 def test_ambient_strip_rejects_a_boundary_trace_with_wrong_family_geometry() -> None:

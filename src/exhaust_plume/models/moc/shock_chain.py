@@ -1226,6 +1226,7 @@ def solve_marched_ambient_attachment_shock_cell_transition(
   incoming_handoff: Sequence[MocChainBoundarySample] | None = None,
   sample_count: int = 17,
   branch: ShockBranch = ShockBranch.WEAK,
+  terminal_branch: ShockBranch = ShockBranch.WEAK,
   downstream_flow_angle_rad: float = 0.0,
   trace_position_tolerance_m: float = 2.0e-4,
   position_tolerance_m: float = 1.0e-10,
@@ -1243,6 +1244,8 @@ def solve_marched_ambient_attachment_shock_cell_transition(
   The outer shock turn is solved against ambient pressure first.  The
   resulting physical shock/ambient strip is reflected to the centerline, and
   its outgoing ``C-`` trace is passed to the domain-bounded next-shock probe.
+  ``branch`` controls the ambient attachment; ``terminal_branch`` controls the
+  separate downstream attached-shock probe.
   A zero downstream angle is a declared normal-shock reference condition; it
   is not silently treated as a universal downstream closure.
   """
@@ -1347,6 +1350,7 @@ def solve_marched_ambient_attachment_shock_cell_transition(
       downstream_flow_angle_rad=downstream_angle,
       incoming_handoff=reflection_patch.outgoing_trace_samples,
       sample_count=sample_count,
+      branch=terminal_branch,
       position_tolerance_m=trace_tolerance,
       invariant_tolerance=invariant_tolerance,
       shock_angle_tolerance_rad=shock_angle_tolerance_rad,
