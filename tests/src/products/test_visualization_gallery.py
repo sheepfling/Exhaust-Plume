@@ -36,7 +36,10 @@ from exhaust_plume.api import (
   project_spectral_ray_transfer_view,
 )
 from exhaust_plume.products import (
+  compare_product_results,
   render_product_gallery,
+  write_product_comparison_report,
+  write_interactive_product_gallery,
 )
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -247,3 +250,55 @@ def test_ray_gallery_manifest_records_non_inference_guardrails(tmp_path: Path) -
   manifest = render_product_gallery(result, tmp_path)
   assert any('hit_miss_intersections' in guardrail for guardrail in manifest.guardrails)
   assert all('hit' not in artifact.view_id for artifact in manifest.artifacts)
+
+
+@pytest.mark.parametrize(
+  'result_factory',
+  (_visual_result, _signature_result, _ray_result, _flux_result),
+)
+def test_interactive_gallery_embeds_linked_state_without_network_dependencies(result_factory, tmp_path: Path) -> None:
+  result = result_factory()
+  output = write_interactive_product_gallery(result, tmp_path / 'linked.html')
+  html = output.read_text(encoding='utf-8')
+
+  assert '<svg id="plot"' in html
+  assert 'Export current view spec' in html
+  assert result.envelope.content_sha256 in html
+  assert 'fetch(' not in html
+
+
+def test_comparison_report_preserves_lineage_masks_and_diagnostic_guardrails(tmp_path: Path) -> None:
+  left = _signature_result()
+  right = left.model_copy(update={
+    'envelope': left.envelope.model_copy(update={
+      'provider_id': uuid4(),
+      'content_sha256': '4' * 64,
+    }),
+    'payload': left.payload.model_copy(update={
+      'radiant_intensity_W_sr_m': ((2.0, None), (0.5, 0.25), (0.2, 0.4)),
+    }),
+  })
+  report = compare_product_results(left, right)
+  assert report.status == 'computed-diagnostic'
+  assert report.left_source['content_sha256'] == '1' * 64
+  assert report.right_source['content_sha256'] == '4' * 64
+  assert report.validity['left_invalid_sample_count'] == 1
+  assert report.metrics['absolute_radiant_intensity_delta_W_sr_m']['rmse'] == pytest.approx((1.0 / 5.0) ** 0.5)
+  assert any('not_validation_evidence' in guardrail for guardrail in report.guardrails)
+
+  path = write_product_comparison_report(report, tmp_path / 'comparison.json')
+  payload = json.loads(path.read_text(encoding='utf-8'))
+  assert payload['schema'] == 'plume.visualization.comparison@1'
+  assert payload['right_source']['content_sha256'] == '4' * 64
+
+
+@pytest.mark.parametrize(
+  'result_factory',
+  (_visual_result, _signature_result, _ray_result, _flux_result),
+)
+def test_comparison_report_dispatches_all_standard_products(result_factory) -> None:
+  result = result_factory()
+  report = compare_product_results(result, result)
+  assert report.status == 'computed-diagnostic'
+  assert report.left_source['capability_id'] == result.envelope.capability_id
+  assert report.right_view_spec.digest_sha256() == report.left_view_spec.digest_sha256()

@@ -73,6 +73,16 @@ from exhaust_plume.products.workflow_gallery import (
     render_spectral_ray_transfer_gallery,
     write_gallery_manifest,
 )
+from exhaust_plume.products.workflow_interactive import (
+    INTERACTIVE_GALLERY_SCHEMA,
+    write_interactive_product_gallery,
+)
+from exhaust_plume.products.workflow_comparison import (
+    COMPARISON_REPORT_SCHEMA,
+    ProductComparisonReport,
+    compare_product_results,
+    write_product_comparison_report,
+)
 
 PlumeProduct: TypeAlias = (
     ConservativeSupportProduct
@@ -87,6 +97,7 @@ __all__ = (
     'Applicability',
     'BatchValidity',
     'CapabilityId',
+    'COMPARISON_REPORT_SCHEMA',
     'CompletionStatus',
     'ContractModel',
     'ConservativeSupportProduct',
@@ -97,8 +108,10 @@ __all__ = (
     'Fidelity',
     'GALLERY_MANIFEST_SCHEMA',
     'GalleryArtifact',
+    'INTERACTIVE_GALLERY_SCHEMA',
     'OPTICAL_SPECTRAL_RAY_TRANSFER_V1',
     'PlumeProduct',
+    'ProductComparisonReport',
     'ProductMetadata',
     'ProductReference',
     'Provenance',
@@ -134,6 +147,9 @@ __all__ = (
     'write_signature_result_json',
     'write_signature_table_asset',
     'write_gallery_manifest',
+    'write_interactive_product_gallery',
+    'write_product_comparison_report',
+    'compare_product_results',
     'write_straight_visual_asset',
     'write_visual_mesh_json',
     'write_visual_obj',

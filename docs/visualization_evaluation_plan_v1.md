@@ -157,6 +157,14 @@ evaluation layers for the four strict `ProductResult` families:
 - Each gallery writes `visualization_spec.json` and `gallery_manifest.json`
   with source identity, fidelity, validation, applicability, provenance,
   warnings, masks/policies, selections, and artifact paths.
+- `exhaust_plume.products.workflow_interactive` writes an optional standalone,
+  no-network HTML gallery with linked selectors for station/channel,
+  direction/wavelength, ray/wavelength, or species. The page can export the
+  current selection as a source-bound view-spec JSON file.
+- `exhaust_plume.products.workflow_comparison` provides same-axis, same-frame
+  diagnostics for all four standard product families, retaining both source
+  lineages and validity counts. Mismatched domains are reported as blocked;
+  the output is explicitly not validation evidence.
 - The strict ray contract still has no hit mask, optical depth, or intersection
   interval. The gallery records that limitation and does not infer it from
   zero radiance or unit transmittance. The strict visual contract likewise does
