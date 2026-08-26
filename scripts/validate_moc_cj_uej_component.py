@@ -14,7 +14,7 @@ import argparse
 from bisect import bisect_left
 from dataclasses import dataclass
 import json
-from math import isfinite, sqrt
+from math import cos, isfinite, sqrt
 from pathlib import Path
 import sys
 from typing import Any, Mapping, Sequence
@@ -207,6 +207,85 @@ def _sample_centerline_mach(
 ####
 
 
+def _sample_moc_profile(
+  rows: Sequence[Mapping[str, str]],
+  *,
+  zone: MocReflectedCharacteristicZoneResult,
+  diameter_m: float,
+  quantity: str,
+  ambient_pressure_Pa: float,
+  gas: CaloricallyPerfectGas,
+  total_temperature_K: float,
+) -> tuple[list[dict[str, float]], dict[str, int]]:
+  """Sample a disclosed profile inside the bounded reflected-MOC field.
+
+  The sampler is deliberately domain-bounded.  Static pressure uses the
+  zone's carried total-pressure lineage, while axial velocity uses the
+  explicitly disclosed constant-gamma total-temperature assumption.  The
+  latter is a model-derived axial-speed prediction, not a reinterpretation of
+  the source's Pitot-pressure observable.
+  """
+
+  if quantity not in {'static_pressure_ratio', 'axial_velocity'}:
+    raise ValueError(f'unsupported MOC profile quantity {quantity!r}')
+  if not isfinite(float(diameter_m)) or diameter_m <= 0.0:
+    raise ValueError('diameter_m must be finite and positive')
+  if not isfinite(float(ambient_pressure_Pa)) or ambient_pressure_Pa <= 0.0:
+    raise ValueError('ambient_pressure_Pa must be finite and positive')
+  if not isfinite(float(total_temperature_K)) or total_temperature_K <= 0.0:
+    raise ValueError('total_temperature_K must be finite and positive')
+  samples: list[dict[str, float]] = []
+  skipped: dict[str, int] = {}
+  for row in rows:
+    x_over_D = float(row['x_over_D'])
+    radial_position_y_over_D = float(row['radial_position_y_over_D'])
+    point_m = (
+      x_over_D * diameter_m,
+      radial_position_y_over_D * diameter_m,
+    )
+    state = zone.state_at(point_m)
+    if state is None:
+      skipped['outside_open_moc_support'] = skipped.get('outside_open_moc_support', 0) + 1
+      continue
+    if quantity == 'static_pressure_ratio':
+      pressure = zone.static_pressure_at(point_m)
+      if pressure is None or not isfinite(float(pressure)) or pressure <= 0.0:
+        skipped['missing_total_pressure_lineage'] = skipped.get('missing_total_pressure_lineage', 0) + 1
+        continue
+      predicted = pressure / ambient_pressure_Pa
+    else:
+      static_temperature = gas.static_temperature_from_total(
+        state.mach,
+        total_temperature_K,
+      )
+      predicted = gas.velocity_mps(state.mach, static_temperature) * cos(state.theta_rad)
+    if not isfinite(float(predicted)):
+      skipped['nonfinite_prediction'] = skipped.get('nonfinite_prediction', 0) + 1
+      continue
+    samples.append({
+      'x_over_D': x_over_D,
+      'radial_position_y_over_D': radial_position_y_over_D,
+      'observed': float(row['value']),
+      'predicted': float(predicted),
+      'uncertainty': max(0.0, float(row['value_digitization_uncertainty'])),
+    })
+  return samples, skipped
+####
+
+
+def _group_profile_rows(
+  rows: Sequence[Mapping[str, str]],
+) -> dict[tuple[str, str], list[Mapping[str, str]]]:
+  """Group profile observations by their declared line and observable."""
+
+  grouped: dict[tuple[str, str], list[Mapping[str, str]]] = {}
+  for row in rows:
+    key = (str(row.get('profile_id', '')), str(row.get('observable', '')))
+    grouped.setdefault(key, []).append(row)
+  return grouped
+####
+
+
 def _case_from_metadata(
     metadata: Mapping[str, Any],
     configuration: MocCJRunConfiguration,
@@ -246,7 +325,11 @@ def _case_from_metadata(
     characteristic_count=count,
   )
   boundary = solve_reflected_free_boundary(fan, exit_state, ambient)
-  zone = assemble_reflected_characteristic_zone(fan, boundary)
+  zone = assemble_reflected_characteristic_zone(
+    fan,
+    boundary,
+    total_pressure_Pa=exit_state.total_pressure_Pa,
+  )
   model_case = {
     'exit_diameter_m': diameter_m,
     'exit_radius_m': diameter_m / 2.0,
@@ -299,6 +382,7 @@ def _solver_summary(
       max(point[1] / diameter_m for point in boundary.boundary_points_m)
       if boundary.boundary_points_m else None
     ),
+    'total_pressure_Pa': zone.total_pressure_Pa,
     'maximum_pressure_residual': max(
       (abs(point.pressure_residual or 0.0) for point in boundary.point_results),
       default=None,
@@ -431,6 +515,10 @@ def build_moc_cj_uej_component_report(
       'internal_operator_id': INTERNAL_OPERATOR_ID,
       'crosswalk_status': 'semantic-match-reviewed-for-cj-uej-component-only',
       'crosswalk_scope': 'centerline x/D sampling, source uncertainty, and published Mach semantics only',
+      'supplemental_crosswalk_scope': (
+        'centerline and off-axis x/D profile coordinates for static-pressure '
+        'ratio and axial-velocity diagnostics'
+      ),
       'namespace_status': preflight.get('operator_reconciliation', {}).get('crosswalk_status'),
       'semantic_crosswalk_status': preflight.get('operator_reconciliation', {}).get('semantic_crosswalk_status'),
     },
@@ -445,6 +533,7 @@ def build_moc_cj_uej_component_report(
   with ZipFile(corpus_path) as archive_file:
     metadata = _read_json(archive_file, 'data/cj_uej_001_metadata.json')
     mach_rows = _read_csv(archive_file, 'data/cj_uej_001_mach_estimates.csv')
+    profile_rows = _read_csv(archive_file, 'data/cj_uej_001_profiles.csv')
   fan, boundary, zone, model_case = _case_from_metadata(metadata, configuration)
   solver = _solver_summary(
     fan,
@@ -490,6 +579,45 @@ def build_moc_cj_uej_component_report(
       'source_shift_variant': False,
     },
   )
+  gas = CaloricallyPerfectGas.dry_air(gamma=configuration.gamma)
+  supplemental_profile_comparisons: list[dict[str, Any]] = []
+  for (profile_id, observable), rows in sorted(
+    _group_profile_rows(profile_rows).items()
+  ):
+    if observable not in {'static_pressure_ratio', 'axial_velocity'}:
+      continue
+    profile_samples, profile_skipped = _sample_moc_profile(
+      rows,
+      zone=zone,
+      diameter_m=float(model_case['exit_diameter_m']),
+      quantity=observable,
+      ambient_pressure_Pa=configuration.ambient_pressure_Pa,
+      gas=gas,
+      total_temperature_K=configuration.total_temperature_K,
+    )
+    supplemental_profile_comparisons.append(
+      _score_samples(
+        profile_samples,
+        observed_count=len(rows),
+        skipped=profile_skipped,
+        metadata={
+          'profile_id': profile_id,
+          'observable': observable,
+          'quantity': observable,
+          'observed_unit': rows[0].get('unit'),
+          'operator_id': EXTERNAL_OPERATOR_ID,
+          'internal_operator_id': INTERNAL_OPERATOR_ID,
+          'metric_ids': ['metric.profile.nrmse'],
+          'model_method': (
+            'isentropic-static-pressure-from-carried-total-pressure'
+            if observable == 'static_pressure_ratio'
+            else 'isentropic-axial-speed-from-total-temperature-assumption'
+          ),
+          'source_shift_variant': False,
+          'claim_status': 'not_accepted_supplemental_diagnostic',
+        },
+      )
+    )
   report.update({
     'validation_status': 'partial_component_evidence',
     'claim_status': 'not_accepted',
@@ -500,11 +628,32 @@ def build_moc_cj_uej_component_report(
     'solver': solver,
     'refinement': _refinement_report(metadata, configuration),
     'comparison': comparison,
+    'supplemental_profile_comparisons': {
+      'status': 'quantified-supplemental-diagnostic',
+      'claim_status': 'not_accepted',
+      'operator_id': EXTERNAL_OPERATOR_ID,
+      'internal_operator_id': INTERNAL_OPERATOR_ID,
+      'provenance': {
+        'corpus_archive_sha256': archive['actual_sha256'],
+        'source_observation_member': 'data/cj_uej_001_profiles.csv',
+        'solver_component': 'src/exhaust_plume/models/moc/',
+      },
+      'model_assumptions': {
+        'gamma': configuration.gamma,
+        'total_temperature_K': configuration.total_temperature_K,
+        'total_pressure_source': 'near-sonic adapter exit total pressure',
+      },
+      'scope': (
+        'static-pressure-ratio and axial-velocity profiles sampled only '
+        'inside the bounded open reflected-MOC field'
+      ),
+      'cases': supplemental_profile_comparisons,
+    },
     'acceptance_blockers': [
       'The source is convergent/choked while the MOC exit-state contract requires an explicit near-sonic M > 1 adapter.',
       'The source does not publish total temperature; the adapter temperature and resulting velocity field are assumptions.',
       'The open reflected characteristic lattice has no physical compression/shock closure or post-shock continuation.',
-      'Only the centerline Mach trace is compared; pressure, velocity, radial profiles, and shock-cell phase are not accepted here.',
+      'The centerline Mach comparison remains the only proposed MOC claim; supplemental static-pressure and axial-velocity profile comparisons are diagnostic only and do not establish shock-cell phase.',
       'The recovered corpus contains one benchmark case, so no disjoint calibration/validation split is available.',
       'The component diagnostic does not authorize a public MOC provider or a primary VIS claim.',
     ],

@@ -2,8 +2,8 @@
   "acceptance_blockers": [
     "The source is convergent/choked while the MOC exit-state contract requires an explicit near-sonic M > 1 adapter.",
     "The source does not publish total temperature; the adapter temperature and resulting velocity field are assumptions.",
-    "The open reflected characteristic lattice has no physical compression/shock closure or complete post-shock field; the separate prescribed-boundary C- trace is not part of this comparison.",
-    "Only the centerline Mach trace is compared; pressure, velocity, radial profiles, and shock-cell phase are not accepted here.",
+    "The open reflected characteristic lattice has no physical compression/shock closure or post-shock continuation.",
+    "The centerline Mach comparison remains the only proposed MOC claim; supplemental static-pressure and axial-velocity profile comparisons are diagnostic only and do not establish shock-cell phase.",
     "The recovered corpus contains one benchmark case, so no disjoint calibration/validation split is available.",
     "The component diagnostic does not authorize a public MOC provider or a primary VIS claim."
   ],
@@ -105,7 +105,8 @@
     "external_operator_id": "operator.sample.canonical_jet_probe_lines",
     "internal_operator_id": "op.field.profile-probe",
     "namespace_status": "pending",
-    "semantic_crosswalk_status": "complete-scoped"
+    "semantic_crosswalk_status": "complete-scoped",
+    "supplemental_crosswalk_scope": "centerline and off-axis x/D profile coordinates for static-pressure ratio and axial-velocity diagnostics"
   },
   "refinement": {
     "acceptance_note": "Refinement metrics describe the open fan/reflected boundary construction; they are not convergence evidence for a physical first-cell length.",
@@ -436,6 +437,7 @@
     "physical_closure_status": "open",
     "reflected_boundary_status": "converged",
     "shock_closure_status": "not_assembled",
+    "total_pressure_Pa": 230007.75,
     "zone_status": "converged_open"
   },
   "source_evidence_limits": [
@@ -444,5 +446,152 @@
     "Mach values are author-derived from LDV or pressure measurements, not direct Mach probes."
   ],
   "source_validation_role": "gasdynamic precursor for shock-cell pressure, velocity, and Mach geometry; not a chemically reacting rocket plume",
+  "supplemental_profile_comparisons": {
+    "cases": [
+      {
+        "claim_status": "not_accepted",
+        "comparison_status": "quantified-diagnostic",
+        "coverage_fraction": 0.5263157894736842,
+        "internal_operator_id": "op.field.profile-probe",
+        "metric_ids": [
+          "metric.profile.nrmse"
+        ],
+        "metrics": {
+          "digitization_uncertainty_weighted_rmse": 4.17685799106547,
+          "maximum_absolute_error": 27.40560402647634,
+          "mean_absolute_error": 17.150244071971134,
+          "nrmse_by_observed_range": 0.24687864652694258,
+          "rmse": 18.79586095979461
+        },
+        "model_method": "isentropic-axial-speed-from-total-temperature-assumption",
+        "observable": "axial_velocity",
+        "observed_count": 19,
+        "observed_unit": "m/s",
+        "operator_id": "operator.sample.canonical_jet_probe_lines",
+        "predicted_count": 10,
+        "predicted_x_over_D_range": [
+          0.0537867138,
+          0.3172382104
+        ],
+        "profile_id": "centerline",
+        "quantity": "axial_velocity",
+        "skipped_rows": {
+          "outside_open_moc_support": 9
+        },
+        "source_shift_variant": false
+      },
+      {
+        "claim_status": "not_accepted",
+        "comparison_status": "quantified-diagnostic",
+        "coverage_fraction": 0.07246376811594203,
+        "internal_operator_id": "op.field.profile-probe",
+        "metric_ids": [
+          "metric.profile.nrmse"
+        ],
+        "metrics": {
+          "digitization_uncertainty_weighted_rmse": 4.7654166799499285,
+          "maximum_absolute_error": 0.2967167090195625,
+          "mean_absolute_error": 0.19496870434675714,
+          "nrmse_by_observed_range": 0.9482992962733898,
+          "rmse": 0.21444375059774679
+        },
+        "model_method": "isentropic-static-pressure-from-carried-total-pressure",
+        "observable": "static_pressure_ratio",
+        "observed_count": 69,
+        "observed_unit": "dimensionless",
+        "operator_id": "operator.sample.canonical_jet_probe_lines",
+        "predicted_count": 5,
+        "predicted_x_over_D_range": [
+          0.0658479437,
+          0.3292995926
+        ],
+        "profile_id": "centerline",
+        "quantity": "static_pressure_ratio",
+        "skipped_rows": {
+          "outside_open_moc_support": 64
+        },
+        "source_shift_variant": false
+      },
+      {
+        "claim_status": "not_accepted",
+        "comparison_status": "quantified-diagnostic",
+        "coverage_fraction": 0.37777777777777777,
+        "internal_operator_id": "op.field.profile-probe",
+        "metric_ids": [
+          "metric.profile.nrmse"
+        ],
+        "metrics": {
+          "digitization_uncertainty_weighted_rmse": 2.841811647564629,
+          "maximum_absolute_error": 19.150221023710742,
+          "mean_absolute_error": 11.28984854440735,
+          "nrmse_by_observed_range": 0.3424440814467013,
+          "rmse": 12.78815241404083
+        },
+        "model_method": "isentropic-axial-speed-from-total-temperature-assumption",
+        "observable": "axial_velocity",
+        "observed_count": 45,
+        "observed_unit": "m/s",
+        "operator_id": "operator.sample.canonical_jet_probe_lines",
+        "predicted_count": 17,
+        "predicted_x_over_D_range": [
+          0.080694925,
+          0.5018322962
+        ],
+        "profile_id": "off_axis_y_over_d_0p25",
+        "quantity": "axial_velocity",
+        "skipped_rows": {
+          "outside_open_moc_support": 28
+        },
+        "source_shift_variant": false
+      },
+      {
+        "claim_status": "not_accepted",
+        "comparison_status": "quantified-diagnostic",
+        "coverage_fraction": 0.5483870967741935,
+        "internal_operator_id": "op.field.profile-probe",
+        "metric_ids": [
+          "metric.profile.nrmse"
+        ],
+        "metrics": {
+          "digitization_uncertainty_weighted_rmse": 2.212696141523901,
+          "maximum_absolute_error": 0.1441915698441696,
+          "mean_absolute_error": 0.0896205627815615,
+          "nrmse_by_observed_range": 0.6760914131896921,
+          "rmse": 0.09957132636857553
+        },
+        "model_method": "isentropic-static-pressure-from-carried-total-pressure",
+        "observable": "static_pressure_ratio",
+        "observed_count": 31,
+        "observed_unit": "dimensionless",
+        "operator_id": "operator.sample.canonical_jet_probe_lines",
+        "predicted_count": 17,
+        "predicted_x_over_D_range": [
+          0.0788478126,
+          0.499994782
+        ],
+        "profile_id": "off_axis_y_over_d_0p25",
+        "quantity": "static_pressure_ratio",
+        "skipped_rows": {
+          "outside_open_moc_support": 14
+        },
+        "source_shift_variant": false
+      }
+    ],
+    "claim_status": "not_accepted",
+    "internal_operator_id": "op.field.profile-probe",
+    "model_assumptions": {
+      "gamma": 1.4,
+      "total_pressure_source": "near-sonic adapter exit total pressure",
+      "total_temperature_K": 300.0
+    },
+    "operator_id": "operator.sample.canonical_jet_probe_lines",
+    "provenance": {
+      "corpus_archive_sha256": "79c2a34dd4c43bd976ceb8773fdccd78a2592d903bf03ca57c2aef82f882e9aa",
+      "solver_component": "src/exhaust_plume/models/moc/",
+      "source_observation_member": "data/cj_uej_001_profiles.csv"
+    },
+    "scope": "static-pressure-ratio and axial-velocity profiles sampled only inside the bounded open reflected-MOC field",
+    "status": "quantified-supplemental-diagnostic"
+  },
   "validation_status": "partial_component_evidence"
 }

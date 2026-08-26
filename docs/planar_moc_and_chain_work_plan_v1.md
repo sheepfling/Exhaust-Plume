@@ -89,6 +89,11 @@ not wait on this research closure.
   shock vertices remain represented only by the explicit terminal boundary
   state arrays, preserving the mixed-regime fidelity boundary while making
   refinement and visualization reports inspectable.
+- Expanded the independent CJ-UEJ MOC component diagnostic to sample the
+  verified archive's centerline and off-axis static-pressure and axial-
+  velocity profiles using carried total-pressure and declared total-
+  temperature assumptions. Coverage and residuals remain supplemental,
+  domain-bounded, and explicitly non-accepted.
 - Added a shock-seeded C+/C- field assembler. It grows shrinking compatible
   fronts from a fitted shock boundary, carries post-shock total pressure along
   the source lineage, closes the terminal characteristic fan to the symmetry
