@@ -2629,6 +2629,24 @@
         },
         "message": "shock/ambient strip and reflected characteristic patch were clipped to a closed supersonic region at the verified normal shock; subsonic downstream field remains outside the planar MOC lane"
       },
+      "terminal_attachment_termination_decision": {
+        "physical_termination": true,
+        "reason": "physical-termination",
+        "message": "terminal supersonic MOC region and the declared elliptic subsonic field both converged; the supersonic chain stops at the mixed-regime cell",
+        "diagnostics": {
+          "termination_model": "normal-shock-plus-elliptic-subsonic-field",
+          "shock_point_m": [
+            1.932441612053076,
+            0.0
+          ],
+          "downstream_mach": 0.7425533106434078,
+          "downstream_pressure_Pa": 508788.91048239,
+          "total_pressure_ratio": 0.9598519734029278,
+          "mixed_regime_model": "elliptic-isentropic-subsonic-reference",
+          "mixed_regime_node_count": 5,
+          "mixed_regime_cell_count": 4
+        }
+      },
       "claim_status": "typed-scalar-subsonic-boundary-handoff-only; subsonic-field-mesh-and-chain-promotion-pending",
       "message": "scalar subsonic perimeter handoff passed shock-seam, open-supersonic-patch, geometry, and total-pressure lineage checks; a subsonic field mesh is still pending"
     },

@@ -125,6 +125,15 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert terminal_attachment['mixed_regime_field_complete'] is True
   assert terminal_attachment['physical_termination_verified'] is True
   assert terminal_attachment['chain_promotion_blocked'] is True
+  terminal_attachment_decision = mixed_regime_boundary['terminal_attachment_termination_decision']
+  assert terminal_attachment_decision['physical_termination'] is True
+  assert terminal_attachment_decision['reason'] == 'physical-termination'
+  assert terminal_attachment_decision['diagnostics']['termination_model'] == (
+    'normal-shock-plus-elliptic-subsonic-field'
+  )
+  assert terminal_attachment_decision['diagnostics']['mixed_regime_model'] == (
+    'elliptic-isentropic-subsonic-reference'
+  )
   assert ambient_closure['status'] == 'ambient_boundary_failure'
   assert ambient_closure['physical_closure_verified'] is False
   assert ambient_closure['upstream_coupling_verified'] is False
