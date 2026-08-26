@@ -84,6 +84,15 @@ from exhaust_plume.api.visualization import (
     extract_spectral_ray_transfer_data,
     extract_spectral_ray_transfer_lines,
 )
+from exhaust_plume.api.visualization_spec import (
+    AxisScale,
+    CameraSpec,
+    InvalidSamplePolicy,
+    VISUALIZATION_SPEC_SCHEMA,
+    ViewSelection,
+    VisualizationSpec,
+    WavelengthDisplayUnit,
+)
 
 __all__ = (
     'ENGINEERING_FLUX_SECTION_V1',
@@ -98,13 +107,16 @@ __all__ = (
     'SUPPORTING_CAPABILITY_IDS',
     'VISUAL_SECTIONED_TUBE_V1',
     'Applicability',
+    'AxisScale',
     'CapabilityAdvertisement',
+    'CameraSpec',
     'DerivationStep',
     'FeatureAssociation',
     'FeatureChannel',
     'FidelityClaim',
     'FrameRef',
     'ItemStatus',
+    'InvalidSamplePolicy',
     'ModelFidelity',
     'PlumeApiError',
     'PlumeErrorCode',
@@ -146,6 +158,10 @@ __all__ = (
     'TimeAccessPolicy',
     'TubeSection',
     'ValidationLevel',
+    'VISUALIZATION_SPEC_SCHEMA',
+    'ViewSelection',
+    'VisualizationSpec',
+    'WavelengthDisplayUnit',
     'calculate_content_sha256',
     'build_sectioned_tube_render_mesh',
     'extract_plume_flux_section_glyph',

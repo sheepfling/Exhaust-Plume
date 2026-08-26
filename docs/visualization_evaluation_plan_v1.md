@@ -1,0 +1,209 @@
+# Visualization evaluation plan v1
+
+## Purpose
+
+The visualization surface is an evaluation and debugging tool for the public
+exhaust-plume contracts. It is not a new physics product and it must not turn
+an exploratory display into a validated geometry, radiation, ray, or detector
+claim.
+
+The current strict `exhaust_plume.api.ProductResult` union contains four
+independent product families:
+
+1. `plume.visual.sectioned-tube@1` — oriented sectioned-tube geometry;
+2. `plume.signature.spectral-radiant-intensity@1` — unresolved spectral
+   radiant intensity;
+3. `plume.optical.spectral-ray-transfer@1` — resolved ray source radiance and
+   background transmittance;
+4. `plume.engineering.flux-section@1` — engineering flux handoff data.
+
+Focal-plane visualization is a downstream lane. It requires an explicit
+camera/optics/detector operator result and must not be synthesized from a
+visual tube or a signature table.
+
+## Shared evaluation contract
+
+Every view must retain and display:
+
+- capability ID and schema version;
+- provider, model lineage, model fidelity, validation level, and derivation;
+- frame ID, time, snapshot/result identity, and content digest;
+- applicability, result status, warnings, and validity masks;
+- physical units and coordinate conventions;
+- the exact view settings used to create the display.
+
+Invalid or unavailable samples remain masked or gapped. They must not be
+silently converted to zero. Display scaling, wavelength-unit conversion,
+logarithmic axes, colormaps, downsampling, camera settings, and selected
+indices are view settings, not changes to the source result.
+
+## Product view matrix
+
+### Sectioned-tube visual geometry
+
+- 3-D overview of the tessellated tube with frame and support labels;
+- XY/XZ/YZ orthographic projections;
+- axial centerline and semi-axis plots;
+- station selector with ellipse, tangent, normals, radii, and feature values;
+- one plot per declared feature channel, including component and association;
+- mesh quality diagnostics: finite vertices, face indices, ring resolution,
+  bounds, orientation, and degenerate-face checks;
+- side-by-side overlays for separate fidelity lanes, with provenance kept
+  visible for each result.
+
+Shock diamonds, Mach disks, plume regions, and physical plume endpoints are
+shown only when explicitly represented by a declared channel or a separate
+spatial/region contract. They are never inferred from a display mesh.
+
+### Spectral radiant intensity
+
+- wavelength spectrum for each selected direction;
+- wavelength-by-direction heatmap with masked invalid samples;
+- direction-unit-sphere view colored by a selected wavelength;
+- uncertainty band or uncertainty heatmap when uncertainty is supplied;
+- direction table showing the exact 3-D unit vector and status;
+- wavelength selector and direction selector with linked updates;
+- same-axis comparison between independent providers or tables only when
+  wavelength and direction domains match.
+
+The contract does not necessarily provide a scalar angular coordinate. The
+viewer must use direction index or the exact 3-D direction unless a declared
+axis makes a direction cosine meaningful.
+
+### Spectral ray transfer
+
+- 3-D ray-origin/direction bundle view with an explicit display length;
+- per-ray source-radiance spectrum;
+- separate background-transmittance spectrum;
+- ray-by-wavelength heatmaps for each returned field;
+- ray table with ID, origin, direction, status, and valid-sample count;
+- selected-ray inspector with all source, transmittance, and mask values;
+- intersection/path overlays only when the selected contract returns those
+  intervals.
+
+The viewer must not infer hit/miss or optical depth from zero radiance or unit
+transmittance when those fields are absent from the result.
+
+### Engineering flux section
+
+- section pose and normal glyph;
+- momentum-flux vector and scalar magnitude;
+- cross-section second-moment ellipse;
+- mass-flow, energy-flow, pressure, ambient-pressure, and residual cards;
+- species mass-flow bars or stacked bars;
+- uncertainty and applicability display;
+- ordered section/time plots only when an explicit collection wrapper supplies
+  a common axis and shared lineage.
+
+### Downstream focal-plane lane
+
+Once an explicit detector/operator result exists, add:
+
+- pixel-integrated radiance or expected-electron image;
+- detector spectral response and bandpass view;
+- exposure/time-integration view;
+- expected ADC image and deterministic digitization settings;
+- invalid-pixel mask, noise policy, and camera/optics identity.
+
+This lane is downstream composition. It does not create an FPA provider or a
+measured-image claim by itself.
+
+## Interaction model
+
+The first implementation should support linked, deterministic selections:
+
+- visual station ↔ cross-section, frame triad, channels, and local geometry;
+- signature direction ↔ spectrum and uncertainty;
+- signature wavelength ↔ direction-sphere map;
+- ray ID ↔ 3-D ray, spectrum, transmittance, and status;
+- flux section ↔ vector, ellipse, species, and residual panels;
+- snapshot/time selection only for a compatible collection of results;
+- fidelity/provider comparison as separate results, never a merged product.
+
+Each view can export a reproducible `VisualizationSpec` containing the source
+result identity, selected slices, axis scales, display units, masks,
+colormaps, camera, mesh resolution, and renderer settings. Exported PNG/SVG,
+CSV, JSON, or mesh files must carry the source identity and view spec.
+
+## Implementation layers
+
+1. **Contract adapters** — convert public results to renderer-neutral grids,
+   lines, glyphs, paths, and meshes. This is the current
+   `exhaust_plume.api.visualization` layer.
+2. **View-state primitives** — typed view specifications, selections, axis
+   policies, validity policies, metadata panels, and deterministic defaults.
+3. **Static renderers** — testable Matplotlib/JSON/mesh outputs for fixtures
+   and reports.
+4. **Interactive gallery** — linked selectors and inspectors using only the
+   view-state and adapter layers.
+5. **Comparison and validation** — aligned overlays, residual views, and
+   contract/operator checks with explicit lineage.
+
+No renderer should import solver-private zones, flow states, meshes, or
+provider configuration objects.
+
+## Milestones and exit gates
+
+### M0 — Shared foundation
+
+- persist `VisualizationSpec` and common metadata/validity types;
+- define stable selection and display-unit policies;
+- round-trip view specs deterministically;
+- reject incompatible result/frame/capability selections.
+
+### M1 — Visual geometry gallery
+
+- implement overview, projections, station inspector, channel panels, and
+  mesh QA;
+- verify ring geometry, frame orientation, bounds, finite values, and channel
+  alignment;
+- render the prescribed, basic shock-cell, and reduced-order fixtures with
+  explicit fidelity labels.
+
+### M2 — Signature gallery
+
+- implement spectra, heatmaps, direction-sphere view, uncertainty, masks, and
+  exact-axis comparison;
+- verify wavelength ordering, direction identity, validity propagation, and
+  no accidental angular-coordinate assumptions.
+
+### M3 — Ray-transfer gallery
+
+- implement ray bundle, per-ray spectra, separate transmittance, heatmaps, and
+  status tables;
+- verify source/transmittance separation, invalid-ray behavior, frame identity,
+  and no inferred path claims.
+
+### M4 — Flux/support gallery
+
+- implement section glyphs, vectors, second-moment ellipses, species bars, and
+  residual cards;
+- add collection wrappers only after a public multi-section/time contract is
+  available;
+- add support/projected-area views when their public result contracts exist.
+
+### M5 — Comparison and downstream composition
+
+- add lineage-aware overlays and residual plots;
+- add ray-to-signature consistency views only through the declared operator;
+- add FPA views only after explicit camera/detector result contracts and
+  validation evidence exist.
+
+### M6 — Release evidence
+
+- golden fixture renders and deterministic view-spec snapshots;
+- invalid/masked-data interaction tests;
+- frame/unit/axis labeling checks;
+- product-specific and cross-product validation reports;
+- documented performance ceilings for the fast visual lane;
+- explicit statement of unsupported views and fidelity limits.
+
+## Non-negotiable guardrails
+
+- A visual tube is not a spectral source, ray field, or detector image.
+- A signature table is not geometry or atmosphere-corrected radiance.
+- A ray-transfer result is not an FPA result without camera and detector
+  operators.
+- Higher-fidelity comparisons never mutate or retrain the basic lane.
+- A display can expose a claim; it cannot create a claim absent from the
+  result contract and validation evidence.
