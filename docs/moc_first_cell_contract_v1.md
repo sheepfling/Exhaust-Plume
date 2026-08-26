@@ -223,12 +223,13 @@ next shock boundary and record the exact incoming boundary through
 `incoming_handoff`; the separate chain adapter checks that the boundary was
 consumed unchanged and that total pressure did not reset upward before
 appending the cell. It does not invent a next shock location or promote the
-reduced-order shock train. An executable prescribed-boundary
-planner mock exercises this contract in the primitive validation report; the
-solver-generated chain reference now runs through the same planner wrapper and
-records each generated handoff step with strict upstream-coupling mode enabled.
-Both remain callback-conditioned evidence rather than physical free-boundary
-chain evidence.
+reduced-order shock train. The reusable
+`MocPrescribedPostShockChainMock` and its planner convenience entry point
+exercise this contract in the primitive validation report; the solver-generated
+chain reference now runs through the same planner wrapper and records each
+generated handoff step with strict upstream-coupling mode enabled. Both remain
+callback-conditioned evidence rather than physical free-boundary chain
+evidence.
 The constant-`K+` source-strip continuation is another upstream-only diagnostic
 fixture: in the canonical case it preserves an open 231-node/230-cell strip
 and advances the domain-bounded shock probe before stopping at the next

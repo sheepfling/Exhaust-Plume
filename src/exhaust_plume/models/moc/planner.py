@@ -9,7 +9,7 @@ mock only; it cannot raise a cell's fidelity or closure claim.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from hashlib import sha256
 from math import isfinite
@@ -23,22 +23,30 @@ from exhaust_plume.models.moc.chain import (
   MocChainContinuationPolicy,
   MocChainResult,
   MocChainTerminationDecision,
+  MocChainTerminationReason,
   MocCellContinuationSolver,
   continue_moc_cell_chain,
 )
 from exhaust_plume.models.moc.post_shock import (
+  MocPostShockBoundaryState,
   MocPostShockChainCellSolve,
   MocPostShockCharacteristicFieldResult,
   MocPostShockFieldContinuationSolver,
+  MocShockBoundaryFitResult,
+  MocShockBoundaryFitStatus,
+  assemble_post_shock_characteristic_field,
   continue_post_shock_characteristic_chain,
 )
+from exhaust_plume.models.moc.primitives import CharacteristicState
 
 __all__ = (
   'MocChainPlannerKind',
   'MocChainPlannerStep',
   'MocChainPlannerResult',
+  'MocPrescribedPostShockChainMock',
   'plan_moc_chain',
   'plan_post_shock_characteristic_chain',
+  'plan_prescribed_post_shock_chain_mock',
 )
 
 
@@ -214,6 +222,235 @@ class MocChainPlannerResult:
       'diagnostics': dict(self.diagnostics),
     }
   ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocPrescribedPostShockChainMock:
+  """Deterministic continued-cell fixture for planner and report validation.
+
+  This fixture supplies a prescribed next-shock curve and therefore is not a
+  free-boundary MOC solver.  It exists so the state-carrying planner contract
+  can be exercised over more than one cell without making synthetic geometry
+  eligible for a production plume claim.
+  """
+
+  total_cell_count: int = 3
+  cell_axial_length_m: float = 0.50
+  shock_start_offset_m: float = 0.20
+  shock_sample_spacing_m: float = 0.02
+  shock_ordinates_m: tuple[float, ...] = (0.20, 0.14, 0.08, 0.04, 0.0)
+  downstream_flow_angles_rad: tuple[float, ...] = (-0.30, -0.20, -0.10, -0.05, 0.0)
+  upstream_flow_angle_start_rad: float = -0.35
+  upstream_flow_angle_step_rad: float = 0.08
+  mach: float = 2.0
+  gamma: float = 1.4
+  pressure_loss_ratio: float = 8.0 / 9.0
+
+  def __post_init__(self) -> None:
+    if (
+      isinstance(self.total_cell_count, bool)
+      or not isinstance(self.total_cell_count, int)
+      or self.total_cell_count < 1
+    ):
+      raise ValueError('total_cell_count must be a positive integer')
+    for name, value in (
+      ('cell_axial_length_m', self.cell_axial_length_m),
+      ('shock_start_offset_m', self.shock_start_offset_m),
+      ('shock_sample_spacing_m', self.shock_sample_spacing_m),
+    ):
+      if not isfinite(float(value)) or value <= 0.0:
+        raise ValueError(f'{name} must be finite and positive')
+    for name, value, lower_bound in (
+      ('mach', self.mach, 1.0),
+      ('gamma', self.gamma, 1.0),
+    ):
+      if not isfinite(float(value)) or value <= lower_bound:
+        raise ValueError(f'{name} must be finite and greater than {lower_bound}')
+    if (
+      not isfinite(float(self.pressure_loss_ratio))
+      or not 0.0 < self.pressure_loss_ratio < 1.0
+    ):
+      raise ValueError('pressure_loss_ratio must be finite and strictly between zero and one')
+    try:
+      ordinates = tuple(float(value) for value in self.shock_ordinates_m)
+      downstream_angles = tuple(float(value) for value in self.downstream_flow_angles_rad)
+    except (TypeError, ValueError) as error:
+      raise ValueError('shock ordinates and downstream angles must be numeric sequences') from error
+    if len(ordinates) < 3 or len(ordinates) != len(downstream_angles):
+      raise ValueError(
+        'shock ordinates and downstream angles must have equal lengths of at least three'
+      )
+    if any(not isfinite(value) or value < 0.0 for value in ordinates):
+      raise ValueError('shock ordinates must be finite and nonnegative')
+    if any(next_value > value for value, next_value in zip(ordinates, ordinates[1:])):
+      raise ValueError('shock ordinates must be nonincreasing toward the centerline')
+    if abs(ordinates[-1]) > 1.0e-12:
+      raise ValueError('the final prescribed shock ordinate must be the centerline')
+    if any(not isfinite(value) for value in downstream_angles):
+      raise ValueError('downstream flow angles must be finite')
+    if abs(downstream_angles[-1]) > 1.0e-12:
+      raise ValueError('the final prescribed downstream flow angle must be zero')
+    for name, value in (
+      ('upstream_flow_angle_start_rad', self.upstream_flow_angle_start_rad),
+      ('upstream_flow_angle_step_rad', self.upstream_flow_angle_step_rad),
+    ):
+      if not isfinite(float(value)):
+        raise ValueError(f'{name} must be finite')
+    object.__setattr__(self, 'shock_ordinates_m', ordinates)
+    object.__setattr__(self, 'downstream_flow_angles_rad', downstream_angles)
+
+  @property
+  def sample_count(self) -> int:
+    """Number of prescribed samples on each mock shock boundary."""
+
+    return len(self.shock_ordinates_m)
+
+  def as_report(self) -> dict[str, Any]:
+    """Return explicit provenance and configuration for the fixture."""
+
+    return {
+      'model': 'prescribed-post-shock-chain-planner-mock',
+      'planning_only': True,
+      'production_claim_allowed': False,
+      'total_cell_count_including_seed': self.total_cell_count,
+      'cell_axial_length_m': self.cell_axial_length_m,
+      'shock_start_offset_m': self.shock_start_offset_m,
+      'shock_sample_spacing_m': self.shock_sample_spacing_m,
+      'shock_ordinates_m': self.shock_ordinates_m,
+      'downstream_flow_angles_rad': self.downstream_flow_angles_rad,
+      'upstream_flow_angle_start_rad': self.upstream_flow_angle_start_rad,
+      'upstream_flow_angle_step_rad': self.upstream_flow_angle_step_rad,
+      'mach': self.mach,
+      'gamma': self.gamma,
+      'pressure_loss_ratio': self.pressure_loss_ratio,
+      'claim_status': (
+        'prescribed-next-shock-geometry-fixture; '
+        'not-free-boundary-chain-evidence'
+      ),
+    }
+
+  def solve_next(
+    self,
+    current: MocChainCell,
+    next_cell_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+  ) -> MocPostShockChainCellSolve | MocChainTerminationDecision:
+    """Return one deterministic mock cell or an explicit fixture stop."""
+
+    if not isinstance(current, MocChainCell):
+      raise TypeError('current must be a MocChainCell')
+    if isinstance(next_cell_index, bool) or next_cell_index != current.cell_index + 1:
+      raise ValueError('next_cell_index must immediately follow current.cell_index')
+    handoff = tuple(incoming_handoff)
+    if any(not isinstance(sample, MocChainBoundarySample) for sample in handoff):
+      raise TypeError('incoming_handoff must contain MocChainBoundarySample values')
+    if len(handoff) < 3:
+      raise ValueError('incoming_handoff requires at least three state samples')
+    if handoff != current.continuation_boundary:
+      raise ValueError('incoming_handoff must exactly match current.continuation_boundary')
+    if next_cell_index > self.total_cell_count:
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
+        message=(
+          'prescribed post-shock chain planner mock exhausted its configured '
+          f'{self.total_cell_count}-cell fixture'
+        ),
+      )
+    upstream_total_pressure_Pa = max(
+      sample.total_pressure_Pa for sample in handoff
+    )
+    downstream_total_pressure_Pa = (
+      self.pressure_loss_ratio * upstream_total_pressure_Pa
+    )
+    shock_start_x_m = current.end_x_m + self.shock_start_offset_m
+    shock_points = tuple(
+      (shock_start_x_m + self.shock_sample_spacing_m * index, ordinate)
+      for index, ordinate in enumerate(self.shock_ordinates_m)
+    )
+    boundary_states = tuple(
+      MocPostShockBoundaryState(
+        point_m=point,
+        state=CharacteristicState(
+          x_m=point[0],
+          y_m=point[1],
+          theta_rad=angle,
+          mach=self.mach,
+          gamma=self.gamma,
+        ),
+        upstream_total_pressure_Pa=upstream_total_pressure_Pa,
+        downstream_total_pressure_Pa=downstream_total_pressure_Pa,
+      )
+      for point, angle in zip(
+        shock_points,
+        self.downstream_flow_angles_rad,
+        strict=True,
+      )
+    )
+    upstream_states = tuple(
+      CharacteristicState(
+        x_m=point[0],
+        y_m=point[1],
+        theta_rad=(
+          self.upstream_flow_angle_start_rad
+          + self.upstream_flow_angle_step_rad * index
+        ),
+        mach=self.mach,
+        gamma=self.gamma,
+      )
+      for index, point in enumerate(shock_points)
+    )
+    fit = MocShockBoundaryFitResult(
+      status=MocShockBoundaryFitStatus.CONVERGED_FITTED,
+      boundary_states=boundary_states,
+      shock_angle_residuals_rad=(0.0,) * self.sample_count,
+      maximum_shock_angle_residual_rad=0.0,
+      upstream_states=upstream_states,
+      upstream_total_pressure_Pa=(upstream_total_pressure_Pa,) * self.sample_count,
+    )
+    field = assemble_post_shock_characteristic_field(
+      fit,
+      incoming_handoff=handoff,
+    )
+    if not field.converged:
+      raise ValueError(
+        'prescribed post-shock chain planner mock produced a non-converged '
+        f'field: {field.message}'
+      )
+    return MocPostShockChainCellSolve(
+      field=field,
+      end_x_m=current.end_x_m + self.cell_axial_length_m,
+    )
+
+
+def plan_prescribed_post_shock_chain_mock(
+  seed: MocPostShockCharacteristicFieldResult,
+  *,
+  start_x_m: float,
+  end_x_m: float,
+  mock: MocPrescribedPostShockChainMock | None = None,
+  policy: MocChainContinuationPolicy | None = None,
+) -> MocChainPlannerResult:
+  """Run the reusable planning-only prescribed post-shock chain fixture."""
+
+  fixture = MocPrescribedPostShockChainMock() if mock is None else mock
+  if not isinstance(fixture, MocPrescribedPostShockChainMock):
+    raise TypeError('mock must be a MocPrescribedPostShockChainMock')
+  planner = plan_post_shock_characteristic_chain(
+    seed,
+    fixture.solve_next,
+    start_x_m=start_x_m,
+    end_x_m=end_x_m,
+    policy=policy,
+    planner_kind=MocChainPlannerKind.PRESCRIBED_BOUNDARY_MOCK,
+  )
+  return replace(
+    planner,
+    diagnostics={
+      'prescribed_chain_mock': fixture.as_report(),
+    },
+  )
+####
 
 
 def _default_claim_status(kind: MocChainPlannerKind) -> str:

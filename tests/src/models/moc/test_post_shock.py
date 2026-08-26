@@ -29,6 +29,7 @@ from exhaust_plume.models.moc import (
   MocPostShockZoneStatus,
   MocShockBoundaryFitStatus,
   MocShockBoundaryFitResult,
+  MocPrescribedPostShockChainMock,
   MocPrimitiveStatus,
   assemble_post_shock_characteristic_zone,
   assemble_post_shock_characteristic_field,
@@ -37,6 +38,7 @@ from exhaust_plume.models.moc import (
   continue_post_shock_characteristics_to_centerline_open,
   continue_post_shock_characteristic_chain,
   plan_post_shock_characteristic_chain,
+  plan_prescribed_post_shock_chain_mock,
   fit_attached_shock_boundary,
   solve_attached_compression_to_turn,
   validate_closed_post_shock_field,
@@ -509,6 +511,34 @@ def test_post_shock_planner_records_exact_handoff_steps_without_promotion_claim(
     step.boundary_kind is MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER
     for step in planner.steps
   )
+
+
+def test_prescribed_post_shock_chain_mock_is_reusable_and_nonproduction() -> None:
+  seed_fit = MocShockBoundaryFitResult(
+    status=MocShockBoundaryFitStatus.CONVERGED_FITTED,
+    boundary_states=_prescribed_boundary(),
+    shock_angle_residuals_rad=(0.0,) * 4,
+    maximum_shock_angle_residual_rad=0.0,
+  )
+  seed_field = assemble_post_shock_characteristic_field(seed_fit)
+  mock = MocPrescribedPostShockChainMock()
+
+  planner = plan_prescribed_post_shock_chain_mock(
+    seed_field,
+    start_x_m=0.7,
+    end_x_m=1.0,
+    mock=mock,
+  )
+
+  assert planner.resolved
+  assert planner.chain.status is MocChainStatus.SOLVER_TERMINATED
+  assert planner.chain.termination_reason is MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL
+  assert planner.chain.cell_count == mock.total_cell_count
+  assert [step.next_cell_index for step in planner.steps] == [2, 3, 4]
+  assert planner.planner_kind is MocChainPlannerKind.PRESCRIBED_BOUNDARY_MOCK
+  assert planner.production_claim_allowed is False
+  assert planner.diagnostics['prescribed_chain_mock']['planning_only'] is True
+  assert planner.diagnostics['prescribed_chain_mock']['production_claim_allowed'] is False
 
 
 def test_post_shock_chain_accepts_explicit_physical_termination() -> None:

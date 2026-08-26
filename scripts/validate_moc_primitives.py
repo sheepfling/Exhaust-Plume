@@ -26,6 +26,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocPostShockBoundaryState,
   MocPostShockChainCellSolve,
   MocPostShockCharacteristicFieldResult,
+  MocPrescribedPostShockChainMock,
   MocReflectedCharacteristicZoneResult,
   MocChainBoundaryKind,
   MocChainTerminationDecision,
@@ -1073,8 +1074,9 @@ def _shock_cell_chain_planner_mock(
   This is an orchestration fixture, not a free-boundary solver.  Each mock
   step records the previous terminal trace through ``incoming_handoff`` and
   supplies a separate prescribed shock boundary for the next local field.
-  Keeping this fixture in the validation script makes the chain contract
-  executable without allowing it to become a production provider.
+  The reusable geometry fixture lives in the isolated planner module; this
+  wrapper only adds report-oriented observations and never promotes it to a
+  production provider.
   """
 
   observations: list[dict[str, Any]] = []
@@ -1086,6 +1088,7 @@ def _shock_cell_chain_planner_mock(
       cells=seed_field.cells,
     )
   ]
+  mock = MocPrescribedPostShockChainMock()
 
   def solve_next(current, cell_index, handoff):
     observations.append({
@@ -1097,86 +1100,25 @@ def _shock_cell_chain_planner_mock(
       ),
       'current_end_x_m': current.end_x_m,
     })
-    if cell_index >= 4:
-      return MocChainTerminationDecision(
-        physical_termination=False,
-        reason=MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
-        message='planner mock exhausted its prescribed three-cell fixture',
+    solved = mock.solve_next(current, cell_index, handoff)
+    if isinstance(solved, MocPostShockChainCellSolve):
+      field = solved.field
+      measurement_observations.append(
+        MocShockCellObservation(
+          cell_index=cell_index,
+          shock_boundary_points_m=field.shock_boundary_points_m,
+          centerline_boundary_points_m=field.centerline_boundary_points_m,
+          cells=field.cells,
+          upstream_total_pressure_Pa=field.upstream_boundary_total_pressure_Pa,
+          downstream_total_pressure_Pa=(
+            ()
+            if field.downstream_total_pressure_range_Pa is None
+            else (field.downstream_total_pressure_range_Pa[0],)
+            * len(field.shock_boundary_points_m)
+          ),
+        )
       )
-    shock_start_x_m = current.end_x_m + 0.20
-    points = tuple(
-      (shock_start_x_m + 0.02 * index, ordinate)
-      for index, ordinate in enumerate((0.20, 0.14, 0.08, 0.04, 0.0))
-    )
-    downstream_angles = (-0.30, -0.20, -0.10, -0.05, 0.0)
-    samples = tuple(
-      MocPostShockBoundaryState(
-        point_m=point,
-        state=CharacteristicState(
-          x_m=point[0],
-          y_m=point[1],
-          theta_rad=angle,
-          mach=2.0,
-          gamma=1.4,
-        ),
-        upstream_total_pressure_Pa=1.8e6,
-        downstream_total_pressure_Pa=1.6e6,
-      )
-      for point, angle in zip(points, downstream_angles, strict=True)
-    )
-    upstream_states = tuple(
-      CharacteristicState(
-        x_m=point[0],
-        y_m=point[1],
-        theta_rad=-0.35 + 0.08 * index,
-        mach=2.0,
-        gamma=1.4,
-      )
-      for index, point in enumerate(points)
-    )
-    upstream_total_pressure_Pa = max(
-      sample.total_pressure_Pa for sample in handoff
-    )
-    downstream_total_pressure_Pa = 0.8888888888888889 * upstream_total_pressure_Pa
-    samples = tuple(
-      MocPostShockBoundaryState(
-        point_m=sample.point_m,
-        state=sample.state,
-        upstream_total_pressure_Pa=upstream_total_pressure_Pa,
-        downstream_total_pressure_Pa=downstream_total_pressure_Pa,
-      )
-      for sample in samples
-    )
-    fit = MocShockBoundaryFitResult(
-      status=MocShockBoundaryFitStatus.CONVERGED_FITTED,
-      boundary_states=samples,
-      shock_angle_residuals_rad=(0.0,) * len(samples),
-      maximum_shock_angle_residual_rad=0.0,
-      upstream_states=upstream_states,
-      upstream_total_pressure_Pa=(upstream_total_pressure_Pa,) * len(samples),
-    )
-    field = assemble_post_shock_characteristic_field(
-      fit,
-      incoming_handoff=handoff,
-    )
-    measurement_observations.append(
-      MocShockCellObservation(
-        cell_index=cell_index,
-        shock_boundary_points_m=tuple(sample.point_m for sample in samples),
-        centerline_boundary_points_m=field.centerline_boundary_points_m,
-        cells=field.cells,
-        upstream_total_pressure_Pa=tuple(
-          sample.upstream_total_pressure_Pa for sample in samples
-        ),
-        downstream_total_pressure_Pa=tuple(
-          sample.downstream_total_pressure_Pa for sample in samples
-        ),
-      )
-    )
-    return MocPostShockChainCellSolve(
-      field=field,
-      end_x_m=current.end_x_m + 0.50,
-    )
+    return solved
 
   planner = plan_post_shock_characteristic_chain(
     seed_field,

@@ -120,6 +120,12 @@ not wait on this research closure.
   deterministic full state/pressure handoff fingerprint before every callback,
   while retaining a hard non-production claim ceiling for the prescribed-
   boundary mock.
+- Promoted the prescribed three-cell continuation fixture into the public
+  isolated planner module as `MocPrescribedPostShockChainMock` with a
+  `plan_prescribed_post_shock_chain_mock` convenience entry point. The
+  validation script now only adds observations around that reusable fixture;
+  its prescribed shock geometry remains planning evidence and cannot satisfy
+  the free-boundary or product-promotion gates.
 - Tightened chain-boundary semantics so a carried `CENTERLINE_TRACE` must
   actually lie on `y=0` with `theta=0`; a generic downstream polyline cannot be
   relabeled as an axis handoff.

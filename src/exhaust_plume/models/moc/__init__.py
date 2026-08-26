@@ -223,8 +223,10 @@ from exhaust_plume.models.moc.planner import (
   MocChainPlannerKind,
   MocChainPlannerResult,
   MocChainPlannerStep,
+  MocPrescribedPostShockChainMock,
   plan_moc_chain,
   plan_post_shock_characteristic_chain,
+  plan_prescribed_post_shock_chain_mock,
 )
 from exhaust_plume.models.moc.chain import (
   MocCellClosureStatus,
@@ -266,8 +268,10 @@ __all__ = (
   'MocChainPlannerKind',
   'MocChainPlannerResult',
   'MocChainPlannerStep',
+  'MocPrescribedPostShockChainMock',
   'plan_moc_chain',
   'plan_post_shock_characteristic_chain',
+  'plan_prescribed_post_shock_chain_mock',
   'MocShockToCenterlineResult',
   'MocTurnCompressionResult',
   'MocFreeBoundaryResult',

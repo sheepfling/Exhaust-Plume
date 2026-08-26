@@ -112,8 +112,8 @@ geometry metrics, and supplied shock total-pressure loss, but they do not
 create external observations or promote any fixture to a validated physical
 cell.
 The planner wrapper now records each exact post-shock handoff as a separate
-planning step for both the prescribed-boundary mock and the solver-generated
-chain reference, and the terminal composite emits a mixed-regime perimeter
+planning step for both the reusable prescribed-boundary mock and the
+solver-generated chain reference, and the terminal composite emits a mixed-regime perimeter
 request carrying the scalar shock seam without inferring geometry from the
 open supersonic zone. The callback-owned closure gate now rejects a missing or
 mismatched subsonic field before attachment. Both additions remain
