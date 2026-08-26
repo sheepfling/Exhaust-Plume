@@ -216,6 +216,79 @@
       "message": "candidate field is missing explicit shock boundary edge(s): [0, 1, 2]",
       "claim_status": "open-zone-rejection-exercised; canonical-full-field-pending"
     },
+    "solver_generated_attached_shock_field": {
+      "status": "converged_free_boundary_field",
+      "accepted": true,
+      "sample_count": 17,
+      "endpoint_m": [
+        0.8618481573724419,
+        0.0
+      ],
+      "maximum_shock_angle_residual_rad": 0.002030048607338353,
+      "field_status": "converged_closed",
+      "node_count": 137,
+      "cell_count": 152,
+      "topology_forms_closed_zone": true,
+      "minimum_forward_margin_m": 0.007232425772954132,
+      "pressure_loss_verified": true,
+      "shock_closure_status": "solver-generated-marched-attached-shock",
+      "message": "solver-generated attached-shock boundary reached the symmetry line and closed the post-shock characteristic field",
+      "claim_status": "solver-generated-boundary-conditioned-field; upstream-field-coupling-pending"
+    },
+    "solver_generated_shock_refinement": {
+      "status": "diagnostic-all-solver-generated-resolutions-converged",
+      "cases": [
+        {
+          "sample_count": 9,
+          "status": "converged_free_boundary_field",
+          "endpoint_m": [
+            0.8618464893920967,
+            0.0
+          ],
+          "maximum_shock_angle_residual_rad": 0.00404811689379414,
+          "field_status": "converged_closed",
+          "node_count": 37,
+          "cell_count": 44,
+          "topology_forms_closed_zone": true,
+          "nonmanifold_edge_count": 0,
+          "minimum_forward_margin_m": 0.014527768902521832,
+          "pressure_loss_verified": true
+        },
+        {
+          "sample_count": 17,
+          "status": "converged_free_boundary_field",
+          "endpoint_m": [
+            0.8618481573724419,
+            0.0
+          ],
+          "maximum_shock_angle_residual_rad": 0.002030048607338353,
+          "field_status": "converged_closed",
+          "node_count": 137,
+          "cell_count": 152,
+          "topology_forms_closed_zone": true,
+          "nonmanifold_edge_count": 0,
+          "minimum_forward_margin_m": 0.007232425772954132,
+          "pressure_loss_verified": true
+        },
+        {
+          "sample_count": 33,
+          "status": "converged_free_boundary_field",
+          "endpoint_m": [
+            0.861848574433198,
+            0.0
+          ],
+          "maximum_shock_angle_residual_rad": 0.0010165464970033344,
+          "field_status": "converged_closed",
+          "node_count": 529,
+          "cell_count": 560,
+          "topology_forms_closed_zone": true,
+          "nonmanifold_edge_count": 0,
+          "minimum_forward_margin_m": 0.003608173243048074,
+          "pressure_loss_verified": true
+        }
+      ],
+      "claim_status": "solver-generated-boundary-refinement-only; upstream-field-coupling-pending"
+    },
     "shock_seeded_post_shock_field": {
       "status": "converged_closed",
       "accepted": true,
@@ -476,7 +549,7 @@
   },
   "failures": [],
   "next_gates": [
-    "canonical free-boundary/compression geometry closure; the current field is prescribed-boundary contract evidence",
+    "couple the marched shock to the reflected MOC upstream state/pressure field instead of the reference linear-turn law",
     "production next-cell shock fitting that consumes the typed state/total-pressure handoff without a geometric template",
     "grid/refinement convergence for the assembled reflected zone and mild attached-overexpanded cases",
     "independent measurement-operator comparison before provider integration"

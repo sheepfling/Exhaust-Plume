@@ -16,6 +16,7 @@ if str(REPO_ROOT / 'src') not in sys.path:
 from exhaust_plume.models.moc import (  # noqa: E402
   CharacteristicFamily,
   CharacteristicState,
+  MocFreeBoundaryShockResult,
   MocPostShockClosureStatus,
   MocPostShockBoundaryState,
   MocPostShockChainCellSolve,
@@ -32,6 +33,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_attached_compression_to_pressure,
   solve_attached_compression_to_turn,
   solve_attached_shock_to_centerline,
+  solve_uniform_attached_shock_field,
   assemble_post_shock_characteristic_zone,
   assemble_post_shock_characteristic_field,
   assemble_post_shock_first_layer,
@@ -272,6 +274,59 @@ def _shock_seeded_field_refinement_probe() -> list[dict[str, Any]]:
   return probe
 
 
+def _solver_generated_shock_fixture() -> MocFreeBoundaryShockResult:
+  """Generate a shock boundary and field without supplying shock points."""
+
+  return solve_uniform_attached_shock_field(
+    CharacteristicState(
+      x_m=0.5,
+      y_m=0.5,
+      theta_rad=-0.2,
+      mach=2.0,
+      gamma=1.4,
+    ),
+    100000.0,
+    (0.5, 0.5),
+    outer_downstream_flow_angle_rad=0.05,
+    sample_count=17,
+  )
+
+
+def _solver_generated_shock_refinement_probe() -> list[dict[str, Any]]:
+  """Record solver-generated shock endpoint and field refinement evidence."""
+
+  probe: list[dict[str, Any]] = []
+  for sample_count in (9, 17, 33):
+    result = solve_uniform_attached_shock_field(
+      CharacteristicState(
+        x_m=0.5,
+        y_m=0.5,
+        theta_rad=-0.2,
+        mach=2.0,
+        gamma=1.4,
+      ),
+      100000.0,
+      (0.5, 0.5),
+      outer_downstream_flow_angle_rad=0.05,
+      sample_count=sample_count,
+    )
+    field = result.field
+    probe.append({
+      'sample_count': sample_count,
+      'status': result.status.value,
+      'endpoint_m': result.endpoint_m,
+      'maximum_shock_angle_residual_rad': result.maximum_shock_angle_residual_rad,
+      'field_status': None if field is None else field.status.value,
+      'node_count': None if field is None else field.node_count,
+      'cell_count': None if field is None else field.cell_count,
+      'topology_forms_closed_zone': None if field is None else field.topology.forms_closed_zone,
+      'nonmanifold_edge_count': None if field is None else field.topology.nonmanifold_edge_count,
+      'minimum_forward_margin_m': None if field is None else field.minimum_forward_margin_m,
+      'pressure_loss_verified': None if field is None else field.pressure_loss_verified,
+    })
+  return probe
+
+
 def _shock_cell_chain_planner_mock(
   seed_field: MocPostShockCharacteristicFieldResult,
 ) -> tuple[Any, list[dict[str, Any]]]:
@@ -501,6 +556,8 @@ def build_moc_primitive_report() -> dict[str, Any]:
   sampled_shock_fit, sampled_continuation, sampled_closed_gate = _sampled_attached_shock_gate()
   shock_seeded_field = _shock_seeded_field_fixture()
   shock_seeded_refinement_probe = _shock_seeded_field_refinement_probe()
+  solver_generated_shock = _solver_generated_shock_fixture()
+  solver_generated_shock_refinement_probe = _solver_generated_shock_refinement_probe()
   shock_cell_chain_mock, shock_cell_chain_mock_observations = _shock_cell_chain_planner_mock(
     shock_seeded_field,
   )
@@ -508,6 +565,16 @@ def build_moc_primitive_report() -> dict[str, Any]:
     case for case in shock_seeded_refinement_probe
     if (
       case['status'] != 'converged_closed'
+      or not case['topology_forms_closed_zone']
+      or case['nonmanifold_edge_count']
+      or not case['pressure_loss_verified']
+    )
+  ]
+  solver_generated_shock_refinement_failures = [
+    case for case in solver_generated_shock_refinement_probe
+    if (
+      case['status'] != 'converged_free_boundary_field'
+      or case['field_status'] != 'converged_closed'
       or not case['topology_forms_closed_zone']
       or case['nonmanifold_edge_count']
       or not case['pressure_loss_verified']
@@ -848,6 +915,47 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'message': sampled_closed_gate.message,
       'claim_status': 'open-zone-rejection-exercised; canonical-full-field-pending',
     },
+    'solver_generated_attached_shock_field': {
+      'status': solver_generated_shock.status.value,
+      'accepted': solver_generated_shock.converged,
+      'sample_count': solver_generated_shock.sample_count,
+      'endpoint_m': solver_generated_shock.endpoint_m,
+      'maximum_shock_angle_residual_rad': solver_generated_shock.maximum_shock_angle_residual_rad,
+      'field_status': solver_generated_shock.field_status.value if solver_generated_shock.field_status is not None else None,
+      'node_count': solver_generated_shock.field.node_count if solver_generated_shock.field is not None else None,
+      'cell_count': solver_generated_shock.field.cell_count if solver_generated_shock.field is not None else None,
+      'topology_forms_closed_zone': (
+        solver_generated_shock.field.topology.forms_closed_zone
+        if solver_generated_shock.field is not None
+        else None
+      ),
+      'minimum_forward_margin_m': (
+        solver_generated_shock.field.minimum_forward_margin_m
+        if solver_generated_shock.field is not None
+        else None
+      ),
+      'pressure_loss_verified': (
+        solver_generated_shock.field.pressure_loss_verified
+        if solver_generated_shock.field is not None
+        else False
+      ),
+      'shock_closure_status': (
+        solver_generated_shock.field.shock_closure_status
+        if solver_generated_shock.field is not None
+        else None
+      ),
+      'message': solver_generated_shock.message,
+      'claim_status': 'solver-generated-boundary-conditioned-field; upstream-field-coupling-pending',
+    },
+    'solver_generated_shock_refinement': {
+      'status': (
+        'diagnostic-all-solver-generated-resolutions-converged'
+        if not solver_generated_shock_refinement_failures
+        else 'diagnostic-solver-generated-resolution-failure'
+      ),
+      'cases': solver_generated_shock_refinement_probe,
+      'claim_status': 'solver-generated-boundary-refinement-only; upstream-field-coupling-pending',
+    },
     'shock_seeded_post_shock_field': {
       'status': shock_seeded_field.status.value,
       'accepted': shock_seeded_field.converged,
@@ -1067,6 +1175,20 @@ def build_moc_primitive_report() -> dict[str, Any]:
     ] if shock_seeded_refinement_failures else []),
     *([
       {
+        'case': 'solver_generated_attached_shock_field',
+        'status': solver_generated_shock.status.value,
+        'message': solver_generated_shock.message,
+      }
+    ] if not solver_generated_shock.converged else []),
+    *([
+      {
+        'case': 'solver_generated_shock_refinement',
+        'status': 'resolution_failure',
+        'message': str(solver_generated_shock_refinement_failures),
+      }
+    ] if solver_generated_shock_refinement_failures else []),
+    *([
+      {
         'case': 'shock_cell_chain_planner_mock',
         'status': shock_cell_chain_mock.status.value,
         'message': shock_cell_chain_mock.message,
@@ -1092,7 +1214,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
     'geometry_cases': geometry_results,
     'failures': failures,
     'next_gates': [
-      'canonical free-boundary/compression geometry closure; the current field is prescribed-boundary contract evidence',
+      'couple the marched shock to the reflected MOC upstream state/pressure field instead of the reference linear-turn law',
       'production next-cell shock fitting that consumes the typed state/total-pressure handoff without a geometric template',
       'grid/refinement convergence for the assembled reflected zone and mild attached-overexpanded cases',
       'independent measurement-operator comparison before provider integration',

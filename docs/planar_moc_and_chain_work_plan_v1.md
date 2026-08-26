@@ -11,7 +11,7 @@ reduced-order shock-train provider.
 | --- | --- | --- | --- |
 | `shock-cell-basic-v1` | fast, easy visual exploration | frozen compatibility-backed visual lane | do not change while MOC work proceeds |
 | `shock-train-reduced-order-v1` | bounded engineering-approximate continued chain | implemented with one resolved compatibility first cell plus scaled downstream cells | remains explicitly `scaled-reduced-order` |
-| `planar-moc-research-v2` | numerical planar characteristic research and future resolved first cell/chain | open fan/reflected lattice, sampled attached-shock fit, shock-seeded closed post-shock field, and a state-carrying chain boundary | requires a canonical free-boundary solver, refinement, and independent validation |
+| `planar-moc-research-v2` | numerical planar characteristic research and future resolved first cell/chain | open fan/reflected lattice, sampled attached-shock fit, solver-generated marched attached-shock reference field, shock-seeded closed post-shock field, and a state-carrying chain boundary | requires reflected-field coupling, production next-cell free-boundary solving, refinement, and independent validation |
 | signature, ray, and focal-plane-array lanes | downstream measurement products | separate contracts and providers | consume only an accepted upstream field/operator |
 
 The MOC lane must never import a reduced-order cell and relabel it as a
@@ -26,6 +26,10 @@ not wait on this research closure.
 - Added a sampled attached-shock boundary fit with branch checks, local tangent
   residuals, downstream-state reconstruction, and sample-wise total-pressure
   loss.
+- Added a solver-generated attached-shock marcher and full post-shock field
+  reference. It solves a local attached compression at each boundary sample,
+  integrates the shock tangent to the centerline, and records refinement and
+  topology evidence without changing the lower-fidelity providers.
 - Added a closed post-shock field acceptance gate. It requires explicit shock
   and centerline boundary edges, connected finite-cell topology, and converged
   characteristic-node evidence; it does not synthesize missing cells.
@@ -44,8 +48,8 @@ not wait on this research closure.
 - Added a deterministic prescribed-boundary chain-planner mock to the
   primitive validation report. It exercises three resolved callback cells,
   carries total-pressure loss across the mock steps, and remains explicitly
-  non-physical until the free-boundary shock solver replaces its prescribed
-  geometry.
+  non-physical until each continuation cell is coupled to a solved
+  free-boundary shock geometry.
 - Added an MOC chain continuation contract. It accepts only connected,
   topologically bounded meshes with explicit physical closure and resolved
   planar-MOC fidelity.
@@ -69,7 +73,9 @@ not wait on this research closure.
 4. Fit the shock endpoint and require monotone, forward shock geometry.
 5. Keep a failed fit as a structured result; do not close the mesh with a
    geometric line merely because its endpoints are finite. The sampled fit
-   contract is implemented; the canonical free-boundary solver remains open.
+   contract and a solver-generated uniform linear-turn reference are
+   implemented; coupling the marcher to the reflected upstream field and a
+   solved downstream boundary condition remains open.
 
 ### MOC-2 — Assemble the complete post-shock field
 
@@ -82,9 +88,9 @@ not wait on this research closure.
    total-pressure loss across the shock.
 5. Promote `physical_closure` only when all of those checks pass. A
    topologically bounded open lattice is not sufficient. The shock-seeded
-   boundary-conditioned assembler now passes this local gate on a varied
-   prescribed fixture; the free-boundary shock fit and external acceptance
-   gates remain open.
+   boundary-conditioned assembler now passes this local gate on both a varied
+   prescribed fixture and the solver-generated uniform reference; reflected
+   upstream-field coupling and external acceptance gates remain open.
 
 ### MOC-3 — Re-solved continued cells
 
@@ -108,8 +114,10 @@ implementation. It must not be used as this callback.
 
 The validation script's planner mock is only an executable contract fixture:
 it supplies the next shock boundary directly so that handoff, pressure-loss,
-and fidelity checks can run. It is not evidence for automatic shock placement,
-physical termination, or external validation.
+and fidelity checks can run. The solver-generated marcher is a separate
+boundary-conditioned reference and currently uses an explicit upstream field
+and linear downstream-turn law. Neither is evidence for production automatic
+shock placement, physical termination, or external validation.
 
 The verified post-shock result exposes the only seed-promotion adapter for this
 lane. An open zone, prescribed-boundary diagnostic, or scaled reduced-order
@@ -127,6 +135,10 @@ characteristic resolutions and record:
 - cell-area coverage residual;
 - maximum invariant residual and minimum forward margin;
 - downstream cell spacing and chain termination sensitivity.
+
+The marched attached-shock reference now has 9/17/33-sample refinement
+evidence. This is numerical diagnostic evidence only until the upstream
+reflected field and downstream boundary condition are solved together.
 
 Refinement evidence is diagnostic until the physical closure and external
 measurement comparison both pass.
@@ -163,13 +175,13 @@ Only after MOC-1 through MOC-5 pass:
 
 ## Current blockers
 
-- The current full-field pass uses a varied prescribed shock boundary to
-  exercise the characteristic assembler. The sampled fit remains a supplied
-  boundary contract, not an accepted free-boundary shock finder.
-- No production solver yet supplies a canonical free-boundary field or
-  automatic next-cell shock fit. The state-carrying chain adapter therefore
-  requires an explicit re-solved field callback and does not use the
-  reduced-order chain.
+- The solver-generated marcher currently uses a uniform upstream state and
+  explicit linear downstream-turn law. It closes a higher-fidelity reference
+  field, but is not yet coupled to the reflected MOC upstream state/pressure
+  field or a solved downstream boundary condition.
+- No production solver yet supplies an automatic next-cell shock fit. The
+  state-carrying chain adapter therefore requires an explicit re-solved field
+  callback and does not use the reduced-order chain.
 - The recovered validation archive is not a substitute for the missing
   provider-bound measurement/operator bindings.
 

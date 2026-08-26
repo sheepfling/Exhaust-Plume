@@ -43,6 +43,12 @@ from exhaust_plume.models.moc.boundary import (
   solve_ambient_pressure_free_boundary,
   solve_reflected_free_boundary,
 )
+from exhaust_plume.models.moc.free_boundary import (
+  MocFreeBoundaryShockResult,
+  MocFreeBoundaryShockStatus,
+  solve_marched_attached_shock_field,
+  solve_uniform_attached_shock_field,
+)
 from exhaust_plume.models.moc.topology import (
   MocTopologyResult,
   MocTopologyStatus,
@@ -110,6 +116,8 @@ __all__ = (
   'MocFreeBoundaryResult',
   'MocFreeBoundaryPointResult',
   'MocReflectedBoundaryResult',
+  'MocFreeBoundaryShockResult',
+  'MocFreeBoundaryShockStatus',
   'MocTopologyResult',
   'MocTopologyStatus',
   'MocCharacteristicCell',
@@ -160,6 +168,8 @@ __all__ = (
   'solve_ambient_pressure_free_boundary',
   'solve_ambient_pressure_free_boundary_point',
   'solve_reflected_free_boundary',
+  'solve_marched_attached_shock_field',
+  'solve_uniform_attached_shock_field',
   'assemble_reflected_characteristic_zone',
   'validate_fan_reflected_interface',
   'continue_post_shock_characteristics_to_centerline',

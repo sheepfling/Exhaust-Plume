@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import pytest
 
-from scripts.validate_moc_primitives import _observed_refinement_order, _refinement_diagnostic
+from scripts.validate_moc_primitives import (
+  _observed_refinement_order,
+  _refinement_diagnostic,
+  build_moc_primitive_report,
+)
 
 
 def test_open_lattice_refinement_order_is_only_a_numerical_diagnostic() -> None:
@@ -45,4 +49,24 @@ def test_open_lattice_refinement_order_is_only_a_numerical_diagnostic() -> None:
 def test_observed_refinement_order_does_not_infer_from_flat_sequence() -> None:
   assert _observed_refinement_order(1.0, 1.0, 1.0) is None
   assert _observed_refinement_order(1.0, float('inf'), 1.25) is None
+  ####
+
+
+def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> None:
+  report = build_moc_primitive_report()
+
+  generated = report['geometry_cases']['solver_generated_attached_shock_field']
+  refinement = report['geometry_cases']['solver_generated_shock_refinement']
+  planner = report['geometry_cases']['shock_cell_chain_planner_mock']
+
+  assert generated['status'] == 'converged_free_boundary_field'
+  assert generated['field_status'] == 'converged_closed'
+  assert generated['topology_forms_closed_zone'] is True
+  assert generated['pressure_loss_verified'] is True
+  assert refinement['status'] == 'diagnostic-all-solver-generated-resolutions-converged'
+  assert len(refinement['cases']) == 3
+  assert planner['resolved'] is True
+  assert planner['cell_count'] == 3
+  assert planner['state_carry_count'] == 3
+  assert report['failures'] == []
   ####

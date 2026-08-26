@@ -43,6 +43,9 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   compatibility diagnostics while physical closure remains pending;
 - a sampled, branch-checked attached-shock fit that returns downstream states
   and total-pressure loss at every shock sample;
+- a solver-generated marched attached-shock boundary and full post-shock
+  characteristic field, including a uniform linear-turn reference case and
+  explicit upstream-state/pressure callbacks;
 - a shock-seeded shrinking-front C+/C- characteristic-field assembler with
   explicit shock/centerline edges, total-pressure lineage, forward margins,
   invariant diagnostics, and a typed downstream handoff boundary;
@@ -73,9 +76,15 @@ across the full plume cell. The prescribed-boundary continuation primitive now
 proves individual downstream `C-` traces when a sampled post-shock boundary is
 supplied. The sampled shock-fit primitive verifies an explicitly supplied
 attached-shock curve and carries sample-wise total-pressure loss, but it is
-still a boundary contract rather than a free-boundary finder. The first
-downstream cross-characteristic layer is an explicit partial sub-gate, not a
-physical closure claim. The closed-field gate refuses to synthesize missing
+still a boundary contract rather than a free-boundary finder. The
+solver-generated marcher now constructs an attached-shock curve from local
+theta-beta-Mach compression solutions and assembles the same closed-field
+gate around it. Its uniform linear-turn case is a deterministic
+higher-fidelity reference fixture; the production gate still requires
+coupling the marcher to the reflected MOC upstream state/pressure field and
+solving the downstream boundary condition rather than prescribing that turn
+law. The first downstream cross-characteristic layer is an explicit partial
+sub-gate, not a physical closure claim. The closed-field gate refuses to synthesize missing
 cells: it promotes only a solver-supplied field whose shock and centerline
 edges are explicit and whose characteristic nodes carry converged
 compatibility evidence. Only that verified result can be adapted into a
@@ -162,10 +171,11 @@ do not authorize replacing the basic provider or accepting a product claim.
 
 ## Next gates before provider integration
 
-1. Produce a canonical, solver-generated free-boundary shock fit and use the
-   shock-seeded field assembler on it. The current varied prescribed-field
-   fixture passes the local closed-field gate, but remains a solver-contract
-   fixture rather than a free-boundary first-cell solution.
+1. Couple the marched shock to the reflected MOC upstream state/pressure field
+   and replace the uniform reference linear-turn law with a solved post-shock
+   boundary condition. The current solver-generated field is higher-fidelity
+   boundary-conditioned evidence, but not yet a production free-boundary
+   first-cell solution.
 2. Demonstrate grid/refinement convergence for the assembled reflected and
    post-shock zones, underexpanded, and mild attached overexpanded reference
    cases.
