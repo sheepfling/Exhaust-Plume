@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput
 from exhaust_plume.models.moc import (
+  MocChainTerminationReason,
   MocSourceStripCausticStatus,
   MocSourceStripFrontierStatus,
   MocSourceStripRemeshStatus,
@@ -85,3 +86,13 @@ def test_centerline_reflection_extension_carries_a_physical_boundary_law() -> No
     assert result.remesh.caustic_event.caustic_point_m is not None
     assert result.remesh.caustic_event.requires_new_characteristic_family
     assert result.remesh.caustic_event.crossing_edge_indices == ((1, 3),)
+    assert len(result.remesh.caustic_event.crossing_edge_states) == 2
+    assert all(len(edge) == 2 for edge in result.remesh.caustic_event.crossing_edge_states)
+    assert result.remesh.caustic_event.crossing_edge_states[0][0].gamma == 1.4
+    assert result.remesh.chain_termination_available is True
+    termination = result.remesh.as_chain_termination_decision()
+    assert termination.physical_termination is False
+    assert termination.reason is MocChainTerminationReason.CHARACTERISTIC_CAUSTIC
+    assert termination.diagnostics['termination_model'] == (
+      'unresolved-characteristic-caustic'
+    )

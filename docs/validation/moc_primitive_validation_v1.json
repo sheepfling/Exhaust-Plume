@@ -549,6 +549,40 @@
               ]
             ]
           ],
+          "crossing_edge_states": [
+            [
+              {
+                "x_m": 0.49832052030771545,
+                "y_m": 0.08236594455174404,
+                "theta_rad": -0.032456471949407595,
+                "mach": 3.2454051290624193,
+                "gamma": 1.4
+              },
+              {
+                "x_m": 0.9360187044349169,
+                "y_m": 0.012937496267543026,
+                "theta_rad": 0.2271953036572404,
+                "mach": 2.5117452789745585,
+                "gamma": 1.4
+              }
+            ],
+            [
+              {
+                "x_m": 0.9561643101842414,
+                "y_m": 0.02668231290616628,
+                "theta_rad": 0.2596517756084945,
+                "mach": 2.59298300469527,
+                "gamma": 1.4
+              },
+              {
+                "x_m": 0.4683482814625336,
+                "y_m": 0.07630592638927608,
+                "theta_rad": 1.8465229345565604e-12,
+                "mach": 3.3536117745607044,
+                "gamma": 1.4
+              }
+            ]
+          ],
           "caustic_point_m": [
             0.6584201957653014,
             0.056970655192732075
@@ -559,6 +593,37 @@
           0,
           1
         ],
+        "chain_termination_available": true,
+        "chain_termination_decision": {
+          "physical_termination": false,
+          "reason": "characteristic-caustic",
+          "message": "source-strip continuation reached a characteristic caustic; a new characteristic family or shock boundary is required before another resolved MOC cell can be solved",
+          "diagnostics": {
+            "termination_model": "unresolved-characteristic-caustic",
+            "source_index": 9,
+            "boundary_interval": 0,
+            "caustic_point_m": [
+              0.6584201957653014,
+              0.056970655192732075
+            ],
+            "failed_boundary_indices": [
+              0,
+              1
+            ],
+            "valid_index_ranges": [
+              [
+                0,
+                2
+              ],
+              [
+                8,
+                9
+              ]
+            ],
+            "retained_patch_cell_count": 2,
+            "connected_with_base": false
+          }
+        },
         "message": "local remesh retained valid candidate cells but the frontier still contains a caustic/new-family seam; no disconnected bridge was invented"
       },
       "message": "centerline C- reflection and ambient-pressure C+ boundary march converged as an open upstream source strip; shock fitting and downstream closure remain pending; extended strip failed: characteristic node (9, 3) failed: characteristic intersection is not forward: behind_first_ray",

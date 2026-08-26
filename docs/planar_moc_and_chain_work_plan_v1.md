@@ -195,6 +195,16 @@ not wait on this research closure.
   but reports the combined candidate as disconnected and leaves the bounded
   frontier as a remesh/shock-closure seam, not a promotion; it does not
   fabricate a shock state at the event.
+- Added an explicit non-physical chain termination decision for that caustic
+  handoff. A continued-cell callback can now stop with the typed
+  ``characteristic-caustic`` reason and retain the crossing point, valid
+  frontier intervals, failed intervals, and retained local patch count. The
+  decision is deliberately not ``physical_termination``; only a future
+  new-family or shock solver can resume the chain from this seam.
+- The caustic handoff also retains the solved endpoint states on each crossing
+  characteristic edge. It does not interpolate a state at the crossing or
+  turn those one-sided samples into a shock; they are input evidence for the
+  future entropy/new-family solve.
 - Added axial-boundary, cell-index, domain-limit, and callback termination
   checks.
 - Added a hard fidelity boundary: scaled reduced-order candidates are
@@ -414,8 +424,10 @@ Only after MOC-1 through MOC-5 pass:
   polygon crossing is now measured at approximately
   ``(0.6584202, 0.0569707)`` in the canonical case, but that geometric event
   carries no downstream state; a physical remesher/new-family shock solver
-  must bridge or terminate the characteristic family before the upstream
-  field can feed a production shock fit.
+  must bridge or explicitly stop the characteristic family before the
+  upstream field can feed a production shock fit. The chain layer now records
+  this as a non-physical ``characteristic-caustic`` stop, so a numerical
+  boundary cannot be mistaken for a physical plume termination.
 - The trace-extension reference uses a constant terminal boundary trace; it is
   useful for deterministic plumbing and refinement, but it is not the physical
   upstream characteristic strip.

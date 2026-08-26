@@ -100,6 +100,7 @@ class MocChainTerminationReason(str, Enum):
   """Why a chain continuation stopped."""
 
   PHYSICAL_TERMINATION = 'physical-termination'
+  CHARACTERISTIC_CAUSTIC = 'characteristic-caustic'
   SOLVER_RETURNED_NO_NEXT_CELL = 'solver-returned-no-next-cell'
   MAX_CELL_LIMIT = 'max-cell-limit'
   AXIAL_DOMAIN_LIMIT = 'axial-domain-limit'

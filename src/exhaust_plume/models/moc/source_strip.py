@@ -27,6 +27,10 @@ from exhaust_plume.models.moc.primitives import (
   inverse_prandtl_meyer_angle_rad,
 )
 from exhaust_plume.models.moc.boundary import solve_ambient_pressure_free_boundary_point
+from exhaust_plume.models.moc.chain import (
+  MocChainTerminationDecision,
+  MocChainTerminationReason,
+)
 from exhaust_plume.models.moc.topology import MocTopologyResult, validate_moc_mesh
 from exhaust_plume.models.moc.zone import MocCharacteristicCell, MocCharacteristicNode
 
@@ -141,8 +145,24 @@ class MocSourceStripCausticEventResult:
     tuple[tuple[float, float], tuple[float, float]],
     ...
   ] = ()
+  crossing_edge_states: tuple[
+    tuple[CharacteristicState, CharacteristicState],
+    ...
+  ] = ()
   caustic_point_m: tuple[float, float] | None = None
   message: str = ''
+
+  def __post_init__(self) -> None:
+    if any(
+      len(edge) != 2
+      or any(not isinstance(state, CharacteristicState) for state in edge)
+      for edge in self.crossing_edge_states
+    ):
+      raise TypeError(
+        'caustic crossing edge states must contain pairs of '
+        'CharacteristicState values'
+      )
+  ####
 
   @property
   def detected(self) -> bool:
@@ -167,6 +187,19 @@ class MocSourceStripCausticEventResult:
       'crossing_segments_m': [
         [list(segment[0]), list(segment[1])]
         for segment in self.crossing_segments_m
+      ],
+      'crossing_edge_states': [
+        [
+          {
+            'x_m': state.x_m,
+            'y_m': state.y_m,
+            'theta_rad': state.theta_rad,
+            'mach': state.mach,
+            'gamma': state.gamma,
+          }
+          for state in edge
+        ]
+        for edge in self.crossing_edge_states
       ],
       'caustic_point_m': self.caustic_point_m,
       'message': self.message,
@@ -214,6 +247,54 @@ class MocSourceStripRemeshResult:
     return self.topology is not None and self.topology.connected
   ####
 
+  @property
+  def chain_termination_available(self) -> bool:
+    """Whether the remesh can return an explicit unresolved-chain stop."""
+
+    return (
+      self.status is MocSourceStripRemeshStatus.CAUSTIC_REQUIRES_NEW_FAMILY
+      and self.caustic_event is not None
+      and self.caustic_event.detected
+    )
+  ####
+
+  def as_chain_termination_decision(self) -> MocChainTerminationDecision:
+    """Return a typed non-physical stop at the unresolved caustic seam.
+
+    A caustic is a boundary of the current characteristic-family solve, not
+    evidence of pressure equilibration.  The decision is therefore useful to
+    a continued-cell callback only as an explicit handoff to a new-family or
+    shock solver; it can never mark the chain physically terminated.
+    """
+
+    if not self.chain_termination_available:
+      raise ValueError(
+        'a chain caustic stop requires a detected caustic event in a '
+        'new-family remesh result'
+      )
+    assert self.caustic_event is not None
+    assert self.frontier is not None
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=MocChainTerminationReason.CHARACTERISTIC_CAUSTIC,
+      message=(
+        'source-strip continuation reached a characteristic caustic; a new '
+        'characteristic family or shock boundary is required before another '
+        'resolved MOC cell can be solved'
+      ),
+      diagnostics={
+        'termination_model': 'unresolved-characteristic-caustic',
+        'source_index': self.source_index,
+        'boundary_interval': self.caustic_event.boundary_interval,
+        'caustic_point_m': self.caustic_event.caustic_point_m,
+        'failed_boundary_indices': self.failed_boundary_indices,
+        'valid_index_ranges': self.frontier.valid_index_ranges,
+        'retained_patch_cell_count': self.patch_cell_count,
+        'connected_with_base': self.connected_with_base,
+      },
+    )
+  ####
+
   def as_report(self) -> dict[str, object]:
     return {
       'status': self.status.value,
@@ -236,6 +317,12 @@ class MocSourceStripRemeshResult:
         None if self.caustic_event is None else self.caustic_event.as_report()
       ),
       'failed_boundary_indices': list(self.failed_boundary_indices),
+      'chain_termination_available': self.chain_termination_available,
+      'chain_termination_decision': (
+        None
+        if not self.chain_termination_available
+        else self.as_chain_termination_decision().as_report()
+      ),
       'message': self.message,
     }
 ####
@@ -642,12 +729,17 @@ def _caustic_event_for_cell(
   boundary_interval: int | None,
   cell_kind: str,
   tolerance_m: float,
+  vertex_states: Sequence[CharacteristicState] = (),
 ) -> MocSourceStripCausticEventResult:
   """Extract the crossing that makes a local remesh polygon non-simple."""
 
   cell_vertices = tuple(
     (float(point[0]), float(point[1]))
     for point in vertices
+  )
+  states = tuple(vertex_states)
+  valid_states = len(states) == len(cell_vertices) and all(
+    isinstance(state, CharacteristicState) for state in states
   )
   if len(cell_vertices) != 4:
     return MocSourceStripCausticEventResult(
@@ -680,6 +772,16 @@ def _caustic_event_for_cell(
         cell_vertices_m=cell_vertices,
         crossing_edge_indices=((first_edge, second_edge),),
         crossing_segments_m=(edges[first_edge], edges[second_edge]),
+        crossing_edge_states=(
+          (
+            states[first_edge],
+            states[(first_edge + 1) % len(states)],
+          ),
+          (
+            states[second_edge],
+            states[(second_edge + 1) % len(states)],
+          ),
+        ) if valid_states else (),
         caustic_point_m=crossing,
         message=(
           'local characteristic remesh edges cross at a caustic; the crossing '
@@ -993,6 +1095,12 @@ def remesh_source_strip_frontier(
     new_nodes[0].point_m,
     base_nodes[(old_index, 0)].point_m,
   ) if 0 in new_nodes and (old_index, 0) in base_nodes else ()
+  axis_states = (
+    base_strip.plus_source_states[-1],
+    plus_source,
+    new_nodes[0].state,
+    base_nodes[(old_index, 0)].state,
+  ) if 0 in new_nodes and (old_index, 0) in base_nodes else ()
   try:
     if not axis_vertices:
       raise KeyError('axis remesh vertices are not available')
@@ -1013,6 +1121,7 @@ def remesh_source_strip_frontier(
         boundary_interval=0,
         cell_kind='source-axis-remesh',
         tolerance_m=position_tolerance_m,
+        vertex_states=axis_states,
       )
       if axis_vertices
       else None
@@ -1028,6 +1137,7 @@ def remesh_source_strip_frontier(
     for boundary_index in range(start, end):
       cell_kind = 'source-remesh-unknown'
       cell_vertices: tuple[tuple[float, float], ...] = ()
+      cell_states: tuple[CharacteristicState, ...] = ()
       try:
         if boundary_index == old_index:
           if boundary_index not in new_nodes or source_index not in new_nodes:
@@ -1038,6 +1148,11 @@ def remesh_source_strip_frontier(
             new_nodes[boundary_index].point_m,
             new_nodes[source_index].point_m,
           )
+          cell_states = (
+            base_nodes[(old_index, old_index)].state,
+            new_nodes[boundary_index].state,
+            new_nodes[source_index].state,
+          )
         elif boundary_index < old_index:
           cell_kind = 'source-interior-remesh'
           cell_vertices = (
@@ -1045,6 +1160,12 @@ def remesh_source_strip_frontier(
             base_nodes[(old_index, boundary_index + 1)].point_m,
             new_nodes[boundary_index + 1].point_m,
             new_nodes[boundary_index].point_m,
+          )
+          cell_states = (
+            base_nodes[(old_index, boundary_index)].state,
+            base_nodes[(old_index, boundary_index + 1)].state,
+            new_nodes[boundary_index + 1].state,
+            new_nodes[boundary_index].state,
           )
         else:
           continue
@@ -1073,6 +1194,7 @@ def remesh_source_strip_frontier(
           boundary_interval=boundary_index,
           cell_kind=cell_kind,
           tolerance_m=position_tolerance_m,
+          vertex_states=cell_states,
         ) if caustic_event is None else caustic_event
         continue
   combined_topology = validate_moc_mesh((*base_strip.cells, *patch_cells))

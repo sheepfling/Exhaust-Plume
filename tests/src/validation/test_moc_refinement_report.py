@@ -166,6 +166,11 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert centerline_reflection_extension['remesh']['caustic_event']['boundary_interval'] == 0
   assert centerline_reflection_extension['remesh']['caustic_event']['requires_new_characteristic_family'] is True
   assert centerline_reflection_extension['remesh']['caustic_event']['caustic_point_m'][0] > 0.0
+  assert centerline_reflection_extension['remesh']['chain_termination_available'] is True
+  assert centerline_reflection_extension['remesh']['chain_termination_decision']['physical_termination'] is False
+  assert centerline_reflection_extension['remesh']['chain_termination_decision']['reason'] == (
+    'characteristic-caustic'
+  )
   assert centerline_reflection_extension['claim_status'] == (
     'centerline-C-minus-reflection-boundary-law; '
     'triangular-domain-remesh-or-shock-closure-pending'
