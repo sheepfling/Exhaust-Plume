@@ -279,10 +279,13 @@ def test_shock_seeded_post_shock_field_closes_a_characteristic_fan() -> None:
   assert result.minimum_forward_margin_m is not None
   assert result.minimum_forward_margin_m > 0.0
   assert result.pressure_loss_verified
+  assert not result.upstream_shock_coupling_verified
   assert all(node.total_pressure_Pa is not None for node in result.nodes)
   assert result.terminal_centerline_state is not None
   chain_cell = result.as_chain_cell(start_x_m=samples[0].point_m[0], end_x_m=1.5)
   assert chain_cell.resolved
+  with pytest.raises(ValueError, match='upstream shock states'):
+    result.as_coupled_chain_cell(start_x_m=samples[0].point_m[0], end_x_m=1.5)
   with pytest.raises(ValueError, match='reserved closure keys'):
     result.as_chain_cell(
       start_x_m=samples[0].point_m[0],
@@ -653,3 +656,25 @@ def test_post_shock_continuation_requires_centerline_terminal_sample() -> None:
 
   assert result.status is MocPostShockContinuationStatus.INVALID_INPUT
   assert 'final post-shock boundary sample must lie on the symmetry line' in result.message
+
+
+def test_strict_chain_mode_rejects_a_prescribed_upstream_boundary() -> None:
+  seed_fit = MocShockBoundaryFitResult(
+    status=MocShockBoundaryFitStatus.CONVERGED_FITTED,
+    boundary_states=_prescribed_boundary(),
+    shock_angle_residuals_rad=(0.0,) * 4,
+    maximum_shock_angle_residual_rad=0.0,
+  )
+  seed_field = assemble_post_shock_characteristic_field(seed_fit)
+
+  result = continue_post_shock_characteristic_chain(
+    seed_field,
+    lambda _current, _index, _handoff: None,
+    start_x_m=0.7,
+    end_x_m=1.0,
+    require_upstream_shock_coupling=True,
+  )
+
+  assert result.status is MocChainStatus.STATE_BOUNDARY
+  assert result.termination_reason is MocChainTerminationReason.STATE_NOT_CARRIED
+  assert 'upstream shock states' in result.message

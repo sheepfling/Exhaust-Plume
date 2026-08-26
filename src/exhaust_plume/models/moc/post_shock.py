@@ -474,6 +474,33 @@ class MocPostShockCharacteristicFieldResult:
   ####
 
   @property
+  def upstream_shock_coupling_verified(self) -> bool:
+    """Whether a fitted upstream state/pressure field was carried to the shock.
+
+    A prescribed downstream boundary can close the characteristic fan without
+    supplying the reflected upstream field.  That local construction remains
+    useful as a research fixture, but it is not eligible for the explicitly
+    coupled promotion path below.
+    """
+
+    return (
+      self.converged
+      and len(self.shock_boundary_points_m) >= 3
+      and len(self.upstream_boundary_states) == len(self.shock_boundary_points_m)
+      and len(self.upstream_boundary_total_pressure_Pa) == len(self.shock_boundary_points_m)
+      and all(
+        abs(state.x_m - point[0]) <= 1.0e-10
+        and abs(state.y_m - point[1]) <= 1.0e-10
+        for state, point in zip(
+          self.upstream_boundary_states,
+          self.shock_boundary_points_m,
+          strict=True,
+        )
+      )
+    )
+  ####
+
+  @property
   def node_count(self) -> int:
     return len(self.nodes)
   ####
@@ -518,6 +545,7 @@ class MocPostShockCharacteristicFieldResult:
     chain_diagnostics: dict[str, Any] = {
       'source': 'shock-seeded-closed-post-shock-characteristic-field',
       'physical_closure_verified': True,
+      'upstream_shock_coupling_verified': self.upstream_shock_coupling_verified,
       'characteristic_layer_count': self.characteristic_layer_count,
       'node_count': self.node_count,
       'cell_count': self.cell_count,
@@ -549,6 +577,41 @@ class MocPostShockCharacteristicFieldResult:
         )
       ),
       continuation_boundary_kind=MocChainBoundaryKind.TERMINAL_CHARACTERISTIC_TRACE,
+    )
+  ####
+
+  def as_coupled_chain_cell(
+    self,
+    *,
+    start_x_m: float,
+    end_x_m: float,
+    cell_index: int = 1,
+    diagnostics: dict[str, Any] | None = None,
+  ) -> MocChainCell:
+    """Promote only a field with carried upstream shock coupling.
+
+    ``as_chain_cell`` remains the compatibility adapter for boundary-
+    conditioned research fixtures.  This stricter adapter is the handoff a
+    future production first-cell/continued-cell solver must use.
+    """
+
+    if not self.upstream_shock_coupling_verified:
+      raise ValueError(
+        'coupled chain promotion requires a converged field with upstream '
+        'shock states and total-pressure samples'
+      )
+    coupled_diagnostics = {
+      'upstream_coupling_promotion_gate': 'passed',
+    }
+    if diagnostics is not None:
+      if 'upstream_shock_coupling_verified' in diagnostics:
+        raise ValueError('reserved coupling diagnostics cannot be overridden')
+      coupled_diagnostics.update(diagnostics)
+    return self.as_chain_cell(
+      start_x_m=start_x_m,
+      end_x_m=end_x_m,
+      cell_index=cell_index,
+      diagnostics=coupled_diagnostics,
     )
   ####
 
@@ -1493,6 +1556,7 @@ def continue_post_shock_characteristic_chain(
   start_x_m: float,
   end_x_m: float,
   policy: MocChainContinuationPolicy | None = None,
+  require_upstream_shock_coupling: bool = False,
 ) -> MocChainResult:
   """Continue resolved shock cells with an explicit state-carry handoff.
 
@@ -1502,7 +1566,9 @@ def continue_post_shock_characteristic_chain(
   adapter checks that the new field records the exact incoming state and
   total-pressure samples before the generic chain contract accepts it.  This
   keeps local MOC re-solves separate from the reduced-order shock-train
-  continuation lane.
+  continuation lane.  Set ``require_upstream_shock_coupling`` for the stricter
+  production handoff; the default remains compatible with prescribed-boundary
+  research fixtures.
   """
 
   if not isinstance(seed, MocPostShockCharacteristicFieldResult):
@@ -1522,6 +1588,12 @@ def continue_post_shock_characteristic_chain(
       MocChainStatus.INVALID_INPUT,
       MocChainTerminationReason.INVALID_INPUT,
       message='solve_next must be callable',
+    )
+  if not isinstance(require_upstream_shock_coupling, bool):
+    return _post_shock_chain_failure(
+      MocChainStatus.INVALID_INPUT,
+      MocChainTerminationReason.INVALID_INPUT,
+      message='require_upstream_shock_coupling must be a bool',
     )
   for name, value in (('start_x_m', start_x_m), ('end_x_m', end_x_m)):
     if not isfinite(float(value)) or value < 0.0:
@@ -1548,10 +1620,18 @@ def continue_post_shock_characteristic_chain(
       require_state_carry=True,
     )
   try:
-    seed_cell = seed.as_chain_cell(
-      start_x_m=start_x_m,
-      end_x_m=end_x_m,
-      cell_index=1,
+    seed_cell = (
+      seed.as_coupled_chain_cell(
+        start_x_m=start_x_m,
+        end_x_m=end_x_m,
+        cell_index=1,
+      )
+      if require_upstream_shock_coupling
+      else seed.as_chain_cell(
+        start_x_m=start_x_m,
+        end_x_m=end_x_m,
+        cell_index=1,
+      )
     )
   except (TypeError, ValueError) as error:
     return _post_shock_chain_failure(
@@ -1591,10 +1671,18 @@ def continue_post_shock_characteristic_chain(
     if handoff_error is not None:
       raise ValueError(handoff_error)
     try:
-      return solved.field.as_chain_cell(
-        start_x_m=current.end_x_m,
-        end_x_m=solved.end_x_m,
-        cell_index=cell_index,
+      return (
+        solved.field.as_coupled_chain_cell(
+          start_x_m=current.end_x_m,
+          end_x_m=solved.end_x_m,
+          cell_index=cell_index,
+        )
+        if require_upstream_shock_coupling
+        else solved.field.as_chain_cell(
+          start_x_m=current.end_x_m,
+          end_x_m=solved.end_x_m,
+          cell_index=cell_index,
+        )
       )
     except (TypeError, ValueError) as error:
       raise ValueError(f'next post-shock field could not become a chain cell: {error}') from error

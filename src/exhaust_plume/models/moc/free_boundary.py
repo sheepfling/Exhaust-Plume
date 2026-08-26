@@ -54,6 +54,7 @@ class MocFreeBoundaryShockStatus(str, Enum):
   INVALID_INPUT = 'invalid_input'
   UPSTREAM_FIELD_FAILURE = 'upstream_field_failure'
   COMPRESSION_FAILURE = 'compression_failure'
+  SUBSONIC_TERMINAL_REQUIRED = 'subsonic_terminal_required'
   GEOMETRY_FAILURE = 'geometry_failure'
   SHOCK_FIT_FAILURE = 'shock_fit_failure'
   FIELD_FAILURE = 'field_failure'
@@ -87,6 +88,13 @@ class MocFreeBoundaryShockResult:
   ####
 
   @property
+  def subsonic_terminal_required(self) -> bool:
+    """Whether the supersonic MOC lane reached a normal-shock boundary."""
+
+    return self.status is MocFreeBoundaryShockStatus.SUBSONIC_TERMINAL_REQUIRED
+  ####
+
+  @property
   def sample_count(self) -> int:
     return len(self.shock_points_m)
   ####
@@ -101,6 +109,7 @@ class MocFreeBoundaryShockResult:
       'status': self.status.value,
       'converged': self.converged,
       'physical_closure_verified': self.physical_closure_verified,
+      'subsonic_terminal_required': self.subsonic_terminal_required,
       'sample_count': self.sample_count,
       'endpoint_m': self.endpoint_m,
       'maximum_shock_angle_residual_rad': self.maximum_shock_angle_residual_rad,
@@ -273,6 +282,15 @@ def solve_marched_attached_shock_field(
       return None, f'downstream flow angle {index} must be finite', MocFreeBoundaryShockStatus.INVALID_INPUT
     turn = target_angle - state.theta_rad
     if turn <= 0.0:
+      if (
+        abs(turn) <= position_tolerance_m
+        and abs(target_y) <= position_tolerance_m
+      ):
+        return None, (
+          f'sample {index} reaches the symmetry line with zero flow turn; '
+          'a normal shock would require a subsonic terminal model outside '
+          'the supersonic MOC lane'
+        ), MocFreeBoundaryShockStatus.SUBSONIC_TERMINAL_REQUIRED
       return None, f'sample {index} does not require a positive compression turn', MocFreeBoundaryShockStatus.COMPRESSION_FAILURE
     compression = solve_attached_compression_to_turn(
       upstream_mach=state.mach,
@@ -288,7 +306,12 @@ def solve_marched_attached_shock_field(
       or compression.upstream_total_pressure_Pa is None
       or compression.downstream_total_pressure_Pa is None
     ):
-      return None, f'attached compression failed at sample {index}: {compression.message}', MocFreeBoundaryShockStatus.COMPRESSION_FAILURE
+      failure_status = (
+        MocFreeBoundaryShockStatus.SUBSONIC_TERMINAL_REQUIRED
+        if compression.downstream_mach is not None and compression.downstream_mach <= 1.0
+        else MocFreeBoundaryShockStatus.COMPRESSION_FAILURE
+      )
+      return None, f'attached compression failed at sample {index}: {compression.message}', failure_status
     shock_angle = state.theta_rad - compression.beta_rad
     if not isfinite(shock_angle) or sin(shock_angle) >= -position_tolerance_m:
       return None, f'shock tangent at sample {index} does not travel toward the centerline', MocFreeBoundaryShockStatus.GEOMETRY_FAILURE

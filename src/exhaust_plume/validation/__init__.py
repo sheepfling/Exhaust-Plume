@@ -60,6 +60,16 @@ from exhaust_plume.validation.measurement_operators import (
   peak_normalize_spectral_rows,
   sample_spectral_rows,
 )
+from exhaust_plume.validation.moc_measurements import (
+  MOC_SHOCK_CELL_CHAIN_OPERATOR_ID,
+  MOC_SHOCK_CELL_GEOMETRY_OPERATOR_ID,
+  MocShockCellChainMeasurement,
+  MocShockCellMeasurement,
+  MocShockCellMeasurementStatus,
+  MocShockCellObservation,
+  measure_moc_shock_cell,
+  measure_moc_shock_cell_chain,
+)
 from exhaust_plume.validation.lane_contracts import (
   SignatureLaneInvariantReport,
   VisualLaneInvariantReport,
@@ -131,6 +141,12 @@ __all__ = (
   'FpaVisualizationInput',
   'FpaVisualizationSpec',
   'MeasurementOperatorSpec',
+  'MOC_SHOCK_CELL_CHAIN_OPERATOR_ID',
+  'MOC_SHOCK_CELL_GEOMETRY_OPERATOR_ID',
+  'MocShockCellChainMeasurement',
+  'MocShockCellMeasurement',
+  'MocShockCellMeasurementStatus',
+  'MocShockCellObservation',
   'SignatureLaneInvariantReport',
   'VisualLaneInvariantReport',
   'MACH_DISK_FEATURE_OPERATOR_ID',
@@ -178,6 +194,8 @@ __all__ = (
   'validate_straight_visual_result',
   'peak_normalize_spectral_rows',
   'sample_spectral_rows',
+  'measure_moc_shock_cell',
+  'measure_moc_shock_cell_chain',
   'write_validity_report_csv',
   'write_validity_report_json',
 )

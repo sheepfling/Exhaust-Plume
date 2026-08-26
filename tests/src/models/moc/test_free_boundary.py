@@ -71,11 +71,13 @@ def test_marched_attached_shock_generates_and_closes_the_field() -> None:
   assert result.maximum_shock_angle_residual_rad < 1.0e-2
   assert result.field is not None
   assert result.field.converged
+  assert result.field.upstream_shock_coupling_verified
   assert result.field.topology.forms_closed_zone
   assert result.field.topology.nonmanifold_edge_count == 0
   assert result.field.shock_closure_status == 'solver-generated-marched-attached-shock'
   assert result.field.pressure_loss_verified
   assert result.field.as_chain_cell(start_x_m=0.5, end_x_m=1.0).resolved
+  assert result.field.as_coupled_chain_cell(start_x_m=0.5, end_x_m=1.0).resolved
 
 
 def test_marched_attached_shock_refines_endpoint_and_tangent_residual() -> None:
@@ -233,6 +235,21 @@ def test_uniform_constant_turn_rejects_zero_area_field() -> None:
   assert not result.converged
   assert result.field is not None
   assert 'zero_area' in result.message
+
+
+def test_zero_turn_symmetry_endpoint_reports_subsonic_terminal_boundary() -> None:
+  result = solve_marched_attached_shock_field(
+    lambda point: CharacteristicState(point[0], point[1], 0.0, 2.0, 1.4),
+    lambda _point: 100000.0,
+    (0.5, 0.5),
+    downstream_flow_angle_rad=0.0,
+    sample_count=5,
+  )
+
+  assert result.status is MocFreeBoundaryShockStatus.SUBSONIC_TERMINAL_REQUIRED
+  assert result.subsonic_terminal_required
+  assert not result.converged
+  assert 'subsonic terminal model' in result.message
 
 
 def test_marched_shock_rejects_an_upstream_state_not_at_the_shock_point() -> None:

@@ -114,6 +114,17 @@ not wait on this research closure.
   through C+/C- intersections, then requires the remaining perimeter to
   reproduce the centerline before exposing a resolved chain handoff. No
   production free-boundary shooter is wired to it yet.
+- Added an independent MOC shock-cell measurement operator. It extracts
+  shock/centerline boundaries, axial extent, boundary lengths, radius, mesh
+  area, perimeter-area closure, and optional shock total-pressure loss only
+  from explicit field geometry. The same operator runs over the solver
+  reference and the prescribed three-cell planner mock; its results remain
+  diagnostic and `not_accepted` until an external measurement mapping exists.
+- Added an explicit strict continuation mode that requires carried upstream
+  shock states and total pressure before a field can enter the production
+  promotion path. The compatibility mode remains available for prescribed
+  research fixtures, but its chain seed records that upstream coupling was
+  not verified.
 - Added axial-boundary, cell-index, domain-limit, and callback termination
   checks.
 - Added a hard fidelity boundary: scaled reduced-order candidates are
@@ -186,6 +197,13 @@ boundaries, but its upstream field and linear downstream-turn law remain
 explicit callbacks. Neither is evidence for production automatic shock
 placement, physical termination, or external validation.
 
+The continuation adapter also exposes a strict upstream-coupled mode. It
+rejects the prescribed planner seed before callback execution and requires
+each generated field to carry the fitted upstream shock state/pressure
+samples. The canonical marcher separately reports
+`subsonic_terminal_required` when a zero-turn/normal-shock endpoint would need
+to leave the supersonic MOC lane.
+
 The constant-`K+` source-strip continuation is a separate upstream-only
 diagnostic fixture: it tests how a continued shock probe consumes a growing
 characteristic domain, but it must not be promoted into a resolved chain cell
@@ -226,10 +244,14 @@ measurement comparison both pass.
 
 ### MOC-5 — Independent validation
 
-Use a disjoint case and an explicit measurement operator. Keep the current
+Use a disjoint case and an explicit measurement operator. The local
+`op.moc.shock-cell-geometry` and `op.moc.shock-cell-chain` operators now
+provide the geometry/topology extraction layer for solver fields and planner
+fixtures, including optional shock total-pressure loss. Keep the current
 CJ/UEJ component comparison as supporting, not accepted, evidence until the
-measurement-space mapping and closure domain are complete. Record uncertainty
-and source provenance with the result.
+external measurement-space mapping, uncertainty/provenance, and closure
+domain are complete. The operator must not infer physical shock cells from a
+centerline pressure trace or repair an open mesh.
 
 ### MOC-6 — Product integration
 
@@ -273,12 +295,22 @@ Only after MOC-1 through MOC-5 pass:
   streamline-tangency gate. A coupled solver still has to replace that
   internal-characteristic edge with a solved free boundary before a cell can
   be accepted physically.
+- The canonical marched shock now classifies a zero-turn/normal-shock endpoint
+  as `subsonic_terminal_required`. That is an explicit supersonic-MOC validity
+  boundary, not a reason to force a bracket or relabel the endpoint as a
+  converged supersonic cell; a future mixed-regime terminal model is still
+  required for that case.
 - The invariant-conditioned shock shoot currently records a canonical
   no-bracket result; a selected constant downstream invariant is not yet an
   accepted physical free-boundary condition. No production solver yet supplies
   an automatic next-cell shock fit. The state-carrying chain adapters therefore
   require a converged explicit research solve and do not use the reduced-order
   chain.
+- The independent shock-cell measurement operators now pass local geometry,
+  topology, and supplied shock-loss extraction for the current fixtures, but
+  they do not provide external observations, uncertainty, or a provider-bound
+  measurement-space mapping. Their successful status must not be read as
+  physical MOC closure or validation acceptance.
 - The recovered validation archive is not a substitute for the missing
   provider-bound measurement/operator bindings.
 
