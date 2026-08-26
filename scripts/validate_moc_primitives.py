@@ -1038,6 +1038,10 @@ def _terminal_composite_refinement_probe(
       'terminal_field_status': None if field is None else field.status.value,
       'terminal_field_converged': None if field is None else field.converged,
       'supersonic_region_closed': None if field is None else field.supersonic_region_closed,
+      'terminal_field_characteristic_field_evidence_verified': (
+        None if field is None else field.characteristic_field_evidence_verified
+      ),
+      'terminal_field_node_count': None if field is None else field.node_count,
       'terminal_field_cell_count': None if field is None else len(field.cells),
       'topology_forms_closed_zone': None if field is None else field.topology.forms_closed_zone,
       'topology_nonmanifold_edge_count': None if field is None else field.topology.nonmanifold_edge_count,

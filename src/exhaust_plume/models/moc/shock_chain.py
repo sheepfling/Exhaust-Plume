@@ -57,7 +57,7 @@ from exhaust_plume.models.moc.terminal_patch_solver import (
   solve_marched_attached_shock_from_terminal_reflection_patch,
 )
 from exhaust_plume.models.moc.topology import MocTopologyResult, validate_moc_mesh
-from exhaust_plume.models.moc.zone import MocCharacteristicCell
+from exhaust_plume.models.moc.zone import MocCharacteristicCell, MocCharacteristicNode
 from exhaust_plume.util.aero.shock_validity import ShockBranch
 
 __all__ = (
@@ -118,6 +118,7 @@ class MocTerminalShockCellFieldResult:
   terminal_shock_supersonic_downstream_first_layer: MocPostShockFirstLayerResult | None = None
   terminal_shock_supersonic_downstream_zone: MocPostShockCharacteristicZoneResult | None = None
   mixed_regime_field: MocMixedRegimeFieldResult | None = None
+  nodes: tuple[MocCharacteristicNode, ...] = ()
 
   @property
   def converged(self) -> bool:
@@ -133,7 +134,19 @@ class MocTerminalShockCellFieldResult:
   def characteristic_field_evidence_verified(self) -> bool:
     """Whether the closed region inherits only validated characteristic cells."""
 
-    return self.supersonic_region_closed and bool(self.cells)
+    return self.supersonic_region_closed and bool(self.cells) and bool(self.nodes)
+  ####
+
+  @property
+  def node_count(self) -> int:
+    """Number of retained validated characteristic-node samples.
+
+    A clipped terminal cell may also contain geometric cut vertices on the
+    terminal shock.  Those vertices are represented by the explicit terminal
+    shock boundary arrays rather than being promoted to fabricated MOC nodes.
+    """
+
+    return len(self.nodes)
   ####
 
   @property
@@ -396,7 +409,7 @@ class MocTerminalShockCellFieldResult:
         if not self.converged or self.terminal_normal_shock is None
         else self.mixed_regime_perimeter_request().as_report()
       ),
-      'node_count': None,
+      'node_count': self.node_count,
       'cell_count': len(self.cells),
       'topology_status': self.topology.status.value,
       'topology_connected': self.topology.connected,
@@ -491,6 +504,7 @@ def _terminal_field_failure(
   status: MocTerminalShockCellFieldStatus,
   *,
   cells: Sequence[MocCharacteristicCell] = (),
+  nodes: Sequence[MocCharacteristicNode] = (),
   topology: MocTopologyResult | None = None,
   initial_shock_points: Sequence[tuple[float, float]] = (),
   ambient_points: Sequence[tuple[float, float]] = (),
@@ -515,6 +529,7 @@ def _terminal_field_failure(
   return MocTerminalShockCellFieldResult(
     status=status,
     cells=tuple(cells),
+    nodes=tuple(nodes),
     topology=_empty_terminal_topology() if topology is None else topology,
     initial_shock_boundary_points_m=tuple(initial_shock_points),
     ambient_boundary_points_m=tuple(ambient_points),
@@ -759,6 +774,49 @@ def _triangulate_clipped_polygon(
     (vertices[0], vertices[index], vertices[index + 1])
     for index in range(1, len(vertices) - 1)
   )
+####
+
+
+def _retain_terminal_region_nodes(
+  source_nodes: Sequence[MocCharacteristicNode],
+  cells: Sequence[MocCharacteristicCell],
+  *,
+  mesh_vertex_tolerance_m: float,
+) -> tuple[MocCharacteristicNode, ...]:
+  """Retain source nodes that still belong to the clipped terminal mesh.
+
+  Clipping can create new vertices where a source edge meets the terminal
+  shock.  Those vertices have no characteristic intersection result, so this
+  helper deliberately retains only source nodes that are exact vertices of a
+  surviving cell.  The terminal-shock state arrays remain the authoritative
+  data for the newly exposed shock edge.
+  """
+
+  retained_points = tuple(
+    point
+    for cell in cells
+    for point in cell.vertices_xr_m
+  )
+  if not retained_points:
+    return ()
+  retained: list[MocCharacteristicNode] = []
+  seen: set[tuple[int, int]] = set()
+  for node in source_nodes:
+    if not any(
+      abs(node.point_m[0] - point[0]) <= mesh_vertex_tolerance_m
+      and abs(node.point_m[1] - point[1]) <= mesh_vertex_tolerance_m
+      for point in retained_points
+    ):
+      continue
+    key = (
+      round(node.point_m[0] / mesh_vertex_tolerance_m),
+      round(node.point_m[1] / mesh_vertex_tolerance_m),
+    )
+    if key in seen:
+      continue
+    seen.add(key)
+    retained.append(node)
+  return tuple(retained)
 ####
 
 
@@ -1223,6 +1281,27 @@ def assemble_terminal_shock_cell_field(
       upstream_pressures=upstream_pressures,
       message='terminal shock clipping produced no characteristic cells',
     )
+  nodes = _retain_terminal_region_nodes(
+    (*strip.nodes, *reflection_patch.nodes),
+    cells,
+    mesh_vertex_tolerance_m=mesh_vertex_tolerance_m,
+  )
+  if not nodes:
+    return _terminal_field_failure(
+      MocTerminalShockCellFieldStatus.GEOMETRY_FAILURE,
+      cells=cells,
+      source_strip_cell_count=strip.cell_count,
+      source_patch_cell_count=reflection_patch.cell_count,
+      clipped_patch_cell_count=clipped_count,
+      terminal_shock_points=terminal_shock_points,
+      terminal_normal_shock=terminal,
+      upstream_states=upstream_states,
+      upstream_pressures=upstream_pressures,
+      message=(
+        'terminal shock clipping retained cells but no validated source '
+        'characteristic nodes'
+      ),
+    )
   topology = validate_moc_mesh(
     cells,
     vertex_tolerance_m=mesh_vertex_tolerance_m,
@@ -1241,6 +1320,7 @@ def assemble_terminal_shock_cell_field(
     return _terminal_field_failure(
       MocTerminalShockCellFieldStatus.TOPOLOGY_FAILURE,
       cells=cells,
+      nodes=nodes,
       topology=topology,
       source_strip_cell_count=strip.cell_count,
       source_patch_cell_count=reflection_patch.cell_count,
@@ -1258,6 +1338,7 @@ def assemble_terminal_shock_cell_field(
     return _terminal_field_failure(
       MocTerminalShockCellFieldStatus.GEOMETRY_FAILURE,
       cells=cells,
+      nodes=nodes,
       topology=topology,
       source_strip_cell_count=strip.cell_count,
       source_patch_cell_count=reflection_patch.cell_count,
@@ -1283,6 +1364,7 @@ def assemble_terminal_shock_cell_field(
   return MocTerminalShockCellFieldResult(
     status=MocTerminalShockCellFieldStatus.CONVERGED_CLOSED_SUPERSONIC_REGION,
     cells=tuple(cells),
+    nodes=nodes,
     topology=topology,
     initial_shock_boundary_points_m=strip.shock_boundary_points_m,
     ambient_boundary_points_m=strip.ambient_boundary_points_m,

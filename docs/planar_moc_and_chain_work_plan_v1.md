@@ -84,6 +84,11 @@ not wait on this research closure.
 - Added a closed post-shock field acceptance gate. It requires explicit shock
   and centerline boundary edges, connected finite-cell topology, and converged
   characteristic-node evidence; it does not synthesize missing cells.
+- Extended the terminal-shock supersonic composite to retain validated source
+  characteristic nodes that remain in the clipped mesh. Newly cut terminal-
+  shock vertices remain represented only by the explicit terminal boundary
+  state arrays, preserving the mixed-regime fidelity boundary while making
+  refinement and visualization reports inspectable.
 - Added a shock-seeded C+/C- field assembler. It grows shrinking compatible
   fronts from a fitted shock boundary, carries post-shock total pressure along
   the source lineage, closes the terminal characteristic fan to the symmetry

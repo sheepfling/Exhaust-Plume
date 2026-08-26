@@ -232,6 +232,7 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert terminal_field['mixed_regime_field_complete'] is False
   assert terminal_field['physical_closure_verified'] is False
   assert terminal_field['chain_promotion_blocked'] is True
+  assert terminal_field['node_count'] > 0
   assert terminal_field['topology_forms_closed_zone'] is True
   assert terminal_field['topology_connected'] is True
   assert terminal_field['clipped_patch_cell_count'] > 0
@@ -345,6 +346,8 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
     and case['terminal_field_status'] == 'converged_closed_supersonic_terminal_region'
     and case['terminal_field_converged'] is True
     and case['supersonic_region_closed'] is True
+    and case['terminal_field_characteristic_field_evidence_verified'] is True
+    and case['terminal_field_node_count'] > 0
     and case['topology_forms_closed_zone'] is True
     and case['topology_nonmanifold_edge_count'] == 0
     and case['terminal_shock_boundary_sample_count'] == case['sample_count']

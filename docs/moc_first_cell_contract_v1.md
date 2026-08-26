@@ -175,6 +175,8 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   shock/ambient strip and reflected characteristic patch to the upstream side
   of the solver-generated normal shock. It exposes a connected, one-perimeter
   supersonic-region topology gate and inherited characteristic-cell evidence,
+  retaining the validated source characteristic nodes that remain vertices of
+  the clipped mesh for refinement and visualization diagnostics,
   requires explicit coverage of the complete terminal-shock boundary and its
   endpoint upstream state/pressure sample,
   while reporting ``mixed_regime_field_complete`` and

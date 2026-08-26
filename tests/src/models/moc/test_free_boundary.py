@@ -448,6 +448,16 @@ def test_ambient_attachment_transition_carries_a_next_shock_handoff_to_terminal(
   assert result.terminal_field.chain_promotion_blocked is True
   assert result.terminal_field.topology.forms_closed_zone
   assert result.terminal_field.topology.connected
+  assert result.terminal_field.node_count == len(result.terminal_field.nodes)
+  assert result.terminal_field.node_count > 0
+  assert all(
+    any(
+      node.point_m == pytest.approx(vertex)
+      for cell in result.terminal_field.cells
+      for vertex in cell.vertices_xr_m
+    )
+    for node in result.terminal_field.nodes
+  )
   assert result.terminal_field.clipped_patch_cell_count > 0
   assert len(result.terminal_field.terminal_shock_upstream_states) == len(
     result.terminal_field.terminal_shock_boundary_points_m
