@@ -2,13 +2,17 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+import pytest
+
 from exhaust_plume.models.moc import (
   CharacteristicState,
   CharacteristicFamily,
   MocAmbientShockBoundaryMarchStatus,
   MocAmbientShockStripStatus,
+  MocTerminalCompressionStatus,
   assemble_ambient_shock_characteristic_strip,
   march_post_shock_ambient_boundary,
+  solve_terminal_compression_candidate,
   solve_marched_attached_shock_field,
 )
 
@@ -87,6 +91,57 @@ def test_shock_and_ambient_characteristic_strip_keeps_terminal_trace_open() -> N
   assert trace_validation.maximum_absolute_invariant_residual < 1.0e-8
   assert trace_validation.maximum_geometry_residual_m is not None
   assert not trace_validation.converged
+
+
+def test_terminal_compression_candidate_is_explicitly_not_a_closed_cell() -> None:
+  shock_fit = _shock_reference()
+  ambient_pressure = _ambient_pressure(shock_fit)
+  march = march_post_shock_ambient_boundary(shock_fit, ambient_pressure)
+  strip = assemble_ambient_shock_characteristic_strip(
+    shock_fit,
+    march.boundary_samples,
+    ambient_pressure,
+  )
+
+  result = solve_terminal_compression_candidate(
+    strip,
+    ambient_pressure_Pa=ambient_pressure,
+    # The diagonal terminal trace is a coarse polyline approximation. Keep
+    # the strict validator above, and make this research tolerance explicit.
+    trace_position_tolerance_m=1.0e-3,
+  )
+
+  assert result.status is MocTerminalCompressionStatus.CONVERGED_LOCAL_COMPRESSION_CANDIDATE
+  assert result.converged
+  assert result.compression is not None
+  assert result.compression.shock_start_m == strip.terminal_trace_points_m[-1]
+  assert result.compression.shock_end_m is not None
+  assert result.compression.shock_end_m[1] == pytest.approx(0.0, abs=1.0e-12)
+  assert result.physical_closure_verified is False
+  assert result.chain_promotion_blocked is True
+  assert result.accepted_for_chain is False
+
+
+def test_terminal_compression_candidate_keeps_strict_trace_failure_visible() -> None:
+  shock_fit = _shock_reference()
+  ambient_pressure = _ambient_pressure(shock_fit)
+  march = march_post_shock_ambient_boundary(shock_fit, ambient_pressure)
+  strip = assemble_ambient_shock_characteristic_strip(
+    shock_fit,
+    march.boundary_samples,
+    ambient_pressure,
+  )
+
+  result = solve_terminal_compression_candidate(
+    strip,
+    ambient_pressure_Pa=ambient_pressure,
+  )
+
+  assert result.status is MocTerminalCompressionStatus.TRACE_FAILURE
+  assert result.compression is None
+  assert result.terminal_trace_validation is not None
+  assert result.terminal_trace_validation.converged is False
+  assert result.chain_promotion_blocked is True
 
 
 def test_ambient_strip_rejects_a_boundary_trace_with_wrong_family_geometry() -> None:

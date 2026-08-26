@@ -832,8 +832,59 @@
         "maximum_post_shock_total_pressure_ratio": 0.977473522728481,
         "message": "shock-sourced C+ and ambient-sourced C- characteristics formed a connected physical-boundary strip; terminal centerline closure remains pending"
       },
+      "terminal_compression_candidate": {
+        "status": "converged_local_compression_candidate",
+        "converged": true,
+        "physical_closure_verified": false,
+        "chain_promotion_blocked": true,
+        "accepted_for_chain": false,
+        "strip_status": "converged_open_shock_ambient_strip",
+        "terminal_trace_validation": {
+          "status": "converged",
+          "converged": true,
+          "family": "C+",
+          "sample_count": 18,
+          "maximum_absolute_invariant_residual": 8.992806499463768e-13,
+          "maximum_geometry_residual_m": 0.00011721401616694715,
+          "minimum_forward_margin_m": 0.034264378215949014,
+          "message": ""
+        },
+        "upstream_terminal_state": {
+          "x_m": 1.4720719054145763,
+          "y_m": 0.4979922117641763,
+          "theta_rad": -0.050707662114035434,
+          "mach": 1.4874117662275268,
+          "gamma": 1.4
+        },
+        "upstream_terminal_pressure_Pa": 764819.179280032,
+        "upstream_terminal_static_pressure_Pa": 212165.9974729533,
+        "terminal_static_pressure_residual": -1.3717481030599083e-16,
+        "ambient_pressure_Pa": 212165.99747295334,
+        "target_centerline_y_m": 0.0,
+        "compression": {
+          "status": "converged",
+          "converged": true,
+          "shock_start_m": [
+            1.4720719054145763,
+            0.4979922117641763
+          ],
+          "shock_end_m": [
+            1.9119215460587087,
+            0.0
+          ],
+          "shock_angle_rad": -0.8473150543485264,
+          "geometry_residual_m": 0.0,
+          "downstream_mach": 1.3873081874514017,
+          "downstream_pressure_Pa": 244590.55681386194,
+          "downstream_total_pressure_Pa": 764594.8356011483,
+          "total_pressure_ratio": 0.9997066709557481,
+          "message": ""
+        },
+        "message": "validated local attached compression candidate reaches the centerline; the downstream characteristic patch and chain-cell closure remain pending"
+      },
+      "terminal_trace_acceptance_tolerance_m": 0.0002,
       "message": "shock-sourced C+ and ambient-sourced C- characteristics formed a connected physical-boundary strip; terminal centerline closure remains pending",
-      "claim_status": "solver-generated-shock-plus-ambient-C-plus-C-minus-strip; terminal-axis-closure-pending"
+      "claim_status": "solver-generated-shock-plus-ambient-C-plus-C-minus-strip; local-compression-candidate-only; terminal-characteristic-patch-closure-pending"
     },
     "solver_generated_shock_refinement": {
       "status": "diagnostic-all-solver-generated-resolutions-converged",
@@ -1563,6 +1614,7 @@
   "next_gates": [
     "extend the reflected MOC upstream state/pressure field beyond the terminal source window without crossing a characteristic caustic",
     "replace the provisional constant-invariant boundary with a physically validated downstream closure and a straddling canonical bracket",
+    "assemble and validate the downstream characteristic patch between the terminal C+ trace and the local compression candidate before chain promotion",
     "production next-cell shock fitting that consumes the typed state/total-pressure handoff without a geometric template",
     "grid/refinement convergence for the assembled reflected zone and mild attached-overexpanded cases",
     "external measurement-operator comparison using the independent MOC extraction before provider integration"

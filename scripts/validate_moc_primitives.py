@@ -39,6 +39,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_attached_compression_to_pressure,
   solve_attached_compression_to_turn,
   solve_attached_shock_to_centerline,
+  solve_terminal_compression_candidate,
   solve_normal_shock_terminal,
   solve_marched_attached_shock_chain_cell,
   solve_marched_attached_shock_field,
@@ -374,10 +375,18 @@ def _ambient_shock_strip_probe(
     'ambient_pressure_Pa': ambient_pressure,
     'march': march.as_report(),
     'strip': strip.as_report(),
+    'terminal_compression_candidate': solve_terminal_compression_candidate(
+      strip,
+      ambient_pressure_Pa=ambient_pressure,
+      # The strict primitive validator remains in ``strip``. This declared
+      # mesh-scale tolerance is only for the local candidate diagnostic.
+      trace_position_tolerance_m=2.0e-4,
+    ).as_report(),
+    'terminal_trace_acceptance_tolerance_m': 2.0e-4,
     'message': strip.message,
     'claim_status': (
       'solver-generated-shock-plus-ambient-C-plus-C-minus-strip; '
-      'terminal-axis-closure-pending'
+      'local-compression-candidate-only; terminal-characteristic-patch-closure-pending'
     ),
   }
 
@@ -2040,6 +2049,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
     'next_gates': [
       'extend the reflected MOC upstream state/pressure field beyond the terminal source window without crossing a characteristic caustic',
       'replace the provisional constant-invariant boundary with a physically validated downstream closure and a straddling canonical bracket',
+      'assemble and validate the downstream characteristic patch between the terminal C+ trace and the local compression candidate before chain promotion',
       'production next-cell shock fitting that consumes the typed state/total-pressure handoff without a geometric template',
       'grid/refinement convergence for the assembled reflected zone and mild attached-overexpanded cases',
       'external measurement-operator comparison using the independent MOC extraction before provider integration',

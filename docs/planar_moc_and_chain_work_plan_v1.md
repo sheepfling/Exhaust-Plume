@@ -144,6 +144,13 @@ not wait on this research closure.
   samples and checked independently as a shock-sourced C+ characteristic;
   its nonzero coarse-grid geometry residual is retained as a rejection
   diagnostic rather than hidden by the open-strip status.
+- Added a typed terminal-compression candidate. It consumes the open strip's
+  shock-sourced C+ trace, checks the endpoint's ambient static pressure, and
+  solves a forward attached compression segment to the centerline. A declared
+  mesh-scale trace tolerance is retained separately from the strict trace
+  diagnostic. The candidate reports branch and total-pressure-loss evidence,
+  but its characteristic patch is unsolved, so physical closure and chain
+  promotion remain hard-false.
 - Added an independent MOC shock-cell measurement operator. It extracts
   shock/centerline boundaries, axial extent, boundary lengths, radius, mesh
   area, perimeter-area closure, and optional shock total-pressure loss only
@@ -268,6 +275,13 @@ The new ambient-pressure adapter uses the same domain-bounded callbacks and
 adds a strict outer-perimeter pressure/tangency gate; its canonical result is
 therefore a bounded field/coupling failure and cannot be promoted into the
 continued chain.
+
+The terminal-compression candidate is the next local boundary primitive after
+the open shock/ambient strip. It is intentionally weaker than a first-cell
+closure: it solves the endpoint-to-centerline compression only. The next
+solver must supply the upstream state along that compression and assemble the
+compatible characteristic patch between the incoming terminal C+ trace and
+the new boundary before a resolved cell can be returned.
 
 The verified post-shock result exposes the only seed-promotion adapter for this
 lane. An open zone, prescribed-boundary diagnostic, or scaled reduced-order
