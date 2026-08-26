@@ -7,6 +7,8 @@ import pytest
 from exhaust_plume.models.moc import (
   CharacteristicState,
   CharacteristicFamily,
+  MocChainBoundaryKind,
+  MocChainTerminationDecision,
   MocAmbientShockBoundaryMarchStatus,
   MocAmbientShockStripStatus,
   MocFreeBoundaryShockStatus,
@@ -17,6 +19,8 @@ from exhaust_plume.models.moc import (
   assemble_terminal_trace_centerline_patch,
   march_post_shock_ambient_boundary,
   solve_terminal_compression_candidate,
+  solve_marched_attached_shock_chain_cell_from_terminal_reflection_patch,
+  solve_marched_attached_shock_chain_cell_from_terminal_reflection_patch_or_termination,
   solve_marched_attached_shock_from_terminal_reflection_patch,
   solve_marched_attached_shock_field,
 )
@@ -259,6 +263,90 @@ def test_terminal_reflection_patch_retains_a_strong_subsonic_branch_seam() -> No
   assert result.physical_terminal_verified is False
   assert result.chain_promotion_blocked is True
   assert result.as_report()['shock_branch'] == 'strong'
+
+
+def _terminal_patch_chain_fixture():
+  shock = solve_marched_attached_shock_field(
+    lambda point: CharacteristicState(
+      x_m=point[0],
+      y_m=point[1],
+      theta_rad=-0.1,
+      mach=2.0,
+      gamma=1.4,
+    ),
+    lambda _point: 2.0e6,
+    (0.5, 0.5),
+    downstream_flow_angle_at=lambda _index, point: 0.05 * point[1] / 0.5,
+    sample_count=9,
+  )
+  assert shock.converged
+  assert shock.field is not None
+  assert shock.shock_fit is not None
+  ambient_pressure = _ambient_pressure(shock.shock_fit)
+  march = march_post_shock_ambient_boundary(shock.shock_fit, ambient_pressure)
+  strip = assemble_ambient_shock_characteristic_strip(
+    shock.shock_fit,
+    march.boundary_samples,
+    ambient_pressure,
+  )
+  patch = assemble_terminal_trace_centerline_patch(
+    strip,
+    trace_position_tolerance_m=1.0e-3,
+  )
+  assert patch.converged
+  current = shock.field.as_coupled_chain_cell(start_x_m=0.5, end_x_m=1.0)
+  current = replace(
+    current,
+    continuation_boundary=patch.outgoing_trace_samples,
+    continuation_boundary_kind=MocChainBoundaryKind.TERMINAL_CHARACTERISTIC_TRACE,
+  )
+  return current, patch
+
+
+def test_terminal_patch_chain_adapter_consumes_exact_handoff_and_stops_at_typed_terminal() -> None:
+  current, patch = _terminal_patch_chain_fixture()
+  handoff = current.continuation_boundary
+
+  result = solve_marched_attached_shock_chain_cell_from_terminal_reflection_patch_or_termination(
+    current,
+    2,
+    handoff,
+    patch,
+    start_point_m=patch.outgoing_trace_points_m[0],
+    end_x_m=2.0,
+    downstream_flow_angle_rad=0.0,
+    sample_count=len(handoff),
+    position_tolerance_m=1.0e-3,
+  )
+
+  assert isinstance(result, MocChainTerminationDecision)
+  assert result.physical_termination
+  assert result.diagnostics['termination_model'] == 'normal-shock-terminal'
+
+
+def test_terminal_patch_chain_adapter_rejects_mismatched_handoff_before_solving() -> None:
+  current, patch = _terminal_patch_chain_fixture()
+  changed = replace(
+    current.continuation_boundary[0].state,
+    theta_rad=current.continuation_boundary[0].state.theta_rad + 0.01,
+  )
+  bad_handoff = (
+    replace(current.continuation_boundary[0], state=changed),
+    *current.continuation_boundary[1:],
+  )
+
+  with pytest.raises(ValueError, match='exactly match the current cell boundary'):
+    solve_marched_attached_shock_chain_cell_from_terminal_reflection_patch(
+      current,
+      2,
+      bad_handoff,
+      patch,
+      start_point_m=patch.outgoing_trace_points_m[0],
+      end_x_m=2.0,
+      downstream_flow_angle_rad=0.0,
+      sample_count=len(current.continuation_boundary),
+      position_tolerance_m=1.0e-3,
+    )
 
 
 def test_ambient_strip_rejects_a_boundary_trace_with_wrong_family_geometry() -> None:

@@ -140,6 +140,11 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   attached-shock marcher, and returns a typed subsonic/normal-shock terminal
   when the supersonic lane reaches its mixed-regime boundary. It verifies
   upstream coverage but remains ineligible for physical closure or promotion;
+- a terminal-patch continued-cell adapter that requires a resolved prior cell
+  and exact outgoing ``C-`` handoff, feeds the finite patch state/pressure
+  domain into the next shock solve, and returns either a coupled field solve or
+  a typed bounded/normal-shock stop without fabricating an open or subsonic
+  cell. Its downstream turn law remains explicitly research-only;
 - a physical mixed-regime termination adapter for the terminal-patch probe.
   After complete upstream coverage and a converged normal-shock terminal, it
   returns an explicit physical chain-stop decision while keeping the
@@ -309,6 +314,13 @@ supersonic first-cell result. Its downstream field and physical perimeter
 remain pending. The 9/17/33-sample terminal-patch refinement probe reaches
 the same typed terminal at every resolution and shows a converging centerline
 endpoint; that validates the open transition's numerical behavior only.
+The continued-cell adapter consumes the same outgoing front only after a
+resolved prior cell and exact `terminal-characteristic-trace` handoff are
+present. It verifies that the patch's finite upstream state/pressure domain
+is the field actually used by the next shock march and returns a
+`MocPostShockChainCellSolve` only for a complete nonterminal field. The
+canonical zero-turn case returns the existing typed normal-shock termination
+instead, so no open patch or subsonic state is promoted.
 When complete upstream coverage is present, the same result can provide a
 physical chain-stop decision for that mixed-regime terminal. This decision
 does not set ``physical_closure_verified`` and cannot promote a cell; it only

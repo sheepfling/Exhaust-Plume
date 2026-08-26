@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
 import json
 from math import cos, isfinite, log, sin
 from pathlib import Path
@@ -54,6 +55,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_marched_attached_shock_chain_cell,
   solve_marched_attached_shock_chain_cell_or_termination,
   solve_marched_attached_shock_chain_cell_from_reflected_zone_or_termination,
+  solve_marched_attached_shock_chain_cell_from_terminal_reflection_patch_or_termination,
   solve_marched_attached_shock_field,
   solve_marched_attached_shock_from_reflected_zone,
   solve_marched_attached_shock_from_source_strip,
@@ -386,6 +388,7 @@ def _ambient_shock_strip_probe(
     trace_position_tolerance_m=2.0e-4,
   )
   terminal_patch_shock_probe = None
+  terminal_patch_chain_probe = None
   if terminal_patch.converged:
     terminal_patch_shock_probe = solve_marched_attached_shock_from_terminal_reflection_patch(
       terminal_patch,
@@ -394,6 +397,39 @@ def _ambient_shock_strip_probe(
       sample_count=len(terminal_patch.outgoing_trace_points_m),
       position_tolerance_m=2.0e-4,
     )
+    if solver_generated_shock.field is not None:
+      current_cell = solver_generated_shock.field.as_coupled_chain_cell(
+        start_x_m=0.5,
+        end_x_m=1.0,
+      )
+      current_cell = replace(
+        current_cell,
+        continuation_boundary=terminal_patch.outgoing_trace_samples,
+        continuation_boundary_kind=MocChainBoundaryKind.TERMINAL_CHARACTERISTIC_TRACE,
+      )
+      terminal_patch_chain_result = solve_marched_attached_shock_chain_cell_from_terminal_reflection_patch_or_termination(
+        current_cell,
+        2,
+        current_cell.continuation_boundary,
+        terminal_patch,
+        start_point_m=terminal_patch.outgoing_trace_points_m[0],
+        end_x_m=2.0,
+        downstream_flow_angle_rad=0.0,
+        sample_count=len(terminal_patch.outgoing_trace_points_m),
+        position_tolerance_m=2.0e-4,
+      )
+      terminal_patch_chain_probe = {
+        **terminal_patch_chain_result.as_report(),
+        'expected_physical_termination': (
+          isinstance(terminal_patch_chain_result, MocChainTerminationDecision)
+          and terminal_patch_chain_result.physical_termination
+          and terminal_patch_chain_result.reason is MocChainTerminationReason.PHYSICAL_TERMINATION
+        ),
+        'claim_status': (
+          'terminal-reflection-patch-exact-handoff-to-typed-normal-shock-stop; '
+          'nonterminal-cell-return-remains-research-only'
+        ),
+      }
   accepted = (
     strip.status is MocAmbientShockStripStatus.CONVERGED_OPEN
     and strip.topology.forms_closed_zone
@@ -420,6 +456,7 @@ def _ambient_shock_strip_probe(
       if terminal_patch_shock_probe is None
       else terminal_patch_shock_probe.as_report()
     ),
+    'terminal_reflection_patch_chain_probe': terminal_patch_chain_probe,
     'terminal_trace_acceptance_tolerance_m': 2.0e-4,
     'message': strip.message,
     'claim_status': (
@@ -2468,6 +2505,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or reflected_zone_chain_boundary_probe.get('status') != 'solver-terminated'
     or reflected_zone_chain_boundary_probe.get('termination_reason') != 'upstream-field-boundary'
   )
+  terminal_patch_chain_probe = ambient_shock_strip_probe.get(
+    'terminal_reflection_patch_chain_probe',
+  )
+  terminal_patch_chain_failure = (
+    not isinstance(terminal_patch_chain_probe, dict)
+    or terminal_patch_chain_probe.get('expected_physical_termination') is not True
+  )
   caustic_family_restart_failure = (
     caustic_family_restart.get('accepted') is not True
   )
@@ -2958,6 +3002,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'claim_status': 'solver-generated-boundary-conditioned-field; upstream-field-coupling-pending',
     },
     'solver_generated_ambient_shock_strip': ambient_shock_strip_probe,
+    'solver_generated_terminal_patch_chain_probe': terminal_patch_chain_probe,
     'ambient_attachment_closure_probe': ambient_attachment_closure_probe,
     'ambient_attachment_transition_probe': ambient_attachment_transition_probe,
     'solver_generated_shock_refinement': {
@@ -3397,6 +3442,22 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'message': str(ambient_shock_strip_probe.get('message', '')),
       }
     ] if ambient_shock_strip_probe.get('accepted') is not True else []),
+    *([
+      {
+        'case': 'solver_generated_terminal_patch_chain_probe',
+        'status': (
+          'missing'
+          if not isinstance(terminal_patch_chain_probe, dict)
+          else str(terminal_patch_chain_probe.get('status', 'missing'))
+        ),
+        'message': (
+          'terminal-patch chain adapter did not return its expected typed '
+          'physical termination'
+          if not isinstance(terminal_patch_chain_probe, dict)
+          else str(terminal_patch_chain_probe.get('message', ''))
+        ),
+      }
+    ] if terminal_patch_chain_failure else []),
     *([
       {
         'case': 'ambient_attachment_closure_probe',

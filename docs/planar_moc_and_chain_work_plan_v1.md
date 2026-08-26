@@ -223,6 +223,12 @@ not wait on this research closure.
   `subsonic_terminal_required` result when the canonical supersonic march
   reaches the centerline normal-shock boundary. The probe verifies upstream
   coverage but remains blocked from physical closure and chain promotion.
+- Added a terminal-patch continued-cell adapter. It accepts only a resolved
+  current cell whose exact typed handoff is the patch's outgoing C- trace,
+  feeds the patch's finite state/pressure field into the next shock march, and
+  returns either a fully coupled next-field solve or a typed bounded/normal-
+  shock stop. It never appends an open patch or fabricates a subsonic cell;
+  the caller-supplied downstream turn remains research-only input.
 - Added a physical mixed-regime termination adapter for that probe. Once all
   upstream samples and the normal-shock terminal are verified, it returns an
   explicit `MocChainTerminationDecision` with `physical_termination=true`.
@@ -467,6 +473,16 @@ the next-shock coupling probe and, when the supersonic lane reaches the
 verified normal-shock terminal, return a physical chain-stop decision. That
 stop is narrower than a closed cell: the subsonic downstream field and the
 full mixed-regime perimeter remain outside the planar supersonic-MOC lane.
+
+The terminal-reflection-patch continued-cell adapter now makes that handoff
+usable by the generic chain seam. It requires a resolved prior cell, a
+`terminal-characteristic-trace` boundary, and exact equality between the
+prior boundary, the patch's outgoing ``C-`` trace, and the returned field's
+`incoming_handoff`. A complete nonterminal field can therefore be returned as
+the next local solver result; the canonical case instead reaches the typed
+normal-shock stop. The adapter is a solver-backed research seam, not evidence
+that the patch's caller-supplied downstream turn is a production boundary
+condition.
 
 The terminal-compression candidate is the next local boundary primitive after
 the open shock/ambient strip. It is intentionally weaker than a first-cell

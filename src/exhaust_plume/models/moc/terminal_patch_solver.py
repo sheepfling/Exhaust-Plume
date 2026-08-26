@@ -17,6 +17,8 @@ from typing import Callable, Sequence
 
 from exhaust_plume.models.moc.chain import (
   MocChainBoundarySample,
+  MocChainBoundaryKind,
+  MocChainCell,
   MocChainTerminationDecision,
   MocChainTerminationReason,
 )
@@ -28,7 +30,8 @@ from exhaust_plume.models.moc.free_boundary import (
 from exhaust_plume.models.moc.terminal_patch import (
   MocTerminalReflectionPatchResult,
 )
-from exhaust_plume.models.moc.primitives import CharacteristicState
+from exhaust_plume.models.moc.post_shock import MocPostShockChainCellSolve
+from exhaust_plume.models.moc.primitives import CharacteristicFamily, CharacteristicState
 from exhaust_plume.util.aero.shock_validity import ShockBranch
 
 __all__ = (
@@ -37,6 +40,8 @@ __all__ = (
   'MocTerminalReflectionPatchShockSolveResult',
   'sample_terminal_reflection_patch_along_shock_path',
   'solve_marched_attached_shock_from_terminal_reflection_patch',
+  'solve_marched_attached_shock_chain_cell_from_terminal_reflection_patch',
+  'solve_marched_attached_shock_chain_cell_from_terminal_reflection_patch_or_termination',
 )
 
 
@@ -477,3 +482,306 @@ def solve_marched_attached_shock_from_terminal_reflection_patch(
     message=message,
     shock_branch=branch,
   )
+
+
+def _validate_terminal_patch_chain_inputs(
+  current_cell: MocChainCell,
+  next_cell_index: int,
+  incoming_handoff: Sequence[MocChainBoundarySample],
+  patch: MocTerminalReflectionPatchResult,
+  *,
+  start_point_m: tuple[float, float],
+  end_x_m: float,
+  position_tolerance_m: float,
+) -> tuple[tuple[MocChainBoundarySample, ...], tuple[float, float]]:
+  """Validate the cell-to-patch seam before invoking the shock marcher."""
+
+  if not isinstance(current_cell, MocChainCell):
+    raise TypeError('current_cell must be a MocChainCell')
+  if (
+    isinstance(next_cell_index, bool)
+    or not isinstance(next_cell_index, int)
+    or next_cell_index != current_cell.cell_index + 1
+  ):
+    raise ValueError('next_cell_index must immediately follow current_cell.cell_index')
+  if not current_cell.resolved:
+    raise ValueError(
+      'terminal-patch continuation requires a closed resolved planar-MOC current cell'
+    )
+  if current_cell.continuation_boundary_kind is not MocChainBoundaryKind.TERMINAL_CHARACTERISTIC_TRACE:
+    raise ValueError(
+      'terminal-patch continuation requires a terminal-characteristic-trace current boundary'
+    )
+  try:
+    handoff = tuple(incoming_handoff)
+  except TypeError as error:
+    raise ValueError(
+      'incoming_handoff must be an iterable of MocChainBoundarySample values'
+    ) from error
+  if any(not isinstance(sample, MocChainBoundarySample) for sample in handoff):
+    raise ValueError('incoming_handoff must contain MocChainBoundarySample values')
+  if handoff != current_cell.continuation_boundary:
+    raise ValueError('incoming_handoff must exactly match the current cell boundary')
+  if len(handoff) < 3:
+    raise ValueError('continued terminal-patch shock cells require at least three handoff samples')
+  if not isinstance(patch, MocTerminalReflectionPatchResult):
+    raise TypeError('patch must be a MocTerminalReflectionPatchResult')
+  if not patch.converged or len(patch.outgoing_trace_points_m) < 3:
+    raise ValueError(
+      f'terminal reflection patch is not usable: {patch.message}'
+    )
+  if (
+    patch.outgoing_trace_validation is None
+    or not patch.outgoing_trace_validation.converged
+    or patch.outgoing_trace_validation.family is not CharacteristicFamily.MINUS
+  ):
+    raise ValueError(
+      'terminal reflection patch must expose a converged outgoing C- trace'
+    )
+  if patch.outgoing_trace_samples != handoff:
+    raise ValueError(
+      'incoming_handoff must exactly match the terminal patch outgoing C- trace'
+    )
+  if not isfinite(float(end_x_m)) or end_x_m <= current_cell.end_x_m:
+    raise ValueError(
+      'continued cell end_x_m must be strictly downstream of the current cell'
+    )
+  if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
+    raise ValueError('position_tolerance_m must be finite and positive')
+  try:
+    start = (float(start_point_m[0]), float(start_point_m[1]))
+  except (IndexError, TypeError, ValueError) as error:
+    raise ValueError('start_point_m must contain two finite coordinates') from error
+  if not all(isfinite(value) for value in start):
+    raise ValueError('start_point_m must contain two finite coordinates')
+  if start[0] <= current_cell.end_x_m + position_tolerance_m:
+    raise ValueError(
+      'continued shock start point must be downstream of the current cell'
+    )
+  return handoff, start
+
+
+def _solve_terminal_patch_chain_candidate(
+  current_cell: MocChainCell,
+  next_cell_index: int,
+  incoming_handoff: Sequence[MocChainBoundarySample],
+  patch: MocTerminalReflectionPatchResult,
+  *,
+  start_point_m: tuple[float, float],
+  end_x_m: float,
+  target_centerline_y_m: float,
+  downstream_flow_angle_at: Callable[[int, tuple[float, float]], float] | None,
+  downstream_flow_angle_rad: float | None,
+  sample_count: int,
+  branch: ShockBranch,
+  position_tolerance_m: float,
+  invariant_tolerance: float,
+  shock_angle_tolerance_rad: float,
+  maximum_segment_iterations: int,
+) -> tuple[
+  MocTerminalReflectionPatchShockSolveResult,
+  tuple[MocChainBoundarySample, ...],
+  float,
+]:
+  """Run a terminal-patch shock solve after validating the chain seam."""
+
+  handoff, start = _validate_terminal_patch_chain_inputs(
+    current_cell,
+    next_cell_index,
+    incoming_handoff,
+    patch,
+    start_point_m=start_point_m,
+    end_x_m=end_x_m,
+    position_tolerance_m=position_tolerance_m,
+  )
+  solved = solve_marched_attached_shock_from_terminal_reflection_patch(
+    patch,
+    start,
+    target_centerline_y_m=target_centerline_y_m,
+    downstream_flow_angle_at=downstream_flow_angle_at,
+    downstream_flow_angle_rad=downstream_flow_angle_rad,
+    incoming_handoff=handoff,
+    sample_count=sample_count,
+    branch=branch,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+    shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+    maximum_segment_iterations=maximum_segment_iterations,
+  )
+  return solved, handoff, float(end_x_m)
+
+
+def _as_terminal_patch_chain_cell_solve(
+  solved: MocTerminalReflectionPatchShockSolveResult,
+  handoff: tuple[MocChainBoundarySample, ...],
+  *,
+  end_x_m: float,
+) -> MocPostShockChainCellSolve:
+  """Require a complete upstream-coupled field before returning a cell solve."""
+
+  if solved.physical_terminal_verified:
+    raise ValueError(
+      'terminal reflection patch reached a physical normal-shock terminal; '
+      'use the or_termination adapter instead of appending a cell'
+    )
+  if not solved.converged or solved.shock.field is None:
+    raise ValueError(
+      'terminal-patch continued shock cell failed: '
+      f'{solved.shock.status.value}: {solved.message}'
+    )
+  if not solved.upstream_coupling_verified:
+    raise ValueError(
+      'terminal-patch continued shock cell lacks complete upstream state/pressure coupling'
+    )
+  field = solved.shock.field
+  expected_states = tuple(sample.state for sample in handoff)
+  expected_pressures = tuple(sample.total_pressure_Pa for sample in handoff)
+  if (
+    field.incoming_handoff_states != expected_states
+    or field.incoming_handoff_total_pressure_Pa != expected_pressures
+  ):
+    raise ValueError(
+      'terminal-patch continued field did not retain the exact incoming handoff'
+    )
+  if not field.upstream_shock_coupling_verified:
+    raise ValueError(
+      'terminal-patch continued field did not retain its fitted upstream shock samples'
+    )
+  return MocPostShockChainCellSolve(field=field, end_x_m=end_x_m)
+
+
+def solve_marched_attached_shock_chain_cell_from_terminal_reflection_patch(
+  current_cell: MocChainCell,
+  next_cell_index: int,
+  incoming_handoff: Sequence[MocChainBoundarySample],
+  patch: MocTerminalReflectionPatchResult,
+  *,
+  start_point_m: tuple[float, float],
+  end_x_m: float,
+  target_centerline_y_m: float = 0.0,
+  downstream_flow_angle_at: Callable[[int, tuple[float, float]], float] | None = None,
+  downstream_flow_angle_rad: float | None = None,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 2.0e-4,
+  invariant_tolerance: float = 1.0e-10,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+) -> MocPostShockChainCellSolve:
+  """Generate a continued cell from a solved terminal-reflection patch.
+
+  The patch's outgoing ``C-`` trace is the only upstream input accepted at
+  this seam.  The attached-shock marcher samples the patch's finite state and
+  pressure domain directly, records the exact handoff in the returned field,
+  and refuses to fabricate a cell on an incomplete or mixed-regime result.
+  The downstream flow-angle condition remains caller-supplied research input;
+  this adapter is therefore not a production provider or closure claim.
+  """
+
+  solved, handoff, end_x = _solve_terminal_patch_chain_candidate(
+    current_cell,
+    next_cell_index,
+    incoming_handoff,
+    patch,
+    start_point_m=start_point_m,
+    end_x_m=end_x_m,
+    target_centerline_y_m=target_centerline_y_m,
+    downstream_flow_angle_at=downstream_flow_angle_at,
+    downstream_flow_angle_rad=downstream_flow_angle_rad,
+    sample_count=sample_count,
+    branch=branch,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+    shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+    maximum_segment_iterations=maximum_segment_iterations,
+  )
+  return _as_terminal_patch_chain_cell_solve(solved, handoff, end_x_m=end_x)
+
+
+def solve_marched_attached_shock_chain_cell_from_terminal_reflection_patch_or_termination(
+  current_cell: MocChainCell,
+  next_cell_index: int,
+  incoming_handoff: Sequence[MocChainBoundarySample],
+  patch: MocTerminalReflectionPatchResult,
+  *,
+  start_point_m: tuple[float, float],
+  end_x_m: float,
+  target_centerline_y_m: float = 0.0,
+  downstream_flow_angle_at: Callable[[int, tuple[float, float]], float] | None = None,
+  downstream_flow_angle_rad: float | None = None,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 2.0e-4,
+  invariant_tolerance: float = 1.0e-10,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+) -> MocPostShockChainCellSolve | MocChainTerminationDecision:
+  """Generate a terminal-patch cell or return a typed bounded stop.
+
+  A verified normal-shock endpoint is returned as a physical termination.  An
+  incomplete patch coupling or failed local field is returned as a
+  non-physical solver/domain stop, preserving the finite-domain seam in
+  diagnostics.  Neither case appends a synthetic subsonic or open cell.
+  """
+
+  solved, handoff, end_x = _solve_terminal_patch_chain_candidate(
+    current_cell,
+    next_cell_index,
+    incoming_handoff,
+    patch,
+    start_point_m=start_point_m,
+    end_x_m=end_x_m,
+    target_centerline_y_m=target_centerline_y_m,
+    downstream_flow_angle_at=downstream_flow_angle_at,
+    downstream_flow_angle_rad=downstream_flow_angle_rad,
+    sample_count=sample_count,
+    branch=branch,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+    shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+    maximum_segment_iterations=maximum_segment_iterations,
+  )
+  if solved.physical_terminal_verified:
+    return solved.as_physical_termination_decision()
+  if not solved.converged or solved.shock.field is None:
+    reason = (
+      MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+      if solved.coupling.status is MocTerminalPatchShockCouplingStatus.OUTSIDE_DOMAIN
+      else MocChainTerminationReason.SOLVER_ERROR
+    )
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=reason,
+      message=(
+        'terminal-patch shock path stopped before a complete upstream-coupled '
+        'next cell was solved; no physical endpoint was inferred'
+      ),
+      diagnostics={
+        'termination_model': 'terminal-reflection-patch-upstream-field-boundary',
+        'coupling_status': solved.coupling.status.value,
+        'coupling_sampled_count': solved.coupling.sampled_count,
+        'first_missing_sample_index': solved.coupling.first_missing_sample_index,
+        'last_valid_point_m': solved.coupling.last_valid_point_m,
+        'shock_status': solved.shock.status.value,
+        'next_cell_index': next_cell_index,
+        'message': solved.message,
+      },
+    )
+  try:
+    return _as_terminal_patch_chain_cell_solve(solved, handoff, end_x_m=end_x)
+  except ValueError as error:
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=MocChainTerminationReason.STATE_NOT_CARRIED,
+      message=(
+        'terminal-patch shock field did not satisfy the exact state-carry '
+        'handoff contract; no physical endpoint was inferred'
+      ),
+      diagnostics={
+        'termination_model': 'terminal-reflection-patch-state-handoff',
+        'next_cell_index': next_cell_index,
+        'incoming_handoff_sample_count': len(handoff),
+        'end_x_m': end_x,
+        'message': str(error),
+      },
+    )

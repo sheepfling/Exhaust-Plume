@@ -2625,9 +2625,45 @@
         },
         "message": "sample 17 reaches the symmetry line with zero flow turn; the typed subsonic terminal model is outside the supersonic MOC lane"
       },
+      "terminal_reflection_patch_chain_probe": {
+        "physical_termination": true,
+        "reason": "physical-termination",
+        "message": "supersonic terminal-patch march reached a verified subsonic normal shock; continued supersonic MOC cells stop at the mixed-regime boundary",
+        "diagnostics": {
+          "termination_model": "normal-shock-terminal",
+          "shock_point_m": [
+            1.932444024737439,
+            0.0
+          ],
+          "downstream_mach": 0.7425535304699773,
+          "downstream_pressure_Pa": 508788.89535898657,
+          "total_pressure_ratio": 0.9598520994838985,
+          "upstream_sample_count": 17
+        },
+        "expected_physical_termination": true,
+        "claim_status": "terminal-reflection-patch-exact-handoff-to-typed-normal-shock-stop; nonterminal-cell-return-remains-research-only"
+      },
       "terminal_trace_acceptance_tolerance_m": 0.0002,
       "message": "shock-sourced C+ and ambient-sourced C- characteristics formed a connected physical-boundary strip; terminal centerline closure remains pending",
       "claim_status": "solver-generated-shock-plus-ambient-C-plus-C-minus-strip; terminal-reflection-patch-open; terminal-shock-probe-mixed-regime-gated; local-compression-candidate-only; physical-downstream-boundary-closure-pending"
+    },
+    "solver_generated_terminal_patch_chain_probe": {
+      "physical_termination": true,
+      "reason": "physical-termination",
+      "message": "supersonic terminal-patch march reached a verified subsonic normal shock; continued supersonic MOC cells stop at the mixed-regime boundary",
+      "diagnostics": {
+        "termination_model": "normal-shock-terminal",
+        "shock_point_m": [
+          1.932444024737439,
+          0.0
+        ],
+        "downstream_mach": 0.7425535304699773,
+        "downstream_pressure_Pa": 508788.89535898657,
+        "total_pressure_ratio": 0.9598520994838985,
+        "upstream_sample_count": 17
+      },
+      "expected_physical_termination": true,
+      "claim_status": "terminal-reflection-patch-exact-handoff-to-typed-normal-shock-stop; nonterminal-cell-return-remains-research-only"
     },
     "ambient_attachment_closure_probe": {
       "status": "converged_ambient_attachment_open_strip",
