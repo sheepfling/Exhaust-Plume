@@ -16,6 +16,7 @@ if str(REPO_ROOT / 'src') not in sys.path:
 from exhaust_plume.models.moc import (  # noqa: E402
   CharacteristicFamily,
   CharacteristicState,
+  MocInvariantClosureFamily,
   MocFreeBoundaryShockResult,
   MocPostShockClosureStatus,
   MocPostShockBoundaryState,
@@ -35,6 +36,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_attached_shock_to_centerline,
   solve_marched_attached_shock_chain_cell,
   solve_marched_attached_shock_from_source_strip,
+  solve_marched_attached_shock_with_constant_invariant_closure,
   solve_reflected_boundary_trace_extension,
   solve_uniform_attached_shock_field,
   assemble_post_shock_characteristic_zone,
@@ -599,6 +601,65 @@ def _reflected_simple_wave_extension_probe(
   }
 
 
+def _terminal_source_window_invariant_closure_probe(
+  reflected_boundary: Any,
+  fan_exit: Any,
+  fan_ambient: Any,
+) -> dict[str, Any]:
+  """Attempt a domain-bounded invariant-conditioned first-cell closure.
+
+  The long extension is intentionally kept as a diagnostic evidence case.  In
+  the canonical configuration the full triangular continuation reaches a
+  characteristic caustic while the terminal window remains valid; the
+  invariant bracket is retained so the report records whether the physical
+  closure is actually found rather than promoting the window by geometry
+  alone.
+  """
+
+  if not reflected_boundary.converged or not reflected_boundary.boundary_points_m:
+    return {
+      'status': 'invalid_input',
+      'claim_status': 'domain-bounded-invariant-shooting-attempt; closure-pending',
+      'message': 'reflected boundary did not provide a converged shock start',
+    }
+  extension = extend_source_characteristic_strip_constant_k_plus(
+    reflected_boundary.centerline_states,
+    reflected_boundary.boundary_states,
+    fan_exit.total_pressure_Pa,
+    fan_ambient.pressure_Pa,
+    additional_sample_count=190,
+    axis_step_m=0.0035,
+    source_window_start_index=8,
+  )
+  strip = extension.strip
+  start = reflected_boundary.boundary_points_m[-1]
+  if not extension.converged or strip is None:
+    return {
+      'status': extension.status.value,
+      'claim_status': 'domain-bounded-invariant-shooting-attempt; closure-pending',
+      'source_extension': extension.as_report(),
+      'message': extension.message,
+    }
+  closure = solve_marched_attached_shock_with_constant_invariant_closure(
+    strip,
+    start,
+    MocInvariantClosureFamily.K_PLUS,
+    invariant_target_lower=-0.78,
+    invariant_target_upper=-0.70,
+    sample_count=17,
+    shock_angle_tolerance_rad=0.2,
+  )
+  return {
+    **closure.as_report(),
+    'source_extension': extension.as_report(),
+    'shock_start_m': start,
+    'claim_status': (
+      'domain-bounded-invariant-shooting-attempt; '
+      'constant-downstream-invariant-is-not-yet-a-physical-closure'
+    ),
+  }
+
+
 def build_moc_primitive_report() -> dict[str, Any]:
   cases = [
     (gamma, mach)
@@ -693,6 +754,11 @@ def build_moc_primitive_report() -> dict[str, Any]:
   reflected_simple_wave_shock_probe = _reflected_simple_wave_extension_probe(
     reflected_boundary,
     reflected_simple_wave_extension,
+  )
+  terminal_source_window_invariant_closure = _terminal_source_window_invariant_closure_probe(
+    reflected_boundary,
+    fan_exit,
+    fan_ambient,
   )
   fan_reflected_interface = validate_fan_reflected_interface(
     fan,
@@ -1112,6 +1178,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'shock_probe': reflected_simple_wave_shock_probe,
       'claim_status': 'open-simple-wave-extension; shock-closure-pending',
     },
+    'terminal_source_window_invariant_closure': terminal_source_window_invariant_closure,
     'reflected_zone_shock_coupling': reflected_zone_shock_coupling,
     'reflected_boundary_trace_extension': {
       'status': reflected_trace_extension.status.value,
@@ -1536,7 +1603,8 @@ def build_moc_primitive_report() -> dict[str, Any]:
     'geometry_cases': geometry_results,
     'failures': failures,
     'next_gates': [
-      'couple the marched shock to the reflected MOC upstream state/pressure field instead of the reference linear-turn law',
+      'extend the reflected MOC upstream state/pressure field beyond the terminal source window without crossing a characteristic caustic',
+      'replace the provisional constant-invariant boundary with a physically validated downstream closure and a straddling canonical bracket',
       'production next-cell shock fitting that consumes the typed state/total-pressure handoff without a geometric template',
       'grid/refinement convergence for the assembled reflected zone and mild attached-overexpanded cases',
       'independent measurement-operator comparison before provider integration',

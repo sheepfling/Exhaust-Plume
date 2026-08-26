@@ -6,6 +6,8 @@ from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput
 from exhaust_plume.models.moc import (
   CharacteristicState,
   MocFreeBoundaryShockStatus,
+  MocInvariantClosureFamily,
+  MocInvariantClosureStatus,
   MocSourceStripContinuationStatus,
   solve_reflected_boundary_trace_extension,
   solve_marched_attached_shock_chain_cell,
@@ -14,6 +16,7 @@ from exhaust_plume.models.moc import (
   solve_reflected_free_boundary,
   assemble_source_characteristic_strip,
   extend_source_characteristic_strip_constant_k_plus,
+  solve_marched_attached_shock_with_constant_invariant_closure,
   solve_underexpanded_expansion_fan,
   solve_uniform_attached_shock_field,
 )
@@ -170,6 +173,51 @@ def test_constant_k_plus_source_strip_extension_advances_the_shock_probe() -> No
   assert probe.sample_count > 1
   assert probe.endpoint_m is not None
   assert probe.endpoint_m[0] > reflected_boundary.boundary_points_m[-1][0]
+
+
+def test_source_continuation_can_select_an_explicit_terminal_window() -> None:
+  reflected_boundary, ambient = _reflected_boundary_reference()
+
+  result = extend_source_characteristic_strip_constant_k_plus(
+    reflected_boundary.centerline_states,
+    reflected_boundary.boundary_states,
+    2.0e6,
+    ambient.pressure_Pa,
+    additional_sample_count=12,
+    axis_step_m=0.03,
+    source_window_start_index=2,
+  )
+
+  assert result.status is MocSourceStripContinuationStatus.CONVERGED_TERMINAL_WINDOW
+  assert result.converged
+  assert result.full_strip is not None and result.full_strip.converged
+  assert result.strip is not None
+  assert result.strip.is_terminal_source_window
+  assert result.strip.source_window_start_index == 2
+  assert result.strip.source_window_total_count == 21
+  assert result.strip.node_count < result.full_strip.node_count
+
+
+def test_invariant_closure_rejects_a_non_bracket_before_marching() -> None:
+  reflected_boundary, _ambient = _reflected_boundary_reference()
+  strip = assemble_source_characteristic_strip(
+    reflected_boundary.centerline_states,
+    reflected_boundary.boundary_states,
+    2.0e6,
+  )
+  start = reflected_boundary.boundary_points_m[-1]
+
+  result = solve_marched_attached_shock_with_constant_invariant_closure(
+    strip,
+    start,
+    MocInvariantClosureFamily.K_PLUS,
+    invariant_target_lower=-0.7,
+    invariant_target_upper=-0.8,
+  )
+
+  assert result.status is MocInvariantClosureStatus.INVALID_INPUT
+  assert not result.converged
+  assert 'lower target' in result.message
 
 
 def test_uniform_constant_turn_rejects_zero_area_field() -> None:

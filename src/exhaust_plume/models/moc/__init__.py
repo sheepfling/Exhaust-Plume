@@ -76,7 +76,15 @@ from exhaust_plume.models.moc.source_strip import (
   MocSourceStripContinuationResult,
   MocSourceStripContinuationStatus,
   assemble_source_characteristic_strip,
+  assemble_source_characteristic_strip_window,
   extend_source_characteristic_strip_constant_k_plus,
+)
+from exhaust_plume.models.moc.coupled import (
+  MocInvariantClosureFamily,
+  MocInvariantClosureResult,
+  MocInvariantClosureStatus,
+  solve_marched_attached_shock_with_constant_invariant_closure,
+  solve_marched_attached_shock_chain_cell_with_constant_invariant_closure,
 )
 from exhaust_plume.models.moc.post_shock import (
   MocPostShockBoundaryState,
@@ -146,6 +154,9 @@ __all__ = (
   'MocSourceStripStatus',
   'MocSourceStripContinuationResult',
   'MocSourceStripContinuationStatus',
+  'MocInvariantClosureFamily',
+  'MocInvariantClosureResult',
+  'MocInvariantClosureStatus',
   'MocPostShockBoundaryState',
   'MocPostShockCharacteristicSegment',
   'MocPostShockContinuationResult',
@@ -195,7 +206,10 @@ __all__ = (
   'solve_uniform_attached_shock_field',
   'assemble_reflected_characteristic_zone',
   'assemble_source_characteristic_strip',
+  'assemble_source_characteristic_strip_window',
   'extend_source_characteristic_strip_constant_k_plus',
+  'solve_marched_attached_shock_with_constant_invariant_closure',
+  'solve_marched_attached_shock_chain_cell_with_constant_invariant_closure',
   'sample_reflected_zone_along_shock_path',
   'validate_fan_reflected_interface',
   'continue_post_shock_characteristics_to_centerline',

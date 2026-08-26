@@ -52,11 +52,14 @@ The canonical source strip also has an explicitly labeled constant-`K+`
 simple-wave continuation: it preserves the open-strip topology and advances
 the shock probe through additional samples, but it remains an upstream
 diagnostic assumption rather than a physical shock closure. The separately
-labeled boundary-trace extension is diagnostic only, and the coupled upstream
-characteristic-strip/shock-path closure remains open. The existing basic and
-reduced-order visual lanes remain unchanged until a separate MOC assembler
-passes free-boundary/compression closure, refinement, and measurement-operator
-gates.
+labeled boundary-trace extension is diagnostic only. A terminal source-window
+continuation now records a valid local patch separately from a full-strip
+caustic, and a bracketed constant-invariant downstream shoot consumes that
+patch without extrapolation. The canonical shoot currently returns a
+no-bracket diagnostic, so the coupled upstream characteristic-strip/shock-path
+closure remains open. The existing basic and reduced-order visual lanes remain
+unchanged until a separate MOC assembler passes free-boundary/compression
+closure, refinement, and measurement-operator gates.
 
 ## What is done for the basic solver
 

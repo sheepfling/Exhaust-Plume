@@ -90,7 +90,10 @@ handoff. The reflected-zone shock probe is domain-bounded and records the
 expected upstream-field failure when the candidate shock exits that lattice;
 the source-strip continuation extends that diagnostic domain under an explicit
 constant-`K+` simple-wave assumption, but the separate boundary-trace
-extension remains diagnostic-only.
+extension remains diagnostic-only. The report also records a terminal
+source-window attempt after the full continuation reaches a characteristic
+caustic, plus a bracketed constant-invariant shock closure attempt; the
+canonical bracket does not straddle a centerline closure and is not promoted.
 It remains outside the public product lanes
 until the solver-generated shock is coupled to the reflected upstream
 state/pressure field, the next-cell shock fit is solved, and disjoint

@@ -49,6 +49,21 @@ not wait on this research closure.
   231-node/230-cell open topology, and advances a domain-bounded shock probe
   before stopping at the next missing upstream field sample. This is a
   diagnostic continuation law, not physical shock closure.
+- Added explicit source-window metadata and a terminal-window continuation
+  result. When the full triangular continuation reaches a characteristic
+  caustic, a converged terminal patch can be consumed without hiding the
+  failed prefix; the full-strip failure remains attached to the report.
+- Added bracketed constant-invariant downstream shooting. It resolves a local
+  attached-compression angle from the domain-bounded upstream strip, marches
+  the shock, and accepts a result only when the post-shock characteristic field
+  closes. Invalid endpoints and midpoints stop the shoot instead of being
+  skipped or extrapolated. The canonical window currently records a
+  no-bracket result, so this is a coupling boundary and not a physical closure
+  claim.
+- Added an invariant-conditioned continued-cell adapter that consumes the
+  exact prior terminal trace before a solved field can become a next chain-cell
+  result. It raises on unresolved closure and cannot relabel reduced-order
+  geometry.
 - Added a separately labeled reflected-boundary trace-extension reference. It
   can generate a closed shock field from the terminal boundary trace, while
   retaining the upstream characteristic-strip coupling gate.
@@ -95,9 +110,10 @@ not wait on this research closure.
 4. Fit the shock endpoint and require monotone, forward shock geometry.
 5. Keep a failed fit as a structured result; do not close the mesh with a
    geometric line merely because its endpoints are finite. The sampled fit
-   contract and a solver-generated uniform linear-turn reference are
-   implemented; coupling the marcher to the reflected upstream field and a
-   solved downstream boundary condition remains open.
+   contract, a solver-generated uniform linear-turn reference, and a
+   domain-bounded invariant-shooting boundary are implemented. The canonical
+   terminal-window attempt does not yet bracket a centerline closure, so the
+   physical downstream condition remains open.
 
 ### MOC-2 — Assemble the complete post-shock field
 
@@ -146,7 +162,15 @@ The constant-`K+` source-strip continuation is a separate upstream-only
 diagnostic fixture: it tests how a continued shock probe consumes a growing
 characteristic domain, but it must not be promoted into a resolved chain cell
 until the shock boundary and post-shock field are solved from the coupled
-reflected MOC state/pressure field.
+reflected MOC state/pressure field. A terminal source window is allowed as a
+domain-bounded research input only when its omitted prefix and full-strip
+status are retained alongside it.
+
+The invariant-conditioned shock solver is the next explicit boundary for this
+work: it can reject an unbracketed or domain-limited closure, but it does not
+invent a downstream physical law. A converged invariant-conditioned field is
+therefore still research evidence until the selected invariant, case domain,
+and independent measurements are validated.
 
 The verified post-shock result exposes the only seed-promotion adapter for this
 lane. An open zone, prescribed-boundary diagnostic, or scaled reduced-order
@@ -209,14 +233,19 @@ Only after MOC-1 through MOC-5 pass:
   field, but is not yet coupled to the reflected MOC upstream state/pressure
   field or a solved downstream boundary condition.
 - The reflected-zone sampler currently exposes only the assembled lattice. The
-  candidate shock leaves that domain after its boundary start, so a physical
+  candidate shock leaves that domain after its boundary start. A terminal
+  source-window continuation now makes that domain boundary explicit, but the
+  full continuation still reaches a characteristic caustic and the physical
   upstream extension/continuation solve is still required.
 - The trace-extension reference uses a constant terminal boundary trace; it is
   useful for deterministic plumbing and refinement, but it is not the physical
   upstream characteristic strip.
-- No production solver yet supplies an automatic next-cell shock fit. The
-  state-carrying chain adapter therefore requires an explicit re-solved field
-  callback and does not use the reduced-order chain.
+- The invariant-conditioned shock shoot currently records a canonical
+  no-bracket result; a selected constant downstream invariant is not yet an
+  accepted physical free-boundary condition. No production solver yet supplies
+  an automatic next-cell shock fit. The state-carrying chain adapters therefore
+  require a converged explicit research solve and do not use the reduced-order
+  chain.
 - The recovered validation archive is not a substitute for the missing
   provider-bound measurement/operator bindings.
 

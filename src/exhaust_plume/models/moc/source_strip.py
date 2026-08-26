@@ -34,6 +34,7 @@ __all__ = (
   'MocSourceCharacteristicStripResult',
   'MocSourceStripContinuationResult',
   'assemble_source_characteristic_strip',
+  'assemble_source_characteristic_strip_window',
   'extend_source_characteristic_strip_constant_k_plus',
 )
 
@@ -52,6 +53,7 @@ class MocSourceStripContinuationStatus(str, Enum):
   """Outcome for a simple-wave source-strip continuation."""
 
   CONVERGED_EXTENDED = 'converged_constant_k_plus_extension'
+  CONVERGED_TERMINAL_WINDOW = 'converged_terminal_source_window'
   INVALID_INPUT = 'invalid_input'
   BOUNDARY_FAILURE = 'boundary_continuation_failure'
   STRIP_FAILURE = 'strip_assembly_failure'
@@ -72,10 +74,30 @@ class MocSourceCharacteristicStripResult:
   maximum_geometry_residual_m: float | None
   maximum_absolute_invariant_residual: float | None
   message: str = ''
+  source_window_start_index: int = 0
+  source_window_total_count: int | None = None
 
   def __post_init__(self) -> None:
     if not isfinite(float(self.total_pressure_Pa)) or self.total_pressure_Pa <= 0.0:
       raise ValueError('total_pressure_Pa must be finite and positive')
+    if (
+      isinstance(self.source_window_start_index, bool)
+      or not isinstance(self.source_window_start_index, int)
+      or self.source_window_start_index < 0
+    ):
+      raise ValueError('source_window_start_index must be a non-negative integer')
+    total_count = self.source_window_total_count
+    if total_count is None:
+      total_count = self.source_window_start_index + len(self.plus_source_states)
+      object.__setattr__(self, 'source_window_total_count', total_count)
+    if (
+      isinstance(total_count, bool)
+      or not isinstance(total_count, int)
+      or total_count < self.source_window_start_index + len(self.plus_source_states)
+    ):
+      raise ValueError(
+        'source_window_total_count must cover the supplied source window'
+      )
   ####
 
   @property
@@ -91,6 +113,16 @@ class MocSourceCharacteristicStripResult:
   @property
   def cell_count(self) -> int:
     return len(self.cells)
+  ####
+
+  @property
+  def source_window_count(self) -> int:
+    return len(self.plus_source_states)
+  ####
+
+  @property
+  def is_terminal_source_window(self) -> bool:
+    return self.source_window_start_index > 0
   ####
 
   def state_at(
@@ -173,6 +205,14 @@ class MocSourceCharacteristicStripResult:
       'converged': self.converged,
       'plus_source_count': len(self.plus_source_states),
       'minus_source_count': len(self.minus_source_states),
+      'source_window_start_index': self.source_window_start_index,
+      'source_window_count': self.source_window_count,
+      'source_window_total_count': self.source_window_total_count,
+      'source_window_kind': (
+        'terminal-source-window'
+        if self.is_terminal_source_window
+        else 'full-source-strip'
+      ),
       'node_count': self.node_count,
       'cell_count': self.cell_count,
       'topology_forms_closed_zone': self.topology.forms_closed_zone,
@@ -197,10 +237,16 @@ class MocSourceStripContinuationResult:
   axis_step_m: float
   continuation_k_plus: float | None
   message: str = ''
+  full_strip: MocSourceCharacteristicStripResult | None = None
+  source_window_start_index: int = 0
+  source_window_total_count: int | None = None
 
   @property
   def converged(self) -> bool:
-    return self.status is MocSourceStripContinuationStatus.CONVERGED_EXTENDED
+    return self.status in (
+      MocSourceStripContinuationStatus.CONVERGED_EXTENDED,
+      MocSourceStripContinuationStatus.CONVERGED_TERMINAL_WINDOW,
+    )
   ####
 
   def as_report(self) -> dict[str, object]:
@@ -210,7 +256,11 @@ class MocSourceStripContinuationResult:
       'added_sample_count': self.added_sample_count,
       'axis_step_m': self.axis_step_m,
       'continuation_k_plus': self.continuation_k_plus,
+      'source_window_start_index': self.source_window_start_index,
+      'source_window_count': len(self.plus_source_states),
+      'source_window_total_count': self.source_window_total_count,
       'strip': None if self.strip is None else self.strip.as_report(),
+      'full_strip': None if self.full_strip is None else self.full_strip.as_report(),
       'message': self.message,
     }
 ####
@@ -264,6 +314,8 @@ def assemble_source_characteristic_strip(
   *,
   position_tolerance_m: float = 1.0e-10,
   invariant_tolerance: float = 1.0e-10,
+  source_window_start_index: int = 0,
+  source_window_total_count: int | None = None,
 ) -> MocSourceCharacteristicStripResult:
   """Assemble a triangular strip from axis and outer source states.
 
@@ -296,6 +348,36 @@ def assemble_source_characteristic_strip(
       total_pressure_Pa=pressure,
       message='source strips require equal arrays with at least three states',
     )
+  if (
+    isinstance(source_window_start_index, bool)
+    or not isinstance(source_window_start_index, int)
+    or source_window_start_index < 0
+  ):
+    return _failure(
+      MocSourceStripStatus.INVALID_INPUT,
+      plus,
+      minus,
+      total_pressure_Pa=pressure,
+      message='source_window_start_index must be a non-negative integer',
+    )
+  if source_window_total_count is None:
+    source_total_count = source_window_start_index + len(plus)
+  elif (
+    isinstance(source_window_total_count, bool)
+    or not isinstance(source_window_total_count, int)
+    or source_window_total_count < source_window_start_index + len(plus)
+  ):
+    return _failure(
+      MocSourceStripStatus.INVALID_INPUT,
+      plus,
+      minus,
+      total_pressure_Pa=pressure,
+      message=(
+        'source_window_total_count must cover the supplied source window'
+      ),
+    )
+  else:
+    source_total_count = source_window_total_count
   if any(not isinstance(state, CharacteristicState) for state in (*plus, *minus)):
     return _failure(
       MocSourceStripStatus.INVALID_INPUT,
@@ -488,6 +570,38 @@ def assemble_source_characteristic_strip(
       'triangular source-boundary characteristic strip converged; '
       'shock and downstream closure remain separate'
     ),
+    source_window_start_index=source_window_start_index,
+    source_window_total_count=source_total_count,
+  )
+####
+
+
+def assemble_source_characteristic_strip_window(
+  plus_source_states: Sequence[CharacteristicState],
+  minus_source_states: Sequence[CharacteristicState],
+  total_pressure_Pa: float,
+  *,
+  source_window_start_index: int,
+  source_window_total_count: int,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+) -> MocSourceCharacteristicStripResult:
+  """Assemble an explicitly labeled local window of a larger source strip.
+
+  A terminal source window is a deliberate domain boundary.  It is useful when
+  the full upstream triangular continuation has reached a characteristic
+  caustic but a smaller terminal patch is still geometrically valid.  The
+  omitted prefix is never reconstructed or treated as valid upstream data.
+  """
+
+  return assemble_source_characteristic_strip(
+    plus_source_states,
+    minus_source_states,
+    total_pressure_Pa,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+    source_window_start_index=source_window_start_index,
+    source_window_total_count=source_window_total_count,
   )
 ####
 
@@ -504,6 +618,7 @@ def extend_source_characteristic_strip_constant_k_plus(
   invariant_tolerance: float = 1.0e-10,
   pressure_tolerance: float = 1.0e-10,
   maximum_iterations: int = 16,
+  source_window_start_index: int = 0,
 ) -> MocSourceStripContinuationResult:
   """Extend an open source strip with a constant-``K+`` simple-wave law.
 
@@ -590,6 +705,12 @@ def extend_source_characteristic_strip_constant_k_plus(
     or maximum_iterations < 1
   ):
     raise ValueError('maximum_iterations must be a positive integer')
+  if (
+    isinstance(source_window_start_index, bool)
+    or not isinstance(source_window_start_index, int)
+    or source_window_start_index < 0
+  ):
+    raise ValueError('source_window_start_index must be a non-negative integer')
 
   initial_strip = assemble_source_characteristic_strip(
     plus,
@@ -694,38 +815,120 @@ def extend_source_characteristic_strip_constant_k_plus(
     extended_plus.append(incoming)
     extended_minus.append(boundary_result.state)
 
-  extended_strip = assemble_source_characteristic_strip(
+  full_strip = assemble_source_characteristic_strip(
     extended_plus,
     extended_minus,
     total_pressure,
     position_tolerance_m=position_tolerance_m,
     invariant_tolerance=invariant_tolerance,
   )
-  if not extended_strip.converged:
+  if source_window_start_index == 0 and full_strip.converged:
     return MocSourceStripContinuationResult(
-      status=MocSourceStripContinuationStatus.STRIP_FAILURE,
-      strip=extended_strip,
+      status=MocSourceStripContinuationStatus.CONVERGED_EXTENDED,
+      strip=full_strip,
       plus_source_states=tuple(extended_plus),
       minus_source_states=tuple(extended_minus),
       added_sample_count=len(extended_minus) - len(minus),
       axis_step_m=axis_step,
       continuation_k_plus=continuation_k_plus,
+      full_strip=full_strip,
+      source_window_start_index=0,
+      source_window_total_count=len(extended_plus),
+      message=(
+        'constant-K+ simple-wave source continuation converged as an open '
+        'upstream strip; physical shock fitting and downstream closure remain pending'
+      ),
+    )
+
+  if source_window_start_index >= len(extended_plus) - 2:
+    return MocSourceStripContinuationResult(
+      status=MocSourceStripContinuationStatus.STRIP_FAILURE,
+      strip=full_strip,
+      plus_source_states=tuple(extended_plus),
+      minus_source_states=tuple(extended_minus),
+      added_sample_count=len(extended_minus) - len(minus),
+      axis_step_m=axis_step,
+      continuation_k_plus=continuation_k_plus,
+      full_strip=full_strip,
+      source_window_start_index=source_window_start_index,
+      source_window_total_count=len(extended_plus),
       message=(
         'constant-K+ source continuation reached its requested samples, but '
-        f'the extended strip failed: {extended_strip.message}'
+        'the requested terminal source window has fewer than three samples'
+      ),
+    )
+
+  selected_strip = assemble_source_characteristic_strip_window(
+    extended_plus[source_window_start_index:],
+    extended_minus[source_window_start_index:],
+    total_pressure,
+    source_window_start_index=source_window_start_index,
+    source_window_total_count=len(extended_plus),
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+  )
+  if selected_strip.converged:
+    status = (
+      MocSourceStripContinuationStatus.CONVERGED_TERMINAL_WINDOW
+      if source_window_start_index > 0
+      else MocSourceStripContinuationStatus.CONVERGED_EXTENDED
+    )
+    return MocSourceStripContinuationResult(
+      status=status,
+      strip=selected_strip,
+      plus_source_states=tuple(extended_plus),
+      minus_source_states=tuple(extended_minus),
+      added_sample_count=len(extended_minus) - len(minus),
+      axis_step_m=axis_step,
+      continuation_k_plus=continuation_k_plus,
+      full_strip=full_strip,
+      source_window_start_index=source_window_start_index,
+      source_window_total_count=len(extended_plus),
+      message=(
+        'constant-K+ source continuation exposes a converged terminal source '
+        'window; the full continuation reached a characteristic caustic and '
+        'physical shock fitting/downstream closure remain pending'
+        if not full_strip.converged
+        else (
+          'constant-K+ source continuation converged with an explicitly '
+          'selected terminal source window; physical shock fitting and '
+          'downstream closure remain pending'
+        )
+      ),
+    )
+
+  if not full_strip.converged:
+    return MocSourceStripContinuationResult(
+      status=MocSourceStripContinuationStatus.STRIP_FAILURE,
+      strip=full_strip,
+      plus_source_states=tuple(extended_plus),
+      minus_source_states=tuple(extended_minus),
+      added_sample_count=len(extended_minus) - len(minus),
+      axis_step_m=axis_step,
+      continuation_k_plus=continuation_k_plus,
+      full_strip=full_strip,
+      source_window_start_index=source_window_start_index,
+      source_window_total_count=len(extended_plus),
+      message=(
+        'constant-K+ source continuation reached its requested samples, but '
+        f'the extended strip failed: {full_strip.message}; '
+        f'the selected terminal window also failed: {selected_strip.message}'
       ),
     )
   return MocSourceStripContinuationResult(
-    status=MocSourceStripContinuationStatus.CONVERGED_EXTENDED,
-    strip=extended_strip,
+    status=MocSourceStripContinuationStatus.STRIP_FAILURE,
+    strip=selected_strip,
     plus_source_states=tuple(extended_plus),
     minus_source_states=tuple(extended_minus),
     added_sample_count=len(extended_minus) - len(minus),
     axis_step_m=axis_step,
     continuation_k_plus=continuation_k_plus,
+    full_strip=full_strip,
+    source_window_start_index=source_window_start_index,
+    source_window_total_count=len(extended_plus),
     message=(
-      'constant-K+ simple-wave source continuation converged as an open '
-      'upstream strip; physical shock fitting and downstream closure remain pending'
+      'constant-K+ source continuation reached its requested samples, but '
+      f'the selected terminal window failed: {selected_strip.message}'
     ),
   )
 ####

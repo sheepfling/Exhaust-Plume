@@ -118,8 +118,14 @@ physical free-boundary chain evidence.
 The constant-`K+` source-strip continuation is another upstream-only diagnostic
 fixture: in the canonical case it preserves an open 231-node/230-cell strip
 and advances the domain-bounded shock probe before stopping at the next
-missing field sample. It is not a physical shock closure or a production
-next-cell solver.
+missing field sample. A longer continuation can expose a terminal source
+window after the full triangular lattice reaches a characteristic caustic; the
+window carries its source offset and the full-strip failure as explicit
+metadata. A separate bracketed constant-invariant shock shoot now consumes
+that domain-bounded window and either returns a closed field or a structured
+no-bracket/domain failure. It is not a physical shock closure or a production
+next-cell solver until the invariant law and its validation domain are
+accepted.
 The mesh topology intentionally remains reported as `OPEN`: its boundary edges
 are the physical shock/centerline perimeter. `physical_closure_status` and the
 field status carry the separate evidence that this prescribed-boundary fan is

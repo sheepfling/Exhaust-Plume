@@ -63,6 +63,7 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   reflected_probe = report['geometry_cases']['reflected_zone_shock_coupling']
   trace_extension = report['geometry_cases']['reflected_boundary_trace_extension']
   planner = report['geometry_cases']['shock_cell_chain_planner_mock']
+  invariant_closure = report['geometry_cases']['terminal_source_window_invariant_closure']
 
   assert generated['status'] == 'converged_free_boundary_field'
   assert generated['field_status'] == 'converged_closed'
@@ -98,5 +99,10 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert planner['resolved'] is True
   assert planner['cell_count'] == 3
   assert planner['state_carry_count'] == 3
+  assert invariant_closure['status'] == 'shooting_failure'
+  assert invariant_closure['source_extension']['status'] == 'converged_terminal_source_window'
+  assert invariant_closure['source_extension']['strip']['source_window_kind'] == 'terminal-source-window'
+  assert invariant_closure['source_extension']['full_strip']['status'] == 'geometry_failure'
+  assert invariant_closure['claim_status'].startswith('domain-bounded-invariant-shooting-attempt')
   assert report['failures'] == []
   ####
