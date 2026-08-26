@@ -173,6 +173,19 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert caustic_seed['physical_closure_verified'] is False
   assert caustic_seed['chain_promotion_blocked'] is True
   assert [edge['family'] for edge in caustic_seed['edge_states']] == ['C-', 'C-']
+  caustic_shock_resolution = centerline_reflection_extension['caustic_shock_resolution']
+  assert caustic_shock_resolution['status'] == (
+    'no_entropy_admissible_caustic_shock_candidate'
+  )
+  assert caustic_shock_resolution['converged'] is False
+  assert caustic_shock_resolution['shock_state_solved'] is False
+  assert caustic_shock_resolution['physical_closure_verified'] is False
+  assert caustic_shock_resolution['chain_promotion_blocked'] is True
+  assert [candidate['status'] for candidate in caustic_shock_resolution['candidates']] == [
+    'caustic_shock_state_mismatch',
+    'no_positive_compression_turn',
+  ]
+  assert caustic_shock_resolution['candidates'][0]['compression']['converged'] is True
   assert centerline_reflection_extension['remesh']['chain_termination_available'] is True
   assert centerline_reflection_extension['remesh']['chain_termination_decision']['physical_termination'] is False
   assert centerline_reflection_extension['remesh']['chain_termination_decision']['reason'] == (

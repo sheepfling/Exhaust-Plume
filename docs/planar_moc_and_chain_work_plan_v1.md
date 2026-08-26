@@ -211,6 +211,13 @@ not wait on this research closure.
   jump, and rejects a seed when the edge geometry or invariant evidence does
   not pass. The seed explicitly has no downstream shock state, entropy jump,
   physical closure, or chain-promotion path.
+- Added a local Rankine--Hugoniot candidate probe for that seed. It tests both
+  one-sided orientations with the attached-compression solver and records the
+  Mach, static-pressure, and total-pressure residuals against the opposite
+  edge state. In the canonical case the forward compression is mathematically
+  attached but does not match the opposite one-sided state, while the reverse
+  orientation has no positive compression turn; the typed result therefore
+  rejects both candidates and keeps chain promotion blocked.
 - Added axial-boundary, cell-index, domain-limit, and callback termination
   checks.
 - Added a hard fidelity boundary: scaled reduced-order candidates are
@@ -435,7 +442,9 @@ Only after MOC-1 through MOC-5 pass:
   this as a non-physical ``characteristic-caustic`` stop, so a numerical
   boundary cannot be mistaken for a physical plume termination.
   The bounded seed now supplies two one-sided ``C-`` states at that crossing;
-  the remaining Rankine--Hugoniot/new-family solve is still required.
+  the local Rankine--Hugoniot probe rejects both orientations (the forward
+  candidate has approximately ``-6.2%`` Mach and ``+32.8%`` static-pressure
+  residuals), so a coupled shock/new-family solve is still required.
 - The trace-extension reference uses a constant terminal boundary trace; it is
   useful for deterministic plumbing and refinement, but it is not the physical
   upstream characteristic strip.

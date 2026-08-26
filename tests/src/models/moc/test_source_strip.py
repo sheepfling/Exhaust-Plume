@@ -3,6 +3,7 @@ from __future__ import annotations
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput
 from exhaust_plume.models.moc import (
   MocChainTerminationReason,
+  MocCausticShockResolutionStatus,
   MocSourceStripCausticStatus,
   MocSourceStripCausticSeedStatus,
   MocSourceStripFrontierStatus,
@@ -10,6 +11,7 @@ from exhaust_plume.models.moc import (
   MocSourceStripContinuationStatus,
   extend_source_characteristic_strip_centerline_reflection,
   build_caustic_shock_seed,
+  resolve_caustic_shock_seed,
   solve_underexpanded_expansion_fan,
   solve_reflected_free_boundary,
 )
@@ -103,6 +105,19 @@ def test_centerline_reflection_extension_carries_a_physical_boundary_law() -> No
     assert len(seed.edge_states) == 2
     assert all(edge.family.value == 'C-' for edge in seed.edge_states)
     assert seed.flow_angle_jump_rad is not None and seed.flow_angle_jump_rad > 0.0
+    shock_resolution = resolve_caustic_shock_seed(seed)
+    assert shock_resolution.status is MocCausticShockResolutionStatus.NO_ENTROPY_ADMISSIBLE_CANDIDATE
+    assert shock_resolution.converged is False
+    assert shock_resolution.shock_state_solved is False
+    assert shock_resolution.physical_closure_verified is False
+    assert shock_resolution.chain_promotion_blocked is True
+    assert len(shock_resolution.candidates) == 2
+    assert shock_resolution.candidates[0].compression is not None
+    assert shock_resolution.candidates[0].compression.converged is True
+    assert shock_resolution.candidates[0].mach_residual_relative is not None
+    assert shock_resolution.candidates[0].mach_residual_relative < -0.06
+    assert shock_resolution.candidates[1].flow_turn_rad is not None
+    assert shock_resolution.candidates[1].flow_turn_rad < 0.0
     assert result.remesh.chain_termination_available is True
     termination = result.remesh.as_chain_termination_decision()
     assert termination.physical_termination is False

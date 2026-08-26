@@ -106,6 +106,13 @@ from exhaust_plume.models.moc.source_strip import (
   extend_source_characteristic_strip_centerline_reflection,
   extend_source_characteristic_strip_constant_k_plus,
 )
+from exhaust_plume.models.moc.caustic_shock import (
+  MocCausticShockCandidateStatus,
+  MocCausticShockResolutionStatus,
+  MocSourceStripCausticShockCandidateResult,
+  MocSourceStripCausticShockResolutionResult,
+  resolve_caustic_shock_seed,
+)
 from exhaust_plume.models.moc.coupled import (
   MocAmbientClosureResult,
   MocAmbientClosureStatus,
@@ -234,6 +241,10 @@ __all__ = (
   'MocSourceStripStatus',
   'MocSourceStripContinuationResult',
   'MocSourceStripContinuationStatus',
+  'MocCausticShockCandidateStatus',
+  'MocCausticShockResolutionStatus',
+  'MocSourceStripCausticShockCandidateResult',
+  'MocSourceStripCausticShockResolutionResult',
   'MocAmbientClosureResult',
   'MocAmbientClosureStatus',
   'MocInvariantClosureFamily',
@@ -312,6 +323,7 @@ __all__ = (
   'assemble_source_characteristic_strip',
   'assemble_source_characteristic_strip_window',
   'build_caustic_shock_seed',
+  'resolve_caustic_shock_seed',
   'probe_source_strip_frontier',
   'extend_source_characteristic_strip_constant_k_plus',
   'extend_source_characteristic_strip_centerline_reflection',
