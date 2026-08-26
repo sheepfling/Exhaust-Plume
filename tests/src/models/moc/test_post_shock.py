@@ -1,14 +1,30 @@
 from __future__ import annotations
 
+from math import cos, sin
+
 import pytest
 
 from exhaust_plume.models.moc import (
+  CharacteristicPointResult,
   CharacteristicState,
+  MocCharacteristicCell,
+  MocCharacteristicNode,
+  MocCellClosureStatus,
+  MocChainGeometryFidelity,
   MocPostShockBoundaryState,
+  MocPostShockClosureStatus,
+  MocPostShockCharacteristicZoneResult,
   MocPostShockFirstLayerStatus,
   MocPostShockContinuationStatus,
+  MocPostShockZoneStatus,
+  MocShockBoundaryFitStatus,
+  MocPrimitiveStatus,
+  assemble_post_shock_characteristic_zone,
   assemble_post_shock_first_layer,
   continue_post_shock_characteristics_to_centerline,
+  fit_attached_shock_boundary,
+  solve_attached_compression_to_turn,
+  validate_closed_post_shock_field,
 )
 
 
@@ -36,6 +52,103 @@ def _prescribed_boundary() -> tuple[MocPostShockBoundaryState, ...]:
   )
 
 
+def _fitted_attached_boundary() -> tuple[tuple[float, float], ...]:
+  compression = solve_attached_compression_to_turn(
+    upstream_mach=2.0,
+    gamma=1.4,
+    upstream_pressure_Pa=100000.0,
+    target_turn_rad=0.2,
+  )
+  assert compression.beta_rad is not None
+  shock_angle = -0.2 - compression.beta_rad
+  start = (0.5, 0.5)
+  step = 0.5 / (3.0 * abs(sin(shock_angle)))
+  return tuple(
+    (
+      start[0] + index * step * cos(shock_angle),
+      start[1] + index * step * sin(shock_angle),
+    )
+    for index in range(4)
+  )
+
+
+def _closed_post_shock_candidate():
+  points = _fitted_attached_boundary()
+  upstream_states = tuple(
+    CharacteristicState(
+      x_m=point[0],
+      y_m=point[1],
+      theta_rad=-0.2,
+      mach=2.0,
+      gamma=1.4,
+    )
+    for point in points
+  )
+  shock_fit = fit_attached_shock_boundary(
+    upstream_states,
+    (100000.0,) * 4,
+    points,
+    (0.0,) * 4,
+  )
+  continuation = continue_post_shock_characteristics_to_centerline(
+    shock_fit.boundary_states,
+  )
+  axis_points = tuple(segment.centerline_point_m for segment in continuation.segments)
+  cells = [
+    MocCharacteristicCell(
+      cell_index=index,
+      cell_kind='closed-post-shock-strip',
+      vertices_xr_m=(
+        points[index],
+        points[index + 1],
+        axis_points[index + 1],
+        axis_points[index],
+      ),
+      centerline_indices=(index, index + 1),
+      boundary_indices=(index, index + 1),
+    )
+    for index in range(2)
+  ]
+  cells.append(
+    MocCharacteristicCell(
+      cell_index=2,
+      cell_kind='closed-post-shock-terminal',
+      vertices_xr_m=(points[2], points[3], axis_points[2]),
+      centerline_indices=(2, 3),
+      boundary_indices=(2, 3),
+    )
+  )
+  states_by_point = {
+    sample.point_m: sample.state
+    for sample in shock_fit.boundary_states
+  }
+  states_by_point.update(
+    {
+      segment.centerline_point_m: segment.centerline_state
+      for segment in continuation.segments
+    }
+  )
+  nodes = tuple(
+    MocCharacteristicNode(
+      centerline_index=index,
+      boundary_index=index,
+      point_m=point,
+      state=state,
+      point_result=CharacteristicPointResult(
+        status=MocPrimitiveStatus.CONVERGED,
+        state=state,
+        point_m=point,
+        invariant_residual_plus=0.0,
+        invariant_residual_minus=0.0,
+        geometry_residual=0.0,
+        iterations=0,
+      ),
+    )
+    for index, (point, state) in enumerate(states_by_point.items())
+  )
+  return shock_fit, continuation, nodes, tuple(cells)
+
+
 def test_prescribed_post_shock_c_minus_traces_reach_centerline() -> None:
   result = continue_post_shock_characteristics_to_centerline(_prescribed_boundary())
 
@@ -51,6 +164,106 @@ def test_prescribed_post_shock_c_minus_traces_reach_centerline() -> None:
   assert 'shock fitting' in result.message
 
 
+def test_sampled_attached_shock_fit_produces_pressure_losing_boundary_states() -> None:
+  points = _fitted_attached_boundary()
+  upstream_states = tuple(
+    CharacteristicState(
+      x_m=point[0],
+      y_m=point[1],
+      theta_rad=-0.2,
+      mach=2.0,
+      gamma=1.4,
+    )
+    for point in points
+  )
+
+  result = fit_attached_shock_boundary(
+    upstream_states,
+    (100000.0,) * 4,
+    points,
+    (0.0,) * 4,
+  )
+
+  assert result.status is MocShockBoundaryFitStatus.CONVERGED_FITTED
+  assert result.converged
+  assert len(result.boundary_states) == 4
+  assert result.maximum_shock_angle_residual_rad is not None
+  assert result.maximum_shock_angle_residual_rad < 1.0e-10
+  assert all(
+    sample.downstream_total_pressure_Pa < sample.upstream_total_pressure_Pa
+    for sample in result.boundary_states
+  )
+  assert result.boundary_states[-1].point_m[1] == pytest.approx(0.0, abs=1.0e-12)
+
+
+def test_attached_shock_fit_rejects_a_tangent_mismatch() -> None:
+  points = list(_fitted_attached_boundary())
+  points[1] = (points[1][0], points[1][1] + 0.01)
+  upstream_states = tuple(
+    CharacteristicState(
+      x_m=point[0],
+      y_m=point[1],
+      theta_rad=-0.2,
+      mach=2.0,
+      gamma=1.4,
+    )
+    for point in points
+  )
+
+  result = fit_attached_shock_boundary(
+    upstream_states,
+    (100000.0,) * 4,
+    tuple(points),
+    (0.0,) * 4,
+  )
+
+  assert result.status is MocShockBoundaryFitStatus.GEOMETRY_FAILURE
+  assert not result.converged
+  assert 'tangent disagrees' in result.message
+
+
+def test_closed_post_shock_field_requires_explicit_boundary_edges() -> None:
+  shock_fit, continuation, nodes, cells = _closed_post_shock_candidate()
+
+  result = validate_closed_post_shock_field(
+    continuation,
+    shock_fit,
+    nodes,
+    cells,
+  )
+
+  assert result.status is MocPostShockClosureStatus.CONVERGED_CLOSED
+  assert result.converged
+  assert result.physical_closure_verified
+  assert result.topology.forms_closed_zone
+  assert result.pressure_loss_verified
+  chain_cell = result.as_chain_cell(start_x_m=0.5, end_x_m=1.2)
+  assert chain_cell.geometry_fidelity is MocChainGeometryFidelity.RESOLVED_PLANAR_MOC
+  assert chain_cell.physical_closure is MocCellClosureStatus.CLOSED
+  assert chain_cell.resolved
+
+
+def test_open_post_shock_zone_cannot_be_promoted_without_a_shock_edge() -> None:
+  shock_fit, continuation, _nodes, _cells = _closed_post_shock_candidate()
+  first_layer = assemble_post_shock_first_layer(continuation)
+  open_zone = assemble_post_shock_characteristic_zone(
+    continuation,
+    first_layer,
+    shock_fit.boundary_states,
+  )
+
+  result = validate_closed_post_shock_field(
+    continuation,
+    shock_fit,
+    open_zone.nodes,
+    open_zone.cells,
+  )
+
+  assert result.status is MocPostShockClosureStatus.GEOMETRY_FAILURE
+  assert not result.converged
+  assert 'shock boundary edge' in result.message
+
+
 def test_post_shock_first_downstream_cross_layer_is_explicitly_partial() -> None:
   continuation = continue_post_shock_characteristics_to_centerline(_prescribed_boundary())
 
@@ -64,6 +277,59 @@ def test_post_shock_first_downstream_cross_layer_is_explicitly_partial() -> None
   assert result.maximum_absolute_invariant_residual is not None
   assert result.maximum_absolute_invariant_residual < 1.0e-10
   assert 'physical closure remain pending' in result.message
+
+
+def test_post_shock_characteristic_zone_assembles_connected_open_field() -> None:
+  samples = _prescribed_boundary()
+  continuation = continue_post_shock_characteristics_to_centerline(samples)
+  first_layer = assemble_post_shock_first_layer(continuation)
+
+  result = assemble_post_shock_characteristic_zone(
+    continuation,
+    first_layer,
+    samples,
+  )
+
+  assert isinstance(result, MocPostShockCharacteristicZoneResult)
+  assert result.status is MocPostShockZoneStatus.CONVERGED_OPEN
+  assert result.converged
+  assert result.characteristic_count == 2
+  assert result.node_count == 6
+  assert result.cell_count == 5
+  assert result.topology.connected
+  assert result.topology.forms_closed_zone
+  assert result.topology.nonmanifold_edge_count == 0
+  assert result.physical_closure_status == 'open'
+  assert result.shock_closure_status == 'prescribed-boundary-first-layer'
+  assert result.pressure_loss_verified
+  assert result.minimum_post_shock_total_pressure_ratio == pytest.approx(0.9)
+  assert result.maximum_post_shock_total_pressure_ratio == pytest.approx(0.9)
+  assert 'fitted shock closure' in result.message
+
+
+def test_post_shock_zone_preserves_samplewise_total_pressure_ratios() -> None:
+  samples = tuple(
+    MocPostShockBoundaryState(
+      point_m=sample.point_m,
+      state=sample.state,
+      upstream_total_pressure_Pa=upstream,
+      downstream_total_pressure_Pa=downstream,
+    )
+    for sample, upstream, downstream in zip(
+      _prescribed_boundary(),
+      (2.0e6, 2.1e6, 2.0e6, 1.9e6),
+      (1.8e6, 1.7e6, 1.6e6, 1.5e6),
+      strict=True,
+    )
+  )
+  continuation = continue_post_shock_characteristics_to_centerline(samples)
+  first_layer = assemble_post_shock_first_layer(continuation)
+
+  result = assemble_post_shock_characteristic_zone(continuation, first_layer, samples)
+
+  assert result.status is MocPostShockZoneStatus.CONVERGED_OPEN
+  assert result.minimum_post_shock_total_pressure_ratio == pytest.approx(1.5 / 1.9)
+  assert result.maximum_post_shock_total_pressure_ratio == pytest.approx(0.9)
 
 
 def test_post_shock_continuation_requires_total_pressure_loss() -> None:

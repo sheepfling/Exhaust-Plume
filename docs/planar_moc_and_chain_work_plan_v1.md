@@ -11,7 +11,7 @@ reduced-order shock-train provider.
 | --- | --- | --- | --- |
 | `shock-cell-basic-v1` | fast, easy visual exploration | frozen compatibility-backed visual lane | do not change while MOC work proceeds |
 | `shock-train-reduced-order-v1` | bounded engineering-approximate continued chain | implemented with one resolved compatibility first cell plus scaled downstream cells | remains explicitly `scaled-reduced-order` |
-| `planar-moc-research-v2` | numerical planar characteristic research and future resolved first cell/chain | open fan/reflected lattice, prescribed post-shock traces, and first cross-characteristic layer | requires physical closure and independent validation |
+| `planar-moc-research-v2` | numerical planar characteristic research and future resolved first cell/chain | open fan/reflected lattice, sampled attached-shock fit, post-shock traces, first cross-characteristic layer, and a closed-field acceptance gate | requires a canonical solver-generated closed field and independent validation |
 | signature, ray, and focal-plane-array lanes | downstream measurement products | separate contracts and providers | consume only an accepted upstream field/operator |
 
 The MOC lane must never import a reduced-order cell and relabel it as a
@@ -23,6 +23,15 @@ not wait on this research closure.
 - Added a post-shock first downstream cross-characteristic layer. It checks
   forward geometry and both compatibility invariants while retaining the
   result as explicitly partial.
+- Added a sampled attached-shock boundary fit with branch checks, local tangent
+  residuals, downstream-state reconstruction, and sample-wise total-pressure
+  loss.
+- Added a closed post-shock field acceptance gate. It requires explicit shock
+  and centerline boundary edges, connected finite-cell topology, and converged
+  characteristic-node evidence; it does not synthesize missing cells.
+- Added the only permitted promotion path from a verified closed post-shock
+  field into a `RESOLVED_PLANAR_MOC` chain seed, retaining closure and residual
+  diagnostics.
 - Added an MOC chain continuation contract. It accepts only connected,
   topologically bounded meshes with explicit physical closure and resolved
   planar-MOC fidelity.
@@ -45,7 +54,8 @@ not wait on this research closure.
 3. Carry upstream and downstream total pressure at every shock sample.
 4. Fit the shock endpoint and require monotone, forward shock geometry.
 5. Keep a failed fit as a structured result; do not close the mesh with a
-   geometric line merely because its endpoints are finite.
+   geometric line merely because its endpoints are finite. The sampled fit
+   contract is implemented; the canonical free-boundary solver remains open.
 
 ### MOC-2 — Assemble the complete post-shock field
 
@@ -57,7 +67,9 @@ not wait on this research closure.
 4. Check invariant residuals, forward-ray margins, cell-area coverage, and
    total-pressure loss across the shock.
 5. Promote `physical_closure` only when all of those checks pass. A
-   topologically bounded open lattice is not sufficient.
+   topologically bounded open lattice is not sufficient. The explicit
+   closed-field gate is implemented; a solver-generated full candidate still
+   has to pass it.
 
 ### MOC-3 — Re-solved continued cells
 
@@ -75,6 +87,10 @@ solver:
 
 The existing reduced-order `solve_shock_train` remains the separate Level B
 implementation. It must not be used as this callback.
+
+The verified post-shock result exposes the only seed-promotion adapter for this
+lane. An open zone, prescribed-boundary diagnostic, or scaled reduced-order
+cell cannot use that adapter.
 
 ### MOC-4 — Refinement and numerical acceptance
 
@@ -121,10 +137,12 @@ Only after MOC-1 through MOC-5 pass:
 
 ## Current blockers
 
-- No accepted sampled shock-fitted downstream boundary is available in the
-  repository.
+- No canonical solver-generated shock-fitted downstream field is available in
+  the repository. The new sampled fit is a deterministic boundary contract,
+  not an accepted free-boundary solution.
 - The current prescribed post-shock data prove individual traces and one
-  cross-characteristic layer, but not a complete finite cell.
+  cross-characteristic layer. The closed-field gate is present, but no
+  production solver has yet supplied a full candidate that passes it.
 - The recovered validation archive is not a substitute for the missing
   provider-bound measurement/operator bindings.
 

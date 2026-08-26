@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from math import isfinite, log
+from math import cos, isfinite, log, sin
 from pathlib import Path
 import sys
 from typing import Any
@@ -16,6 +16,7 @@ if str(REPO_ROOT / 'src') not in sys.path:
 from exhaust_plume.models.moc import (  # noqa: E402
   CharacteristicFamily,
   CharacteristicState,
+  MocPostShockClosureStatus,
   MocPostShockBoundaryState,
   MocTopologyStatus,
   MocPrimitiveStatus,
@@ -27,13 +28,17 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_attached_compression_to_pressure,
   solve_attached_compression_to_turn,
   solve_attached_shock_to_centerline,
+  assemble_post_shock_characteristic_zone,
+  assemble_post_shock_first_layer,
   continue_post_shock_characteristics_to_centerline,
+  fit_attached_shock_boundary,
   solve_ambient_pressure_free_boundary,
   solve_ambient_pressure_free_boundary_point,
   solve_reflected_free_boundary,
   solve_overexpanded_lip_shock,
   solve_underexpanded_expansion_fan,
   validate_fan_reflected_interface,
+  validate_closed_post_shock_field,
   validate_moc_mesh,
 )
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput  # noqa: E402
@@ -86,6 +91,7 @@ def _refinement_diagnostic(
     'open_extent_x_m': 'decreasing',
     'candidate_shock_endpoint_x_m': 'decreasing',
   }
+
   metrics: dict[str, Any] = {}
   all_monotone = True
   all_orders_finite = True
@@ -115,6 +121,61 @@ def _refinement_diagnostic(
     'interpretation': 'open-lattice-only; physical first-cell closure remains pending',
     'metrics': metrics,
   }
+
+
+def _sampled_attached_shock_gate() -> tuple[Any, Any, Any]:
+  """Exercise the sampled shock-fit and open-field rejection gates."""
+
+  compression = solve_attached_compression_to_turn(
+    upstream_mach=2.0,
+    gamma=1.4,
+    upstream_pressure_Pa=100000.0,
+    target_turn_rad=0.2,
+  )
+  if compression.beta_rad is None:
+    raise RuntimeError('synthetic attached-shock validation could not obtain beta')
+  shock_angle = -0.2 - compression.beta_rad
+  start = (0.5, 0.5)
+  step = 0.5 / (3.0 * abs(sin(shock_angle)))
+  points = tuple(
+    (
+      start[0] + index * step * cos(shock_angle),
+      start[1] + index * step * sin(shock_angle),
+    )
+    for index in range(4)
+  )
+  upstream_states = tuple(
+    CharacteristicState(
+      x_m=point[0],
+      y_m=point[1],
+      theta_rad=-0.2,
+      mach=2.0,
+      gamma=1.4,
+    )
+    for point in points
+  )
+  shock_fit = fit_attached_shock_boundary(
+    upstream_states,
+    (100000.0,) * 4,
+    points,
+    (0.0,) * 4,
+  )
+  continuation = continue_post_shock_characteristics_to_centerline(
+    shock_fit.boundary_states,
+  )
+  first_layer = assemble_post_shock_first_layer(continuation)
+  open_zone = assemble_post_shock_characteristic_zone(
+    continuation,
+    first_layer,
+    shock_fit.boundary_states,
+  )
+  closed_gate = validate_closed_post_shock_field(
+    continuation,
+    shock_fit,
+    open_zone.nodes,
+    open_zone.cells,
+  )
+  return shock_fit, continuation, closed_gate
 
 
 def build_moc_primitive_report() -> dict[str, Any]:
@@ -244,6 +305,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
         downstream_total_pressure_Pa=shock_closure.compression.downstream_total_pressure_Pa,
       ),
     ))
+  sampled_shock_fit, sampled_continuation, sampled_closed_gate = _sampled_attached_shock_gate()
   overexpanded_exit = derive_uniform_nozzle_exit(
     NozzleExitInput(
       mach=2.0,
@@ -550,6 +612,35 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'shock_closure_status': reflected_zone.shock_closure_status,
       'message': reflected_zone.message,
     },
+    'sampled_attached_shock_fit': {
+      'status': sampled_shock_fit.status.value,
+      'sample_count': len(sampled_shock_fit.boundary_states),
+      'maximum_shock_angle_residual_rad': sampled_shock_fit.maximum_shock_angle_residual_rad,
+      'total_pressure_ratio_range': (
+        min(
+          sample.downstream_total_pressure_Pa / sample.upstream_total_pressure_Pa
+          for sample in sampled_shock_fit.boundary_states
+        )
+        if sampled_shock_fit.boundary_states
+        else None,
+        max(
+          sample.downstream_total_pressure_Pa / sample.upstream_total_pressure_Pa
+          for sample in sampled_shock_fit.boundary_states
+        )
+        if sampled_shock_fit.boundary_states
+        else None,
+      ),
+      'continuation_status': sampled_continuation.status.value,
+      'continuation_centerline_count': len(sampled_continuation.centerline_states),
+      'claim_status': 'sampled-boundary-contract-only',
+    },
+    'closed_post_shock_field_gate': {
+      'status': sampled_closed_gate.status.value,
+      'accepted': sampled_closed_gate.converged,
+      'topology_status': sampled_closed_gate.topology.status.value,
+      'message': sampled_closed_gate.message,
+      'claim_status': 'open-zone-rejection-exercised; canonical-full-field-pending',
+    },
     'fan_reflected_interface': {
       'status': fan_reflected_interface.status.value,
       'aligned': fan_reflected_interface.aligned,
@@ -687,6 +778,27 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'message': post_shock_continuation.message,
       }
     ] if post_shock_continuation is not None and not post_shock_continuation.converged else []),
+    *([
+      {
+        'case': 'sampled_attached_shock_fit',
+        'status': sampled_shock_fit.status.value,
+        'message': sampled_shock_fit.message,
+      }
+    ] if not sampled_shock_fit.converged else []),
+    *([
+      {
+        'case': 'sampled_attached_shock_continuation',
+        'status': sampled_continuation.status.value,
+        'message': sampled_continuation.message,
+      }
+    ] if not sampled_continuation.converged else []),
+    *([
+      {
+        'case': 'closed_post_shock_field_gate',
+        'status': sampled_closed_gate.status.value,
+        'message': sampled_closed_gate.message,
+      }
+    ] if sampled_closed_gate.status is not MocPostShockClosureStatus.GEOMETRY_FAILURE else []),
   ]
   ####
   return {
@@ -708,7 +820,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
     'failures': failures,
     'next_gates': [
       'physical free-boundary/compression geometry closure; pressure-state and open-mesh primitives remain insufficient',
-      'sampled shock-boundary state field, post-shock C+ interior continuation, and complete downstream bookkeeping',
+      'canonical solver-generated shock-boundary state field, post-shock C+ interior continuation, and complete downstream bookkeeping',
       'grid/refinement convergence for the assembled reflected zone and mild attached-overexpanded cases',
       'independent measurement-operator comparison before provider integration',
     ],

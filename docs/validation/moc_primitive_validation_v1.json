@@ -197,6 +197,25 @@
       "shock_closure_status": "not_assembled",
       "message": ""
     },
+    "sampled_attached_shock_fit": {
+      "status": "converged_fitted",
+      "sample_count": 4,
+      "maximum_shock_angle_residual_rad": 1.1102230246251565e-16,
+      "total_pressure_ratio_range": [
+        0.977473522728481,
+        0.977473522728481
+      ],
+      "continuation_status": "converged_prescribed_boundary",
+      "continuation_centerline_count": 4,
+      "claim_status": "sampled-boundary-contract-only"
+    },
+    "closed_post_shock_field_gate": {
+      "status": "geometry_failure",
+      "accepted": false,
+      "topology_status": "open",
+      "message": "candidate field is missing explicit shock boundary edge(s): [0, 1, 2]",
+      "claim_status": "open-zone-rejection-exercised; canonical-full-field-pending"
+    },
     "fan_reflected_interface": {
       "status": "aligned",
       "aligned": true,
@@ -347,7 +366,7 @@
   "failures": [],
   "next_gates": [
     "physical free-boundary/compression geometry closure; pressure-state and open-mesh primitives remain insufficient",
-    "sampled shock-boundary state field, post-shock C+ interior continuation, and complete downstream bookkeeping",
+    "canonical solver-generated shock-boundary state field, post-shock C+ interior continuation, and complete downstream bookkeeping",
     "grid/refinement convergence for the assembled reflected zone and mild attached-overexpanded cases",
     "independent measurement-operator comparison before provider integration"
   ]

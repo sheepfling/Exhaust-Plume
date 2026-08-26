@@ -12,7 +12,7 @@ applicability, validation evidence, and complexity ceiling.
 
 | Lane | Status | Current role | Allowed primary product | Explicit non-claims |
 | --- | --- | --- | --- | --- |
-| `planar-moc-primitives-v1` | foundation validated; provider pending | Standalone planar characteristic states, scalar inversions, compatibility residuals, pressure- and turn-prescribed attached compression, reflected centerline-to-free-boundary march, assembled open characteristic zone, boundary-side shock-to-centerline candidate, local ambient-pressure tangent segment, and open fan meshes | None yet; future MOC first-cell provider only after physical closure/post-shock bookkeeping/convergence gates | No public visual, signature, optical, detector, or FPA claim; no axisymmetric or reacting-flow claim |
+| `planar-moc-primitives-v1` | foundation validated; provider pending | Standalone planar characteristic states, scalar inversions, compatibility residuals, pressure- and turn-prescribed attached compression, sampled attached-shock fit, reflected centerline-to-free-boundary march, assembled open characteristic zone, post-shock traces/first layer, and a closed-field acceptance gate | None yet; future MOC first-cell provider only after a canonical physical closure, post-shock bookkeeping, convergence, and external validation gates | No public visual, signature, optical, detector, or FPA claim; no axisymmetric or reacting-flow claim |
 | `shock-cell-basic-v1` | active | Fast, steady, straight, low-order shock-cell construction | `plume.visual.sectioned-tube@1`; supporting spatial/engineering handoffs where explicitly advertised | No physical signature, ray transfer, detector image, mixing, chemistry, radiation, or curved/washed flow |
 | `shock-cell-reduced-order-v1` | experimental | One resolved first cell plus explicitly calibrated, scaled downstream shock-train continuation | `plume.visual.sectioned-tube@1` through `plume.shock-train-reduced-order` | No resolved downstream MOC claim, spectral signature, ray transfer, detector image, FPA, or unvalidated universal closure |
 | `signature-table-mvp-v1` | active | Independent unresolved spectral lookup | `plume.signature.spectral-radiant-intensity@1` | No solved flow, geometry reconstruction, atmosphere, optics, detector, or focal-plane array |
@@ -31,10 +31,13 @@ The first high-fidelity tranche is isolated in
 [`validation/moc_primitive_validation_v1.json`](validation/moc_primitive_validation_v1.json).
 Its 15 Mach/gamma round trips, interior and centerline compatibility fixtures,
 8-cell open underexpanded fan, pressure- and turn-prescribed attached
-compression, reflected centerline-to-free-boundary march, 44-cell connected
-open reflected characteristic zone, boundary-side shock-to-centerline
-candidate, mild-overexpanded lip-compression branch, local ambient-pressure
-tangent residual, and mesh topology checks pass with finite residuals. This is
+compression, sampled attached-shock fit, reflected centerline-to-free-boundary
+march, 44-cell connected open reflected characteristic zone, boundary-side
+shock-to-centerline candidate, post-shock first layer, mild-overexpanded
+lip-compression branch, local ambient-pressure tangent residual, and mesh
+topology checks pass with finite residuals. A separate closed-field gate now
+checks solver-supplied shock/axis edges and characteristic-node evidence, but
+no canonical full-field fixture has been accepted through it yet. This is
 numerical-foundation evidence, not a closed first-cell or product-provider
 result. The existing basic and
 reduced-order visual lanes remain unchanged until a separate MOC assembler

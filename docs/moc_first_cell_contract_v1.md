@@ -41,6 +41,11 @@ The implementation in `exhaust_plume.models.moc` currently provides:
 - a first downstream post-shock cross-characteristic layer from the continued
   centerline states and sampled shock states, with forward-margin and
   compatibility diagnostics while physical closure remains pending;
+- a sampled, branch-checked attached-shock fit that returns downstream states
+  and total-pressure loss at every shock sample;
+- a closed post-shock field acceptance gate that requires solver-supplied
+  converged nodes, explicit shock and centerline boundary edges, connected
+  topology, and strict pressure loss before producing a chain seed;
 - a separate MOC cell-chain continuation contract that rejects open cells,
   non-bounded meshes, axial gaps, and scaled reduced-order fidelity;
 - mesh connectivity diagnostics that distinguish a topologically bounded
@@ -63,13 +68,17 @@ total-pressure loss, but it remains only a boundary-side candidate; it does
 not prove that downstream characteristics or total-pressure bookkeeping close
 across the full plume cell. The prescribed-boundary continuation primitive now
 proves individual downstream `C-` traces when a sampled post-shock boundary is
-supplied. It deliberately does not fit the shock or synthesize the missing
-downstream `C+` interior field from the two-point candidate, so canonical
-first-cell closure remains open. The first downstream cross-characteristic
-layer is an explicit partial sub-gate, not a physical closure claim. The
-separate chain contract is an acceptance boundary for a future re-solved
-continuation callback; it is not a solver implementation and does not promote
-the reduced-order shock train.
+supplied. The sampled shock-fit primitive verifies an explicitly supplied
+attached-shock curve and carries sample-wise total-pressure loss, but it is
+still a boundary contract rather than a free-boundary finder. The first
+downstream cross-characteristic layer is an explicit partial sub-gate, not a
+physical closure claim. The closed-field gate refuses to synthesize missing
+cells: it promotes only a solver-supplied field whose shock and centerline
+edges are explicit and whose characteristic nodes carry converged
+compatibility evidence. Only that verified result can be adapted into a
+resolved planar-MOC chain seed. The separate chain contract is an acceptance
+boundary for a future re-solved continuation callback; it is not a solver
+implementation and does not promote the reduced-order shock train.
 No public provider is wired to these primitives yet. The module does not claim
 axisymmetric, reacting, viscous, or experimentally validated plume physics.
 
@@ -136,11 +145,10 @@ do not authorize replacing the basic provider or accepting a product claim.
 
 ## Next gates before provider integration
 
-1. Supply a sampled, shock-fitted downstream boundary and assemble/validate
-   the complete characteristic zones adjacent to the shock-to-centerline
-   candidate, including explicit post-shock total-pressure bookkeeping and
-   shock-endpoint topology. The current first cross-characteristic layer is
-   only the first numerical sub-gate.
+1. Produce a canonical, solver-generated shock-fitted downstream boundary and
+   candidate node/cell field that passes the closed-field acceptance gate. The
+   current sampled fit and first cross-characteristic layer are numerical
+   sub-gates, not a free-boundary first-cell solution.
 2. Demonstrate grid/refinement convergence for the assembled reflected and
    post-shock zones, underexpanded, and mild attached overexpanded reference
    cases.
