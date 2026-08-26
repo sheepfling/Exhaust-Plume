@@ -81,6 +81,8 @@ from exhaust_plume.models.moc.free_boundary import (
   solve_marched_attached_shock_chain_cell_or_termination,
   solve_marched_attached_shock_chain_cell_from_reflected_zone,
   solve_marched_attached_shock_chain_cell_from_reflected_zone_or_termination,
+  solve_marched_attached_shock_chain_cell_from_post_shock_field,
+  solve_marched_attached_shock_chain_cell_from_post_shock_field_or_termination,
   solve_uniform_attached_shock_field,
 )
 from exhaust_plume.models.moc.topology import (
@@ -233,6 +235,7 @@ from exhaust_plume.models.moc.planner import (
   MocPrescribedPostShockChainMock,
   plan_moc_chain,
   plan_post_shock_characteristic_chain,
+  plan_post_shock_field_chain,
   plan_prescribed_post_shock_chain_mock,
   plan_terminal_reflection_patch_chain,
 )
@@ -279,6 +282,7 @@ __all__ = (
   'MocPrescribedPostShockChainMock',
   'plan_moc_chain',
   'plan_post_shock_characteristic_chain',
+  'plan_post_shock_field_chain',
   'plan_prescribed_post_shock_chain_mock',
   'plan_terminal_reflection_patch_chain',
   'MocShockToCenterlineResult',
@@ -413,6 +417,8 @@ __all__ = (
   'solve_marched_attached_shock_chain_cell_or_termination',
   'solve_marched_attached_shock_chain_cell_from_reflected_zone',
   'solve_marched_attached_shock_chain_cell_from_reflected_zone_or_termination',
+  'solve_marched_attached_shock_chain_cell_from_post_shock_field',
+  'solve_marched_attached_shock_chain_cell_from_post_shock_field_or_termination',
   'solve_uniform_attached_shock_field',
   'assemble_reflected_characteristic_zone',
   'assemble_source_characteristic_strip',

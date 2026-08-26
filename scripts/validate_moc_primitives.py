@@ -35,6 +35,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocChainStatus,
   MocChainPlannerKind,
   plan_post_shock_characteristic_chain,
+  plan_post_shock_field_chain,
   plan_terminal_reflection_patch_chain,
   MocShockBoundaryFitResult,
   MocShockBoundaryFitStatus,
@@ -1437,6 +1438,34 @@ def _solver_generated_chain_reference(
   return planner.chain, observations, planner
 
 
+def _solver_generated_field_coupled_chain_planner(
+  seed_field: MocPostShockCharacteristicFieldResult,
+) -> Any:
+  """Exercise the planner whose next shock samples the solved prior field.
+
+  The start point and downstream turn law are deliberately explicit reference
+  conditions. The upstream state and pressure are no longer callbacks that
+  manufacture a uniform field: they are bounded samples from the completed
+  solver-generated post-shock lattice. A typed terminal is still expected
+  before this research planner can produce a second cell.
+  """
+
+  if not seed_field.converged or not seed_field.upstream_shock_coupling_verified:
+    return None
+  start_point = (0.92, 0.05)
+  return plan_post_shock_field_chain(
+    seed_field,
+    start_x_m=0.5,
+    end_x_m=0.9,
+    start_point_at=lambda _field, _current, _cell_index: start_point,
+    downstream_flow_angle_at=(
+      lambda _index, point: 0.12 * point[1] / start_point[1]
+    ),
+    sample_count=9,
+    position_tolerance_m=1.0e-8,
+  )
+
+
 def _solver_generated_chain_terminal_probe(
   seed_field: MocPostShockCharacteristicFieldResult,
 ) -> dict[str, Any]:
@@ -2479,6 +2508,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
   solver_generated_chain_reference = None
   solver_generated_chain_observations: list[dict[str, Any]] = []
   solver_generated_chain_planner = None
+  solver_generated_field_coupled_chain_planner = None
   if solver_generated_shock.field is not None and solver_generated_shock.field.converged:
     (
       solver_generated_chain_reference,
@@ -2486,6 +2516,9 @@ def build_moc_primitive_report() -> dict[str, Any]:
       solver_generated_chain_planner,
     ) = _solver_generated_chain_reference(
       solver_generated_shock.field,
+    )
+    solver_generated_field_coupled_chain_planner = (
+      _solver_generated_field_coupled_chain_planner(solver_generated_shock.field)
     )
   solver_generated_chain_terminal_probe = _solver_generated_chain_terminal_probe(
     solver_generated_shock.field
@@ -2585,6 +2618,11 @@ def build_moc_primitive_report() -> dict[str, Any]:
     if solver_generated_chain_planner is None
     else solver_generated_chain_planner.as_report()
   )
+  solver_generated_field_coupled_chain_planner_report = (
+    None
+    if solver_generated_field_coupled_chain_planner is None
+    else solver_generated_field_coupled_chain_planner.as_report()
+  )
   shock_cell_chain_mock_report = shock_cell_chain_mock.as_report()
   solver_generated_chain_pressure_lineage_ok = (
     solver_generated_chain_report is not None
@@ -2644,6 +2682,20 @@ def build_moc_primitive_report() -> dict[str, Any]:
   )
   solver_generated_chain_terminal_failure = (
     solver_generated_chain_terminal_probe.get('expected_physical_termination') is not True
+  )
+  solver_generated_field_coupled_chain_failure = (
+    solver_generated_field_coupled_chain_planner is None
+    or solver_generated_field_coupled_chain_planner.planner_kind is not MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
+    or not solver_generated_field_coupled_chain_planner.as_report()['planning_only']
+    or solver_generated_field_coupled_chain_planner.production_claim_allowed
+    or not solver_generated_field_coupled_chain_planner.chain.physical_termination
+    or not solver_generated_field_coupled_chain_planner.chain.resolved
+    or solver_generated_field_coupled_chain_planner.chain.cell_count != 1
+    or solver_generated_field_coupled_chain_planner.chain.termination_reason is not MocChainTerminationReason.PHYSICAL_TERMINATION
+    or len(solver_generated_field_coupled_chain_planner.steps) != 1
+    or solver_generated_field_coupled_chain_planner.steps[0].boundary_kind is not MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER
+    or solver_generated_field_coupled_chain_planner.chain.diagnostics.get('termination_model') != 'normal-shock-terminal'
+    or solver_generated_field_coupled_chain_planner.chain.diagnostics.get('upstream_field_model') != 'bounded-post-shock-characteristic-field'
   )
   mixed_regime_boundary_failure = (
     mixed_regime_boundary_probe.get('accepted') is not True
@@ -3287,6 +3339,72 @@ def build_moc_primitive_report() -> dict[str, Any]:
       **solver_generated_chain_terminal_probe,
       'accepted': not solver_generated_chain_terminal_failure,
     },
+    'solver_generated_field_coupled_chain_planner': {
+      'planner_kind': (
+        None
+        if solver_generated_field_coupled_chain_planner is None
+        else solver_generated_field_coupled_chain_planner.planner_kind.value
+      ),
+      'planning_only': (
+        None
+        if solver_generated_field_coupled_chain_planner_report is None
+        else solver_generated_field_coupled_chain_planner_report['planning_only']
+      ),
+      'production_claim_allowed': (
+        None
+        if solver_generated_field_coupled_chain_planner is None
+        else solver_generated_field_coupled_chain_planner.production_claim_allowed
+      ),
+      'planner_step_count': (
+        None
+        if solver_generated_field_coupled_chain_planner is None
+        else len(solver_generated_field_coupled_chain_planner.steps)
+      ),
+      'planner_steps': (
+        []
+        if solver_generated_field_coupled_chain_planner is None
+        else [
+          step.as_report()
+          for step in solver_generated_field_coupled_chain_planner.steps
+        ]
+      ),
+      'status': (
+        None
+        if solver_generated_field_coupled_chain_planner is None
+        else solver_generated_field_coupled_chain_planner.chain.status.value
+      ),
+      'termination_reason': (
+        None
+        if solver_generated_field_coupled_chain_planner is None
+        else solver_generated_field_coupled_chain_planner.chain.termination_reason.value
+      ),
+      'physical_termination': (
+        None
+        if solver_generated_field_coupled_chain_planner is None
+        else solver_generated_field_coupled_chain_planner.chain.physical_termination
+      ),
+      'cell_count': (
+        None
+        if solver_generated_field_coupled_chain_planner is None
+        else solver_generated_field_coupled_chain_planner.chain.cell_count
+      ),
+      'resolved': (
+        None
+        if solver_generated_field_coupled_chain_planner is None
+        else solver_generated_field_coupled_chain_planner.chain.resolved
+      ),
+      'chain_diagnostics': (
+        {}
+        if solver_generated_field_coupled_chain_planner is None
+        else dict(solver_generated_field_coupled_chain_planner.chain.diagnostics)
+      ),
+      'accepted': not solver_generated_field_coupled_chain_failure,
+      'claim_status': (
+        None
+        if solver_generated_field_coupled_chain_planner is None
+        else solver_generated_field_coupled_chain_planner.claim_status
+      ),
+    },
     'shock_seeded_post_shock_field': {
       'status': shock_seeded_field.status.value,
       'accepted': shock_seeded_field.converged,
@@ -3732,6 +3850,22 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'message': str(solver_generated_chain_terminal_probe.get('message', '')),
       }
     ] if solver_generated_chain_terminal_failure else []),
+    *([
+      {
+        'case': 'solver_generated_field_coupled_chain_planner',
+        'status': (
+          'missing'
+          if solver_generated_field_coupled_chain_planner is None
+          else solver_generated_field_coupled_chain_planner.chain.status.value
+        ),
+        'message': (
+          'solver-generated field-coupled planner did not reach its typed '
+          'normal-shock terminal with one resolved state-carrying seed cell'
+          if solver_generated_field_coupled_chain_planner is not None
+          else 'solver-generated field-coupled planner could not be constructed'
+        ),
+      }
+    ] if solver_generated_field_coupled_chain_failure else []),
     *([
       {
         'case': 'shock_cell_chain_planner_mock',

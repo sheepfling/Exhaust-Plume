@@ -18,6 +18,8 @@ from exhaust_plume.models.moc import (
   solve_reflected_boundary_trace_extension,
   solve_marched_attached_shock_chain_cell_from_reflected_zone,
   solve_marched_attached_shock_chain_cell_from_reflected_zone_or_termination,
+  solve_marched_attached_shock_chain_cell_from_post_shock_field,
+  solve_marched_attached_shock_chain_cell_from_post_shock_field_or_termination,
   solve_marched_attached_shock_chain_cell,
   solve_marched_attached_shock_chain_cell_or_termination,
   solve_marched_attached_shock_field,
@@ -28,6 +30,7 @@ from exhaust_plume.models.moc import (
   solve_marched_ambient_attachment_shock_cell_transition,
   solve_marched_attached_shock_with_ambient_pressure_closure_from_reflected_zone,
   continue_post_shock_characteristic_chain,
+  plan_post_shock_field_chain,
   solve_reflected_free_boundary,
   assemble_source_characteristic_strip,
   extend_source_characteristic_strip_constant_k_plus,
@@ -53,6 +56,129 @@ def _uniform_reference(sample_count: int):
     outer_downstream_flow_angle_rad=0.05,
     sample_count=sample_count,
   )
+
+
+def test_closed_post_shock_field_exposes_a_bounded_state_pressure_sampler() -> None:
+  result = _uniform_reference(9)
+  assert result.field is not None
+  field = result.field
+
+  for cell in field.cells:
+    centroid = tuple(
+      sum(point[index] for point in cell.vertices_xr_m) / len(cell.vertices_xr_m)
+      for index in (0, 1)
+    )
+    state = field.state_at(centroid)
+    pressure = field.static_pressure_at(centroid)
+    total_pressure = field.total_pressure_at(centroid)
+    assert state is not None
+    assert state.x_m == pytest.approx(centroid[0])
+    assert state.y_m == pytest.approx(centroid[1])
+    assert state.mach > 1.0
+    assert pressure is not None and pressure > 0.0
+    assert total_pressure is not None and total_pressure > 0.0
+
+  assert field.state_at((2.0, 0.2)) is None
+  assert field.total_pressure_at((2.0, 0.2)) is None
+  assert field.static_pressure_at((2.0, 0.2)) is None
+
+
+def test_field_coupled_next_shock_returns_a_typed_terminal_without_extrapolation() -> None:
+  result = _uniform_reference(17)
+  assert result.field is not None
+  current = result.field.as_coupled_chain_cell(start_x_m=0.5, end_x_m=0.9)
+  start = (0.92, 0.05)
+
+  decision = solve_marched_attached_shock_chain_cell_from_post_shock_field_or_termination(
+    current,
+    2,
+    current.continuation_boundary,
+    result.field,
+    start_point_m=start,
+    end_x_m=1.4,
+    downstream_flow_angle_at=lambda _index, point: 0.12 * point[1] / start[1],
+    sample_count=9,
+    position_tolerance_m=1.0e-8,
+  )
+
+  assert decision.physical_termination
+  assert decision.reason is MocChainTerminationReason.PHYSICAL_TERMINATION
+  assert decision.diagnostics['termination_model'] == 'normal-shock-terminal'
+  assert decision.diagnostics['upstream_field_model'] == (
+    'bounded-post-shock-characteristic-field'
+  )
+  assert decision.diagnostics['upstream_sample_count'] == 8
+
+  with pytest.raises(ValueError, match='verified subsonic normal shock'):
+    solve_marched_attached_shock_chain_cell_from_post_shock_field(
+      current,
+      2,
+      current.continuation_boundary,
+      result.field,
+      start_point_m=start,
+      end_x_m=1.4,
+      downstream_flow_angle_at=lambda _index, point: 0.12 * point[1] / start[1],
+      sample_count=9,
+      position_tolerance_m=1.0e-8,
+    )
+
+
+def test_field_coupled_next_shock_reports_the_prior_field_domain_boundary() -> None:
+  result = _uniform_reference(17)
+  assert result.field is not None
+  current = result.field.as_coupled_chain_cell(start_x_m=0.5, end_x_m=0.9)
+
+  decision = solve_marched_attached_shock_chain_cell_from_post_shock_field_or_termination(
+    current,
+    2,
+    current.continuation_boundary,
+    result.field,
+    start_point_m=(1.2, 0.1),
+    end_x_m=1.4,
+    downstream_flow_angle_rad=0.05,
+    sample_count=9,
+    position_tolerance_m=1.0e-8,
+  )
+
+  assert decision.physical_termination is False
+  assert decision.reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+  assert decision.diagnostics['termination_model'] == (
+    'bounded-post-shock-field-boundary'
+  )
+  assert decision.diagnostics['first_missing_sample_index'] == 0
+  assert decision.diagnostics['last_valid_point_m'] is None
+
+
+def test_field_coupled_planner_audits_the_resolved_field_handoff() -> None:
+  result = _uniform_reference(17)
+  assert result.field is not None
+  seen: list[tuple[bool, int, int]] = []
+  start = (0.92, 0.05)
+
+  def start_point_at(field, current, cell_index):
+    seen.append((field is result.field, current.cell_index, cell_index))
+    return start
+
+  planner = plan_post_shock_field_chain(
+    result.field,
+    start_x_m=0.5,
+    end_x_m=0.9,
+    start_point_at=start_point_at,
+    downstream_flow_angle_at=lambda _index, point: 0.12 * point[1] / start[1],
+    sample_count=9,
+    position_tolerance_m=1.0e-8,
+  )
+
+  assert planner.planner_kind.value == 'upstream-coupled-research'
+  assert planner.production_claim_allowed is False
+  assert planner.chain.physical_termination
+  assert planner.chain.cell_count == 1
+  assert len(planner.steps) == 1
+  assert planner.steps[0].boundary_kind.value == 'post-shock-field-perimeter'
+  assert planner.steps[0].incoming_handoff_sample_count == len(
+    result.field.continuation_boundary_states
+  )
+  assert seen == [(True, 1, 2)]
 
 
 def _reflected_boundary_reference():

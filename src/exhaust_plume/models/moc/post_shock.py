@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from math import atan2, isfinite, pi
+from math import atan2, hypot, isfinite, pi
 from typing import Any, Callable, Sequence
 
 from exhaust_plume.models.moc.primitives import (
@@ -21,6 +21,7 @@ from exhaust_plume.models.moc.primitives import (
   MocPrimitiveStatus,
   centerline_characteristic_point,
   interior_characteristic_point,
+  inverse_prandtl_meyer_angle_rad,
 )
 from exhaust_plume.models.moc.compression import solve_attached_compression_to_turn
 from exhaust_plume.models.moc.chain import (
@@ -447,6 +448,8 @@ class MocPostShockCharacteristicFieldResult:
   message: str = ''
   incoming_handoff_states: tuple[CharacteristicState, ...] = ()
   incoming_handoff_total_pressure_Pa: tuple[float, ...] = ()
+  shock_boundary_states: tuple[CharacteristicState, ...] = ()
+  shock_boundary_total_pressure_Pa: tuple[float, ...] = ()
 
   def __post_init__(self) -> None:
     if len(self.upstream_boundary_states) != len(self.upstream_boundary_total_pressure_Pa):
@@ -461,15 +464,30 @@ class MocPostShockCharacteristicFieldResult:
       raise ValueError(
         'incoming handoff states and total-pressure samples must have equal lengths'
       )
+    if len(self.shock_boundary_states) != len(self.shock_boundary_total_pressure_Pa):
+      raise ValueError(
+        'shock boundary states and total-pressure samples must have equal lengths'
+      )
     if any(not isinstance(state, CharacteristicState) for state in self.incoming_handoff_states):
       raise TypeError('incoming handoff states must be CharacteristicState values')
+    if any(not isinstance(state, CharacteristicState) for state in self.shock_boundary_states):
+      raise TypeError('shock boundary states must be CharacteristicState values')
     for name, pressures in (
       ('upstream_boundary_total_pressure_Pa', self.upstream_boundary_total_pressure_Pa),
       ('continuation_boundary_total_pressure_Pa', self.continuation_boundary_total_pressure_Pa),
       ('incoming_handoff_total_pressure_Pa', self.incoming_handoff_total_pressure_Pa),
+      ('shock_boundary_total_pressure_Pa', self.shock_boundary_total_pressure_Pa),
     ):
       if any(not isfinite(float(value)) or value <= 0.0 for value in pressures):
         raise ValueError(f'{name} must contain finite positive values')
+    if self.shock_boundary_states and len(self.shock_boundary_states) != len(self.shock_boundary_points_m):
+      raise ValueError(
+        'shock boundary states must match the shock boundary point count'
+      )
+    if self.shock_boundary_total_pressure_Pa and len(self.shock_boundary_total_pressure_Pa) != len(self.shock_boundary_points_m):
+      raise ValueError(
+        'shock boundary total pressures must match the shock boundary point count'
+      )
   ####
 
   @property
@@ -535,6 +553,179 @@ class MocPostShockCharacteristicFieldResult:
 
     return bool(self.incoming_handoff_states)
   ####
+
+  def state_at(
+    self,
+    point_m: tuple[float, float],
+    *,
+    position_tolerance_m: float = 1.0e-10,
+  ) -> CharacteristicState | None:
+    """Interpolate a supersonic state inside the solved post-shock field.
+
+    The field is a finite, closed characteristic mesh.  This sampler is
+    intentionally bounded to its supplied cells and never extrapolates past
+    the fitted shock or centerline boundary.  Interpolation is performed in
+    ``theta``/Prandtl--Meyer-angle space so the returned state stays on the
+    supersonic compatibility manifold.
+    """
+
+    samples = self._cell_samples(position_tolerance_m=position_tolerance_m)
+    point = _finite_interpolation_point(point_m, position_tolerance_m)
+    for vertices, states, _pressures in samples:
+      weights = _polygon_interpolation_weights(
+        point,
+        vertices,
+        tolerance_m=position_tolerance_m,
+      )
+      if weights is None:
+        continue
+      gamma = states[0].gamma
+      theta = sum(
+        weight * state.theta_rad
+        for weight, state in zip(weights, states, strict=True)
+      )
+      nu = sum(
+        weight * state.nu_rad
+        for weight, state in zip(weights, states, strict=True)
+      )
+      inverse = inverse_prandtl_meyer_angle_rad(nu, gamma)
+      if not inverse.converged or inverse.value is None:
+        return None
+      return CharacteristicState(
+        x_m=point[0],
+        y_m=point[1],
+        theta_rad=theta,
+        mach=inverse.value,
+        gamma=gamma,
+      )
+    return None
+  ####
+
+  def total_pressure_at(
+    self,
+    point_m: tuple[float, float],
+    *,
+    position_tolerance_m: float = 1.0e-10,
+  ) -> float | None:
+    """Interpolate carried total pressure inside the solved field."""
+
+    samples = self._cell_samples(position_tolerance_m=position_tolerance_m)
+    point = _finite_interpolation_point(point_m, position_tolerance_m)
+    for vertices, states, pressures in samples:
+      if any(pressure is None for pressure in pressures):
+        continue
+      weights = _polygon_interpolation_weights(
+        point,
+        vertices,
+        tolerance_m=position_tolerance_m,
+      )
+      if weights is None:
+        continue
+      return sum(
+        weight * pressure
+        for weight, pressure in zip(weights, pressures, strict=True)
+        if pressure is not None
+      )
+    return None
+  ####
+
+  def static_pressure_at(
+    self,
+    point_m: tuple[float, float],
+    *,
+    position_tolerance_m: float = 1.0e-10,
+  ) -> float | None:
+    """Return isentropic static pressure for a bounded field sample."""
+
+    state = self.state_at(point_m, position_tolerance_m=position_tolerance_m)
+    total_pressure = self.total_pressure_at(
+      point_m,
+      position_tolerance_m=position_tolerance_m,
+    )
+    if state is None or total_pressure is None:
+      return None
+    pressure_ratio = (
+      1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
+    ) ** (state.gamma / (state.gamma - 1.0))
+    return total_pressure / pressure_ratio
+  ####
+
+  def _cell_samples(
+    self,
+    *,
+    position_tolerance_m: float,
+  ) -> tuple[
+    tuple[
+      tuple[tuple[float, float], ...],
+      tuple[CharacteristicState, ...],
+      tuple[float | None, ...],
+    ],
+    ...,
+  ]:
+    """Resolve every field-cell vertex to a bounded state sample."""
+
+    if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
+      raise ValueError('position_tolerance_m must be finite and positive')
+    sources: list[tuple[tuple[float, float], CharacteristicState, float | None]] = []
+    sources.extend(
+      (
+        (state.x_m, state.y_m),
+        state,
+        pressure,
+      )
+      for state, pressure in zip(
+        self.shock_boundary_states,
+        self.shock_boundary_total_pressure_Pa,
+        strict=True,
+      )
+    )
+    sources.extend(
+      (
+        node.point_m,
+        node.state,
+        node.total_pressure_Pa,
+      )
+      for node in self.nodes
+    )
+    sources.extend(
+      (
+        (state.x_m, state.y_m),
+        state,
+        pressure,
+      )
+      for state, pressure in zip(
+        self.continuation_boundary_states,
+        self.continuation_boundary_total_pressure_Pa,
+        strict=True,
+      )
+    )
+
+    def resolve(point: tuple[float, float]) -> tuple[CharacteristicState, float | None] | None:
+      for source_point, state, pressure in sources:
+        if hypot(point[0] - source_point[0], point[1] - source_point[1]) <= position_tolerance_m:
+          return state, pressure
+      return None
+
+    resolved_cells: list[
+      tuple[
+        tuple[tuple[float, float], ...],
+        tuple[CharacteristicState, ...],
+        tuple[float | None, ...],
+      ]
+    ] = []
+    for cell in self.cells:
+      resolved = tuple(resolve(point) for point in cell.vertices_xr_m)
+      if any(value is None for value in resolved):
+        continue
+      samples = tuple(value for value in resolved if value is not None)
+      resolved_cells.append(
+        (
+          tuple(cell.vertices_xr_m),
+          tuple(value[0] for value in samples),
+          tuple(value[1] for value in samples),
+        )
+      )
+    return tuple(resolved_cells)
 
   def as_chain_cell(
     self,
@@ -1485,6 +1676,10 @@ def assemble_post_shock_characteristic_field(
     ),
     incoming_handoff_states=incoming_states,
     incoming_handoff_total_pressure_Pa=incoming_pressures,
+    shock_boundary_states=tuple(sample.state for sample in samples),
+    shock_boundary_total_pressure_Pa=tuple(
+      sample.downstream_total_pressure_Pa for sample in samples
+    ),
   )
 ####
 
@@ -1698,6 +1893,79 @@ def continue_post_shock_characteristic_chain(
       raise ValueError(f'next post-shock field could not become a chain cell: {error}') from error
 
   return continue_moc_cell_chain(seed_cell, solve_cell, policy)
+####
+
+
+def _finite_interpolation_point(
+  point_m: tuple[float, float],
+  position_tolerance_m: float,
+) -> tuple[float, float]:
+  if len(point_m) != 2 or not all(isfinite(float(value)) for value in point_m):
+    raise ValueError('point_m must contain two finite coordinates')
+  if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
+    raise ValueError('position_tolerance_m must be finite and positive')
+  return float(point_m[0]), float(point_m[1])
+####
+
+
+def _triangle_interpolation_weights(
+  point: tuple[float, float],
+  vertices: tuple[tuple[float, float], ...],
+  *,
+  tolerance_m: float,
+) -> tuple[float, ...] | None:
+  (ax, ay), (bx, by), (cx, cy) = vertices
+  denominator = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy)
+  if abs(denominator) <= max(tolerance_m * tolerance_m, 1.0e-24):
+    return None
+  px, py = point
+  first = ((by - cy) * (px - cx) + (cx - bx) * (py - cy)) / denominator
+  second = ((cy - ay) * (px - cx) + (ax - cx) * (py - cy)) / denominator
+  third = 1.0 - first - second
+  if min(first, second, third) < -1.0e-10 or max(first, second, third) > 1.0 + 1.0e-10:
+    return None
+  return first, second, third
+####
+
+
+def _polygon_interpolation_weights(
+  point: tuple[float, float],
+  vertices: tuple[tuple[float, ...], ...],
+  *,
+  tolerance_m: float,
+) -> tuple[float, ...] | None:
+  if len(vertices) == 3:
+    triangle = tuple((float(vertex[0]), float(vertex[1])) for vertex in vertices)
+    return _triangle_interpolation_weights(
+      point,
+      triangle,
+      tolerance_m=tolerance_m,
+    )
+  if len(vertices) != 4:
+    return None
+  first = _triangle_interpolation_weights(
+    point,
+    (
+      (float(vertices[0][0]), float(vertices[0][1])),
+      (float(vertices[1][0]), float(vertices[1][1])),
+      (float(vertices[2][0]), float(vertices[2][1])),
+    ),
+    tolerance_m=tolerance_m,
+  )
+  if first is not None:
+    return first[0], first[1], first[2], 0.0
+  second = _triangle_interpolation_weights(
+    point,
+    (
+      (float(vertices[0][0]), float(vertices[0][1])),
+      (float(vertices[2][0]), float(vertices[2][1])),
+      (float(vertices[3][0]), float(vertices[3][1])),
+    ),
+    tolerance_m=tolerance_m,
+  )
+  if second is not None:
+    return second[0], 0.0, second[1], second[2]
+  return None
 ####
 
 

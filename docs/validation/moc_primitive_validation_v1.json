@@ -5015,6 +5015,46 @@
       "claim_status": "solver-generated-continued-cell-to-typed-normal-shock-stop; mixed-regime-cell-promotion-pending",
       "accepted": true
     },
+    "solver_generated_field_coupled_chain_planner": {
+      "planner_kind": "upstream-coupled-research",
+      "planning_only": true,
+      "production_claim_allowed": false,
+      "planner_step_count": 1,
+      "planner_steps": [
+        {
+          "current_cell_index": 1,
+          "next_cell_index": 2,
+          "current_end_x_m": 0.9,
+          "boundary_kind": "post-shock-field-perimeter",
+          "incoming_handoff_sample_count": 18,
+          "incoming_total_pressure_range_Pa": [
+            749635.1347251647,
+            764819.179280032
+          ],
+          "incoming_handoff_fingerprint": "d0c3cfd5c26535d39ff1ee5d6c0ce16797ff445aaf2d3130e41244d662347b9b"
+        }
+      ],
+      "status": "physically-terminated",
+      "termination_reason": "physical-termination",
+      "physical_termination": true,
+      "cell_count": 1,
+      "resolved": true,
+      "chain_diagnostics": {
+        "termination_model": "normal-shock-terminal",
+        "upstream_field_model": "bounded-post-shock-characteristic-field",
+        "shock_point_m": [
+          0.9734163467337411,
+          0.0
+        ],
+        "downstream_mach": 0.6749290583810074,
+        "downstream_pressure_Pa": 504327.9553095104,
+        "total_pressure_ratio": 0.9029893158083261,
+        "upstream_sample_count": 8,
+        "next_cell_index": 2
+      },
+      "accepted": true,
+      "claim_status": "bounded-post-shock-field-coupled-planner; production-shock-boundary-and-external-validation-pending"
+    },
     "shock_seeded_post_shock_field": {
       "status": "converged_closed",
       "accepted": true,

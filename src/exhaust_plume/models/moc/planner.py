@@ -42,6 +42,9 @@ from exhaust_plume.models.moc.terminal_patch import MocTerminalReflectionPatchRe
 from exhaust_plume.models.moc.terminal_patch_solver import (
   solve_marched_attached_shock_chain_cell_from_terminal_reflection_patch_or_termination,
 )
+from exhaust_plume.models.moc.free_boundary import (
+  solve_marched_attached_shock_chain_cell_from_post_shock_field_or_termination,
+)
 from exhaust_plume.util.aero.shock_validity import ShockBranch
 
 __all__ = (
@@ -51,6 +54,7 @@ __all__ = (
   'MocPrescribedPostShockChainMock',
   'plan_moc_chain',
   'plan_post_shock_characteristic_chain',
+  'plan_post_shock_field_chain',
   'plan_prescribed_post_shock_chain_mock',
   'plan_terminal_reflection_patch_chain',
 )
@@ -648,6 +652,108 @@ def plan_post_shock_characteristic_chain(
       _default_claim_status(planner_kind)
       if claim_status is None
       else claim_status
+    ),
+  )
+####
+
+
+def plan_post_shock_field_chain(
+  seed: MocPostShockCharacteristicFieldResult,
+  *,
+  start_x_m: float,
+  end_x_m: float,
+  start_point_at: Callable[
+    [MocPostShockCharacteristicFieldResult, MocChainCell, int],
+    tuple[float, float],
+  ],
+  end_x_at: Callable[
+    [MocPostShockCharacteristicFieldResult, MocChainCell, int],
+    float,
+  ] | None = None,
+  target_centerline_y_m: float = 0.0,
+  downstream_flow_angle_at: Callable[[int, tuple[float, float]], float] | None = None,
+  downstream_flow_angle_rad: float | None = None,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  policy: MocChainContinuationPolicy | None = None,
+) -> MocChainPlannerResult:
+  """Plan a chain whose next shock consumes the prior solved field.
+
+  ``start_point_at`` chooses each new shock start from the current field and
+  cell.  The default endpoint advances by the initial seed-cell axial length;
+  ``end_x_at`` may supply a different solver-owned endpoint.  The prior field
+  is replaced only after a complete field-coupled next-cell solve returns, so
+  an upstream-domain miss or typed terminal cannot be converted into a
+  prescribed planner cell.
+
+  This is an upstream-coupled research planner.  It is not the prescribed
+  boundary mock and remains below the production claim ceiling until the
+  downstream boundary and external validation gates are complete.
+  """
+
+  if not isinstance(seed, MocPostShockCharacteristicFieldResult):
+    raise TypeError('seed must be a MocPostShockCharacteristicFieldResult')
+  if not callable(start_point_at):
+    raise TypeError('start_point_at must be callable')
+  if end_x_at is not None and not callable(end_x_at):
+    raise TypeError('end_x_at must be callable when supplied')
+  if (downstream_flow_angle_at is None) == (downstream_flow_angle_rad is None):
+    raise ValueError('supply exactly one downstream flow-angle provider')
+  if not isfinite(float(start_x_m)) or not isfinite(float(end_x_m)):
+    raise ValueError('start_x_m and end_x_m must be finite')
+  if end_x_m <= start_x_m:
+    raise ValueError('end_x_m must be strictly downstream of start_x_m')
+  cell_axial_length_m = float(end_x_m) - float(start_x_m)
+  current_field = seed
+
+  def solve_next(
+    current: MocChainCell,
+    next_cell_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+  ) -> MocPostShockChainCellSolve | MocChainTerminationDecision:
+    nonlocal current_field
+    start_point = start_point_at(current_field, current, next_cell_index)
+    next_end_x = (
+      end_x_at(current_field, current, next_cell_index)
+      if end_x_at is not None
+      else current.end_x_m + cell_axial_length_m
+    )
+    solved = solve_marched_attached_shock_chain_cell_from_post_shock_field_or_termination(
+      current,
+      next_cell_index,
+      incoming_handoff,
+      current_field,
+      start_point_m=start_point,
+      end_x_m=next_end_x,
+      target_centerline_y_m=target_centerline_y_m,
+      downstream_flow_angle_at=downstream_flow_angle_at,
+      downstream_flow_angle_rad=downstream_flow_angle_rad,
+      sample_count=sample_count,
+      branch=branch,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+      shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+      maximum_segment_iterations=maximum_segment_iterations,
+    )
+    if isinstance(solved, MocPostShockChainCellSolve):
+      current_field = solved.field
+    return solved
+
+  return plan_post_shock_characteristic_chain(
+    seed,
+    solve_next,
+    start_x_m=start_x_m,
+    end_x_m=end_x_m,
+    policy=policy,
+    require_upstream_shock_coupling=True,
+    planner_kind=MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH,
+    claim_status=(
+      'bounded-post-shock-field-coupled-planner; '
+      'production-shock-boundary-and-external-validation-pending'
     ),
   )
 ####

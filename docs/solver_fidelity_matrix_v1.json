@@ -18,7 +18,7 @@
         "mixing": "none",
         "thermochemistry": "not_solved",
         "radiation": "none",
-        "validation": "15 scalar cases, compatibility, an 8-cell open fan, attached/mild-overexpanded compression, reflected free-boundary march, boundary-side shock candidate, free-boundary residuals, and topology checks; physical first-cell closure and external comparison pending"
+        "validation": "15 scalar cases, compatibility, an 8-cell open fan, attached/mild-overexpanded compression, reflected free-boundary march, boundary-side shock candidate, bounded post-shock field sampling, field-coupled typed chain termination, free-boundary residuals, and topology checks; physical first-cell closure and external comparison pending"
       },
       "claim_ceiling": "Planar scalar/characteristic compatibility diagnostics only; no public visual, signature, optical, or FPA claim",
       "complexity_policy": "isolated high-fidelity foundation; cannot replace the basic solver before topology, convergence, and measurement gates pass"

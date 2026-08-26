@@ -60,6 +60,9 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   generated_chain = report['geometry_cases']['solver_generated_chain_reference']
   generated_chain_planner = report['geometry_cases']['solver_generated_chain_planner']
   generated_chain_terminal = report['geometry_cases']['solver_generated_chain_terminal_probe']
+  field_coupled_chain_planner = report['geometry_cases'][
+    'solver_generated_field_coupled_chain_planner'
+  ]
   source_strip = report['geometry_cases']['reflected_source_characteristic_strip']
   simple_wave_extension = report['geometry_cases']['reflected_source_strip_constant_k_plus_extension']
   centerline_reflection_extension = report['geometry_cases'][
@@ -113,6 +116,26 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert terminal_planner['planner_steps'][0]['boundary_kind'] == 'post-shock-field-perimeter'
   assert generated_chain_terminal['expected_physical_termination'] is True
   assert generated_chain_terminal['diagnostics']['termination_model'] == 'normal-shock-terminal'
+  assert field_coupled_chain_planner['accepted'] is True
+  assert field_coupled_chain_planner['planner_kind'] == 'upstream-coupled-research'
+  assert field_coupled_chain_planner['planning_only'] is True
+  assert field_coupled_chain_planner['production_claim_allowed'] is False
+  assert field_coupled_chain_planner['status'] == 'physically-terminated'
+  assert field_coupled_chain_planner['termination_reason'] == 'physical-termination'
+  assert field_coupled_chain_planner['physical_termination'] is True
+  assert field_coupled_chain_planner['cell_count'] == 1
+  assert field_coupled_chain_planner['resolved'] is True
+  assert field_coupled_chain_planner['planner_step_count'] == 1
+  assert field_coupled_chain_planner['planner_steps'][0]['boundary_kind'] == (
+    'post-shock-field-perimeter'
+  )
+  assert field_coupled_chain_planner['planner_steps'][0]['incoming_handoff_sample_count'] >= 3
+  assert field_coupled_chain_planner['chain_diagnostics']['termination_model'] == (
+    'normal-shock-terminal'
+  )
+  assert field_coupled_chain_planner['chain_diagnostics']['upstream_field_model'] == (
+    'bounded-post-shock-characteristic-field'
+  )
   assert reflected_chain_boundary['accepted'] is True
   assert reflected_chain_boundary['physical_termination'] is False
   assert reflected_chain_boundary['status'] == 'solver-terminated'

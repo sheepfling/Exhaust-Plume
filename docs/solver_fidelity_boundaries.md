@@ -135,6 +135,16 @@ characteristic zone, and records a typed subsonic centerline terminal. The
 downstream zone is still an open mixed-regime handoff; physical closure and
 chain promotion remain blocked until a subsonic field and complete perimeter
 are solved.
+The converged post-shock field now exposes bounded state, static-pressure, and
+total-pressure samplers backed by its solver-carried cell vertices and shock
+boundary. A separate field-coupled continued-cell adapter and planner uses
+those samples as the next shock's upstream field, preserves the exact prior
+perimeter handoff, and reports either a complete next field or a typed
+normal-shock/field-boundary stop. The canonical reference reaches the typed
+normal-shock stop without extrapolation; its downstream turn law remains
+caller-supplied and its planner is explicitly research-only, so this closes
+the upstream sampling seam without creating a production continued-cell
+provider.
 The seam's refinement probe reaches the same typed terminal at 5, 7, 9, and
 11 shock samples in both orientations, with open-zone cell counts 5, 14, 27,
 and 44 and decreasing shock-fit tangent residuals. The independent

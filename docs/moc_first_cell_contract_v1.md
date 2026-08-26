@@ -48,6 +48,14 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   explicit upstream-state/pressure callbacks;
 - a continued-cell adapter that passes a typed terminal-trace handoff into a
   new solver-generated shock field before returning a chain-cell solve result;
+- a bounded state, static-pressure, and total-pressure sampler on a converged
+  post-shock field. It interpolates only inside solver-carried characteristic
+  cells and exposes the shock-boundary state/pressure samples needed for the
+  next-cell upstream handoff;
+- a field-coupled continued-cell adapter and planner that consume those
+  bounded samples, preserve the exact prior perimeter, and return either a
+  complete next field or a typed normal-shock/field-boundary stop. The planner
+  remains a research lane with explicit caller-supplied downstream turning;
 - a domain-bounded reflected-zone state/pressure sampler that refuses to
   extrapolate once a candidate shock leaves the solved upstream lattice;
 - a typed reflected-zone shock-path coupling probe that records partial
@@ -202,6 +210,10 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   ``C-`` handoff and its typed normal-shock stop through the generic chain
   planner. It stops after that finite patch domain; later cells require a new
   upstream field and solver adapter;
+- a solver-generated field-coupled planner checkpoint that samples the prior
+  closed post-shock lattice for the next shock, reaches a typed normal-shock
+  terminal without extrapolation, and records the planner as
+  ``upstream-coupled-research`` with ``production_claim_allowed=false``;
 - mesh connectivity diagnostics that distinguish a topologically bounded
   polygon from an unresolved physical boundary;
 - a shared averaged-characteristic fan/reflected interface whose combined
@@ -258,6 +270,15 @@ solver-backed one-step handoff. It records the patch boundary kind and exact
 sample count before the adapter runs, and a second step cannot reuse the
 terminal patch outside its solved domain. Its typed normal-shock result is a
 physical chain stop, not a promoted subsonic cell.
+The completed post-shock field now also exposes bounded state, static-pressure,
+and total-pressure sampling at its cell vertices and shock boundary. The
+field-coupled continued-cell adapter feeds those samples into the marched
+next-shock solver, verifies the exact prior perimeter handoff, and returns a
+typed field-boundary or normal-shock stop without extrapolation. The reusable
+``plan_post_shock_field_chain`` wrapper updates its upstream field only after
+a complete next field is returned. Its canonical reference reaches a typed
+normal-shock stop after one seed cell, while its downstream turn condition and
+production validation remain explicitly pending.
 The constant-`K+` source-strip continuation is another upstream-only diagnostic
 fixture: in the canonical case it preserves an open 231-node/230-cell strip
 and advances the domain-bounded shock probe before stopping at the next
