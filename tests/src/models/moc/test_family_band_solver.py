@@ -1,14 +1,22 @@
 from __future__ import annotations
 
+import pytest
+
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput
 from exhaust_plume.models.moc import (
+  CharacteristicState,
   MocCausticFamilyBandShockStatus,
+  MocChainTerminationReason,
   build_caustic_shock_seed,
   extend_source_characteristic_strip_centerline_reflection,
+  plan_caustic_family_band_chain,
   restart_characteristic_family_from_caustic,
+  solve_marched_attached_shock_chain_cell_from_caustic_family_band,
+  solve_marched_attached_shock_chain_cell_from_caustic_family_band_or_termination,
   solve_marched_attached_shock_from_caustic_family_band,
   solve_reflected_free_boundary,
   solve_underexpanded_expansion_fan,
+  solve_uniform_attached_shock_field,
 )
 from exhaust_plume.models.nozzle.exit_state import (
   derive_ambient_state,
@@ -132,3 +140,78 @@ def test_caustic_band_shock_solver_does_not_extrapolate_outside_input_domain() -
   assert result.converged is False
   assert result.physical_closure_verified is False
   assert result.chain_promotion_blocked is True
+
+
+def test_caustic_band_chain_planner_carries_handoff_and_stops_at_open_mixed_regime() -> None:
+  exit_state, ambient, seed = _caustic_band_fixtures()
+  restart = restart_characteristic_family_from_caustic(
+    seed,
+    exit_state.total_pressure_Pa,
+    ambient.pressure_Pa,
+    sample_count=6,
+  )
+  assert restart.family_band is not None
+  band = restart.family_band
+  reference = solve_uniform_attached_shock_field(
+    CharacteristicState(.5, .5, -.2, 2.0, 1.4),
+    100000.0,
+    (.5, .5),
+    outer_downstream_flow_angle_rad=.05,
+    sample_count=17,
+  )
+  assert reference.field is not None
+  current = reference.field.as_coupled_chain_cell(
+    start_x_m=.2,
+    end_x_m=.8,
+  )
+  start = (
+    0.5 * (band.input_edge_points_m[0][0] + band.input_edge_points_m[1][0]),
+    0.5 * (band.input_edge_points_m[0][1] + band.input_edge_points_m[1][1]),
+  )
+
+  decision = solve_marched_attached_shock_chain_cell_from_caustic_family_band_or_termination(
+    current,
+    2,
+    current.continuation_boundary,
+    band,
+    start_point_m=start,
+    end_x_m=1.4,
+  )
+
+  assert decision.physical_termination is False
+  assert decision.reason is MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+  assert decision.diagnostics['upstream_field_model'] == (
+    'bounded-caustic-family-band'
+  )
+  assert decision.diagnostics['incoming_handoff_sample_count'] == len(
+    current.continuation_boundary
+  )
+  assert decision.diagnostics['physical_terminal_verified'] is True
+
+  planner = plan_caustic_family_band_chain(
+    current,
+    band,
+    start_point_m=start,
+    end_x_m=1.4,
+  )
+
+  assert planner.planner_kind.value == 'upstream-coupled-research'
+  assert planner.production_claim_allowed is False
+  assert planner.chain.status.value == 'solver-terminated'
+  assert planner.chain.termination_reason is MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+  assert planner.chain.cell_count == 1
+  assert len(planner.steps) == 1
+  assert planner.steps[0].incoming_handoff_sample_count == len(
+    current.continuation_boundary
+  )
+  assert planner.chain.diagnostics['post_shock_zone_converged'] is True
+
+  with pytest.raises(ValueError, match='mixed-regime closure'):
+    solve_marched_attached_shock_chain_cell_from_caustic_family_band(
+      current,
+      2,
+      current.continuation_boundary,
+      band,
+      start_point_m=start,
+      end_x_m=1.4,
+    )

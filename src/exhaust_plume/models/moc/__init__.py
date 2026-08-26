@@ -143,6 +143,8 @@ from exhaust_plume.models.moc.family_band_solver import (
   MocCausticFamilyBandShockResult,
   MocCausticFamilyBandShockStatus,
   solve_marched_attached_shock_from_caustic_family_band,
+  solve_marched_attached_shock_chain_cell_from_caustic_family_band,
+  solve_marched_attached_shock_chain_cell_from_caustic_family_band_or_termination,
 )
 from exhaust_plume.models.moc.coupled import (
   MocAmbientClosureResult,
@@ -238,6 +240,7 @@ from exhaust_plume.models.moc.planner import (
   plan_post_shock_field_chain,
   plan_prescribed_post_shock_chain_mock,
   plan_terminal_reflection_patch_chain,
+  plan_caustic_family_band_chain,
 )
 from exhaust_plume.models.moc.chain import (
   MocCellClosureStatus,
@@ -285,6 +288,7 @@ __all__ = (
   'plan_post_shock_field_chain',
   'plan_prescribed_post_shock_chain_mock',
   'plan_terminal_reflection_patch_chain',
+  'plan_caustic_family_band_chain',
   'MocShockToCenterlineResult',
   'MocTurnCompressionResult',
   'MocFreeBoundaryResult',
@@ -427,6 +431,8 @@ __all__ = (
   'resolve_caustic_shock_seed',
   'restart_characteristic_family_from_caustic',
   'solve_marched_attached_shock_from_caustic_family_band',
+  'solve_marched_attached_shock_chain_cell_from_caustic_family_band',
+  'solve_marched_attached_shock_chain_cell_from_caustic_family_band_or_termination',
   'probe_source_strip_frontier',
   'extend_source_characteristic_strip_constant_k_plus',
   'extend_source_characteristic_strip_centerline_reflection',

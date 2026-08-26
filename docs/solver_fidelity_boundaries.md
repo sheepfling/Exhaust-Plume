@@ -145,6 +145,12 @@ normal-shock stop without extrapolation; its downstream turn law remains
 caller-supplied and its planner is explicitly research-only, so this closes
 the upstream sampling seam without creating a production continued-cell
 provider.
+The caustic-family-band branch has the same hard ceiling through a separate
+one-step planner. It carries the exact prior post-shock perimeter into both
+canonical restarted-family orientations, solves a bounded next shock and open
+supersonic zone, and stops with ``OPEN_PHYSICAL_CLOSURE`` at the unresolved
+mixed-regime perimeter. Its planner is ``upstream-coupled-research`` only and
+never appends that open result as a resolved chain cell.
 The seam's refinement probe reaches the same typed terminal at 5, 7, 9, and
 11 shock samples in both orientations, with open-zone cell counts 5, 14, 27,
 and 44 and decreasing shock-fit tangent residuals. The independent

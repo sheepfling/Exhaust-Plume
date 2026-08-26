@@ -214,6 +214,10 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   closed post-shock lattice for the next shock, reaches a typed normal-shock
   terminal without extrapolation, and records the planner as
   ``upstream-coupled-research`` with ``production_claim_allowed=false``;
+- a caustic-family-band planner checkpoint that carries the exact prior
+  post-shock perimeter into a solver-generated open next-shock field in both
+  restart orientations, then returns a typed ``OPEN_PHYSICAL_CLOSURE`` stop
+  without appending that open result as a chain cell;
 - mesh connectivity diagnostics that distinguish a topologically bounded
   polygon from an unresolved physical boundary;
 - a shared averaged-characteristic fan/reflected interface whose combined
@@ -279,6 +283,12 @@ typed field-boundary or normal-shock stop without extrapolation. The reusable
 a complete next field is returned. Its canonical reference reaches a typed
 normal-shock stop after one seed cell, while its downstream turn condition and
 production validation remain explicitly pending.
+The caustic-family-band continuation is isolated as a separate one-step
+planner path: it carries the exact prior perimeter into the bounded restarted
+family, solves the next shock and open supersonic zone, and records the typed
+normal-shock terminal. Both canonical orientations end with
+``OPEN_PHYSICAL_CLOSURE``; the unresolved mixed-regime perimeter prevents
+chain-cell promotion and any later-cell reuse of that band.
 The constant-`K+` source-strip continuation is another upstream-only diagnostic
 fixture: in the canonical case it preserves an open 231-node/230-cell strip
 and advances the domain-bounded shock probe before stopping at the next

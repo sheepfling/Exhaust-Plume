@@ -94,6 +94,12 @@ not wait on this research closure.
   zone, and retains the typed subsonic normal-shock terminal. The zone remains
   a mixed-regime handoff with chain promotion blocked until the subsonic field
   and complete physical perimeter are solved.
+- Added a caustic-family-band continued-chain planner seam. It carries the
+  exact prior post-shock perimeter into the bounded band shock solve, records
+  the solver-generated open zone and terminal diagnostics, and stops with a
+  typed ``OPEN_PHYSICAL_CLOSURE`` decision after one attempted next cell. Both
+  canonical restart orientations pass this audit; neither is promoted as a
+  resolved chain cell.
 - Added caustic-band terminal refinement and independent measurement gates.
   Five, seven, nine, and eleven shock-march samples converge in both
   orientations with open-zone cell counts 5, 14, 27, and 44 and decreasing
@@ -484,6 +490,15 @@ adds a strict outer-perimeter pressure/tangency gate; its canonical result is
 therefore a bounded field/coupling failure and cannot be promoted into the
 continued chain.
 
+The caustic-family-band planner is a separate one-step research path for the
+new-family branch. It carries the current cell's exact post-shock perimeter,
+solves the next attached shock from the bounded band state/pressure field,
+and records the resulting open post-shock zone and normal-shock terminal.
+Because the mixed-regime perimeter is still unsolved, the planner returns
+``OPEN_PHYSICAL_CLOSURE`` with ``production_claim_allowed=false`` and refuses
+to append the open result. A later cell requires a new solved family or a
+closed downstream field.
+
 The bracketed ambient-attachment adapter removes one caller-supplied boundary
 coordinate: it solves the outer shock turn against the local post-shock
 static-pressure/ambient condition before generating the physical shock/ambient
@@ -665,9 +680,11 @@ Only after MOC-1 through MOC-5 pass:
   ten-step two-triangle-per-step open band. Its original triangular cross-ray assembly
   still fails at the first non-forward node, and the band has no shock or
   entropy closure; a physically fitted shock must still bridge the caustic
-  before upstream coupling is complete. A bounded shock probe can consume the
-  band samples through a typed subsonic terminal, but it does not create a
-  post-shock field or promote a chain cell.
+  before upstream coupling is complete. The bounded band shock seam now
+  consumes the band samples through a solver-generated open post-shock zone
+  and typed subsonic terminal, and the one-step chain planner carries the exact
+  prior perimeter into that solve. It still returns a non-physical
+  ``OPEN_PHYSICAL_CLOSURE`` stop and does not promote a chain cell.
 - The selected seed-to-band anchor is now checked exactly and a family-band
   assembly failure propagates to the parent restart status. The resulting
   chain decision remains a non-physical characteristic-caustic stop until an

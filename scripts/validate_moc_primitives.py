@@ -34,6 +34,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocChainTerminationReason,
   MocChainStatus,
   MocChainPlannerKind,
+  plan_caustic_family_band_chain,
   plan_post_shock_characteristic_chain,
   plan_post_shock_field_chain,
   plan_terminal_reflection_patch_chain,
@@ -1848,6 +1849,128 @@ def _caustic_family_band_terminal_field_probe(
   }
 
 
+def _caustic_family_band_chain_planner_probe(
+  seed: Any,
+  total_pressure_Pa: float,
+  ambient_pressure_Pa: float,
+  current_field: MocPostShockCharacteristicFieldResult | None,
+) -> dict[str, Any]:
+  """Audit the caustic-band handoff through the one-step chain planner."""
+
+  if seed is None:
+    return {
+      'status': 'missing_seed',
+      'accepted': False,
+      'cases': [],
+      'claim_status': 'caustic-family-band-chain-planner-pending',
+    }
+  if (
+    current_field is None
+    or not current_field.converged
+    or not current_field.upstream_shock_coupling_verified
+  ):
+    return {
+      'status': 'invalid_current_field',
+      'accepted': False,
+      'cases': [],
+      'claim_status': 'caustic-family-band-chain-planner-pending',
+      'message': (
+        'caustic-family band chain planner requires a converged current field '
+        'with upstream shock coupling'
+      ),
+    }
+  try:
+    current = current_field.as_coupled_chain_cell(
+      start_x_m=0.2,
+      end_x_m=0.8,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return {
+      'status': 'invalid_current_cell',
+      'accepted': False,
+      'cases': [],
+      'claim_status': 'caustic-family-band-chain-planner-pending',
+      'message': f'current solver field could not seed the chain: {error}',
+    }
+
+  cases: list[dict[str, Any]] = []
+  for anchor_edge_index in (0, 1):
+    restart = restart_characteristic_family_from_caustic(
+      seed,
+      total_pressure_Pa,
+      ambient_pressure_Pa,
+      anchor_edge_index=anchor_edge_index,
+      sample_count=6,
+    )
+    band = restart.family_band
+    if band is None or not band.converged or len(band.boundary_states) < 3:
+      cases.append({
+        'anchor_edge_index': anchor_edge_index,
+        'accepted': False,
+        'status': 'missing_open_family_band',
+        'planner': None,
+      })
+      continue
+    start_point = (
+      0.5 * (band.input_edge_points_m[0][0] + band.input_edge_points_m[1][0]),
+      0.5 * (band.input_edge_points_m[0][1] + band.input_edge_points_m[1][1]),
+    )
+    try:
+      planner = plan_caustic_family_band_chain(
+        current,
+        band,
+        start_point_m=start_point,
+        end_x_m=1.4,
+        sample_count=9,
+      )
+      report = planner.as_report()
+      chain = report['chain']
+      steps = report['steps']
+      diagnostics = chain['diagnostics']
+      accepted = (
+        report['planner_kind'] == MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH.value
+        and report['planning_only'] is True
+        and report['production_claim_allowed'] is False
+        and report['step_count'] == 1
+        and chain['status'] == MocChainStatus.SOLVER_TERMINATED.value
+        and chain['termination_reason'] == MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE.value
+        and chain['physical_termination'] is False
+        and chain['cell_count'] == 1
+        and chain['resolved'] is True
+        and len(steps) == 1
+        and steps[0]['incoming_handoff_sample_count'] == len(
+          current.continuation_boundary
+        )
+        and diagnostics['upstream_field_model'] == 'bounded-caustic-family-band'
+        and diagnostics['upstream_shock_coupling_verified'] is True
+        and diagnostics['physical_terminal_verified'] is True
+        and diagnostics['post_shock_zone_converged'] is True
+      )
+      cases.append({
+        'anchor_edge_index': anchor_edge_index,
+        'start_point_m': start_point,
+        'accepted': accepted,
+        'planner': report,
+      })
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      cases.append({
+        'anchor_edge_index': anchor_edge_index,
+        'start_point_m': start_point,
+        'accepted': False,
+        'planner': None,
+        'message': f'caustic-band chain planner raised: {error}',
+      })
+  return {
+    'status': 'diagnostic-caustic-band-next-shock-planner',
+    'accepted': all(case['accepted'] is True for case in cases),
+    'cases': cases,
+    'claim_status': (
+      'solver-generated-caustic-band-next-shock-handoff; '
+      'open-mixed-regime-closure-and-chain-promotion-pending'
+    ),
+  }
+
+
 def _caustic_family_band_terminal_refinement_probe(
   seed: Any,
   total_pressure_Pa: float,
@@ -2486,6 +2609,12 @@ def build_moc_primitive_report() -> dict[str, Any]:
   )
   shock_seeded_refinement_probe = _shock_seeded_field_refinement_probe()
   solver_generated_shock = _solver_generated_shock_fixture()
+  caustic_family_band_chain_planner = _caustic_family_band_chain_planner_probe(
+    caustic_shock_seed,
+    fan_exit.total_pressure_Pa,
+    fan_ambient.pressure_Pa,
+    solver_generated_shock.field,
+  )
   reflected_zone_chain_boundary_probe = _reflected_zone_chain_boundary_probe(
     reflected_zone,
     solver_generated_shock.field,
@@ -2733,6 +2862,9 @@ def build_moc_primitive_report() -> dict[str, Any]:
   )
   caustic_family_band_shock_failure = (
     caustic_family_band_shock.get('accepted') is not True
+  )
+  caustic_family_band_chain_planner_failure = (
+    caustic_family_band_chain_planner.get('accepted') is not True
   )
   overexpanded_exit = derive_uniform_nozzle_exit(
     NozzleExitInput(
@@ -3111,6 +3243,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'caustic_family_restart': caustic_family_restart,
       'caustic_family_band_shock': caustic_family_band_shock,
       'caustic_family_band_terminal_field': caustic_family_band_terminal_field,
+      'caustic_family_band_chain_planner': caustic_family_band_chain_planner,
       'caustic_family_band_terminal_refinement': caustic_family_band_terminal_refinement,
       'caustic_family_band_terminal_measurement': caustic_family_band_terminal_measurement,
       'claim_status': (
@@ -3827,6 +3960,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'message': str(caustic_family_band_shock.get('message', '')),
       }
     ] if caustic_family_band_shock_failure else []),
+    *([
+      {
+        'case': 'caustic_family_band_chain_planner',
+        'status': str(caustic_family_band_chain_planner.get('status', 'missing')),
+        'message': str(caustic_family_band_chain_planner.get('message', '')),
+      }
+    ] if caustic_family_band_chain_planner_failure else []),
     *([
       {
         'case': 'solver_generated_chain_reference',

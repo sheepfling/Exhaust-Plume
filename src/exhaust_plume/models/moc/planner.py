@@ -27,6 +27,7 @@ from exhaust_plume.models.moc.chain import (
   MocCellContinuationSolver,
   continue_moc_cell_chain,
 )
+from exhaust_plume.models.moc.caustic_restart import MocCausticFamilyBandResult
 from exhaust_plume.models.moc.post_shock import (
   MocPostShockBoundaryState,
   MocPostShockChainCellSolve,
@@ -45,6 +46,9 @@ from exhaust_plume.models.moc.terminal_patch_solver import (
 from exhaust_plume.models.moc.free_boundary import (
   solve_marched_attached_shock_chain_cell_from_post_shock_field_or_termination,
 )
+from exhaust_plume.models.moc.family_band_solver import (
+  solve_marched_attached_shock_chain_cell_from_caustic_family_band_or_termination,
+)
 from exhaust_plume.util.aero.shock_validity import ShockBranch
 
 __all__ = (
@@ -57,6 +61,7 @@ __all__ = (
   'plan_post_shock_field_chain',
   'plan_prescribed_post_shock_chain_mock',
   'plan_terminal_reflection_patch_chain',
+  'plan_caustic_family_band_chain',
 )
 
 
@@ -595,6 +600,93 @@ def plan_terminal_reflection_patch_chain(
     claim_status=(
       'terminal-reflection-patch-planner-handoff; '
       'one-step-domain; mixed-regime-or-new-field-continuation-pending'
+    ),
+  )
+
+
+def plan_caustic_family_band_chain(
+  seed: MocChainCell,
+  band: MocCausticFamilyBandResult,
+  *,
+  start_point_m: tuple[float, float],
+  end_x_m: float,
+  target_centerline_y_m: float = 0.0,
+  sample_count: int = 9,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  shock_angle_tolerance_rad: float = 0.1,
+  maximum_segment_iterations: int = 24,
+  policy: MocChainContinuationPolicy | None = None,
+) -> MocChainPlannerResult:
+  """Plan one caustic-band-to-shock handoff through the chain audit.
+
+  The caustic band is a finite upstream field for one next-shock solve.  Its
+  current solver result ends at an open mixed-regime boundary, so a successful
+  attempt produces an explicit non-physical ``OPEN_PHYSICAL_CLOSURE`` stop.
+  The planner never reuses that band for a second cell and never promotes the
+  open terminal field as a resolved chain cell.
+  """
+
+  if not isinstance(band, MocCausticFamilyBandResult):
+    raise TypeError('band must be a MocCausticFamilyBandResult')
+  attempted = False
+
+  def solve_next(
+    current: MocChainCell,
+    next_cell_index: int,
+  ) -> MocChainCell | MocChainTerminationDecision:
+    nonlocal attempted
+    if attempted:
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
+        message=(
+          'caustic-family band planner completed its one-step upstream '
+          'domain; a later cell requires a new family or post-shock field'
+        ),
+        diagnostics={
+          'termination_model': 'caustic-family-band-one-step-domain',
+          'next_cell_index': next_cell_index,
+        },
+      )
+    attempted = True
+    solved = solve_marched_attached_shock_chain_cell_from_caustic_family_band_or_termination(
+      current,
+      next_cell_index,
+      current.continuation_boundary,
+      band,
+      start_point_m=start_point_m,
+      end_x_m=end_x_m,
+      target_centerline_y_m=target_centerline_y_m,
+      sample_count=sample_count,
+      branch=branch,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+      shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+      maximum_segment_iterations=maximum_segment_iterations,
+    )
+    if isinstance(solved, MocChainTerminationDecision):
+      return solved
+    return solved.field.as_coupled_chain_cell(
+      start_x_m=current.end_x_m,
+      end_x_m=solved.end_x_m,
+      cell_index=next_cell_index,
+    )
+
+  effective_policy = policy
+  if effective_policy is None:
+    effective_policy = MocChainContinuationPolicy(require_state_carry=True)
+  elif not effective_policy.require_state_carry:
+    effective_policy = replace(effective_policy, require_state_carry=True)
+  return plan_moc_chain(
+    seed,
+    solve_next,
+    policy=effective_policy,
+    planner_kind=MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH,
+    claim_status=(
+      'caustic-family-band-next-shock-planner; '
+      'open-mixed-regime-closure-and-external-validation-pending'
     ),
   )
 ####

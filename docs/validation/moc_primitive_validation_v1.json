@@ -1582,6 +1582,8 @@
                 "maximum_geometry_residual_m": 6.5052130349130266e-18,
                 "maximum_absolute_invariant_residual": 1.7138512831138542e-12
               },
+              "incoming_handoff_sample_count": 0,
+              "incoming_handoff_total_pressure_range_Pa": null,
               "terminal_normal_shock": {
                 "status": "converged",
                 "converged": true,
@@ -1740,6 +1742,8 @@
                 "maximum_geometry_residual_m": 5.421010862427522e-18,
                 "maximum_absolute_invariant_residual": 1.6976420269543269e-12
               },
+              "incoming_handoff_sample_count": 0,
+              "incoming_handoff_total_pressure_range_Pa": null,
               "terminal_normal_shock": {
                 "status": "converged",
                 "converged": true,
@@ -1815,6 +1819,155 @@
           }
         ],
         "claim_status": "solver-generated-open-post-shock-zone-and-typed-normal-shock-terminal; mixed-regime-closure-and-chain-promotion-pending"
+      },
+      "caustic_family_band_chain_planner": {
+        "status": "diagnostic-caustic-band-next-shock-planner",
+        "accepted": true,
+        "cases": [
+          {
+            "anchor_edge_index": 0,
+            "start_point_m": [
+              0.9074022400998616,
+              0.018023309500579187
+            ],
+            "accepted": true,
+            "planner": {
+              "planner_kind": "upstream-coupled-research",
+              "planning_only": true,
+              "production_claim_allowed": false,
+              "claim_status": "caustic-family-band-next-shock-planner; open-mixed-regime-closure-and-external-validation-pending",
+              "step_count": 1,
+              "steps": [
+                {
+                  "current_cell_index": 1,
+                  "next_cell_index": 2,
+                  "current_end_x_m": 0.8,
+                  "boundary_kind": "post-shock-field-perimeter",
+                  "incoming_handoff_sample_count": 18,
+                  "incoming_total_pressure_range_Pa": [
+                    749635.1347251647,
+                    764819.179280032
+                  ],
+                  "incoming_handoff_fingerprint": "d0c3cfd5c26535d39ff1ee5d6c0ce16797ff445aaf2d3130e41244d662347b9b"
+                }
+              ],
+              "chain": {
+                "status": "solver-terminated",
+                "termination_reason": "open-physical-closure",
+                "physical_termination": false,
+                "cell_count": 1,
+                "end_x_m": 0.8,
+                "resolved": true,
+                "state_carry_count": 1,
+                "continuation_boundary_kinds": [
+                  "post-shock-field-perimeter"
+                ],
+                "continuation_total_pressure_ranges_Pa": [
+                  {
+                    "cell_index": 1,
+                    "minimum_Pa": 749635.1347251647,
+                    "maximum_Pa": 764819.179280032
+                  }
+                ],
+                "continuation_boundary_maxima_nonincreasing": null,
+                "geometry_fidelity_counts": {
+                  "resolved-planar-moc": 1
+                },
+                "diagnostics": {
+                  "termination_model": "caustic-band-open-terminal-field",
+                  "physical_terminal_verified": true,
+                  "shock_sample_count": 8,
+                  "terminal_shock_point_m": [
+                    0.9436765952998805,
+                    0.0
+                  ],
+                  "terminal_downstream_mach": 0.5072250845389011,
+                  "post_shock_zone_cell_count": 27,
+                  "post_shock_zone_topology_forms_closed_zone": true,
+                  "upstream_field_model": "bounded-caustic-family-band",
+                  "incoming_handoff_sample_count": 18,
+                  "next_cell_index": 2,
+                  "post_shock_zone_converged": true,
+                  "upstream_shock_coupling_verified": true
+                },
+                "message": "caustic-family band fed a solver-generated next shock and open post-shock field; mixed-regime closure remains an explicit fidelity boundary and the open result was not promoted"
+              },
+              "diagnostics": {}
+            }
+          },
+          {
+            "anchor_edge_index": 1,
+            "start_point_m": [
+              0.9321326029775965,
+              0.014956576361320353
+            ],
+            "accepted": true,
+            "planner": {
+              "planner_kind": "upstream-coupled-research",
+              "planning_only": true,
+              "production_claim_allowed": false,
+              "claim_status": "caustic-family-band-next-shock-planner; open-mixed-regime-closure-and-external-validation-pending",
+              "step_count": 1,
+              "steps": [
+                {
+                  "current_cell_index": 1,
+                  "next_cell_index": 2,
+                  "current_end_x_m": 0.8,
+                  "boundary_kind": "post-shock-field-perimeter",
+                  "incoming_handoff_sample_count": 18,
+                  "incoming_total_pressure_range_Pa": [
+                    749635.1347251647,
+                    764819.179280032
+                  ],
+                  "incoming_handoff_fingerprint": "d0c3cfd5c26535d39ff1ee5d6c0ce16797ff445aaf2d3130e41244d662347b9b"
+                }
+              ],
+              "chain": {
+                "status": "solver-terminated",
+                "termination_reason": "open-physical-closure",
+                "physical_termination": false,
+                "cell_count": 1,
+                "end_x_m": 0.8,
+                "resolved": true,
+                "state_carry_count": 1,
+                "continuation_boundary_kinds": [
+                  "post-shock-field-perimeter"
+                ],
+                "continuation_total_pressure_ranges_Pa": [
+                  {
+                    "cell_index": 1,
+                    "minimum_Pa": 749635.1347251647,
+                    "maximum_Pa": 764819.179280032
+                  }
+                ],
+                "continuation_boundary_maxima_nonincreasing": null,
+                "geometry_fidelity_counts": {
+                  "resolved-planar-moc": 1
+                },
+                "diagnostics": {
+                  "termination_model": "caustic-band-open-terminal-field",
+                  "physical_terminal_verified": true,
+                  "shock_sample_count": 8,
+                  "terminal_shock_point_m": [
+                    0.9606507344792572,
+                    0.0
+                  ],
+                  "terminal_downstream_mach": 0.5085045560063801,
+                  "post_shock_zone_cell_count": 27,
+                  "post_shock_zone_topology_forms_closed_zone": true,
+                  "upstream_field_model": "bounded-caustic-family-band",
+                  "incoming_handoff_sample_count": 18,
+                  "next_cell_index": 2,
+                  "post_shock_zone_converged": true,
+                  "upstream_shock_coupling_verified": true
+                },
+                "message": "caustic-family band fed a solver-generated next shock and open post-shock field; mixed-regime closure remains an explicit fidelity boundary and the open result was not promoted"
+              },
+              "diagnostics": {}
+            }
+          }
+        ],
+        "claim_status": "solver-generated-caustic-band-next-shock-handoff; open-mixed-regime-closure-and-chain-promotion-pending"
       },
       "caustic_family_band_terminal_refinement": {
         "status": "diagnostic-caustic-band-terminal-refinement",
