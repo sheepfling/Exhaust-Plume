@@ -53,6 +53,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_terminal_compression_candidate,
   assemble_terminal_trace_centerline_patch,
   assemble_first_cell_composite,
+  assemble_first_cell_terminal_shock_field,
   solve_marched_attached_shock_from_terminal_reflection_patch,
   solve_marched_attached_shock_from_caustic_family_band,
   solve_normal_shock_terminal,
@@ -396,6 +397,7 @@ def _ambient_shock_strip_probe(
   terminal_patch_chain_planner = None
   first_cell_composite = None
   first_cell_composite_measurement = None
+  first_cell_terminal_closure = None
   if terminal_patch.converged:
     terminal_patch_shock_probe = solve_marched_attached_shock_from_terminal_reflection_patch(
       terminal_patch,
@@ -512,8 +514,15 @@ def _ambient_shock_strip_probe(
               sample.downstream_total_pressure_Pa
               for sample in shock_fit.boundary_states
             ),
+            )
           )
-        )
+        if terminal_patch_shock_probe is not None:
+          first_cell_terminal_closure = assemble_first_cell_terminal_shock_field(
+            first_cell_composite,
+            terminal_patch_shock_probe,
+            position_tolerance_m=1.0e-10,
+            mesh_vertex_tolerance_m=1.0e-9,
+          )
   accepted = (
     strip.status is MocAmbientShockStripStatus.CONVERGED_OPEN
     and strip.topology.forms_closed_zone
@@ -552,6 +561,11 @@ def _ambient_shock_strip_probe(
           else first_cell_composite_measurement.as_report()
         ),
       }
+    ),
+    'first_cell_terminal_closure': (
+      None
+      if first_cell_terminal_closure is None
+      else first_cell_terminal_closure.as_report()
     ),
     'terminal_trace_acceptance_tolerance_m': 2.0e-4,
     'message': strip.message,
@@ -829,6 +843,7 @@ def _terminal_reflection_patch_refinement_probe() -> list[dict[str, Any]]:
     shock_probe = None
     first_cell_composite = None
     first_cell_measurement = None
+    first_cell_terminal_closure = None
     if patch.converged:
       shock_probe = solve_marched_attached_shock_from_terminal_reflection_patch(
         patch,
@@ -858,6 +873,13 @@ def _terminal_reflection_patch_refinement_probe() -> list[dict[str, Any]]:
             ),
           )
         )
+        if shock_probe is not None:
+          first_cell_terminal_closure = assemble_first_cell_terminal_shock_field(
+            first_cell_composite,
+            shock_probe,
+            position_tolerance_m=1.0e-10,
+            mesh_vertex_tolerance_m=1.0e-9,
+          )
     input_trace = patch.input_trace_validation
     output_trace = patch.outgoing_trace_validation
     probe.append({
@@ -917,6 +939,47 @@ def _terminal_reflection_patch_refinement_probe() -> list[dict[str, Any]]:
       ),
       'first_cell_composite_measurement': (
         None if first_cell_measurement is None else first_cell_measurement.as_report()
+      ),
+      'first_cell_terminal_closure_status': (
+        None
+        if first_cell_terminal_closure is None
+        else first_cell_terminal_closure.status.value
+      ),
+      'first_cell_terminal_closure_converged': (
+        None
+        if first_cell_terminal_closure is None
+        else first_cell_terminal_closure.converged
+      ),
+      'first_cell_terminal_closure_supersonic_region_closed': (
+        None
+        if first_cell_terminal_closure is None
+        else first_cell_terminal_closure.supersonic_region_closed
+      ),
+      'first_cell_terminal_closure_mixed_regime_field_complete': (
+        None
+        if first_cell_terminal_closure is None
+        else first_cell_terminal_closure.mixed_regime_field_complete
+      ),
+      'first_cell_terminal_closure_physical_closure_verified': (
+        None
+        if first_cell_terminal_closure is None
+        else first_cell_terminal_closure.physical_closure_verified
+      ),
+      'first_cell_terminal_closure_chain_promotion_blocked': (
+        None
+        if first_cell_terminal_closure is None
+        else first_cell_terminal_closure.chain_promotion_blocked
+      ),
+      'first_cell_terminal_closure_physical_termination_verified': (
+        None
+        if first_cell_terminal_closure is None
+        else first_cell_terminal_closure.physical_termination_verified
+      ),
+      'first_cell_terminal_closure_terminal_shock_boundary_coverage_verified': (
+        None
+        if first_cell_terminal_closure is None
+        or first_cell_terminal_closure.terminal_field is None
+        else first_cell_terminal_closure.terminal_field.terminal_shock_boundary_coverage_verified
       ),
     })
   return probe
@@ -2849,6 +2912,9 @@ def build_moc_primitive_report() -> dict[str, Any]:
   first_cell_composite_probe = ambient_shock_strip_probe.get(
     'first_cell_composite',
   )
+  first_cell_terminal_closure_probe = ambient_shock_strip_probe.get(
+    'first_cell_terminal_closure',
+  )
   first_cell_composite_failure = (
     not isinstance(first_cell_composite_probe, dict)
     or first_cell_composite_probe.get('status')
@@ -2857,6 +2923,31 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or first_cell_composite_probe.get('physical_boundary_conditions_verified') is not True
     or first_cell_composite_probe.get('physical_closure_verified') is not False
     or first_cell_composite_probe.get('chain_promotion_blocked') is not True
+  )
+  first_cell_terminal_closure_failure = (
+    not isinstance(first_cell_terminal_closure_probe, dict)
+    or first_cell_terminal_closure_probe.get('status')
+    != 'converged_first_cell_supersonic_region'
+    or first_cell_terminal_closure_probe.get('converged') is not True
+    or first_cell_terminal_closure_probe.get('supersonic_region_closed') is not True
+    or first_cell_terminal_closure_probe.get('physical_closure_verified') is not False
+    or first_cell_terminal_closure_probe.get('mixed_regime_field_complete') is not False
+    or first_cell_terminal_closure_probe.get('chain_promotion_blocked') is not True
+    or first_cell_terminal_closure_probe.get('physical_termination_verified') is not False
+    or not isinstance(
+      first_cell_terminal_closure_probe.get('downstream_shock'),
+      dict,
+    )
+    or first_cell_terminal_closure_probe['downstream_shock'].get(
+      'physical_terminal_verified'
+    ) is not True
+    or not isinstance(
+      first_cell_terminal_closure_probe.get('terminal_field'),
+      dict,
+    )
+    or first_cell_terminal_closure_probe['terminal_field'].get(
+      'terminal_shock_boundary_coverage_verified'
+    ) is not True
   )
   caustic_family_restart_failure = (
     caustic_family_restart.get('accepted') is not True
@@ -3354,6 +3445,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
     'solver_generated_ambient_shock_strip': ambient_shock_strip_probe,
     'solver_generated_terminal_patch_chain_probe': terminal_patch_chain_probe,
     'solver_generated_first_cell_composite': first_cell_composite_probe,
+    'solver_generated_first_cell_terminal_closure': first_cell_terminal_closure_probe,
     'ambient_attachment_closure_probe': ambient_attachment_closure_probe,
     'ambient_attachment_transition_probe': ambient_attachment_transition_probe,
     'solver_generated_shock_refinement': {
@@ -3891,6 +3983,22 @@ def build_moc_primitive_report() -> dict[str, Any]:
         ),
       }
     ] if first_cell_composite_failure else []),
+    *([
+      {
+        'case': 'solver_generated_first_cell_terminal_closure',
+        'status': (
+          'missing'
+          if not isinstance(first_cell_terminal_closure_probe, dict)
+          else str(first_cell_terminal_closure_probe.get('status', 'missing'))
+        ),
+        'message': (
+          'first-cell terminal shock adapter did not close the supersonic '
+          'region from the exact outgoing handoff'
+          if not isinstance(first_cell_terminal_closure_probe, dict)
+          else str(first_cell_terminal_closure_probe.get('message', ''))
+        ),
+      }
+    ] if first_cell_terminal_closure_failure else []),
     *([
       {
         'case': 'ambient_attachment_closure_probe',

@@ -277,6 +277,13 @@ not wait on this research closure.
   subsonic normal-shock endpoint remains a scalar terminal result rather than
   being forced into ``CharacteristicState``; this is a boundary handoff for a
   future mixed-regime solve, not a completed downstream field.
+- Added a first-cell-owned terminal closure bridge. It consumes the composite's
+  exact outgoing ``C-`` handoff, fits the solver-generated terminal shock, and
+  closes the supersonic side of the first cell without importing synthetic
+  geometry. Its result is explicitly ``converged_first_cell_supersonic_region``:
+  the mixed-regime perimeter remains separate, so physical closure and chain
+  promotion stay blocked. The canonical and 9/17/33-sample refinement probes
+  now exercise this bridge independently.
 - Added an explicit open downstream supersonic patch at that handoff. Each
   oblique post-shock state is continued on a compatible ``C-`` trace to the
   centerline, then the first ``C+``/``C-`` cross-layer and its 119-cell open

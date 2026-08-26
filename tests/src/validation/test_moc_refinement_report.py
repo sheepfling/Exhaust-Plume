@@ -295,6 +295,22 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert first_cell['chain_termination_decision']['diagnostics']['termination_model'] == (
     'first-cell-open-physical-closure'
   )
+  first_cell_terminal_closure = ambient_strip['first_cell_terminal_closure']
+  assert first_cell_terminal_closure['status'] == (
+    'converged_first_cell_supersonic_region'
+  )
+  assert first_cell_terminal_closure['converged'] is True
+  assert first_cell_terminal_closure['supersonic_region_closed'] is True
+  assert first_cell_terminal_closure['mixed_regime_field_complete'] is False
+  assert first_cell_terminal_closure['physical_closure_verified'] is False
+  assert first_cell_terminal_closure['chain_promotion_blocked'] is True
+  assert first_cell_terminal_closure['physical_termination_verified'] is False
+  assert first_cell_terminal_closure['downstream_shock']['physical_terminal_verified'] is True
+  assert first_cell_terminal_closure['terminal_field']['status'] == (
+    'converged_closed_supersonic_terminal_region'
+  )
+  assert first_cell_terminal_closure['terminal_field']['terminal_shock_boundary_coverage_verified'] is True
+  assert first_cell_terminal_closure['terminal_field']['terminal_shock_boundary_sample_count'] == 18
   terminal_patch_refinement = report['geometry_cases']['terminal_reflection_patch_refinement']
   assert terminal_patch_refinement['status'] == (
     'diagnostic-terminal-patch-resolutions-reach-mixed-regime-gate'
@@ -305,6 +321,16 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
     and case['shock_probe_status'] == 'subsonic_terminal_required'
     and case['shock_probe_coupling_sampled_count'] == case['shock_probe_sample_count']
     and case['physical_closure_verified'] is False
+    and case['first_cell_terminal_closure_status'] == (
+      'converged_first_cell_supersonic_region'
+    )
+    and case['first_cell_terminal_closure_converged'] is True
+    and case['first_cell_terminal_closure_supersonic_region_closed'] is True
+    and case['first_cell_terminal_closure_mixed_regime_field_complete'] is False
+    and case['first_cell_terminal_closure_physical_closure_verified'] is False
+    and case['first_cell_terminal_closure_chain_promotion_blocked'] is True
+    and case['first_cell_terminal_closure_physical_termination_verified'] is False
+    and case['first_cell_terminal_closure_terminal_shock_boundary_coverage_verified'] is True
     for case in terminal_patch_refinement['cases']
   )
   axis_end_x = [case['axis_end_m'][0] for case in terminal_patch_refinement['cases']]

@@ -208,6 +208,12 @@ from exhaust_plume.models.moc.shock_chain import (
   MocShockCellTransitionResult,
   solve_marched_ambient_attachment_shock_cell_transition,
 )
+from exhaust_plume.models.moc.first_cell_closure import (
+  MocFirstCellTerminalClosureStatus,
+  MocFirstCellTerminalClosureResult,
+  assemble_first_cell_terminal_shock_field,
+  solve_marched_first_cell_terminal_closure,
+)
 from exhaust_plume.models.moc.post_shock import (
   MocPostShockBoundaryState,
   MocPostShockCharacteristicSegment,
@@ -369,6 +375,10 @@ __all__ = (
   'MocShockCellTransitionStatus',
   'MocShockCellTransitionResult',
   'solve_marched_ambient_attachment_shock_cell_transition',
+  'MocFirstCellTerminalClosureStatus',
+  'MocFirstCellTerminalClosureResult',
+  'assemble_first_cell_terminal_shock_field',
+  'solve_marched_first_cell_terminal_closure',
   'MocPostShockBoundaryState',
   'MocPostShockCharacteristicSegment',
   'MocPostShockContinuationResult',

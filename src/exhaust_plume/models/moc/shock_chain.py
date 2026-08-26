@@ -322,6 +322,14 @@ class MocTerminalShockCellFieldResult:
       raise ValueError('a mixed-regime field requires the verified normal-shock terminal')
     if mixed_regime_field.boundary.terminal != self.terminal_normal_shock:
       raise ValueError('mixed-regime field terminal does not match the terminal composite')
+    if (
+      mixed_regime_field.boundary.supersonic_patch_sample_count
+      != len(self.terminal_shock_supersonic_downstream_states)
+    ):
+      raise ValueError(
+        'mixed-regime field does not retain the complete supersonic terminal '
+        'patch sample count'
+      )
     return replace(self, mixed_regime_field=mixed_regime_field)
 
   def as_physical_termination_decision(self) -> MocChainTerminationDecision:

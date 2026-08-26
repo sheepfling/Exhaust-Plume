@@ -5,10 +5,14 @@ from dataclasses import replace
 from exhaust_plume.models.moc import (
   CharacteristicState,
   MocFirstCellCompositeStatus,
+  MocFirstCellTerminalClosureStatus,
+  MocChainTerminationReason,
   assemble_ambient_shock_characteristic_strip,
+  assemble_first_cell_terminal_shock_field,
   assemble_first_cell_composite,
   assemble_terminal_trace_centerline_patch,
   march_post_shock_ambient_boundary,
+  solve_marched_first_cell_terminal_closure,
   solve_marched_attached_shock_field,
 )
 from exhaust_plume.validation.moc_measurements import (
@@ -129,3 +133,67 @@ def test_first_cell_composite_rejects_a_changed_shared_terminal_trace() -> None:
   assert result.status is MocFirstCellCompositeStatus.SEAM_FAILURE
   assert not result.converged
   assert 'terminal C+ trace' in result.message
+
+
+def test_first_cell_terminal_closure_fits_a_shock_from_the_exact_outgoing_trace() -> None:
+  shock_fit, strip, patch = _first_cell_inputs()
+  composite = assemble_first_cell_composite(
+    shock_fit,
+    strip,
+    patch,
+    position_tolerance_m=1.0e-3,
+  )
+
+  result = solve_marched_first_cell_terminal_closure(
+    composite,
+    downstream_flow_angle_rad=0.0,
+    sample_count=17,
+    shock_position_tolerance_m=2.0e-4,
+  )
+
+  assert result.status is MocFirstCellTerminalClosureStatus.CONVERGED_SUPERSONIC_REGION
+  assert result.converged
+  assert result.supersonic_region_closed
+  assert result.physical_closure_verified is False
+  assert result.mixed_regime_field_complete is False
+  assert result.chain_promotion_blocked
+  assert result.downstream_shock is not None
+  assert result.downstream_shock.physical_terminal_verified
+  assert result.downstream_shock.incoming_handoff == composite.continuation_boundary
+  assert result.terminal_field is not None
+  assert result.terminal_field.converged
+  assert result.terminal_field.initial_shock_boundary_points_m == (
+    composite.shock_boundary_points_m
+  )
+  assert result.terminal_field.terminal_shock_boundary_coverage_verified
+
+  decision = result.as_chain_termination_decision()
+  assert decision.physical_termination is False
+  assert decision.reason is MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+  request = result.mixed_regime_perimeter_request()
+  assert request.perimeter_supplied is False
+  assert request.open_supersonic_zone_is_a_perimeter is False
+
+
+def test_first_cell_terminal_closure_rejects_a_changed_outgoing_handoff() -> None:
+  shock_fit, strip, patch = _first_cell_inputs()
+  composite = assemble_first_cell_composite(
+    shock_fit,
+    strip,
+    patch,
+    position_tolerance_m=1.0e-3,
+  )
+  solved = solve_marched_first_cell_terminal_closure(
+    composite,
+    downstream_flow_angle_rad=0.0,
+    sample_count=17,
+    shock_position_tolerance_m=2.0e-4,
+  )
+  assert solved.downstream_shock is not None
+
+  changed = replace(solved.downstream_shock, incoming_handoff=())
+  result = assemble_first_cell_terminal_shock_field(composite, changed)
+
+  assert result.status is MocFirstCellTerminalClosureStatus.SEAM_FAILURE
+  assert not result.converged
+  assert 'exact first-cell outgoing' in result.message

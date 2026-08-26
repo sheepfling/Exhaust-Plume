@@ -1580,7 +1580,10 @@
                 "physical_closure_status": "open",
                 "shock_closure_status": "prescribed-boundary-first-layer",
                 "maximum_geometry_residual_m": 6.5052130349130266e-18,
-                "maximum_absolute_invariant_residual": 1.7138512831138542e-12
+                "maximum_absolute_invariant_residual": 1.7138512831138542e-12,
+                "state_sampling_available": true,
+                "shock_boundary_sample_count": 8,
+                "axis_boundary_sample_count": 7
               },
               "incoming_handoff_sample_count": 0,
               "incoming_handoff_total_pressure_range_Pa": null,
@@ -1740,7 +1743,10 @@
                 "physical_closure_status": "open",
                 "shock_closure_status": "prescribed-boundary-first-layer",
                 "maximum_geometry_residual_m": 5.421010862427522e-18,
-                "maximum_absolute_invariant_residual": 1.6976420269543269e-12
+                "maximum_absolute_invariant_residual": 1.6976420269543269e-12,
+                "state_sampling_available": true,
+                "shock_boundary_sample_count": 8,
+                "axis_boundary_sample_count": 7
               },
               "incoming_handoff_sample_count": 0,
               "incoming_handoff_total_pressure_range_Pa": null,
@@ -3061,6 +3067,385 @@
           "message": "shock-cell geometry and explicit perimeter topology measured; external comparison and physical-closure acceptance remain separate gates"
         }
       },
+      "first_cell_terminal_closure": {
+        "status": "converged_first_cell_supersonic_region",
+        "converged": true,
+        "supersonic_region_closed": true,
+        "mixed_regime_field_complete": false,
+        "physical_closure_verified": false,
+        "chain_promotion_blocked": true,
+        "physical_termination_verified": false,
+        "composite": {
+          "status": "converged_closed_supersonic_composite",
+          "converged": true,
+          "topology_closed": true,
+          "physical_boundary_conditions_verified": true,
+          "physical_closure_verified": false,
+          "chain_promotion_blocked": true,
+          "chain_termination_decision": {
+            "physical_termination": false,
+            "reason": "open-physical-closure",
+            "message": "first-cell supersonic topology converged, but reflected upstream coupling and downstream physical closure remain pending",
+            "diagnostics": {
+              "termination_model": "first-cell-open-physical-closure",
+              "topology_closed": true,
+              "physical_boundary_conditions_verified": true,
+              "shared_terminal_seam_verified": true,
+              "continuation_boundary_kind": "terminal-characteristic-trace",
+              "continuation_boundary_sample_count": 18
+            }
+          },
+          "upstream_shock_coupling_verified": true,
+          "shared_terminal_seam_verified": true,
+          "node_count": 307,
+          "cell_count": 305,
+          "topology_status": "open",
+          "topology_connected": true,
+          "topology_forms_closed_zone": true,
+          "topology_boundary_edge_count": 66,
+          "topology_nonmanifold_edge_count": 0,
+          "shock_boundary_sample_count": 17,
+          "ambient_boundary_sample_count": 17,
+          "centerline_boundary_sample_count": 18,
+          "continuation_boundary_sample_count": 18,
+          "continuation_boundary_kind": "terminal-characteristic-trace",
+          "ambient_boundary": {
+            "status": "converged_ambient_pressure_boundary",
+            "converged": true,
+            "physical_closure_verified": true,
+            "sample_count": 17,
+            "ambient_pressure_Pa": 212165.99747295334,
+            "maximum_absolute_pressure_residual": 8.230488618359449e-16,
+            "maximum_absolute_tangent_residual": 1.2038980923279041e-15,
+            "message": ""
+          },
+          "maximum_geometry_residual_m": 2.2887833992611187e-16,
+          "maximum_absolute_invariant_residual": 1.237565605549662e-12,
+          "minimum_post_shock_total_pressure_ratio": 0.9580676266390498,
+          "maximum_post_shock_total_pressure_ratio": 0.977473522728481,
+          "message": "shock/ambient strip and centerline-reflection patch form a closed supersonic first-cell composite; outgoing C- trace remains a research continuation boundary"
+        },
+        "downstream_shock": {
+          "status": "subsonic_terminal_required",
+          "converged": false,
+          "upstream_coupling_verified": false,
+          "physical_closure_verified": false,
+          "chain_promotion_blocked": true,
+          "shock_branch": "weak",
+          "physical_terminal_verified": true,
+          "termination_decision_available": true,
+          "physical_termination_decision": {
+            "physical_termination": true,
+            "reason": "physical-termination",
+            "message": "supersonic terminal-patch march reached a verified subsonic normal shock; continued supersonic MOC cells stop at the mixed-regime boundary",
+            "diagnostics": {
+              "termination_model": "normal-shock-terminal",
+              "shock_point_m": [
+                1.932444024737439,
+                0.0
+              ],
+              "downstream_mach": 0.7425535304699773,
+              "downstream_pressure_Pa": 508788.89535898657,
+              "total_pressure_ratio": 0.9598520994838985,
+              "upstream_sample_count": 17
+            }
+          },
+          "incoming_handoff_sample_count": 18,
+          "downstream_condition_status": "caller-supplied",
+          "shock": {
+            "status": "subsonic_terminal_required",
+            "converged": false,
+            "physical_closure_verified": false,
+            "subsonic_terminal_required": true,
+            "sample_count": 17,
+            "endpoint_m": [
+              1.9041568131113755,
+              0.029293659515539805
+            ],
+            "maximum_shock_angle_residual_rad": null,
+            "field_status": null,
+            "subsonic_boundary_verified": false,
+            "subsonic_shock_boundary": null,
+            "normal_shock_terminal": {
+              "status": "converged",
+              "converged": true,
+              "subsonic": true,
+              "shock_point_m": [
+                1.932444024737439,
+                0.0
+              ],
+              "shock_normal_angle_rad": 1.5707963267948966,
+              "downstream_flow_angle_rad": 0.0,
+              "downstream_mach": 0.7425535304699773,
+              "downstream_pressure_Pa": 508788.89535898657,
+              "static_pressure_ratio": 2.098122019755375,
+              "total_pressure_ratio": 0.9598520994838985,
+              "message": ""
+            },
+            "message": "sample 17 reaches the symmetry line with zero flow turn; the typed subsonic terminal model is outside the supersonic MOC lane"
+          },
+          "coupling": {
+            "status": "converged_terminal_reflection_patch_field",
+            "converged": true,
+            "requested_sample_count": 17,
+            "sampled_count": 17,
+            "first_missing_sample_index": null,
+            "last_valid_point_m": [
+              1.9041568131113755,
+              0.029293659515539805
+            ],
+            "message": "every shock sample lies inside the terminal reflection patch"
+          },
+          "message": "sample 17 reaches the symmetry line with zero flow turn; the typed subsonic terminal model is outside the supersonic MOC lane"
+        },
+        "terminal_field": {
+          "status": "converged_closed_supersonic_terminal_region",
+          "converged": true,
+          "supersonic_region_closed": true,
+          "characteristic_field_evidence_verified": true,
+          "mixed_regime_field_complete": false,
+          "physical_closure_verified": false,
+          "chain_promotion_blocked": true,
+          "physical_termination_verified": false,
+          "chain_termination_decision": {
+            "physical_termination": false,
+            "reason": "open-physical-closure",
+            "message": "supersonic terminal topology converged, but the downstream mixed-regime perimeter/field is not closed; chain promotion stops at the explicit fidelity boundary",
+            "diagnostics": {
+              "termination_model": "terminal-supersonic-region-open-mixed-regime",
+              "supersonic_region_closed": true,
+              "mixed_regime_field_complete": false,
+              "terminal_shock_point_m": [
+                1.932444024737439,
+                0.0
+              ],
+              "terminal_downstream_mach": 0.7425535304699773,
+              "terminal_field_cell_count": 335,
+              "post_shock_patch_cell_count": 135
+            }
+          },
+          "terminal_supersonic_downstream_patch_converged": true,
+          "mixed_regime_perimeter_request": {
+            "status": "mixed-regime-perimeter-required",
+            "source": "solver-owned-terminal-shock-mixed-regime-handoff",
+            "terminal": {
+              "status": "converged",
+              "converged": true,
+              "subsonic": true,
+              "shock_point_m": [
+                1.932444024737439,
+                0.0
+              ],
+              "shock_normal_angle_rad": 1.5707963267948966,
+              "downstream_flow_angle_rad": 0.0,
+              "downstream_mach": 0.7425535304699773,
+              "downstream_pressure_Pa": 508788.89535898657,
+              "static_pressure_ratio": 2.098122019755375,
+              "total_pressure_ratio": 0.9598520994838985,
+              "message": ""
+            },
+            "perimeter_supplied": false,
+            "open_supersonic_zone_is_a_perimeter": false,
+            "terminal_point_m": [
+              1.932444024737439,
+              0.0
+            ],
+            "terminal_downstream_mach": 0.7425535304699773,
+            "terminal_downstream_flow_angle_rad": 0.0,
+            "terminal_downstream_pressure_Pa": 508788.89535898657,
+            "terminal_downstream_total_pressure_Pa": 733749.0121315579,
+            "terminal_total_pressure_ratio": 0.9598520994838985,
+            "supersonic_patch_sample_count": 17,
+            "supersonic_patch_points_m": [
+              [
+                1.4720719054145763,
+                0.4979922117641763
+              ],
+              [
+                1.4979846548148197,
+                0.4686985522486365
+              ],
+              [
+                1.5239752853287178,
+                0.43940489273309674
+              ],
+              [
+                1.5500432271510043,
+                0.41011123321755694
+              ],
+              [
+                1.5762050979260016,
+                0.3808175737020172
+              ],
+              [
+                1.6025272674959226,
+                0.3515239141864774
+              ],
+              [
+                1.629055441652197,
+                0.3222302546709376
+              ],
+              [
+                1.6557821767198322,
+                0.2929365951553978
+              ],
+              [
+                1.682700037843238,
+                0.2636429356398581
+              ],
+              [
+                1.7098023704040914,
+                0.23434927612431827
+              ],
+              [
+                1.7370829540497512,
+                0.20505561660877847
+              ],
+              [
+                1.7645356211453835,
+                0.17576195709323872
+              ],
+              [
+                1.7921537653569162,
+                0.1464682975776989
+              ],
+              [
+                1.8199309329689042,
+                0.11717463806215916
+              ],
+              [
+                1.8478611273114798,
+                0.08788097854661936
+              ],
+              [
+                1.875938395698812,
+                0.05858731903107961
+              ],
+              [
+                1.9041568131113755,
+                0.029293659515539805
+              ]
+            ],
+            "supersonic_patch_mach": [
+              1.3873081874514017,
+              1.3879299631753381,
+              1.3885360603091568,
+              1.3891266223190124,
+              1.3897534494660349,
+              1.3903238597728145,
+              1.3908544313262392,
+              1.3913219515074713,
+              1.391735596501608,
+              1.3921026032854769,
+              1.3924302777781936,
+              1.392707054402896,
+              1.3929231589437943,
+              1.3930905883475624,
+              1.3932093825639542,
+              1.3932794469014356,
+              1.393300556605109
+            ],
+            "supersonic_patch_downstream_total_pressure_Pa": [
+              764594.8356011483,
+              764570.322357535,
+              764546.0192968072,
+              764521.9418030607,
+              764502.6148291057,
+              764506.4259515818,
+              764504.6803120149,
+              764500.1187323083,
+              764493.3229696247,
+              764484.7632723815,
+              764474.7809258943,
+              764464.8780993092,
+              764456.3424405042,
+              764448.9701085287,
+              764443.2676460496,
+              764439.6964121504,
+              764438.6784482499
+            ],
+            "required_boundary_conditions": [
+              "explicitly closed downstream perimeter",
+              "terminal scalar seam continuity",
+              "no total-pressure gain over the terminal shock"
+            ],
+            "message": "the mixed-regime solver must provide the closed downstream perimeter; no geometry was inferred from the open supersonic zone"
+          },
+          "node_count": null,
+          "cell_count": 335,
+          "topology_status": "open",
+          "topology_connected": true,
+          "topology_forms_closed_zone": true,
+          "topology_boundary_edge_count": 82,
+          "topology_boundary_component_count": 1,
+          "topology_nonmanifold_edge_count": 0,
+          "initial_shock_boundary_sample_count": 17,
+          "ambient_boundary_sample_count": 17,
+          "centerline_boundary_sample_count": 18,
+          "terminal_shock_boundary_sample_count": 18,
+          "terminal_shock_upstream_sample_count": 18,
+          "terminal_shock_supersonic_downstream_sample_count": 17,
+          "terminal_shock_supersonic_downstream_maximum_angle_residual_rad": 0.0012166793608119342,
+          "terminal_shock_supersonic_downstream_continuation": {
+            "status": "converged_open_boundary",
+            "converged": true,
+            "segment_count": 17,
+            "centerline_point_count": 17,
+            "maximum_geometry_residual_m": 3.499946437166922e-17,
+            "maximum_absolute_invariant_residual": 1.0428324870304095e-12,
+            "message": "open downstream shock-boundary C- traces reached the symmetry line; the final shock-side sample remains an interface to a separate terminal model and the downstream C+ interior field remains unassembled"
+          },
+          "terminal_shock_supersonic_downstream_first_layer": {
+            "status": "converged_first_downstream_layer",
+            "converged": true,
+            "crossing_count": 16,
+            "minimum_forward_margin_m": 0.00010031819576417078,
+            "maximum_geometry_residual_m": 1.147570780814188e-16,
+            "maximum_absolute_invariant_residual": 1.1106116026837753e-12,
+            "message": "first downstream post-shock cross-characteristic layer converged; shock fitting, finite-cell topology, and physical closure remain pending"
+          },
+          "terminal_shock_supersonic_downstream_zone": {
+            "status": "converged_open",
+            "converged": true,
+            "node_count": 136,
+            "cell_count": 135,
+            "topology_status": "open",
+            "topology_connected": true,
+            "topology_forms_closed_zone": true,
+            "physical_closure_status": "open",
+            "shock_closure_status": "prescribed-boundary-first-layer",
+            "maximum_geometry_residual_m": 1.1489557609970157e-16,
+            "maximum_absolute_invariant_residual": 1.1452505610520802e-12,
+            "message": "post-shock characteristic zone assembled through the first downstream layer; fitted shock closure and physical first-cell closure remain pending"
+          },
+          "mixed_regime_field": null,
+          "source_strip_cell_count": 152,
+          "source_patch_cell_count": 153,
+          "clipped_patch_cell_count": 183,
+          "terminal_shock_boundary_edge_count": 33,
+          "terminal_shock_boundary_coverage_verified": true,
+          "terminal_shock_boundary_maximum_geometry_residual_m": 9.537504119805362e-11,
+          "terminal_normal_shock": {
+            "status": "converged",
+            "converged": true,
+            "subsonic": true,
+            "shock_point_m": [
+              1.932444024737439,
+              0.0
+            ],
+            "shock_normal_angle_rad": 1.5707963267948966,
+            "downstream_flow_angle_rad": 0.0,
+            "downstream_mach": 0.7425535304699773,
+            "downstream_pressure_Pa": 508788.89535898657,
+            "static_pressure_ratio": 2.098122019755375,
+            "total_pressure_ratio": 0.9598520994838985,
+            "message": ""
+          },
+          "message": "shock/ambient strip and reflected characteristic patch were clipped to a closed supersonic region at the verified normal shock; subsonic downstream field remains outside the planar MOC lane"
+        },
+        "mixed_regime_field": null,
+        "message": "first-cell composite was closed at the solver-generated terminal shock on the supersonic side; mixed-regime closure remains separate"
+      },
       "terminal_trace_acceptance_tolerance_m": 0.0002,
       "message": "shock-sourced C+ and ambient-sourced C- characteristics formed a connected physical-boundary strip; terminal centerline closure remains pending",
       "claim_status": "solver-generated-shock-plus-ambient-C-plus-C-minus-strip; terminal-reflection-patch-open; terminal-shock-probe-mixed-regime-gated; local-compression-candidate-only; physical-downstream-boundary-closure-pending"
@@ -3239,6 +3624,385 @@
         "claim_status": "not_accepted",
         "message": "shock-cell geometry and explicit perimeter topology measured; external comparison and physical-closure acceptance remain separate gates"
       }
+    },
+    "solver_generated_first_cell_terminal_closure": {
+      "status": "converged_first_cell_supersonic_region",
+      "converged": true,
+      "supersonic_region_closed": true,
+      "mixed_regime_field_complete": false,
+      "physical_closure_verified": false,
+      "chain_promotion_blocked": true,
+      "physical_termination_verified": false,
+      "composite": {
+        "status": "converged_closed_supersonic_composite",
+        "converged": true,
+        "topology_closed": true,
+        "physical_boundary_conditions_verified": true,
+        "physical_closure_verified": false,
+        "chain_promotion_blocked": true,
+        "chain_termination_decision": {
+          "physical_termination": false,
+          "reason": "open-physical-closure",
+          "message": "first-cell supersonic topology converged, but reflected upstream coupling and downstream physical closure remain pending",
+          "diagnostics": {
+            "termination_model": "first-cell-open-physical-closure",
+            "topology_closed": true,
+            "physical_boundary_conditions_verified": true,
+            "shared_terminal_seam_verified": true,
+            "continuation_boundary_kind": "terminal-characteristic-trace",
+            "continuation_boundary_sample_count": 18
+          }
+        },
+        "upstream_shock_coupling_verified": true,
+        "shared_terminal_seam_verified": true,
+        "node_count": 307,
+        "cell_count": 305,
+        "topology_status": "open",
+        "topology_connected": true,
+        "topology_forms_closed_zone": true,
+        "topology_boundary_edge_count": 66,
+        "topology_nonmanifold_edge_count": 0,
+        "shock_boundary_sample_count": 17,
+        "ambient_boundary_sample_count": 17,
+        "centerline_boundary_sample_count": 18,
+        "continuation_boundary_sample_count": 18,
+        "continuation_boundary_kind": "terminal-characteristic-trace",
+        "ambient_boundary": {
+          "status": "converged_ambient_pressure_boundary",
+          "converged": true,
+          "physical_closure_verified": true,
+          "sample_count": 17,
+          "ambient_pressure_Pa": 212165.99747295334,
+          "maximum_absolute_pressure_residual": 8.230488618359449e-16,
+          "maximum_absolute_tangent_residual": 1.2038980923279041e-15,
+          "message": ""
+        },
+        "maximum_geometry_residual_m": 2.2887833992611187e-16,
+        "maximum_absolute_invariant_residual": 1.237565605549662e-12,
+        "minimum_post_shock_total_pressure_ratio": 0.9580676266390498,
+        "maximum_post_shock_total_pressure_ratio": 0.977473522728481,
+        "message": "shock/ambient strip and centerline-reflection patch form a closed supersonic first-cell composite; outgoing C- trace remains a research continuation boundary"
+      },
+      "downstream_shock": {
+        "status": "subsonic_terminal_required",
+        "converged": false,
+        "upstream_coupling_verified": false,
+        "physical_closure_verified": false,
+        "chain_promotion_blocked": true,
+        "shock_branch": "weak",
+        "physical_terminal_verified": true,
+        "termination_decision_available": true,
+        "physical_termination_decision": {
+          "physical_termination": true,
+          "reason": "physical-termination",
+          "message": "supersonic terminal-patch march reached a verified subsonic normal shock; continued supersonic MOC cells stop at the mixed-regime boundary",
+          "diagnostics": {
+            "termination_model": "normal-shock-terminal",
+            "shock_point_m": [
+              1.932444024737439,
+              0.0
+            ],
+            "downstream_mach": 0.7425535304699773,
+            "downstream_pressure_Pa": 508788.89535898657,
+            "total_pressure_ratio": 0.9598520994838985,
+            "upstream_sample_count": 17
+          }
+        },
+        "incoming_handoff_sample_count": 18,
+        "downstream_condition_status": "caller-supplied",
+        "shock": {
+          "status": "subsonic_terminal_required",
+          "converged": false,
+          "physical_closure_verified": false,
+          "subsonic_terminal_required": true,
+          "sample_count": 17,
+          "endpoint_m": [
+            1.9041568131113755,
+            0.029293659515539805
+          ],
+          "maximum_shock_angle_residual_rad": null,
+          "field_status": null,
+          "subsonic_boundary_verified": false,
+          "subsonic_shock_boundary": null,
+          "normal_shock_terminal": {
+            "status": "converged",
+            "converged": true,
+            "subsonic": true,
+            "shock_point_m": [
+              1.932444024737439,
+              0.0
+            ],
+            "shock_normal_angle_rad": 1.5707963267948966,
+            "downstream_flow_angle_rad": 0.0,
+            "downstream_mach": 0.7425535304699773,
+            "downstream_pressure_Pa": 508788.89535898657,
+            "static_pressure_ratio": 2.098122019755375,
+            "total_pressure_ratio": 0.9598520994838985,
+            "message": ""
+          },
+          "message": "sample 17 reaches the symmetry line with zero flow turn; the typed subsonic terminal model is outside the supersonic MOC lane"
+        },
+        "coupling": {
+          "status": "converged_terminal_reflection_patch_field",
+          "converged": true,
+          "requested_sample_count": 17,
+          "sampled_count": 17,
+          "first_missing_sample_index": null,
+          "last_valid_point_m": [
+            1.9041568131113755,
+            0.029293659515539805
+          ],
+          "message": "every shock sample lies inside the terminal reflection patch"
+        },
+        "message": "sample 17 reaches the symmetry line with zero flow turn; the typed subsonic terminal model is outside the supersonic MOC lane"
+      },
+      "terminal_field": {
+        "status": "converged_closed_supersonic_terminal_region",
+        "converged": true,
+        "supersonic_region_closed": true,
+        "characteristic_field_evidence_verified": true,
+        "mixed_regime_field_complete": false,
+        "physical_closure_verified": false,
+        "chain_promotion_blocked": true,
+        "physical_termination_verified": false,
+        "chain_termination_decision": {
+          "physical_termination": false,
+          "reason": "open-physical-closure",
+          "message": "supersonic terminal topology converged, but the downstream mixed-regime perimeter/field is not closed; chain promotion stops at the explicit fidelity boundary",
+          "diagnostics": {
+            "termination_model": "terminal-supersonic-region-open-mixed-regime",
+            "supersonic_region_closed": true,
+            "mixed_regime_field_complete": false,
+            "terminal_shock_point_m": [
+              1.932444024737439,
+              0.0
+            ],
+            "terminal_downstream_mach": 0.7425535304699773,
+            "terminal_field_cell_count": 335,
+            "post_shock_patch_cell_count": 135
+          }
+        },
+        "terminal_supersonic_downstream_patch_converged": true,
+        "mixed_regime_perimeter_request": {
+          "status": "mixed-regime-perimeter-required",
+          "source": "solver-owned-terminal-shock-mixed-regime-handoff",
+          "terminal": {
+            "status": "converged",
+            "converged": true,
+            "subsonic": true,
+            "shock_point_m": [
+              1.932444024737439,
+              0.0
+            ],
+            "shock_normal_angle_rad": 1.5707963267948966,
+            "downstream_flow_angle_rad": 0.0,
+            "downstream_mach": 0.7425535304699773,
+            "downstream_pressure_Pa": 508788.89535898657,
+            "static_pressure_ratio": 2.098122019755375,
+            "total_pressure_ratio": 0.9598520994838985,
+            "message": ""
+          },
+          "perimeter_supplied": false,
+          "open_supersonic_zone_is_a_perimeter": false,
+          "terminal_point_m": [
+            1.932444024737439,
+            0.0
+          ],
+          "terminal_downstream_mach": 0.7425535304699773,
+          "terminal_downstream_flow_angle_rad": 0.0,
+          "terminal_downstream_pressure_Pa": 508788.89535898657,
+          "terminal_downstream_total_pressure_Pa": 733749.0121315579,
+          "terminal_total_pressure_ratio": 0.9598520994838985,
+          "supersonic_patch_sample_count": 17,
+          "supersonic_patch_points_m": [
+            [
+              1.4720719054145763,
+              0.4979922117641763
+            ],
+            [
+              1.4979846548148197,
+              0.4686985522486365
+            ],
+            [
+              1.5239752853287178,
+              0.43940489273309674
+            ],
+            [
+              1.5500432271510043,
+              0.41011123321755694
+            ],
+            [
+              1.5762050979260016,
+              0.3808175737020172
+            ],
+            [
+              1.6025272674959226,
+              0.3515239141864774
+            ],
+            [
+              1.629055441652197,
+              0.3222302546709376
+            ],
+            [
+              1.6557821767198322,
+              0.2929365951553978
+            ],
+            [
+              1.682700037843238,
+              0.2636429356398581
+            ],
+            [
+              1.7098023704040914,
+              0.23434927612431827
+            ],
+            [
+              1.7370829540497512,
+              0.20505561660877847
+            ],
+            [
+              1.7645356211453835,
+              0.17576195709323872
+            ],
+            [
+              1.7921537653569162,
+              0.1464682975776989
+            ],
+            [
+              1.8199309329689042,
+              0.11717463806215916
+            ],
+            [
+              1.8478611273114798,
+              0.08788097854661936
+            ],
+            [
+              1.875938395698812,
+              0.05858731903107961
+            ],
+            [
+              1.9041568131113755,
+              0.029293659515539805
+            ]
+          ],
+          "supersonic_patch_mach": [
+            1.3873081874514017,
+            1.3879299631753381,
+            1.3885360603091568,
+            1.3891266223190124,
+            1.3897534494660349,
+            1.3903238597728145,
+            1.3908544313262392,
+            1.3913219515074713,
+            1.391735596501608,
+            1.3921026032854769,
+            1.3924302777781936,
+            1.392707054402896,
+            1.3929231589437943,
+            1.3930905883475624,
+            1.3932093825639542,
+            1.3932794469014356,
+            1.393300556605109
+          ],
+          "supersonic_patch_downstream_total_pressure_Pa": [
+            764594.8356011483,
+            764570.322357535,
+            764546.0192968072,
+            764521.9418030607,
+            764502.6148291057,
+            764506.4259515818,
+            764504.6803120149,
+            764500.1187323083,
+            764493.3229696247,
+            764484.7632723815,
+            764474.7809258943,
+            764464.8780993092,
+            764456.3424405042,
+            764448.9701085287,
+            764443.2676460496,
+            764439.6964121504,
+            764438.6784482499
+          ],
+          "required_boundary_conditions": [
+            "explicitly closed downstream perimeter",
+            "terminal scalar seam continuity",
+            "no total-pressure gain over the terminal shock"
+          ],
+          "message": "the mixed-regime solver must provide the closed downstream perimeter; no geometry was inferred from the open supersonic zone"
+        },
+        "node_count": null,
+        "cell_count": 335,
+        "topology_status": "open",
+        "topology_connected": true,
+        "topology_forms_closed_zone": true,
+        "topology_boundary_edge_count": 82,
+        "topology_boundary_component_count": 1,
+        "topology_nonmanifold_edge_count": 0,
+        "initial_shock_boundary_sample_count": 17,
+        "ambient_boundary_sample_count": 17,
+        "centerline_boundary_sample_count": 18,
+        "terminal_shock_boundary_sample_count": 18,
+        "terminal_shock_upstream_sample_count": 18,
+        "terminal_shock_supersonic_downstream_sample_count": 17,
+        "terminal_shock_supersonic_downstream_maximum_angle_residual_rad": 0.0012166793608119342,
+        "terminal_shock_supersonic_downstream_continuation": {
+          "status": "converged_open_boundary",
+          "converged": true,
+          "segment_count": 17,
+          "centerline_point_count": 17,
+          "maximum_geometry_residual_m": 3.499946437166922e-17,
+          "maximum_absolute_invariant_residual": 1.0428324870304095e-12,
+          "message": "open downstream shock-boundary C- traces reached the symmetry line; the final shock-side sample remains an interface to a separate terminal model and the downstream C+ interior field remains unassembled"
+        },
+        "terminal_shock_supersonic_downstream_first_layer": {
+          "status": "converged_first_downstream_layer",
+          "converged": true,
+          "crossing_count": 16,
+          "minimum_forward_margin_m": 0.00010031819576417078,
+          "maximum_geometry_residual_m": 1.147570780814188e-16,
+          "maximum_absolute_invariant_residual": 1.1106116026837753e-12,
+          "message": "first downstream post-shock cross-characteristic layer converged; shock fitting, finite-cell topology, and physical closure remain pending"
+        },
+        "terminal_shock_supersonic_downstream_zone": {
+          "status": "converged_open",
+          "converged": true,
+          "node_count": 136,
+          "cell_count": 135,
+          "topology_status": "open",
+          "topology_connected": true,
+          "topology_forms_closed_zone": true,
+          "physical_closure_status": "open",
+          "shock_closure_status": "prescribed-boundary-first-layer",
+          "maximum_geometry_residual_m": 1.1489557609970157e-16,
+          "maximum_absolute_invariant_residual": 1.1452505610520802e-12,
+          "message": "post-shock characteristic zone assembled through the first downstream layer; fitted shock closure and physical first-cell closure remain pending"
+        },
+        "mixed_regime_field": null,
+        "source_strip_cell_count": 152,
+        "source_patch_cell_count": 153,
+        "clipped_patch_cell_count": 183,
+        "terminal_shock_boundary_edge_count": 33,
+        "terminal_shock_boundary_coverage_verified": true,
+        "terminal_shock_boundary_maximum_geometry_residual_m": 9.537504119805362e-11,
+        "terminal_normal_shock": {
+          "status": "converged",
+          "converged": true,
+          "subsonic": true,
+          "shock_point_m": [
+            1.932444024737439,
+            0.0
+          ],
+          "shock_normal_angle_rad": 1.5707963267948966,
+          "downstream_flow_angle_rad": 0.0,
+          "downstream_mach": 0.7425535304699773,
+          "downstream_pressure_Pa": 508788.89535898657,
+          "static_pressure_ratio": 2.098122019755375,
+          "total_pressure_ratio": 0.9598520994838985,
+          "message": ""
+        },
+        "message": "shock/ambient strip and reflected characteristic patch were clipped to a closed supersonic region at the verified normal shock; subsonic downstream field remains outside the planar MOC lane"
+      },
+      "mixed_regime_field": null,
+      "message": "first-cell composite was closed at the solver-generated terminal shock on the supersonic side; mixed-regime closure remains separate"
     },
     "ambient_attachment_closure_probe": {
       "status": "converged_ambient_attachment_open_strip",
@@ -3980,7 +4744,15 @@
             },
             "claim_status": "not_accepted",
             "message": "shock-cell geometry and explicit perimeter topology measured; external comparison and physical-closure acceptance remain separate gates"
-          }
+          },
+          "first_cell_terminal_closure_status": "converged_first_cell_supersonic_region",
+          "first_cell_terminal_closure_converged": true,
+          "first_cell_terminal_closure_supersonic_region_closed": true,
+          "first_cell_terminal_closure_mixed_regime_field_complete": false,
+          "first_cell_terminal_closure_physical_closure_verified": false,
+          "first_cell_terminal_closure_chain_promotion_blocked": true,
+          "first_cell_terminal_closure_physical_termination_verified": false,
+          "first_cell_terminal_closure_terminal_shock_boundary_coverage_verified": true
         },
         {
           "sample_count": 17,
@@ -4073,7 +4845,15 @@
             },
             "claim_status": "not_accepted",
             "message": "shock-cell geometry and explicit perimeter topology measured; external comparison and physical-closure acceptance remain separate gates"
-          }
+          },
+          "first_cell_terminal_closure_status": "converged_first_cell_supersonic_region",
+          "first_cell_terminal_closure_converged": true,
+          "first_cell_terminal_closure_supersonic_region_closed": true,
+          "first_cell_terminal_closure_mixed_regime_field_complete": false,
+          "first_cell_terminal_closure_physical_closure_verified": false,
+          "first_cell_terminal_closure_chain_promotion_blocked": true,
+          "first_cell_terminal_closure_physical_termination_verified": false,
+          "first_cell_terminal_closure_terminal_shock_boundary_coverage_verified": true
         },
         {
           "sample_count": 33,
@@ -4166,7 +4946,15 @@
             },
             "claim_status": "not_accepted",
             "message": "shock-cell geometry and explicit perimeter topology measured; external comparison and physical-closure acceptance remain separate gates"
-          }
+          },
+          "first_cell_terminal_closure_status": "converged_first_cell_supersonic_region",
+          "first_cell_terminal_closure_converged": true,
+          "first_cell_terminal_closure_supersonic_region_closed": true,
+          "first_cell_terminal_closure_mixed_regime_field_complete": false,
+          "first_cell_terminal_closure_physical_closure_verified": false,
+          "first_cell_terminal_closure_chain_promotion_blocked": true,
+          "first_cell_terminal_closure_physical_termination_verified": false,
+          "first_cell_terminal_closure_terminal_shock_boundary_coverage_verified": true
         }
       ],
       "claim_status": "terminal-patch-upstream-coupling-refinement-only; mixed-regime-downstream-field-pending"

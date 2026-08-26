@@ -77,6 +77,12 @@ characteristic-cell evidence only, leaves the downstream subsonic field
 unsolved, and therefore cannot set physical closure or promote a chain cell.
 The checkpoint rejects a mesh unless the complete solver-generated shock edge
 is present and the terminal upstream state/pressure sample is carried with it.
+The first-cell-owned terminal closure bridge now consumes the composite's exact
+outgoing ``C-`` handoff, fits that terminal shock, and closes only the
+supersonic side. It reports ``converged_first_cell_supersonic_region`` while
+the mixed-regime perimeter is absent; ``physical_closure_verified`` and chain
+promotion therefore remain false, even when the terminal shock itself is
+verified.
 The oblique portion of that edge also carries independently fitted downstream
 supersonic states; the centerline normal-shock endpoint remains scalar because
 the subsonic state is outside the ``CharacteristicState`` contract. This is a

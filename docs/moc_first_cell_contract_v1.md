@@ -180,6 +180,11 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   while reporting ``mixed_regime_field_complete`` and
   ``physical_closure_verified`` as hard-false until the downstream subsonic
   field is solved;
+- a first-cell terminal-closure bridge that consumes the composite's exact
+  outgoing ``C-`` handoff, fits the solver-generated terminal shock, and
+  returns a typed closed-supersonic-region result. It does not infer a
+  downstream perimeter: the mixed-regime field remains a separate gate and
+  chain promotion remains blocked;
 - a solver-owned mixed-regime perimeter request that carries the terminal
   scalar state and exact supersonic post-shock seam while supplying no guessed
   downstream geometry. The open supersonic zone is explicitly rejected as a
