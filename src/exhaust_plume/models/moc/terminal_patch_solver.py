@@ -183,6 +183,11 @@ class MocTerminalReflectionPatchShockSolveResult:
     )
 
   def as_report(self) -> dict[str, object]:
+    termination_decision = (
+      self.as_physical_termination_decision().as_report()
+      if self.physical_terminal_verified
+      else None
+    )
     return {
       'status': self.shock.status.value,
       'converged': self.converged,
@@ -191,6 +196,7 @@ class MocTerminalReflectionPatchShockSolveResult:
       'chain_promotion_blocked': self.chain_promotion_blocked,
       'physical_terminal_verified': self.physical_terminal_verified,
       'termination_decision_available': self.physical_terminal_verified,
+      'physical_termination_decision': termination_decision,
       'incoming_handoff_sample_count': len(self.incoming_handoff),
       'downstream_condition_status': self.downstream_condition_status,
       'shock': self.shock.as_report(),

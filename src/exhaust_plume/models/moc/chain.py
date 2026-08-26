@@ -381,6 +381,16 @@ class MocChainTerminationDecision:
     object.__setattr__(self, 'diagnostics', MappingProxyType(dict(self.diagnostics)))
   ####
 
+  def as_report(self) -> dict[str, Any]:
+    """Serialize the decision without weakening its physical/non-physical kind."""
+
+    return {
+      'physical_termination': self.physical_termination,
+      'reason': self.reason.value,
+      'message': self.message,
+      'diagnostics': dict(self.diagnostics),
+    }
+
 
 @dataclass(frozen=True, slots=True)
 class MocChainCell:

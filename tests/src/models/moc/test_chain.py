@@ -160,6 +160,7 @@ def test_explicit_physical_termination_is_not_inferred_from_none() -> None:
   assert result.physical_termination is True
   assert result.cell_count == 1
   assert result.as_report()['diagnostics'] == {'termination_metric': 2.0e-6}
+  assert result.as_report()['termination_reason'] == 'physical-termination'
 
 
 def test_reduced_order_candidate_is_rejected_at_moc_fidelity_boundary() -> None:

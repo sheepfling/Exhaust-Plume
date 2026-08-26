@@ -223,6 +223,7 @@ def test_terminal_reflection_patch_is_domain_bounded_and_reaches_typed_mixed_reg
   decision = result.as_physical_termination_decision()
   assert decision.physical_termination is True
   assert decision.message.startswith('supersonic terminal-patch march')
+  assert decision.as_report()['diagnostics']['termination_model'] == 'normal-shock-terminal'
 
 
 def test_ambient_strip_rejects_a_boundary_trace_with_wrong_family_geometry() -> None:

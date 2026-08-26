@@ -110,6 +110,9 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert terminal_patch_shock_probe['chain_promotion_blocked'] is True
   assert terminal_patch_shock_probe['physical_terminal_verified'] is True
   assert terminal_patch_shock_probe['termination_decision_available'] is True
+  assert terminal_patch_shock_probe['physical_termination_decision']['physical_termination'] is True
+  assert terminal_patch_shock_probe['physical_termination_decision']['reason'] == 'physical-termination'
+  assert terminal_patch_shock_probe['physical_termination_decision']['diagnostics']['termination_model'] == 'normal-shock-terminal'
   assert terminal_patch_shock_probe['coupling']['converged'] is True
   assert terminal_patch_shock_probe['shock']['normal_shock_terminal']['subsonic'] is True
   terminal_patch_refinement = report['geometry_cases']['terminal_reflection_patch_refinement']

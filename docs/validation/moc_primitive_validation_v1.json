@@ -946,6 +946,22 @@
         "chain_promotion_blocked": true,
         "physical_terminal_verified": true,
         "termination_decision_available": true,
+        "physical_termination_decision": {
+          "physical_termination": true,
+          "reason": "physical-termination",
+          "message": "supersonic terminal-patch march reached a verified subsonic normal shock; continued supersonic MOC cells stop at the mixed-regime boundary",
+          "diagnostics": {
+            "termination_model": "normal-shock-terminal",
+            "shock_point_m": [
+              1.932444024737439,
+              0.0
+            ],
+            "downstream_mach": 0.7425535304699773,
+            "downstream_pressure_Pa": 508788.89535898657,
+            "total_pressure_ratio": 0.9598520994838985,
+            "upstream_sample_count": 17
+          }
+        },
         "incoming_handoff_sample_count": 18,
         "downstream_condition_status": "caller-supplied",
         "shock": {
