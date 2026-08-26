@@ -52,6 +52,12 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   extrapolate once a candidate shock leaves the solved upstream lattice;
 - a typed reflected-zone shock-path coupling probe that records partial
   upstream samples and the first missing characteristic-strip point;
+- a reusable triangular source-boundary characteristic-strip assembler and
+  domain-bounded state/pressure sampler that reproduces the reflected-zone
+  compatibility grid;
+- an explicitly open constant-`K+` simple-wave continuation of that source
+  strip, with deterministic boundary-progress and extended-strip topology
+  diagnostics;
 - an explicitly labeled reflected-boundary trace-extension reference that
   generates a closed shock field without claiming a solved upstream strip;
 - a shock-seeded shrinking-front C+/C- characteristic-field assembler with
@@ -109,6 +115,11 @@ planner mock exercises this contract in the primitive validation report; the
 solver-generated chain reference now exercises the same handoff with generated
 shock boundaries. Both remain callback-conditioned evidence rather than
 physical free-boundary chain evidence.
+The constant-`K+` source-strip continuation is another upstream-only diagnostic
+fixture: in the canonical case it preserves an open 231-node/230-cell strip
+and advances the domain-bounded shock probe before stopping at the next
+missing field sample. It is not a physical shock closure or a production
+next-cell solver.
 The mesh topology intentionally remains reported as `OPEN`: its boundary edges
 are the physical shock/centerline perimeter. `physical_closure_status` and the
 field status carry the separate evidence that this prescribed-boundary fan is
@@ -182,8 +193,9 @@ do not authorize replacing the basic provider or accepting a product claim.
 ## Next gates before provider integration
 
 1. Couple the marched shock to the reflected MOC upstream state/pressure field
-   and replace the uniform reference linear-turn law with a solved post-shock
-   boundary condition. The current solver-generated field is higher-fidelity
+   and replace both the uniform reference linear-turn law and the diagnostic
+   constant-`K+` continuation assumption with a solved post-shock boundary
+   condition. The current solver-generated field is higher-fidelity
    boundary-conditioned evidence, but not yet a production free-boundary
    first-cell solution.
 2. Demonstrate grid/refinement convergence for the assembled reflected and

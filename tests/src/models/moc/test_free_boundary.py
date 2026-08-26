@@ -6,10 +6,14 @@ from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput
 from exhaust_plume.models.moc import (
   CharacteristicState,
   MocFreeBoundaryShockStatus,
+  MocSourceStripContinuationStatus,
   solve_reflected_boundary_trace_extension,
   solve_marched_attached_shock_chain_cell,
   solve_marched_attached_shock_field,
+  solve_marched_attached_shock_from_source_strip,
   solve_reflected_free_boundary,
+  assemble_source_characteristic_strip,
+  extend_source_characteristic_strip_constant_k_plus,
   solve_underexpanded_expansion_fan,
   solve_uniform_attached_shock_field,
 )
@@ -105,6 +109,67 @@ def test_reflected_boundary_trace_extension_is_explicitly_labeled() -> None:
   assert result.field.physical_closure_verified
   assert result.endpoint_m is not None
   assert result.endpoint_m[1] == pytest.approx(0.0, abs=1.0e-12)
+
+
+def test_source_strip_march_stops_at_the_first_missing_upstream_sample() -> None:
+  reflected_boundary, _ambient = _reflected_boundary_reference()
+  assert reflected_boundary.centerline_states
+  strip = assemble_source_characteristic_strip(
+    reflected_boundary.centerline_states,
+    reflected_boundary.boundary_states,
+    2.0e6,
+  )
+  assert strip.converged
+
+  result = solve_marched_attached_shock_from_source_strip(
+    strip,
+    reflected_boundary.boundary_points_m[-1],
+    downstream_flow_angle_at=lambda _index, point: 0.05 * max(
+      0.0,
+      min(1.0, point[1] / reflected_boundary.boundary_points_m[-1][1]),
+    ),
+    sample_count=9,
+  )
+
+  assert result.status is MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE
+  assert result.sample_count == 1
+  assert result.endpoint_m == pytest.approx(reflected_boundary.boundary_points_m[-1])
+
+
+def test_constant_k_plus_source_strip_extension_advances_the_shock_probe() -> None:
+  reflected_boundary, ambient = _reflected_boundary_reference()
+  result = extend_source_characteristic_strip_constant_k_plus(
+    reflected_boundary.centerline_states,
+    reflected_boundary.boundary_states,
+    2.0e6,
+    ambient.pressure_Pa,
+    additional_sample_count=12,
+    axis_step_m=0.03,
+  )
+
+  assert result.status is MocSourceStripContinuationStatus.CONVERGED_EXTENDED
+  assert result.converged
+  assert result.added_sample_count == 12
+  assert result.strip is not None
+  assert result.strip.converged
+  assert result.strip.node_count == 231
+  assert result.strip.cell_count == 230
+  assert result.strip.minus_source_states[-1].x_m > reflected_boundary.boundary_points_m[-1][0]
+
+  probe = solve_marched_attached_shock_from_source_strip(
+    result.strip,
+    reflected_boundary.boundary_points_m[-1],
+    downstream_flow_angle_at=lambda _index, point: 0.05 * max(
+      0.0,
+      min(1.0, point[1] / reflected_boundary.boundary_points_m[-1][1]),
+    ),
+    sample_count=17,
+  )
+
+  assert probe.status is MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE
+  assert probe.sample_count > 1
+  assert probe.endpoint_m is not None
+  assert probe.endpoint_m[0] > reflected_boundary.boundary_points_m[-1][0]
 
 
 def test_uniform_constant_turn_rejects_zero_area_field() -> None:

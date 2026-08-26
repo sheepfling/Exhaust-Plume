@@ -58,6 +58,8 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   generated = report['geometry_cases']['solver_generated_attached_shock_field']
   refinement = report['geometry_cases']['solver_generated_shock_refinement']
   generated_chain = report['geometry_cases']['solver_generated_chain_reference']
+  source_strip = report['geometry_cases']['reflected_source_characteristic_strip']
+  simple_wave_extension = report['geometry_cases']['reflected_source_strip_constant_k_plus_extension']
   reflected_probe = report['geometry_cases']['reflected_zone_shock_coupling']
   trace_extension = report['geometry_cases']['reflected_boundary_trace_extension']
   planner = report['geometry_cases']['shock_cell_chain_planner_mock']
@@ -73,6 +75,18 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert generated_chain['cell_count'] == 3
   assert generated_chain['state_carry_count'] == 3
   assert generated_chain['physical_termination'] is False
+  assert source_strip['status'] == 'converged_open_source_strip'
+  assert source_strip['node_count'] == 45
+  assert source_strip['cell_count'] == 44
+  assert source_strip['topology_forms_closed_zone'] is True
+  assert source_strip['nonmanifold_edge_count'] == 0
+  assert simple_wave_extension['status'] == 'converged_constant_k_plus_extension'
+  assert simple_wave_extension['added_sample_count'] == 12
+  assert simple_wave_extension['strip']['node_count'] == 231
+  assert simple_wave_extension['strip']['cell_count'] == 230
+  assert simple_wave_extension['shock_probe']['status'] == 'upstream_field_failure'
+  assert simple_wave_extension['shock_probe']['sample_count'] > 1
+  assert simple_wave_extension['shock_probe']['claim_status'] == 'constant-k-plus-simple-wave-extension; shock-closure-pending'
   assert reflected_probe['status'] == 'upstream_field_failure'
   assert reflected_probe['claim_status'] == 'reflected-field-domain-bounded-probe; shock-path-extension-pending'
   assert reflected_probe['coupling']['status'] == 'outside_reflected_zone_domain'

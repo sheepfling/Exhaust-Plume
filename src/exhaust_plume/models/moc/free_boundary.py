@@ -33,12 +33,14 @@ from exhaust_plume.models.moc.post_shock import (
   fit_attached_shock_boundary,
 )
 from exhaust_plume.models.moc.primitives import CharacteristicState
+from exhaust_plume.models.moc.source_strip import MocSourceCharacteristicStripResult
 from exhaust_plume.util.aero.shock_validity import ShockBranch
 
 __all__ = (
   'MocFreeBoundaryShockResult',
   'MocFreeBoundaryShockStatus',
   'solve_marched_attached_shock_field',
+  'solve_marched_attached_shock_from_source_strip',
   'solve_reflected_boundary_trace_extension',
   'solve_marched_attached_shock_chain_cell',
   'solve_uniform_attached_shock_field',
@@ -487,6 +489,56 @@ def solve_marched_attached_shock_field(
       'solver-generated attached-shock boundary reached the symmetry line '
       'and closed the post-shock characteristic field'
     ),
+  )
+####
+
+
+def solve_marched_attached_shock_from_source_strip(
+  upstream_strip: MocSourceCharacteristicStripResult,
+  start_point_m: tuple[float, float],
+  *,
+  target_centerline_y_m: float = 0.0,
+  downstream_flow_angle_at: Callable[[int, tuple[float, float]], float] | None = None,
+  downstream_flow_angle_rad: float | None = None,
+  incoming_handoff: Sequence[MocChainBoundarySample] | None = None,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+) -> MocFreeBoundaryShockResult:
+  """March a shock using a solved source-boundary MOC strip as upstream data.
+
+  The strip owns the domain boundary.  If the generated shock leaves that
+  domain, the result is an explicit ``UPSTREAM_FIELD_FAILURE`` rather than a
+  continuation of the last sampled state.
+  """
+
+  if not isinstance(upstream_strip, MocSourceCharacteristicStripResult):
+    return _failure(
+      MocFreeBoundaryShockStatus.INVALID_INPUT,
+      message='upstream_strip must be a MocSourceCharacteristicStripResult',
+    )
+  if not upstream_strip.converged:
+    return _failure(
+      MocFreeBoundaryShockStatus.INVALID_INPUT,
+      message=f'upstream source strip is not converged: {upstream_strip.message}',
+    )
+  return solve_marched_attached_shock_field(
+    upstream_strip.state_at,
+    upstream_strip.static_pressure_at,
+    start_point_m,
+    target_centerline_y_m=target_centerline_y_m,
+    downstream_flow_angle_at=downstream_flow_angle_at,
+    downstream_flow_angle_rad=downstream_flow_angle_rad,
+    incoming_handoff=incoming_handoff,
+    sample_count=sample_count,
+    branch=branch,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+    shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+    maximum_segment_iterations=maximum_segment_iterations,
   )
 ####
 

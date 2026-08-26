@@ -12,7 +12,7 @@ applicability, validation evidence, and complexity ceiling.
 
 | Lane | Status | Current role | Allowed primary product | Explicit non-claims |
 | --- | --- | --- | --- | --- |
-| `planar-moc-primitives-v1` | boundary-conditioned field/chain foundation; provider pending | Standalone planar characteristic states, scalar inversions, compatibility residuals, pressure- and turn-prescribed attached compression, sampled attached-shock fit, solver-generated marched attached-shock reference field, reflected centerline-to-free-boundary march, assembled open characteristic zone, domain-bounded shock-path coupling probe, shock-seeded closed post-shock C+/C- field, total-pressure handoff, and state-carrying chain adapter | None yet; future MOC first-cell provider only after reflected-field coupling, canonical free-boundary physical closure, refinement, and external validation gates | No public visual, signature, optical, detector, or FPA claim; no axisymmetric or reacting-flow claim |
+| `planar-moc-primitives-v1` | boundary-conditioned field/chain foundation; provider pending | Standalone planar characteristic states, scalar inversions, compatibility residuals, pressure- and turn-prescribed attached compression, sampled attached-shock fit, solver-generated marched attached-shock reference field, reflected centerline-to-free-boundary march, reusable triangular source-boundary strip, assembled open characteristic zone, domain-bounded shock-path coupling probe, shock-seeded closed post-shock C+/C- field, total-pressure handoff, and state-carrying chain adapter | None yet; future MOC first-cell provider only after reflected-field coupling, canonical free-boundary physical closure, refinement, and external validation gates | No public visual, signature, optical, detector, or FPA claim; no axisymmetric or reacting-flow claim |
 | `shock-cell-basic-v1` | active | Fast, steady, straight, low-order shock-cell construction | `plume.visual.sectioned-tube@1`; supporting spatial/engineering handoffs where explicitly advertised | No physical signature, ray transfer, detector image, mixing, chemistry, radiation, or curved/washed flow |
 | `shock-cell-reduced-order-v1` | experimental | One resolved first cell plus explicitly calibrated, scaled downstream shock-train continuation | `plume.visual.sectioned-tube@1` through `plume.shock-train-reduced-order` | No resolved downstream MOC claim, spectral signature, ray transfer, detector image, FPA, or unvalidated universal closure |
 | `signature-table-mvp-v1` | active | Independent unresolved spectral lookup | `plume.signature.spectral-radiant-intensity@1` | No solved flow, geometry reconstruction, atmosphere, optics, detector, or focal-plane array |
@@ -47,9 +47,13 @@ product-provider result. A separate solver-generated marched attached-shock
 reference now passes its local closed-field and 9/17/33-sample refinement
 diagnostics, but it still uses explicit upstream callbacks and a linear
 downstream-turn law. The reflected-zone sampler is domain-bounded and its
-shock probe fails explicitly at the first point outside that solved lattice;
-the separately labeled boundary-trace extension is diagnostic only, and the
-upstream characteristic-strip shock-path extension remains open. The existing basic and
+shock probe fails explicitly at the first point outside that solved lattice.
+The canonical source strip also has an explicitly labeled constant-`K+`
+simple-wave continuation: it preserves the open-strip topology and advances
+the shock probe through additional samples, but it remains an upstream
+diagnostic assumption rather than a physical shock closure. The separately
+labeled boundary-trace extension is diagnostic only, and the coupled upstream
+characteristic-strip/shock-path closure remains open. The existing basic and
 reduced-order visual lanes remain unchanged until a separate MOC assembler
 passes free-boundary/compression closure, refinement, and measurement-operator
 gates.

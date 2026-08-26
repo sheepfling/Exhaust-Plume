@@ -40,6 +40,15 @@ not wait on this research closure.
   first missing upstream sample and the last valid state/pressure pair, making
   the future characteristic-strip seam executable without treating a domain
   miss as physical closure.
+- Added a reusable triangular source-boundary characteristic-strip solver. It
+  reconstructs the axis/free-boundary C+/C- lattice with explicit diagonal
+  seam checks and exposes a domain-bounded pressure-aware field for later
+  shock fitting.
+- Added an explicitly labeled constant-`K+` simple-wave continuation of the
+  source strip. The canonical case adds 12 samples, preserves a converged
+  231-node/230-cell open topology, and advances a domain-bounded shock probe
+  before stopping at the next missing upstream field sample. This is a
+  diagnostic continuation law, not physical shock closure.
 - Added a separately labeled reflected-boundary trace-extension reference. It
   can generate a closed shock field from the terminal boundary trace, while
   retaining the upstream characteristic-strip coupling gate.
@@ -132,6 +141,12 @@ same continuation adapter with solver-generated boundaries, but its upstream
 field and linear downstream-turn law remain explicit callbacks. Neither is
 evidence for production automatic shock placement, physical termination, or
 external validation.
+
+The constant-`K+` source-strip continuation is a separate upstream-only
+diagnostic fixture: it tests how a continued shock probe consumes a growing
+characteristic domain, but it must not be promoted into a resolved chain cell
+until the shock boundary and post-shock field are solved from the coupled
+reflected MOC state/pressure field.
 
 The verified post-shock result exposes the only seed-promotion adapter for this
 lane. An open zone, prescribed-boundary diagnostic, or scaled reduced-order

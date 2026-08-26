@@ -198,6 +198,80 @@
       "shock_closure_status": "not_assembled",
       "message": ""
     },
+    "reflected_source_characteristic_strip": {
+      "status": "converged_open_source_strip",
+      "converged": true,
+      "plus_source_count": 9,
+      "minus_source_count": 9,
+      "node_count": 45,
+      "cell_count": 44,
+      "topology_forms_closed_zone": true,
+      "nonmanifold_edge_count": 0,
+      "maximum_geometry_residual_m": 1.1188630228279524e-16,
+      "maximum_absolute_invariant_residual": 1.8465229345565604e-12,
+      "total_pressure_Pa": 2000000.0,
+      "message": "triangular source-boundary characteristic strip converged; shock and downstream closure remain separate",
+      "claim_status": "reusable-open-upstream-strip; shock-closure-pending"
+    },
+    "reflected_source_strip_constant_k_plus_extension": {
+      "status": "converged_constant_k_plus_extension",
+      "converged": true,
+      "added_sample_count": 12,
+      "axis_step_m": 0.03,
+      "continuation_k_plus": -0.979717233296866,
+      "strip": {
+        "status": "converged_open_source_strip",
+        "converged": true,
+        "plus_source_count": 21,
+        "minus_source_count": 21,
+        "node_count": 231,
+        "cell_count": 230,
+        "topology_forms_closed_zone": true,
+        "nonmanifold_edge_count": 0,
+        "maximum_geometry_residual_m": 1.1631705747361534e-16,
+        "maximum_absolute_invariant_residual": 1.8465229345565604e-12,
+        "total_pressure_Pa": 2000000.0,
+        "message": "triangular source-boundary characteristic strip converged; shock and downstream closure remain separate"
+      },
+      "message": "constant-K+ simple-wave source continuation converged as an open upstream strip; physical shock fitting and downstream closure remain pending",
+      "shock_probe": {
+        "status": "upstream_field_failure",
+        "sample_count": 10,
+        "shock_start_m": [
+          0.7431488332818272,
+          0.1158153281924007
+        ],
+        "last_valid_point_m": [
+          0.7966755003765984,
+          0.0506692060841753
+        ],
+        "message": "upstream field callback returned no CharacteristicState at sample 10",
+        "extension": {
+          "status": "converged_constant_k_plus_extension",
+          "converged": true,
+          "added_sample_count": 12,
+          "axis_step_m": 0.03,
+          "continuation_k_plus": -0.979717233296866,
+          "strip": {
+            "status": "converged_open_source_strip",
+            "converged": true,
+            "plus_source_count": 21,
+            "minus_source_count": 21,
+            "node_count": 231,
+            "cell_count": 230,
+            "topology_forms_closed_zone": true,
+            "nonmanifold_edge_count": 0,
+            "maximum_geometry_residual_m": 1.1631705747361534e-16,
+            "maximum_absolute_invariant_residual": 1.8465229345565604e-12,
+            "total_pressure_Pa": 2000000.0,
+            "message": "triangular source-boundary characteristic strip converged; shock and downstream closure remain separate"
+          },
+          "message": "constant-K+ simple-wave source continuation converged as an open upstream strip; physical shock fitting and downstream closure remain pending"
+        },
+        "claim_status": "constant-k-plus-simple-wave-extension; shock-closure-pending"
+      },
+      "claim_status": "open-simple-wave-extension; shock-closure-pending"
+    },
     "reflected_zone_shock_coupling": {
       "status": "upstream_field_failure",
       "sample_count": 1,

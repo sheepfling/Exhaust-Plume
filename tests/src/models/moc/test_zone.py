@@ -6,8 +6,10 @@ from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput
 from exhaust_plume.models.moc import (
   MocInterfaceStatus,
   MocReflectedZoneShockCouplingStatus,
+  MocSourceStripStatus,
   MocZoneAssemblyStatus,
   assemble_reflected_characteristic_zone,
+  assemble_source_characteristic_strip,
   sample_reflected_zone_along_shock_path,
   solve_reflected_free_boundary,
   solve_reflected_boundary_trace_extension,
@@ -142,6 +144,45 @@ def test_reflected_zone_shock_coupling_reports_first_missing_strip_sample() -> N
   assert coupling.sampled_count == 1
   assert coupling.first_missing_sample_index == 1
   assert coupling.last_valid_point_m == pytest.approx(start)
+
+
+def test_source_characteristic_strip_reuses_reflected_compatibility_grid() -> None:
+  gas = CaloricallyPerfectGas.dry_air()
+  exit_state = derive_uniform_nozzle_exit(
+    NozzleExitInput(
+      mach=2.0,
+      total_pressure_Pa=2.0e6,
+      total_temperature_K=900.0,
+      exit_radius_m=0.05,
+    ),
+    gas,
+  )
+  ambient = derive_ambient_state(
+    AmbientInput(pressure_Pa=101325.0, temperature_K=300.0),
+    gas,
+  )
+  fan = solve_underexpanded_expansion_fan(exit_state, ambient, characteristic_count=8)
+  reflected_boundary = solve_reflected_free_boundary(fan, exit_state, ambient)
+
+  result = assemble_source_characteristic_strip(
+    reflected_boundary.centerline_states,
+    reflected_boundary.boundary_states,
+    exit_state.total_pressure_Pa,
+  )
+
+  assert result.status is MocSourceStripStatus.CONVERGED_OPEN
+  assert result.node_count == 45
+  assert result.cell_count == 44
+  assert result.topology.forms_closed_zone
+  assert result.topology.nonmanifold_edge_count == 0
+  assert result.maximum_geometry_residual_m is not None
+  assert result.maximum_geometry_residual_m < 1.0e-10
+  assert result.maximum_absolute_invariant_residual is not None
+  assert result.maximum_absolute_invariant_residual < 1.0e-10
+  sample = result.state_at((0.6, 0.1))
+  assert sample is not None
+  assert sample.mach > 1.0
+  assert result.static_pressure_at((1.0, 0.5)) is None
 
 
 def test_fan_reflected_interface_reuses_compatibility_grid_and_connects_cells() -> None:

@@ -34,7 +34,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_attached_compression_to_turn,
   solve_attached_shock_to_centerline,
   solve_marched_attached_shock_chain_cell,
-  solve_marched_attached_shock_field,
+  solve_marched_attached_shock_from_source_strip,
   solve_reflected_boundary_trace_extension,
   solve_uniform_attached_shock_field,
   assemble_post_shock_characteristic_zone,
@@ -48,6 +48,8 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_reflected_free_boundary,
   solve_overexpanded_lip_shock,
   solve_underexpanded_expansion_fan,
+  assemble_source_characteristic_strip,
+  extend_source_characteristic_strip_constant_k_plus,
   sample_reflected_zone_along_shock_path,
   validate_fan_reflected_interface,
   validate_closed_post_shock_field,
@@ -495,6 +497,7 @@ def _solver_generated_chain_reference(
 def _reflected_zone_shock_coupling_probe(
   reflected_zone: Any,
   reflected_boundary: Any,
+  reflected_source_strip: Any,
 ) -> dict[str, Any]:
   """Probe the domain-bounded reflected-field callbacks at a shock start."""
 
@@ -513,7 +516,7 @@ def _reflected_zone_shock_coupling_probe(
       'message': 'reflected boundary shock probe requires a positive start ordinate',
       'claim_status': 'reflected-field-shock-coupling-pending',
     }
-  upstream_pressure = reflected_zone.static_pressure_at(start)
+  upstream_pressure = reflected_source_strip.static_pressure_at(start)
   if upstream_pressure is None:
     return {
       'status': 'pressure_failure',
@@ -530,9 +533,8 @@ def _reflected_zone_shock_coupling_probe(
     reflected_zone,
     trace_extension.shock_points_m,
   )
-  result = solve_marched_attached_shock_field(
-    reflected_zone.state_at,
-    reflected_zone.static_pressure_at,
+  result = solve_marched_attached_shock_from_source_strip(
+    reflected_source_strip,
     start,
     downstream_flow_angle_at=lambda _index, point: 0.05 * max(
       0.0,
@@ -550,6 +552,50 @@ def _reflected_zone_shock_coupling_probe(
     'claim_status': (
       'reflected-field-domain-bounded-probe; shock-path-extension-pending'
     ),
+  }
+
+
+def _reflected_simple_wave_extension_probe(
+  reflected_boundary: Any,
+  reflected_simple_wave_extension: Any,
+) -> dict[str, Any]:
+  """Probe shock marching after an explicit open-strip continuation."""
+
+  strip = reflected_simple_wave_extension.strip
+  if not reflected_simple_wave_extension.converged or strip is None:
+    return {
+      'status': reflected_simple_wave_extension.status.value,
+      'sample_count': 0,
+      'message': reflected_simple_wave_extension.message,
+      'extension': reflected_simple_wave_extension.as_report(),
+      'claim_status': 'constant-k-plus-simple-wave-extension-pending',
+    }
+  if not reflected_boundary.boundary_points_m:
+    return {
+      'status': 'invalid_input',
+      'sample_count': 0,
+      'message': 'reflected boundary did not provide a shock start',
+      'extension': reflected_simple_wave_extension.as_report(),
+      'claim_status': 'constant-k-plus-simple-wave-extension-pending',
+    }
+  start = reflected_boundary.boundary_points_m[-1]
+  result = solve_marched_attached_shock_from_source_strip(
+    strip,
+    start,
+    downstream_flow_angle_at=lambda _index, point: 0.05 * max(
+      0.0,
+      min(1.0, point[1] / start[1]),
+    ),
+    sample_count=17,
+  )
+  return {
+    'status': result.status.value,
+    'sample_count': result.sample_count,
+    'shock_start_m': start,
+    'last_valid_point_m': result.shock_points_m[-1] if result.shock_points_m else None,
+    'message': result.message,
+    'extension': reflected_simple_wave_extension.as_report(),
+    'claim_status': 'constant-k-plus-simple-wave-extension; shock-closure-pending',
   }
 
 
@@ -626,9 +672,27 @@ def build_moc_primitive_report() -> dict[str, Any]:
     reflected_boundary,
     total_pressure_Pa=fan_exit.total_pressure_Pa,
   )
+  reflected_source_strip = assemble_source_characteristic_strip(
+    reflected_boundary.centerline_states,
+    reflected_boundary.boundary_states,
+    fan_exit.total_pressure_Pa,
+  )
+  reflected_simple_wave_extension = extend_source_characteristic_strip_constant_k_plus(
+    reflected_boundary.centerline_states,
+    reflected_boundary.boundary_states,
+    fan_exit.total_pressure_Pa,
+    fan_ambient.pressure_Pa,
+    additional_sample_count=12,
+    axis_step_m=0.03,
+  )
   reflected_zone_shock_coupling = _reflected_zone_shock_coupling_probe(
     reflected_zone,
     reflected_boundary,
+    reflected_source_strip,
+  )
+  reflected_simple_wave_shock_probe = _reflected_simple_wave_extension_probe(
+    reflected_boundary,
+    reflected_simple_wave_extension,
   )
   fan_reflected_interface = validate_fan_reflected_interface(
     fan,
@@ -1039,6 +1103,15 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'shock_closure_status': reflected_zone.shock_closure_status,
       'message': reflected_zone.message,
     },
+    'reflected_source_characteristic_strip': {
+      **reflected_source_strip.as_report(),
+      'claim_status': 'reusable-open-upstream-strip; shock-closure-pending',
+    },
+    'reflected_source_strip_constant_k_plus_extension': {
+      **reflected_simple_wave_extension.as_report(),
+      'shock_probe': reflected_simple_wave_shock_probe,
+      'claim_status': 'open-simple-wave-extension; shock-closure-pending',
+    },
     'reflected_zone_shock_coupling': reflected_zone_shock_coupling,
     'reflected_boundary_trace_extension': {
       'status': reflected_trace_extension.status.value,
@@ -1343,6 +1416,20 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'message': reflected_zone.message,
       }
     ] if not reflected_zone.converged else []),
+    *([
+      {
+        'case': 'reflected_source_characteristic_strip',
+        'status': reflected_source_strip.status.value,
+        'message': reflected_source_strip.message,
+      }
+    ] if not reflected_source_strip.converged else []),
+    *([
+      {
+        'case': 'reflected_source_strip_constant_k_plus_extension',
+        'status': reflected_simple_wave_extension.status.value,
+        'message': reflected_simple_wave_extension.message,
+      }
+    ] if not reflected_simple_wave_extension.converged else []),
     *([
       {
         'case': 'shock_closure_candidate',
