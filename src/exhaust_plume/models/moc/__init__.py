@@ -91,6 +91,7 @@ from exhaust_plume.models.moc.source_strip import (
   MocSourceStripContinuationStatus,
   assemble_source_characteristic_strip,
   assemble_source_characteristic_strip_window,
+  extend_source_characteristic_strip_centerline_reflection,
   extend_source_characteristic_strip_constant_k_plus,
 )
 from exhaust_plume.models.moc.coupled import (
@@ -265,6 +266,7 @@ __all__ = (
   'assemble_source_characteristic_strip',
   'assemble_source_characteristic_strip_window',
   'extend_source_characteristic_strip_constant_k_plus',
+  'extend_source_characteristic_strip_centerline_reflection',
   'solve_marched_attached_shock_with_ambient_pressure_closure',
   'solve_marched_attached_shock_with_constant_invariant_closure',
   'solve_marched_attached_shock_chain_cell_with_constant_invariant_closure',

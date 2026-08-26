@@ -60,6 +60,9 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   generated_chain = report['geometry_cases']['solver_generated_chain_reference']
   source_strip = report['geometry_cases']['reflected_source_characteristic_strip']
   simple_wave_extension = report['geometry_cases']['reflected_source_strip_constant_k_plus_extension']
+  centerline_reflection_extension = report['geometry_cases'][
+    'reflected_source_strip_centerline_reflection_extension'
+  ]
   reflected_probe = report['geometry_cases']['reflected_zone_shock_coupling']
   trace_extension = report['geometry_cases']['reflected_boundary_trace_extension']
   planner = report['geometry_cases']['shock_cell_chain_planner_mock']
@@ -96,6 +99,15 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert simple_wave_extension['shock_probe']['status'] == 'upstream_field_failure'
   assert simple_wave_extension['shock_probe']['sample_count'] > 1
   assert simple_wave_extension['shock_probe']['claim_status'] == 'constant-k-plus-simple-wave-extension; shock-closure-pending'
+  assert centerline_reflection_extension['continuation_law'] == (
+    'centerline-c-minus-reflection-plus-ambient-pressure'
+  )
+  assert centerline_reflection_extension['added_sample_count'] == 1
+  assert centerline_reflection_extension['source_window_count'] == 10
+  assert centerline_reflection_extension['claim_status'] == (
+    'centerline-C-minus-reflection-boundary-law; '
+    'triangular-domain-remesh-or-shock-closure-pending'
+  )
   assert reflected_probe['status'] == 'upstream_field_failure'
   assert reflected_probe['claim_status'] == (
     'reflected-field-domain-bounded-shock-solver; downstream-boundary-and-'

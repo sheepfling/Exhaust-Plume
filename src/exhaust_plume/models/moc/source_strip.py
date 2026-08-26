@@ -22,6 +22,7 @@ from types import MappingProxyType
 from exhaust_plume.models.moc.primitives import (
   CharacteristicFamily,
   CharacteristicState,
+  centerline_characteristic_point,
   interior_characteristic_point,
   inverse_prandtl_meyer_angle_rad,
 )
@@ -37,6 +38,7 @@ __all__ = (
   'assemble_source_characteristic_strip',
   'assemble_source_characteristic_strip_window',
   'extend_source_characteristic_strip_constant_k_plus',
+  'extend_source_characteristic_strip_centerline_reflection',
 )
 
 
@@ -54,6 +56,7 @@ class MocSourceStripContinuationStatus(str, Enum):
   """Outcome for a simple-wave source-strip continuation."""
 
   CONVERGED_EXTENDED = 'converged_constant_k_plus_extension'
+  CONVERGED_CENTERLINE_REFLECTION = 'converged_centerline_reflection_extension'
   CONVERGED_TERMINAL_WINDOW = 'converged_terminal_source_window'
   INVALID_INPUT = 'invalid_input'
   BOUNDARY_FAILURE = 'boundary_continuation_failure'
@@ -329,24 +332,26 @@ class MocSourceCharacteristicStripResult:
 
 @dataclass(frozen=True, slots=True)
 class MocSourceStripContinuationResult:
-  """An open source strip extended with an explicit constant-``K+`` law."""
+  """An open source strip extended with an explicit boundary law."""
 
   status: MocSourceStripContinuationStatus
   strip: MocSourceCharacteristicStripResult | None
   plus_source_states: tuple[CharacteristicState, ...]
   minus_source_states: tuple[CharacteristicState, ...]
   added_sample_count: int
-  axis_step_m: float
+  axis_step_m: float | None
   continuation_k_plus: float | None
   message: str = ''
   full_strip: MocSourceCharacteristicStripResult | None = None
   source_window_start_index: int = 0
   source_window_total_count: int | None = None
+  continuation_law: str = 'constant-k-plus-simple-wave'
 
   @property
   def converged(self) -> bool:
     return self.status in (
       MocSourceStripContinuationStatus.CONVERGED_EXTENDED,
+      MocSourceStripContinuationStatus.CONVERGED_CENTERLINE_REFLECTION,
       MocSourceStripContinuationStatus.CONVERGED_TERMINAL_WINDOW,
     )
   ####
@@ -358,6 +363,7 @@ class MocSourceStripContinuationResult:
       'added_sample_count': self.added_sample_count,
       'axis_step_m': self.axis_step_m,
       'continuation_k_plus': self.continuation_k_plus,
+      'continuation_law': self.continuation_law,
       'source_window_start_index': self.source_window_start_index,
       'source_window_count': len(self.plus_source_states),
       'source_window_total_count': self.source_window_total_count,
@@ -1031,6 +1037,328 @@ def extend_source_characteristic_strip_constant_k_plus(
     message=(
       'constant-K+ source continuation reached its requested samples, but '
       f'the selected terminal window failed: {selected_strip.message}'
+    ),
+  )
+####
+
+
+def _finish_centerline_reflection_continuation(
+  initial_strip: MocSourceCharacteristicStripResult,
+  full_strip: MocSourceCharacteristicStripResult,
+  extended_plus: Sequence[CharacteristicState],
+  extended_minus: Sequence[CharacteristicState],
+  *,
+  original_sample_count: int,
+  source_window_start_index: int,
+  message: str,
+) -> MocSourceStripContinuationResult:
+  """Attach source-window semantics to a completed reflection march."""
+
+  plus = tuple(extended_plus)
+  minus = tuple(extended_minus)
+  added_sample_count = len(minus) - original_sample_count
+  common = {
+    'plus_source_states': plus,
+    'minus_source_states': minus,
+    'added_sample_count': added_sample_count,
+    'axis_step_m': None,
+    'continuation_k_plus': None,
+    'source_window_start_index': source_window_start_index,
+    'source_window_total_count': len(plus),
+    'continuation_law': 'centerline-c-minus-reflection-plus-ambient-pressure',
+  }
+  if source_window_start_index == 0:
+    if full_strip.converged:
+      return MocSourceStripContinuationResult(
+        status=MocSourceStripContinuationStatus.CONVERGED_CENTERLINE_REFLECTION,
+        strip=full_strip,
+        full_strip=full_strip,
+        message=message,
+        **common,
+      )
+    return MocSourceStripContinuationResult(
+      status=MocSourceStripContinuationStatus.STRIP_FAILURE,
+      strip=full_strip,
+      full_strip=full_strip,
+      message=f'{message}; extended strip failed: {full_strip.message}',
+      **common,
+    )
+  if source_window_start_index >= len(plus) - 2:
+    return MocSourceStripContinuationResult(
+      status=MocSourceStripContinuationStatus.STRIP_FAILURE,
+      strip=full_strip,
+      full_strip=full_strip,
+      message=(
+        f'{message}; requested terminal source window has fewer than three '
+        'samples'
+      ),
+      **common,
+    )
+  selected_strip = assemble_source_characteristic_strip_window(
+    plus[source_window_start_index:],
+    minus[source_window_start_index:],
+    full_strip.total_pressure_Pa,
+    source_window_start_index=source_window_start_index,
+    source_window_total_count=len(plus),
+  )
+  if selected_strip.converged:
+    return MocSourceStripContinuationResult(
+      status=MocSourceStripContinuationStatus.CONVERGED_TERMINAL_WINDOW,
+      strip=selected_strip,
+      full_strip=full_strip,
+      message=(
+        f'{message}; the selected terminal source window is converged while '
+        'the full source domain remains retained separately'
+      ),
+      **common,
+    )
+  return MocSourceStripContinuationResult(
+    status=MocSourceStripContinuationStatus.STRIP_FAILURE,
+    strip=selected_strip,
+    full_strip=full_strip,
+    message=(
+      f'{message}; selected terminal window failed: '
+      f'{selected_strip.message}'
+    ),
+    **common,
+  )
+####
+
+
+def extend_source_characteristic_strip_centerline_reflection(
+  plus_source_states: Sequence[CharacteristicState],
+  minus_source_states: Sequence[CharacteristicState],
+  total_pressure_Pa: float,
+  ambient_pressure_Pa: float,
+  additional_sample_count: int,
+  *,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  pressure_tolerance: float = 1.0e-10,
+  maximum_iterations: int = 16,
+  source_window_start_index: int = 0,
+) -> MocSourceStripContinuationResult:
+  """Extend a source strip with a symmetry-reflection boundary law.
+
+  Each step solves the incoming outer-boundary ``C-`` characteristic to the
+  symmetry line with ``theta=0``.  That reflected axis state then supplies a
+  ``C+`` characteristic to the next ambient-pressure, streamline-tangent
+  boundary point.  Unlike the diagnostic constant-``K+`` extension, the
+  reflected ``K+`` value and the axis location are solved at every step; no
+  arbitrary axis spacing or frozen invariant is imposed.
+
+  The result remains an open upstream field.  It is suitable for supplying a
+  bounded upstream state/pressure domain to a future shock solver, but it
+  does not itself fit a shock or close a continued shock-cell chain.
+  """
+
+  plus = tuple(plus_source_states)
+  minus = tuple(minus_source_states)
+  try:
+    total_pressure = float(total_pressure_Pa)
+    ambient_pressure = float(ambient_pressure_Pa)
+  except (TypeError, ValueError):
+    return MocSourceStripContinuationResult(
+      status=MocSourceStripContinuationStatus.INVALID_INPUT,
+      strip=None,
+      plus_source_states=plus,
+      minus_source_states=minus,
+      added_sample_count=0,
+      axis_step_m=None,
+      continuation_k_plus=None,
+      message='pressures must be finite numeric values',
+      continuation_law='centerline-c-minus-reflection-plus-ambient-pressure',
+    )
+  if (
+    not isfinite(total_pressure)
+    or total_pressure <= 0.0
+    or not isfinite(ambient_pressure)
+    or ambient_pressure <= 0.0
+    or total_pressure <= ambient_pressure
+  ):
+    return MocSourceStripContinuationResult(
+      status=MocSourceStripContinuationStatus.INVALID_INPUT,
+      strip=None,
+      plus_source_states=plus,
+      minus_source_states=minus,
+      added_sample_count=0,
+      axis_step_m=None,
+      continuation_k_plus=None,
+      message='total pressure must exceed a finite positive ambient pressure',
+      continuation_law='centerline-c-minus-reflection-plus-ambient-pressure',
+    )
+  if (
+    isinstance(additional_sample_count, bool)
+    or not isinstance(additional_sample_count, int)
+    or additional_sample_count < 1
+  ):
+    return MocSourceStripContinuationResult(
+      status=MocSourceStripContinuationStatus.INVALID_INPUT,
+      strip=None,
+      plus_source_states=plus,
+      minus_source_states=minus,
+      added_sample_count=0,
+      axis_step_m=None,
+      continuation_k_plus=None,
+      message='additional_sample_count must be a positive integer',
+      continuation_law='centerline-c-minus-reflection-plus-ambient-pressure',
+    )
+  for name, value in (
+    ('position_tolerance_m', position_tolerance_m),
+    ('invariant_tolerance', invariant_tolerance),
+    ('pressure_tolerance', pressure_tolerance),
+  ):
+    if not isfinite(float(value)) or value <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+  if isinstance(maximum_iterations, bool) or maximum_iterations < 1:
+    raise ValueError('maximum_iterations must be a positive integer')
+  if (
+    isinstance(source_window_start_index, bool)
+    or not isinstance(source_window_start_index, int)
+    or source_window_start_index < 0
+  ):
+    raise ValueError('source_window_start_index must be a non-negative integer')
+  initial_strip = assemble_source_characteristic_strip(
+    plus,
+    minus,
+    total_pressure,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+  )
+  law = 'centerline-c-minus-reflection-plus-ambient-pressure'
+  if not initial_strip.converged:
+    return MocSourceStripContinuationResult(
+      status=MocSourceStripContinuationStatus.STRIP_FAILURE,
+      strip=initial_strip,
+      plus_source_states=plus,
+      minus_source_states=minus,
+      added_sample_count=0,
+      axis_step_m=None,
+      continuation_k_plus=None,
+      message=f'initial source strip is not converged: {initial_strip.message}',
+      continuation_law=law,
+    )
+  extended_plus = list(plus)
+  extended_minus = list(minus)
+  for step in range(additional_sample_count):
+    previous_plus = extended_plus[-1]
+    previous_minus = extended_minus[-1]
+    axis_result = centerline_characteristic_point(
+      previous_minus,
+      CharacteristicFamily.MINUS,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+    )
+    if not axis_result.converged or axis_result.state is None or axis_result.point_m is None:
+      return MocSourceStripContinuationResult(
+        status=MocSourceStripContinuationStatus.BOUNDARY_FAILURE,
+        strip=initial_strip,
+        plus_source_states=tuple(extended_plus),
+        minus_source_states=tuple(extended_minus),
+        added_sample_count=len(extended_minus) - len(minus),
+        axis_step_m=None,
+        continuation_k_plus=None,
+        message=(
+          f'centerline reflection failed at step {step}: '
+          f'{axis_result.message}'
+        ),
+        continuation_law=law,
+      )
+    axis_state = axis_result.state
+    if axis_state.x_m <= previous_plus.x_m + position_tolerance_m:
+      return MocSourceStripContinuationResult(
+        status=MocSourceStripContinuationStatus.BOUNDARY_FAILURE,
+        strip=initial_strip,
+        plus_source_states=tuple(extended_plus),
+        minus_source_states=tuple(extended_minus),
+        added_sample_count=len(extended_minus) - len(minus),
+        axis_step_m=None,
+        continuation_k_plus=None,
+        message=(
+          f'centerline reflection step {step} has no downstream axis '
+          'progress'
+        ),
+        continuation_law=law,
+      )
+    boundary_result = solve_ambient_pressure_free_boundary_point(
+      axis_state,
+      previous_minus,
+      CharacteristicFamily.PLUS,
+      total_pressure_Pa=total_pressure,
+      ambient_pressure_Pa=ambient_pressure,
+      position_tolerance_m=position_tolerance_m,
+      pressure_tolerance=pressure_tolerance,
+      maximum_iterations=maximum_iterations,
+    )
+    if (
+      not boundary_result.converged
+      or boundary_result.state is None
+      or boundary_result.point_m is None
+    ):
+      return MocSourceStripContinuationResult(
+        status=MocSourceStripContinuationStatus.BOUNDARY_FAILURE,
+        strip=initial_strip,
+        plus_source_states=tuple(extended_plus),
+        minus_source_states=tuple(extended_minus),
+        added_sample_count=len(extended_minus) - len(minus),
+        axis_step_m=None,
+        continuation_k_plus=None,
+        message=(
+          f'ambient boundary after centerline reflection failed at step '
+          f'{step}: {boundary_result.message}'
+        ),
+        continuation_law=law,
+      )
+    if boundary_result.point_m[0] <= previous_minus.x_m + position_tolerance_m:
+      return MocSourceStripContinuationResult(
+        status=MocSourceStripContinuationStatus.BOUNDARY_FAILURE,
+        strip=initial_strip,
+        plus_source_states=tuple(extended_plus),
+        minus_source_states=tuple(extended_minus),
+        added_sample_count=len(extended_minus) - len(minus),
+        axis_step_m=None,
+        continuation_k_plus=None,
+        message=(
+          f'ambient boundary after centerline reflection step {step} '
+          'has no downstream progress'
+        ),
+        continuation_law=law,
+      )
+    if abs(boundary_result.state.k_plus - axis_state.k_plus) > invariant_tolerance:
+      return MocSourceStripContinuationResult(
+        status=MocSourceStripContinuationStatus.BOUNDARY_FAILURE,
+        strip=initial_strip,
+        plus_source_states=tuple(extended_plus),
+        minus_source_states=tuple(extended_minus),
+        added_sample_count=len(extended_minus) - len(minus),
+        axis_step_m=None,
+        continuation_k_plus=None,
+        message=(
+          f'ambient boundary after centerline reflection step {step} '
+          'did not preserve the reflected C+ invariant'
+        ),
+        continuation_law=law,
+      )
+    extended_plus.append(axis_state)
+    extended_minus.append(boundary_result.state)
+  full_strip = assemble_source_characteristic_strip(
+    extended_plus,
+    extended_minus,
+    total_pressure,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+  )
+  return _finish_centerline_reflection_continuation(
+    initial_strip,
+    full_strip,
+    extended_plus,
+    extended_minus,
+    original_sample_count=len(minus),
+    source_window_start_index=source_window_start_index,
+    message=(
+      'centerline C- reflection and ambient-pressure C+ boundary march '
+      'converged as an open upstream source strip; shock fitting and '
+      'downstream closure remain pending'
     ),
   )
 ####

@@ -155,6 +155,13 @@ not wait on this research closure.
   promotion path. The compatibility mode remains available for prescribed
   research fixtures, but its chain seed records that upstream coupling was
   not verified.
+- Added a separate centerline-reflection upstream continuation law. It sends
+  the outer boundary's ``C-`` characteristic to the symmetry line, applies
+  ``theta=0``, and marches the reflected ``C+`` characteristic to the
+  ambient-pressure/tangent boundary at each step. The canonical source
+  domain retains the generated samples but currently stops at a forward-ray
+  caustic when the old triangular mesh is reassembled; that bounded failure is
+  evidence for the required remesh/shock-closure seam, not a promotion.
 - Added axial-boundary, cell-index, domain-limit, and callback termination
   checks.
 - Added a hard fidelity boundary: scaled reduced-order candidates are

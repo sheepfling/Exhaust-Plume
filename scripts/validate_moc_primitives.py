@@ -62,6 +62,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_underexpanded_expansion_fan,
   assemble_source_characteristic_strip,
   assemble_ambient_shock_characteristic_strip,
+  extend_source_characteristic_strip_centerline_reflection,
   extend_source_characteristic_strip_constant_k_plus,
   march_post_shock_ambient_boundary,
   sample_reflected_zone_along_shock_path,
@@ -934,6 +935,15 @@ def build_moc_primitive_report() -> dict[str, Any]:
     additional_sample_count=12,
     axis_step_m=0.03,
   )
+  reflected_centerline_reflection_extension = (
+    extend_source_characteristic_strip_centerline_reflection(
+      reflected_boundary.centerline_states,
+      reflected_boundary.boundary_states,
+      fan_exit.total_pressure_Pa,
+      fan_ambient.pressure_Pa,
+      additional_sample_count=1,
+    )
+  )
   reflected_zone_shock_coupling = _reflected_zone_shock_coupling_probe(
     reflected_zone,
     reflected_boundary,
@@ -1476,6 +1486,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
       **reflected_simple_wave_extension.as_report(),
       'shock_probe': reflected_simple_wave_shock_probe,
       'claim_status': 'open-simple-wave-extension; shock-closure-pending',
+    },
+    'reflected_source_strip_centerline_reflection_extension': {
+      **reflected_centerline_reflection_extension.as_report(),
+      'claim_status': (
+        'centerline-C-minus-reflection-boundary-law; '
+        'triangular-domain-remesh-or-shock-closure-pending'
+      ),
     },
     'terminal_source_window_invariant_closure': terminal_source_window_invariant_closure,
     'ambient_pressure_closure_probe': ambient_pressure_closure_probe,
