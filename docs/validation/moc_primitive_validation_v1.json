@@ -2350,6 +2350,45 @@
       "strict_upstream_coupling_mode": true,
       "claim_status": "strict-upstream-coupled-chain-reference; reflected-field-coupling-pending"
     },
+    "solver_generated_chain_terminal_probe": {
+      "status": "physically-terminated",
+      "termination_reason": "physical-termination",
+      "physical_termination": true,
+      "cell_count": 1,
+      "end_x_m": 1.0,
+      "resolved": true,
+      "state_carry_count": 1,
+      "continuation_boundary_kinds": [
+        "post-shock-field-perimeter"
+      ],
+      "continuation_total_pressure_ranges_Pa": [
+        {
+          "cell_index": 1,
+          "minimum_Pa": 749635.1347251647,
+          "maximum_Pa": 764819.179280032
+        }
+      ],
+      "continuation_boundary_maxima_nonincreasing": null,
+      "geometry_fidelity_counts": {
+        "resolved-planar-moc": 1
+      },
+      "diagnostics": {
+        "termination_model": "normal-shock-terminal",
+        "shock_point_m": [
+          1.790724190063819,
+          0.0
+        ],
+        "downstream_mach": 0.5773502691896257,
+        "downstream_pressure_Pa": 450000.0,
+        "total_pressure_ratio": 0.7208738614847455,
+        "upstream_sample_count": 8,
+        "next_cell_index": 2
+      },
+      "message": "continued marched shock reached a verified subsonic normal shock; the unresolved mixed-regime downstream field remains outside the supersonic MOC chain",
+      "expected_physical_termination": true,
+      "claim_status": "solver-generated-continued-cell-to-typed-normal-shock-stop; mixed-regime-cell-promotion-pending",
+      "accepted": true
+    },
     "shock_seeded_post_shock_field": {
       "status": "converged_closed",
       "accepted": true,

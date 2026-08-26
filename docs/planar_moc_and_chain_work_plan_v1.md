@@ -105,6 +105,11 @@ not wait on this research closure.
   decision can set `physical_termination=true`. The planner mock now uses the
   non-physical typed stop so its three-cell result cannot be mistaken for a
   predicted chain endpoint.
+- Added a continued-cell adapter that returns either a generated
+  state-carrying cell or an explicit normal-shock termination decision. The
+  solver-generated chain probe now demonstrates a one-cell continuation that
+  stops physically at the typed subsonic boundary while retaining the missing
+  mixed-regime field as a blocker.
 - Added continued-chain pressure-lineage reporting. Each state-carrying cell
   now reports its outgoing total-pressure range and the chain report records
   whether those carried maxima are nonincreasing. This is a handoff
@@ -324,7 +329,9 @@ rejects the prescribed planner seed before callback execution and requires
 each generated field to carry the fitted upstream shock state/pressure
 samples. The canonical marcher separately reports
 `subsonic_terminal_required` when a zero-turn/normal-shock endpoint would need
-to leave the supersonic MOC lane.
+to leave the supersonic MOC lane. The companion continued-cell adapter can
+now return that verified terminal as a physical chain-stop decision, while
+the ordinary generated-cell path remains available for nonterminal cells.
 
 The constant-`K+` source-strip continuation is a separate upstream-only
 diagnostic fixture: it tests how a continued shock probe consumes a growing

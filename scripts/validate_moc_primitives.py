@@ -45,6 +45,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_marched_attached_shock_from_terminal_reflection_patch,
   solve_normal_shock_terminal,
   solve_marched_attached_shock_chain_cell,
+  solve_marched_attached_shock_chain_cell_or_termination,
   solve_marched_attached_shock_field,
   solve_marched_attached_shock_from_reflected_zone,
   solve_marched_attached_shock_from_source_strip,
@@ -1120,6 +1121,62 @@ def _solver_generated_chain_reference(
   )
 
 
+def _solver_generated_chain_terminal_probe(
+  seed_field: MocPostShockCharacteristicFieldResult,
+) -> dict[str, Any]:
+  """Exercise a continued-cell solver that stops at a typed normal shock."""
+
+  if not seed_field.converged:
+    return {
+      'status': 'invalid_seed',
+      'physical_termination': False,
+      'message': f'generated chain terminal probe received an open seed: {seed_field.message}',
+      'claim_status': 'typed-terminal-chain-stop-pending',
+    }
+
+  def solve_next(current, cell_index, handoff):
+    return solve_marched_attached_shock_chain_cell_or_termination(
+      current,
+      cell_index,
+      handoff,
+      start_point_m=(current.end_x_m + 0.2, 0.5),
+      end_x_m=current.end_x_m + 0.8,
+      upstream_state_at=lambda point: CharacteristicState(
+        x_m=point[0],
+        y_m=point[1],
+        theta_rad=-0.2 * point[1] / 0.5,
+        mach=2.0,
+        gamma=1.4,
+      ),
+      upstream_pressure_at=lambda _point: 100000.0,
+      downstream_flow_angle_rad=0.0,
+      sample_count=9,
+    )
+
+  chain = continue_post_shock_characteristic_chain(
+    seed_field,
+    solve_next,
+    start_x_m=0.5,
+    end_x_m=1.0,
+    require_upstream_shock_coupling=True,
+  )
+  return {
+    **chain.as_report(),
+    'expected_physical_termination': (
+      chain.physical_termination
+      and chain.status is MocChainStatus.PHYSICALLY_TERMINATED
+      and chain.cell_count == 1
+      and chain.resolved
+      and chain.termination_reason is MocChainTerminationReason.PHYSICAL_TERMINATION
+      and chain.diagnostics.get('termination_model') == 'normal-shock-terminal'
+    ),
+    'claim_status': (
+      'solver-generated-continued-cell-to-typed-normal-shock-stop; '
+      'mixed-regime-cell-promotion-pending'
+    ),
+  }
+
+
 def _reflected_zone_shock_coupling_probe(
   reflected_zone: Any,
   reflected_boundary: Any,
@@ -1530,6 +1587,11 @@ def build_moc_primitive_report() -> dict[str, Any]:
     solver_generated_chain_reference, solver_generated_chain_observations = _solver_generated_chain_reference(
       solver_generated_shock.field,
     )
+  solver_generated_chain_terminal_probe = _solver_generated_chain_terminal_probe(
+    solver_generated_shock.field
+    if solver_generated_shock.field is not None
+    else _shock_seeded_field_fixture(),
+  )
   (
     shock_cell_chain_mock,
     shock_cell_chain_mock_observations,
@@ -1662,6 +1724,9 @@ def build_moc_primitive_report() -> dict[str, Any]:
       for cell in solver_generated_chain_reference.cells
     )
     or not solver_generated_chain_pressure_lineage_ok
+  )
+  solver_generated_chain_terminal_failure = (
+    solver_generated_chain_terminal_probe.get('expected_physical_termination') is not True
   )
   overexpanded_exit = derive_uniform_nozzle_exit(
     NozzleExitInput(
@@ -2206,6 +2271,10 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'strict_upstream_coupling_mode': True,
       'claim_status': 'strict-upstream-coupled-chain-reference; reflected-field-coupling-pending',
     },
+    'solver_generated_chain_terminal_probe': {
+      **solver_generated_chain_terminal_probe,
+      'accepted': not solver_generated_chain_terminal_failure,
+    },
     'shock_seeded_post_shock_field': {
       'status': shock_seeded_field.status.value,
       'accepted': shock_seeded_field.converged,
@@ -2566,6 +2635,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
         ),
       }
     ] if solver_generated_chain_failure else []),
+    *([
+      {
+        'case': 'solver_generated_chain_terminal_probe',
+        'status': str(solver_generated_chain_terminal_probe.get('status', 'missing')),
+        'message': str(solver_generated_chain_terminal_probe.get('message', '')),
+      }
+    ] if solver_generated_chain_terminal_failure else []),
     *([
       {
         'case': 'shock_cell_chain_planner_mock',

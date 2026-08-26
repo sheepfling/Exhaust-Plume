@@ -29,7 +29,12 @@ from exhaust_plume.models.moc.compression import (
   solve_normal_shock_terminal,
 )
 from exhaust_plume.models.moc.boundary import MocReflectedBoundaryResult
-from exhaust_plume.models.moc.chain import MocChainBoundarySample, MocChainCell
+from exhaust_plume.models.moc.chain import (
+  MocChainBoundarySample,
+  MocChainCell,
+  MocChainTerminationDecision,
+  MocChainTerminationReason,
+)
 from exhaust_plume.models.moc.post_shock import (
   MocPostShockBoundaryState,
   MocPostShockChainCellSolve,
@@ -60,6 +65,7 @@ __all__ = (
   'solve_marched_attached_shock_with_ambient_pressure_closure_from_reflected_zone',
   'solve_reflected_boundary_trace_extension',
   'solve_marched_attached_shock_chain_cell',
+  'solve_marched_attached_shock_chain_cell_or_termination',
   'solve_marched_attached_shock_chain_cell_from_reflected_zone',
   'solve_uniform_attached_shock_field',
 )
@@ -1159,6 +1165,110 @@ def solve_marched_attached_shock_chain_cell(
     invariant_tolerance=invariant_tolerance,
     shock_angle_tolerance_rad=shock_angle_tolerance_rad,
   )
+  if not result.converged or result.field is None:
+    raise ValueError(
+      f'continued marched shock cell failed: {result.status.value}: {result.message}'
+    )
+  return MocPostShockChainCellSolve(field=result.field, end_x_m=float(end_x_m))
+####
+
+
+def solve_marched_attached_shock_chain_cell_or_termination(
+  current_cell: MocChainCell,
+  next_cell_index: int,
+  incoming_handoff: Sequence[MocChainBoundarySample],
+  *,
+  start_point_m: tuple[float, float],
+  end_x_m: float,
+  upstream_state_at: Callable[[tuple[float, float]], CharacteristicState | None],
+  upstream_pressure_at: Callable[[tuple[float, float]], float | None],
+  target_centerline_y_m: float = 0.0,
+  downstream_flow_angle_at: Callable[[int, tuple[float, float]], float] | None = None,
+  downstream_flow_angle_rad: float | None = None,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+) -> MocPostShockChainCellSolve | MocChainTerminationDecision:
+  """Solve one continued cell or return a verified physical chain stop.
+
+  A converged shock/field returns the same state-carrying solve as
+  :func:`solve_marched_attached_shock_chain_cell`.  If the march reaches its
+  typed subsonic normal-shock terminal, this adapter returns an explicit
+  physical termination decision instead of trying to construct a subsonic
+  ``CharacteristicState`` or a fake final cell.  The upstream callbacks are
+  still caller-owned; this adapter does not close the missing mixed-regime
+  downstream field.
+  """
+
+  if not isinstance(current_cell, MocChainCell):
+    raise TypeError('current_cell must be a MocChainCell')
+  if (
+    isinstance(next_cell_index, bool)
+    or not isinstance(next_cell_index, int)
+    or next_cell_index != current_cell.cell_index + 1
+  ):
+    raise ValueError('next_cell_index must immediately follow current_cell.cell_index')
+  handoff = tuple(incoming_handoff)
+  if handoff != current_cell.continuation_boundary:
+    raise ValueError('incoming_handoff must exactly match the current cell boundary')
+  if len(handoff) < 3:
+    raise ValueError('continued marched shock cells require at least three handoff samples')
+  if not isfinite(float(end_x_m)) or end_x_m <= current_cell.end_x_m:
+    raise ValueError('continued cell end_x_m must be strictly downstream of the current cell')
+  if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
+    raise ValueError('position_tolerance_m must be finite and positive')
+  start = _finite_point(start_point_m, 'start_point_m')
+  if start[0] <= current_cell.end_x_m + position_tolerance_m:
+    raise ValueError('continued shock start point must be downstream of the current cell')
+
+  result = solve_marched_attached_shock_field(
+    upstream_state_at,
+    upstream_pressure_at,
+    start,
+    target_centerline_y_m=target_centerline_y_m,
+    downstream_flow_angle_at=downstream_flow_angle_at,
+    downstream_flow_angle_rad=downstream_flow_angle_rad,
+    incoming_handoff=handoff,
+    sample_count=sample_count,
+    branch=branch,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+    shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+  )
+  if result.subsonic_terminal_required:
+    terminal = result.normal_shock_terminal
+    if (
+      not result.terminal_model_verified
+      or terminal is None
+      or len(result.upstream_states) != result.sample_count
+      or len(result.upstream_pressure_Pa) != result.sample_count
+      or terminal.upstream_state is None
+      or terminal.upstream_pressure_Pa is None
+    ):
+      raise ValueError(
+        'continued marched shock reached an incomplete normal-shock terminal '
+        'and cannot provide a physical chain stop'
+      )
+    return MocChainTerminationDecision(
+      physical_termination=True,
+      reason=MocChainTerminationReason.PHYSICAL_TERMINATION,
+      message=(
+        'continued marched shock reached a verified subsonic normal shock; '
+        'the unresolved mixed-regime downstream field remains outside the '
+        'supersonic MOC chain'
+      ),
+      diagnostics={
+        'termination_model': 'normal-shock-terminal',
+        'shock_point_m': terminal.shock_point_m,
+        'downstream_mach': terminal.downstream_mach,
+        'downstream_pressure_Pa': terminal.downstream_pressure_Pa,
+        'total_pressure_ratio': terminal.total_pressure_ratio,
+        'upstream_sample_count': result.sample_count,
+        'next_cell_index': next_cell_index,
+      },
+    )
   if not result.converged or result.field is None:
     raise ValueError(
       f'continued marched shock cell failed: {result.status.value}: {result.message}'

@@ -16,6 +16,7 @@ from exhaust_plume.models.moc import (
   solve_reflected_boundary_trace_extension,
   solve_marched_attached_shock_chain_cell_from_reflected_zone,
   solve_marched_attached_shock_chain_cell,
+  solve_marched_attached_shock_chain_cell_or_termination,
   solve_marched_attached_shock_field,
   solve_marched_attached_shock_from_reflected_zone,
   solve_marched_attached_shock_from_source_strip,
@@ -614,3 +615,32 @@ def test_marched_chain_cell_consumes_the_prior_terminal_trace() -> None:
   assert continued.field.incoming_handoff_total_pressure_Pa == tuple(
     sample.total_pressure_Pa for sample in seed_cell.continuation_boundary
   )
+
+
+def test_marched_chain_cell_adapter_returns_a_typed_physical_terminal() -> None:
+  seed = _uniform_reference(17)
+  assert seed.field is not None
+  seed_cell = seed.field.as_coupled_chain_cell(start_x_m=0.5, end_x_m=1.0)
+
+  terminal = solve_marched_attached_shock_chain_cell_or_termination(
+    seed_cell,
+    2,
+    seed_cell.continuation_boundary,
+    start_point_m=(1.2, 0.5),
+    end_x_m=1.8,
+    upstream_state_at=lambda point: CharacteristicState(
+      x_m=point[0],
+      y_m=point[1],
+      theta_rad=-0.2 * point[1] / 0.5,
+      mach=2.0,
+      gamma=1.4,
+    ),
+    upstream_pressure_at=lambda _point: 100000.0,
+    downstream_flow_angle_rad=0.0,
+    sample_count=9,
+  )
+
+  assert terminal.physical_termination
+  assert terminal.reason.value == 'physical-termination'
+  assert terminal.diagnostics['termination_model'] == 'normal-shock-terminal'
+  assert terminal.diagnostics['upstream_sample_count'] == 8

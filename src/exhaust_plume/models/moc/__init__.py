@@ -63,6 +63,7 @@ from exhaust_plume.models.moc.free_boundary import (
   solve_marched_attached_shock_with_ambient_pressure_closure_from_reflected_zone,
   solve_reflected_boundary_trace_extension,
   solve_marched_attached_shock_chain_cell,
+  solve_marched_attached_shock_chain_cell_or_termination,
   solve_marched_attached_shock_chain_cell_from_reflected_zone,
   solve_uniform_attached_shock_field,
 )
@@ -336,6 +337,7 @@ __all__ = (
   'solve_marched_attached_shock_with_ambient_pressure_closure_from_reflected_zone',
   'solve_reflected_boundary_trace_extension',
   'solve_marched_attached_shock_chain_cell',
+  'solve_marched_attached_shock_chain_cell_or_termination',
   'solve_marched_attached_shock_chain_cell_from_reflected_zone',
   'solve_uniform_attached_shock_field',
   'assemble_reflected_characteristic_zone',

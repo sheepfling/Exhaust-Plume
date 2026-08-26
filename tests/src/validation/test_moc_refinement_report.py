@@ -58,6 +58,7 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   generated = report['geometry_cases']['solver_generated_attached_shock_field']
   refinement = report['geometry_cases']['solver_generated_shock_refinement']
   generated_chain = report['geometry_cases']['solver_generated_chain_reference']
+  generated_chain_terminal = report['geometry_cases']['solver_generated_chain_terminal_probe']
   source_strip = report['geometry_cases']['reflected_source_characteristic_strip']
   simple_wave_extension = report['geometry_cases']['reflected_source_strip_constant_k_plus_extension']
   centerline_reflection_extension = report['geometry_cases'][
@@ -83,6 +84,14 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert generated_chain['cell_count'] == 3
   assert generated_chain['state_carry_count'] == 3
   assert generated_chain['physical_termination'] is False
+  assert generated_chain_terminal['accepted'] is True
+  assert generated_chain_terminal['status'] == 'physically-terminated'
+  assert generated_chain_terminal['physical_termination'] is True
+  assert generated_chain_terminal['cell_count'] == 1
+  assert generated_chain_terminal['resolved'] is True
+  assert generated_chain_terminal['termination_reason'] == 'physical-termination'
+  assert generated_chain_terminal['expected_physical_termination'] is True
+  assert generated_chain_terminal['diagnostics']['termination_model'] == 'normal-shock-terminal'
   assert ambient_closure['status'] == 'ambient_boundary_failure'
   assert ambient_closure['physical_closure_verified'] is False
   assert ambient_closure['upstream_coupling_verified'] is False

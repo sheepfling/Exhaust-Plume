@@ -276,6 +276,10 @@ physical chain-stop decision for that mixed-regime terminal. This decision
 does not set ``physical_closure_verified`` and cannot promote a cell; it only
 prevents the chain from misreporting a verified normal shock as a numerical
 truncation.
+The continued-cell free-boundary adapter now exposes the same distinction to
+the generic chain: a resolved next field is appended, while a verified
+normal-shock terminal returns a physical stop without appending a subsonic
+MOC cell.
 The terminal-shock composite-field assembler now closes the supersonic side
 of that same terminal by clipping the reflected characteristic cells against
 the solver-generated shock path and rechecking the combined mesh. Its
