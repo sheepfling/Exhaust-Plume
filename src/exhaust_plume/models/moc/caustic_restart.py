@@ -19,6 +19,10 @@ from exhaust_plume.models.moc.boundary import (
   MocFreeBoundaryPointResult,
   solve_ambient_pressure_free_boundary_point,
 )
+from exhaust_plume.models.moc.chain import (
+  MocChainTerminationDecision,
+  MocChainTerminationReason,
+)
 from exhaust_plume.models.moc.primitives import (
   CharacteristicFamily,
   CharacteristicState,
@@ -95,6 +99,31 @@ class MocCausticFamilyBandResult:
   def chain_promotion_blocked(self) -> bool:
     return True
 
+  def as_chain_termination_decision(self) -> MocChainTerminationDecision:
+    """Return the explicit non-physical stop at the open band outlet."""
+
+    if not self.converged:
+      raise ValueError(
+        'a caustic family chain stop requires a converged open family band'
+      )
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
+      message=(
+        'caustic family band is numerically connected but has no fitted shock '
+        'or entropy closure for continued-cell promotion'
+      ),
+      diagnostics={
+        'termination_model': 'caustic-family-open-band',
+        'cell_count': self.cell_count,
+        'step_count': self.step_count,
+        'input_edge_points_m': self.input_edge_points_m,
+        'output_edge_points_m': self.output_edge_points_m,
+        'topology_status': self.topology.status.value,
+        'topology_forms_closed_zone': self.topology.forms_closed_zone,
+      },
+    )
+
   @property
   def cell_count(self) -> int:
     return len(self.cells)
@@ -126,6 +155,11 @@ class MocCausticFamilyBandResult:
       },
       'maximum_absolute_geometry_residual_m': self.maximum_absolute_geometry_residual_m,
       'maximum_absolute_invariant_residual': self.maximum_absolute_invariant_residual,
+      'chain_termination_decision': (
+        None
+        if not self.converged
+        else self.as_chain_termination_decision().as_report()
+      ),
       'message': self.message,
     }
 

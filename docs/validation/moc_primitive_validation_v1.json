@@ -1116,6 +1116,38 @@
               },
               "maximum_absolute_geometry_residual_m": 3.959360218267207e-18,
               "maximum_absolute_invariant_residual": 0.0,
+              "chain_termination_decision": {
+                "physical_termination": false,
+                "reason": "open-physical-closure",
+                "message": "caustic family band is numerically connected but has no fitted shock or entropy closure for continued-cell promotion",
+                "diagnostics": {
+                  "termination_model": "caustic-family-open-band",
+                  "cell_count": 10,
+                  "step_count": 5,
+                  "input_edge_points_m": [
+                    [
+                      0.8403441020646578,
+                      0.0
+                    ],
+                    [
+                      0.9744603781350654,
+                      0.036046619001158374
+                    ]
+                  ],
+                  "output_edge_points_m": [
+                    [
+                      1.8124665380590022,
+                      0.0
+                    ],
+                    [
+                      1.872774749187774,
+                      0.0360466190007769
+                    ]
+                  ],
+                  "topology_status": "open",
+                  "topology_forms_closed_zone": true
+                }
+              },
               "message": "caustic restart produced a connected open two-triangle family band; shock fitting, downstream closure, and chain promotion remain blocked"
             },
             "message": "one-sided caustic family restart converged as an open centerline/ambient boundary; triangular interior remesh and shock closure remain separate gates",
@@ -1222,6 +1254,38 @@
               },
               "maximum_absolute_geometry_residual_m": 3.5378437999061015e-18,
               "maximum_absolute_invariant_residual": 0.0,
+              "chain_termination_decision": {
+                "physical_termination": false,
+                "reason": "open-physical-closure",
+                "message": "caustic family band is numerically connected but has no fitted shock or entropy closure for continued-cell promotion",
+                "diagnostics": {
+                  "termination_model": "caustic-family-open-band",
+                  "cell_count": 10,
+                  "step_count": 5,
+                  "input_edge_points_m": [
+                    [
+                      0.8651004269178882,
+                      0.0
+                    ],
+                    [
+                      0.9991647790373048,
+                      0.029913152722640706
+                    ]
+                  ],
+                  "output_edge_points_m": [
+                    [
+                      1.7590035901230712,
+                      0.0
+                    ],
+                    [
+                      1.8037198706441409,
+                      0.02991315272307008
+                    ]
+                  ],
+                  "topology_status": "open",
+                  "topology_forms_closed_zone": true
+                }
+              },
               "message": "caustic restart produced a connected open two-triangle family band; shock fitting, downstream closure, and chain promotion remain blocked"
             },
             "message": "one-sided caustic family restart converged as an open centerline/ambient boundary; triangular interior remesh and shock closure remain separate gates",

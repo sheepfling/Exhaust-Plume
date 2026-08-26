@@ -340,6 +340,10 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert all(case['family_band']['topology']['connected'] is True for case in caustic_restart['cases'])
   assert all(case['family_band']['physical_closure_verified'] is False for case in caustic_restart['cases'])
   assert all(case['family_band']['chain_promotion_blocked'] is True for case in caustic_restart['cases'])
+  assert all(
+    case['family_band']['chain_termination_decision']['reason'] == 'open-physical-closure'
+    for case in caustic_restart['cases']
+  )
   assert centerline_reflection_extension['remesh']['chain_termination_available'] is True
   assert centerline_reflection_extension['remesh']['chain_termination_decision']['physical_termination'] is False
   assert centerline_reflection_extension['remesh']['chain_termination_decision']['reason'] == (

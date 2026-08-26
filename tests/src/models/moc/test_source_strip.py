@@ -156,3 +156,9 @@ def test_centerline_reflection_extension_carries_a_physical_boundary_law() -> No
   assert restart.family_band.topology.forms_closed_zone
   assert restart.family_band.physical_closure_verified is False
   assert restart.family_band.chain_promotion_blocked is True
+  band_termination = restart.family_band.as_chain_termination_decision()
+  assert band_termination.physical_termination is False
+  assert band_termination.reason is MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+  assert band_termination.diagnostics['termination_model'] == (
+    'caustic-family-open-band'
+  )
