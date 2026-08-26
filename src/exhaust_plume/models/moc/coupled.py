@@ -103,11 +103,24 @@ class MocAmbientClosureResult:
     )
   ####
 
+  @property
+  def upstream_coupling_verified(self) -> bool:
+    """Whether the accepted field carries the upstream shock states through."""
+
+    return bool(
+      self.physical_closure_verified
+      and self.shock is not None
+      and self.shock.field is not None
+      and self.shock.field.upstream_shock_coupling_verified
+    )
+  ####
+
   def as_report(self) -> dict[str, object]:
     return {
       'status': self.status.value,
       'converged': self.converged,
       'physical_closure_verified': self.physical_closure_verified,
+      'upstream_coupling_verified': self.upstream_coupling_verified,
       'ambient_pressure_Pa': self.ambient_pressure_Pa,
       'outer_downstream_flow_angle_rad': self.outer_downstream_flow_angle_rad,
       'outer_flow_angle_bracket': self.outer_flow_angle_bracket,
@@ -133,7 +146,11 @@ class MocAmbientClosureResult:
   ) -> MocChainCell:
     """Promote only a fully ambient-closed field into the MOC chain."""
 
-    if not self.converged or self.shock is None or self.shock.field is None:
+    if (
+      not self.physical_closure_verified
+      or self.shock is None
+      or self.shock.field is None
+    ):
       raise ValueError(
         'only a converged ambient-pressure-closed shock field can become a '
         'continued MOC chain cell'
@@ -161,6 +178,35 @@ class MocAmbientClosureResult:
       end_x_m=end_x_m,
       cell_index=cell_index,
       diagnostics=reserved_diagnostics,
+    )
+  ####
+
+  def as_coupled_chain_cell(
+    self,
+    *,
+    start_x_m: float,
+    end_x_m: float,
+    cell_index: int = 1,
+    diagnostics: dict[str, object] | None = None,
+  ) -> MocChainCell:
+    """Promote only an ambient-closed field with upstream shock coupling."""
+
+    if not self.physical_closure_verified:
+      raise ValueError(
+        'ambient closure is not physically verified; chain promotion is blocked'
+      )
+    if not self.upstream_coupling_verified:
+      raise ValueError(
+        'ambient closure lacks verified upstream shock-state coupling; '
+        'strict chain promotion is blocked'
+      )
+    assert self.shock is not None
+    assert self.shock.field is not None
+    return self.shock.field.as_coupled_chain_cell(
+      start_x_m=start_x_m,
+      end_x_m=end_x_m,
+      cell_index=cell_index,
+      diagnostics=diagnostics,
     )
   ####
 

@@ -445,6 +445,10 @@ Only after MOC-1 through MOC-5 pass:
   the local Rankine--Hugoniot probe rejects both orientations (the forward
   candidate has approximately ``-6.2%`` Mach and ``+32.8%`` static-pressure
   residuals), so a coupled shock/new-family solve is still required.
+- Ambient-pressure closure now reports upstream shock-state coupling as a
+  separate gate. The research adapter can retain a locally ambient-closed
+  field, but its strict coupled chain adapter refuses promotion until the
+  upstream states are carried through the accepted shock path as well.
 - The trace-extension reference uses a constant terminal boundary trace; it is
   useful for deterministic plumbing and refinement, but it is not the physical
   upstream characteristic strip.

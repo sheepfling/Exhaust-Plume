@@ -1066,6 +1066,7 @@
       "status": "ambient_boundary_failure",
       "converged": false,
       "physical_closure_verified": false,
+      "upstream_coupling_verified": false,
       "ambient_pressure_Pa": 100000.0,
       "outer_downstream_flow_angle_rad": -0.0081640625,
       "outer_flow_angle_bracket": [
@@ -1173,6 +1174,7 @@
           "status": "ambient_closure_field_failure",
           "converged": false,
           "physical_closure_verified": false,
+          "upstream_coupling_verified": false,
           "ambient_pressure_Pa": 101325.0,
           "outer_downstream_flow_angle_rad": -0.05,
           "outer_flow_angle_bracket": [

@@ -73,6 +73,11 @@ The implementation in `exhaust_plume.models.moc` currently provides:
 - a bounded scalar ambient-pressure closure shoot that regenerates the
   attached shock/field for each outer-turn trial and uses the perimeter gate
   as the final acceptance condition;
+- an explicit upstream-coupling gate on ambient closure results. The research
+  adapter may retain a boundary-conditioned ambient-closed field, while the
+  strict ``as_coupled_chain_cell`` adapter requires both the ambient perimeter
+  gate and carried upstream shock states before a resolved chain handoff is
+  possible;
 - a reflected-zone ambient-closure adapter with independent upstream coverage
   reporting and a chain-promotion method that refuses incomplete coupling;
 - a separate boundary-conditioned triangular assembler that accepts a
@@ -190,6 +195,11 @@ scalar pressure coordinate, but it retains the full vector pressure/tangency
 gate. The synthetic pressure-root probe therefore returns a bounded
 `ambient_boundary_failure`, and the canonical reflected-zone probe returns a
 bounded upstream-domain failure rather than manufacturing a first cell.
+Ambient closure reports expose `upstream_coupling_verified` separately;
+passing the perimeter shoot alone is not enough for strict chain promotion.
+The reflected-zone adapter uses the strict coupled promotion method, so a
+boundary-conditioned or domain-incomplete result remains a research artifact
+even if its local downstream field is numerically closed.
 When a marched shock reaches a zero-turn symmetry endpoint, the solver also
 records a `MocNormalShockTerminalResult` with the normal-shock static and
 total-pressure jump. Its downstream Mach remains scalar rather than entering

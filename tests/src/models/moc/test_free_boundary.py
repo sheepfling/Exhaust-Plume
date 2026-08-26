@@ -257,9 +257,15 @@ def test_reflected_zone_ambient_closure_keeps_upstream_coverage_domain_bounded()
   assert result.coupling.sampled_count == 1
   assert result.coupling.first_missing_sample_index == 1
   assert result.closure.status is MocAmbientClosureStatus.FIELD_FAILURE
+  assert result.closure.upstream_coupling_verified is False
   assert result.as_report()['physical_closure_verified'] is False
   with pytest.raises(ValueError, match='ambient closure'):
     result.as_chain_cell(start_x_m=start[0], end_x_m=start[0] + 0.5)
+  with pytest.raises(ValueError, match='ambient closure'):
+    result.closure.as_coupled_chain_cell(
+      start_x_m=start[0],
+      end_x_m=start[0] + 0.5,
+    )
 
 
 def test_reflected_zone_chain_adapter_rejects_a_shock_outside_the_solved_zone() -> None:

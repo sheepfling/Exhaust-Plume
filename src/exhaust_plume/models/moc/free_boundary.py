@@ -266,7 +266,7 @@ class MocReflectedZoneAmbientClosureResult:
           f'diagnostics cannot override reserved reflected-zone keys: {sorted(reserved)!r}'
         )
       coupled_diagnostics.update(diagnostics)
-    return self.closure.as_chain_cell(
+    return self.closure.as_coupled_chain_cell(
       start_x_m=start_x_m,
       end_x_m=end_x_m,
       cell_index=cell_index,
