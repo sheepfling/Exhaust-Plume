@@ -358,11 +358,23 @@ def _next_chain_field(handoff) -> MocPostShockChainCellSolve:
     boundary_states=samples,
     shock_angle_residuals_rad=(0.0,) * len(samples),
     maximum_shock_angle_residual_rad=0.0,
-    upstream_states=tuple(sample.state for sample in handoff),
-    upstream_total_pressure_Pa=tuple(sample.total_pressure_Pa for sample in handoff),
+    upstream_states=tuple(
+      CharacteristicState(
+        x_m=point[0],
+        y_m=point[1],
+        theta_rad=-0.35 + 0.08 * index,
+        mach=2.0,
+        gamma=1.4,
+      )
+      for index, point in enumerate(points)
+    ),
+    upstream_total_pressure_Pa=(1.8e6,) * len(samples),
   )
   return MocPostShockChainCellSolve(
-    field=assemble_post_shock_characteristic_field(fit),
+    field=assemble_post_shock_characteristic_field(
+      fit,
+      incoming_handoff=handoff,
+    ),
     end_x_m=2.0,
   )
 
@@ -413,7 +425,7 @@ def test_post_shock_chain_rejects_a_changed_state_handoff() -> None:
   def solve_next(_current, _index, handoff):
     solved = _next_chain_field(handoff)
     field = solved.field
-    changed_states = list(field.upstream_boundary_states)
+    changed_states = list(field.incoming_handoff_states)
     changed_states[0] = CharacteristicState(
       x_m=changed_states[0].x_m,
       y_m=changed_states[0].y_m,
@@ -422,7 +434,7 @@ def test_post_shock_chain_rejects_a_changed_state_handoff() -> None:
       gamma=changed_states[0].gamma,
     )
     return MocPostShockChainCellSolve(
-      field=replace(field, upstream_boundary_states=tuple(changed_states)),
+      field=replace(field, incoming_handoff_states=tuple(changed_states)),
       end_x_m=2.0,
     )
 
@@ -435,7 +447,38 @@ def test_post_shock_chain_rejects_a_changed_state_handoff() -> None:
 
   assert result.status is MocChainStatus.SOLVER_FAILURE
   assert result.termination_reason is MocChainTerminationReason.SOLVER_ERROR
-  assert 'changed carried state sample' in result.message
+  assert 'changed consumed state sample' in result.message
+
+
+def test_post_shock_chain_rejects_a_total_pressure_reset() -> None:
+  seed_fit = MocShockBoundaryFitResult(
+    status=MocShockBoundaryFitStatus.CONVERGED_FITTED,
+    boundary_states=_prescribed_boundary(),
+    shock_angle_residuals_rad=(0.0,) * 4,
+    maximum_shock_angle_residual_rad=0.0,
+  )
+  seed_field = assemble_post_shock_characteristic_field(seed_fit)
+
+  def solve_next(_current, _index, handoff):
+    solved = _next_chain_field(handoff)
+    return MocPostShockChainCellSolve(
+      field=replace(
+        solved.field,
+        upstream_boundary_total_pressure_Pa=(2.0e6,) * 5,
+      ),
+      end_x_m=2.0,
+    )
+
+  result = continue_post_shock_characteristic_chain(
+    seed_field,
+    solve_next,
+    start_x_m=0.7,
+    end_x_m=1.0,
+  )
+
+  assert result.status is MocChainStatus.SOLVER_FAILURE
+  assert result.termination_reason is MocChainTerminationReason.SOLVER_ERROR
+  assert 'reset total pressure' in result.message
 
 
 def test_open_post_shock_zone_cannot_be_promoted_without_a_shock_edge() -> None:

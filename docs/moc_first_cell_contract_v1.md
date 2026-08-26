@@ -81,14 +81,21 @@ edges are explicit and whose characteristic nodes carry converged
 compatibility evidence. Only that verified result can be adapted into a
 resolved planar-MOC chain seed. The shock-seeded assembler supplies a
 boundary-conditioned full characteristic fan and exposes its terminal path as
-typed state/total-pressure handoff samples. The separate chain adapter checks
-that a re-solved next field consumes those samples unchanged before appending
-the cell; it does not invent a next shock location or promote the reduced-order
-shock train.
+typed state/total-pressure handoff samples. That path is explicitly a
+`terminal-characteristic-trace`, not an axial cut plane. A continued solver
+must propagate the trace to its own next shock boundary and record the exact
+incoming trace through `incoming_handoff`; the separate chain adapter checks
+that the trace was consumed unchanged and that total pressure did not reset
+upward before appending the cell. It does not invent a next shock location or
+promote the reduced-order shock train. An executable prescribed-boundary
+planner mock exercises this contract in the primitive validation report; it is
+not physical free-boundary evidence.
 The mesh topology intentionally remains reported as `OPEN`: its boundary edges
 are the physical shock/centerline perimeter. `physical_closure_status` and the
 field status carry the separate evidence that this prescribed-boundary fan is
-closed for promotion.
+closed for promotion. If a later solver provides a true axial handoff, it must
+declare `MocChainBoundaryKind.AXIAL_SECTION`; the current field promotes only
+the `TERMINAL_CHARACTERISTIC_TRACE` kind.
 No public provider is wired to these primitives yet. The module does not claim
 axisymmetric, reacting, viscous, or experimentally validated plume physics.
 

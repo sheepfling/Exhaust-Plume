@@ -18,6 +18,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   CharacteristicState,
   MocPostShockClosureStatus,
   MocPostShockBoundaryState,
+  MocPostShockChainCellSolve,
   MocPostShockCharacteristicFieldResult,
   MocShockBoundaryFitResult,
   MocShockBoundaryFitStatus,
@@ -35,6 +36,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   assemble_post_shock_characteristic_field,
   assemble_post_shock_first_layer,
   continue_post_shock_characteristics_to_centerline,
+  continue_post_shock_characteristic_chain,
   fit_attached_shock_boundary,
   solve_ambient_pressure_free_boundary,
   solve_ambient_pressure_free_boundary_point,
@@ -270,6 +272,105 @@ def _shock_seeded_field_refinement_probe() -> list[dict[str, Any]]:
   return probe
 
 
+def _shock_cell_chain_planner_mock(
+  seed_field: MocPostShockCharacteristicFieldResult,
+) -> tuple[Any, list[dict[str, Any]]]:
+  """Exercise a continued-cell planner with prescribed next-shock geometry.
+
+  This is an orchestration fixture, not a free-boundary solver.  Each mock
+  step records the previous terminal trace through ``incoming_handoff`` and
+  supplies a separate prescribed shock boundary for the next local field.
+  Keeping this fixture in the validation script makes the chain contract
+  executable without allowing it to become a production provider.
+  """
+
+  observations: list[dict[str, Any]] = []
+
+  def solve_next(current, cell_index, handoff):
+    observations.append({
+      'cell_index': cell_index,
+      'incoming_handoff_sample_count': len(handoff),
+      'incoming_total_pressure_range_Pa': (
+        min(sample.total_pressure_Pa for sample in handoff),
+        max(sample.total_pressure_Pa for sample in handoff),
+      ),
+      'current_end_x_m': current.end_x_m,
+    })
+    if cell_index >= 4:
+      return None
+    points = (
+      (1.00, 0.20),
+      (1.02, 0.14),
+      (1.04, 0.08),
+      (1.06, 0.04),
+      (1.08, 0.0),
+    )
+    downstream_angles = (-0.30, -0.20, -0.10, -0.05, 0.0)
+    samples = tuple(
+      MocPostShockBoundaryState(
+        point_m=point,
+        state=CharacteristicState(
+          x_m=point[0],
+          y_m=point[1],
+          theta_rad=angle,
+          mach=2.0,
+          gamma=1.4,
+        ),
+        upstream_total_pressure_Pa=1.8e6,
+        downstream_total_pressure_Pa=1.6e6,
+      )
+      for point, angle in zip(points, downstream_angles, strict=True)
+    )
+    upstream_states = tuple(
+      CharacteristicState(
+        x_m=point[0],
+        y_m=point[1],
+        theta_rad=-0.35 + 0.08 * index,
+        mach=2.0,
+        gamma=1.4,
+      )
+      for index, point in enumerate(points)
+    )
+    upstream_total_pressure_Pa = max(
+      sample.total_pressure_Pa for sample in handoff
+    )
+    downstream_total_pressure_Pa = 0.8888888888888889 * upstream_total_pressure_Pa
+    samples = tuple(
+      MocPostShockBoundaryState(
+        point_m=sample.point_m,
+        state=sample.state,
+        upstream_total_pressure_Pa=upstream_total_pressure_Pa,
+        downstream_total_pressure_Pa=downstream_total_pressure_Pa,
+      )
+      for sample in samples
+    )
+    fit = MocShockBoundaryFitResult(
+      status=MocShockBoundaryFitStatus.CONVERGED_FITTED,
+      boundary_states=samples,
+      shock_angle_residuals_rad=(0.0,) * len(samples),
+      maximum_shock_angle_residual_rad=0.0,
+      upstream_states=upstream_states,
+      upstream_total_pressure_Pa=(upstream_total_pressure_Pa,) * len(samples),
+    )
+    return MocPostShockChainCellSolve(
+      field=assemble_post_shock_characteristic_field(
+        fit,
+        incoming_handoff=handoff,
+      ),
+      end_x_m=2.0 + 0.5 * (cell_index - 2),
+    )
+
+  return (
+    continue_post_shock_characteristic_chain(
+      seed_field,
+      solve_next,
+      start_x_m=0.7,
+      end_x_m=1.0,
+    ),
+    observations,
+  )
+
+
 def build_moc_primitive_report() -> dict[str, Any]:
   cases = [
     (gamma, mach)
@@ -400,6 +501,9 @@ def build_moc_primitive_report() -> dict[str, Any]:
   sampled_shock_fit, sampled_continuation, sampled_closed_gate = _sampled_attached_shock_gate()
   shock_seeded_field = _shock_seeded_field_fixture()
   shock_seeded_refinement_probe = _shock_seeded_field_refinement_probe()
+  shock_cell_chain_mock, shock_cell_chain_mock_observations = _shock_cell_chain_planner_mock(
+    shock_seeded_field,
+  )
   shock_seeded_refinement_failures = [
     case for case in shock_seeded_refinement_probe
     if (
@@ -759,6 +863,8 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'minimum_post_shock_total_pressure_ratio': shock_seeded_field.minimum_post_shock_total_pressure_ratio,
       'maximum_post_shock_total_pressure_ratio': shock_seeded_field.maximum_post_shock_total_pressure_ratio,
       'continuation_boundary_sample_count': len(shock_seeded_field.continuation_boundary_states),
+      'incoming_handoff_sample_count': len(shock_seeded_field.incoming_handoff_states),
+      'continuation_boundary_kind': 'terminal-characteristic-trace',
       'physical_closure_status': shock_seeded_field.physical_closure_status,
       'shock_closure_status': shock_seeded_field.shock_closure_status,
       'message': shock_seeded_field.message,
@@ -772,6 +878,20 @@ def build_moc_primitive_report() -> dict[str, Any]:
       ),
       'cases': shock_seeded_refinement_probe,
       'claim_status': 'prescribed-boundary-refinement-only; physical-shock-convergence-pending',
+    },
+    'shock_cell_chain_planner_mock': {
+      'status': shock_cell_chain_mock.status.value,
+      'termination_reason': shock_cell_chain_mock.termination_reason.value,
+      'physical_termination': shock_cell_chain_mock.physical_termination,
+      'cell_count': shock_cell_chain_mock.cell_count,
+      'resolved': shock_cell_chain_mock.resolved,
+      'state_carry_count': shock_cell_chain_mock.as_report()['state_carry_count'],
+      'continuation_boundary_kinds': shock_cell_chain_mock.as_report()['continuation_boundary_kinds'],
+      'observations': shock_cell_chain_mock_observations,
+      'claim_status': (
+        'deterministic-prescribed-next-shock-planner-mock; '
+        'not-free-boundary-chain-evidence'
+      ),
     },
     'fan_reflected_interface': {
       'status': fan_reflected_interface.status.value,
@@ -945,6 +1065,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'message': str(shock_seeded_refinement_failures),
       }
     ] if shock_seeded_refinement_failures else []),
+    *([
+      {
+        'case': 'shock_cell_chain_planner_mock',
+        'status': shock_cell_chain_mock.status.value,
+        'message': shock_cell_chain_mock.message,
+      }
+    ] if not shock_cell_chain_mock.resolved else []),
   ]
   ####
   return {

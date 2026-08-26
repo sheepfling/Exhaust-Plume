@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import pytest
+
 from exhaust_plume.models.moc import (
   MocCellClosureStatus,
+  MocChainBoundaryKind,
   MocChainBoundarySample,
   MocChainCell,
   MocChainContinuationPolicy,
@@ -176,3 +179,32 @@ def test_stateful_moc_chain_preserves_boundary_samples_across_cells() -> None:
   assert result.resolved
   assert result.as_report()['state_carry_count'] == 2
   assert calls == [(2, 3), (3, 3)]
+
+
+def test_axial_section_boundary_rejects_nonplanar_state_samples() -> None:
+  boundary = tuple(
+    MocChainBoundarySample(
+      state=CharacteristicState(
+        x_m=0.0 + index * 0.01,
+        y_m=0.1 * index,
+        theta_rad=0.0,
+        mach=2.0,
+        gamma=1.4,
+      ),
+      total_pressure_Pa=1.0e6,
+    )
+    for index in range(3)
+  )
+
+  with pytest.raises(ValueError, match='one x plane'):
+    MocChainCell(
+      cell_index=1,
+      start_x_m=0.0,
+      end_x_m=1.0,
+      mesh=_mesh(0.0),
+      geometry_fidelity=MocChainGeometryFidelity.RESOLVED_PLANAR_MOC,
+      physical_closure=MocCellClosureStatus.CLOSED,
+      continuation_boundary=boundary,
+      continuation_boundary_kind=MocChainBoundaryKind.AXIAL_SECTION,
+    )
+  ####

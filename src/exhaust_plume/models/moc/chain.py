@@ -8,7 +8,9 @@ cell.
 
 The continuation callback is intentionally small.  A later solver can use it
 to re-solve the next local characteristic problem, while this module owns the
-common axial ordering, topology, fidelity, and safety-limit checks.
+common axial ordering, topology, fidelity, and safety-limit checks.  Carried
+boundaries are typed as either a terminal characteristic trace or a true axial
+section so a trace is not silently treated as a planar cut.
 """
 
 from __future__ import annotations
@@ -26,6 +28,7 @@ from exhaust_plume.models.moc.topology import MocTopologyResult, validate_moc_me
 __all__ = (
   'MocCellClosureStatus',
   'MocChainBoundarySample',
+  'MocChainBoundaryKind',
   'MocChainCell',
   'MocChainContinuationPolicy',
   'MocChainGeometryFidelity',
@@ -51,6 +54,14 @@ class MocChainGeometryFidelity(str, Enum):
   RESOLVED_PLANAR_MOC = 'resolved-planar-moc'
   PRESCRIBED_BOUNDARY_DIAGNOSTIC = 'prescribed-boundary-diagnostic'
   SCALED_REDUCED_ORDER = 'scaled-reduced-order'
+####
+
+
+class MocChainBoundaryKind(str, Enum):
+  """Geometric meaning of a carried downstream state boundary."""
+
+  TERMINAL_CHARACTERISTIC_TRACE = 'terminal-characteristic-trace'
+  AXIAL_SECTION = 'axial-section'
 ####
 
 
@@ -123,6 +134,9 @@ class MocChainCell:
   physical_closure: MocCellClosureStatus
   diagnostics: dict[str, Any] | MappingProxyType = field(default_factory=dict)
   continuation_boundary: tuple[MocChainBoundarySample, ...] = ()
+  continuation_boundary_kind: MocChainBoundaryKind = (
+    MocChainBoundaryKind.TERMINAL_CHARACTERISTIC_TRACE
+  )
 
   def __post_init__(self) -> None:
     if isinstance(self.cell_index, bool) or self.cell_index < 1:
@@ -137,6 +151,10 @@ class MocChainCell:
       raise TypeError('geometry_fidelity must be a MocChainGeometryFidelity')
     if not isinstance(self.physical_closure, MocCellClosureStatus):
       raise TypeError('physical_closure must be a MocCellClosureStatus')
+    if not isinstance(self.continuation_boundary_kind, MocChainBoundaryKind):
+      raise TypeError(
+        'continuation_boundary_kind must be a MocChainBoundaryKind'
+      )
     mesh = tuple(self.mesh)
     if not mesh:
       raise ValueError('mesh must contain at least one polygon-like cell')
@@ -147,6 +165,12 @@ class MocChainCell:
       raise TypeError(
         'continuation_boundary must contain MocChainBoundarySample values'
       )
+    if self.continuation_boundary_kind is MocChainBoundaryKind.AXIAL_SECTION and boundary:
+      section_x = boundary[0].state.x_m
+      if any(abs(sample.state.x_m - section_x) > 1.0e-10 for sample in boundary[1:]):
+        raise ValueError(
+          'an axial-section continuation boundary must lie on one x plane'
+        )
     object.__setattr__(self, 'continuation_boundary', boundary)
   ####
 
@@ -195,6 +219,7 @@ class MocChainContinuationPolicy:
     MocChainGeometryFidelity.RESOLVED_PLANAR_MOC,
   )
   require_state_carry: bool = False
+  state_tolerance: float = 1.0e-10
 
   def __post_init__(self) -> None:
     if isinstance(self.max_cells, bool) or self.max_cells < 1:
@@ -206,6 +231,8 @@ class MocChainContinuationPolicy:
       raise ValueError('max_axial_distance_m must be finite and positive when supplied')
     if not isfinite(float(self.position_tolerance_m)) or self.position_tolerance_m <= 0.0:
       raise ValueError('position_tolerance_m must be finite and positive')
+    if not isfinite(float(self.state_tolerance)) or self.state_tolerance <= 0.0:
+      raise ValueError('state_tolerance must be finite and positive')
     fidelities = tuple(self.allowed_fidelities)
     if not fidelities or any(
         not isinstance(fidelity, MocChainGeometryFidelity)
@@ -272,6 +299,10 @@ class MocChainResult:
       'end_x_m': self.end_x_m,
       'resolved': self.resolved,
       'state_carry_count': sum(cell.carries_state for cell in self.cells),
+      'continuation_boundary_kinds': sorted({
+        cell.continuation_boundary_kind.value for cell in self.cells
+        if cell.carries_state
+      }),
       'geometry_fidelity_counts': fidelity_counts,
       'diagnostics': dict(self.diagnostics),
       'message': self.message,
@@ -321,6 +352,14 @@ def _validate_state_carry(cell: MocChainCell) -> str | None:
     return 'cell does not carry a downstream characteristic state boundary'
   if len(cell.continuation_boundary) < 3:
     return 'state-carrying MOC cells require at least three boundary samples'
+  if cell.continuation_boundary_kind is MocChainBoundaryKind.AXIAL_SECTION:
+    section_x = cell.continuation_boundary[0].state.x_m
+    if any(
+        abs(sample.state.x_m - section_x) > 1.0e-10
+        for sample in cell.continuation_boundary[1:]
+    ):
+      return 'axial-section continuation samples do not lie on one x plane'
+    return None
   previous_x: float | None = None
   for index, sample in enumerate(cell.continuation_boundary):
     x_value = sample.state.x_m

@@ -85,6 +85,7 @@ from exhaust_plume.models.moc.post_shock import (
 )
 from exhaust_plume.models.moc.chain import (
   MocCellClosureStatus,
+  MocChainBoundaryKind,
   MocChainBoundarySample,
   MocChainCell,
   MocChainContinuationPolicy,
@@ -134,6 +135,7 @@ __all__ = (
   'MocShockBoundaryFitResult',
   'MocShockBoundaryFitStatus',
   'MocCellClosureStatus',
+  'MocChainBoundaryKind',
   'MocChainBoundarySample',
   'MocChainCell',
   'MocChainContinuationPolicy',

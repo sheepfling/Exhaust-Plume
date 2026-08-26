@@ -26,6 +26,7 @@ from exhaust_plume.models.moc.primitives import (
 from exhaust_plume.models.moc.compression import solve_attached_compression_to_turn
 from exhaust_plume.models.moc.chain import (
   MocCellClosureStatus,
+  MocChainBoundaryKind,
   MocChainBoundarySample,
   MocChainCell,
   MocChainGeometryFidelity,
@@ -408,7 +409,8 @@ class MocPostShockCharacteristicFieldResult:
   state on a front with ``C-`` from the earlier state.  The resulting fronts
   shrink to one terminal state; its ``C-`` characteristic is continued to the
   symmetry line and the terminal characteristic path is assembled into the
-  physical perimeter.  Total pressure is transported along the ``C-`` source
+  physical perimeter.  That path is a terminal trace for a later solver, not
+  an axial section.  Total pressure is transported along the ``C-`` source
   lineage and is never reset to the upstream shock value.
   """
 
@@ -434,6 +436,8 @@ class MocPostShockCharacteristicFieldResult:
   physical_closure_status: str
   shock_closure_status: str
   message: str = ''
+  incoming_handoff_states: tuple[CharacteristicState, ...] = ()
+  incoming_handoff_total_pressure_Pa: tuple[float, ...] = ()
 
   def __post_init__(self) -> None:
     if len(self.upstream_boundary_states) != len(self.upstream_boundary_total_pressure_Pa):
@@ -444,9 +448,16 @@ class MocPostShockCharacteristicFieldResult:
       raise ValueError(
         'continuation boundary states and total-pressure samples must have equal lengths'
       )
+    if len(self.incoming_handoff_states) != len(self.incoming_handoff_total_pressure_Pa):
+      raise ValueError(
+        'incoming handoff states and total-pressure samples must have equal lengths'
+      )
+    if any(not isinstance(state, CharacteristicState) for state in self.incoming_handoff_states):
+      raise TypeError('incoming handoff states must be CharacteristicState values')
     for name, pressures in (
       ('upstream_boundary_total_pressure_Pa', self.upstream_boundary_total_pressure_Pa),
       ('continuation_boundary_total_pressure_Pa', self.continuation_boundary_total_pressure_Pa),
+      ('incoming_handoff_total_pressure_Pa', self.incoming_handoff_total_pressure_Pa),
     ):
       if any(not isfinite(float(value)) or value <= 0.0 for value in pressures):
         raise ValueError(f'{name} must contain finite positive values')
@@ -480,6 +491,13 @@ class MocPostShockCharacteristicFieldResult:
       and self.minimum_post_shock_total_pressure_ratio > 0.0
       and self.maximum_post_shock_total_pressure_ratio < 1.0
     )
+  ####
+
+  @property
+  def carries_incoming_handoff(self) -> bool:
+    """Whether a downstream solver recorded consumption of a prior cell trace."""
+
+    return bool(self.incoming_handoff_states)
   ####
 
   def as_chain_cell(
@@ -530,13 +548,19 @@ class MocPostShockCharacteristicFieldResult:
           strict=True,
         )
       ),
+      continuation_boundary_kind=MocChainBoundaryKind.TERMINAL_CHARACTERISTIC_TRACE,
     )
   ####
 
 
 @dataclass(frozen=True, slots=True)
 class MocPostShockChainCellSolve:
-  """One state-carrying downstream cell returned by a local MOC solver."""
+  """One state-carrying downstream cell returned by a local MOC solver.
+
+  The solver is responsible for propagating the prior cell's terminal trace
+  to a new shock boundary and assembling the returned field with
+  ``incoming_handoff`` recorded.
+  """
 
   field: MocPostShockCharacteristicFieldResult
   end_x_m: float
@@ -802,6 +826,8 @@ def _post_shock_field_failure(
   upstream_boundary_total_pressure_Pa: tuple[float, ...] = (),
   continuation_boundary_states: tuple[CharacteristicState, ...] = (),
   continuation_boundary_total_pressure_Pa: tuple[float, ...] = (),
+  incoming_handoff_states: tuple[CharacteristicState, ...] = (),
+  incoming_handoff_total_pressure_Pa: tuple[float, ...] = (),
   terminal_centerline_state: CharacteristicState | None = None,
   maximum_geometry_residual_m: float | None = None,
   maximum_absolute_invariant_residual: float | None = None,
@@ -822,6 +848,8 @@ def _post_shock_field_failure(
     upstream_boundary_total_pressure_Pa=upstream_boundary_total_pressure_Pa,
     continuation_boundary_states=continuation_boundary_states,
     continuation_boundary_total_pressure_Pa=continuation_boundary_total_pressure_Pa,
+    incoming_handoff_states=incoming_handoff_states,
+    incoming_handoff_total_pressure_Pa=incoming_handoff_total_pressure_Pa,
     terminal_centerline_state=terminal_centerline_state,
     maximum_geometry_residual_m=maximum_geometry_residual_m,
     maximum_absolute_invariant_residual=maximum_absolute_invariant_residual,
@@ -839,6 +867,7 @@ def _post_shock_field_failure(
 def assemble_post_shock_characteristic_field(
   shock_fit: MocShockBoundaryFitResult,
   *,
+  incoming_handoff: Sequence[MocChainBoundarySample] | None = None,
   position_tolerance_m: float = 1.0e-10,
   invariant_tolerance: float = 1.0e-10,
   shock_angle_tolerance_rad: float = 1.0e-8,
@@ -852,6 +881,12 @@ def assemble_post_shock_characteristic_field(
   closure fan is added at the terminal side.  A failed forward intersection,
   invariant check, pressure-loss check, or mesh edge check is returned as a
   structured failure; no geometric fallback is inserted.
+
+  ``incoming_handoff`` is optional for the first cell.  For a continued cell,
+  the caller supplies the prior cell's terminal characteristic trace and the
+  returned field records that trace as consumed.  The trace is not assumed to
+  be an axial section and is not reused as the next shock geometry; a local
+  continuation solver must propagate it to its own shock boundary first.
   """
 
   if not isinstance(shock_fit, MocShockBoundaryFitResult):
@@ -871,6 +906,19 @@ def assemble_post_shock_characteristic_field(
       MocPostShockFieldStatus.SHOCK_FIT_REQUIRED,
       message=f'characteristic field requires a converged shock fit: {shock_fit.message}',
     )
+  incoming_samples = () if incoming_handoff is None else tuple(incoming_handoff)
+  if any(not isinstance(sample, MocChainBoundarySample) for sample in incoming_samples):
+    return _post_shock_field_failure(
+      MocPostShockFieldStatus.INVALID_INPUT,
+      message='incoming_handoff must contain MocChainBoundarySample values',
+    )
+  if incoming_handoff is not None and len(incoming_samples) < 3:
+    return _post_shock_field_failure(
+      MocPostShockFieldStatus.INVALID_INPUT,
+      message='incoming_handoff requires at least three state samples',
+    )
+  incoming_states = tuple(sample.state for sample in incoming_samples)
+  incoming_pressures = tuple(sample.total_pressure_Pa for sample in incoming_samples)
   samples = tuple(shock_fit.boundary_states)
   if len(samples) < 3:
     return _post_shock_field_failure(
@@ -953,6 +1001,22 @@ def assemble_post_shock_characteristic_field(
       pressure_ranges=pressure_ranges,
       pressure_ratios=pressure_ratios,
       message='shock boundary state coordinates must match their fitted points',
+    )
+  if upstream_boundary_states and any(
+    abs(state.x_m - point[0]) > position_tolerance_m
+    or abs(state.y_m - point[1]) > position_tolerance_m
+    for state, point in zip(upstream_boundary_states, shock_points, strict=True)
+  ):
+    return _post_shock_field_failure(
+      MocPostShockFieldStatus.INVALID_INPUT,
+      shock_boundary_points=shock_points,
+      upstream_boundary_states=upstream_boundary_states,
+      upstream_boundary_total_pressure_Pa=upstream_boundary_total_pressures,
+      incoming_handoff_states=incoming_states,
+      incoming_handoff_total_pressure_Pa=incoming_pressures,
+      pressure_ranges=pressure_ranges,
+      pressure_ratios=pressure_ratios,
+      message='shock-fit upstream states must lie on the fitted shock samples',
     )
   if abs(shock_points[-1][1]) > position_tolerance_m:
     return _post_shock_field_failure(
@@ -1346,6 +1410,8 @@ def assemble_post_shock_characteristic_field(
       'shock-seeded post-shock C+/C- characteristic field converged with '
       'explicit shock and centerline boundary edges'
     ),
+    incoming_handoff_states=incoming_states,
+    incoming_handoff_total_pressure_Pa=incoming_pressures,
   )
 ####
 
@@ -1376,34 +1442,47 @@ def _validate_post_shock_handoff(
   next_field: MocPostShockCharacteristicFieldResult,
   *,
   position_tolerance_m: float,
+  state_tolerance: float,
 ) -> str | None:
-  upstream_states = next_field.upstream_boundary_states
-  upstream_pressures = next_field.upstream_boundary_total_pressure_Pa
+  consumed_states = next_field.incoming_handoff_states
+  consumed_pressures = next_field.incoming_handoff_total_pressure_Pa
   incoming = current.continuation_boundary
-  if not upstream_states or not upstream_pressures:
+  if not consumed_states or not consumed_pressures:
     return (
-      'next characteristic field does not expose the upstream state and '
-      'total-pressure samples used for handoff validation'
+      'next characteristic field does not record the prior terminal trace '
+      'and total-pressure samples used for handoff validation'
     )
-  if len(upstream_states) != len(incoming) or len(upstream_pressures) != len(incoming):
-    return 'next characteristic field upstream handoff length does not match the current boundary'
+  if len(consumed_states) != len(incoming) or len(consumed_pressures) != len(incoming):
+    return 'next characteristic field incoming handoff length does not match the current boundary'
   for index, (incoming_sample, state, pressure) in enumerate(
-      zip(incoming, upstream_states, upstream_pressures, strict=True)
+      zip(incoming, consumed_states, consumed_pressures, strict=True)
   ):
     if (
       abs(incoming_sample.state.x_m - state.x_m) > position_tolerance_m
       or abs(incoming_sample.state.y_m - state.y_m) > position_tolerance_m
-      or abs(incoming_sample.state.theta_rad - state.theta_rad) > position_tolerance_m
-      or abs(incoming_sample.state.mach - state.mach) > position_tolerance_m
-      or abs(incoming_sample.state.gamma - state.gamma) > position_tolerance_m
+      or abs(incoming_sample.state.theta_rad - state.theta_rad) > state_tolerance
+      or abs(incoming_sample.state.mach - state.mach) > state_tolerance
+      or abs(incoming_sample.state.gamma - state.gamma) > state_tolerance
     ):
-      return f'next characteristic field changed carried state sample {index}'
-    if abs(incoming_sample.total_pressure_Pa - pressure) > position_tolerance_m * max(
+      return f'next characteristic field changed consumed state sample {index}'
+    if abs(incoming_sample.total_pressure_Pa - pressure) > state_tolerance * max(
       1.0,
       abs(incoming_sample.total_pressure_Pa),
       abs(pressure),
     ):
-      return f'next characteristic field changed carried total pressure sample {index}'
+      return f'next characteristic field changed consumed total pressure sample {index}'
+  upstream_pressures = next_field.upstream_boundary_total_pressure_Pa
+  if not upstream_pressures:
+    return (
+      'next characteristic field does not expose the newly propagated upstream '
+      'total-pressure samples'
+    )
+  incoming_max = max(consumed_pressures)
+  if max(upstream_pressures) > incoming_max + state_tolerance * max(1.0, incoming_max):
+    return (
+      'next characteristic field reset total pressure above the incoming '
+      'terminal-trace pressure'
+    )
   return None
 
 
@@ -1464,6 +1543,7 @@ def continue_post_shock_characteristic_chain(
       max_cells=policy.max_cells,
       max_axial_distance_m=policy.max_axial_distance_m,
       position_tolerance_m=policy.position_tolerance_m,
+      state_tolerance=policy.state_tolerance,
       allowed_fidelities=policy.allowed_fidelities,
       require_state_carry=True,
     )
@@ -1503,6 +1583,7 @@ def continue_post_shock_characteristic_chain(
       current,
       solved.field,
       position_tolerance_m=policy.position_tolerance_m,
+      state_tolerance=policy.state_tolerance,
     )
     if handoff_error is not None:
       raise ValueError(handoff_error)

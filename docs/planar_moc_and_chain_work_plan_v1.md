@@ -37,8 +37,15 @@ not wait on this research closure.
   field into a `RESOLVED_PLANAR_MOC` chain seed, retaining closure and residual
   diagnostics.
 - Added typed downstream characteristic-state/total-pressure handoff samples
-  and a state-carrying chain adapter. Every next field must report the exact
-  incoming handoff before its cell can be appended.
+  and a state-carrying chain adapter. The field labels that handoff as a
+  terminal characteristic trace, not an axial section. Every next field must
+  report the exact incoming trace it consumed before its cell can be appended;
+  its newly propagated shock boundary is validated separately.
+- Added a deterministic prescribed-boundary chain-planner mock to the
+  primitive validation report. It exercises three resolved callback cells,
+  carries total-pressure loss across the mock steps, and remains explicitly
+  non-physical until the free-boundary shock solver replaces its prescribed
+  geometry.
 - Added an MOC chain continuation contract. It accepts only connected,
   topologically bounded meshes with explicit physical closure and resolved
   planar-MOC fidelity.
@@ -84,19 +91,25 @@ not wait on this research closure.
 Use the state-carrying callback behind
 `continue_post_shock_characteristic_chain` as the local MOC solver boundary:
 
-1. take the previous cell's downstream boundary states and total-pressure
+1. take the previous cell's terminal characteristic trace and total-pressure
    field;
-2. construct the next local characteristic problem from those states;
-3. solve its compression/expansion boundary and post-shock field;
-4. return a new field and cell with `resolved-planar-moc` fidelity, or a
-   structured validity/termination result; the adapter verifies that all
-   upstream characteristic states and total pressures equal the prior
-   handoff;
+2. propagate that trace to the next local shock boundary; an axial section is
+   a separate boundary kind and must not be inferred from the trace;
+3. solve the next compression/expansion boundary and post-shock field;
+4. record the exact incoming trace in `incoming_handoff`, return a new field
+   and cell with `resolved-planar-moc` fidelity, or return a structured
+   validity/termination result; the adapter verifies that the consumed trace
+   is unchanged and that upstream total pressure does not reset upward;
 5. stop on physical model limits, not on an arbitrary count, while retaining
    count and axial distance as safety limits.
 
 The existing reduced-order `solve_shock_train` remains the separate Level B
 implementation. It must not be used as this callback.
+
+The validation script's planner mock is only an executable contract fixture:
+it supplies the next shock boundary directly so that handoff, pressure-loss,
+and fidelity checks can run. It is not evidence for automatic shock placement,
+physical termination, or external validation.
 
 The verified post-shock result exposes the only seed-promotion adapter for this
 lane. An open zone, prescribed-boundary diagnostic, or scaled reduced-order
