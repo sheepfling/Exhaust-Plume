@@ -33,6 +33,7 @@ from exhaust_plume.models.moc.mixed_regime import (
   MocMixedRegimeBoundaryResult,
   MocMixedRegimeFieldResult,
   MocMixedRegimeFieldSample,
+  MocMixedRegimePerimeterRequest,
   validate_mixed_regime_boundary as validate_scalar_mixed_regime_boundary,
 )
 from exhaust_plume.models.moc.post_shock import (
@@ -196,6 +197,52 @@ class MocTerminalShockCellFieldResult:
     )
   ####
 
+  def mixed_regime_perimeter_request(self) -> MocMixedRegimePerimeterRequest:
+    """Expose the exact seam a downstream mixed-regime solver must close.
+
+    The request is intentionally incomplete: the terminal composite owns the
+    normal-shock scalar state and the supersonic patch, but it does not own a
+    downstream perimeter.  Returning a request instead of deriving points
+    from the open zone keeps the physical closure boundary explicit.
+    """
+
+    if not self.converged or self.terminal_normal_shock is None:
+      raise ValueError(
+        'a mixed-regime perimeter request requires a converged terminal field '
+        'with a typed normal-shock result'
+      )
+    terminal = self.terminal_normal_shock
+    values = (
+      terminal.shock_point_m,
+      terminal.downstream_mach,
+      terminal.downstream_flow_angle_rad,
+      terminal.downstream_pressure_Pa,
+      terminal.downstream_total_pressure_Pa,
+      terminal.total_pressure_ratio,
+    )
+    if any(value is None for value in values):
+      raise ValueError(
+        'a mixed-regime perimeter request requires complete terminal scalar '
+        'state and pressure data'
+      )
+    point, mach, angle, pressure, total_pressure, total_pressure_ratio = values
+    assert point is not None
+    assert mach is not None
+    assert angle is not None
+    assert pressure is not None
+    assert total_pressure is not None
+    assert total_pressure_ratio is not None
+    return MocMixedRegimePerimeterRequest(
+      terminal_point_m=point,
+      terminal_downstream_mach=mach,
+      terminal_downstream_flow_angle_rad=angle,
+      terminal_downstream_pressure_Pa=pressure,
+      terminal_downstream_total_pressure_Pa=total_pressure,
+      terminal_total_pressure_ratio=total_pressure_ratio,
+      supersonic_patch=self.terminal_shock_supersonic_downstream_states,
+    )
+  ####
+
   def as_chain_termination_decision(self) -> MocChainTerminationDecision:
     """Return the strongest typed chain stop supported by this result.
 
@@ -314,6 +361,11 @@ class MocTerminalShockCellFieldResult:
       ),
       'terminal_supersonic_downstream_patch_converged': (
         self.terminal_supersonic_downstream_patch_converged
+      ),
+      'mixed_regime_perimeter_request': (
+        None
+        if not self.converged or self.terminal_normal_shock is None
+        else self.mixed_regime_perimeter_request().as_report()
       ),
       'node_count': None,
       'cell_count': len(self.cells),

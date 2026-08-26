@@ -153,6 +153,10 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   while reporting ``mixed_regime_field_complete`` and
   ``physical_closure_verified`` as hard-false until the downstream subsonic
   field is solved;
+- a solver-owned mixed-regime perimeter request that carries the terminal
+  scalar state and exact supersonic post-shock seam while supplying no guessed
+  downstream geometry. The open supersonic zone is explicitly rejected as a
+  substitute for that perimeter;
 - a separate MOC cell-chain continuation contract that rejects open cells,
   non-bounded meshes, axial gaps, and scaled reduced-order fidelity;
 - a typed chain termination decision that distinguishes a physical endpoint
@@ -166,6 +170,9 @@ The implementation in `exhaust_plume.models.moc` currently provides:
 - continued-cell reports that expose the outgoing total-pressure range for
   every carried terminal trace and flag nonincreasing pressure maxima as
   bookkeeping evidence;
+- a reusable chain-planner wrapper that records the exact incoming boundary
+  before each continuation callback. Its prescribed-boundary planner mode is
+  an executable mock with a hard ``production_claim_allowed=false`` ceiling;
 - mesh connectivity diagnostics that distinguish a topologically bounded
   polygon from an unresolved physical boundary;
 - a shared averaged-characteristic fan/reflected interface whose combined

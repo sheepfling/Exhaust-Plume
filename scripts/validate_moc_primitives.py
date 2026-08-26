@@ -31,6 +31,8 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocChainTerminationDecision,
   MocChainTerminationReason,
   MocChainStatus,
+  MocChainPlannerKind,
+  plan_post_shock_characteristic_chain,
   MocShockBoundaryFitResult,
   MocShockBoundaryFitStatus,
   MocTopologyStatus,
@@ -1050,7 +1052,7 @@ def _mixed_regime_boundary_probe(
 
 def _shock_cell_chain_planner_mock(
   seed_field: MocPostShockCharacteristicFieldResult,
-) -> tuple[Any, list[dict[str, Any]], list[MocShockCellObservation]]:
+) -> tuple[Any, list[dict[str, Any]], list[MocShockCellObservation], Any]:
   """Exercise a continued-cell planner with prescribed next-shock geometry.
 
   This is an orchestration fixture, not a free-boundary solver.  Each mock
@@ -1161,15 +1163,18 @@ def _shock_cell_chain_planner_mock(
       end_x_m=current.end_x_m + 0.50,
     )
 
+  planner = plan_post_shock_characteristic_chain(
+    seed_field,
+    solve_next,
+    start_x_m=0.7,
+    end_x_m=1.0,
+    planner_kind=MocChainPlannerKind.PRESCRIBED_BOUNDARY_MOCK,
+  )
   return (
-    continue_post_shock_characteristic_chain(
-      seed_field,
-      solve_next,
-      start_x_m=0.7,
-      end_x_m=1.0,
-    ),
+    planner.chain,
     observations,
     measurement_observations,
+    planner,
   )
 
 
@@ -2338,6 +2343,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
     shock_cell_chain_mock,
     shock_cell_chain_mock_observations,
     shock_cell_chain_measurement_observations,
+    shock_cell_chain_planner,
   ) = _shock_cell_chain_planner_mock(
     shock_seeded_field,
   )
@@ -3101,6 +3107,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'claim_status': 'prescribed-boundary-refinement-only; physical-shock-convergence-pending',
     },
     'shock_cell_chain_planner_mock': {
+      'planner_kind': shock_cell_chain_planner.planner_kind.value,
+      'planning_only': shock_cell_chain_planner.as_report()['planning_only'],
+      'production_claim_allowed': shock_cell_chain_planner.production_claim_allowed,
+      'planner_step_count': len(shock_cell_chain_planner.steps),
+      'planner_steps': [
+        step.as_report() for step in shock_cell_chain_planner.steps
+      ],
       'status': shock_cell_chain_mock.status.value,
       'termination_reason': shock_cell_chain_mock.termination_reason.value,
       'physical_termination': shock_cell_chain_mock.physical_termination,

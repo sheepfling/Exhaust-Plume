@@ -109,6 +109,10 @@ three-cell planner mock. Those operators verify explicit perimeter topology,
 geometry metrics, and supplied shock total-pressure loss, but they do not
 create external observations or promote any fixture to a validated physical
 cell.
+The planner wrapper now records each exact post-shock handoff as a separate
+planning step, and the terminal composite emits a mixed-regime perimeter
+request carrying the scalar shock seam without inferring geometry from the
+open supersonic zone. Both additions remain research-lane contracts.
 It remains outside the public product lanes
 until the solver-generated shock is coupled to the reflected upstream
 state/pressure field, the next-cell shock fit is solved, and disjoint

@@ -3005,6 +3005,130 @@
           }
         },
         "terminal_supersonic_downstream_patch_converged": true,
+        "mixed_regime_perimeter_request": {
+          "status": "mixed-regime-perimeter-required",
+          "source": "solver-owned-terminal-shock-mixed-regime-handoff",
+          "perimeter_supplied": false,
+          "open_supersonic_zone_is_a_perimeter": false,
+          "terminal_point_m": [
+            1.932441612053076,
+            0.0
+          ],
+          "terminal_downstream_mach": 0.7425533106434078,
+          "terminal_downstream_flow_angle_rad": 0.0,
+          "terminal_downstream_pressure_Pa": 508788.91048239,
+          "terminal_downstream_total_pressure_Pa": 733748.8829156398,
+          "terminal_total_pressure_ratio": 0.9598519734029278,
+          "supersonic_patch_sample_count": 16,
+          "supersonic_patch_points_m": [
+            [
+              1.4720719054145763,
+              0.4979922117641763
+            ],
+            [
+              1.4996068085862775,
+              0.4668676985289153
+            ],
+            [
+              1.5272295918096628,
+              0.43574318529365424
+            ],
+            [
+              1.5549396105016047,
+              0.40461867205839325
+            ],
+            [
+              1.582772502676111,
+              0.3734941588231322
+            ],
+            [
+              1.610802196382813,
+              0.3423696455878712
+            ],
+            [
+              1.6390615894207616,
+              0.3112451323526102
+            ],
+            [
+              1.6675417948509283,
+              0.2801206191173492
+            ],
+            [
+              1.6962349706311752,
+              0.24899610588208815
+            ],
+            [
+              1.7251328199038731,
+              0.21787159264682715
+            ],
+            [
+              1.75422722428391,
+              0.1867470794115661
+            ],
+            [
+              1.7835111080485049,
+              0.1556225661763051
+            ],
+            [
+              1.8129774887248693,
+              0.1244980529410441
+            ],
+            [
+              1.8426186835645062,
+              0.09337353970578305
+            ],
+            [
+              1.8724270249165245,
+              0.06224902647052205
+            ],
+            [
+              1.9023953791872266,
+              0.031124513235260998
+            ]
+          ],
+          "supersonic_patch_mach": [
+            1.3873081874514017,
+            1.3879682992261135,
+            1.388610721526895,
+            1.3892371001564174,
+            1.3898972068968936,
+            1.39049993577011,
+            1.3910289055305394,
+            1.3915058719696394,
+            1.3919349105726766,
+            1.3922913028132464,
+            1.3925922926864867,
+            1.3928544268942171,
+            1.3930605756881138,
+            1.393197344252279,
+            1.3932772642084215,
+            1.393301951360956
+          ],
+          "supersonic_patch_downstream_total_pressure_Pa": [
+            764594.8356011483,
+            764568.7972805209,
+            764542.997326121,
+            764517.3604239817,
+            764504.3468409266,
+            764506.0382517744,
+            764503.7468650525,
+            764497.614637443,
+            764488.5649155134,
+            764479.2994515008,
+            764469.6532186522,
+            764459.3341287981,
+            764450.196310926,
+            764443.7561734468,
+            764439.7527586711,
+            764438.5752867921
+          ],
+          "required_boundary_conditions": [
+            "explicitly closed downstream perimeter",
+            "terminal scalar seam continuity",
+            "no total-pressure gain over the terminal shock"
+          ],
+          "message": "the mixed-regime solver must provide the closed downstream perimeter; no geometry was inferred from the open supersonic zone"
+        },
         "node_count": null,
         "cell_count": 333,
         "topology_status": "open",
@@ -3546,6 +3670,130 @@
           }
         },
         "terminal_supersonic_downstream_patch_converged": true,
+        "mixed_regime_perimeter_request": {
+          "status": "mixed-regime-perimeter-required",
+          "source": "solver-owned-terminal-shock-mixed-regime-handoff",
+          "perimeter_supplied": false,
+          "open_supersonic_zone_is_a_perimeter": false,
+          "terminal_point_m": [
+            1.932441612053076,
+            0.0
+          ],
+          "terminal_downstream_mach": 0.7425533106434078,
+          "terminal_downstream_flow_angle_rad": 0.0,
+          "terminal_downstream_pressure_Pa": 508788.91048239,
+          "terminal_downstream_total_pressure_Pa": 733748.8829156398,
+          "terminal_total_pressure_ratio": 0.9598519734029278,
+          "supersonic_patch_sample_count": 16,
+          "supersonic_patch_points_m": [
+            [
+              1.4720719054145763,
+              0.4979922117641763
+            ],
+            [
+              1.4996068085862775,
+              0.4668676985289153
+            ],
+            [
+              1.5272295918096628,
+              0.43574318529365424
+            ],
+            [
+              1.5549396105016047,
+              0.40461867205839325
+            ],
+            [
+              1.582772502676111,
+              0.3734941588231322
+            ],
+            [
+              1.610802196382813,
+              0.3423696455878712
+            ],
+            [
+              1.6390615894207616,
+              0.3112451323526102
+            ],
+            [
+              1.6675417948509283,
+              0.2801206191173492
+            ],
+            [
+              1.6962349706311752,
+              0.24899610588208815
+            ],
+            [
+              1.7251328199038731,
+              0.21787159264682715
+            ],
+            [
+              1.75422722428391,
+              0.1867470794115661
+            ],
+            [
+              1.7835111080485049,
+              0.1556225661763051
+            ],
+            [
+              1.8129774887248693,
+              0.1244980529410441
+            ],
+            [
+              1.8426186835645062,
+              0.09337353970578305
+            ],
+            [
+              1.8724270249165245,
+              0.06224902647052205
+            ],
+            [
+              1.9023953791872266,
+              0.031124513235260998
+            ]
+          ],
+          "supersonic_patch_mach": [
+            1.3873081874514017,
+            1.3879682992261135,
+            1.388610721526895,
+            1.3892371001564174,
+            1.3898972068968936,
+            1.39049993577011,
+            1.3910289055305394,
+            1.3915058719696394,
+            1.3919349105726766,
+            1.3922913028132464,
+            1.3925922926864867,
+            1.3928544268942171,
+            1.3930605756881138,
+            1.393197344252279,
+            1.3932772642084215,
+            1.393301951360956
+          ],
+          "supersonic_patch_downstream_total_pressure_Pa": [
+            764594.8356011483,
+            764568.7972805209,
+            764542.997326121,
+            764517.3604239817,
+            764504.3468409266,
+            764506.0382517744,
+            764503.7468650525,
+            764497.614637443,
+            764488.5649155134,
+            764479.2994515008,
+            764469.6532186522,
+            764459.3341287981,
+            764450.196310926,
+            764443.7561734468,
+            764439.7527586711,
+            764438.5752867921
+          ],
+          "required_boundary_conditions": [
+            "explicitly closed downstream perimeter",
+            "terminal scalar seam continuity",
+            "no total-pressure gain over the terminal shock"
+          ],
+          "message": "the mixed-regime solver must provide the closed downstream perimeter; no geometry was inferred from the open supersonic zone"
+        },
         "node_count": null,
         "cell_count": 333,
         "topology_status": "open",
@@ -3990,6 +4238,45 @@
       "claim_status": "prescribed-boundary-refinement-only; physical-shock-convergence-pending"
     },
     "shock_cell_chain_planner_mock": {
+      "planner_kind": "prescribed-boundary-mock",
+      "planning_only": true,
+      "production_claim_allowed": false,
+      "planner_step_count": 3,
+      "planner_steps": [
+        {
+          "current_cell_index": 1,
+          "next_cell_index": 2,
+          "current_end_x_m": 1.0,
+          "boundary_kind": "post-shock-field-perimeter",
+          "incoming_handoff_sample_count": 5,
+          "incoming_total_pressure_range_Pa": [
+            1800000.0,
+            1800000.0
+          ]
+        },
+        {
+          "current_cell_index": 2,
+          "next_cell_index": 3,
+          "current_end_x_m": 1.5,
+          "boundary_kind": "post-shock-field-perimeter",
+          "incoming_handoff_sample_count": 6,
+          "incoming_total_pressure_range_Pa": [
+            1600000.0,
+            1600000.0
+          ]
+        },
+        {
+          "current_cell_index": 3,
+          "next_cell_index": 4,
+          "current_end_x_m": 2.0,
+          "boundary_kind": "post-shock-field-perimeter",
+          "incoming_handoff_sample_count": 6,
+          "incoming_total_pressure_range_Pa": [
+            1422222.2222222222,
+            1422222.2222222222
+          ]
+        }
+      ],
       "status": "solver-terminated",
       "termination_reason": "solver-returned-no-next-cell",
       "physical_termination": false,

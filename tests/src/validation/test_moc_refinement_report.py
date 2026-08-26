@@ -201,6 +201,11 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert terminal_field['terminal_shock_supersonic_downstream_zone']['status'] == 'converged_open'
   assert terminal_field['terminal_shock_supersonic_downstream_zone']['cell_count'] == 119
   assert terminal_field['terminal_shock_supersonic_downstream_zone']['physical_closure_status'] == 'open'
+  perimeter_request = terminal_field['mixed_regime_perimeter_request']
+  assert perimeter_request['status'] == 'mixed-regime-perimeter-required'
+  assert perimeter_request['perimeter_supplied'] is False
+  assert perimeter_request['open_supersonic_zone_is_a_perimeter'] is False
+  assert perimeter_request['supersonic_patch_sample_count'] == 16
   assert terminal_field['terminal_shock_boundary_edge_count'] > 0
   assert terminal_field['terminal_shock_boundary_coverage_verified'] is True
   assert terminal_field['terminal_shock_boundary_maximum_geometry_residual_m'] <= 1.0e-8
@@ -440,6 +445,16 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert trace_extension['field_status'] == 'converged_closed'
   assert trace_extension['shock_closure_status'] == 'reflected-boundary-trace-extension'
   assert planner['resolved'] is True
+  assert planner['planner_kind'] == 'prescribed-boundary-mock'
+  assert planner['planning_only'] is True
+  assert planner['production_claim_allowed'] is False
+  assert planner['planner_step_count'] == 3
+  assert [step['next_cell_index'] for step in planner['planner_steps']] == [2, 3, 4]
+  assert all(
+    step['boundary_kind'] == 'post-shock-field-perimeter'
+    and step['incoming_handoff_sample_count'] >= 3
+    for step in planner['planner_steps']
+  )
   assert planner['cell_count'] == 3
   assert planner['state_carry_count'] == 3
   assert planner['continuation_boundary_kinds'] == ['post-shock-field-perimeter']

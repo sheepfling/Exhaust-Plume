@@ -13,6 +13,7 @@ from exhaust_plume.models.moc import (
   MocCellClosureStatus,
   MocChainBoundaryKind,
   MocChainGeometryFidelity,
+  MocChainPlannerKind,
   MocChainTerminationDecision,
   MocChainStatus,
   MocChainTerminationReason,
@@ -35,6 +36,7 @@ from exhaust_plume.models.moc import (
   continue_post_shock_characteristics_to_centerline,
   continue_post_shock_characteristics_to_centerline_open,
   continue_post_shock_characteristic_chain,
+  plan_post_shock_characteristic_chain,
   fit_attached_shock_boundary,
   solve_attached_compression_to_turn,
   validate_closed_post_shock_field,
@@ -474,6 +476,37 @@ def test_post_shock_chain_re_solves_with_state_and_pressure_handoff() -> None:
     (2, 5, pytest.approx(1.8e6)),
     (3, 6, pytest.approx(1.6e6)),
   ]
+
+
+def test_post_shock_planner_records_exact_handoff_steps_without_promotion_claim() -> None:
+  seed_fit = MocShockBoundaryFitResult(
+    status=MocShockBoundaryFitStatus.CONVERGED_FITTED,
+    boundary_states=_prescribed_boundary(),
+    shock_angle_residuals_rad=(0.0,) * 4,
+    maximum_shock_angle_residual_rad=0.0,
+  )
+  seed_field = assemble_post_shock_characteristic_field(seed_fit)
+
+  planner = plan_post_shock_characteristic_chain(
+    seed_field,
+    lambda _current, index, handoff: (
+      None if index == 3 else _next_chain_field(handoff)
+    ),
+    start_x_m=0.7,
+    end_x_m=1.0,
+    planner_kind=MocChainPlannerKind.PRESCRIBED_BOUNDARY_MOCK,
+  )
+
+  assert planner.chain.resolved
+  assert planner.chain.cell_count == 2
+  assert planner.planner_kind is MocChainPlannerKind.PRESCRIBED_BOUNDARY_MOCK
+  assert planner.production_claim_allowed is False
+  assert [step.next_cell_index for step in planner.steps] == [2, 3]
+  assert [step.incoming_handoff_sample_count for step in planner.steps] == [5, 6]
+  assert all(
+    step.boundary_kind is MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER
+    for step in planner.steps
+  )
 
 
 def test_post_shock_chain_accepts_explicit_physical_termination() -> None:

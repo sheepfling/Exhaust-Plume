@@ -45,6 +45,7 @@ from exhaust_plume.models.moc.mixed_regime import (
   MocMixedRegimeFieldResult,
   MocMixedRegimeFieldSample,
   MocMixedRegimeFieldStatus,
+  MocMixedRegimePerimeterRequest,
   solve_mixed_regime_subsonic_field,
   validate_mixed_regime_boundary,
 )
@@ -215,6 +216,13 @@ from exhaust_plume.models.moc.post_shock import (
   fit_attached_shock_boundary,
   validate_closed_post_shock_field,
 )
+from exhaust_plume.models.moc.planner import (
+  MocChainPlannerKind,
+  MocChainPlannerResult,
+  MocChainPlannerStep,
+  plan_moc_chain,
+  plan_post_shock_characteristic_chain,
+)
 from exhaust_plume.models.moc.chain import (
   MocCellClosureStatus,
   MocChainBoundaryKind,
@@ -248,6 +256,12 @@ __all__ = (
   'MocMixedRegimeFieldSample',
   'MocMixedRegimeFieldResult',
   'MocMixedRegimeFieldStatus',
+  'MocMixedRegimePerimeterRequest',
+  'MocChainPlannerKind',
+  'MocChainPlannerResult',
+  'MocChainPlannerStep',
+  'plan_moc_chain',
+  'plan_post_shock_characteristic_chain',
   'MocShockToCenterlineResult',
   'MocTurnCompressionResult',
   'MocFreeBoundaryResult',

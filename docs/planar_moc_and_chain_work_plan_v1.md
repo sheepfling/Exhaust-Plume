@@ -115,6 +115,14 @@ not wait on this research closure.
   carries total-pressure loss across the mock steps, and remains explicitly
   non-physical until each continuation cell is coupled to a solved
   free-boundary shock geometry.
+- Added a reusable planner wrapper for generic and post-shock chains. It
+  records the exact boundary kind, sample count, and total-pressure range
+  before every callback, while retaining a hard non-production claim ceiling
+  for the prescribed-boundary mock.
+- Added a solver-owned mixed-regime perimeter request from the terminal shock
+  composite. It exposes the terminal scalar state and supersonic post-shock
+  samples but supplies no inferred downstream perimeter; the open supersonic
+  zone remains an explicit non-perimeter seam.
 - Added an MOC chain continuation contract. It accepts only connected,
   topologically bounded meshes with explicit physical closure and resolved
   planar-MOC fidelity.

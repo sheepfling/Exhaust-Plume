@@ -356,6 +356,15 @@ def test_ambient_attachment_transition_carries_a_next_shock_handoff_to_terminal(
   assert mixed_boundary.supersonic_patch_verified
   assert mixed_boundary.physical_closure_verified is False
   assert mixed_boundary.chain_promotion_blocked
+  perimeter_request = result.terminal_field.mixed_regime_perimeter_request()
+  assert perimeter_request.perimeter_supplied is False
+  assert perimeter_request.open_supersonic_zone_is_a_perimeter is False
+  assert perimeter_request.terminal_point_m == pytest.approx(
+    result.terminal_field.terminal_normal_shock.shock_point_m,
+  )
+  assert perimeter_request.supersonic_patch == result.terminal_field.terminal_shock_supersonic_downstream_states
+  assert perimeter_request.as_report()['status'] == 'mixed-regime-perimeter-required'
+  assert perimeter_request.as_report()['supersonic_patch_sample_count'] == 16
   terminal_field_decision = result.terminal_field.as_chain_termination_decision()
   assert terminal_field_decision.physical_termination is False
   assert terminal_field_decision.reason is MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE

@@ -32,6 +32,7 @@ from exhaust_plume.models.moc.zone import MocCharacteristicCell
 __all__ = (
   'MocMixedRegimeBoundaryStatus',
   'MocMixedRegimeFieldSample',
+  'MocMixedRegimePerimeterRequest',
   'MocMixedRegimeBoundaryResult',
   'MocMixedRegimeFieldStatus',
   'MocMixedRegimeFieldResult',
@@ -111,6 +112,116 @@ class MocMixedRegimeFieldSample:
 
 
 MocMixedRegimeTerminal = MocNormalShockTerminalResult | MocSubsonicShockBoundaryResult
+
+
+@dataclass(frozen=True, slots=True)
+class MocMixedRegimePerimeterRequest:
+  """Solver-owned data required to close a subsonic terminal region.
+
+  The terminal shock and the open supersonic patch provide the downstream
+  scalar seam, but they do not determine the remaining subsonic perimeter.
+  This request exposes the data a mixed-regime solver must consume while
+  deliberately carrying no guessed perimeter points.  In particular, the
+  open supersonic zone is evidence for the upstream seam, never a substitute
+  for the downstream boundary condition.
+  """
+
+  terminal_point_m: tuple[float, float]
+  terminal_downstream_mach: float
+  terminal_downstream_flow_angle_rad: float
+  terminal_downstream_pressure_Pa: float
+  terminal_downstream_total_pressure_Pa: float
+  terminal_total_pressure_ratio: float
+  supersonic_patch: tuple[MocPostShockBoundaryState, ...]
+  required_boundary_conditions: tuple[str, ...] = (
+    'explicitly closed downstream perimeter',
+    'terminal scalar seam continuity',
+    'no total-pressure gain over the terminal shock',
+  )
+  source: str = 'solver-owned-terminal-shock-mixed-regime-handoff'
+
+  def __post_init__(self) -> None:
+    try:
+      point = (float(self.terminal_point_m[0]), float(self.terminal_point_m[1]))
+    except (IndexError, TypeError, ValueError):
+      raise ValueError('terminal_point_m must contain two finite coordinates') from None
+    if not all(isfinite(value) for value in point):
+      raise ValueError('terminal_point_m must contain two finite coordinates')
+    for name, value, lower in (
+      ('terminal_downstream_mach', self.terminal_downstream_mach, 0.0),
+      ('terminal_downstream_pressure_Pa', self.terminal_downstream_pressure_Pa, 0.0),
+      ('terminal_downstream_total_pressure_Pa', self.terminal_downstream_total_pressure_Pa, 0.0),
+      ('terminal_total_pressure_ratio', self.terminal_total_pressure_ratio, 0.0),
+    ):
+      numeric = float(value)
+      if not isfinite(numeric) or numeric <= lower:
+        raise ValueError(f'{name} must be finite and greater than {lower}')
+    if self.terminal_downstream_mach >= 1.0:
+      raise ValueError('terminal_downstream_mach must be subsonic')
+    if self.terminal_total_pressure_ratio >= 1.0:
+      raise ValueError('terminal_total_pressure_ratio must show strict total-pressure loss')
+    angle = float(self.terminal_downstream_flow_angle_rad)
+    if not isfinite(angle):
+      raise ValueError('terminal_downstream_flow_angle_rad must be finite')
+    patch = tuple(self.supersonic_patch)
+    if not patch:
+      raise ValueError('supersonic_patch must contain at least one boundary state')
+    if any(not isinstance(sample, MocPostShockBoundaryState) for sample in patch):
+      raise TypeError('supersonic_patch must contain MocPostShockBoundaryState values')
+    if any(sample.state.mach <= 1.0 for sample in patch):
+      raise ValueError('supersonic_patch must contain only supersonic states')
+    conditions = tuple(str(condition) for condition in self.required_boundary_conditions)
+    if not conditions:
+      raise ValueError('required_boundary_conditions must not be empty')
+    object.__setattr__(self, 'terminal_point_m', point)
+    object.__setattr__(self, 'terminal_downstream_mach', float(self.terminal_downstream_mach))
+    object.__setattr__(self, 'terminal_downstream_flow_angle_rad', angle)
+    object.__setattr__(self, 'terminal_downstream_pressure_Pa', float(self.terminal_downstream_pressure_Pa))
+    object.__setattr__(self, 'terminal_downstream_total_pressure_Pa', float(self.terminal_downstream_total_pressure_Pa))
+    object.__setattr__(self, 'terminal_total_pressure_ratio', float(self.terminal_total_pressure_ratio))
+    object.__setattr__(self, 'supersonic_patch', patch)
+    object.__setattr__(self, 'required_boundary_conditions', conditions)
+  ####
+
+  @property
+  def perimeter_supplied(self) -> bool:
+    """Whether a downstream geometry was supplied to this request."""
+
+    return False
+  ####
+
+  @property
+  def open_supersonic_zone_is_a_perimeter(self) -> bool:
+    """The open supersonic patch cannot close the subsonic region."""
+
+    return False
+  ####
+
+  def as_report(self) -> dict[str, object]:
+    return {
+      'status': 'mixed-regime-perimeter-required',
+      'source': self.source,
+      'perimeter_supplied': self.perimeter_supplied,
+      'open_supersonic_zone_is_a_perimeter': self.open_supersonic_zone_is_a_perimeter,
+      'terminal_point_m': self.terminal_point_m,
+      'terminal_downstream_mach': self.terminal_downstream_mach,
+      'terminal_downstream_flow_angle_rad': self.terminal_downstream_flow_angle_rad,
+      'terminal_downstream_pressure_Pa': self.terminal_downstream_pressure_Pa,
+      'terminal_downstream_total_pressure_Pa': self.terminal_downstream_total_pressure_Pa,
+      'terminal_total_pressure_ratio': self.terminal_total_pressure_ratio,
+      'supersonic_patch_sample_count': len(self.supersonic_patch),
+      'supersonic_patch_points_m': tuple(sample.point_m for sample in self.supersonic_patch),
+      'supersonic_patch_mach': tuple(sample.state.mach for sample in self.supersonic_patch),
+      'supersonic_patch_downstream_total_pressure_Pa': tuple(
+        sample.downstream_total_pressure_Pa for sample in self.supersonic_patch
+      ),
+      'required_boundary_conditions': self.required_boundary_conditions,
+      'message': (
+        'the mixed-regime solver must provide the closed downstream perimeter; '
+        'no geometry was inferred from the open supersonic zone'
+      ),
+    }
+  ####
 
 
 @dataclass(frozen=True, slots=True)
