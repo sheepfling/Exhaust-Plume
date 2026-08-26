@@ -135,6 +135,11 @@ characteristic zone, and records a typed subsonic centerline terminal. The
 downstream zone is still an open mixed-regime handoff; physical closure and
 chain promotion remain blocked until a subsonic field and complete perimeter
 are solved.
+The open zone now also exposes a bounded next-shock coupling adapter: it
+independently resamples each generated shock point and returns an explicit
+upstream-field boundary or verified normal-shock terminal. This is a solver
+interface only and does not promote the open zone or replace the missing
+mixed-regime perimeter.
 The converged post-shock field now exposes bounded state, static-pressure, and
 total-pressure samplers backed by its solver-carried cell vertices and shock
 boundary. A separate field-coupled continued-cell adapter and planner uses

@@ -27,6 +27,8 @@ from exhaust_plume.models.moc import (
   MocPostShockFirstLayerStatus,
   MocPostShockContinuationStatus,
   MocPostShockZoneStatus,
+  MocPostShockZoneSamplingStatus,
+  MocPostShockZoneShockSolveResult,
   MocShockBoundaryFitStatus,
   MocShockBoundaryFitResult,
   MocPrescribedPostShockChainMock,
@@ -40,6 +42,9 @@ from exhaust_plume.models.moc import (
   plan_post_shock_characteristic_chain,
   plan_prescribed_post_shock_chain_mock,
   fit_attached_shock_boundary,
+  sample_post_shock_zone_along_shock_path,
+  solve_marched_attached_shock_from_post_shock_zone,
+  solve_marched_attached_shock_chain_cell_from_post_shock_zone_or_termination,
   solve_attached_compression_to_turn,
   validate_closed_post_shock_field,
   validate_post_shock_ambient_boundary,
@@ -67,6 +72,29 @@ def _prescribed_boundary() -> tuple[MocPostShockBoundaryState, ...]:
       downstream_total_pressure_Pa=1.8e6,
     )
     for index, point in enumerate(points)
+  )
+
+
+def _open_post_shock_zone_fixture() -> MocPostShockCharacteristicZoneResult:
+  samples = list(_prescribed_boundary())
+  samples[-1] = MocPostShockBoundaryState(
+    point_m=(0.82, 0.02),
+    state=CharacteristicState(
+      x_m=0.82,
+      y_m=0.02,
+      theta_rad=-0.05,
+      mach=2.0,
+      gamma=1.4,
+    ),
+    upstream_total_pressure_Pa=2.0e6,
+    downstream_total_pressure_Pa=1.8e6,
+  )
+  continuation = continue_post_shock_characteristics_to_centerline_open(tuple(samples))
+  first_layer = assemble_post_shock_first_layer(continuation)
+  return assemble_post_shock_characteristic_zone(
+    continuation,
+    first_layer,
+    tuple(samples),
   )
 
 
@@ -230,6 +258,82 @@ def test_open_post_shock_c_minus_traces_keep_a_terminal_shock_interface() -> Non
   assert sampled_static_pressure > 0.0
   assert zone.state_at((10.0, 10.0)) is None
   assert zone.total_pressure_at((10.0, 10.0)) is None
+
+
+def test_open_post_shock_zone_path_probe_is_bounded_and_pressure_aware() -> None:
+  zone = _open_post_shock_zone_fixture()
+  first_cell = zone.cells[0]
+  centroid = tuple(
+    sum(vertex[coordinate] for vertex in first_cell.vertices_xr_m)
+    / len(first_cell.vertices_xr_m)
+    for coordinate in (0, 1)
+  )
+  path = (
+    (centroid[0] - 2.0e-4, centroid[1]),
+    centroid,
+  )
+
+  result = sample_post_shock_zone_along_shock_path(zone, path)
+
+  assert result.status is MocPostShockZoneSamplingStatus.CONVERGED_POST_SHOCK_ZONE_FIELD
+  assert result.converged
+  assert result.sampled_count == 2
+  assert result.first_missing_sample_index is None
+  assert all(pressure > 0.0 for pressure in result.upstream_pressure_Pa)
+
+  bounded = sample_post_shock_zone_along_shock_path(
+    zone,
+    (*path, (centroid[0] + 0.2, centroid[1])),
+  )
+  assert bounded.status is MocPostShockZoneSamplingStatus.OUTSIDE_DOMAIN
+  assert bounded.sampled_count == 2
+  assert bounded.first_missing_sample_index == 2
+
+
+def test_post_shock_zone_next_shock_carries_a_typed_terminal_to_the_chain() -> None:
+  zone = _open_post_shock_zone_fixture()
+  seed_fit = MocShockBoundaryFitResult(
+    status=MocShockBoundaryFitStatus.CONVERGED_FITTED,
+    boundary_states=_prescribed_boundary(),
+    shock_angle_residuals_rad=(0.0,) * 4,
+    maximum_shock_angle_residual_rad=0.0,
+  )
+  seed_field = assemble_post_shock_characteristic_field(seed_fit)
+  current = seed_field.as_chain_cell(start_x_m=0.5, end_x_m=0.85)
+
+  def downstream_flow_angle_at(
+    _index: int,
+    point: tuple[float, float],
+  ) -> float:
+    return 0.02 * max(0.0, min(1.0, point[1] / 0.001))
+
+  solved = solve_marched_attached_shock_from_post_shock_zone(
+    zone,
+    (0.854, 0.001),
+    downstream_flow_angle_at=downstream_flow_angle_at,
+    sample_count=5,
+  )
+  assert isinstance(solved, MocPostShockZoneShockSolveResult)
+  assert solved.shock.subsonic_terminal_required
+  assert solved.coupling.status is MocPostShockZoneSamplingStatus.CONVERGED_POST_SHOCK_ZONE_FIELD
+  assert solved.upstream_coupling_verified
+  assert not solved.physical_closure_verified
+
+  decision = solve_marched_attached_shock_chain_cell_from_post_shock_zone_or_termination(
+    current,
+    2,
+    current.continuation_boundary,
+    zone,
+    start_point_m=(0.854, 0.001),
+    end_x_m=1.35,
+    downstream_flow_angle_at=downstream_flow_angle_at,
+    sample_count=5,
+  )
+  assert isinstance(decision, MocChainTerminationDecision)
+  assert decision.physical_termination
+  assert decision.reason is MocChainTerminationReason.PHYSICAL_TERMINATION
+  assert decision.diagnostics['termination_model'] == 'normal-shock-terminal'
+  assert decision.diagnostics['upstream_field_model'] == 'bounded-open-post-shock-zone'
 
 
 def test_sampled_attached_shock_fit_produces_pressure_losing_boundary_states() -> None:

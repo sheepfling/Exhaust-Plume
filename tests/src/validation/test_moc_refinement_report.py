@@ -440,6 +440,9 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
     and case['result']['zone']['topology_forms_closed_zone'] is True
     and case['result']['zone']['topology_nonmanifold_edge_count'] == 0
     and case['result']['zone']['physical_closure_status'] == 'open'
+    and case['result']['zone']['state_sampling_available'] is True
+    and case['result']['zone']['shock_boundary_sample_count'] == 8
+    and case['result']['zone']['axis_boundary_sample_count'] == 7
     and case['result']['chain_termination_decision']['physical_termination'] is False
     and case['result']['chain_termination_decision']['reason'] == 'open-physical-closure'
     for case in band_terminal_field['cases']

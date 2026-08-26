@@ -54,6 +54,8 @@ __all__ = (
   'MocPostShockFirstLayerStatus',
   'MocPostShockCharacteristicZoneResult',
   'MocPostShockZoneStatus',
+  'MocPostShockZoneSamplingResult',
+  'MocPostShockZoneSamplingStatus',
   'MocPostShockCharacteristicFieldResult',
   'MocPostShockFieldStatus',
   'MocPostShockChainCellSolve',
@@ -67,6 +69,7 @@ __all__ = (
   'continue_post_shock_characteristics_to_centerline',
   'continue_post_shock_characteristics_to_centerline_open',
   'fit_attached_shock_boundary',
+  'sample_post_shock_zone_along_shock_path',
   'continue_post_shock_characteristic_chain',
   'validate_closed_post_shock_field',
 )
@@ -101,6 +104,16 @@ class MocPostShockZoneStatus(str, Enum):
   GEOMETRY_FAILURE = 'geometry_failure'
   TOPOLOGY_FAILURE = 'topology_failure'
   INVARIANT_FAILURE = 'invariant_failure'
+####
+
+
+class MocPostShockZoneSamplingStatus(str, Enum):
+  """Outcome of sampling a candidate shock inside an open post-shock zone."""
+
+  CONVERGED_POST_SHOCK_ZONE_FIELD = 'converged_post_shock_zone_field'
+  INVALID_INPUT = 'invalid_input'
+  OUTSIDE_DOMAIN = 'outside_post_shock_zone_domain'
+  PRESSURE_FAILURE = 'pressure_failure'
 ####
 
 
@@ -168,6 +181,48 @@ class MocPostShockBoundaryState:
       if not isfinite(float(value)) or value <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
   ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocPostShockZoneSamplingResult:
+  """Domain-bounded state and static-pressure samples along a candidate path."""
+
+  status: MocPostShockZoneSamplingStatus
+  shock_points_m: tuple[tuple[float, float], ...]
+  upstream_states: tuple[CharacteristicState, ...]
+  upstream_pressure_Pa: tuple[float, ...]
+  first_missing_sample_index: int | None
+  message: str = ''
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocPostShockZoneSamplingStatus.CONVERGED_POST_SHOCK_ZONE_FIELD
+  ####
+
+  @property
+  def sampled_count(self) -> int:
+    return len(self.upstream_states)
+  ####
+
+  @property
+  def last_valid_point_m(self) -> tuple[float, float] | None:
+    if not self.upstream_states:
+      return None
+    state = self.upstream_states[-1]
+    return state.x_m, state.y_m
+  ####
+
+  def as_report(self) -> dict[str, object]:
+    return {
+      'status': self.status.value,
+      'converged': self.converged,
+      'requested_sample_count': len(self.shock_points_m),
+      'sampled_count': self.sampled_count,
+      'first_missing_sample_index': self.first_missing_sample_index,
+      'last_valid_point_m': self.last_valid_point_m,
+      'message': self.message,
+    }
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -556,6 +611,120 @@ class MocPostShockCharacteristicZoneResult:
     ) ** (state.gamma / (state.gamma - 1.0))
     return total_pressure / pressure_ratio
   ####
+
+
+def sample_post_shock_zone_along_shock_path(
+  zone: MocPostShockCharacteristicZoneResult,
+  shock_points_m: Sequence[tuple[float, float]],
+  *,
+  position_tolerance_m: float = 1.0e-10,
+) -> MocPostShockZoneSamplingResult:
+  """Sample a candidate next-shock path without extrapolating the open zone.
+
+  The path is ordered from its outer attachment toward the centerline.  This
+  helper is a coupling probe only: it does not extend the characteristic
+  mesh, close its unresolved front, or promote the zone to a chain cell.
+  """
+
+  if not isinstance(zone, MocPostShockCharacteristicZoneResult):
+    return MocPostShockZoneSamplingResult(
+      status=MocPostShockZoneSamplingStatus.INVALID_INPUT,
+      shock_points_m=(),
+      upstream_states=(),
+      upstream_pressure_Pa=(),
+      first_missing_sample_index=None,
+      message='zone must be a MocPostShockCharacteristicZoneResult',
+    )
+  try:
+    points = tuple(
+      (float(point[0]), float(point[1]))
+      for point in shock_points_m
+    )
+  except (TypeError, IndexError, ValueError):
+    return MocPostShockZoneSamplingResult(
+      status=MocPostShockZoneSamplingStatus.INVALID_INPUT,
+      shock_points_m=(),
+      upstream_states=(),
+      upstream_pressure_Pa=(),
+      first_missing_sample_index=None,
+      message='shock_points_m must contain finite two-coordinate points',
+    )
+  if len(points) < 2 or any(
+    not all(isfinite(value) for value in point)
+    for point in points
+  ):
+    return MocPostShockZoneSamplingResult(
+      status=MocPostShockZoneSamplingStatus.INVALID_INPUT,
+      shock_points_m=points,
+      upstream_states=(),
+      upstream_pressure_Pa=(),
+      first_missing_sample_index=None,
+      message='shock path coupling requires at least two finite points',
+    )
+  if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
+    raise ValueError('position_tolerance_m must be finite and positive')
+  if not zone.state_sampling_available:
+    return MocPostShockZoneSamplingResult(
+      status=MocPostShockZoneSamplingStatus.INVALID_INPUT,
+      shock_points_m=points,
+      upstream_states=(),
+      upstream_pressure_Pa=(),
+      first_missing_sample_index=None,
+      message='open post-shock zone does not provide a bounded state/pressure sampler',
+    )
+  for index, (previous, current) in enumerate(zip(points, points[1:]), start=1):
+    if current[0] <= previous[0] + position_tolerance_m or current[1] > previous[1] + position_tolerance_m:
+      return MocPostShockZoneSamplingResult(
+        status=MocPostShockZoneSamplingStatus.INVALID_INPUT,
+        shock_points_m=points,
+        upstream_states=(),
+        upstream_pressure_Pa=(),
+        first_missing_sample_index=index,
+        message='shock path must be strictly downstream in x and nonincreasing in y',
+      )
+  ####
+
+  states: list[CharacteristicState] = []
+  pressures: list[float] = []
+  for index, point in enumerate(points):
+    state = zone.state_at(point, position_tolerance_m=position_tolerance_m)
+    pressure = zone.static_pressure_at(point, position_tolerance_m=position_tolerance_m)
+    if state is None:
+      return MocPostShockZoneSamplingResult(
+        status=MocPostShockZoneSamplingStatus.OUTSIDE_DOMAIN,
+        shock_points_m=points,
+        upstream_states=tuple(states),
+        upstream_pressure_Pa=tuple(pressures),
+        first_missing_sample_index=index,
+        message=(
+          f'open post-shock characteristic zone has no upstream state at '
+          f'shock sample {index}'
+        ),
+      )
+    if pressure is None or not isfinite(float(pressure)) or float(pressure) <= 0.0:
+      return MocPostShockZoneSamplingResult(
+        status=MocPostShockZoneSamplingStatus.PRESSURE_FAILURE,
+        shock_points_m=points,
+        upstream_states=tuple(states),
+        upstream_pressure_Pa=tuple(pressures),
+        first_missing_sample_index=index,
+        message=(
+          f'open post-shock characteristic zone has no valid static pressure '
+          f'at shock sample {index}'
+        ),
+      )
+    states.append(state)
+    pressures.append(float(pressure))
+  ####
+  return MocPostShockZoneSamplingResult(
+    status=MocPostShockZoneSamplingStatus.CONVERGED_POST_SHOCK_ZONE_FIELD,
+    shock_points_m=points,
+    upstream_states=tuple(states),
+    upstream_pressure_Pa=tuple(pressures),
+    first_missing_sample_index=None,
+    message='every shock sample lies inside the bounded open post-shock zone',
+  )
+####
 
 
 @dataclass(frozen=True, slots=True)

@@ -100,6 +100,11 @@ not wait on this research closure.
   returns no extrapolated value outside the assembled cells. This makes the
   open downstream domain usable as a typed solver interface while keeping
   physical closure and chain promotion blocked.
+- Added a bounded next-shock coupling adapter for that open zone. It
+  independently resamples the generated shock path, preserves the exact
+  first missing sample and last valid upstream state, and returns a typed
+  upstream-field stop or verified normal-shock terminal rather than appending
+  an open-zone cell. Its downstream turn law remains caller-supplied.
 - Added a caustic-family-band continued-chain planner seam. It carries the
   exact prior post-shock perimeter into the bounded band shock solve, records
   the solver-generated open zone and terminal diagnostics, and stops with a
@@ -507,6 +512,12 @@ Because the mixed-regime perimeter is still unsolved, the planner returns
 ``OPEN_PHYSICAL_CLOSURE`` with ``production_claim_allowed=false`` and refuses
 to append the open result. A later cell requires a new solved family or a
 closed downstream field.
+
+The open post-shock zone now has the same bounded next-shock coupling seam:
+it can be queried for a candidate continuation and returns a typed
+upstream-field boundary or normal-shock terminal. It remains an open solver
+interface, so a successful callback does not by itself authorize chain-cell
+promotion.
 
 The bracketed ambient-attachment adapter removes one caller-supplied boundary
 coordinate: it solves the outer shock turn against the local post-shock
