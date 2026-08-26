@@ -89,6 +89,7 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert ambient_strip['strip']['chain_promotion_blocked'] is True
   terminal_candidate = ambient_strip['terminal_compression_candidate']
   terminal_patch = ambient_strip['terminal_reflection_patch']
+  terminal_patch_shock_probe = ambient_strip['terminal_reflection_patch_shock_probe']
   assert ambient_strip['terminal_trace_acceptance_tolerance_m'] == pytest.approx(2.0e-4)
   assert terminal_candidate['status'] == 'converged_local_compression_candidate'
   assert terminal_candidate['converged'] is True
@@ -102,6 +103,13 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert terminal_patch['combined_topology_forms_closed_zone'] is True
   assert terminal_patch['combined_topology_nonmanifold_edge_count'] == 0
   assert terminal_patch['physical_closure_verified'] is False
+  assert terminal_patch_shock_probe['status'] == 'subsonic_terminal_required'
+  assert terminal_patch_shock_probe['converged'] is False
+  assert terminal_patch_shock_probe['upstream_coupling_verified'] is False
+  assert terminal_patch_shock_probe['physical_closure_verified'] is False
+  assert terminal_patch_shock_probe['chain_promotion_blocked'] is True
+  assert terminal_patch_shock_probe['coupling']['converged'] is True
+  assert terminal_patch_shock_probe['shock']['normal_shock_terminal']['subsonic'] is True
   assert source_strip['status'] == 'converged_open_source_strip'
   assert source_strip['node_count'] == 45
   assert source_strip['cell_count'] == 44

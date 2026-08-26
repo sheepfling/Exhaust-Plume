@@ -33,6 +33,7 @@ from exhaust_plume.models.moc.primitives import (
   MocPrimitiveStatus,
   centerline_characteristic_point,
   interior_characteristic_point,
+  inverse_prandtl_meyer_angle_rad,
 )
 from exhaust_plume.models.moc.topology import MocTopologyResult, validate_moc_mesh
 from exhaust_plume.models.moc.zone import MocCharacteristicCell, MocCharacteristicNode
@@ -114,6 +115,112 @@ class MocTerminalReflectionPatchResult:
         strict=True,
       )
     )
+
+  def state_at(
+    self,
+    point_m: tuple[float, float],
+    *,
+    position_tolerance_m: float = 1.0e-10,
+  ) -> CharacteristicState | None:
+    """Interpolate a state inside the reflected patch without extrapolation."""
+
+    sample = self._sample_at(point_m, position_tolerance_m=position_tolerance_m)
+    return None if sample is None else sample[0]
+
+  def total_pressure_at(
+    self,
+    point_m: tuple[float, float],
+    *,
+    position_tolerance_m: float = 1.0e-10,
+  ) -> float | None:
+    """Return the carried total pressure at a point inside the patch."""
+
+    sample = self._sample_at(point_m, position_tolerance_m=position_tolerance_m)
+    return None if sample is None else sample[1]
+
+  def static_pressure_at(
+    self,
+    point_m: tuple[float, float],
+    *,
+    position_tolerance_m: float = 1.0e-10,
+  ) -> float | None:
+    """Return the isentropic static pressure at a sampled patch state."""
+
+    sample = self._sample_at(point_m, position_tolerance_m=position_tolerance_m)
+    if sample is None:
+      return None
+    state, total_pressure = sample
+    pressure_ratio = (
+      1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
+    ) ** (state.gamma / (state.gamma - 1.0))
+    return total_pressure / pressure_ratio
+
+  def _sample_at(
+    self,
+    point_m: tuple[float, float],
+    *,
+    position_tolerance_m: float,
+  ) -> tuple[CharacteristicState, float] | None:
+    if len(point_m) != 2 or not all(isfinite(float(value)) for value in point_m):
+      raise ValueError('point_m must contain two finite coordinates')
+    if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
+      raise ValueError('position_tolerance_m must be finite and positive')
+    point = (float(point_m[0]), float(point_m[1]))
+    node_by_key = {
+      (node.centerline_index, node.boundary_index): node
+      for node in self.nodes
+    }
+    for node in self.nodes:
+      if (
+        abs(node.point_m[0] - point[0]) <= position_tolerance_m
+        and abs(node.point_m[1] - point[1]) <= position_tolerance_m
+      ):
+        if node.total_pressure_Pa is None:
+          return None
+        return (
+          CharacteristicState(
+            x_m=point[0],
+            y_m=point[1],
+            theta_rad=node.state.theta_rad,
+            mach=node.state.mach,
+            gamma=node.state.gamma,
+          ),
+          float(node.total_pressure_Pa),
+        )
+    for cell in self.cells:
+      samples = _terminal_cell_samples(cell, node_by_key)
+      if samples is None:
+        continue
+      vertices, states, pressures = samples
+      weights = _polygon_interpolation_weights(
+        point,
+        vertices,
+        tolerance_m=position_tolerance_m,
+      )
+      if weights is None:
+        continue
+      theta = sum(
+        weight * state.theta_rad
+        for weight, state in zip(weights, states, strict=True)
+      )
+      nu = sum(
+        weight * state.nu_rad
+        for weight, state in zip(weights, states, strict=True)
+      )
+      inverse = inverse_prandtl_meyer_angle_rad(nu, states[0].gamma)
+      if not inverse.converged or inverse.value is None:
+        return None
+      return (
+        CharacteristicState(
+          x_m=point[0],
+          y_m=point[1],
+          theta_rad=theta,
+          mach=inverse.value,
+          gamma=states[0].gamma,
+        ),
+        sum(weight * pressure for weight, pressure in zip(weights, pressures, strict=True)),
+      )
+    return None
 
   def as_report(self) -> dict[str, object]:
     return {
@@ -234,6 +341,93 @@ def _residual_maxima(
       default=None,
     ),
   )
+
+
+def _terminal_cell_samples(
+  cell: MocCharacteristicCell,
+  node_by_key: dict[tuple[int, int], MocCharacteristicNode],
+) -> tuple[
+  tuple[tuple[float, float], ...],
+  tuple[CharacteristicState, ...],
+  tuple[float, ...],
+] | None:
+  """Return ordered state and pressure samples for one patch cell."""
+
+  if cell.cell_kind == 'terminal-reflection-interior':
+    if len(cell.centerline_indices) != 2 or len(cell.boundary_indices) != 2:
+      return None
+    first_axis, second_axis = cell.centerline_indices
+    first_boundary, second_boundary = cell.boundary_indices
+    keys = (
+      (first_axis, first_boundary),
+      (first_axis, second_boundary),
+      (second_axis, second_boundary),
+      (second_axis, first_boundary),
+    )
+  elif cell.cell_kind == 'terminal-reflection-axis-strip':
+    if len(cell.centerline_indices) != 2:
+      return None
+    first_row, second_row = cell.centerline_indices
+    keys = (
+      (first_row, first_row),
+      (first_row, second_row),
+      (second_row, second_row),
+    )
+  else:
+    return None
+  nodes = tuple(node_by_key.get(key) for key in keys)
+  if any(node is None or node.total_pressure_Pa is None for node in nodes):
+    return None
+  resolved = tuple(node for node in nodes if node is not None)
+  return (
+    tuple(cell.vertices_xr_m),
+    tuple(node.state for node in resolved),
+    tuple(float(node.total_pressure_Pa) for node in resolved if node.total_pressure_Pa is not None),
+  )
+
+
+def _triangle_interpolation_weights(
+  point: tuple[float, float],
+  vertices: tuple[tuple[float, float], ...],
+  *,
+  tolerance_m: float,
+) -> tuple[float, ...] | None:
+  (ax, ay), (bx, by), (cx, cy) = vertices
+  denominator = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy)
+  if abs(denominator) <= max(tolerance_m * tolerance_m, 1.0e-24):
+    return None
+  px, py = point
+  first = ((by - cy) * (px - cx) + (cx - bx) * (py - cy)) / denominator
+  second = ((cy - ay) * (px - cx) + (ax - cx) * (py - cy)) / denominator
+  third = 1.0 - first - second
+  if min(first, second, third) < -1.0e-10 or max(first, second, third) > 1.0 + 1.0e-10:
+    return None
+  return first, second, third
+
+
+def _polygon_interpolation_weights(
+  point: tuple[float, float],
+  vertices: tuple[tuple[float, float], ...],
+  *,
+  tolerance_m: float,
+) -> tuple[float, ...] | None:
+  if len(vertices) == 3:
+    return _triangle_interpolation_weights(point, vertices, tolerance_m=tolerance_m)
+  first = _triangle_interpolation_weights(
+    point,
+    (vertices[0], vertices[1], vertices[2]),
+    tolerance_m=tolerance_m,
+  )
+  if first is not None:
+    return first[0], first[1], first[2], 0.0
+  second = _triangle_interpolation_weights(
+    point,
+    (vertices[0], vertices[2], vertices[3]),
+    tolerance_m=tolerance_m,
+  )
+  if second is not None:
+    return second[0], 0.0, second[1], second[2]
+  return None
 
 
 def assemble_terminal_trace_centerline_patch(

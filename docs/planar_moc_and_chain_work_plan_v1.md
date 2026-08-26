@@ -158,6 +158,12 @@ not wait on this research closure.
   shares the incoming seam with the shock/ambient strip and validates the
   combined topology; its outgoing front remains open for a physical shock or
   compression boundary and therefore cannot yet be promoted as a chain cell.
+- Added a domain-bounded terminal-patch shock probe. It interpolates the
+  reflected patch's state, total pressure, and static pressure without
+  extrapolation, consumes the outgoing C- handoff, and stops with a typed
+  `subsonic_terminal_required` result when the canonical supersonic march
+  reaches the centerline normal-shock boundary. The probe verifies upstream
+  coverage but remains blocked from physical closure and chain promotion.
 - Added an independent MOC shock-cell measurement operator. It extracts
   shock/centerline boundaries, axial extent, boundary lengths, radius, mesh
   area, perimeter-area closure, and optional shock total-pressure loss only
@@ -295,6 +301,13 @@ patch as an explicit open transition and carries its outgoing C- front. This
 is a real state-carrying continuation seam, not a closed cell: the next
 solver must fit the physical compression/shock boundary against that front
 and close the remaining perimeter before using the chain promotion adapter.
+
+The terminal-patch shock probe now consumes that outgoing front through a
+domain-bounded state/pressure sampler. The canonical march covers all 17
+requested upstream samples before stopping at the typed subsonic normal-shock
+terminal. That is a mixed-regime boundary decision, not a failed attempt to
+hide missing upstream data; a future solver must add the downstream
+mixed-regime field and physical perimeter gate before promotion.
 
 The verified post-shock result exposes the only seed-promotion adapter for this
 lane. An open zone, prescribed-boundary diagnostic, or scaled reduced-order

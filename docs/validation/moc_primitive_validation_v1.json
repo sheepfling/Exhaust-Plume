@@ -938,9 +938,61 @@
         "minimum_forward_margin_m": 0.025673413010309787,
         "message": "terminal shock-sourced C+ trace reflected to a centerline-compatible patch; outgoing C- characteristic front remains open for the next shock/boundary solve"
       },
+      "terminal_reflection_patch_shock_probe": {
+        "status": "subsonic_terminal_required",
+        "converged": false,
+        "upstream_coupling_verified": false,
+        "physical_closure_verified": false,
+        "chain_promotion_blocked": true,
+        "incoming_handoff_sample_count": 18,
+        "downstream_condition_status": "caller-supplied",
+        "shock": {
+          "status": "subsonic_terminal_required",
+          "converged": false,
+          "physical_closure_verified": false,
+          "subsonic_terminal_required": true,
+          "sample_count": 17,
+          "endpoint_m": [
+            1.9041568131113755,
+            0.029293659515539805
+          ],
+          "maximum_shock_angle_residual_rad": null,
+          "field_status": null,
+          "normal_shock_terminal": {
+            "status": "converged",
+            "converged": true,
+            "subsonic": true,
+            "shock_point_m": [
+              1.932444024737439,
+              0.0
+            ],
+            "shock_normal_angle_rad": 1.5707963267948966,
+            "downstream_flow_angle_rad": 0.0,
+            "downstream_mach": 0.7425535304699773,
+            "downstream_pressure_Pa": 508788.89535898657,
+            "static_pressure_ratio": 2.098122019755375,
+            "total_pressure_ratio": 0.9598520994838985,
+            "message": ""
+          },
+          "message": "sample 17 reaches the symmetry line with zero flow turn; the typed subsonic terminal model is outside the supersonic MOC lane"
+        },
+        "coupling": {
+          "status": "converged_terminal_reflection_patch_field",
+          "converged": true,
+          "requested_sample_count": 17,
+          "sampled_count": 17,
+          "first_missing_sample_index": null,
+          "last_valid_point_m": [
+            1.9041568131113755,
+            0.029293659515539805
+          ],
+          "message": "every shock sample lies inside the terminal reflection patch"
+        },
+        "message": "sample 17 reaches the symmetry line with zero flow turn; the typed subsonic terminal model is outside the supersonic MOC lane"
+      },
       "terminal_trace_acceptance_tolerance_m": 0.0002,
       "message": "shock-sourced C+ and ambient-sourced C- characteristics formed a connected physical-boundary strip; terminal centerline closure remains pending",
-      "claim_status": "solver-generated-shock-plus-ambient-C-plus-C-minus-strip; terminal-reflection-patch-open; local-compression-candidate-only; physical-downstream-boundary-closure-pending"
+      "claim_status": "solver-generated-shock-plus-ambient-C-plus-C-minus-strip; terminal-reflection-patch-open; terminal-shock-probe-mixed-regime-gated; local-compression-candidate-only; physical-downstream-boundary-closure-pending"
     },
     "solver_generated_shock_refinement": {
       "status": "diagnostic-all-solver-generated-resolutions-converged",

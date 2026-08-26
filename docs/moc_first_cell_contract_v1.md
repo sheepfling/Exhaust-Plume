@@ -96,6 +96,11 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   compatible net, and emits a typed outgoing ``C-`` front. The incoming seam
   is checked against the shock/ambient strip, while the outgoing front stays
   open until a physical compression/shock boundary is fitted;
+- a domain-bounded terminal-patch shock probe that interpolates the reflected
+  state and pressure field, carries the outgoing ``C-`` handoff into the
+  attached-shock marcher, and returns a typed subsonic/normal-shock terminal
+  when the supersonic lane reaches its mixed-regime boundary. It verifies
+  upstream coverage but remains ineligible for physical closure or promotion;
 - a separate MOC cell-chain continuation contract that rejects open cells,
   non-bounded meshes, axial gaps, and scaled reduced-order fidelity;
 - a typed chain termination decision that distinguishes a physical endpoint
@@ -203,6 +208,12 @@ it preserves the incoming trace, checks the combined mesh topology, and
 returns an outgoing C- trace. It remains an open transition rather than a
 closed physical cell until that outgoing front is replaced or coupled to a
 solver-generated compression/shock boundary.
+The terminal-patch shock probe consumes the outgoing front through a
+domain-bounded interpolated state/pressure field. In the canonical reference
+it covers the requested shock samples and returns the typed subsonic normal-
+shock terminal; this is a mixed-regime boundary decision, not a closed
+supersonic first-cell result. Its downstream field and physical perimeter
+remain pending.
 The earlier boundary-conditioned triangular assembler is also no longer
 promotion-eligible by default: it does not carry verified shock-``C+`` /
 ambient-``C-`` family-orientation evidence. This guard prevents a numerically

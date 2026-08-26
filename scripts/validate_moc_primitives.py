@@ -41,6 +41,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_attached_shock_to_centerline,
   solve_terminal_compression_candidate,
   assemble_terminal_trace_centerline_patch,
+  solve_marched_attached_shock_from_terminal_reflection_patch,
   solve_normal_shock_terminal,
   solve_marched_attached_shock_chain_cell,
   solve_marched_attached_shock_field,
@@ -363,6 +364,19 @@ def _ambient_shock_strip_probe(
     march.boundary_samples,
     ambient_pressure,
   )
+  terminal_patch = assemble_terminal_trace_centerline_patch(
+    strip,
+    trace_position_tolerance_m=2.0e-4,
+  )
+  terminal_patch_shock_probe = None
+  if terminal_patch.converged:
+    terminal_patch_shock_probe = solve_marched_attached_shock_from_terminal_reflection_patch(
+      terminal_patch,
+      terminal_patch.outgoing_trace_points_m[0],
+      downstream_flow_angle_rad=0.0,
+      sample_count=len(terminal_patch.outgoing_trace_points_m),
+      position_tolerance_m=2.0e-4,
+    )
   accepted = (
     strip.status is MocAmbientShockStripStatus.CONVERGED_OPEN
     and strip.topology.forms_closed_zone
@@ -383,15 +397,18 @@ def _ambient_shock_strip_probe(
       # mesh-scale tolerance is only for the local candidate diagnostic.
       trace_position_tolerance_m=2.0e-4,
     ).as_report(),
-    'terminal_reflection_patch': assemble_terminal_trace_centerline_patch(
-      strip,
-      trace_position_tolerance_m=2.0e-4,
-    ).as_report(),
+    'terminal_reflection_patch': terminal_patch.as_report(),
+    'terminal_reflection_patch_shock_probe': (
+      None
+      if terminal_patch_shock_probe is None
+      else terminal_patch_shock_probe.as_report()
+    ),
     'terminal_trace_acceptance_tolerance_m': 2.0e-4,
     'message': strip.message,
     'claim_status': (
       'solver-generated-shock-plus-ambient-C-plus-C-minus-strip; '
-      'terminal-reflection-patch-open; local-compression-candidate-only; '
+      'terminal-reflection-patch-open; terminal-shock-probe-mixed-regime-gated; '
+      'local-compression-candidate-only; '
       'physical-downstream-boundary-closure-pending'
     ),
   }

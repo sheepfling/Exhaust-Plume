@@ -9,12 +9,15 @@ from exhaust_plume.models.moc import (
   CharacteristicFamily,
   MocAmbientShockBoundaryMarchStatus,
   MocAmbientShockStripStatus,
+  MocFreeBoundaryShockStatus,
+  MocTerminalPatchShockCouplingStatus,
   MocTerminalCompressionStatus,
   MocTerminalReflectionPatchStatus,
   assemble_ambient_shock_characteristic_strip,
   assemble_terminal_trace_centerline_patch,
   march_post_shock_ambient_boundary,
   solve_terminal_compression_candidate,
+  solve_marched_attached_shock_from_terminal_reflection_patch,
   solve_marched_attached_shock_field,
 )
 
@@ -177,6 +180,43 @@ def test_terminal_trace_centerline_patch_emits_a_typed_open_c_minus_front() -> N
   assert result.outgoing_trace_validation is not None
   assert result.outgoing_trace_validation.family is CharacteristicFamily.MINUS
   assert result.outgoing_trace_validation.converged
+  assert result.physical_closure_verified is False
+  assert result.chain_promotion_blocked is True
+
+
+def test_terminal_reflection_patch_is_domain_bounded_and_reaches_typed_mixed_regime_gate() -> None:
+  shock_fit = _shock_reference()
+  ambient_pressure = _ambient_pressure(shock_fit)
+  march = march_post_shock_ambient_boundary(shock_fit, ambient_pressure)
+  strip = assemble_ambient_shock_characteristic_strip(
+    shock_fit,
+    march.boundary_samples,
+    ambient_pressure,
+  )
+  patch = assemble_terminal_trace_centerline_patch(
+    strip,
+    trace_position_tolerance_m=1.0e-3,
+  )
+  assert patch.converged
+  start = patch.outgoing_trace_points_m[0]
+  assert patch.state_at(start, position_tolerance_m=1.0e-3) is not None
+  assert patch.static_pressure_at(start, position_tolerance_m=1.0e-3) is not None
+  assert patch.state_at((patch.axis_points_m[-1][0] + 0.5, 0.1)) is None
+
+  result = solve_marched_attached_shock_from_terminal_reflection_patch(
+    patch,
+    start,
+    downstream_flow_angle_rad=0.0,
+    sample_count=len(patch.outgoing_trace_points_m),
+    position_tolerance_m=1.0e-3,
+  )
+
+  assert result.shock.status is MocFreeBoundaryShockStatus.SUBSONIC_TERMINAL_REQUIRED
+  assert result.shock.normal_shock_terminal is not None
+  assert result.shock.normal_shock_terminal.converged
+  assert result.coupling.status is MocTerminalPatchShockCouplingStatus.CONVERGED
+  assert result.coupling.sampled_count == result.shock.sample_count
+  assert result.upstream_coupling_verified is False
   assert result.physical_closure_verified is False
   assert result.chain_promotion_blocked is True
 

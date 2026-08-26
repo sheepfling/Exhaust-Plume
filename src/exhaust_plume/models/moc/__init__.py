@@ -127,6 +127,13 @@ from exhaust_plume.models.moc.terminal_patch import (
   MocTerminalReflectionPatchResult,
   assemble_terminal_trace_centerline_patch,
 )
+from exhaust_plume.models.moc.terminal_patch_solver import (
+  MocTerminalPatchShockCouplingStatus,
+  MocTerminalPatchShockCouplingResult,
+  MocTerminalReflectionPatchShockSolveResult,
+  sample_terminal_reflection_patch_along_shock_path,
+  solve_marched_attached_shock_from_terminal_reflection_patch,
+)
 from exhaust_plume.models.moc.post_shock import (
   MocPostShockBoundaryState,
   MocPostShockCharacteristicSegment,
@@ -220,6 +227,9 @@ __all__ = (
   'MocTerminalCompressionClosureResult',
   'MocTerminalReflectionPatchStatus',
   'MocTerminalReflectionPatchResult',
+  'MocTerminalPatchShockCouplingStatus',
+  'MocTerminalPatchShockCouplingResult',
+  'MocTerminalReflectionPatchShockSolveResult',
   'MocPostShockBoundaryState',
   'MocPostShockCharacteristicSegment',
   'MocPostShockContinuationResult',
@@ -289,6 +299,8 @@ __all__ = (
   'assemble_ambient_shock_characteristic_strip',
   'solve_terminal_compression_candidate',
   'assemble_terminal_trace_centerline_patch',
+  'sample_terminal_reflection_patch_along_shock_path',
+  'solve_marched_attached_shock_from_terminal_reflection_patch',
   'sample_reflected_zone_along_shock_path',
   'validate_fan_reflected_interface',
   'continue_post_shock_characteristics_to_centerline',
