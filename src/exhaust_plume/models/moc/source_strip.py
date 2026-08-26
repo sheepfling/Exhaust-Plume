@@ -13,10 +13,11 @@ does not infer a downstream boundary or physical termination.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
-from math import isfinite
-from typing import Sequence
+from math import ceil, floor, isfinite, sqrt
+from collections.abc import Mapping, Sequence
+from types import MappingProxyType
 
 from exhaust_plume.models.moc.primitives import (
   CharacteristicFamily,
@@ -76,6 +77,15 @@ class MocSourceCharacteristicStripResult:
   message: str = ''
   source_window_start_index: int = 0
   source_window_total_count: int | None = None
+  _node_by_key: MappingProxyType = field(init=False, repr=False)
+  _cell_bounds_m: tuple[tuple[float, float, float, float], ...] = field(
+    init=False,
+    repr=False,
+  )
+  _cell_bins: MappingProxyType = field(init=False, repr=False)
+  _spatial_origin_m: tuple[float, float] = field(init=False, repr=False)
+  _spatial_bin_size_m: float = field(init=False, repr=False)
+  _spatial_bins_per_axis: int = field(init=False, repr=False)
 
   def __post_init__(self) -> None:
     if not isfinite(float(self.total_pressure_Pa)) or self.total_pressure_Pa <= 0.0:
@@ -98,6 +108,81 @@ class MocSourceCharacteristicStripResult:
       raise ValueError(
         'source_window_total_count must cover the supplied source window'
       )
+    object.__setattr__(
+      self,
+      '_node_by_key',
+      MappingProxyType({
+        (node.centerline_index, node.boundary_index): node
+        for node in self.nodes
+      }),
+    )
+    cell_bounds = tuple(
+      (
+        min(vertex[0] for vertex in cell.vertices_xr_m),
+        max(vertex[0] for vertex in cell.vertices_xr_m),
+        min(vertex[1] for vertex in cell.vertices_xr_m),
+        max(vertex[1] for vertex in cell.vertices_xr_m),
+      )
+      for cell in self.cells
+    )
+    object.__setattr__(self, '_cell_bounds_m', cell_bounds)
+    if cell_bounds:
+      origin = (
+        min(bounds[0] for bounds in cell_bounds),
+        min(bounds[2] for bounds in cell_bounds),
+      )
+      maximum = (
+        max(bounds[1] for bounds in cell_bounds),
+        max(bounds[3] for bounds in cell_bounds),
+      )
+      span = max(maximum[0] - origin[0], maximum[1] - origin[1])
+      bins_per_axis = max(1, min(64, ceil(sqrt(len(cell_bounds)))))
+      bin_size = span / bins_per_axis if span > 0.0 else 1.0
+    else:
+      origin = (0.0, 0.0)
+      bins_per_axis = 1
+      bin_size = 1.0
+    bins: dict[tuple[int, int], list[int]] = {}
+    for index, bounds in enumerate(cell_bounds):
+      lower_x = max(
+        0,
+        min(
+          bins_per_axis - 1,
+          floor((bounds[0] - origin[0]) / bin_size),
+        ),
+      )
+      upper_x = max(
+        0,
+        min(
+          bins_per_axis - 1,
+          floor((bounds[1] - origin[0]) / bin_size),
+        ),
+      )
+      lower_y = max(
+        0,
+        min(
+          bins_per_axis - 1,
+          floor((bounds[2] - origin[1]) / bin_size),
+        ),
+      )
+      upper_y = max(
+        0,
+        min(
+          bins_per_axis - 1,
+          floor((bounds[3] - origin[1]) / bin_size),
+        ),
+      )
+      for bin_x in range(lower_x, upper_x + 1):
+        for bin_y in range(lower_y, upper_y + 1):
+          bins.setdefault((bin_x, bin_y), []).append(index)
+    object.__setattr__(
+      self,
+      '_cell_bins',
+      MappingProxyType({key: tuple(value) for key, value in bins.items()}),
+    )
+    object.__setattr__(self, '_spatial_origin_m', origin)
+    object.__setattr__(self, '_spatial_bin_size_m', bin_size)
+    object.__setattr__(self, '_spatial_bins_per_axis', bins_per_axis)
   ####
 
   @property
@@ -145,12 +230,29 @@ class MocSourceCharacteristicStripResult:
           mach=state.mach,
           gamma=state.gamma,
         )
-    node_by_key = {
-      (node.centerline_index, node.boundary_index): node
-      for node in self.nodes
-    }
-    for cell in self.cells:
-      samples = _cell_samples(self, cell, node_by_key)
+    if not self._cell_bounds_m:
+      return None
+    bin_x = floor(
+      (point[0] - self._spatial_origin_m[0]) / self._spatial_bin_size_m
+    )
+    bin_y = floor(
+      (point[1] - self._spatial_origin_m[1]) / self._spatial_bin_size_m
+    )
+    candidate_indices: set[int] = set()
+    for candidate_x in range(bin_x - 1, bin_x + 2):
+      for candidate_y in range(bin_y - 1, bin_y + 2):
+        candidate_indices.update(self._cell_bins.get((candidate_x, candidate_y), ()))
+    for index in sorted(candidate_indices):
+      bounds = self._cell_bounds_m[index]
+      if (
+        point[0] < bounds[0] - position_tolerance_m
+        or point[0] > bounds[1] + position_tolerance_m
+        or point[1] < bounds[2] - position_tolerance_m
+        or point[1] > bounds[3] + position_tolerance_m
+      ):
+        continue
+      cell = self.cells[index]
+      samples = _cell_samples(self, cell, self._node_by_key)
       if samples is None:
         continue
       vertices, states = samples
@@ -937,7 +1039,7 @@ def extend_source_characteristic_strip_constant_k_plus(
 def _cell_samples(
   strip: MocSourceCharacteristicStripResult,
   cell: MocCharacteristicCell,
-  node_by_key: dict[tuple[int, int], MocCharacteristicNode],
+  node_by_key: Mapping[tuple[int, int], MocCharacteristicNode],
 ) -> tuple[tuple[tuple[float, float], ...], tuple[CharacteristicState, ...]] | None:
   def node_sample(key: tuple[int, int]) -> tuple[tuple[float, float], CharacteristicState] | None:
     node = node_by_key.get(key)

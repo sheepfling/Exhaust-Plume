@@ -53,6 +53,10 @@ not wait on this research closure.
   result. When the full triangular continuation reaches a characteristic
   caustic, a converged terminal patch can be consumed without hiding the
   failed prefix; the full-strip failure remains attached to the report.
+- Added a deterministic spatial index to the domain-bounded source-strip
+  sampler. Repeated shock samples now reuse node and cell lookup metadata,
+  keeping large terminal-window/invariant-shooting experiments practical
+  without extrapolating outside the solved characteristic domain.
 - Added bracketed constant-invariant downstream shooting. It resolves a local
   attached-compression angle from the domain-bounded upstream strip, marches
   the shock, and accepts a result only when the post-shock characteristic field
