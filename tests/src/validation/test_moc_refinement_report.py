@@ -110,6 +110,20 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert terminal_patch_shock_probe['chain_promotion_blocked'] is True
   assert terminal_patch_shock_probe['coupling']['converged'] is True
   assert terminal_patch_shock_probe['shock']['normal_shock_terminal']['subsonic'] is True
+  terminal_patch_refinement = report['geometry_cases']['terminal_reflection_patch_refinement']
+  assert terminal_patch_refinement['status'] == (
+    'diagnostic-terminal-patch-resolutions-reach-mixed-regime-gate'
+  )
+  assert [case['sample_count'] for case in terminal_patch_refinement['cases']] == [9, 17, 33]
+  assert all(
+    case['status'] == 'converged_open_terminal_reflection_patch'
+    and case['shock_probe_status'] == 'subsonic_terminal_required'
+    and case['shock_probe_coupling_sampled_count'] == case['shock_probe_sample_count']
+    and case['physical_closure_verified'] is False
+    for case in terminal_patch_refinement['cases']
+  )
+  axis_end_x = [case['axis_end_m'][0] for case in terminal_patch_refinement['cases']]
+  assert abs(axis_end_x[-1] - axis_end_x[-2]) < abs(axis_end_x[-2] - axis_end_x[-3])
   assert source_strip['status'] == 'converged_open_source_strip'
   assert source_strip['node_count'] == 45
   assert source_strip['cell_count'] == 44

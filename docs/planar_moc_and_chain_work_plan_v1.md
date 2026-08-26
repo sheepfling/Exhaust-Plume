@@ -309,6 +309,12 @@ terminal. That is a mixed-regime boundary decision, not a failed attempt to
 hide missing upstream data; a future solver must add the downstream
 mixed-regime field and physical perimeter gate before promotion.
 
+The same seam has 9/17/33-sample refinement evidence. The reflected patch
+axis endpoint converges toward the 33-sample result, every resolution covers
+its requested upstream shock samples, and every case reaches the same typed
+mixed-regime gate. This establishes numerical behavior of the open transition,
+not acceptance of a physical first cell.
+
 The verified post-shock result exposes the only seed-promotion adapter for this
 lane. An open zone, prescribed-boundary diagnostic, or scaled reduced-order
 cell cannot use that adapter. The continued-cell callback remains an explicit
@@ -326,9 +332,10 @@ characteristic resolutions and record:
 - maximum invariant residual and minimum forward margin;
 - downstream cell spacing and chain termination sensitivity.
 
-The marched attached-shock reference now has 9/17/33-sample refinement
-evidence. This is numerical diagnostic evidence only until the upstream
-reflected field and downstream boundary condition are solved together.
+The marched attached-shock reference and the terminal reflection transition
+now have 9/17/33-sample refinement evidence. This is numerical diagnostic
+evidence only until the upstream reflected field and downstream boundary
+condition are solved together.
 
 Refinement evidence is diagnostic until the physical closure and external
 measurement comparison both pass.

@@ -490,6 +490,109 @@ def _solver_generated_shock_refinement_probe() -> list[dict[str, Any]]:
   return probe
 
 
+def _terminal_reflection_patch_refinement_probe() -> list[dict[str, Any]]:
+  """Record terminal-patch and mixed-regime shock-probe refinement evidence."""
+
+  probe: list[dict[str, Any]] = []
+  for sample_count in (9, 17, 33):
+    shock = solve_uniform_attached_shock_field(
+      CharacteristicState(
+        x_m=0.5,
+        y_m=0.5,
+        theta_rad=-0.2,
+        mach=2.0,
+        gamma=1.4,
+      ),
+      100000.0,
+      (0.5, 0.5),
+      outer_downstream_flow_angle_rad=0.05,
+      sample_count=sample_count,
+    )
+    fit = shock.shock_fit
+    if fit is None or not fit.converged or not fit.boundary_states:
+      probe.append({
+        'sample_count': sample_count,
+        'trace_position_tolerance_m': None,
+        'status': 'shock_boundary_failure',
+        'shock_status': shock.status.value,
+      })
+      continue
+    first = fit.boundary_states[0]
+    state = first.state
+    ambient_pressure = first.downstream_total_pressure_Pa / (
+      1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
+    ) ** (state.gamma / (state.gamma - 1.0))
+    march = march_post_shock_ambient_boundary(fit, ambient_pressure)
+    if not march.converged:
+      probe.append({
+        'sample_count': sample_count,
+        'trace_position_tolerance_m': None,
+        'status': 'ambient_boundary_failure',
+        'shock_status': shock.status.value,
+        'march_status': march.status.value,
+      })
+      continue
+    trace_position_tolerance_m = 1.0e-3 if sample_count == 9 else 2.0e-4
+    strip = assemble_ambient_shock_characteristic_strip(
+      fit,
+      march.boundary_samples,
+      ambient_pressure,
+    )
+    patch = assemble_terminal_trace_centerline_patch(
+      strip,
+      trace_position_tolerance_m=trace_position_tolerance_m,
+    )
+    shock_probe = None
+    if patch.converged:
+      shock_probe = solve_marched_attached_shock_from_terminal_reflection_patch(
+        patch,
+        patch.outgoing_trace_points_m[0],
+        downstream_flow_angle_rad=0.0,
+        sample_count=len(patch.outgoing_trace_points_m),
+        position_tolerance_m=trace_position_tolerance_m,
+      )
+    input_trace = patch.input_trace_validation
+    output_trace = patch.outgoing_trace_validation
+    probe.append({
+      'sample_count': sample_count,
+      'trace_position_tolerance_m': trace_position_tolerance_m,
+      'status': patch.status.value,
+      'patch_converged': patch.converged,
+      'node_count': patch.node_count,
+      'cell_count': patch.cell_count,
+      'combined_topology_forms_closed_zone': patch.combined_topology.forms_closed_zone,
+      'combined_topology_nonmanifold_edge_count': patch.combined_topology.nonmanifold_edge_count,
+      'axis_end_m': patch.axis_points_m[-1] if patch.axis_points_m else None,
+      'input_trace_converged': None if input_trace is None else input_trace.converged,
+      'input_trace_geometry_residual_m': (
+        None if input_trace is None else input_trace.maximum_geometry_residual_m
+      ),
+      'outgoing_trace_converged': None if output_trace is None else output_trace.converged,
+      'outgoing_trace_geometry_residual_m': (
+        None if output_trace is None else output_trace.maximum_geometry_residual_m
+      ),
+      'shock_probe_status': None if shock_probe is None else shock_probe.shock.status.value,
+      'shock_probe_sample_count': (
+        None if shock_probe is None else shock_probe.shock.sample_count
+      ),
+      'shock_probe_coupling_status': (
+        None if shock_probe is None else shock_probe.coupling.status.value
+      ),
+      'shock_probe_coupling_sampled_count': (
+        None if shock_probe is None else shock_probe.coupling.sampled_count
+      ),
+      'normal_shock_terminal': (
+        None
+        if shock_probe is None or shock_probe.shock.normal_shock_terminal is None
+        else shock_probe.shock.normal_shock_terminal.as_report()
+      ),
+      'physical_closure_verified': (
+        None if shock_probe is None else shock_probe.physical_closure_verified
+      ),
+    })
+  return probe
+
+
 def _shock_cell_chain_planner_mock(
   seed_field: MocPostShockCharacteristicFieldResult,
 ) -> tuple[Any, list[dict[str, Any]], list[MocShockCellObservation]]:
@@ -1063,6 +1166,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
   solver_generated_shock = _solver_generated_shock_fixture()
   ambient_shock_strip_probe = _ambient_shock_strip_probe(solver_generated_shock)
   solver_generated_shock_refinement_probe = _solver_generated_shock_refinement_probe()
+  terminal_reflection_patch_refinement_probe = _terminal_reflection_patch_refinement_probe()
   solver_generated_chain_reference = None
   solver_generated_chain_observations: list[dict[str, Any]] = []
   if solver_generated_shock.field is not None and solver_generated_shock.field.converged:
@@ -1172,6 +1276,21 @@ def build_moc_primitive_report() -> dict[str, Any]:
       or not case['topology_forms_closed_zone']
       or case['nonmanifold_edge_count']
       or not case['pressure_loss_verified']
+    )
+  ]
+  terminal_reflection_patch_refinement_failures = [
+    case for case in terminal_reflection_patch_refinement_probe
+    if (
+      case.get('status') != 'converged_open_terminal_reflection_patch'
+      or not case.get('patch_converged')
+      or not case.get('combined_topology_forms_closed_zone')
+      or case.get('combined_topology_nonmanifold_edge_count')
+      or not case.get('input_trace_converged')
+      or not case.get('outgoing_trace_converged')
+      or case.get('shock_probe_status') != 'subsonic_terminal_required'
+      or case.get('shock_probe_coupling_status') != 'converged_terminal_reflection_patch_field'
+      or case.get('shock_probe_coupling_sampled_count') != case.get('shock_probe_sample_count')
+      or case.get('physical_closure_verified')
     )
   ]
   solver_generated_chain_failure = (
@@ -1645,6 +1764,18 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'cases': solver_generated_shock_refinement_probe,
       'claim_status': 'solver-generated-boundary-refinement-only; upstream-field-coupling-pending',
     },
+    'terminal_reflection_patch_refinement': {
+      'status': (
+        'diagnostic-terminal-patch-resolutions-reach-mixed-regime-gate'
+        if not terminal_reflection_patch_refinement_failures
+        else 'diagnostic-terminal-patch-resolution-failure'
+      ),
+      'cases': terminal_reflection_patch_refinement_probe,
+      'claim_status': (
+        'terminal-patch-upstream-coupling-refinement-only; '
+        'mixed-regime-downstream-field-pending'
+      ),
+    },
     'solver_generated_chain_reference': {
       'status': (
         None
@@ -2008,6 +2139,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'message': str(solver_generated_shock_refinement_failures),
       }
     ] if solver_generated_shock_refinement_failures else []),
+    *([
+      {
+        'case': 'terminal_reflection_patch_refinement',
+        'status': 'resolution_failure',
+        'message': str(terminal_reflection_patch_refinement_failures),
+      }
+    ] if terminal_reflection_patch_refinement_failures else []),
     *([
       {
         'case': 'solver_generated_chain_reference',

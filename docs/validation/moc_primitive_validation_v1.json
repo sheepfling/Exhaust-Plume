@@ -1048,6 +1048,129 @@
       ],
       "claim_status": "solver-generated-boundary-refinement-only; upstream-field-coupling-pending"
     },
+    "terminal_reflection_patch_refinement": {
+      "status": "diagnostic-terminal-patch-resolutions-reach-mixed-regime-gate",
+      "cases": [
+        {
+          "sample_count": 9,
+          "trace_position_tolerance_m": 0.001,
+          "status": "converged_open_terminal_reflection_patch",
+          "patch_converged": true,
+          "node_count": 55,
+          "cell_count": 45,
+          "combined_topology_forms_closed_zone": true,
+          "combined_topology_nonmanifold_edge_count": 0,
+          "axis_end_m": [
+            1.9592529233529001,
+            0.0
+          ],
+          "input_trace_converged": true,
+          "input_trace_geometry_residual_m": 0.0002197543664936158,
+          "outgoing_trace_converged": true,
+          "outgoing_trace_geometry_residual_m": 0.00032072081575840183,
+          "shock_probe_status": "subsonic_terminal_required",
+          "shock_probe_sample_count": 9,
+          "shock_probe_coupling_status": "converged_terminal_reflection_patch_field",
+          "shock_probe_coupling_sampled_count": 9,
+          "normal_shock_terminal": {
+            "status": "converged",
+            "converged": true,
+            "subsonic": true,
+            "shock_point_m": [
+              1.9322952935406654,
+              0.0
+            ],
+            "shock_normal_angle_rad": 1.5707963267948966,
+            "downstream_flow_angle_rad": 0.0,
+            "downstream_mach": 0.7425359266522311,
+            "downstream_pressure_Pa": 508786.469253121,
+            "static_pressure_ratio": 2.0982562948739707,
+            "total_pressure_ratio": 0.9598420018696722,
+            "message": ""
+          },
+          "physical_closure_verified": false
+        },
+        {
+          "sample_count": 17,
+          "trace_position_tolerance_m": 0.0002,
+          "status": "converged_open_terminal_reflection_patch",
+          "patch_converged": true,
+          "node_count": 171,
+          "cell_count": 153,
+          "combined_topology_forms_closed_zone": true,
+          "combined_topology_nonmanifold_edge_count": 0,
+          "axis_end_m": [
+            1.9592114806116385,
+            0.0
+          ],
+          "input_trace_converged": true,
+          "input_trace_geometry_residual_m": 0.00011721401616694715,
+          "outgoing_trace_converged": true,
+          "outgoing_trace_geometry_residual_m": 0.00016921714196803037,
+          "shock_probe_status": "subsonic_terminal_required",
+          "shock_probe_sample_count": 17,
+          "shock_probe_coupling_status": "converged_terminal_reflection_patch_field",
+          "shock_probe_coupling_sampled_count": 17,
+          "normal_shock_terminal": {
+            "status": "converged",
+            "converged": true,
+            "subsonic": true,
+            "shock_point_m": [
+              1.932444024737439,
+              0.0
+            ],
+            "shock_normal_angle_rad": 1.5707963267948966,
+            "downstream_flow_angle_rad": 0.0,
+            "downstream_mach": 0.7425535304699773,
+            "downstream_pressure_Pa": 508788.89535898657,
+            "static_pressure_ratio": 2.098122019755375,
+            "total_pressure_ratio": 0.9598520994838985,
+            "message": ""
+          },
+          "physical_closure_verified": false
+        },
+        {
+          "sample_count": 33,
+          "trace_position_tolerance_m": 0.0002,
+          "status": "converged_open_terminal_reflection_patch",
+          "patch_converged": true,
+          "node_count": 595,
+          "cell_count": 561,
+          "combined_topology_forms_closed_zone": true,
+          "combined_topology_nonmanifold_edge_count": 0,
+          "axis_end_m": [
+            1.9592011200116046,
+            0.0
+          ],
+          "input_trace_converged": true,
+          "input_trace_geometry_residual_m": 6.047027342379052e-05,
+          "outgoing_trace_converged": true,
+          "outgoing_trace_geometry_residual_m": 8.687488208348505e-05,
+          "shock_probe_status": "subsonic_terminal_required",
+          "shock_probe_sample_count": 33,
+          "shock_probe_coupling_status": "converged_terminal_reflection_patch_field",
+          "shock_probe_coupling_sampled_count": 33,
+          "normal_shock_terminal": {
+            "status": "converged",
+            "converged": true,
+            "subsonic": true,
+            "shock_point_m": [
+              1.932471488589979,
+              0.0
+            ],
+            "shock_normal_angle_rad": 1.5707963267948966,
+            "downstream_flow_angle_rad": 0.0,
+            "downstream_mach": 0.7425569773026385,
+            "downstream_pressure_Pa": 508790.44987893157,
+            "static_pressure_ratio": 2.09809573028713,
+            "total_pressure_ratio": 0.9598540763651443,
+            "message": ""
+          },
+          "physical_closure_verified": false
+        }
+      ],
+      "claim_status": "terminal-patch-upstream-coupling-refinement-only; mixed-regime-downstream-field-pending"
+    },
     "solver_generated_chain_reference": {
       "status": "solver-terminated",
       "accepted": true,

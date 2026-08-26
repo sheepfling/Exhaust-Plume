@@ -213,7 +213,9 @@ domain-bounded interpolated state/pressure field. In the canonical reference
 it covers the requested shock samples and returns the typed subsonic normal-
 shock terminal; this is a mixed-regime boundary decision, not a closed
 supersonic first-cell result. Its downstream field and physical perimeter
-remain pending.
+remain pending. The 9/17/33-sample terminal-patch refinement probe reaches
+the same typed terminal at every resolution and shows a converging centerline
+endpoint; that validates the open transition's numerical behavior only.
 The earlier boundary-conditioned triangular assembler is also no longer
 promotion-eligible by default: it does not carry verified shock-``C+`` /
 ambient-``C-`` family-orientation evidence. This guard prevents a numerically
