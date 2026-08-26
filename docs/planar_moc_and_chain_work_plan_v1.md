@@ -94,6 +94,12 @@ not wait on this research closure.
   zone, and retains the typed subsonic normal-shock terminal. The zone remains
   a mixed-regime handoff with chain promotion blocked until the subsonic field
   and complete physical perimeter are solved.
+- Added a bounded state/pressure sampler to the open post-shock zone. It
+  carries node-level total-pressure lineage and axis-side samples, supports
+  in-cell supersonic state, total-pressure, and static-pressure probes, and
+  returns no extrapolated value outside the assembled cells. This makes the
+  open downstream domain usable as a typed solver interface while keeping
+  physical closure and chain promotion blocked.
 - Added a caustic-family-band continued-chain planner seam. It carries the
   exact prior post-shock perimeter into the bounded band shock solve, records
   the solver-generated open zone and terminal diagnostics, and stops with a
@@ -419,6 +425,9 @@ not wait on this research closure.
   gate. The caustic-band terminal seam now supplies the same open-zone evidence
   from the restarted upstream field at 5/7/9/11 shock samples; the independent
   measurement operator rejects the unresolved endpoint as expected.
+  The open zone now retains a bounded supersonic state/pressure sampler for
+  downstream solver probes; this interface does not extend the domain or
+  change its open-closure status.
 
 ### MOC-3 — Re-solved continued cells
 

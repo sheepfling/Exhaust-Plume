@@ -1818,6 +1818,7 @@ def _caustic_family_band_terminal_field_probe(
         and result.zone.topology.forms_closed_zone
         and result.zone.topology.nonmanifold_edge_count == 0
         and result.zone.physical_closure_status == 'open'
+        and result.zone.state_sampling_available
         and mixed_boundary.status.value == 'subsonic_field_failure'
         and mixed_boundary.supersonic_patch_verified
         and mixed_boundary.physical_closure_verified is False

@@ -211,6 +211,25 @@ def test_open_post_shock_c_minus_traces_keep_a_terminal_shock_interface() -> Non
   assert first_layer.converged
   assert zone.status is MocPostShockZoneStatus.CONVERGED_OPEN
   assert zone.physical_closure_status == 'open'
+  assert zone.state_sampling_available
+
+  first_cell = zone.cells[0]
+  sample_point = tuple(
+    sum(vertex[coordinate] for vertex in first_cell.vertices_xr_m)
+    / len(first_cell.vertices_xr_m)
+    for coordinate in (0, 1)
+  )
+  sampled_state = zone.state_at(sample_point)
+  sampled_total_pressure = zone.total_pressure_at(sample_point)
+  sampled_static_pressure = zone.static_pressure_at(sample_point)
+  assert sampled_state is not None
+  assert sampled_state.mach > 1.0
+  assert sampled_total_pressure is not None
+  assert sampled_total_pressure > 0.0
+  assert sampled_static_pressure is not None
+  assert sampled_static_pressure > 0.0
+  assert zone.state_at((10.0, 10.0)) is None
+  assert zone.total_pressure_at((10.0, 10.0)) is None
 
 
 def test_sampled_attached_shock_fit_produces_pressure_losing_boundary_states() -> None:

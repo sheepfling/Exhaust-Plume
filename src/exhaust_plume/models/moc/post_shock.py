@@ -283,6 +283,38 @@ class MocPostShockCharacteristicZoneResult:
   physical_closure_status: str
   shock_closure_status: str
   message: str = ''
+  # Optional state/pressure carry for bounded probes of this open zone.  These
+  # defaults preserve compatibility with older geometry-only diagnostics.
+  boundary_states: tuple[MocPostShockBoundaryState, ...] = ()
+  axis_boundary_states: tuple[CharacteristicState, ...] = ()
+  axis_boundary_total_pressure_Pa: tuple[float, ...] = ()
+
+  def __post_init__(self) -> None:
+    if self.boundary_states and len(self.boundary_states) < 2:
+      raise ValueError('boundary_states must contain at least two samples when supplied')
+    if any(
+      not isinstance(sample, MocPostShockBoundaryState)
+      for sample in self.boundary_states
+    ):
+      raise TypeError('boundary_states must contain MocPostShockBoundaryState values')
+    if len(self.axis_boundary_states) != len(self.axis_boundary_total_pressure_Pa):
+      raise ValueError(
+        'axis boundary states and total-pressure samples must have equal lengths'
+      )
+    if any(not isinstance(state, CharacteristicState) for state in self.axis_boundary_states):
+      raise TypeError('axis_boundary_states must contain CharacteristicState values')
+    if any(
+      not isfinite(float(value)) or value <= 0.0
+      for value in self.axis_boundary_total_pressure_Pa
+    ):
+      raise ValueError(
+        'axis_boundary_total_pressure_Pa must contain finite positive values'
+      )
+    object.__setattr__(
+      self,
+      'axis_boundary_total_pressure_Pa',
+      tuple(float(value) for value in self.axis_boundary_total_pressure_Pa),
+    )
 
   @property
   def converged(self) -> bool:
@@ -307,6 +339,222 @@ class MocPostShockCharacteristicZoneResult:
       and self.minimum_post_shock_total_pressure_ratio > 0.0
       and self.maximum_post_shock_total_pressure_ratio < 1.0
     )
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    """Serialize open-zone and bounded-sampler evidence without promotion."""
+
+    return {
+      'status': self.status.value,
+      'converged': self.converged,
+      'characteristic_count': self.characteristic_count,
+      'node_count': self.node_count,
+      'cell_count': self.cell_count,
+      'maximum_geometry_residual_m': self.maximum_geometry_residual_m,
+      'maximum_absolute_invariant_residual': self.maximum_absolute_invariant_residual,
+      'minimum_forward_margin_m': self.minimum_forward_margin_m,
+      'upstream_total_pressure_range_Pa': self.upstream_total_pressure_range_Pa,
+      'downstream_total_pressure_range_Pa': self.downstream_total_pressure_range_Pa,
+      'minimum_post_shock_total_pressure_ratio': self.minimum_post_shock_total_pressure_ratio,
+      'maximum_post_shock_total_pressure_ratio': self.maximum_post_shock_total_pressure_ratio,
+      'pressure_loss_verified': self.pressure_loss_verified,
+      'physical_closure_status': self.physical_closure_status,
+      'shock_closure_status': self.shock_closure_status,
+      'state_sampling_available': self.state_sampling_available,
+      'shock_boundary_sample_count': len(self.boundary_states),
+      'axis_boundary_sample_count': len(self.axis_boundary_states),
+      'message': self.message,
+    }
+  ####
+
+  @property
+  def state_sampling_available(self) -> bool:
+    """Whether this open zone carries enough data for bounded state probes."""
+
+    return bool(
+      self.converged
+      and self.cells
+      and self.boundary_states
+      and len(self.axis_boundary_states) == len(self.axis_boundary_total_pressure_Pa)
+      and self.axis_boundary_states
+      and all(node.total_pressure_Pa is not None for node in self.nodes)
+    )
+  ####
+
+  def _cell_samples(
+    self,
+    *,
+    position_tolerance_m: float,
+  ) -> tuple[
+    tuple[
+      tuple[tuple[float, float], ...],
+      tuple[CharacteristicState, ...],
+      tuple[float | None, ...],
+    ],
+    ...,
+  ]:
+    """Resolve each open-zone cell vertex to solver-carried data."""
+
+    if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
+      raise ValueError('position_tolerance_m must be finite and positive')
+    sources: list[
+      tuple[tuple[float, float], CharacteristicState, float | None]
+    ] = []
+    sources.extend(
+      (
+        sample.point_m,
+        sample.state,
+        sample.downstream_total_pressure_Pa,
+      )
+      for sample in self.boundary_states
+    )
+    sources.extend(
+      (
+        (state.x_m, state.y_m),
+        state,
+        pressure,
+      )
+      for state, pressure in zip(
+        self.axis_boundary_states,
+        self.axis_boundary_total_pressure_Pa,
+        strict=True,
+      )
+    )
+    sources.extend(
+      (
+        node.point_m,
+        node.state,
+        node.total_pressure_Pa,
+      )
+      for node in self.nodes
+    )
+
+    def resolve(
+      point: tuple[float, float],
+    ) -> tuple[CharacteristicState, float | None] | None:
+      for source_point, state, pressure in sources:
+        if (
+          abs(point[0] - source_point[0]) <= position_tolerance_m
+          and abs(point[1] - source_point[1]) <= position_tolerance_m
+        ):
+          return state, pressure
+      return None
+
+    resolved_cells: list[
+      tuple[
+        tuple[tuple[float, float], ...],
+        tuple[CharacteristicState, ...],
+        tuple[float | None, ...],
+      ]
+    ] = []
+    for cell in self.cells:
+      resolved = tuple(resolve(point) for point in cell.vertices_xr_m)
+      if any(value is None for value in resolved):
+        continue
+      samples = tuple(value for value in resolved if value is not None)
+      resolved_cells.append(
+        (
+          tuple(cell.vertices_xr_m),
+          tuple(value[0] for value in samples),
+          tuple(value[1] for value in samples),
+        )
+      )
+    return tuple(resolved_cells)
+  ####
+
+  def state_at(
+    self,
+    point_m: tuple[float, float],
+    *,
+    position_tolerance_m: float = 1.0e-10,
+  ) -> CharacteristicState | None:
+    """Interpolate a supersonic state inside this bounded open zone.
+
+    Points outside the assembled cells return ``None``.  The method never
+    extends the zone past its unresolved terminal boundary.
+    """
+
+    point = _finite_interpolation_point(point_m, position_tolerance_m)
+    for vertices, states, _pressures in self._cell_samples(
+      position_tolerance_m=position_tolerance_m,
+    ):
+      weights = _polygon_interpolation_weights(
+        point,
+        vertices,
+        tolerance_m=position_tolerance_m,
+      )
+      if weights is None:
+        continue
+      gamma = states[0].gamma
+      theta = sum(
+        weight * state.theta_rad
+        for weight, state in zip(weights, states, strict=True)
+      )
+      nu = sum(
+        weight * state.nu_rad
+        for weight, state in zip(weights, states, strict=True)
+      )
+      inverse = inverse_prandtl_meyer_angle_rad(nu, gamma)
+      if not inverse.converged or inverse.value is None:
+        return None
+      return CharacteristicState(
+        x_m=point[0],
+        y_m=point[1],
+        theta_rad=theta,
+        mach=inverse.value,
+        gamma=gamma,
+      )
+    return None
+  ####
+
+  def total_pressure_at(
+    self,
+    point_m: tuple[float, float],
+    *,
+    position_tolerance_m: float = 1.0e-10,
+  ) -> float | None:
+    """Interpolate total pressure without resetting shock-loss lineage."""
+
+    point = _finite_interpolation_point(point_m, position_tolerance_m)
+    for vertices, _states, pressures in self._cell_samples(
+      position_tolerance_m=position_tolerance_m,
+    ):
+      if any(pressure is None for pressure in pressures):
+        continue
+      weights = _polygon_interpolation_weights(
+        point,
+        vertices,
+        tolerance_m=position_tolerance_m,
+      )
+      if weights is None:
+        continue
+      return sum(
+        weight * pressure
+        for weight, pressure in zip(weights, pressures, strict=True)
+        if pressure is not None
+      )
+    return None
+  ####
+
+  def static_pressure_at(
+    self,
+    point_m: tuple[float, float],
+    *,
+    position_tolerance_m: float = 1.0e-10,
+  ) -> float | None:
+    """Return the bounded isentropic static pressure for an open-zone sample."""
+
+    state = self.state_at(point_m, position_tolerance_m=position_tolerance_m)
+    total_pressure = self.total_pressure_at(
+      point_m,
+      position_tolerance_m=position_tolerance_m,
+    )
+    if state is None or total_pressure is None:
+      return None
+    pressure_ratio = (
+      1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
+    ) ** (state.gamma / (state.gamma - 1.0))
+    return total_pressure / pressure_ratio
   ####
 
 
@@ -2440,6 +2688,9 @@ def _post_shock_zone_result(
     crossings: tuple[MocPostShockCrossCharacteristic, ...] = (),
     pressure_ranges: tuple[tuple[float, float], tuple[float, float]] | None = None,
     pressure_ratios: tuple[float, ...] = (),
+    boundary_states: Sequence[MocPostShockBoundaryState] = (),
+    axis_boundary_states: Sequence[CharacteristicState] = (),
+    axis_boundary_total_pressure_Pa: Sequence[float] = (),
     message: str,
 ) -> MocPostShockCharacteristicZoneResult:
   point_results = [node.point_result for node in nodes]
@@ -2501,6 +2752,11 @@ def _post_shock_zone_result(
     physical_closure_status='open',
     shock_closure_status='prescribed-boundary-first-layer',
     message=message,
+    boundary_states=tuple(boundary_states),
+    axis_boundary_states=tuple(axis_boundary_states),
+    axis_boundary_total_pressure_Pa=tuple(
+      float(value) for value in axis_boundary_total_pressure_Pa
+    ),
   )
 
 
@@ -2592,6 +2848,10 @@ def assemble_post_shock_characteristic_zone(
 
   axis_sources = tuple(segment.centerline_state for segment in continuation.segments[1:])
   shock_sources = tuple(segment.shock_state for segment in continuation.segments[:-1])
+  axis_pressures = tuple(
+    samples[index + 1].downstream_total_pressure_Pa
+    for index in range(len(axis_sources))
+  )
   diagonal_points_optional = tuple(crossing.point_m for crossing in first_layer.crossings)
   if any(point is None for point in diagonal_points_optional):
     return _post_shock_zone_result(
@@ -2672,6 +2932,7 @@ def assemble_post_shock_characteristic_zone(
         point_m=(float(point[0]), float(point[1])),
         state=point_result.state,
         point_result=point_result,
+        total_pressure_Pa=downstream_values[boundary_index],
       )
   ####
 
@@ -2766,6 +3027,9 @@ def assemble_post_shock_characteristic_zone(
     crossings=first_layer.crossings,
     pressure_ranges=pressure_ranges,
     pressure_ratios=pressure_ratios,
+    boundary_states=samples,
+    axis_boundary_states=axis_sources,
+    axis_boundary_total_pressure_Pa=axis_pressures,
     message=(
       'post-shock characteristic zone assembled through the first downstream '
       'layer; fitted shock closure and physical first-cell closure remain pending'

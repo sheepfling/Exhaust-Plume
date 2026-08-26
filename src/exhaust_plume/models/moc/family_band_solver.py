@@ -271,6 +271,9 @@ class MocCausticFamilyBandShockResult:
         'maximum_absolute_invariant_residual': (
           self.zone.maximum_absolute_invariant_residual
         ),
+        'state_sampling_available': self.zone.state_sampling_available,
+        'shock_boundary_sample_count': len(self.zone.boundary_states),
+        'axis_boundary_sample_count': len(self.zone.axis_boundary_states),
       },
       'incoming_handoff_sample_count': len(self.incoming_handoff_states),
       'incoming_handoff_total_pressure_range_Pa': (
