@@ -88,12 +88,20 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert ambient_strip['strip']['physical_closure_verified'] is False
   assert ambient_strip['strip']['chain_promotion_blocked'] is True
   terminal_candidate = ambient_strip['terminal_compression_candidate']
+  terminal_patch = ambient_strip['terminal_reflection_patch']
   assert ambient_strip['terminal_trace_acceptance_tolerance_m'] == pytest.approx(2.0e-4)
   assert terminal_candidate['status'] == 'converged_local_compression_candidate'
   assert terminal_candidate['converged'] is True
   assert terminal_candidate['physical_closure_verified'] is False
   assert terminal_candidate['chain_promotion_blocked'] is True
   assert terminal_candidate['accepted_for_chain'] is False
+  assert terminal_patch['status'] == 'converged_open_terminal_reflection_patch'
+  assert terminal_patch['converged'] is True
+  assert terminal_patch['outgoing_trace_family'] == 'C-'
+  assert terminal_patch['outgoing_trace_validation']['converged'] is True
+  assert terminal_patch['combined_topology_forms_closed_zone'] is True
+  assert terminal_patch['combined_topology_nonmanifold_edge_count'] == 0
+  assert terminal_patch['physical_closure_verified'] is False
   assert source_strip['status'] == 'converged_open_source_strip'
   assert source_strip['node_count'] == 45
   assert source_strip['cell_count'] == 44

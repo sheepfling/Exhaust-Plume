@@ -40,6 +40,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_attached_compression_to_turn,
   solve_attached_shock_to_centerline,
   solve_terminal_compression_candidate,
+  assemble_terminal_trace_centerline_patch,
   solve_normal_shock_terminal,
   solve_marched_attached_shock_chain_cell,
   solve_marched_attached_shock_field,
@@ -382,11 +383,16 @@ def _ambient_shock_strip_probe(
       # mesh-scale tolerance is only for the local candidate diagnostic.
       trace_position_tolerance_m=2.0e-4,
     ).as_report(),
+    'terminal_reflection_patch': assemble_terminal_trace_centerline_patch(
+      strip,
+      trace_position_tolerance_m=2.0e-4,
+    ).as_report(),
     'terminal_trace_acceptance_tolerance_m': 2.0e-4,
     'message': strip.message,
     'claim_status': (
       'solver-generated-shock-plus-ambient-C-plus-C-minus-strip; '
-      'local-compression-candidate-only; terminal-characteristic-patch-closure-pending'
+      'terminal-reflection-patch-open; local-compression-candidate-only; '
+      'physical-downstream-boundary-closure-pending'
     ),
   }
 

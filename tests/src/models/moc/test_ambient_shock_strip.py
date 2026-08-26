@@ -10,7 +10,9 @@ from exhaust_plume.models.moc import (
   MocAmbientShockBoundaryMarchStatus,
   MocAmbientShockStripStatus,
   MocTerminalCompressionStatus,
+  MocTerminalReflectionPatchStatus,
   assemble_ambient_shock_characteristic_strip,
+  assemble_terminal_trace_centerline_patch,
   march_post_shock_ambient_boundary,
   solve_terminal_compression_candidate,
   solve_marched_attached_shock_field,
@@ -141,6 +143,41 @@ def test_terminal_compression_candidate_keeps_strict_trace_failure_visible() -> 
   assert result.compression is None
   assert result.terminal_trace_validation is not None
   assert result.terminal_trace_validation.converged is False
+  assert result.chain_promotion_blocked is True
+
+
+def test_terminal_trace_centerline_patch_emits_a_typed_open_c_minus_front() -> None:
+  shock_fit = _shock_reference()
+  ambient_pressure = _ambient_pressure(shock_fit)
+  march = march_post_shock_ambient_boundary(shock_fit, ambient_pressure)
+  strip = assemble_ambient_shock_characteristic_strip(
+    shock_fit,
+    march.boundary_samples,
+    ambient_pressure,
+  )
+
+  result = assemble_terminal_trace_centerline_patch(
+    strip,
+    trace_position_tolerance_m=1.0e-3,
+  )
+
+  assert result.status is MocTerminalReflectionPatchStatus.CONVERGED_OPEN
+  assert result.converged
+  assert result.node_count == 55
+  assert result.cell_count == 45
+  assert result.topology.connected
+  assert result.topology.forms_closed_zone
+  assert result.topology.nonmanifold_edge_count == 0
+  assert result.combined_topology.connected
+  assert result.combined_topology.forms_closed_zone
+  assert result.combined_topology.nonmanifold_edge_count == 0
+  assert len(result.axis_points_m) == 10
+  assert result.axis_points_m[-1][1] == pytest.approx(0.0, abs=1.0e-12)
+  assert len(result.outgoing_trace_points_m) == 10
+  assert result.outgoing_trace_validation is not None
+  assert result.outgoing_trace_validation.family is CharacteristicFamily.MINUS
+  assert result.outgoing_trace_validation.converged
+  assert result.physical_closure_verified is False
   assert result.chain_promotion_blocked is True
 
 

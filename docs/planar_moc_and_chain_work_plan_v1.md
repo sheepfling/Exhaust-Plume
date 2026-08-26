@@ -151,6 +151,13 @@ not wait on this research closure.
   diagnostic. The candidate reports branch and total-pressure-loss evidence,
   but its characteristic patch is unsolved, so physical closure and chain
   promotion remain hard-false.
+- Added a terminal-trace centerline reflection patch. It consumes the typed
+  shock-sourced C+ trace with the correct downstream orientation, reflects
+  each C- characteristic to a theta=0 centerline source, assembles the
+  compatible triangular net, and emits a typed outgoing C- trace. The patch
+  shares the incoming seam with the shock/ambient strip and validates the
+  combined topology; its outgoing front remains open for a physical shock or
+  compression boundary and therefore cannot yet be promoted as a chain cell.
 - Added an independent MOC shock-cell measurement operator. It extracts
   shock/centerline boundaries, axial extent, boundary lengths, radius, mesh
   area, perimeter-area closure, and optional shock total-pressure loss only
@@ -282,6 +289,12 @@ closure: it solves the endpoint-to-centerline compression only. The next
 solver must supply the upstream state along that compression and assemble the
 compatible characteristic patch between the incoming terminal C+ trace and
 the new boundary before a resolved cell can be returned.
+
+The terminal-trace centerline reflection patch now supplies that compatible
+patch as an explicit open transition and carries its outgoing C- front. This
+is a real state-carrying continuation seam, not a closed cell: the next
+solver must fit the physical compression/shock boundary against that front
+and close the remaining perimeter before using the chain promotion adapter.
 
 The verified post-shock result exposes the only seed-promotion adapter for this
 lane. An open zone, prescribed-boundary diagnostic, or scaled reduced-order

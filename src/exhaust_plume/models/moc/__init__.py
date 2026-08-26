@@ -122,6 +122,11 @@ from exhaust_plume.models.moc.terminal_closure import (
   MocTerminalCompressionClosureResult,
   solve_terminal_compression_candidate,
 )
+from exhaust_plume.models.moc.terminal_patch import (
+  MocTerminalReflectionPatchStatus,
+  MocTerminalReflectionPatchResult,
+  assemble_terminal_trace_centerline_patch,
+)
 from exhaust_plume.models.moc.post_shock import (
   MocPostShockBoundaryState,
   MocPostShockCharacteristicSegment,
@@ -213,6 +218,8 @@ __all__ = (
   'MocAmbientShockStripResult',
   'MocTerminalCompressionStatus',
   'MocTerminalCompressionClosureResult',
+  'MocTerminalReflectionPatchStatus',
+  'MocTerminalReflectionPatchResult',
   'MocPostShockBoundaryState',
   'MocPostShockCharacteristicSegment',
   'MocPostShockContinuationResult',
@@ -281,6 +288,7 @@ __all__ = (
   'march_post_shock_ambient_boundary',
   'assemble_ambient_shock_characteristic_strip',
   'solve_terminal_compression_candidate',
+  'assemble_terminal_trace_centerline_patch',
   'sample_reflected_zone_along_shock_path',
   'validate_fan_reflected_interface',
   'continue_post_shock_characteristics_to_centerline',

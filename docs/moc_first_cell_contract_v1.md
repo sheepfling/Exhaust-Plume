@@ -91,6 +91,11 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   a forward attached compression segment to the centerline. It remains a
   local boundary primitive only: the characteristic patch on its downstream
   side is unsolved, so physical closure and chain promotion are hard-false;
+- a terminal-trace centerline-reflection patch that consumes the shock-sourced
+  ``C+`` trace with downstream ``C-`` characteristics, assembles a connected
+  compatible net, and emits a typed outgoing ``C-`` front. The incoming seam
+  is checked against the shock/ambient strip, while the outgoing front stays
+  open until a physical compression/shock boundary is fitted;
 - a separate MOC cell-chain continuation contract that rejects open cells,
   non-bounded meshes, axial gaps, and scaled reduced-order fidelity;
 - a typed chain termination decision that distinguishes a physical endpoint
@@ -193,6 +198,11 @@ the candidate and does not change the strict strip diagnostic. Even when the
 local attached segment reaches the centerline and carries a valid shock
 total-pressure loss, the candidate is not a cell and cannot enter the
 continued chain until a downstream C+/C- characteristic patch is assembled.
+The terminal-trace centerline-reflection patch is that compatible patch seam:
+it preserves the incoming trace, checks the combined mesh topology, and
+returns an outgoing C- trace. It remains an open transition rather than a
+closed physical cell until that outgoing front is replaced or coupled to a
+solver-generated compression/shock boundary.
 The earlier boundary-conditioned triangular assembler is also no longer
 promotion-eligible by default: it does not carry verified shock-``C+`` /
 ambient-``C-`` family-orientation evidence. This guard prevents a numerically

@@ -882,9 +882,65 @@
         },
         "message": "validated local attached compression candidate reaches the centerline; the downstream characteristic patch and chain-cell closure remain pending"
       },
+      "terminal_reflection_patch": {
+        "status": "converged_open_terminal_reflection_patch",
+        "converged": true,
+        "physical_closure_verified": false,
+        "chain_promotion_blocked": true,
+        "source_strip_status": "converged_open_shock_ambient_strip",
+        "node_count": 171,
+        "cell_count": 153,
+        "topology_status": "open",
+        "topology_connected": true,
+        "topology_forms_closed_zone": true,
+        "topology_boundary_edge_count": 51,
+        "topology_nonmanifold_edge_count": 0,
+        "combined_topology_status": "open",
+        "combined_topology_connected": true,
+        "combined_topology_forms_closed_zone": true,
+        "combined_topology_boundary_edge_count": 66,
+        "combined_topology_nonmanifold_edge_count": 0,
+        "input_trace_family": "C+",
+        "input_trace_validation": {
+          "status": "converged",
+          "converged": true,
+          "family": "C+",
+          "sample_count": 18,
+          "maximum_absolute_invariant_residual": 8.992806499463768e-13,
+          "maximum_geometry_residual_m": 0.00011721401616694715,
+          "minimum_forward_margin_m": 0.034264378215949014,
+          "message": ""
+        },
+        "outgoing_trace_family": "C-",
+        "outgoing_trace_kind": "terminal-characteristic-trace",
+        "outgoing_trace_sample_count": 18,
+        "outgoing_trace_validation": {
+          "status": "converged",
+          "converged": true,
+          "family": "C-",
+          "sample_count": 18,
+          "maximum_absolute_invariant_residual": 1.1487477635796495e-12,
+          "maximum_geometry_residual_m": 0.00016921714196803037,
+          "minimum_forward_margin_m": 0.0291318170721625,
+          "message": ""
+        },
+        "axis_sample_count": 18,
+        "axis_start_m": [
+          0.8618481573724419,
+          0.0
+        ],
+        "axis_end_m": [
+          1.9592114806116385,
+          0.0
+        ],
+        "maximum_geometry_residual_m": 2.005427286460005e-16,
+        "maximum_absolute_invariant_residual": 1.2002621119222567e-12,
+        "minimum_forward_margin_m": 0.025673413010309787,
+        "message": "terminal shock-sourced C+ trace reflected to a centerline-compatible patch; outgoing C- characteristic front remains open for the next shock/boundary solve"
+      },
       "terminal_trace_acceptance_tolerance_m": 0.0002,
       "message": "shock-sourced C+ and ambient-sourced C- characteristics formed a connected physical-boundary strip; terminal centerline closure remains pending",
-      "claim_status": "solver-generated-shock-plus-ambient-C-plus-C-minus-strip; local-compression-candidate-only; terminal-characteristic-patch-closure-pending"
+      "claim_status": "solver-generated-shock-plus-ambient-C-plus-C-minus-strip; terminal-reflection-patch-open; local-compression-candidate-only; physical-downstream-boundary-closure-pending"
     },
     "solver_generated_shock_refinement": {
       "status": "diagnostic-all-solver-generated-resolutions-converged",
