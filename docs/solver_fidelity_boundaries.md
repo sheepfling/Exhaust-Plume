@@ -124,7 +124,8 @@ planner fixtures, but remain `not_accepted` without external observations.
 At the detected source-strip caustic, a separate one-sided new-family restart
 now reflects either selected C- anchor to the centerline and advances six
 ambient-pressure/tangent C+ boundary samples with finite residuals, then
-assembles a connected ten-cell two-triangle-per-step open family band. Its
+assembles a connected anchor-wedge plus ten-step two-triangle-per-step open
+family band. Its
 legacy triangular interior assembly remains an explicit non-forward geometry
 failure, and the band has no shock or entropy closure, so it cannot promote a
 continued cell. Its domain-bounded state/pressure sampler now feeds a

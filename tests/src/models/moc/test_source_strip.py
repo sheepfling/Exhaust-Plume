@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput
 from exhaust_plume.models.moc import (
   MocChainTerminationReason,
@@ -151,10 +153,11 @@ def test_centerline_reflection_extension_carries_a_physical_boundary_law() -> No
   assert restart.source_strip.converged is False
   assert restart.family_band is not None
   assert restart.family_band.converged
-  assert restart.family_band.cell_count == 10
+  assert restart.family_band.cell_count == 11
   assert restart.family_band.step_count == 5
   assert restart.family_band.topology.connected
   assert restart.family_band.topology.forms_closed_zone
+  assert restart.family_band.anchor_wedge_verified is True
   assert restart.family_band.caustic_handoff_verified is True
   assert restart.family_band.anchor_point_m == restart.anchor_point_m
   assert restart.family_band.anchor_state == restart.anchor_state
@@ -180,4 +183,23 @@ def test_centerline_reflection_extension_carries_a_physical_boundary_law() -> No
   centroid = tuple(sum(vertex[index] for vertex in first_triangle) / 3.0 for index in (0, 1))
   assert restart.family_band.state_at(centroid) is not None
   assert restart.family_band.static_pressure_at(centroid) is not None
+  anchor_cell = next(
+    cell
+    for cell in restart.family_band.cells
+    if cell.cell_kind == 'caustic-restart-anchor-wedge'
+  )
+  anchor_centroid = tuple(
+    sum(vertex[index] for vertex in anchor_cell.vertices_xr_m) / 3.0
+    for index in (0, 1)
+  )
+  anchor_sample = restart.family_band.state_at(anchor_centroid)
+  assert anchor_sample is not None
+  assert anchor_sample.x_m == anchor_centroid[0]
+  assert anchor_sample.y_m == anchor_centroid[1]
+  without_anchor_wedge = replace(
+    restart.family_band,
+    cells=restart.family_band.cells[:-1],
+  )
+  assert without_anchor_wedge.anchor_wedge_verified is False
+  assert without_anchor_wedge.caustic_handoff_verified is False
   assert restart.family_band.state_at((2.0, 0.2)) is None

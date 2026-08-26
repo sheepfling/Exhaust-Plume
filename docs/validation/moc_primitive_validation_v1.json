@@ -1020,6 +1020,7 @@
             "converged": true,
             "physical_closure_verified": false,
             "chain_promotion_blocked": true,
+            "anchor_wedge_verified": true,
             "caustic_handoff_verified": true,
             "anchor_edge_index": 0,
             "anchor_point_m": [
@@ -1082,13 +1083,14 @@
               "converged": true,
               "physical_closure_verified": false,
               "chain_promotion_blocked": true,
+              "anchor_wedge_verified": true,
               "caustic_handoff_verified": true,
               "band_kind": "centerline-ambient-two-triangle-characteristic-band",
               "centerline_sample_count": 6,
               "boundary_sample_count": 6,
               "total_pressure_Pa": 2000000.0,
               "step_count": 5,
-              "cell_count": 10,
+              "cell_count": 11,
               "input_edge_points_m": [
                 [
                   0.8403441020646578,
@@ -1126,10 +1128,10 @@
                 "connected": true,
                 "forms_closed_zone": true,
                 "boundary_component_count": 1,
-                "boundary_edge_count": 12,
+                "boundary_edge_count": 13,
                 "nonmanifold_edge_count": 0
               },
-              "maximum_absolute_geometry_residual_m": 3.959360218267207e-18,
+              "maximum_absolute_geometry_residual_m": 6.938893903907228e-18,
               "maximum_absolute_invariant_residual": 0.0,
               "chain_termination_decision": {
                 "physical_termination": false,
@@ -1137,7 +1139,7 @@
                 "message": "caustic family band is numerically connected but has no fitted shock or entropy closure for continued-cell promotion",
                 "diagnostics": {
                   "termination_model": "caustic-family-open-band",
-                  "cell_count": 10,
+                  "cell_count": 11,
                   "step_count": 5,
                   "input_edge_points_m": [
                     [
@@ -1163,7 +1165,7 @@
                   "topology_forms_closed_zone": true
                 }
               },
-              "message": "caustic restart produced a connected open two-triangle family band; shock fitting, downstream closure, and chain promotion remain blocked"
+              "message": "caustic restart produced a connected open anchor-wedge/two-triangle family band; shock fitting, downstream closure, and chain promotion remain blocked"
             },
             "chain_termination_decision": {
               "physical_termination": false,
@@ -1196,7 +1198,8 @@
                     0.0360466190007769
                   ]
                 ],
-                "family_band_cell_count": 10,
+                "family_band_cell_count": 11,
+                "anchor_wedge_verified": true,
                 "old_family_bridge_verified": false,
                 "shock_entropy_closure_verified": false,
                 "seed_flow_angle_jump_rad": 0.038652307596209426
@@ -1210,6 +1213,7 @@
             "converged": true,
             "physical_closure_verified": false,
             "chain_promotion_blocked": true,
+            "anchor_wedge_verified": true,
             "caustic_handoff_verified": true,
             "anchor_edge_index": 1,
             "anchor_point_m": [
@@ -1272,13 +1276,14 @@
               "converged": true,
               "physical_closure_verified": false,
               "chain_promotion_blocked": true,
+              "anchor_wedge_verified": true,
               "caustic_handoff_verified": true,
               "band_kind": "centerline-ambient-two-triangle-characteristic-band",
               "centerline_sample_count": 6,
               "boundary_sample_count": 6,
               "total_pressure_Pa": 2000000.0,
               "step_count": 5,
-              "cell_count": 10,
+              "cell_count": 11,
               "input_edge_points_m": [
                 [
                   0.8651004269178882,
@@ -1316,10 +1321,10 @@
                 "connected": true,
                 "forms_closed_zone": true,
                 "boundary_component_count": 1,
-                "boundary_edge_count": 12,
+                "boundary_edge_count": 13,
                 "nonmanifold_edge_count": 0
               },
-              "maximum_absolute_geometry_residual_m": 3.5378437999061015e-18,
+              "maximum_absolute_geometry_residual_m": 6.938893903907228e-18,
               "maximum_absolute_invariant_residual": 0.0,
               "chain_termination_decision": {
                 "physical_termination": false,
@@ -1327,7 +1332,7 @@
                 "message": "caustic family band is numerically connected but has no fitted shock or entropy closure for continued-cell promotion",
                 "diagnostics": {
                   "termination_model": "caustic-family-open-band",
-                  "cell_count": 10,
+                  "cell_count": 11,
                   "step_count": 5,
                   "input_edge_points_m": [
                     [
@@ -1353,7 +1358,7 @@
                   "topology_forms_closed_zone": true
                 }
               },
-              "message": "caustic restart produced a connected open two-triangle family band; shock fitting, downstream closure, and chain promotion remain blocked"
+              "message": "caustic restart produced a connected open anchor-wedge/two-triangle family band; shock fitting, downstream closure, and chain promotion remain blocked"
             },
             "chain_termination_decision": {
               "physical_termination": false,
@@ -1386,7 +1391,8 @@
                     0.02991315272307008
                   ]
                 ],
-                "family_band_cell_count": 10,
+                "family_band_cell_count": 11,
+                "anchor_wedge_verified": true,
                 "old_family_bridge_verified": false,
                 "shock_entropy_closure_verified": false,
                 "seed_flow_angle_jump_rad": 0.038652307596209426

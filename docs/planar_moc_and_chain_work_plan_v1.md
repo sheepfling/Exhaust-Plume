@@ -338,8 +338,8 @@ not wait on this research closure.
   edge it reflects the selected C- anchor to the centerline, marches a
   pressure-matched/tangent C+ boundary, and independently checks pressure,
   tangent, geometry, and forward-progress residuals. Both canonical
-  orientations produce six finite boundary samples and a connected ten-cell
-  two-triangle-per-step family band. The old triangular interior assembly is
+  orientations produce six finite boundary samples and a connected
+  anchor-wedge plus ten-step family band. The old triangular interior assembly is
   retained as an explicit geometry failure, so this is a typed open remesh/
   shock handoff rather than a fabricated shock state or physical chain cell.
   The band has a bounded state/pressure sampler, and a production shock-band
@@ -349,9 +349,10 @@ not wait on this research closure.
   The zone is still an open mixed-regime handoff, so physical first-cell
   closure and chain promotion remain pending.
 - Hardened the caustic restart handoff for continued-chain planning. The
-  selected one-sided seed edge is now retained as an exact anchor in the
-  family-band result, the band proves that its input edge is downstream of
-  that anchor, and restart reports a typed band-assembly failure instead of
+  selected one-sided seed edge is now retained as an exact anchor and an
+  anchor wedge is included in the family-band mesh. The band proves that its
+  input edge is downstream of that anchor, and restart reports a typed
+  band-assembly failure instead of
   claiming an open-boundary restart when the band cannot be built. The
   restart also exposes a non-physical ``characteristic-caustic`` chain stop
   with explicit ``old_family_bridge_verified=false`` and
@@ -660,8 +661,8 @@ Only after MOC-1 through MOC-5 pass:
   residuals), so a coupled shock/new-family solve is still required.
   The new-family restart can now advance either one-sided anchor to a
   pressure-matched/tangent boundary with six finite samples and residuals below
-  tolerance, then carry those traces through a connected ten-cell
-  two-triangle-per-step open band. Its original triangular cross-ray assembly
+  tolerance, then carry those traces through a connected anchor-wedge plus
+  ten-step two-triangle-per-step open band. Its original triangular cross-ray assembly
   still fails at the first non-forward node, and the band has no shock or
   entropy closure; a physically fitted shock must still bridge the caustic
   before upstream coupling is complete. A bounded shock probe can consume the

@@ -1607,7 +1607,7 @@ def _caustic_family_restart_probe(
       and not result.source_strip.converged
       and result.family_band is not None
       and result.family_band.converged
-      and result.family_band.cell_count == 10
+      and result.family_band.cell_count == 11
       and result.family_band.topology.connected
       and result.family_band.topology.forms_closed_zone
       and result.family_band.caustic_handoff_verified

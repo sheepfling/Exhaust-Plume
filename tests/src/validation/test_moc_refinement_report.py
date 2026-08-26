@@ -374,9 +374,10 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert all(case['boundary_sample_count'] == 6 for case in caustic_restart['cases'])
   assert all(case['source_strip']['converged'] is False for case in caustic_restart['cases'])
   assert all(case['family_band']['status'] == 'converged_open_caustic_family_band' for case in caustic_restart['cases'])
-  assert all(case['family_band']['cell_count'] == 10 for case in caustic_restart['cases'])
+  assert all(case['family_band']['cell_count'] == 11 for case in caustic_restart['cases'])
   assert all(case['family_band']['step_count'] == 5 for case in caustic_restart['cases'])
   assert all(case['family_band']['topology']['connected'] is True for case in caustic_restart['cases'])
+  assert all(case['family_band']['anchor_wedge_verified'] is True for case in caustic_restart['cases'])
   assert all(case['family_band']['physical_closure_verified'] is False for case in caustic_restart['cases'])
   assert all(case['family_band']['chain_promotion_blocked'] is True for case in caustic_restart['cases'])
   assert all(
