@@ -62,7 +62,9 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   records the old triangular interior assembly separately when the first
   cross-ray is not forward, then assembles a connected two-triangle-per-step
   open family band from the valid centerline/boundary traces. The band remains
-  an open remesh/shock seam and cannot promote a chain cell;
+  an open remesh/shock seam and cannot promote a chain cell; its state and
+  pressure samplers are domain-bounded and refuse to extrapolate beyond the
+  new band;
 - a reusable triangular source-boundary characteristic-strip assembler and
   domain-bounded state/pressure sampler that reproduces the reflected-zone
   compatibility grid;

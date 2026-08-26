@@ -286,6 +286,9 @@ not wait on this research closure.
   two-triangle-per-step family band. The old triangular interior assembly is
   retained as an explicit geometry failure, so this is a typed open remesh/
   shock handoff rather than a fabricated shock state or physical chain cell.
+  The band has a bounded state/pressure sampler, and a generic shock march now
+  consumes both canonical orientations until the typed subsonic centerline
+  terminal; post-shock field and chain closure remain pending.
 - Added axial-boundary, cell-index, domain-limit, and callback termination
   checks.
 - Added a hard fidelity boundary: scaled reduced-order candidates are
@@ -565,7 +568,9 @@ Only after MOC-1 through MOC-5 pass:
   two-triangle-per-step open band. Its original triangular cross-ray assembly
   still fails at the first non-forward node, and the band has no shock or
   entropy closure; a physically fitted shock must still bridge the caustic
-  before upstream coupling is complete.
+  before upstream coupling is complete. A bounded shock probe can consume the
+  band samples through a typed subsonic terminal, but it does not create a
+  post-shock field or promote a chain cell.
 - Ambient-pressure closure now reports upstream shock-state coupling as a
   separate gate. The research adapter can retain a locally ambient-closed
   field, but its strict coupled chain adapter refuses promotion until the

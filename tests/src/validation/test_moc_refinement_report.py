@@ -344,6 +344,13 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
     case['family_band']['chain_termination_decision']['reason'] == 'open-physical-closure'
     for case in caustic_restart['cases']
   )
+  band_shock = centerline_reflection_extension['caustic_family_band_shock']
+  assert band_shock['status'] == 'diagnostic-open-band-shock-coupling'
+  assert band_shock['accepted'] is True
+  assert len(band_shock['cases']) == 2
+  assert all(case['shock']['status'] == 'subsonic_terminal_required' for case in band_shock['cases'])
+  assert all(case['shock']['sample_count'] == 4 for case in band_shock['cases'])
+  assert all(case['shock']['physical_closure_verified'] is False for case in band_shock['cases'])
   assert centerline_reflection_extension['remesh']['chain_termination_available'] is True
   assert centerline_reflection_extension['remesh']['chain_termination_decision']['physical_termination'] is False
   assert centerline_reflection_extension['remesh']['chain_termination_decision']['reason'] == (

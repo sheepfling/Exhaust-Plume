@@ -127,7 +127,9 @@ ambient-pressure/tangent C+ boundary samples with finite residuals, then
 assembles a connected ten-cell two-triangle-per-step open family band. Its
 legacy triangular interior assembly remains an explicit non-forward geometry
 failure, and the band has no shock or entropy closure, so it cannot promote a
-continued cell.
+continued cell. Its domain-bounded state/pressure sampler now feeds the
+generic shock marcher in both canonical orientations; that probe reaches a
+typed subsonic centerline terminal before any post-shock field is assembled.
 The strict chain mode rejects a prescribed seed that lacks carried upstream
 shock states, and the marcher reports `subsonic_terminal_required` while
 carrying a typed normal-shock terminal diagnostic when an endpoint leaves the

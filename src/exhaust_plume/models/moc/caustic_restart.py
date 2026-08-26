@@ -27,6 +27,7 @@ from exhaust_plume.models.moc.primitives import (
   CharacteristicFamily,
   CharacteristicState,
   centerline_characteristic_point,
+  inverse_prandtl_meyer_angle_rad,
 )
 from exhaust_plume.models.moc.source_strip import (
   MocSourceCharacteristicStripResult,
@@ -77,6 +78,7 @@ class MocCausticFamilyBandResult:
   status: MocCausticFamilyBandStatus
   centerline_states: tuple[CharacteristicState, ...]
   boundary_states: tuple[CharacteristicState, ...]
+  total_pressure_Pa: float
   cells: tuple[MocCharacteristicCell, ...]
   topology: MocTopologyResult
   input_edge_points_m: tuple[tuple[float, float], ...]
@@ -132,6 +134,80 @@ class MocCausticFamilyBandResult:
   def step_count(self) -> int:
     return max(0, min(len(self.centerline_states), len(self.boundary_states)) - 1)
 
+  def state_at(
+    self,
+    point_m: tuple[float, float],
+    *,
+    position_tolerance_m: float = 1.0e-10,
+  ) -> CharacteristicState | None:
+    """Sample inside the band without extrapolating beyond its triangles."""
+
+    if len(point_m) != 2 or not all(isfinite(float(value)) for value in point_m):
+      raise ValueError('point_m must contain two finite coordinates')
+    if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
+      raise ValueError('position_tolerance_m must be finite and positive')
+    point = (float(point_m[0]), float(point_m[1]))
+    for cell in self.cells:
+      if len(cell.vertices_xr_m) != 3:
+        continue
+      step = cell.cell_index // 2 + 1
+      if step >= len(self.centerline_states) or step >= len(self.boundary_states):
+        continue
+      if cell.cell_index % 2 == 0:
+        states = (
+          self.centerline_states[step - 1],
+          self.boundary_states[step - 1],
+          self.centerline_states[step],
+        )
+      else:
+        states = (
+          self.centerline_states[step],
+          self.boundary_states[step - 1],
+          self.boundary_states[step],
+        )
+      weights = _triangle_interpolation_weights(
+        point,
+        cell.vertices_xr_m,
+        tolerance_m=position_tolerance_m,
+      )
+      if weights is None:
+        continue
+      theta = sum(
+        weight * state.theta_rad
+        for weight, state in zip(weights, states, strict=True)
+      )
+      nu = sum(
+        weight * state.nu_rad
+        for weight, state in zip(weights, states, strict=True)
+      )
+      inverse = inverse_prandtl_meyer_angle_rad(nu, states[0].gamma)
+      if not inverse.converged or inverse.value is None:
+        return None
+      return CharacteristicState(
+        x_m=point[0],
+        y_m=point[1],
+        theta_rad=theta,
+        mach=inverse.value,
+        gamma=states[0].gamma,
+      )
+    return None
+
+  def static_pressure_at(
+    self,
+    point_m: tuple[float, float],
+    *,
+    position_tolerance_m: float = 1.0e-10,
+  ) -> float | None:
+    """Return pressure for an in-band state, or ``None`` outside the band."""
+
+    state = self.state_at(point_m, position_tolerance_m=position_tolerance_m)
+    if state is None:
+      return None
+    pressure_ratio = (
+      1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
+    ) ** (state.gamma / (state.gamma - 1.0))
+    return self.total_pressure_Pa / pressure_ratio
+
   def as_report(self) -> dict[str, object]:
     return {
       'status': self.status.value,
@@ -141,6 +217,7 @@ class MocCausticFamilyBandResult:
       'band_kind': 'centerline-ambient-two-triangle-characteristic-band',
       'centerline_sample_count': len(self.centerline_states),
       'boundary_sample_count': len(self.boundary_states),
+      'total_pressure_Pa': self.total_pressure_Pa,
       'step_count': self.step_count,
       'cell_count': self.cell_count,
       'input_edge_points_m': [list(point) for point in self.input_edge_points_m],
@@ -300,10 +377,53 @@ def _state_result_reportable(result: MocFreeBoundaryPointResult) -> bool:
   )
 
 
+def _triangle_interpolation_weights(
+  point: tuple[float, float],
+  vertices: tuple[tuple[float, float], ...],
+  *,
+  tolerance_m: float,
+) -> tuple[float, float, float] | None:
+  """Return bounded barycentric weights for one triangular band cell."""
+
+  first, second, third = vertices
+  denominator = (
+    (second[1] - third[1]) * (first[0] - third[0])
+    + (third[0] - second[0]) * (first[1] - third[1])
+  )
+  if abs(denominator) <= tolerance_m:
+    return None
+  first_weight = (
+    (second[1] - third[1]) * (point[0] - third[0])
+    + (third[0] - second[0]) * (point[1] - third[1])
+  ) / denominator
+  second_weight = (
+    (third[1] - first[1]) * (point[0] - third[0])
+    + (first[0] - third[0]) * (point[1] - third[1])
+  ) / denominator
+  third_weight = 1.0 - first_weight - second_weight
+  weight_tolerance = tolerance_m / max(
+    1.0,
+    abs(first[0]),
+    abs(first[1]),
+    abs(second[0]),
+    abs(second[1]),
+    abs(third[0]),
+    abs(third[1]),
+  )
+  weights = (first_weight, second_weight, third_weight)
+  if any(
+    weight < -weight_tolerance or weight > 1.0 + weight_tolerance
+    for weight in weights
+  ):
+    return None
+  return tuple(max(0.0, min(1.0, weight)) for weight in weights)  # type: ignore[return-value]
+
+
 def _assemble_open_family_band(
   centerline_states: tuple[CharacteristicState, ...],
   boundary_states: tuple[CharacteristicState, ...],
   *,
+  total_pressure_Pa: float,
   position_tolerance_m: float,
   invariant_tolerance: float,
   seed_geometry_residual_m: float | None,
@@ -340,6 +460,7 @@ def _assemble_open_family_band(
       status=status,
       centerline_states=centerline_states,
       boundary_states=boundary_states,
+      total_pressure_Pa=total_pressure_Pa,
       cells=cells,
       topology=empty_topology if topology is None else topology,
       input_edge_points_m=input_edge,
@@ -498,6 +619,7 @@ def _assemble_open_family_band(
     status=MocCausticFamilyBandStatus.CONVERGED_OPEN_BAND,
     centerline_states=centerline_states,
     boundary_states=boundary_states,
+    total_pressure_Pa=total_pressure_Pa,
     cells=tuple(cells),
     topology=topology,
     input_edge_points_m=input_edge,
@@ -724,6 +846,7 @@ def restart_characteristic_family_from_caustic(
   family_band = _assemble_open_family_band(
     tuple(centerline_states),
     tuple(boundary_states),
+    total_pressure_Pa=total_pressure,
     position_tolerance_m=position_tolerance_m,
     invariant_tolerance=invariant_tolerance,
     seed_geometry_residual_m=anchor.geometry_residual_m,

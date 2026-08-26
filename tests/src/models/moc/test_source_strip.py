@@ -162,3 +162,8 @@ def test_centerline_reflection_extension_carries_a_physical_boundary_law() -> No
   assert band_termination.diagnostics['termination_model'] == (
     'caustic-family-open-band'
   )
+  first_triangle = restart.family_band.cells[0].vertices_xr_m
+  centroid = tuple(sum(vertex[index] for vertex in first_triangle) / 3.0 for index in (0, 1))
+  assert restart.family_band.state_at(centroid) is not None
+  assert restart.family_band.static_pressure_at(centroid) is not None
+  assert restart.family_band.state_at((2.0, 0.2)) is None

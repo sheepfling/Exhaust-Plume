@@ -1084,6 +1084,7 @@
               "band_kind": "centerline-ambient-two-triangle-characteristic-band",
               "centerline_sample_count": 6,
               "boundary_sample_count": 6,
+              "total_pressure_Pa": 2000000.0,
               "step_count": 5,
               "cell_count": 10,
               "input_edge_points_m": [
@@ -1222,6 +1223,7 @@
               "band_kind": "centerline-ambient-two-triangle-characteristic-band",
               "centerline_sample_count": 6,
               "boundary_sample_count": 6,
+              "total_pressure_Pa": 2000000.0,
               "step_count": 5,
               "cell_count": 10,
               "input_edge_points_m": [
@@ -1293,6 +1295,95 @@
           }
         ],
         "claim_status": "one-sided-new-family-boundary-restart-only; interior-remesh-and-shock-closure-pending"
+      },
+      "caustic_family_band_shock": {
+        "status": "diagnostic-open-band-shock-coupling",
+        "accepted": true,
+        "cases": [
+          {
+            "anchor_edge_index": 0,
+            "start_point_m": [
+              1.7521583269302028,
+              0.03604661900082812
+            ],
+            "start_boundary_index": 4,
+            "accepted": true,
+            "shock": {
+              "status": "subsonic_terminal_required",
+              "converged": false,
+              "physical_closure_verified": false,
+              "subsonic_terminal_required": true,
+              "sample_count": 4,
+              "endpoint_m": [
+                1.7868354488432239,
+                0.00901165475020703
+              ],
+              "maximum_shock_angle_residual_rad": null,
+              "field_status": null,
+              "subsonic_boundary_verified": false,
+              "subsonic_shock_boundary": null,
+              "normal_shock_terminal": {
+                "status": "converged",
+                "converged": true,
+                "subsonic": true,
+                "shock_point_m": [
+                  1.8016103678367972,
+                  0.0
+                ],
+                "shock_normal_angle_rad": 1.5707963267948966,
+                "downstream_flow_angle_rad": 0.0,
+                "downstream_mach": 0.54906940052169,
+                "downstream_pressure_Pa": 1034587.4828656849,
+                "static_pressure_ratio": 5.40374803146274,
+                "total_pressure_ratio": 0.6349380497652964,
+                "message": ""
+              },
+              "message": "sample 4 reaches the symmetry line with zero flow turn; the typed subsonic terminal model is outside the supersonic MOC lane"
+            }
+          },
+          {
+            "anchor_edge_index": 1,
+            "start_point_m": [
+              1.714287309602021,
+              0.029913152723022352
+            ],
+            "start_boundary_index": 4,
+            "accepted": true,
+            "shock": {
+              "status": "subsonic_terminal_required",
+              "converged": false,
+              "physical_closure_verified": false,
+              "subsonic_terminal_required": true,
+              "sample_count": 4,
+              "endpoint_m": [
+                1.7383902211851174,
+                0.007478288180755587
+              ],
+              "maximum_shock_angle_residual_rad": null,
+              "field_status": null,
+              "subsonic_boundary_verified": false,
+              "subsonic_shock_boundary": null,
+              "normal_shock_terminal": {
+                "status": "converged",
+                "converged": true,
+                "subsonic": true,
+                "shock_point_m": [
+                  1.749327131009177,
+                  0.0
+                ],
+                "shock_normal_angle_rad": 1.5707963267948966,
+                "downstream_flow_angle_rad": 0.0,
+                "downstream_mach": 0.5676396075790182,
+                "downstream_pressure_Pa": 1114430.8269824965,
+                "static_pressure_ratio": 4.7789608403465085,
+                "total_pressure_ratio": 0.6933483373942863,
+                "message": ""
+              },
+              "message": "sample 4 reaches the symmetry line with zero flow turn; the typed subsonic terminal model is outside the supersonic MOC lane"
+            }
+          }
+        ],
+        "claim_status": "band-state-sampler-fed-shock-march-reaches-typed-subsonic-terminal; shock-field-and-chain-closure-pending"
       },
       "claim_status": "centerline-C-minus-reflection-boundary-law; triangular-domain-remesh-or-shock-closure-pending"
     },

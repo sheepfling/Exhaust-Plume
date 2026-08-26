@@ -1479,6 +1479,94 @@ def _caustic_family_restart_probe(
   }
 
 
+def _caustic_family_band_shock_probe(
+  seed: Any,
+  total_pressure_Pa: float,
+  ambient_pressure_Pa: float,
+) -> dict[str, Any]:
+  """Couple the open family band to a bounded shock-march diagnostic."""
+
+  if seed is None:
+    return {
+      'status': 'missing_seed',
+      'accepted': False,
+      'cases': [],
+      'claim_status': 'caustic-family-band-shock-coupling-pending',
+    }
+  cases: list[dict[str, Any]] = []
+  for anchor_edge_index in (0, 1):
+    restart = restart_characteristic_family_from_caustic(
+      seed,
+      total_pressure_Pa,
+      ambient_pressure_Pa,
+      anchor_edge_index=anchor_edge_index,
+      sample_count=6,
+    )
+    band = restart.family_band
+    if band is None or not band.converged or len(band.boundary_states) < 3:
+      cases.append({
+        'anchor_edge_index': anchor_edge_index,
+        'accepted': False,
+        'status': 'missing_open_family_band',
+        'shock': None,
+      })
+      continue
+    start = band.boundary_states[-2]
+    start_point = (start.x_m, start.y_m)
+
+    def downstream_angle_at(
+      _index: int,
+      point_m: tuple[float, float],
+    ) -> float:
+      fraction = max(0.0, min(1.0, point_m[1] / start.y_m))
+      return 0.05 * fraction
+
+    try:
+      shock = solve_marched_attached_shock_field(
+        band.state_at,
+        band.static_pressure_at,
+        start_point,
+        target_centerline_y_m=0.0,
+        downstream_flow_angle_at=downstream_angle_at,
+        sample_count=5,
+        branch=ShockBranch.WEAK,
+        shock_angle_tolerance_rad=0.2,
+      )
+      shock_report = shock.as_report()
+      accepted = (
+        shock.status.value == 'subsonic_terminal_required'
+        and shock.sample_count == 4
+        and shock.subsonic_terminal_required
+        and shock.terminal_model_verified
+        and shock.physical_closure_verified is False
+      )
+      cases.append({
+        'anchor_edge_index': anchor_edge_index,
+        'start_point_m': start_point,
+        'start_boundary_index': len(band.boundary_states) - 2,
+        'accepted': accepted,
+        'shock': shock_report,
+      })
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      cases.append({
+        'anchor_edge_index': anchor_edge_index,
+        'start_point_m': start_point,
+        'start_boundary_index': len(band.boundary_states) - 2,
+        'accepted': False,
+        'shock': None,
+        'message': f'band shock probe raised: {error}',
+      })
+  return {
+    'status': 'diagnostic-open-band-shock-coupling',
+    'accepted': all(case['accepted'] is True for case in cases),
+    'cases': cases,
+    'claim_status': (
+      'band-state-sampler-fed-shock-march-reaches-typed-subsonic-terminal; '
+      'shock-field-and-chain-closure-pending'
+    ),
+  }
+
+
 def _reflected_zone_shock_coupling_probe(
   reflected_zone: Any,
   reflected_boundary: Any,
@@ -1792,6 +1880,11 @@ def build_moc_primitive_report() -> dict[str, Any]:
     fan_exit.total_pressure_Pa,
     fan_ambient.pressure_Pa,
   )
+  caustic_family_band_shock = _caustic_family_band_shock_probe(
+    caustic_shock_seed,
+    fan_exit.total_pressure_Pa,
+    fan_ambient.pressure_Pa,
+  )
   reflected_zone_shock_coupling = _reflected_zone_shock_coupling_probe(
     reflected_zone,
     reflected_boundary,
@@ -2055,6 +2148,9 @@ def build_moc_primitive_report() -> dict[str, Any]:
   )
   caustic_family_restart_failure = (
     caustic_family_restart.get('accepted') is not True
+  )
+  caustic_family_band_shock_failure = (
+    caustic_family_band_shock.get('accepted') is not True
   )
   overexpanded_exit = derive_uniform_nozzle_exit(
     NozzleExitInput(
@@ -2431,6 +2527,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
         else caustic_shock_resolution.as_report()
       ),
       'caustic_family_restart': caustic_family_restart,
+      'caustic_family_band_shock': caustic_family_band_shock,
       'claim_status': (
         'centerline-C-minus-reflection-boundary-law; '
         'triangular-domain-remesh-or-shock-closure-pending'
@@ -2999,6 +3096,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'message': str(caustic_family_restart.get('message', '')),
       }
     ] if caustic_family_restart_failure else []),
+    *([
+      {
+        'case': 'caustic_family_band_shock',
+        'status': str(caustic_family_band_shock.get('status', 'missing')),
+        'message': str(caustic_family_band_shock.get('message', '')),
+      }
+    ] if caustic_family_band_shock_failure else []),
     *([
       {
         'case': 'solver_generated_chain_reference',
