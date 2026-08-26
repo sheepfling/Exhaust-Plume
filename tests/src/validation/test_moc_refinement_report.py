@@ -102,6 +102,16 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
     and step['incoming_handoff_sample_count'] >= 3
     for step in generated_chain_planner['planner_steps']
   )
+  assert [step['result_kind'] for step in generated_chain_planner['planner_steps']] == [
+    'field-solve-returned',
+    'field-solve-returned',
+    'termination-returned',
+  ]
+  assert [step['result_status'] for step in generated_chain_planner['planner_steps']] == [
+    'converged_closed',
+    'converged_closed',
+    'solver-returned-no-next-cell',
+  ]
   assert generated_chain_terminal['accepted'] is True
   assert generated_chain_terminal['status'] == 'physically-terminated'
   assert generated_chain_terminal['physical_termination'] is True
@@ -115,6 +125,10 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert terminal_planner['planner_step_count'] == 1
   assert terminal_planner['planner_steps'][0]['next_cell_index'] == 2
   assert terminal_planner['planner_steps'][0]['boundary_kind'] == 'post-shock-field-perimeter'
+  assert terminal_planner['planner_steps'][0]['result_kind'] == 'termination-returned'
+  assert terminal_planner['planner_steps'][0]['result_status'] == 'physical-termination'
+  assert terminal_planner['planner_steps'][0]['result_termination_reason'] == 'physical-termination'
+  assert terminal_planner['planner_steps'][0]['result_physical_termination'] is True
   assert generated_chain_terminal['expected_physical_termination'] is True
   assert generated_chain_terminal['diagnostics']['termination_model'] == 'normal-shock-terminal'
   assert field_coupled_chain_planner['accepted'] is True
@@ -131,6 +145,8 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
     'post-shock-field-perimeter'
   )
   assert field_coupled_chain_planner['planner_steps'][0]['incoming_handoff_sample_count'] >= 3
+  assert field_coupled_chain_planner['planner_steps'][0]['result_kind'] == 'termination-returned'
+  assert field_coupled_chain_planner['planner_steps'][0]['result_status'] == 'physical-termination'
   assert field_coupled_chain_planner['chain_diagnostics']['termination_model'] == (
     'normal-shock-terminal'
   )
@@ -577,8 +593,19 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert all(
     step['boundary_kind'] == 'post-shock-field-perimeter'
     and step['incoming_handoff_sample_count'] >= 3
+    and step['result_kind'] in ('field-solve-returned', 'termination-returned')
     for step in planner['planner_steps']
   )
+  assert [step['result_kind'] for step in planner['planner_steps']] == [
+    'field-solve-returned',
+    'field-solve-returned',
+    'termination-returned',
+  ]
+  assert [step['result_status'] for step in planner['planner_steps']] == [
+    'converged_closed',
+    'converged_closed',
+    'solver-returned-no-next-cell',
+  ]
   assert planner['cell_count'] == 3
   assert planner['state_carry_count'] == 3
   assert planner['continuation_boundary_kinds'] == ['post-shock-field-perimeter']

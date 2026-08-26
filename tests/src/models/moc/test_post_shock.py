@@ -634,6 +634,16 @@ def test_post_shock_planner_records_exact_handoff_steps_without_promotion_claim(
     step.boundary_kind is MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER
     for step in planner.steps
   )
+  assert [step.result_kind for step in planner.steps] == [
+    'field-solve-returned',
+    'no-cell-returned',
+  ]
+  assert [step.result_status for step in planner.steps] == [
+    'converged_closed',
+    'none',
+  ]
+  assert planner.steps[0].result_end_x_m == pytest.approx(2.0)
+  assert planner.steps[1].result_end_x_m is None
 
 
 def test_prescribed_post_shock_chain_mock_is_reusable_and_nonproduction() -> None:
@@ -662,6 +672,18 @@ def test_prescribed_post_shock_chain_mock_is_reusable_and_nonproduction() -> Non
   assert planner.production_claim_allowed is False
   assert planner.diagnostics['prescribed_chain_mock']['planning_only'] is True
   assert planner.diagnostics['prescribed_chain_mock']['production_claim_allowed'] is False
+  assert [step.result_kind for step in planner.steps] == [
+    'field-solve-returned',
+    'field-solve-returned',
+    'termination-returned',
+  ]
+  assert [step.result_status for step in planner.steps] == [
+    'converged_closed',
+    'converged_closed',
+    'solver-returned-no-next-cell',
+  ]
+  assert planner.steps[-1].result_termination_reason is MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL
+  assert planner.steps[-1].result_physical_termination is False
 
 
 def test_prescribed_chain_mock_uses_a_solver_backed_attached_shock_fit() -> None:

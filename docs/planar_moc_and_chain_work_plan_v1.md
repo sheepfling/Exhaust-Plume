@@ -146,7 +146,9 @@ not wait on this research closure.
   records the exact boundary kind, sample count, total-pressure range, and a
   deterministic full state/pressure handoff fingerprint before every callback,
   while retaining a hard non-production claim ceiling for the prescribed-
-  boundary mock.
+  boundary mock. Each step now also records the typed callback outcome (field
+  solve, cell, termination, no-cell, or solver error) and its status, so a
+  multi-cell mock and a physical-stop research path are auditable step by step.
 - Added a terminal-reflection-patch planner wrapper that routes the exact
   outgoing ``C-`` handoff through the generic planner and records the typed
   normal-shock stop. It permits only the patch's one solved domain step;

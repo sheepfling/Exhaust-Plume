@@ -10,6 +10,7 @@ from exhaust_plume.models.moc import (
   MocChainBoundaryKind,
   MocChainPlannerKind,
   MocChainTerminationDecision,
+  MocChainTerminationReason,
   MocAmbientShockBoundaryMarchStatus,
   MocAmbientShockStripStatus,
   MocFreeBoundaryShockStatus,
@@ -348,6 +349,10 @@ def test_terminal_patch_planner_audits_one_step_handoff_and_typed_stop() -> None
   assert result.steps[0].incoming_handoff_sample_count == len(
     current.continuation_boundary
   )
+  assert result.steps[0].result_kind == 'termination-returned'
+  assert result.steps[0].result_status == 'physical-termination'
+  assert result.steps[0].result_termination_reason is MocChainTerminationReason.PHYSICAL_TERMINATION
+  assert result.steps[0].result_physical_termination is True
   assert result.as_report()['planning_only'] is True
 
 

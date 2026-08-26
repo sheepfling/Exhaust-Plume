@@ -178,6 +178,10 @@ def test_field_coupled_planner_audits_the_resolved_field_handoff() -> None:
   assert planner.steps[0].incoming_handoff_sample_count == len(
     result.field.continuation_boundary_states
   )
+  assert planner.steps[0].result_kind == 'termination-returned'
+  assert planner.steps[0].result_status == 'physical-termination'
+  assert planner.steps[0].result_termination_reason is MocChainTerminationReason.PHYSICAL_TERMINATION
+  assert planner.steps[0].result_physical_termination is True
   assert seen == [(True, 1, 2)]
 
 

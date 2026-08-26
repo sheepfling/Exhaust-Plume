@@ -24,7 +24,9 @@ from exhaust_plume.models.moc.chain import (
   MocChainResult,
   MocChainTerminationDecision,
   MocChainTerminationReason,
+  MocCellClosureStatus,
   MocCellContinuationSolver,
+  MocChainGeometryFidelity,
   continue_moc_cell_chain,
 )
 from exhaust_plume.models.moc.caustic_restart import MocCausticFamilyBandResult
@@ -83,6 +85,13 @@ class MocChainPlannerStep:
   incoming_handoff_sample_count: int
   incoming_total_pressure_range_Pa: tuple[float, float] | None
   incoming_handoff_fingerprint: str | None = None
+  result_kind: str = 'not-recorded'
+  result_status: str | None = None
+  result_end_x_m: float | None = None
+  result_geometry_fidelity: MocChainGeometryFidelity | None = None
+  result_physical_closure: MocCellClosureStatus | None = None
+  result_termination_reason: MocChainTerminationReason | None = None
+  result_physical_termination: bool | None = None
 
   def __post_init__(self) -> None:
     if isinstance(self.current_cell_index, bool) or self.current_cell_index < 1:
@@ -111,6 +120,38 @@ class MocChainPlannerStep:
       ):
         raise ValueError('incoming total-pressure range must be finite and ordered')
       object.__setattr__(self, 'incoming_total_pressure_range_Pa', (minimum, maximum))
+    if not isinstance(self.result_kind, str) or not self.result_kind:
+      raise ValueError('result_kind must be a non-empty string')
+    if self.result_status is not None and not isinstance(self.result_status, str):
+      raise TypeError('result_status must be a string or None')
+    if self.result_end_x_m is not None and not isfinite(float(self.result_end_x_m)):
+      raise ValueError('result_end_x_m must be finite when supplied')
+    if self.result_geometry_fidelity is not None and not isinstance(
+        self.result_geometry_fidelity,
+        MocChainGeometryFidelity,
+    ):
+      raise TypeError(
+        'result_geometry_fidelity must be a MocChainGeometryFidelity or None'
+      )
+    if self.result_physical_closure is not None and not isinstance(
+        self.result_physical_closure,
+        MocCellClosureStatus,
+    ):
+      raise TypeError(
+        'result_physical_closure must be a MocCellClosureStatus or None'
+      )
+    if self.result_termination_reason is not None and not isinstance(
+        self.result_termination_reason,
+        MocChainTerminationReason,
+    ):
+      raise TypeError(
+        'result_termination_reason must be a MocChainTerminationReason or None'
+      )
+    if self.result_physical_termination is not None and not isinstance(
+        self.result_physical_termination,
+        bool,
+    ):
+      raise TypeError('result_physical_termination must be a bool or None')
   ####
 
   @classmethod
@@ -146,7 +187,76 @@ class MocChainPlannerStep:
       'incoming_handoff_sample_count': self.incoming_handoff_sample_count,
       'incoming_total_pressure_range_Pa': self.incoming_total_pressure_range_Pa,
       'incoming_handoff_fingerprint': self.incoming_handoff_fingerprint,
+      'result_kind': self.result_kind,
+      'result_status': self.result_status,
+      'result_end_x_m': self.result_end_x_m,
+      'result_geometry_fidelity': (
+        None
+        if self.result_geometry_fidelity is None
+        else self.result_geometry_fidelity.value
+      ),
+      'result_physical_closure': (
+        None
+        if self.result_physical_closure is None
+        else self.result_physical_closure.value
+      ),
+      'result_termination_reason': (
+        None
+        if self.result_termination_reason is None
+        else self.result_termination_reason.value
+      ),
+      'result_physical_termination': self.result_physical_termination,
     }
+  ####
+
+  def with_solver_result(self, result: object) -> 'MocChainPlannerStep':
+    """Attach the typed result returned for this planned handoff."""
+
+    if isinstance(result, MocChainTerminationDecision):
+      return replace(
+        self,
+        result_kind='termination-returned',
+        result_status=result.reason.value,
+        result_termination_reason=result.reason,
+        result_physical_termination=result.physical_termination,
+      )
+    if isinstance(result, MocPostShockChainCellSolve):
+      return replace(
+        self,
+        result_kind='field-solve-returned',
+        result_status=result.field.status.value,
+        result_end_x_m=result.end_x_m,
+      )
+    if isinstance(result, MocChainCell):
+      return replace(
+        self,
+        result_kind='cell-returned',
+        result_status='resolved' if result.resolved else 'unresolved',
+        result_end_x_m=result.end_x_m,
+        result_geometry_fidelity=result.geometry_fidelity,
+        result_physical_closure=result.physical_closure,
+      )
+    if result is None:
+      return replace(
+        self,
+        result_kind='no-cell-returned',
+        result_status='none',
+      )
+    return replace(
+      self,
+      result_kind='invalid-result-returned',
+      result_status=type(result).__name__,
+    )
+  ####
+
+  def with_solver_error(self, error: BaseException) -> 'MocChainPlannerStep':
+    """Record a callback exception before the chain converts it to failure."""
+
+    return replace(
+      self,
+      result_kind='solver-error',
+      result_status=type(error).__name__,
+    )
   ####
 
 
@@ -552,14 +662,19 @@ def plan_moc_chain(
   steps: list[MocChainPlannerStep] = []
 
   def wrapped(current: MocChainCell, next_cell_index: int):
-    steps.append(
-      MocChainPlannerStep.from_boundary(
-        current,
-        next_cell_index,
-        current.continuation_boundary,
-      )
+    step = MocChainPlannerStep.from_boundary(
+      current,
+      next_cell_index,
+      current.continuation_boundary,
     )
-    return solve_next(current, next_cell_index)
+    steps.append(step)
+    try:
+      result = solve_next(current, next_cell_index)
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      steps[-1] = step.with_solver_error(error)
+      raise
+    steps[-1] = step.with_solver_result(result)
+    return result
 
   chain = continue_moc_cell_chain(seed, wrapped, policy)
   return MocChainPlannerResult(
@@ -775,14 +890,19 @@ def plan_post_shock_characteristic_chain(
   ) -> MocPostShockChainCellSolve | MocChainTerminationDecision | None:
     if incoming_handoff != current.continuation_boundary:
       raise ValueError('planner callback received a handoff different from the current cell')
-    steps.append(
-      MocChainPlannerStep.from_boundary(
-        current,
-        next_cell_index,
-        incoming_handoff,
-      )
+    step = MocChainPlannerStep.from_boundary(
+      current,
+      next_cell_index,
+      incoming_handoff,
     )
-    return solve_next(current, next_cell_index, incoming_handoff)
+    steps.append(step)
+    try:
+      result = solve_next(current, next_cell_index, incoming_handoff)
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      steps[-1] = step.with_solver_error(error)
+      raise
+    steps[-1] = step.with_solver_result(result)
+    return result
 
   chain = continue_post_shock_characteristic_chain(
     seed,
