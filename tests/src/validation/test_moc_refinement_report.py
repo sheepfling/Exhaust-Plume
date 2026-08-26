@@ -124,6 +124,11 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert planner['resolved'] is True
   assert planner['cell_count'] == 3
   assert planner['state_carry_count'] == 3
+  assert len(planner['terminal_trace_validation']) == 3
+  assert all(
+    entry['trace']['family'] == 'C-'
+    for entry in planner['terminal_trace_validation']
+  )
   assert invariant_closure['status'] == 'shooting_failure'
   assert invariant_closure['source_extension']['status'] == 'converged_terminal_source_window'
   assert invariant_closure['source_extension']['strip']['source_window_kind'] == 'terminal-source-window'

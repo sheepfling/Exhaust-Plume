@@ -1197,6 +1197,47 @@
           "current_end_x_m": 2.0
         }
       ],
+      "terminal_trace_validation": [
+        {
+          "cell_index": 1,
+          "trace": {
+            "status": "invariant_failure",
+            "converged": false,
+            "family": "C-",
+            "sample_count": 5,
+            "maximum_absolute_invariant_residual": 0.10000000000019788,
+            "maximum_geometry_residual_m": null,
+            "minimum_forward_margin_m": null,
+            "message": "trace sample 1 does not preserve the C- invariant"
+          }
+        },
+        {
+          "cell_index": 2,
+          "trace": {
+            "status": "invariant_failure",
+            "converged": false,
+            "family": "C-",
+            "sample_count": 6,
+            "maximum_absolute_invariant_residual": 0.049999999999742584,
+            "maximum_geometry_residual_m": null,
+            "minimum_forward_margin_m": null,
+            "message": "trace sample 1 does not preserve the C- invariant"
+          }
+        },
+        {
+          "cell_index": 3,
+          "trace": {
+            "status": "invariant_failure",
+            "converged": false,
+            "family": "C-",
+            "sample_count": 6,
+            "maximum_absolute_invariant_residual": 0.049999999999742584,
+            "maximum_geometry_residual_m": null,
+            "minimum_forward_margin_m": null,
+            "message": "trace sample 1 does not preserve the C- invariant"
+          }
+        }
+      ],
       "measurement_operator": {
         "status": "converged",
         "operator_id": "op.moc.shock-cell-chain",

@@ -68,6 +68,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   sample_reflected_zone_along_shock_path,
   validate_fan_reflected_interface,
   validate_closed_post_shock_field,
+  validate_characteristic_trace,
   validate_post_shock_ambient_boundary,
   validate_moc_mesh,
 )
@@ -1043,6 +1044,16 @@ def build_moc_primitive_report() -> dict[str, Any]:
   ) = _shock_cell_chain_planner_mock(
     shock_seeded_field,
   )
+  shock_cell_chain_trace_validation = [
+    {
+      'cell_index': cell.cell_index,
+      'trace': validate_characteristic_trace(
+        cell.continuation_boundary,
+        CharacteristicFamily.MINUS,
+      ).as_report(),
+    }
+    for cell in shock_cell_chain_mock.cells
+  ]
   shock_seeded_fit = _shock_seeded_field_fit()
   shock_seeded_measurement = measure_moc_shock_cell(
     MocShockCellObservation(
@@ -1706,6 +1717,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'continuation_boundary_maxima_nonincreasing'
       ],
       'observations': shock_cell_chain_mock_observations,
+      'terminal_trace_validation': shock_cell_chain_trace_validation,
       'measurement_operator': shock_cell_chain_measurement.as_report(),
       'strict_upstream_coupling_gate': {
         'status': shock_cell_chain_strict_gate.status.value,
