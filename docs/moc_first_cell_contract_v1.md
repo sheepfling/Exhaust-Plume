@@ -176,6 +176,11 @@ assembler promotes its centerline handoff as
 The shock/ambient strip intentionally has no promotion adapter: its
 `terminal-characteristic-trace` is a real unresolved downstream boundary, not
 an inferred centerline or axial section.
+The earlier boundary-conditioned triangular assembler is also no longer
+promotion-eligible by default: it does not carry verified shock-``C+`` /
+ambient-``C-`` family-orientation evidence. This guard prevents a numerically
+converged but incorrectly oriented legacy net from becoming a resolved chain
+seed while the replacement closure solver is developed.
 No public provider is wired to these primitives yet. The module does not claim
 axisymmetric, reacting, viscous, or experimentally validated plume physics.
 

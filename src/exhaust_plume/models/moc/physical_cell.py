@@ -80,6 +80,7 @@ class MocPhysicalPostShockFieldResult:
   minimum_post_shock_total_pressure_ratio: float | None
   maximum_post_shock_total_pressure_ratio: float | None
   message: str = ''
+  characteristic_family_orientation_verified: bool = False
 
   @property
   def converged(self) -> bool:
@@ -88,7 +89,7 @@ class MocPhysicalPostShockFieldResult:
 
   @property
   def physical_closure_verified(self) -> bool:
-    return self.converged
+    return self.converged and self.characteristic_family_orientation_verified
   ####
 
   @property
@@ -116,6 +117,9 @@ class MocPhysicalPostShockFieldResult:
       'status': self.status.value,
       'converged': self.converged,
       'physical_closure_verified': self.physical_closure_verified,
+      'characteristic_family_orientation_verified': (
+        self.characteristic_family_orientation_verified
+      ),
       'characteristic_layer_count': self.characteristic_layer_count,
       'node_count': self.node_count,
       'cell_count': self.cell_count,
@@ -140,9 +144,10 @@ class MocPhysicalPostShockFieldResult:
   ) -> MocChainCell:
     """Promote only a fully ambient-closed cell into the resolved chain."""
 
-    if not self.converged:
+    if not self.physical_closure_verified:
       raise ValueError(
-        'only a converged ambient-closed post-shock field can become a chain cell'
+        'only a converged ambient-closed post-shock field with verified '
+        'shock-C+/ambient-C- family orientation can become a chain cell'
       )
     chain_diagnostics: dict[str, Any] = {
       'source': 'ambient-pressure-coupled-post-shock-field',
