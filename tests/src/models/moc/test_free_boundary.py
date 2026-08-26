@@ -5,6 +5,7 @@ import pytest
 from exhaust_plume.models.moc import (
   CharacteristicState,
   MocFreeBoundaryShockStatus,
+  solve_marched_attached_shock_chain_cell,
   solve_marched_attached_shock_field,
   solve_uniform_attached_shock_field,
 )
@@ -92,3 +93,38 @@ def test_marched_shock_rejects_an_upstream_state_not_at_the_shock_point() -> Non
   assert result.status is MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE
   assert not result.converged
   assert 'does not lie' in result.message
+
+
+def test_marched_chain_cell_consumes_the_prior_terminal_trace() -> None:
+  seed = _uniform_reference(17)
+  assert seed.field is not None
+  seed_cell = seed.field.as_chain_cell(start_x_m=0.5, end_x_m=1.0)
+
+  upstream = CharacteristicState(0.0, 0.5, -0.2, 2.0, 1.4)
+  continued = solve_marched_attached_shock_chain_cell(
+    seed_cell,
+    2,
+    seed_cell.continuation_boundary,
+    start_point_m=(1.2, 0.5),
+    end_x_m=1.8,
+    upstream_state_at=lambda point: CharacteristicState(
+      x_m=point[0],
+      y_m=point[1],
+      theta_rad=upstream.theta_rad,
+      mach=upstream.mach,
+      gamma=upstream.gamma,
+    ),
+    upstream_pressure_at=lambda _point: 100000.0,
+    downstream_flow_angle_at=lambda _index, point: 0.05 * point[1] / 0.5,
+    sample_count=9,
+  )
+
+  assert continued.field.converged
+  assert continued.end_x_m == pytest.approx(1.8)
+  assert continued.field.carries_incoming_handoff
+  assert continued.field.incoming_handoff_states == tuple(
+    sample.state for sample in seed_cell.continuation_boundary
+  )
+  assert continued.field.incoming_handoff_total_pressure_Pa == tuple(
+    sample.total_pressure_Pa for sample in seed_cell.continuation_boundary
+  )

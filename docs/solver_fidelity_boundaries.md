@@ -40,7 +40,8 @@ with finite residuals. The full-field fixture carries total pressure into its
 nodes and exposes a typed terminal-characteristic-trace handoff; a stateful
 chain adapter rejects changed consumed traces, total-pressure resets, and
 reduced-order fidelity. A deterministic three-cell prescribed-boundary planner
-mock exercises that adapter, but remains explicitly non-physical. The field
+mock and a three-cell solver-generated chain reference exercise that adapter,
+but both remain explicitly callback-conditioned and non-physical. The field
 remains a prescribed-boundary contract, not a free-boundary solution or
 product-provider result. A separate solver-generated marched attached-shock
 reference now passes its local closed-field and 9/17/33-sample refinement

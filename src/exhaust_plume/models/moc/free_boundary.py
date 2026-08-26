@@ -21,8 +21,10 @@ from math import isfinite, sin, tan
 from typing import Callable, Sequence
 
 from exhaust_plume.models.moc.compression import solve_attached_compression_to_turn
+from exhaust_plume.models.moc.chain import MocChainBoundarySample, MocChainCell
 from exhaust_plume.models.moc.post_shock import (
   MocPostShockBoundaryState,
+  MocPostShockChainCellSolve,
   MocPostShockCharacteristicFieldResult,
   MocPostShockFieldStatus,
   MocShockBoundaryFitResult,
@@ -36,6 +38,7 @@ __all__ = (
   'MocFreeBoundaryShockResult',
   'MocFreeBoundaryShockStatus',
   'solve_marched_attached_shock_field',
+  'solve_marched_attached_shock_chain_cell',
   'solve_uniform_attached_shock_field',
 )
 
@@ -159,6 +162,7 @@ def solve_marched_attached_shock_field(
   target_centerline_y_m: float = 0.0,
   downstream_flow_angle_at: Callable[[int, tuple[float, float]], float] | None = None,
   downstream_flow_angle_rad: float | None = None,
+  incoming_handoff: Sequence[MocChainBoundarySample] | None = None,
   sample_count: int = 17,
   branch: ShockBranch = ShockBranch.WEAK,
   position_tolerance_m: float = 1.0e-10,
@@ -179,7 +183,10 @@ def solve_marched_attached_shock_field(
   Exactly one of ``downstream_flow_angle_at`` and
   ``downstream_flow_angle_rad`` may be supplied.  A scalar angle is useful for
   a uniform boundary, but a nonzero angle profile is required to produce a
-  finite characteristic-field area in the uniform reference helper.
+  finite characteristic-field area in the uniform reference helper. When
+  ``incoming_handoff`` is supplied, the assembled field records the exact
+  prior terminal trace as consumed state; it does not use that trace as a
+  shock curve.
   """
 
   try:
@@ -437,6 +444,7 @@ def solve_marched_attached_shock_field(
     )
   field = assemble_post_shock_characteristic_field(
     shock_fit,
+    incoming_handoff=incoming_handoff,
     position_tolerance_m=position_tolerance_m,
     invariant_tolerance=invariant_tolerance,
     shock_angle_tolerance_rad=shock_angle_tolerance_rad,
@@ -481,6 +489,77 @@ def solve_marched_attached_shock_field(
 ####
 
 
+def solve_marched_attached_shock_chain_cell(
+  current_cell: MocChainCell,
+  next_cell_index: int,
+  incoming_handoff: Sequence[MocChainBoundarySample],
+  *,
+  start_point_m: tuple[float, float],
+  end_x_m: float,
+  upstream_state_at: Callable[[tuple[float, float]], CharacteristicState | None],
+  upstream_pressure_at: Callable[[tuple[float, float]], float | None],
+  target_centerline_y_m: float = 0.0,
+  downstream_flow_angle_at: Callable[[int, tuple[float, float]], float] | None = None,
+  downstream_flow_angle_rad: float | None = None,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+) -> MocPostShockChainCellSolve:
+  """Generate one continued chain cell from a prior terminal trace.
+
+  This is the bridge between the marched shock solver and
+  :func:`continue_post_shock_characteristic_chain`. The caller still owns the
+  upstream field and downstream turn boundary condition; this helper enforces
+  that the callback receives the current cell's exact typed handoff, generates
+  a new shock/field, and returns the field in the chain solver's state-carrying
+  result type.
+  """
+
+  if not isinstance(current_cell, MocChainCell):
+    raise TypeError('current_cell must be a MocChainCell')
+  if (
+    isinstance(next_cell_index, bool)
+    or not isinstance(next_cell_index, int)
+    or next_cell_index != current_cell.cell_index + 1
+  ):
+    raise ValueError('next_cell_index must immediately follow current_cell.cell_index')
+  handoff = tuple(incoming_handoff)
+  if handoff != current_cell.continuation_boundary:
+    raise ValueError('incoming_handoff must exactly match the current cell boundary')
+  if len(handoff) < 3:
+    raise ValueError('continued marched shock cells require at least three handoff samples')
+  if not isfinite(float(end_x_m)) or end_x_m <= current_cell.end_x_m:
+    raise ValueError('continued cell end_x_m must be strictly downstream of the current cell')
+  if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
+    raise ValueError('position_tolerance_m must be finite and positive')
+  start = _finite_point(start_point_m, 'start_point_m')
+  if start[0] <= current_cell.end_x_m + position_tolerance_m:
+    raise ValueError('continued shock start point must be downstream of the current cell')
+
+  result = solve_marched_attached_shock_field(
+    upstream_state_at,
+    upstream_pressure_at,
+    start,
+    target_centerline_y_m=target_centerline_y_m,
+    downstream_flow_angle_at=downstream_flow_angle_at,
+    downstream_flow_angle_rad=downstream_flow_angle_rad,
+    incoming_handoff=handoff,
+    sample_count=sample_count,
+    branch=branch,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+    shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+  )
+  if not result.converged or result.field is None:
+    raise ValueError(
+      f'continued marched shock cell failed: {result.status.value}: {result.message}'
+    )
+  return MocPostShockChainCellSolve(field=result.field, end_x_m=float(end_x_m))
+####
+
+
 def solve_uniform_attached_shock_field(
   upstream_state: CharacteristicState,
   upstream_pressure_Pa: float,
@@ -493,6 +572,7 @@ def solve_uniform_attached_shock_field(
   position_tolerance_m: float = 1.0e-10,
   invariant_tolerance: float = 1.0e-10,
   shock_angle_tolerance_rad: float = 1.0e-2,
+  incoming_handoff: Sequence[MocChainBoundarySample] | None = None,
 ) -> MocFreeBoundaryShockResult:
   """Solve the uniform-upstream linear-turn attached-shock reference case."""
 
@@ -534,6 +614,7 @@ def solve_uniform_attached_shock_field(
     start,
     target_centerline_y_m=float(target_centerline_y_m),
     downstream_flow_angle_at=angle_at,
+    incoming_handoff=incoming_handoff,
     sample_count=sample_count,
     branch=branch,
     position_tolerance_m=position_tolerance_m,

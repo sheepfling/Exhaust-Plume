@@ -46,6 +46,8 @@ The implementation in `exhaust_plume.models.moc` currently provides:
 - a solver-generated marched attached-shock boundary and full post-shock
   characteristic field, including a uniform linear-turn reference case and
   explicit upstream-state/pressure callbacks;
+- a continued-cell adapter that passes a typed terminal-trace handoff into a
+  new solver-generated shock field before returning a chain-cell solve result;
 - a shock-seeded shrinking-front C+/C- characteristic-field assembler with
   explicit shock/centerline edges, total-pressure lineage, forward margins,
   invariant diagnostics, and a typed downstream handoff boundary;
@@ -97,8 +99,10 @@ incoming trace through `incoming_handoff`; the separate chain adapter checks
 that the trace was consumed unchanged and that total pressure did not reset
 upward before appending the cell. It does not invent a next shock location or
 promote the reduced-order shock train. An executable prescribed-boundary
-planner mock exercises this contract in the primitive validation report; it is
-not physical free-boundary evidence.
+planner mock exercises this contract in the primitive validation report; the
+solver-generated chain reference now exercises the same handoff with generated
+shock boundaries. Both remain callback-conditioned evidence rather than
+physical free-boundary chain evidence.
 The mesh topology intentionally remains reported as `OPEN`: its boundary edges
 are the physical shock/centerline perimeter. `physical_closure_status` and the
 field status carry the separate evidence that this prescribed-boundary fan is

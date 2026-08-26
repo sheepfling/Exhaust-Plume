@@ -289,6 +289,44 @@
       ],
       "claim_status": "solver-generated-boundary-refinement-only; upstream-field-coupling-pending"
     },
+    "solver_generated_chain_reference": {
+      "status": "solver-terminated",
+      "accepted": true,
+      "cell_count": 3,
+      "resolved": true,
+      "physical_termination": false,
+      "state_carry_count": 3,
+      "observations": [
+        {
+          "cell_index": 2,
+          "incoming_handoff_sample_count": 18,
+          "incoming_total_pressure_range_Pa": [
+            749635.1347251647,
+            764819.179280032
+          ],
+          "current_end_x_m": 1.0
+        },
+        {
+          "cell_index": 3,
+          "incoming_handoff_sample_count": 10,
+          "incoming_total_pressure_range_Pa": [
+            732748.4959008459,
+            747590.4974211584
+          ],
+          "current_end_x_m": 1.8
+        },
+        {
+          "cell_index": 4,
+          "incoming_handoff_sample_count": 10,
+          "incoming_total_pressure_range_Pa": [
+            716242.2535621956,
+            730749.917072597
+          ],
+          "current_end_x_m": 2.6
+        }
+      ],
+      "claim_status": "solver-generated-chain-reference; upstream-field-coupling-pending"
+    },
     "shock_seeded_post_shock_field": {
       "status": "converged_closed",
       "accepted": true,

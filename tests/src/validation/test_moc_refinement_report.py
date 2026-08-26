@@ -57,6 +57,7 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
 
   generated = report['geometry_cases']['solver_generated_attached_shock_field']
   refinement = report['geometry_cases']['solver_generated_shock_refinement']
+  generated_chain = report['geometry_cases']['solver_generated_chain_reference']
   planner = report['geometry_cases']['shock_cell_chain_planner_mock']
 
   assert generated['status'] == 'converged_free_boundary_field'
@@ -65,6 +66,11 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert generated['pressure_loss_verified'] is True
   assert refinement['status'] == 'diagnostic-all-solver-generated-resolutions-converged'
   assert len(refinement['cases']) == 3
+  assert generated_chain['accepted'] is True
+  assert generated_chain['resolved'] is True
+  assert generated_chain['cell_count'] == 3
+  assert generated_chain['state_carry_count'] == 3
+  assert generated_chain['physical_termination'] is False
   assert planner['resolved'] is True
   assert planner['cell_count'] == 3
   assert planner['state_carry_count'] == 3

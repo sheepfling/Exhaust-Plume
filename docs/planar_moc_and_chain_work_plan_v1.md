@@ -30,6 +30,9 @@ not wait on this research closure.
   reference. It solves a local attached compression at each boundary sample,
   integrates the shock tangent to the centerline, and records refinement and
   topology evidence without changing the lower-fidelity providers.
+- Added a generated continued-cell adapter. It records the prior terminal
+  characteristic trace as `incoming_handoff` while a new shock boundary and
+  closed field are generated from explicit upstream callbacks.
 - Added a closed post-shock field acceptance gate. It requires explicit shock
   and centerline boundary edges, connected finite-cell topology, and converged
   characteristic-node evidence; it does not synthesize missing cells.
@@ -114,10 +117,11 @@ implementation. It must not be used as this callback.
 
 The validation script's planner mock is only an executable contract fixture:
 it supplies the next shock boundary directly so that handoff, pressure-loss,
-and fidelity checks can run. The solver-generated marcher is a separate
-boundary-conditioned reference and currently uses an explicit upstream field
-and linear downstream-turn law. Neither is evidence for production automatic
-shock placement, physical termination, or external validation.
+and fidelity checks can run. A separate generated-chain reference now runs the
+same continuation adapter with solver-generated boundaries, but its upstream
+field and linear downstream-turn law remain explicit callbacks. Neither is
+evidence for production automatic shock placement, physical termination, or
+external validation.
 
 The verified post-shock result exposes the only seed-promotion adapter for this
 lane. An open zone, prescribed-boundary diagnostic, or scaled reduced-order

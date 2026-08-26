@@ -33,6 +33,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_attached_compression_to_pressure,
   solve_attached_compression_to_turn,
   solve_attached_shock_to_centerline,
+  solve_marched_attached_shock_chain_cell,
   solve_uniform_attached_shock_field,
   assemble_post_shock_characteristic_zone,
   assemble_post_shock_characteristic_field,
@@ -426,6 +427,68 @@ def _shock_cell_chain_planner_mock(
   )
 
 
+def _solver_generated_chain_reference(
+  seed_field: MocPostShockCharacteristicFieldResult,
+) -> tuple[Any, list[dict[str, Any]]]:
+  """Exercise generated shock cells with an explicit carried-state callback.
+
+  The upstream state and pressure callbacks deliberately derive their
+  thermodynamic level from the incoming trace so the chain can verify
+  monotonic total-pressure carry. They are still a reference field, not the
+  reflected-zone solution required for production promotion.
+  """
+
+  observations: list[dict[str, Any]] = []
+
+  def solve_next(current, cell_index, handoff):
+    observations.append({
+      'cell_index': cell_index,
+      'incoming_handoff_sample_count': len(handoff),
+      'incoming_total_pressure_range_Pa': (
+        min(sample.total_pressure_Pa for sample in handoff),
+        max(sample.total_pressure_Pa for sample in handoff),
+      ),
+      'current_end_x_m': current.end_x_m,
+    })
+    if cell_index >= 4:
+      return None
+    incoming_max = max(sample.total_pressure_Pa for sample in handoff)
+    upstream_mach = 2.0
+    upstream_gamma = 1.4
+    pressure_ratio = (1.0 + 0.2 * upstream_mach * upstream_mach) ** (
+      upstream_gamma / (upstream_gamma - 1.0)
+    )
+    upstream_pressure = incoming_max / pressure_ratio
+
+    return solve_marched_attached_shock_chain_cell(
+      current,
+      cell_index,
+      handoff,
+      start_point_m=(current.end_x_m + 0.2, 0.5),
+      end_x_m=current.end_x_m + 0.8,
+      upstream_state_at=lambda point: CharacteristicState(
+        x_m=point[0],
+        y_m=point[1],
+        theta_rad=-0.2,
+        mach=upstream_mach,
+        gamma=upstream_gamma,
+      ),
+      upstream_pressure_at=lambda _point: upstream_pressure,
+      downstream_flow_angle_at=lambda _index, point: 0.05 * point[1] / 0.5,
+      sample_count=9,
+    )
+
+  return (
+    continue_post_shock_characteristic_chain(
+      seed_field,
+      solve_next,
+      start_x_m=0.5,
+      end_x_m=1.0,
+    ),
+    observations,
+  )
+
+
 def build_moc_primitive_report() -> dict[str, Any]:
   cases = [
     (gamma, mach)
@@ -558,6 +621,12 @@ def build_moc_primitive_report() -> dict[str, Any]:
   shock_seeded_refinement_probe = _shock_seeded_field_refinement_probe()
   solver_generated_shock = _solver_generated_shock_fixture()
   solver_generated_shock_refinement_probe = _solver_generated_shock_refinement_probe()
+  solver_generated_chain_reference = None
+  solver_generated_chain_observations: list[dict[str, Any]] = []
+  if solver_generated_shock.field is not None and solver_generated_shock.field.converged:
+    solver_generated_chain_reference, solver_generated_chain_observations = _solver_generated_chain_reference(
+      solver_generated_shock.field,
+    )
   shock_cell_chain_mock, shock_cell_chain_mock_observations = _shock_cell_chain_planner_mock(
     shock_seeded_field,
   )
@@ -580,6 +649,16 @@ def build_moc_primitive_report() -> dict[str, Any]:
       or not case['pressure_loss_verified']
     )
   ]
+  solver_generated_chain_failure = (
+    solver_generated_chain_reference is None
+    or not solver_generated_chain_reference.resolved
+    or solver_generated_chain_reference.cell_count != 3
+    or solver_generated_chain_reference.physical_termination
+    or any(
+      not cell.carries_state
+      for cell in solver_generated_chain_reference.cells
+    )
+  )
   overexpanded_exit = derive_uniform_nozzle_exit(
     NozzleExitInput(
       mach=2.0,
@@ -956,6 +1035,36 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'cases': solver_generated_shock_refinement_probe,
       'claim_status': 'solver-generated-boundary-refinement-only; upstream-field-coupling-pending',
     },
+    'solver_generated_chain_reference': {
+      'status': (
+        None
+        if solver_generated_chain_reference is None
+        else solver_generated_chain_reference.status.value
+      ),
+      'accepted': not solver_generated_chain_failure,
+      'cell_count': (
+        None
+        if solver_generated_chain_reference is None
+        else solver_generated_chain_reference.cell_count
+      ),
+      'resolved': (
+        False
+        if solver_generated_chain_reference is None
+        else solver_generated_chain_reference.resolved
+      ),
+      'physical_termination': (
+        None
+        if solver_generated_chain_reference is None
+        else solver_generated_chain_reference.physical_termination
+      ),
+      'state_carry_count': (
+        None
+        if solver_generated_chain_reference is None
+        else solver_generated_chain_reference.as_report()['state_carry_count']
+      ),
+      'observations': solver_generated_chain_observations,
+      'claim_status': 'solver-generated-chain-reference; upstream-field-coupling-pending',
+    },
     'shock_seeded_post_shock_field': {
       'status': shock_seeded_field.status.value,
       'accepted': shock_seeded_field.converged,
@@ -1187,6 +1296,22 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'message': str(solver_generated_shock_refinement_failures),
       }
     ] if solver_generated_shock_refinement_failures else []),
+    *([
+      {
+        'case': 'solver_generated_chain_reference',
+        'status': (
+          'missing'
+          if solver_generated_chain_reference is None
+          else solver_generated_chain_reference.status.value
+        ),
+        'message': (
+          'solver-generated chain reference did not produce three resolved '
+          'state-carrying cells'
+          if solver_generated_chain_reference is not None
+          else 'solver-generated chain reference could not be constructed'
+        ),
+      }
+    ] if solver_generated_chain_failure else []),
     *([
       {
         'case': 'shock_cell_chain_planner_mock',
