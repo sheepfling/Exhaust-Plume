@@ -64,6 +64,7 @@ __all__ = (
   'assemble_post_shock_characteristic_zone',
   'assemble_post_shock_characteristic_field',
   'continue_post_shock_characteristics_to_centerline',
+  'continue_post_shock_characteristics_to_centerline_open',
   'fit_attached_shock_boundary',
   'continue_post_shock_characteristic_chain',
   'validate_closed_post_shock_field',
@@ -74,6 +75,7 @@ class MocPostShockContinuationStatus(str, Enum):
   """Structured outcome for prescribed post-shock continuation."""
 
   CONVERGED_PRESCRIBED_BOUNDARY = 'converged_prescribed_boundary'
+  CONVERGED_OPEN_BOUNDARY = 'converged_open_boundary'
   INVALID_INPUT = 'invalid_input'
   GEOMETRY_FAILURE = 'geometry_failure'
   INVARIANT_FAILURE = 'invariant_failure'
@@ -193,9 +195,12 @@ class MocPostShockContinuationResult:
   """Result of continuing a prescribed downstream shock boundary.
 
   A converged result is a boundary-conditioned characteristic trace, not a
-  fitted shock or a complete first-cell mesh.  The distinction is carried in
-  the status name and message so this primitive cannot be mistaken for
-  physical closure of the reflected plume lattice.
+  fitted shock or a complete first-cell mesh.  The status distinguishes a
+  boundary whose final sample is on the axis from an open shock-side
+  interface whose traces reach the axis while its final shock sample remains
+  upstream of a separate terminal model. The distinction is carried in the
+  status name and message so this primitive cannot be mistaken for physical
+  closure of the reflected plume lattice.
   """
 
   status: MocPostShockContinuationStatus
@@ -207,8 +212,11 @@ class MocPostShockContinuationResult:
 
   @property
   def converged(self) -> bool:
-    return self.status is MocPostShockContinuationStatus.CONVERGED_PRESCRIBED_BOUNDARY
-####
+    return self.status in (
+      MocPostShockContinuationStatus.CONVERGED_PRESCRIBED_BOUNDARY,
+      MocPostShockContinuationStatus.CONVERGED_OPEN_BOUNDARY,
+    )
+  ####
 
 
 @dataclass(frozen=True, slots=True)
@@ -2619,19 +2627,23 @@ def _failure(
 
 
 def continue_post_shock_characteristics_to_centerline(
-    boundary_states: Sequence[MocPostShockBoundaryState],
-    *,
-    position_tolerance_m: float = 1.0e-10,
-    invariant_tolerance: float = 1.0e-10,
-    pressure_tolerance: float = 1.0e-10,
-    centerline_angle_tolerance_rad: float = 1.0e-10,
+  boundary_states: Sequence[MocPostShockBoundaryState],
+  *,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  pressure_tolerance: float = 1.0e-10,
+  centerline_angle_tolerance_rad: float = 1.0e-10,
+  require_terminal_on_centerline: bool = True,
 ) -> MocPostShockContinuationResult:
   """Continue sampled post-shock states to the symmetry line.
 
   The sequence must run from the outer shock attachment toward a final
-  centerline point.  Every ``C-`` trace is solved independently with exact
-  centerline ``theta = 0`` compatibility.  The routine does not interpolate
-  missing shock states, fit a shock, or assemble the ``C+`` interior field.
+  centerline point when ``require_terminal_on_centerline`` is true.  Every
+  ``C-`` trace is solved independently with exact centerline ``theta = 0``
+  compatibility.  With that flag false, the final shock-side sample may
+  remain above the axis; the returned trace is an open downstream interface
+  to a separate terminal model.  The routine does not interpolate missing
+  shock states, fit a shock, or assemble the ``C+`` interior field.
   """
 
   if len(boundary_states) < 2:
@@ -2647,6 +2659,11 @@ def continue_post_shock_characteristics_to_centerline(
   ):
     if not isfinite(float(value)) or value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+  if not isinstance(require_terminal_on_centerline, bool):
+    return _failure(
+      MocPostShockContinuationStatus.INVALID_INPUT,
+      message='require_terminal_on_centerline must be a bool',
+    )
   ####
   samples = tuple(boundary_states)
   if not all(isinstance(sample, MocPostShockBoundaryState) for sample in samples):
@@ -2689,16 +2706,17 @@ def continue_post_shock_characteristics_to_centerline(
     previous_point = point
   ####
   terminal = samples[-1]
-  if abs(terminal.point_m[1]) > position_tolerance_m:
-    return _failure(
-      MocPostShockContinuationStatus.INVALID_INPUT,
-      message='the final post-shock boundary sample must lie on the symmetry line',
-    )
-  if abs(terminal.state.theta_rad) > centerline_angle_tolerance_rad:
-    return _failure(
-      MocPostShockContinuationStatus.INVALID_INPUT,
-      message='the final post-shock boundary state must satisfy centerline theta = 0',
-    )
+  if require_terminal_on_centerline:
+    if abs(terminal.point_m[1]) > position_tolerance_m:
+      return _failure(
+        MocPostShockContinuationStatus.INVALID_INPUT,
+        message='the final post-shock boundary sample must lie on the symmetry line',
+      )
+    if abs(terminal.state.theta_rad) > centerline_angle_tolerance_rad:
+      return _failure(
+        MocPostShockContinuationStatus.INVALID_INPUT,
+        message='the final post-shock boundary state must satisfy centerline theta = 0',
+      )
   ####
   segments: list[MocPostShockCharacteristicSegment] = []
   centerline_states: list[CharacteristicState] = []
@@ -2729,7 +2747,10 @@ def continue_post_shock_characteristics_to_centerline(
         centerline_states=tuple(centerline_states),
         message=f'post-shock C- characteristic {index} did not reach y=0',
       )
-    if index < len(samples) - 1 and centerline_point[0] <= sample.point_m[0] + position_tolerance_m:
+    if (
+      (index < len(samples) - 1 or not require_terminal_on_centerline)
+      and centerline_point[0] <= sample.point_m[0] + position_tolerance_m
+    ):
       return _failure(
         MocPostShockContinuationStatus.GEOMETRY_FAILURE,
         segments=tuple(segments),
@@ -2746,8 +2767,13 @@ def continue_post_shock_characteristics_to_centerline(
       point_result=point_result,
     ))
   ####
+  status = (
+    MocPostShockContinuationStatus.CONVERGED_PRESCRIBED_BOUNDARY
+    if require_terminal_on_centerline
+    else MocPostShockContinuationStatus.CONVERGED_OPEN_BOUNDARY
+  )
   return MocPostShockContinuationResult(
-    status=MocPostShockContinuationStatus.CONVERGED_PRESCRIBED_BOUNDARY,
+    status=status,
     segments=tuple(segments),
     centerline_states=tuple(centerline_states),
     maximum_geometry_residual_m=max(
@@ -2759,8 +2785,51 @@ def continue_post_shock_characteristics_to_centerline(
       default=None,
     ),
     message=(
-      'prescribed downstream shock-boundary C- traces reached the symmetry line; '
-      'shock fitting and the downstream C+ interior field remain unassembled'
+      (
+        'prescribed downstream shock-boundary C- traces reached the symmetry '
+        'line; shock fitting and the downstream C+ interior field remain '
+        'unassembled'
+      )
+      if require_terminal_on_centerline
+      else (
+        'open downstream shock-boundary C- traces reached the symmetry line; '
+        'the final shock-side sample remains an interface to a separate '
+        'terminal model and the downstream C+ interior field remains '
+        'unassembled'
+      )
     ),
+  )
+####
+
+
+def continue_post_shock_characteristics_to_centerline_open(
+  boundary_states: Sequence[MocPostShockBoundaryState],
+  *,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  pressure_tolerance: float = 1.0e-10,
+  centerline_angle_tolerance_rad: float = 1.0e-10,
+) -> MocPostShockContinuationResult:
+  """Continue an open supersonic shock-side boundary to the centerline.
+
+  Every supplied supersonic post-shock sample gets its own compatible ``C-``
+  trace to ``y=0``.  Unlike
+  :func:`continue_post_shock_characteristics_to_centerline`, the final sample
+  is not required to lie on the axis or have ``theta = 0``.  This is the
+  handoff needed when a sampled oblique shock terminates at a separate normal
+  shock: no subsonic endpoint is coerced into a ``CharacteristicState``.
+
+  The result is an open boundary-conditioned trace.  It is suitable for
+  first-layer/zone diagnostics, but it is not physical mixed-regime closure or
+  a resolved shock-cell promotion.
+  """
+
+  return continue_post_shock_characteristics_to_centerline(
+    boundary_states,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+    pressure_tolerance=pressure_tolerance,
+    centerline_angle_tolerance_rad=centerline_angle_tolerance_rad,
+    require_terminal_on_centerline=False,
   )
 ####

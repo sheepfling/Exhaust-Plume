@@ -139,6 +139,13 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert terminal_field['terminal_shock_upstream_sample_count'] == 17
   assert terminal_field['terminal_shock_supersonic_downstream_sample_count'] == 16
   assert terminal_field['terminal_shock_supersonic_downstream_maximum_angle_residual_rad'] <= 1.0e-2
+  assert terminal_field['terminal_supersonic_downstream_patch_converged'] is True
+  assert terminal_field['terminal_shock_supersonic_downstream_continuation']['status'] == 'converged_open_boundary'
+  assert terminal_field['terminal_shock_supersonic_downstream_continuation']['segment_count'] == 16
+  assert terminal_field['terminal_shock_supersonic_downstream_first_layer']['converged'] is True
+  assert terminal_field['terminal_shock_supersonic_downstream_zone']['status'] == 'converged_open'
+  assert terminal_field['terminal_shock_supersonic_downstream_zone']['cell_count'] == 119
+  assert terminal_field['terminal_shock_supersonic_downstream_zone']['physical_closure_status'] == 'open'
   assert terminal_field['terminal_shock_boundary_edge_count'] > 0
   assert terminal_field['terminal_shock_boundary_coverage_verified'] is True
   assert terminal_field['terminal_shock_boundary_maximum_geometry_residual_m'] <= 1.0e-8

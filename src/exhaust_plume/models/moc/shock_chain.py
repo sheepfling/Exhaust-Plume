@@ -30,6 +30,12 @@ from exhaust_plume.models.moc.coupled import (
 from exhaust_plume.models.moc.primitives import CharacteristicState
 from exhaust_plume.models.moc.post_shock import (
   MocPostShockBoundaryState,
+  MocPostShockCharacteristicZoneResult,
+  MocPostShockContinuationResult,
+  MocPostShockFirstLayerResult,
+  assemble_post_shock_characteristic_zone,
+  assemble_post_shock_first_layer,
+  continue_post_shock_characteristics_to_centerline_open,
   fit_attached_shock_boundary,
 )
 from exhaust_plume.models.moc.terminal_patch import (
@@ -98,6 +104,9 @@ class MocTerminalShockCellFieldResult:
   terminal_shock_boundary_coverage_verified: bool
   terminal_shock_boundary_maximum_geometry_residual_m: float | None
   message: str = ''
+  terminal_shock_supersonic_downstream_continuation: MocPostShockContinuationResult | None = None
+  terminal_shock_supersonic_downstream_first_layer: MocPostShockFirstLayerResult | None = None
+  terminal_shock_supersonic_downstream_zone: MocPostShockCharacteristicZoneResult | None = None
 
   @property
   def converged(self) -> bool:
@@ -135,6 +144,16 @@ class MocTerminalShockCellFieldResult:
     return True
   ####
 
+  @property
+  def terminal_supersonic_downstream_patch_converged(self) -> bool:
+    """Whether the oblique post-shock open patch passed its local gates."""
+
+    return (
+      self.terminal_shock_supersonic_downstream_zone is not None
+      and self.terminal_shock_supersonic_downstream_zone.converged
+    )
+  ####
+
   def as_report(self) -> dict[str, object]:
     return {
       'status': self.status.value,
@@ -144,6 +163,9 @@ class MocTerminalShockCellFieldResult:
       'mixed_regime_field_complete': self.mixed_regime_field_complete,
       'physical_closure_verified': self.physical_closure_verified,
       'chain_promotion_blocked': self.chain_promotion_blocked,
+      'terminal_supersonic_downstream_patch_converged': (
+        self.terminal_supersonic_downstream_patch_converged
+      ),
       'node_count': None,
       'cell_count': len(self.cells),
       'topology_status': self.topology.status.value,
@@ -162,6 +184,50 @@ class MocTerminalShockCellFieldResult:
       ),
       'terminal_shock_supersonic_downstream_maximum_angle_residual_rad': (
         self.terminal_shock_supersonic_downstream_maximum_angle_residual_rad
+      ),
+      'terminal_shock_supersonic_downstream_continuation': (
+        None
+        if self.terminal_shock_supersonic_downstream_continuation is None
+        else {
+          'status': self.terminal_shock_supersonic_downstream_continuation.status.value,
+          'converged': self.terminal_shock_supersonic_downstream_continuation.converged,
+          'segment_count': len(self.terminal_shock_supersonic_downstream_continuation.segments),
+          'centerline_point_count': len(self.terminal_shock_supersonic_downstream_continuation.centerline_states),
+          'maximum_geometry_residual_m': self.terminal_shock_supersonic_downstream_continuation.maximum_geometry_residual_m,
+          'maximum_absolute_invariant_residual': self.terminal_shock_supersonic_downstream_continuation.maximum_absolute_invariant_residual,
+          'message': self.terminal_shock_supersonic_downstream_continuation.message,
+        }
+      ),
+      'terminal_shock_supersonic_downstream_first_layer': (
+        None
+        if self.terminal_shock_supersonic_downstream_first_layer is None
+        else {
+          'status': self.terminal_shock_supersonic_downstream_first_layer.status.value,
+          'converged': self.terminal_shock_supersonic_downstream_first_layer.converged,
+          'crossing_count': len(self.terminal_shock_supersonic_downstream_first_layer.crossings),
+          'minimum_forward_margin_m': self.terminal_shock_supersonic_downstream_first_layer.minimum_forward_margin_m,
+          'maximum_geometry_residual_m': self.terminal_shock_supersonic_downstream_first_layer.maximum_geometry_residual_m,
+          'maximum_absolute_invariant_residual': self.terminal_shock_supersonic_downstream_first_layer.maximum_absolute_invariant_residual,
+          'message': self.terminal_shock_supersonic_downstream_first_layer.message,
+        }
+      ),
+      'terminal_shock_supersonic_downstream_zone': (
+        None
+        if self.terminal_shock_supersonic_downstream_zone is None
+        else {
+          'status': self.terminal_shock_supersonic_downstream_zone.status.value,
+          'converged': self.terminal_shock_supersonic_downstream_zone.converged,
+          'node_count': self.terminal_shock_supersonic_downstream_zone.node_count,
+          'cell_count': self.terminal_shock_supersonic_downstream_zone.cell_count,
+          'topology_status': self.terminal_shock_supersonic_downstream_zone.topology.status.value,
+          'topology_connected': self.terminal_shock_supersonic_downstream_zone.topology.connected,
+          'topology_forms_closed_zone': self.terminal_shock_supersonic_downstream_zone.topology.forms_closed_zone,
+          'physical_closure_status': self.terminal_shock_supersonic_downstream_zone.physical_closure_status,
+          'shock_closure_status': self.terminal_shock_supersonic_downstream_zone.shock_closure_status,
+          'maximum_geometry_residual_m': self.terminal_shock_supersonic_downstream_zone.maximum_geometry_residual_m,
+          'maximum_absolute_invariant_residual': self.terminal_shock_supersonic_downstream_zone.maximum_absolute_invariant_residual,
+          'message': self.terminal_shock_supersonic_downstream_zone.message,
+        }
       ),
       'source_strip_cell_count': self.source_strip_cell_count,
       'source_patch_cell_count': self.source_patch_cell_count,
@@ -206,6 +272,9 @@ def _terminal_field_failure(
   terminal_shock_boundary_edge_count: int = 0,
   terminal_shock_boundary_coverage_verified: bool = False,
   terminal_shock_boundary_maximum_geometry_residual_m: float | None = None,
+  terminal_shock_supersonic_downstream_continuation: MocPostShockContinuationResult | None = None,
+  terminal_shock_supersonic_downstream_first_layer: MocPostShockFirstLayerResult | None = None,
+  terminal_shock_supersonic_downstream_zone: MocPostShockCharacteristicZoneResult | None = None,
   message: str,
 ) -> MocTerminalShockCellFieldResult:
   return MocTerminalShockCellFieldResult(
@@ -232,6 +301,15 @@ def _terminal_field_failure(
       terminal_shock_boundary_maximum_geometry_residual_m
     ),
     message=message,
+    terminal_shock_supersonic_downstream_continuation=(
+      terminal_shock_supersonic_downstream_continuation
+    ),
+    terminal_shock_supersonic_downstream_first_layer=(
+      terminal_shock_supersonic_downstream_first_layer
+    ),
+    terminal_shock_supersonic_downstream_zone=(
+      terminal_shock_supersonic_downstream_zone
+    ),
   )
 ####
 
@@ -724,6 +802,29 @@ def assemble_terminal_shock_cell_field(
   supersonic_downstream_maximum_angle_residual_rad = (
     supersonic_downstream_fit.maximum_shock_angle_residual_rad
   )
+  supersonic_downstream_continuation = (
+    continue_post_shock_characteristics_to_centerline_open(
+      supersonic_downstream_states,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=1.0e-10,
+    )
+  )
+  supersonic_downstream_first_layer = None
+  supersonic_downstream_zone = None
+  if supersonic_downstream_continuation.converged:
+    supersonic_downstream_first_layer = assemble_post_shock_first_layer(
+      supersonic_downstream_continuation,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=1.0e-10,
+    )
+    if supersonic_downstream_first_layer.converged:
+      supersonic_downstream_zone = assemble_post_shock_characteristic_zone(
+        supersonic_downstream_continuation,
+        supersonic_downstream_first_layer,
+        supersonic_downstream_states,
+        position_tolerance_m=position_tolerance_m,
+        invariant_tolerance=1.0e-10,
+      )
   upstream_states = (*upstream_states, terminal.upstream_state)
   upstream_pressures = (*upstream_pressures, float(terminal.upstream_pressure_Pa))
   terminal_shock_points = (*shock_samples, terminal_point)
@@ -740,6 +841,13 @@ def assemble_terminal_shock_cell_field(
       terminal_normal_shock=terminal,
       upstream_states=upstream_states,
       upstream_pressures=upstream_pressures,
+      terminal_shock_supersonic_downstream_continuation=(
+        supersonic_downstream_continuation
+      ),
+      terminal_shock_supersonic_downstream_first_layer=(
+        supersonic_downstream_first_layer
+      ),
+      terminal_shock_supersonic_downstream_zone=supersonic_downstream_zone,
       message='terminal shock does not start at the reflected outgoing trace',
     )
   if abs(terminal_point[1] - float(target_centerline_y_m)) > position_tolerance_m:
@@ -751,6 +859,13 @@ def assemble_terminal_shock_cell_field(
       terminal_normal_shock=terminal,
       upstream_states=upstream_states,
       upstream_pressures=upstream_pressures,
+      terminal_shock_supersonic_downstream_continuation=(
+        supersonic_downstream_continuation
+      ),
+      terminal_shock_supersonic_downstream_first_layer=(
+        supersonic_downstream_first_layer
+      ),
+      terminal_shock_supersonic_downstream_zone=supersonic_downstream_zone,
       message='normal-shock terminal does not lie on the requested centerline',
     )
   if any(
@@ -767,6 +882,13 @@ def assemble_terminal_shock_cell_field(
       terminal_normal_shock=terminal,
       upstream_states=upstream_states,
       upstream_pressures=upstream_pressures,
+      terminal_shock_supersonic_downstream_continuation=(
+        supersonic_downstream_continuation
+      ),
+      terminal_shock_supersonic_downstream_first_layer=(
+        supersonic_downstream_first_layer
+      ),
+      terminal_shock_supersonic_downstream_zone=supersonic_downstream_zone,
       message='terminal shock path is not strictly downstream and centerline-bounded',
     )
   if reflection_patch.axis_points_m and (
@@ -944,6 +1066,13 @@ def assemble_terminal_shock_cell_field(
     terminal_shock_boundary_edge_count=terminal_shock_edge_count,
     terminal_shock_boundary_coverage_verified=terminal_shock_coverage_verified,
     terminal_shock_boundary_maximum_geometry_residual_m=terminal_shock_geometry_residual,
+    terminal_shock_supersonic_downstream_continuation=(
+      supersonic_downstream_continuation
+    ),
+    terminal_shock_supersonic_downstream_first_layer=(
+      supersonic_downstream_first_layer
+    ),
+    terminal_shock_supersonic_downstream_zone=supersonic_downstream_zone,
     message=(
       'shock/ambient strip and reflected characteristic patch were clipped '
       'to a closed supersonic region at the verified normal shock; subsonic '

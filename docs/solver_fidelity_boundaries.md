@@ -80,7 +80,13 @@ is present and the terminal upstream state/pressure sample is carried with it.
 The oblique portion of that edge also carries independently fitted downstream
 supersonic states; the centerline normal-shock endpoint remains scalar because
 the subsonic state is outside the ``CharacteristicState`` contract. This is a
-mixed-regime handoff seam only, not a closed downstream field.
+mixed-regime handoff seam only, not a closed downstream field. The oblique
+states now also feed an explicitly open downstream C− continuation, first
+cross-layer, and compatible zone; the canonical 17-sample case reaches the
+centerline with 16 traces and assembles 119 open-zone cells. That evidence
+closes the supersonic patch seam only. The final shock-side endpoint remains
+the typed normal-shock interface, so mixed-regime closure and chain promotion
+remain blocked.
 It also has an explicitly labeled constant-`K+`
 simple-wave continuation: it preserves the open-strip topology and advances
 the shock probe through additional samples, but it remains an upstream

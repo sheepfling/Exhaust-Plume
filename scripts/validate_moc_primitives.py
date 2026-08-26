@@ -586,6 +586,7 @@ def _ambient_attachment_transition_probe(
       and result.terminal_field.characteristic_field_evidence_verified
       and not result.terminal_field.mixed_regime_field_complete
       and result.terminal_field.terminal_shock_boundary_coverage_verified
+      and result.terminal_field.terminal_supersonic_downstream_patch_converged
     ),
     'claim_status': (
       'staged-ambient-attachment-to-centerline-reflection-to-next-shock; '
@@ -807,6 +808,35 @@ def _terminal_composite_refinement_probe(
         if field is None
         else field.terminal_shock_supersonic_downstream_maximum_angle_residual_rad
       ),
+      'terminal_supersonic_downstream_patch_converged': (
+        None
+        if field is None
+        else field.terminal_supersonic_downstream_patch_converged
+      ),
+      'terminal_shock_supersonic_downstream_continuation_status': (
+        None
+        if field is None
+        or field.terminal_shock_supersonic_downstream_continuation is None
+        else field.terminal_shock_supersonic_downstream_continuation.status.value
+      ),
+      'terminal_shock_supersonic_downstream_first_layer_status': (
+        None
+        if field is None
+        or field.terminal_shock_supersonic_downstream_first_layer is None
+        else field.terminal_shock_supersonic_downstream_first_layer.status.value
+      ),
+      'terminal_shock_supersonic_downstream_zone_status': (
+        None
+        if field is None
+        or field.terminal_shock_supersonic_downstream_zone is None
+        else field.terminal_shock_supersonic_downstream_zone.status.value
+      ),
+      'terminal_shock_supersonic_downstream_zone_cell_count': (
+        None
+        if field is None
+        or field.terminal_shock_supersonic_downstream_zone is None
+        else field.terminal_shock_supersonic_downstream_zone.cell_count
+      ),
       'terminal_shock_boundary_edge_count': (
         None if field is None else field.terminal_shock_boundary_edge_count
       ),
@@ -854,6 +884,11 @@ def _terminal_composite_refinement_case_failed(case: dict[str, Any]) -> bool:
     or case.get('terminal_shock_boundary_sample_count') != sample_count
     or case.get('terminal_shock_upstream_sample_count') != sample_count
     or case.get('terminal_shock_supersonic_downstream_sample_count') != sample_count - 1
+    or case.get('terminal_supersonic_downstream_patch_converged') is not True
+    or case.get('terminal_shock_supersonic_downstream_continuation_status') != 'converged_open_boundary'
+    or case.get('terminal_shock_supersonic_downstream_first_layer_status') != 'converged_first_downstream_layer'
+    or case.get('terminal_shock_supersonic_downstream_zone_status') != 'converged_open'
+    or not isinstance(case.get('terminal_shock_supersonic_downstream_zone_cell_count'), int)
     or not isinstance(downstream_residual, (int, float))
     or downstream_residual > 1.0e-2
     or not case.get('terminal_shock_boundary_edge_count')
@@ -2690,7 +2725,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
     'next_gates': [
       'extend the reflected MOC upstream state/pressure field beyond the terminal source window without crossing a characteristic caustic',
       'replace the provisional constant-invariant boundary with a physically validated downstream closure and a straddling canonical bracket',
-      'assemble and validate the downstream characteristic patch between the terminal C+ trace and the local compression candidate before chain promotion',
+      'complete and independently validate the mixed-regime downstream closure after the open oblique supersonic patch and before chain promotion',
       'production next-cell shock fitting that consumes the typed state/total-pressure handoff without a geometric template',
       'grid/refinement convergence for the assembled reflected zone and mild attached-overexpanded cases',
       'external measurement-operator comparison using the independent MOC extraction before provider integration',

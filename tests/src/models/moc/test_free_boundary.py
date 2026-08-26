@@ -333,6 +333,15 @@ def test_ambient_attachment_transition_carries_a_next_shock_handoff_to_terminal(
   )
   assert result.terminal_field.terminal_shock_supersonic_downstream_maximum_angle_residual_rad is not None
   assert result.terminal_field.terminal_shock_supersonic_downstream_maximum_angle_residual_rad <= 1.0e-2
+  assert result.terminal_field.terminal_supersonic_downstream_patch_converged
+  assert result.terminal_field.terminal_shock_supersonic_downstream_continuation is not None
+  assert result.terminal_field.terminal_shock_supersonic_downstream_continuation.status.value == 'converged_open_boundary'
+  assert result.terminal_field.terminal_shock_supersonic_downstream_first_layer is not None
+  assert result.terminal_field.terminal_shock_supersonic_downstream_first_layer.converged
+  assert result.terminal_field.terminal_shock_supersonic_downstream_zone is not None
+  assert result.terminal_field.terminal_shock_supersonic_downstream_zone.converged
+  assert result.terminal_field.terminal_shock_supersonic_downstream_zone.physical_closure_status == 'open'
+  assert result.terminal_field.terminal_shock_supersonic_downstream_zone.cell_count == 119
   assert result.terminal_field.terminal_shock_boundary_edge_count > 0
   assert result.terminal_field.terminal_shock_boundary_coverage_verified
   assert result.terminal_field.terminal_shock_boundary_maximum_geometry_residual_m is not None

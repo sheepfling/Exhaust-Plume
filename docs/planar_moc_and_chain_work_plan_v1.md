@@ -199,6 +199,14 @@ not wait on this research closure.
   subsonic normal-shock endpoint remains a scalar terminal result rather than
   being forced into ``CharacteristicState``; this is a boundary handoff for a
   future mixed-regime solve, not a completed downstream field.
+- Added an explicit open downstream supersonic patch at that handoff. Each
+  oblique post-shock state is continued on a compatible ``C-`` trace to the
+  centerline, then the first ``C+``/``C-`` cross-layer and its 119-cell open
+  zone are assembled for the canonical 17-sample terminal. The final
+  shock-side sample remains above the axis at the typed normal-shock
+  interface; this proves a usable downstream patch seam without fabricating a
+  subsonic characteristic state, and it remains outside mixed-regime closure
+  and chain promotion.
 - Added an independent MOC shock-cell measurement operator. It extracts
   shock/centerline boundaries, axial extent, boundary lengths, radius, mesh
   area, perimeter-area closure, and optional shock total-pressure loss only
@@ -287,7 +295,11 @@ not wait on this research closure.
    topologically bounded open lattice is not sufficient. The shock-seeded
    boundary-conditioned assembler now passes this local gate on both a varied
    prescribed fixture and the solver-generated uniform reference; reflected
-   upstream-field coupling and external acceptance gates remain open.
+   upstream-field coupling and external acceptance gates remain open. The
+   solver-generated terminal also now assembles the oblique downstream
+   supersonic patch through its first cross-layer, but that patch ends at the
+   typed normal-shock interface and does not satisfy the mixed-regime closure
+   gate.
 
 ### MOC-3 — Re-solved continued cells
 

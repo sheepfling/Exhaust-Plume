@@ -33,6 +33,7 @@ from exhaust_plume.models.moc import (
   assemble_post_shock_characteristic_field,
   assemble_post_shock_first_layer,
   continue_post_shock_characteristics_to_centerline,
+  continue_post_shock_characteristics_to_centerline_open,
   continue_post_shock_characteristic_chain,
   fit_attached_shock_boundary,
   solve_attached_compression_to_turn,
@@ -175,6 +176,37 @@ def test_prescribed_post_shock_c_minus_traces_reach_centerline() -> None:
   assert result.segments[-1].centerline_point_m == pytest.approx((0.82, 0.0))
   assert all(segment.centerline_state.theta_rad == pytest.approx(0.0) for segment in result.segments)
   assert 'shock fitting' in result.message
+
+
+def test_open_post_shock_c_minus_traces_keep_a_terminal_shock_interface() -> None:
+  samples = list(_prescribed_boundary())
+  samples[-1] = MocPostShockBoundaryState(
+    point_m=(0.82, 0.02),
+    state=CharacteristicState(
+      x_m=0.82,
+      y_m=0.02,
+      theta_rad=-0.05,
+      mach=2.0,
+      gamma=1.4,
+    ),
+    upstream_total_pressure_Pa=2.0e6,
+    downstream_total_pressure_Pa=1.8e6,
+  )
+
+  result = continue_post_shock_characteristics_to_centerline_open(tuple(samples))
+
+  assert result.status is MocPostShockContinuationStatus.CONVERGED_OPEN_BOUNDARY
+  assert result.converged
+  assert result.segments[-1].shock_point_m == pytest.approx((0.82, 0.02))
+  assert result.segments[-1].centerline_point_m[1] == pytest.approx(0.0)
+  assert result.segments[-1].centerline_state.theta_rad == pytest.approx(0.0)
+  assert 'separate terminal model' in result.message
+
+  first_layer = assemble_post_shock_first_layer(result)
+  zone = assemble_post_shock_characteristic_zone(result, first_layer, tuple(samples))
+  assert first_layer.converged
+  assert zone.status is MocPostShockZoneStatus.CONVERGED_OPEN
+  assert zone.physical_closure_status == 'open'
 
 
 def test_sampled_attached_shock_fit_produces_pressure_losing_boundary_states() -> None:
