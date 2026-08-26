@@ -240,6 +240,10 @@ not wait on this research closure.
   trace as typed continuation state. Its closed supersonic topology and
   independent geometry measurement are evidence only; physical closure and
   chain promotion remain hard-false.
+- The first-cell composite now also exposes a typed ``OPEN_PHYSICAL_CLOSURE``
+  chain decision. This lets the planner stop at the explicit unresolved
+  boundary without promoting the topology or reporting a generic numerical
+  failure.
 - Added a physical mixed-regime termination adapter for that probe. Once all
   upstream samples and the normal-shock terminal are verified, it returns an
   explicit `MocChainTerminationDecision` with `physical_termination=true`.

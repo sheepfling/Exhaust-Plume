@@ -150,6 +150,9 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   explicit shock/ambient/centerline/outgoing-``C-`` perimeter paths, and
   exposes an independently measurable closed supersonic topology while
   keeping physical closure and chain promotion blocked;
+- a typed ``OPEN_PHYSICAL_CLOSURE`` chain decision from that composite, so a
+  planner can stop at the unresolved downstream boundary without treating it
+  as a physical endpoint or an unstructured solver error;
 - a physical mixed-regime termination adapter for the terminal-patch probe.
   After complete upstream coverage and a converged normal-shock terminal, it
   returns an explicit physical chain-stop decision while keeping the
@@ -347,6 +350,10 @@ physical chain-stop decision for that mixed-regime terminal. This decision
 does not set ``physical_closure_verified`` and cannot promote a cell; it only
 prevents the chain from misreporting a verified normal shock as a numerical
 truncation.
+The composite itself exposes the analogous open-closure decision before a
+terminal shock is fitted. Its decision preserves the continuation trace and
+reports the missing reflected-field/downstream-closure gates without inventing
+an endpoint.
 The continued-cell free-boundary adapter now exposes the same distinction to
 the generic chain: a resolved next field is appended, while a verified
 normal-shock terminal returns a physical stop without appending a subsonic

@@ -26,7 +26,11 @@ from exhaust_plume.models.moc.terminal_patch import (
   MocTerminalReflectionPatchResult,
   MocTerminalReflectionPatchStatus,
 )
-from exhaust_plume.models.moc.chain import MocChainBoundarySample
+from exhaust_plume.models.moc.chain import (
+  MocChainBoundarySample,
+  MocChainTerminationDecision,
+  MocChainTerminationReason,
+)
 from exhaust_plume.models.moc.primitives import CharacteristicState
 from exhaust_plume.models.moc.topology import MocTopologyResult, validate_moc_mesh
 from exhaust_plume.models.moc.zone import MocCharacteristicCell, MocCharacteristicNode
@@ -127,6 +131,35 @@ class MocFirstCellCompositeResult:
     return True
   ####
 
+  def as_chain_termination_decision(self) -> MocChainTerminationDecision:
+    """Expose the unresolved first-cell boundary as a typed open stop."""
+
+    if not self.topology_closed:
+      raise ValueError(
+        'a first-cell chain decision requires a converged closed composite'
+      )
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
+      message=(
+        'first-cell supersonic topology converged, but reflected upstream '
+        'coupling and downstream physical closure remain pending'
+      ),
+      diagnostics={
+        'termination_model': 'first-cell-open-physical-closure',
+        'topology_closed': self.topology_closed,
+        'physical_boundary_conditions_verified': (
+          self.physical_boundary_conditions_verified
+        ),
+        'shared_terminal_seam_verified': self.shared_terminal_seam_verified,
+        'continuation_boundary_kind': 'terminal-characteristic-trace',
+        'continuation_boundary_sample_count': len(
+          self.continuation_boundary_points_m
+        ),
+      },
+    )
+  ####
+
   @property
   def upstream_shock_coupling_verified(self) -> bool:
     """Whether the fitted shock retained a complete upstream state/pressure edge."""
@@ -183,6 +216,11 @@ class MocFirstCellCompositeResult:
       'physical_boundary_conditions_verified': self.physical_boundary_conditions_verified,
       'physical_closure_verified': self.physical_closure_verified,
       'chain_promotion_blocked': self.chain_promotion_blocked,
+      'chain_termination_decision': (
+        None
+        if not self.topology_closed
+        else self.as_chain_termination_decision().as_report()
+      ),
       'upstream_shock_coupling_verified': self.upstream_shock_coupling_verified,
       'shared_terminal_seam_verified': self.shared_terminal_seam_verified,
       'node_count': self.node_count,

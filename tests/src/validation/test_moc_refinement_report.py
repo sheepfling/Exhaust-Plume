@@ -266,6 +266,12 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert terminal_patch_chain_probe['planner']['planning_only'] is True
   assert terminal_patch_chain_probe['planner']['production_claim_allowed'] is False
   assert terminal_patch_chain_probe['planner']['step_count'] == 1
+  first_cell = ambient_strip['first_cell_composite']
+  assert first_cell['chain_termination_decision']['physical_termination'] is False
+  assert first_cell['chain_termination_decision']['reason'] == 'open-physical-closure'
+  assert first_cell['chain_termination_decision']['diagnostics']['termination_model'] == (
+    'first-cell-open-physical-closure'
+  )
   terminal_patch_refinement = report['geometry_cases']['terminal_reflection_patch_refinement']
   assert terminal_patch_refinement['status'] == (
     'diagnostic-terminal-patch-resolutions-reach-mixed-regime-gate'

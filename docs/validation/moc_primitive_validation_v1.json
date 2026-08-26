@@ -2708,6 +2708,19 @@
         "physical_boundary_conditions_verified": true,
         "physical_closure_verified": false,
         "chain_promotion_blocked": true,
+        "chain_termination_decision": {
+          "physical_termination": false,
+          "reason": "open-physical-closure",
+          "message": "first-cell supersonic topology converged, but reflected upstream coupling and downstream physical closure remain pending",
+          "diagnostics": {
+            "termination_model": "first-cell-open-physical-closure",
+            "topology_closed": true,
+            "physical_boundary_conditions_verified": true,
+            "shared_terminal_seam_verified": true,
+            "continuation_boundary_kind": "terminal-characteristic-trace",
+            "continuation_boundary_sample_count": 18
+          }
+        },
         "upstream_shock_coupling_verified": true,
         "shared_terminal_seam_verified": true,
         "node_count": 307,
@@ -2874,6 +2887,19 @@
       "physical_boundary_conditions_verified": true,
       "physical_closure_verified": false,
       "chain_promotion_blocked": true,
+      "chain_termination_decision": {
+        "physical_termination": false,
+        "reason": "open-physical-closure",
+        "message": "first-cell supersonic topology converged, but reflected upstream coupling and downstream physical closure remain pending",
+        "diagnostics": {
+          "termination_model": "first-cell-open-physical-closure",
+          "topology_closed": true,
+          "physical_boundary_conditions_verified": true,
+          "shared_terminal_seam_verified": true,
+          "continuation_boundary_kind": "terminal-characteristic-trace",
+          "continuation_boundary_sample_count": 18
+        }
+      },
       "upstream_shock_coupling_verified": true,
       "shared_terminal_seam_verified": true,
       "node_count": 307,

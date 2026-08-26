@@ -124,6 +124,9 @@ without appending a synthetic cell. The first-cell composite now joins the
 strip and reflection patch into a measurable closed supersonic topology with
 explicit shock/ambient/centerline/outgoing-trace edges, while retaining the
 non-production closure and promotion gates.
+The composite also emits a typed `OPEN_PHYSICAL_CLOSURE` chain decision, so
+the planner can stop at that unresolved boundary without treating it as a
+physical endpoint or silently dropping the handoff.
 The terminal-reflection-patch handoff is also auditable through the generic
 planner as a one-step upstream-coupled research run; it records the exact
 boundary before invoking the solver and cannot reuse the finite patch domain

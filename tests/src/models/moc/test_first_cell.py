@@ -84,6 +84,12 @@ def test_first_cell_composite_closes_physical_boundary_and_retains_downstream_tr
   assert result.continuation_boundary == patch.outgoing_trace_samples
   assert result.physical_closure_verified is False
   assert result.chain_promotion_blocked is True
+  decision = result.as_chain_termination_decision()
+  assert decision.physical_termination is False
+  assert decision.reason.value == 'open-physical-closure'
+  assert decision.diagnostics['termination_model'] == (
+    'first-cell-open-physical-closure'
+  )
   measurement = measure_moc_shock_cell(
     MocShockCellObservation(
       cell_index=1,
