@@ -111,6 +111,20 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert mixed_regime_boundary['scalar_perimeter_contract_fixture']['converged'] is True
   assert mixed_regime_boundary['scalar_perimeter_contract_fixture']['physical_closure_verified'] is False
   assert mixed_regime_boundary['scalar_perimeter_contract_fixture']['mixed_regime_field_complete'] is False
+  elliptic_field = mixed_regime_boundary['elliptic_subsonic_field_contract_fixture']
+  assert elliptic_field['status'] == 'converged_elliptic_subsonic_field'
+  assert elliptic_field['physical_closure_verified'] is True
+  assert elliptic_field['mixed_regime_field_complete'] is True
+  assert elliptic_field['topology_forms_closed_zone'] is True
+  assert elliptic_field['topology_nonmanifold_edge_count'] == 0
+  assert elliptic_field['maximum_thermodynamic_residual'] <= 1.0e-8
+  assert elliptic_field['maximum_harmonic_residual'] <= 1.0e-12
+  assert elliptic_field['maximum_velocity_divergence_residual'] <= 1.0e-12
+  terminal_attachment = mixed_regime_boundary['terminal_attachment_contract_fixture']
+  assert terminal_attachment['physical_closure_verified'] is True
+  assert terminal_attachment['mixed_regime_field_complete'] is True
+  assert terminal_attachment['physical_termination_verified'] is True
+  assert terminal_attachment['chain_promotion_blocked'] is True
   assert ambient_closure['status'] == 'ambient_boundary_failure'
   assert ambient_closure['physical_closure_verified'] is False
   assert ambient_closure['upstream_coupling_verified'] is False

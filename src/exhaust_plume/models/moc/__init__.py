@@ -42,7 +42,10 @@ from exhaust_plume.models.moc.compression import (
 from exhaust_plume.models.moc.mixed_regime import (
   MocMixedRegimeBoundaryResult,
   MocMixedRegimeBoundaryStatus,
+  MocMixedRegimeFieldResult,
   MocMixedRegimeFieldSample,
+  MocMixedRegimeFieldStatus,
+  solve_mixed_regime_subsonic_field,
   validate_mixed_regime_boundary,
 )
 from exhaust_plume.models.moc.boundary import (
@@ -230,6 +233,8 @@ __all__ = (
   'MocMixedRegimeBoundaryResult',
   'MocMixedRegimeBoundaryStatus',
   'MocMixedRegimeFieldSample',
+  'MocMixedRegimeFieldResult',
+  'MocMixedRegimeFieldStatus',
   'MocShockToCenterlineResult',
   'MocTurnCompressionResult',
   'MocFreeBoundaryResult',
@@ -341,6 +346,7 @@ __all__ = (
   'solve_overexpanded_lip_shock',
   'solve_normal_shock_terminal',
   'validate_mixed_regime_boundary',
+  'solve_mixed_regime_subsonic_field',
   'solve_ambient_pressure_free_boundary',
   'solve_ambient_pressure_free_boundary_point',
   'solve_reflected_free_boundary',

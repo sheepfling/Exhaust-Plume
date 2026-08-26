@@ -1,9 +1,11 @@
 from exhaust_plume.models.moc import (
   CharacteristicState,
   MocMixedRegimeBoundaryStatus,
+  MocMixedRegimeFieldStatus,
   MocMixedRegimeFieldSample,
   MocPostShockBoundaryState,
   solve_normal_shock_terminal,
+  solve_mixed_regime_subsonic_field,
   validate_mixed_regime_boundary,
 )
 
@@ -93,6 +95,29 @@ def test_scalar_mixed_regime_boundary_handoff_is_valid_but_not_field_closure() -
   assert result.mixed_regime_field_complete is False
   assert result.physical_closure_verified is False
   assert result.chain_promotion_blocked
+
+
+def test_elliptic_subsonic_reference_field_closes_only_its_declared_mesh_model() -> None:
+  terminal = _terminal()
+  boundary = validate_mixed_regime_boundary(
+    terminal,
+    _supersonic_patch(),
+    supersonic_patch_converged=True,
+    subsonic_samples=_samples(terminal),
+  )
+
+  field = solve_mixed_regime_subsonic_field(boundary)
+
+  assert field.status is MocMixedRegimeFieldStatus.CONVERGED_ELLIPTIC_FIELD
+  assert field.converged
+  assert field.node_count == 5
+  assert field.cell_count == 4
+  assert field.topology.forms_closed_zone
+  assert field.topology.nonmanifold_edge_count == 0
+  assert field.physical_closure_verified
+  assert field.mixed_regime_field_complete
+  assert field.chain_promotion_blocked
+  assert field.model == 'elliptic-isentropic-subsonic-reference'
 
 
 def test_mixed_regime_boundary_rejects_missing_scalar_field() -> None:

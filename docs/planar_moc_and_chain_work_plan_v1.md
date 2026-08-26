@@ -215,6 +215,16 @@ not wait on this research closure.
   field rejection and a clearly labeled scalar-perimeter contract fixture;
   both retain ``physical_closure_verified=false`` and block chain promotion
   until a real subsonic field/mesh solver replaces the fixture.
+- Added a separate solver-backed elliptic subsonic reference field. It accepts
+  only a closed scalar perimeter, builds an explicit triangular mesh around an
+  interior control point, checks connected topology, isentropic total-pressure
+  consistency, harmonic extension, and per-cell velocity-divergence residuals,
+  and can attach to a terminal composite as a typed physical termination
+  fixture. Its model lineage is
+  ``elliptic-isentropic-subsonic-reference``: it is not a supersonic MOC field,
+  does not promote a chain cell, and the positive validation case remains a
+  synthetic contract fixture until the canonical plume supplies a real
+  subsonic perimeter.
 - Added an independent MOC shock-cell measurement operator. It extracts
   shock/centerline boundaries, axial extent, boundary lengths, radius, mesh
   area, perimeter-area closure, and optional shock total-pressure loss only
@@ -564,9 +574,10 @@ Only after MOC-1 through MOC-5 pass:
   terminal diagnostic, and can return a physical chain-stop decision after
   full upstream coverage. That is an explicit supersonic-MOC validity
   boundary, not a reason to force a bracket or relabel the endpoint as a
-  converged supersonic cell. The new scalar mixed-regime handoff validates the
-  seam and perimeter bookkeeping, but a solved subsonic field/mesh is still
-  required for that case.
+  converged supersonic cell. The new scalar mixed-regime handoff and separate
+  elliptic reference field validate the seam, mesh, and residual bookkeeping,
+  but the canonical case still lacks a physically solved subsonic perimeter;
+  the fixture attachment therefore cannot be used as canonical closure.
 - The invariant-conditioned shock shoot currently records a canonical
   no-bracket result; a selected constant downstream invariant is not yet an
   accepted physical free-boundary condition. No production solver yet supplies

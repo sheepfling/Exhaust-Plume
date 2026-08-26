@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from math import hypot, isfinite
+from math import cos, hypot, isfinite, sin
 from typing import Sequence
 
 from exhaust_plume.models.moc.compression import (
@@ -26,12 +26,17 @@ from exhaust_plume.models.moc.compression import (
   MocSubsonicShockBoundaryResult,
 )
 from exhaust_plume.models.moc.post_shock import MocPostShockBoundaryState
+from exhaust_plume.models.moc.topology import MocTopologyResult, validate_moc_mesh
+from exhaust_plume.models.moc.zone import MocCharacteristicCell
 
 __all__ = (
   'MocMixedRegimeBoundaryStatus',
   'MocMixedRegimeFieldSample',
   'MocMixedRegimeBoundaryResult',
+  'MocMixedRegimeFieldStatus',
+  'MocMixedRegimeFieldResult',
   'validate_mixed_regime_boundary',
+  'solve_mixed_regime_subsonic_field',
 )
 
 
@@ -45,6 +50,18 @@ class MocMixedRegimeBoundaryStatus(str, Enum):
   SUBSONIC_FIELD_FAILURE = 'subsonic_field_failure'
   GEOMETRY_FAILURE = 'mixed_regime_geometry_failure'
   PRESSURE_FAILURE = 'mixed_regime_pressure_failure'
+
+
+class MocMixedRegimeFieldStatus(str, Enum):
+  """Outcome for the separate elliptic subsonic field solver."""
+
+  CONVERGED_ELLIPTIC_FIELD = 'converged_elliptic_subsonic_field'
+  INVALID_INPUT = 'invalid_input'
+  BOUNDARY_FAILURE = 'mixed_regime_boundary_failure'
+  GEOMETRY_FAILURE = 'mixed_regime_mesh_geometry_failure'
+  TOPOLOGY_FAILURE = 'mixed_regime_mesh_topology_failure'
+  THERMODYNAMIC_FAILURE = 'mixed_regime_thermodynamic_failure'
+  RESIDUAL_FAILURE = 'mixed_regime_elliptic_residual_failure'
 
 
 @dataclass(frozen=True, slots=True)
@@ -167,6 +184,400 @@ class MocMixedRegimeBoundaryResult:
       'terminal': terminal_report,
       'message': self.message,
     }
+
+
+@dataclass(frozen=True, slots=True)
+class MocMixedRegimeFieldResult:
+  """A mesh-backed elliptic continuation of a scalar subsonic perimeter.
+
+  The solver uses a conservative first reference model for the subsonic side:
+  primitive scalar fields are harmonically extended to one interior control
+  point and the dimensionless velocity field is checked for a zero discrete
+  divergence on every triangular control volume.  This is intentionally a
+  separate elliptic lane, not a supersonic MOC field; its model name and
+  residuals remain in every report.
+
+  ``physical_closure_verified`` means that this explicitly declared
+  elliptic/isentrope model closed its supplied boundary and passed its local
+  conservation and thermodynamic gates.  It is not external validation of the
+  plume or permission to expose a public product provider.
+  """
+
+  status: MocMixedRegimeFieldStatus
+  boundary: MocMixedRegimeBoundaryResult
+  nodes: tuple[MocMixedRegimeFieldSample, ...]
+  cells: tuple[MocCharacteristicCell, ...]
+  topology: MocTopologyResult
+  interior_point_m: tuple[float, float] | None
+  maximum_thermodynamic_residual: float | None
+  maximum_harmonic_residual: float | None
+  maximum_velocity_divergence_residual: float | None
+  minimum_mach: float | None
+  maximum_mach: float | None
+  model: str = 'elliptic-isentropic-subsonic-reference'
+  message: str = ''
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocMixedRegimeFieldStatus.CONVERGED_ELLIPTIC_FIELD
+
+  @property
+  def node_count(self) -> int:
+    return len(self.nodes)
+
+  @property
+  def cell_count(self) -> int:
+    return len(self.cells)
+
+  @property
+  def mixed_regime_field_complete(self) -> bool:
+    return self.converged and self.physical_closure_verified
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    return bool(
+      self.converged
+      and self.boundary.converged
+      and self.topology.connected
+      and self.topology.forms_closed_zone
+      and not self.topology.nonmanifold_edge_count
+      and self.maximum_thermodynamic_residual is not None
+      and self.maximum_harmonic_residual is not None
+      and self.maximum_velocity_divergence_residual is not None
+      and self.maximum_thermodynamic_residual <= 1.0e-8
+      and self.maximum_harmonic_residual <= 1.0e-12
+      and self.maximum_velocity_divergence_residual <= 1.0e-12
+    )
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    """A terminal subsonic field is a closure/stop, not a supersonic handoff."""
+
+    return True
+
+  def as_report(self) -> dict[str, object]:
+    return {
+      'status': self.status.value,
+      'converged': self.converged,
+      'physical_closure_verified': self.physical_closure_verified,
+      'mixed_regime_field_complete': self.mixed_regime_field_complete,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'model': self.model,
+      'node_count': self.node_count,
+      'cell_count': self.cell_count,
+      'topology_status': self.topology.status.value,
+      'topology_connected': self.topology.connected,
+      'topology_forms_closed_zone': self.topology.forms_closed_zone,
+      'topology_nonmanifold_edge_count': self.topology.nonmanifold_edge_count,
+      'interior_point_m': self.interior_point_m,
+      'maximum_thermodynamic_residual': self.maximum_thermodynamic_residual,
+      'maximum_harmonic_residual': self.maximum_harmonic_residual,
+      'maximum_velocity_divergence_residual': self.maximum_velocity_divergence_residual,
+      'minimum_mach': self.minimum_mach,
+      'maximum_mach': self.maximum_mach,
+      'boundary': self.boundary.as_report(),
+      'message': self.message,
+    }
+
+
+def _empty_mixed_regime_topology() -> MocTopologyResult:
+  return validate_moc_mesh(())
+
+
+def _field_failure(
+  status: MocMixedRegimeFieldStatus,
+  boundary: MocMixedRegimeBoundaryResult,
+  *,
+  nodes: Sequence[MocMixedRegimeFieldSample] = (),
+  cells: Sequence[MocCharacteristicCell] = (),
+  topology: MocTopologyResult | None = None,
+  interior_point_m: tuple[float, float] | None = None,
+  maximum_thermodynamic_residual: float | None = None,
+  maximum_harmonic_residual: float | None = None,
+  maximum_velocity_divergence_residual: float | None = None,
+  message: str,
+) -> MocMixedRegimeFieldResult:
+  return MocMixedRegimeFieldResult(
+    status=status,
+    boundary=boundary,
+    nodes=tuple(nodes),
+    cells=tuple(cells),
+    topology=_empty_mixed_regime_topology() if topology is None else topology,
+    interior_point_m=interior_point_m,
+    maximum_thermodynamic_residual=maximum_thermodynamic_residual,
+    maximum_harmonic_residual=maximum_harmonic_residual,
+    maximum_velocity_divergence_residual=maximum_velocity_divergence_residual,
+    minimum_mach=min((sample.mach for sample in nodes), default=None),
+    maximum_mach=max((sample.mach for sample in nodes), default=None),
+    message=message,
+  )
+
+
+def _isentropic_total_pressure(sample: MocMixedRegimeFieldSample) -> float:
+  factor = 1.0 + 0.5 * (sample.gamma - 1.0) * sample.mach * sample.mach
+  return sample.static_pressure_Pa * factor ** (sample.gamma / (sample.gamma - 1.0))
+
+
+def _polygon_signed_area(points: Sequence[tuple[float, float]]) -> float:
+  return 0.5 * sum(
+    first[0] * second[1] - second[0] * first[1]
+    for first, second in zip(points, (*points[1:], points[0]), strict=True)
+  )
+
+
+def _convex_polygon(points: Sequence[tuple[float, float]], tolerance_m: float) -> bool:
+  signs: list[float] = []
+  for first, second, third in zip(
+    points,
+    (*points[1:], points[0]),
+    (*points[2:], points[0], points[1]),
+    strict=True,
+  ):
+    cross = (
+      (second[0] - first[0]) * (third[1] - second[1])
+      - (second[1] - first[1]) * (third[0] - second[0])
+    )
+    if abs(cross) > tolerance_m * tolerance_m:
+      signs.append(cross)
+  return bool(signs) and all(value > 0.0 for value in signs) or bool(signs) and all(
+    value < 0.0 for value in signs
+  )
+
+
+def _relative_residual(actual: float, expected: float) -> float:
+  return abs(actual - expected) / max(1.0, abs(actual), abs(expected))
+
+
+def _triangle_velocity_divergence(
+  vertices: tuple[MocMixedRegimeFieldSample, MocMixedRegimeFieldSample, MocMixedRegimeFieldSample],
+) -> float:
+  first, second, third = vertices
+  x1, y1 = first.point_m
+  x2, y2 = second.point_m
+  x3, y3 = third.point_m
+  area_twice = (x2 - x1) * (y3 - y1) - (y2 - y1) * (x3 - x1)
+  if abs(area_twice) <= 1.0e-20:
+    return float('inf')
+  velocities = tuple(
+    (
+      sample.mach * cos(sample.flow_angle_rad),
+      sample.mach * sin(sample.flow_angle_rad),
+    )
+    for sample in vertices
+  )
+  dudy = (
+    (velocities[0][0] * (y2 - y3)
+     + velocities[1][0] * (y3 - y1)
+     + velocities[2][0] * (y1 - y2))
+    / area_twice
+  )
+  dvdy = (
+    (velocities[0][1] * (x3 - x2)
+     + velocities[1][1] * (x1 - x3)
+     + velocities[2][1] * (x2 - x1))
+    / area_twice
+  )
+  return abs(dudy + dvdy)
+
+
+def solve_mixed_regime_subsonic_field(
+  boundary: MocMixedRegimeBoundaryResult,
+  *,
+  position_tolerance_m: float = 1.0e-10,
+  thermodynamic_tolerance: float = 1.0e-8,
+  residual_tolerance: float = 1.0e-12,
+) -> MocMixedRegimeFieldResult:
+  """Solve the declared elliptic/isentrope subsonic reference field.
+
+  The input perimeter is the physical boundary condition.  The solver
+  creates a convex fan mesh with one interior control point and sets each
+  interior primitive to the arithmetic harmonic extension of the boundary
+  values.  It then checks the isentropic total-pressure relation and the
+  piecewise-linear dimensionless-velocity divergence on every triangle.
+
+  This intentionally does not accept an open perimeter, infer missing points,
+  or extrapolate a subsonic state from the supersonic MOC field.  The one-cell
+  fan is a separate reference model with an explicit model label; a future
+  higher-order elliptic solver can replace it behind this result contract.
+  """
+
+  if not isinstance(boundary, MocMixedRegimeBoundaryResult):
+    raise TypeError('boundary must be a MocMixedRegimeBoundaryResult')
+  for name, value in (
+    ('position_tolerance_m', position_tolerance_m),
+    ('thermodynamic_tolerance', thermodynamic_tolerance),
+    ('residual_tolerance', residual_tolerance),
+  ):
+    if not isfinite(float(value)) or value <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+  if not boundary.converged:
+    return _field_failure(
+      MocMixedRegimeFieldStatus.BOUNDARY_FAILURE,
+      boundary,
+      message=f'mixed-regime field requires a converged boundary handoff: {boundary.message}',
+    )
+  samples = boundary.subsonic_samples
+  points = boundary.perimeter_points_m
+  if len(samples) < 4 or len(points) != len(samples):
+    return _field_failure(
+      MocMixedRegimeFieldStatus.BOUNDARY_FAILURE,
+      boundary,
+      nodes=samples,
+      message='mixed-regime field requires a closed perimeter with matching scalar samples',
+    )
+  if any(
+    hypot(sample.point_m[0] - point[0], sample.point_m[1] - point[1])
+    > position_tolerance_m
+    for sample, point in zip(samples, points, strict=True)
+  ):
+    return _field_failure(
+      MocMixedRegimeFieldStatus.BOUNDARY_FAILURE,
+      boundary,
+      nodes=samples,
+      message='mixed-regime scalar sample coordinates do not match the perimeter geometry',
+    )
+  unique_samples = samples[:-1]
+  unique_points = points[:-1]
+  if len(unique_samples) < 3:
+    return _field_failure(
+      MocMixedRegimeFieldStatus.GEOMETRY_FAILURE,
+      boundary,
+      nodes=samples,
+      message='mixed-regime field requires at least three unique perimeter vertices',
+    )
+  area = _polygon_signed_area(unique_points)
+  if abs(area) <= position_tolerance_m * position_tolerance_m:
+    return _field_failure(
+      MocMixedRegimeFieldStatus.GEOMETRY_FAILURE,
+      boundary,
+      nodes=samples,
+      message='mixed-regime perimeter has zero signed area',
+    )
+  if not _convex_polygon(unique_points, position_tolerance_m):
+    return _field_failure(
+      MocMixedRegimeFieldStatus.GEOMETRY_FAILURE,
+      boundary,
+      nodes=samples,
+      message='mixed-regime reference field requires a convex perimeter fan',
+    )
+  center_point = (
+    sum(point[0] for point in unique_points) / len(unique_points),
+    sum(point[1] for point in unique_points) / len(unique_points),
+  )
+  center_sample = MocMixedRegimeFieldSample(
+    point_m=center_point,
+    mach=sum(sample.mach for sample in unique_samples) / len(unique_samples),
+    flow_angle_rad=sum(sample.flow_angle_rad for sample in unique_samples) / len(unique_samples),
+    static_pressure_Pa=sum(sample.static_pressure_Pa for sample in unique_samples) / len(unique_samples),
+    total_pressure_Pa=sum(sample.total_pressure_Pa for sample in unique_samples) / len(unique_samples),
+    gamma=sum(sample.gamma for sample in unique_samples) / len(unique_samples),
+  )
+  nodes = (*unique_samples, center_sample)
+  thermodynamic_residual = max(
+    _relative_residual(_isentropic_total_pressure(sample), sample.total_pressure_Pa)
+    for sample in nodes
+  )
+  if thermodynamic_residual > thermodynamic_tolerance:
+    return _field_failure(
+      MocMixedRegimeFieldStatus.THERMODYNAMIC_FAILURE,
+      boundary,
+      nodes=nodes,
+      interior_point_m=center_point,
+      maximum_thermodynamic_residual=thermodynamic_residual,
+      message=(
+        'mixed-regime scalar samples do not satisfy the isentropic '
+        f'total-pressure relation: residual={thermodynamic_residual}'
+      ),
+    )
+  harmonic_residual = max(
+    value
+    for value in (
+      abs(center_sample.mach - sum(sample.mach for sample in unique_samples) / len(unique_samples)),
+      abs(center_sample.flow_angle_rad - sum(sample.flow_angle_rad for sample in unique_samples) / len(unique_samples)),
+      abs(center_sample.static_pressure_Pa - sum(sample.static_pressure_Pa for sample in unique_samples) / len(unique_samples)),
+      abs(center_sample.total_pressure_Pa - sum(sample.total_pressure_Pa for sample in unique_samples) / len(unique_samples)),
+    )
+  )
+  cells: list[MocCharacteristicCell] = []
+  try:
+    for index, (first, second) in enumerate(
+      zip(unique_points, (*unique_points[1:], unique_points[0]), strict=True)
+    ):
+      cells.append(
+        MocCharacteristicCell(
+          cell_index=index,
+          cell_kind='mixed-regime-elliptic-reference',
+          vertices_xr_m=(center_point, first, second),
+          centerline_indices=(),
+          boundary_indices=(index, (index + 1) % len(unique_points)),
+        )
+      )
+  except ValueError as error:
+    return _field_failure(
+      MocMixedRegimeFieldStatus.GEOMETRY_FAILURE,
+      boundary,
+      nodes=nodes,
+      interior_point_m=center_point,
+      maximum_thermodynamic_residual=thermodynamic_residual,
+      maximum_harmonic_residual=harmonic_residual,
+      message=f'mixed-regime fan-cell geometry failed: {error}',
+    )
+  topology = validate_moc_mesh(tuple(cells))
+  if not topology.connected or not topology.forms_closed_zone or topology.nonmanifold_edge_count:
+    return _field_failure(
+      MocMixedRegimeFieldStatus.TOPOLOGY_FAILURE,
+      boundary,
+      nodes=nodes,
+      cells=cells,
+      topology=topology,
+      interior_point_m=center_point,
+      maximum_thermodynamic_residual=thermodynamic_residual,
+      maximum_harmonic_residual=harmonic_residual,
+      message=f'mixed-regime fan topology failed: {topology.message}',
+    )
+  node_by_index = {index: sample for index, sample in enumerate(unique_samples)}
+  node_by_index[len(unique_samples)] = center_sample
+  divergence_residual = max(
+    _triangle_velocity_divergence((
+      center_sample,
+      node_by_index[index],
+      node_by_index[(index + 1) % len(unique_samples)],
+    ))
+    for index in range(len(unique_samples))
+  )
+  if harmonic_residual > residual_tolerance or divergence_residual > residual_tolerance:
+    return _field_failure(
+      MocMixedRegimeFieldStatus.RESIDUAL_FAILURE,
+      boundary,
+      nodes=nodes,
+      cells=cells,
+      topology=topology,
+      interior_point_m=center_point,
+      maximum_thermodynamic_residual=thermodynamic_residual,
+      maximum_harmonic_residual=harmonic_residual,
+      maximum_velocity_divergence_residual=divergence_residual,
+      message=(
+        'mixed-regime elliptic reference residual gate failed: '
+        f'harmonic={harmonic_residual}, divergence={divergence_residual}'
+      ),
+    )
+  return MocMixedRegimeFieldResult(
+    status=MocMixedRegimeFieldStatus.CONVERGED_ELLIPTIC_FIELD,
+    boundary=boundary,
+    nodes=nodes,
+    cells=tuple(cells),
+    topology=topology,
+    interior_point_m=center_point,
+    maximum_thermodynamic_residual=thermodynamic_residual,
+    maximum_harmonic_residual=harmonic_residual,
+    maximum_velocity_divergence_residual=divergence_residual,
+    minimum_mach=min(sample.mach for sample in nodes),
+    maximum_mach=max(sample.mach for sample in nodes),
+    message=(
+      'elliptic/isentrope subsonic reference field converged on the supplied '
+      'closed perimeter; this model remains separate from the supersonic MOC lane'
+    ),
+  )
 
 
 def _failure(

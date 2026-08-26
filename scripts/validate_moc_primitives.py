@@ -56,6 +56,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_marched_attached_shock_with_ambient_attachment_closure,
   solve_marched_ambient_attachment_shock_cell_transition,
   solve_marched_attached_shock_with_constant_invariant_closure,
+  solve_mixed_regime_subsonic_field,
   solve_reflected_boundary_trace_extension,
   solve_uniform_attached_shock_field,
   assemble_post_shock_characteristic_zone,
@@ -1010,11 +1011,18 @@ def _mixed_regime_boundary_probe(
     supersonic_patch_converged=field.terminal_supersonic_downstream_patch_converged,
     subsonic_samples=contract_samples,
   )
+  contract_field = solve_mixed_regime_subsonic_field(contract_fixture)
+  terminal_attachment_fixture = (
+    None
+    if field is None or not contract_field.physical_closure_verified
+    else field.with_mixed_regime_field(contract_field).as_report()
+  )
   return {
     'status': contract_fixture.status.value,
     'accepted': (
       missing_field.status is MocMixedRegimeBoundaryStatus.SUBSONIC_FIELD_FAILURE
       and contract_fixture.converged
+      and contract_field.physical_closure_verified
       and contract_fixture.physical_closure_verified is False
       and contract_fixture.chain_promotion_blocked
     ),
@@ -1022,6 +1030,8 @@ def _mixed_regime_boundary_probe(
     'chain_promotion_blocked': contract_fixture.chain_promotion_blocked,
     'missing_scalar_field': missing_field.as_report(),
     'scalar_perimeter_contract_fixture': contract_fixture.as_report(),
+    'elliptic_subsonic_field_contract_fixture': contract_field.as_report(),
+    'terminal_attachment_contract_fixture': terminal_attachment_fixture,
     'claim_status': (
       'typed-scalar-subsonic-boundary-handoff-only; '
       'subsonic-field-mesh-and-chain-promotion-pending'

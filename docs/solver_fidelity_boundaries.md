@@ -12,7 +12,7 @@ applicability, validation evidence, and complexity ceiling.
 
 | Lane | Status | Current role | Allowed primary product | Explicit non-claims |
 | --- | --- | --- | --- | --- |
-| `planar-moc-primitives-v1` | boundary-conditioned field/chain foundation; provider pending | Standalone planar characteristic states, scalar inversions, compatibility residuals, pressure- and turn-prescribed attached compression, sampled attached-shock fit, solver-generated marched attached-shock reference field, reflected centerline-to-free-boundary march, reusable triangular source-boundary strip, assembled open characteristic zone, domain-bounded shock-path coupling probe and reflected-zone shock/chain entry point, shock-seeded closed post-shock C+/C- field, shock-sourced C+/ambient-sourced C- physical-boundary strip, ambient-perimeter validator and bounded scalar closure shoot, total-pressure handoff, state-carrying chain adapter, and independent shock-cell geometry/topology measurement operators | None yet; future MOC first-cell provider only after complete reflected-field coupling, canonical ambient-perimeter physical closure, refinement, and external validation gates | No public visual, signature, optical, detector, or FPA claim; no axisymmetric or reacting-flow claim |
+| `planar-moc-primitives-v1` | boundary-conditioned field/chain foundation; provider pending | Standalone planar characteristic states, scalar inversions, compatibility residuals, pressure- and turn-prescribed attached compression, sampled attached-shock fit, solver-generated marched attached-shock reference field, reflected centerline-to-free-boundary march, reusable triangular source-boundary strip, assembled open characteristic zone, domain-bounded shock-path coupling probe and reflected-zone shock/chain entry point, shock-seeded closed post-shock C+/C- field, shock-sourced C+/ambient-sourced C- physical-boundary strip, ambient-perimeter validator and bounded scalar closure shoot, total-pressure handoff, state-carrying chain adapter, separate elliptic-isentropic subsonic reference field, and independent shock-cell geometry/topology measurement operators | None yet; future MOC first-cell provider only after complete reflected-field coupling, canonical ambient-perimeter physical closure, refinement, and external validation gates | No public visual, signature, optical, detector, or FPA claim; no axisymmetric or reacting-flow claim; the elliptic reference is not a supersonic MOC chain cell |
 | `shock-cell-basic-v1` | active | Fast, steady, straight, low-order shock-cell construction | `plume.visual.sectioned-tube@1`; supporting spatial/engineering handoffs where explicitly advertised | No physical signature, ray transfer, detector image, mixing, chemistry, radiation, or curved/washed flow |
 | `shock-cell-reduced-order-v1` | experimental | One resolved first cell plus explicitly calibrated, scaled downstream shock-train continuation | `plume.visual.sectioned-tube@1` through `plume.shock-train-reduced-order` | No resolved downstream MOC claim, spectral signature, ray transfer, detector image, FPA, or unvalidated universal closure |
 | `signature-table-mvp-v1` | active | Independent unresolved spectral lookup | `plume.signature.spectral-radiant-intensity@1` | No solved flow, geometry reconstruction, atmosphere, optics, detector, or focal-plane array |
@@ -92,6 +92,15 @@ total-pressure lineage without creating subsonic MOC states. Its passing
 status is only ``converged_subsonic_boundary_handoff``: the result remains
 ``physical_closure_verified=false`` and cannot promote a chain cell until a
 real subsonic field/mesh solver supplies the missing field evidence.
+That missing-field lane now has a separate solver-backed reference model,
+``elliptic-isentropic-subsonic-reference``. It builds a connected mesh from a
+closed scalar perimeter and an interior control point, then requires
+thermodynamic, harmonic-extension, and velocity-divergence residual gates.
+This is a model-specific closure/termination result, not a conversion of
+subsonic states into ``CharacteristicState`` and not permission to promote a
+continued MOC cell. The passing perimeter and terminal attachment in the
+validation artifact are synthetic contract fixtures; the canonical plume still
+needs its own physical downstream perimeter.
 The terminal probe now keeps the shock branch explicit as well. The weak
 branch may reach the scalar normal-shock endpoint; a strong attached branch
 that becomes subsonic earlier is retained as a typed scalar boundary with its

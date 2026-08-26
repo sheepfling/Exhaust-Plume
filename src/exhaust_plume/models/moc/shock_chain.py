@@ -11,7 +11,7 @@ outside the resolved-cell provider contract.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from math import isfinite
 from typing import Callable, Sequence
@@ -20,6 +20,7 @@ from exhaust_plume.models.moc.ambient_shock_strip import MocAmbientShockStripRes
 from exhaust_plume.models.moc.chain import (
   MocChainBoundarySample,
   MocChainTerminationDecision,
+  MocChainTerminationReason,
 )
 from exhaust_plume.models.moc.compression import MocNormalShockTerminalResult
 from exhaust_plume.models.moc.coupled import (
@@ -28,6 +29,7 @@ from exhaust_plume.models.moc.coupled import (
   solve_marched_attached_shock_with_ambient_attachment_closure,
 )
 from exhaust_plume.models.moc.primitives import CharacteristicState
+from exhaust_plume.models.moc.mixed_regime import MocMixedRegimeFieldResult
 from exhaust_plume.models.moc.post_shock import (
   MocPostShockBoundaryState,
   MocPostShockCharacteristicZoneResult,
@@ -107,6 +109,7 @@ class MocTerminalShockCellFieldResult:
   terminal_shock_supersonic_downstream_continuation: MocPostShockContinuationResult | None = None
   terminal_shock_supersonic_downstream_first_layer: MocPostShockFirstLayerResult | None = None
   terminal_shock_supersonic_downstream_zone: MocPostShockCharacteristicZoneResult | None = None
+  mixed_regime_field: MocMixedRegimeFieldResult | None = None
 
   @property
   def converged(self) -> bool:
@@ -127,21 +130,84 @@ class MocTerminalShockCellFieldResult:
 
   @property
   def mixed_regime_field_complete(self) -> bool:
-    """The subsonic side of the terminal normal shock is not represented."""
+    """Whether a solver-backed subsonic field closes the terminal side."""
 
-    return False
+    return bool(
+      self.mixed_regime_field is not None
+      and self.mixed_regime_field.mixed_regime_field_complete
+    )
   ####
 
   @property
   def physical_closure_verified(self) -> bool:
-    """Full physical closure waits for the mixed-regime downstream field."""
+    """Whether both supersonic topology and mixed-regime field are closed."""
 
-    return False
+    return self.supersonic_region_closed and self.mixed_regime_field_complete
   ####
 
   @property
   def chain_promotion_blocked(self) -> bool:
+    """A terminal mixed-regime cell stops the supersonic chain."""
+
     return True
+
+  @property
+  def physical_termination_verified(self) -> bool:
+    """Whether this closed terminal can stop a supersonic chain physically."""
+
+    return bool(
+      self.physical_closure_verified
+      and self.terminal_normal_shock is not None
+      and self.terminal_normal_shock.converged
+    )
+
+  def with_mixed_regime_field(
+    self,
+    mixed_regime_field: MocMixedRegimeFieldResult,
+  ) -> 'MocTerminalShockCellFieldResult':
+    """Attach a converged subsonic field without creating a MOC state."""
+
+    if not isinstance(mixed_regime_field, MocMixedRegimeFieldResult):
+      raise TypeError('mixed_regime_field must be a MocMixedRegimeFieldResult')
+    if not self.supersonic_region_closed:
+      raise ValueError('a mixed-regime field requires a closed supersonic terminal region')
+    if not mixed_regime_field.physical_closure_verified:
+      raise ValueError('only a converged mixed-regime field can be attached')
+    if self.terminal_normal_shock is None:
+      raise ValueError('a mixed-regime field requires the verified normal-shock terminal')
+    if mixed_regime_field.boundary.terminal != self.terminal_normal_shock:
+      raise ValueError('mixed-regime field terminal does not match the terminal composite')
+    return replace(self, mixed_regime_field=mixed_regime_field)
+
+  def as_physical_termination_decision(self) -> MocChainTerminationDecision:
+    """Return a physical stop only after the mixed-regime field is closed."""
+
+    if not self.physical_termination_verified:
+      raise ValueError(
+        'a physical terminal decision requires a closed supersonic region and '
+        'a converged mixed-regime field'
+      )
+    terminal = self.terminal_normal_shock
+    assert terminal is not None
+    assert self.mixed_regime_field is not None
+    return MocChainTerminationDecision(
+      physical_termination=True,
+      reason=MocChainTerminationReason.PHYSICAL_TERMINATION,
+      message=(
+        'terminal supersonic MOC region and the declared elliptic subsonic '
+        'field both converged; the supersonic chain stops at the mixed-regime cell'
+      ),
+      diagnostics={
+        'termination_model': 'normal-shock-plus-elliptic-subsonic-field',
+        'shock_point_m': terminal.shock_point_m,
+        'downstream_mach': terminal.downstream_mach,
+        'downstream_pressure_Pa': terminal.downstream_pressure_Pa,
+        'total_pressure_ratio': terminal.total_pressure_ratio,
+        'mixed_regime_model': self.mixed_regime_field.model,
+        'mixed_regime_node_count': self.mixed_regime_field.node_count,
+        'mixed_regime_cell_count': self.mixed_regime_field.cell_count,
+      },
+    )
   ####
 
   @property
@@ -163,6 +229,7 @@ class MocTerminalShockCellFieldResult:
       'mixed_regime_field_complete': self.mixed_regime_field_complete,
       'physical_closure_verified': self.physical_closure_verified,
       'chain_promotion_blocked': self.chain_promotion_blocked,
+      'physical_termination_verified': self.physical_termination_verified,
       'terminal_supersonic_downstream_patch_converged': (
         self.terminal_supersonic_downstream_patch_converged
       ),
@@ -228,6 +295,11 @@ class MocTerminalShockCellFieldResult:
           'maximum_absolute_invariant_residual': self.terminal_shock_supersonic_downstream_zone.maximum_absolute_invariant_residual,
           'message': self.terminal_shock_supersonic_downstream_zone.message,
         }
+      ),
+      'mixed_regime_field': (
+        None
+        if self.mixed_regime_field is None
+        else self.mixed_regime_field.as_report()
       ),
       'source_strip_cell_count': self.source_strip_cell_count,
       'source_patch_cell_count': self.source_patch_cell_count,
