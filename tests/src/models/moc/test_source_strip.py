@@ -77,7 +77,8 @@ def test_centerline_reflection_extension_carries_a_physical_boundary_law() -> No
     assert result.remesh is not None
     assert result.remesh.status is MocSourceStripRemeshStatus.CAUSTIC_REQUIRES_NEW_FAMILY
     assert result.remesh.failed_boundary_index == 0
-    assert result.remesh.patch_cell_count == 1
+    assert result.remesh.patch_cell_count == 2
+    assert result.remesh.failed_boundary_indices == (0, 1)
     assert result.remesh.caustic_event is not None
     assert result.remesh.caustic_event.status is MocSourceStripCausticStatus.DETECTED
     assert result.remesh.caustic_event.boundary_interval == 0

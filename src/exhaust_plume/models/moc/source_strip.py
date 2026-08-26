@@ -197,6 +197,7 @@ class MocSourceStripRemeshResult:
   failed_boundary_index: int | None
   message: str = ''
   caustic_event: MocSourceStripCausticEventResult | None = None
+  failed_boundary_indices: tuple[int, ...] = ()
 
   @property
   def converged(self) -> bool:
@@ -234,6 +235,7 @@ class MocSourceStripRemeshResult:
       'caustic_event': (
         None if self.caustic_event is None else self.caustic_event.as_report()
       ),
+      'failed_boundary_indices': list(self.failed_boundary_indices),
       'message': self.message,
     }
 ####
@@ -945,6 +947,7 @@ def remesh_source_strip_frontier(
         topology=None,
         frontier=frontier,
         failed_boundary_index=boundary_index,
+        failed_boundary_indices=(boundary_index,),
         message=(
           f'frontier boundary {boundary_index} cannot be remeshed as a '
           f'forward characteristic: {point_result.message}'
@@ -960,6 +963,8 @@ def remesh_source_strip_frontier(
     )
   old_index = source_index - 1
   patch_cells: list[MocCharacteristicCell] = []
+  failed_boundary_indices: list[int] = []
+  caustic_event: MocSourceStripCausticEventResult | None = None
 
   def _failure(
     status: MocSourceStripRemeshStatus,
@@ -979,6 +984,7 @@ def remesh_source_strip_frontier(
       failed_boundary_index=failed_boundary_index,
       message=message,
       caustic_event=caustic_event,
+      failed_boundary_indices=tuple(failed_boundary_indices),
     )
 
   axis_vertices = (
@@ -1059,26 +1065,38 @@ def remesh_source_strip_frontier(
             ),
           )
         )
-      except (KeyError, ValueError) as error:
+      except (KeyError, ValueError):
+        failed_boundary_indices.append(boundary_index)
         caustic_event = _caustic_event_for_cell(
           cell_vertices,
           source_index=source_index,
           boundary_interval=boundary_index,
-          cell_kind=(
-            cell_kind
-          ),
+          cell_kind=cell_kind,
           tolerance_m=position_tolerance_m,
-        )
-        return _failure(
-          MocSourceStripRemeshStatus.CAUSTIC_REQUIRES_NEW_FAMILY,
-          (
-            f'remesh cell at boundary interval {boundary_index} could not be '
-            f'assembled without crossing a caustic: {error}'
-          ),
-          boundary_index,
-          caustic_event,
-        )
+        ) if caustic_event is None else caustic_event
+        continue
   combined_topology = validate_moc_mesh((*base_strip.cells, *patch_cells))
+  if failed_boundary_indices or frontier.has_disjoint_ranges:
+    first_failed_boundary_index = (
+      failed_boundary_indices[0]
+      if failed_boundary_indices
+      else frontier.first_invalid_index
+    )
+    return MocSourceStripRemeshResult(
+      status=MocSourceStripRemeshStatus.CAUSTIC_REQUIRES_NEW_FAMILY,
+      source_index=source_index,
+      nodes=tuple(new_nodes.values()),
+      cells=tuple(patch_cells),
+      topology=combined_topology,
+      frontier=frontier,
+      failed_boundary_index=first_failed_boundary_index,
+      caustic_event=caustic_event,
+      failed_boundary_indices=tuple(failed_boundary_indices),
+      message=(
+        'local remesh retained valid candidate cells but the frontier still '
+        'contains a caustic/new-family seam; no disconnected bridge was invented'
+      ),
+    )
   if not combined_topology.connected or combined_topology.nonmanifold_edge_count:
     return MocSourceStripRemeshResult(
       status=MocSourceStripRemeshStatus.TOPOLOGY_FAILURE,
@@ -1089,22 +1107,8 @@ def remesh_source_strip_frontier(
       frontier=frontier,
       failed_boundary_index=None,
       caustic_event=None,
+      failed_boundary_indices=(),
       message=f'remeshed source patch topology failed: {combined_topology.message}',
-    )
-  if frontier.has_disjoint_ranges:
-    return MocSourceStripRemeshResult(
-      status=MocSourceStripRemeshStatus.CAUSTIC_REQUIRES_NEW_FAMILY,
-      source_index=source_index,
-      nodes=tuple(new_nodes.values()),
-      cells=tuple(patch_cells),
-      topology=combined_topology,
-      frontier=frontier,
-      failed_boundary_index=frontier.first_invalid_index,
-      caustic_event=None,
-      message=(
-        'disjoint forward intervals remain after local remesh; a new '
-        'characteristic family or a physical termination law is required'
-      ),
     )
   return MocSourceStripRemeshResult(
     status=MocSourceStripRemeshStatus.CONVERGED_OPEN_PATCH,
@@ -1115,6 +1119,7 @@ def remesh_source_strip_frontier(
     frontier=frontier,
     failed_boundary_index=None,
     caustic_event=None,
+    failed_boundary_indices=(),
     message=(
       'local source-row remesh produced a connected open patch; full '
       'upstream and physical-boundary closure remain separate gates'

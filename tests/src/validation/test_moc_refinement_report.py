@@ -156,7 +156,10 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
     'caustic_requires_new_characteristic_family'
   )
   assert centerline_reflection_extension['remesh']['failed_boundary_index'] == 0
-  assert centerline_reflection_extension['remesh']['patch_cell_count'] == 1
+  assert centerline_reflection_extension['remesh']['patch_cell_count'] == 2
+  assert centerline_reflection_extension['remesh']['failed_boundary_indices'] == [0, 1]
+  assert centerline_reflection_extension['remesh']['connected_with_base'] is False
+  assert centerline_reflection_extension['remesh']['topology']['status'] == 'disconnected'
   assert centerline_reflection_extension['remesh']['caustic_event']['status'] == (
     'caustic_detected'
   )

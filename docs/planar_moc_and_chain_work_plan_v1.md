@@ -191,8 +191,10 @@ not wait on this research closure.
   explicitly and attempts only the valid local remesh cells; the canonical
   candidate rejects its first self-intersecting patch cell and records the
   bounded crossing point and crossing characteristic edges as a typed
-  caustic handoff. It leaves the bounded frontier as a remesh/shock-closure
-  seam, not a promotion, and does not fabricate a shock state at the event.
+  caustic handoff. It retains the separate valid local patch cell as evidence,
+  but reports the combined candidate as disconnected and leaves the bounded
+  frontier as a remesh/shock-closure seam, not a promotion; it does not
+  fabricate a shock state at the event.
 - Added axial-boundary, cell-index, domain-limit, and callback termination
   checks.
 - Added a hard fidelity boundary: scaled reduced-order candidates are

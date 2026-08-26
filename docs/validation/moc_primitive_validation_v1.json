@@ -458,14 +458,14 @@
         "converged": false,
         "source_index": 9,
         "node_count": 5,
-        "patch_cell_count": 1,
-        "connected_with_base": true,
+        "patch_cell_count": 2,
+        "connected_with_base": false,
         "topology": {
-          "status": "open",
-          "connected": true,
-          "forms_closed_zone": true,
+          "status": "disconnected",
+          "connected": false,
+          "forms_closed_zone": false,
           "boundary_component_count": 1,
-          "boundary_edge_count": 28,
+          "boundary_edge_count": 31,
           "nonmanifold_edge_count": 0
         },
         "frontier": {
@@ -555,7 +555,11 @@
           ],
           "message": "local characteristic remesh edges cross at a caustic; the crossing is retained as a handoff point and no shock state is fabricated"
         },
-        "message": "remesh cell at boundary interval 0 could not be assembled without crossing a caustic: characteristic cell polygon is invalid: self_intersection"
+        "failed_boundary_indices": [
+          0,
+          1
+        ],
+        "message": "local remesh retained valid candidate cells but the frontier still contains a caustic/new-family seam; no disconnected bridge was invented"
       },
       "message": "centerline C- reflection and ambient-pressure C+ boundary march converged as an open upstream source strip; shock fitting and downstream closure remain pending; extended strip failed: characteristic node (9, 3) failed: characteristic intersection is not forward: behind_first_ray",
       "claim_status": "centerline-C-minus-reflection-boundary-law; triangular-domain-remesh-or-shock-closure-pending"
