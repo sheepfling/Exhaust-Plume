@@ -673,7 +673,12 @@ def _validate_cell_mesh(cell: MocChainCell) -> str | None:
 ####
 
 
-def _validate_state_carry(cell: MocChainCell) -> str | None:
+def _validate_state_carry(
+  cell: MocChainCell,
+  *,
+  position_tolerance_m: float,
+  state_tolerance: float,
+) -> str | None:
   if not cell.continuation_boundary:
     return 'cell does not carry a downstream characteristic state boundary'
   if len(cell.continuation_boundary) < 3:
@@ -681,19 +686,30 @@ def _validate_state_carry(cell: MocChainCell) -> str | None:
   if cell.continuation_boundary_kind is MocChainBoundaryKind.AXIAL_SECTION:
     section_x = cell.continuation_boundary[0].state.x_m
     if any(
-        abs(sample.state.x_m - section_x) > 1.0e-10
+        abs(sample.state.x_m - section_x) > position_tolerance_m
         for sample in cell.continuation_boundary[1:]
     ):
       return 'axial-section continuation samples do not lie on one x plane'
     return None
+  if cell.continuation_boundary_kind is MocChainBoundaryKind.CENTERLINE_TRACE:
+    for index, sample in enumerate(cell.continuation_boundary):
+      if abs(sample.state.y_m) > position_tolerance_m:
+        return (
+          f'centerline trace sample {index} does not lie on the symmetry '
+          'line'
+        )
+      if abs(sample.state.theta_rad) > state_tolerance:
+        return (
+          f'centerline trace sample {index} does not satisfy theta = 0'
+        )
   previous_x: float | None = None
   for index, sample in enumerate(cell.continuation_boundary):
     x_value = sample.state.x_m
-    if previous_x is not None and x_value <= previous_x:
+    if previous_x is not None and x_value <= previous_x + position_tolerance_m:
       return f'continuation boundary sample {index} is not strictly downstream in x'
     if (
       cell.continuation_boundary_kind is MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER
-      and sample.state.y_m < -1.0e-10
+      and sample.state.y_m < -position_tolerance_m
     ):
       return f'post-shock field perimeter sample {index} lies below the symmetry line'
     previous_x = x_value
@@ -766,7 +782,11 @@ def continue_moc_cell_chain(
       ),
     )
   if policy.require_state_carry:
-    state_error = _validate_state_carry(seed)
+    state_error = _validate_state_carry(
+      seed,
+      position_tolerance_m=policy.position_tolerance_m,
+      state_tolerance=policy.state_tolerance,
+    )
     if state_error is not None:
       return _result(
         (seed,),
@@ -872,7 +892,11 @@ def continue_moc_cell_chain(
         ),
       )
     if policy.require_state_carry:
-      state_error = _validate_state_carry(candidate)
+      state_error = _validate_state_carry(
+        candidate,
+        position_tolerance_m=policy.position_tolerance_m,
+        state_tolerance=policy.state_tolerance,
+      )
       if state_error is not None:
         return _result(
           tuple(cells),

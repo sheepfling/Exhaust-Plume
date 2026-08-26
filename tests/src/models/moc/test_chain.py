@@ -66,11 +66,12 @@ def _stateful_cell(
   total_pressure_Pa: float = 1.0e6,
   boundary_kind: MocChainBoundaryKind = MocChainBoundaryKind.TERMINAL_CHARACTERISTIC_TRACE,
 ) -> MocChainCell:
+  centerline = boundary_kind is MocChainBoundaryKind.CENTERLINE_TRACE
   boundary = tuple(
     MocChainBoundarySample(
       state=CharacteristicState(
         x_m=start_x_m + offset,
-        y_m=0.1 * (2 - offset),
+        y_m=0.0 if centerline else 0.1 * (2 - offset),
         theta_rad=0.0,
         mach=2.0,
         gamma=1.4,
@@ -233,6 +234,29 @@ def test_centerline_trace_is_a_distinct_state_carry_boundary() -> None:
   assert result.status is MocChainStatus.SOLVER_TERMINATED
   assert result.resolved
   assert result.as_report()['continuation_boundary_kinds'] == ['centerline-trace']
+
+
+def test_centerline_trace_rejects_a_non_axis_state_boundary() -> None:
+  seed = _stateful_cell(
+    1,
+    0.0,
+    boundary_kind=MocChainBoundaryKind.CENTERLINE_TRACE,
+  )
+  boundary = list(seed.continuation_boundary)
+  boundary[1] = MocChainBoundarySample(
+    state=replace(boundary[1].state, y_m=0.01),
+    total_pressure_Pa=boundary[1].total_pressure_Pa,
+  )
+
+  result = continue_moc_cell_chain(
+    replace(seed, continuation_boundary=tuple(boundary)),
+    lambda _current, _index: None,
+    MocChainContinuationPolicy(require_state_carry=True),
+  )
+
+  assert result.status is MocChainStatus.STATE_BOUNDARY
+  assert result.termination_reason is MocChainTerminationReason.STATE_NOT_CARRIED
+  assert 'does not lie on the symmetry line' in result.message
 
 
 def test_chain_pressure_report_flags_a_carried_pressure_increase() -> None:

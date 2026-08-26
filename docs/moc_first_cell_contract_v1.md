@@ -175,8 +175,10 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   every carried terminal trace and flag nonincreasing pressure maxima as
   bookkeeping evidence;
 - a reusable chain-planner wrapper that records the exact incoming boundary
-  before each continuation callback. Its prescribed-boundary planner mode is
-  an executable mock with a hard ``production_claim_allowed=false`` ceiling;
+  before each continuation callback, including a deterministic fingerprint of
+  every carried state and total-pressure sample. Its prescribed-boundary
+  planner mode is an executable mock with a hard
+  ``production_claim_allowed=false`` ceiling;
 - mesh connectivity diagnostics that distinguish a topologically bounded
   polygon from an unresolved physical boundary;
 - a shared averaged-characteristic fan/reflected interface whose combined

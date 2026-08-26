@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from hashlib import sha256
 from math import isfinite
 from types import MappingProxyType
 from typing import Any
@@ -60,6 +61,7 @@ class MocChainPlannerStep:
   boundary_kind: MocChainBoundaryKind | None
   incoming_handoff_sample_count: int
   incoming_total_pressure_range_Pa: tuple[float, float] | None
+  incoming_handoff_fingerprint: str | None = None
 
   def __post_init__(self) -> None:
     if isinstance(self.current_cell_index, bool) or self.current_cell_index < 1:
@@ -110,6 +112,7 @@ class MocChainPlannerStep:
       ),
       incoming_handoff_sample_count=len(boundary),
       incoming_total_pressure_range_Pa=pressure_range,
+      incoming_handoff_fingerprint=_handoff_fingerprint(boundary),
     )
   ####
 
@@ -121,8 +124,42 @@ class MocChainPlannerStep:
       'boundary_kind': None if self.boundary_kind is None else self.boundary_kind.value,
       'incoming_handoff_sample_count': self.incoming_handoff_sample_count,
       'incoming_total_pressure_range_Pa': self.incoming_total_pressure_range_Pa,
+      'incoming_handoff_fingerprint': self.incoming_handoff_fingerprint,
     }
   ####
+
+
+def _handoff_fingerprint(
+  boundary: tuple[MocChainBoundarySample, ...],
+) -> str | None:
+  """Return a deterministic audit fingerprint for an exact typed handoff.
+
+  The digest is provenance bookkeeping, not a physical validation result.  It
+  lets a serialized planner report identify the full state/pressure boundary
+  that was presented to a callback without duplicating every sample in the
+  report.  ``float.hex`` keeps the representation deterministic across JSON
+  serialization and preserves signed zero when it is present.
+  """
+
+  if not boundary:
+    return None
+  payload = '\n'.join(
+    '|'.join(
+      (
+        state_value.hex()
+        for state_value in (
+          sample.state.x_m,
+          sample.state.y_m,
+          sample.state.theta_rad,
+          sample.state.mach,
+          sample.state.gamma,
+          sample.total_pressure_Pa,
+        )
+      )
+    )
+    for sample in boundary
+  )
+  return sha256(payload.encode('ascii')).hexdigest()
 
 
 @dataclass(frozen=True, slots=True)

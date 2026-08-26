@@ -118,6 +118,11 @@ request carrying the scalar shock seam without inferring geometry from the
 open supersonic zone. The callback-owned closure gate now rejects a missing or
 mismatched subsonic field before attachment. Both additions remain
 research-lane contracts.
+Each planner step also records a deterministic fingerprint of its complete
+state/total-pressure handoff, and the generic chain rejects a boundary called a
+`centerline-trace` unless its samples satisfy `y=0` and `theta=0`. These are
+audit and fidelity-boundary checks; they do not promote the planner mock or
+change the canonical MOC closure status.
 It remains outside the public product lanes
 until the solver-generated shock is coupled to the reflected upstream
 state/pressure field, the next-cell shock fit is solved, and disjoint

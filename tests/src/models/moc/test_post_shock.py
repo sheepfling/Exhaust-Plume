@@ -503,6 +503,8 @@ def test_post_shock_planner_records_exact_handoff_steps_without_promotion_claim(
   assert planner.production_claim_allowed is False
   assert [step.next_cell_index for step in planner.steps] == [2, 3]
   assert [step.incoming_handoff_sample_count for step in planner.steps] == [5, 6]
+  assert all(step.incoming_handoff_fingerprint for step in planner.steps)
+  assert len({step.incoming_handoff_fingerprint for step in planner.steps}) == 2
   assert all(
     step.boundary_kind is MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER
     for step in planner.steps

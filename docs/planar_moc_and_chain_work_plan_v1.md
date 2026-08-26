@@ -116,9 +116,13 @@ not wait on this research closure.
   non-physical until each continuation cell is coupled to a solved
   free-boundary shock geometry.
 - Added a reusable planner wrapper for generic and post-shock chains. It
-  records the exact boundary kind, sample count, and total-pressure range
-  before every callback, while retaining a hard non-production claim ceiling
-  for the prescribed-boundary mock.
+  records the exact boundary kind, sample count, total-pressure range, and a
+  deterministic full state/pressure handoff fingerprint before every callback,
+  while retaining a hard non-production claim ceiling for the prescribed-
+  boundary mock.
+- Tightened chain-boundary semantics so a carried `CENTERLINE_TRACE` must
+  actually lie on `y=0` with `theta=0`; a generic downstream polyline cannot be
+  relabeled as an axis handoff.
 - Added a solver-owned mixed-regime perimeter request from the terminal shock
   composite. It exposes the terminal scalar state and supersonic post-shock
   samples but supplies no inferred downstream perimeter; the open supersonic
