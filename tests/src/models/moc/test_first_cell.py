@@ -6,6 +6,7 @@ from exhaust_plume.models.moc import (
   CharacteristicState,
   MocFirstCellCompositeStatus,
   MocFirstCellTerminalClosureStatus,
+  MocTerminalBoundaryGraphStatus,
   MocChainTerminationReason,
   assemble_ambient_shock_characteristic_strip,
   assemble_first_cell_terminal_shock_field,
@@ -197,3 +198,60 @@ def test_first_cell_terminal_closure_rejects_a_changed_outgoing_handoff() -> Non
   assert result.status is MocFirstCellTerminalClosureStatus.SEAM_FAILURE
   assert not result.converged
   assert 'exact first-cell outgoing' in result.message
+
+
+def test_terminal_boundary_graph_keeps_downstream_geometry_separate_from_closure() -> None:
+  shock_fit, strip, patch = _first_cell_inputs()
+  composite = assemble_first_cell_composite(
+    shock_fit,
+    strip,
+    patch,
+    position_tolerance_m=1.0e-3,
+  )
+  result = solve_marched_first_cell_terminal_closure(
+    composite,
+    downstream_flow_angle_rad=0.0,
+    sample_count=17,
+    shock_position_tolerance_m=2.0e-4,
+  )
+  assert result.terminal_field is not None
+  field = result.terminal_field
+  terminal = field.terminal_normal_shock
+  assert terminal is not None
+  assert terminal.shock_point_m is not None
+
+  graph = field.boundary_graph()
+  assert graph.status is MocTerminalBoundaryGraphStatus.CONVERGED_UPSTREAM_GRAPH
+  assert graph.converged
+  assert graph.upstream_graph_closed
+  assert graph.maximum_upstream_join_residual_m == 0.0
+  assert graph.downstream_boundary_geometry_supplied is False
+  assert graph.downstream_boundary_geometry_verified is False
+  assert graph.physical_closure_verified is False
+  assert graph.chain_promotion_blocked
+  assert field.as_report()['terminal_boundary_graph']['upstream_graph_closed'] is True
+
+  point = terminal.shock_point_m
+  explicit_path = (
+    point,
+    (point[0] + 0.1, point[1] + 0.1),
+    (point[0] + 0.2, point[1] + 0.12),
+    point,
+  )
+  explicit = field.boundary_graph(downstream_boundary_points_m=explicit_path)
+  assert explicit.status is MocTerminalBoundaryGraphStatus.CONVERGED_EXPLICIT_DOWNSTREAM_GEOMETRY
+  assert explicit.converged
+  assert explicit.upstream_graph_closed
+  assert explicit.downstream_boundary_geometry_verified
+  assert explicit.physical_downstream_condition_supplied is False
+  assert explicit.physical_closure_verified is False
+  assert explicit.chain_promotion_blocked
+
+  malformed = field.boundary_graph(
+    downstream_boundary_points_m=(point, (point[0] + 0.1, point[1] + 0.1), point),
+  )
+  assert malformed.status is MocTerminalBoundaryGraphStatus.DOWNSTREAM_BOUNDARY_FAILURE
+  assert not malformed.converged
+  assert malformed.upstream_graph_closed
+  assert malformed.downstream_boundary_geometry_supplied
+  assert not malformed.downstream_boundary_geometry_verified

@@ -201,6 +201,9 @@ from exhaust_plume.models.moc.first_cell import (
   assemble_first_cell_composite,
 )
 from exhaust_plume.models.moc.shock_chain import (
+  MocTerminalBoundaryGraphStatus,
+  MocTerminalBoundaryGraphResult,
+  validate_terminal_boundary_graph,
   MocTerminalShockCellFieldStatus,
   MocTerminalShockCellFieldResult,
   assemble_terminal_shock_cell_field,
@@ -371,6 +374,9 @@ __all__ = (
   'MocTerminalReflectionPatchShockSolveResult',
   'MocTerminalShockCellFieldStatus',
   'MocTerminalShockCellFieldResult',
+  'MocTerminalBoundaryGraphStatus',
+  'MocTerminalBoundaryGraphResult',
+  'validate_terminal_boundary_graph',
   'assemble_terminal_shock_cell_field',
   'MocShockCellTransitionStatus',
   'MocShockCellTransitionResult',

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from enum import Enum
-from math import isfinite
+from math import hypot, isfinite
 from typing import Callable, Sequence, cast
 
 from exhaust_plume.models.moc.ambient_shock_strip import MocAmbientShockStripResult
@@ -61,6 +61,9 @@ from exhaust_plume.models.moc.zone import MocCharacteristicCell, MocCharacterist
 from exhaust_plume.util.aero.shock_validity import ShockBranch
 
 __all__ = (
+  'MocTerminalBoundaryGraphStatus',
+  'MocTerminalBoundaryGraphResult',
+  'validate_terminal_boundary_graph',
   'MocTerminalShockCellFieldStatus',
   'MocTerminalShockCellFieldResult',
   'assemble_terminal_shock_cell_field',
@@ -80,6 +83,97 @@ class MocTerminalShockCellFieldStatus(str, Enum):
   SHOCK_FAILURE = 'terminal_shock_failure'
   GEOMETRY_FAILURE = 'terminal_shock_geometry_failure'
   TOPOLOGY_FAILURE = 'terminal_shock_topology_failure'
+####
+
+
+class MocTerminalBoundaryGraphStatus(str, Enum):
+  """Outcome of auditing the terminal field's physical boundary paths."""
+
+  CONVERGED_UPSTREAM_GRAPH = 'converged_upstream_terminal_boundary_graph'
+  CONVERGED_EXPLICIT_DOWNSTREAM_GEOMETRY = (
+    'converged_explicit_downstream_terminal_boundary_geometry'
+  )
+  INVALID_INPUT = 'invalid_input'
+  UPSTREAM_GRAPH_FAILURE = 'upstream_terminal_boundary_graph_failure'
+  DOWNSTREAM_BOUNDARY_FAILURE = 'downstream_terminal_boundary_failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocTerminalBoundaryGraphResult:
+  """Audit the terminal field's paths without inventing a downstream boundary.
+
+  The terminal shock-cell field owns four upstream/supersonic paths: the
+  initial shock, ambient streamline, centerline, and terminal shock.  Those
+  paths can form a closed upstream graph while the subsonic side remains
+  open.  An optional downstream path is accepted only as geometry; it does
+  not claim a physical boundary condition or a solved mixed-regime field.
+  """
+
+  status: MocTerminalBoundaryGraphStatus
+  initial_shock_boundary_points_m: tuple[tuple[float, float], ...]
+  ambient_boundary_points_m: tuple[tuple[float, float], ...]
+  centerline_boundary_points_m: tuple[tuple[float, float], ...]
+  terminal_shock_boundary_points_m: tuple[tuple[float, float], ...]
+  downstream_boundary_points_m: tuple[tuple[float, float], ...] = ()
+  upstream_join_residuals_m: tuple[tuple[str, float], ...] = ()
+  maximum_upstream_join_residual_m: float | None = None
+  upstream_graph_closed: bool = False
+  downstream_boundary_geometry_supplied: bool = False
+  downstream_boundary_geometry_verified: bool = False
+  physical_downstream_condition_supplied: bool = False
+  message: str = ''
+
+  @property
+  def converged(self) -> bool:
+    return self.status in (
+      MocTerminalBoundaryGraphStatus.CONVERGED_UPSTREAM_GRAPH,
+      MocTerminalBoundaryGraphStatus.CONVERGED_EXPLICIT_DOWNSTREAM_GEOMETRY,
+    )
+  ####
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    """A path audit never substitutes for a solved mixed-regime field."""
+
+    return False
+  ####
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    return True
+  ####
+
+  def as_report(self) -> dict[str, object]:
+    paths = {
+      'initial_shock': self.initial_shock_boundary_points_m,
+      'ambient_streamline': self.ambient_boundary_points_m,
+      'centerline': self.centerline_boundary_points_m,
+      'terminal_shock': self.terminal_shock_boundary_points_m,
+      'downstream_boundary': self.downstream_boundary_points_m,
+    }
+    return {
+      'status': self.status.value,
+      'converged': self.converged,
+      'upstream_graph_closed': self.upstream_graph_closed,
+      'downstream_boundary_geometry_supplied': self.downstream_boundary_geometry_supplied,
+      'downstream_boundary_geometry_verified': self.downstream_boundary_geometry_verified,
+      'physical_downstream_condition_supplied': self.physical_downstream_condition_supplied,
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'path_sample_counts': {
+        name: len(points) for name, points in paths.items()
+      },
+      'path_start_m': {
+        name: points[0] if points else None for name, points in paths.items()
+      },
+      'path_end_m': {
+        name: points[-1] if points else None for name, points in paths.items()
+      },
+      'upstream_join_residuals_m': dict(self.upstream_join_residuals_m),
+      'maximum_upstream_join_residual_m': self.maximum_upstream_join_residual_m,
+      'message': self.message,
+    }
 ####
 
 
@@ -259,6 +353,21 @@ class MocTerminalShockCellFieldResult:
     )
   ####
 
+  def boundary_graph(
+    self,
+    *,
+    downstream_boundary_points_m: Sequence[tuple[float, float]] | None = None,
+    position_tolerance_m: float = 1.0e-10,
+  ) -> MocTerminalBoundaryGraphResult:
+    """Audit the terminal paths and optionally a caller-supplied downstream path."""
+
+    return validate_terminal_boundary_graph(
+      self,
+      downstream_boundary_points_m=downstream_boundary_points_m,
+      position_tolerance_m=position_tolerance_m,
+    )
+  ####
+
   def solve_mixed_regime_closure(
     self,
     solve_field: Callable[
@@ -417,6 +526,7 @@ class MocTerminalShockCellFieldResult:
         if not self.converged or self.terminal_normal_shock is None
         else self.mixed_regime_perimeter_request().as_report()
       ),
+      'terminal_boundary_graph': self.boundary_graph().as_report(),
       'node_count': self.node_count,
       'cell_count': len(self.cells),
       'topology_status': self.topology.status.value,
@@ -500,6 +610,306 @@ class MocTerminalShockCellFieldResult:
       ),
       'message': self.message,
     }
+####
+
+
+def _normalise_terminal_boundary_path(
+  points: Sequence[tuple[float, float]],
+) -> tuple[tuple[float, float], ...] | None:
+  try:
+    normalised = tuple(
+      (float(point[0]), float(point[1]))
+      for point in points
+    )
+  except (IndexError, TypeError, ValueError):
+    return None
+  if any(not all(isfinite(value) for value in point) for point in normalised):
+    return None
+  return normalised
+
+
+def _terminal_path_has_distinct_segments(
+  points: Sequence[tuple[float, float]],
+  position_tolerance_m: float,
+) -> bool:
+  return all(
+    hypot(second[0] - first[0], second[1] - first[1])
+    > position_tolerance_m
+    for first, second in zip(points[:-1], points[1:], strict=True)
+  )
+
+
+def _terminal_boundary_graph_result(
+  status: MocTerminalBoundaryGraphStatus,
+  *,
+  initial_shock: Sequence[tuple[float, float]] = (),
+  ambient: Sequence[tuple[float, float]] = (),
+  centerline: Sequence[tuple[float, float]] = (),
+  terminal_shock: Sequence[tuple[float, float]] = (),
+  downstream: Sequence[tuple[float, float]] = (),
+  join_residuals: Sequence[tuple[str, float]] = (),
+  upstream_graph_closed: bool = False,
+  downstream_supplied: bool = False,
+  downstream_verified: bool = False,
+  message: str,
+) -> MocTerminalBoundaryGraphResult:
+  residuals = tuple((str(name), float(value)) for name, value in join_residuals)
+  return MocTerminalBoundaryGraphResult(
+    status=status,
+    initial_shock_boundary_points_m=tuple(initial_shock),
+    ambient_boundary_points_m=tuple(ambient),
+    centerline_boundary_points_m=tuple(centerline),
+    terminal_shock_boundary_points_m=tuple(terminal_shock),
+    downstream_boundary_points_m=tuple(downstream),
+    upstream_join_residuals_m=residuals,
+    maximum_upstream_join_residual_m=max(
+      (value for _, value in residuals),
+      default=None,
+    ),
+    upstream_graph_closed=upstream_graph_closed,
+    downstream_boundary_geometry_supplied=downstream_supplied,
+    downstream_boundary_geometry_verified=downstream_verified,
+    message=message,
+  )
+
+
+def validate_terminal_boundary_graph(
+  field: MocTerminalShockCellFieldResult,
+  *,
+  downstream_boundary_points_m: Sequence[tuple[float, float]] | None = None,
+  position_tolerance_m: float = 1.0e-10,
+) -> MocTerminalBoundaryGraphResult:
+  """Validate the terminal graph and keep the missing downstream path explicit.
+
+  The four paths stored by the terminal supersonic field must join in the
+  order ``initial shock -> centerline -> terminal shock -> ambient``.  The
+  optional downstream path is checked only as an ordered polygonal geometry;
+  no scalar boundary condition or mixed-regime solution is inferred from it.
+  """
+
+  if not isinstance(field, MocTerminalShockCellFieldResult):
+    return _terminal_boundary_graph_result(
+      MocTerminalBoundaryGraphStatus.INVALID_INPUT,
+      downstream_supplied=downstream_boundary_points_m is not None,
+      message='field must be a MocTerminalShockCellFieldResult',
+    )
+  if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
+    raise ValueError('position_tolerance_m must be finite and positive')
+
+  raw_paths = (
+    ('initial shock', field.initial_shock_boundary_points_m),
+    ('ambient streamline', field.ambient_boundary_points_m),
+    ('centerline', field.centerline_boundary_points_m),
+    ('terminal shock', field.terminal_shock_boundary_points_m),
+  )
+  paths: list[tuple[tuple[float, float], ...]] = []
+  for name, raw_path in raw_paths:
+    path = _normalise_terminal_boundary_path(raw_path)
+    if path is None:
+      return _terminal_boundary_graph_result(
+        MocTerminalBoundaryGraphStatus.INVALID_INPUT,
+        downstream_supplied=downstream_boundary_points_m is not None,
+        message=f'{name} boundary path contains an invalid coordinate',
+      )
+    paths.append(path)
+  initial_shock, ambient, centerline, terminal_shock = paths
+
+  if not field.converged or not field.supersonic_region_closed:
+    return _terminal_boundary_graph_result(
+      MocTerminalBoundaryGraphStatus.UPSTREAM_GRAPH_FAILURE,
+      initial_shock=initial_shock,
+      ambient=ambient,
+      centerline=centerline,
+      terminal_shock=terminal_shock,
+      downstream_supplied=downstream_boundary_points_m is not None,
+      message=(
+        'terminal boundary graph requires a converged closed supersonic '
+        f'field: {field.message}'
+      ),
+    )
+  if any(len(path) < 2 for path in paths):
+    missing = next(
+      name for (name, _), path in zip(raw_paths, paths, strict=True)
+      if len(path) < 2
+    )
+    return _terminal_boundary_graph_result(
+      MocTerminalBoundaryGraphStatus.UPSTREAM_GRAPH_FAILURE,
+      initial_shock=initial_shock,
+      ambient=ambient,
+      centerline=centerline,
+      terminal_shock=terminal_shock,
+      downstream_supplied=downstream_boundary_points_m is not None,
+      message=f'{missing} boundary path requires at least two points',
+    )
+  if any(
+    not _terminal_path_has_distinct_segments(path, position_tolerance_m)
+    for path in paths
+  ):
+    return _terminal_boundary_graph_result(
+      MocTerminalBoundaryGraphStatus.UPSTREAM_GRAPH_FAILURE,
+      initial_shock=initial_shock,
+      ambient=ambient,
+      centerline=centerline,
+      terminal_shock=terminal_shock,
+      downstream_supplied=downstream_boundary_points_m is not None,
+      message='terminal boundary graph contains a zero-length path segment',
+    )
+
+  terminal = field.terminal_normal_shock
+  terminal_point = None if terminal is None else terminal.shock_point_m
+  if terminal_point is None or not all(isfinite(float(value)) for value in terminal_point):
+    return _terminal_boundary_graph_result(
+      MocTerminalBoundaryGraphStatus.UPSTREAM_GRAPH_FAILURE,
+      initial_shock=initial_shock,
+      ambient=ambient,
+      centerline=centerline,
+      terminal_shock=terminal_shock,
+      downstream_supplied=downstream_boundary_points_m is not None,
+      message='terminal boundary graph requires a finite normal-shock point',
+    )
+  joins = (
+    ('initial_shock_to_ambient_streamline', initial_shock[0], ambient[0]),
+    ('initial_shock_to_centerline', initial_shock[-1], centerline[0]),
+    ('centerline_to_terminal_shock', centerline[-1], terminal_shock[-1]),
+    ('terminal_shock_to_ambient_streamline', terminal_shock[0], ambient[-1]),
+    ('terminal_shock_to_normal_terminal', terminal_shock[-1], terminal_point),
+  )
+  join_residuals = tuple(
+    (
+      name,
+      hypot(first[0] - second[0], first[1] - second[1]),
+    )
+    for name, first, second in joins
+  )
+  maximum_join_residual = max(value for _, value in join_residuals)
+  upstream_graph_closed = maximum_join_residual <= position_tolerance_m
+  if not upstream_graph_closed:
+    return _terminal_boundary_graph_result(
+      MocTerminalBoundaryGraphStatus.UPSTREAM_GRAPH_FAILURE,
+      initial_shock=initial_shock,
+      ambient=ambient,
+      centerline=centerline,
+      terminal_shock=terminal_shock,
+      join_residuals=join_residuals,
+      downstream_supplied=downstream_boundary_points_m is not None,
+      message=(
+        'terminal supersonic boundary paths do not join within tolerance: '
+        f'maximum residual={maximum_join_residual}'
+      ),
+    )
+
+  if downstream_boundary_points_m is None:
+    return _terminal_boundary_graph_result(
+      MocTerminalBoundaryGraphStatus.CONVERGED_UPSTREAM_GRAPH,
+      initial_shock=initial_shock,
+      ambient=ambient,
+      centerline=centerline,
+      terminal_shock=terminal_shock,
+      join_residuals=join_residuals,
+      upstream_graph_closed=True,
+      message=(
+        'supersonic terminal boundary graph is closed; downstream subsonic '
+        'geometry and its physical boundary condition remain unsupplied'
+      ),
+    )
+
+  downstream = _normalise_terminal_boundary_path(downstream_boundary_points_m)
+  if downstream is None:
+    return _terminal_boundary_graph_result(
+      MocTerminalBoundaryGraphStatus.INVALID_INPUT,
+      initial_shock=initial_shock,
+      ambient=ambient,
+      centerline=centerline,
+      terminal_shock=terminal_shock,
+      join_residuals=join_residuals,
+      upstream_graph_closed=True,
+      downstream_supplied=True,
+      message='downstream boundary path contains an invalid coordinate',
+    )
+  if len(downstream) < 4:
+    return _terminal_boundary_graph_result(
+      MocTerminalBoundaryGraphStatus.DOWNSTREAM_BOUNDARY_FAILURE,
+      initial_shock=initial_shock,
+      ambient=ambient,
+      centerline=centerline,
+      terminal_shock=terminal_shock,
+      downstream=downstream,
+      join_residuals=join_residuals,
+      upstream_graph_closed=True,
+      downstream_supplied=True,
+      message='downstream boundary path requires at least four points',
+    )
+  downstream_closed = (
+    hypot(
+      downstream[-1][0] - downstream[0][0],
+      downstream[-1][1] - downstream[0][1],
+    ) <= position_tolerance_m
+  )
+  downstream_anchored = all(
+    hypot(point[0] - terminal_point[0], point[1] - terminal_point[1])
+    <= position_tolerance_m
+    for point in (downstream[0], downstream[-1])
+  )
+  downstream_of_terminal = all(
+    point[0] >= terminal_point[0] - position_tolerance_m
+    for point in downstream
+  )
+  downstream_distinct = _terminal_path_has_distinct_segments(
+    downstream,
+    position_tolerance_m,
+  )
+  downstream_area = abs(
+    0.5 * sum(
+      first[0] * second[1] - second[0] * first[1]
+      for first, second in zip(
+        downstream,
+        (*downstream[1:], downstream[0]),
+        strict=True,
+      )
+    )
+  )
+  downstream_geometry_verified = (
+    downstream_closed
+    and downstream_anchored
+    and downstream_of_terminal
+    and downstream_distinct
+    and downstream_area > position_tolerance_m * position_tolerance_m
+  )
+  if not downstream_geometry_verified:
+    return _terminal_boundary_graph_result(
+      MocTerminalBoundaryGraphStatus.DOWNSTREAM_BOUNDARY_FAILURE,
+      initial_shock=initial_shock,
+      ambient=ambient,
+      centerline=centerline,
+      terminal_shock=terminal_shock,
+      downstream=downstream,
+      join_residuals=join_residuals,
+      upstream_graph_closed=True,
+      downstream_supplied=True,
+      message=(
+        'downstream boundary geometry must be a distinct nonzero-area closed '
+        'path anchored at the normal-shock point and downstream of it: '
+        f'closed={downstream_closed}, anchored={downstream_anchored}, '
+        f'downstream={downstream_of_terminal}, distinct={downstream_distinct}, '
+        f'area_m2={downstream_area}'
+      ),
+    )
+  return _terminal_boundary_graph_result(
+    MocTerminalBoundaryGraphStatus.CONVERGED_EXPLICIT_DOWNSTREAM_GEOMETRY,
+    initial_shock=initial_shock,
+    ambient=ambient,
+    centerline=centerline,
+    terminal_shock=terminal_shock,
+    downstream=downstream,
+    join_residuals=join_residuals,
+    upstream_graph_closed=True,
+    downstream_supplied=True,
+    downstream_verified=True,
+    message=(
+      'upstream terminal graph and explicit downstream geometry passed; '
+      'a physical downstream condition and mixed-regime field are still required'
+    ),
+  )
 ####
 
 

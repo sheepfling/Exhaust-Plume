@@ -170,6 +170,11 @@ not wait on this research closure.
   composite. It exposes the terminal scalar state and supersonic post-shock
   samples but supplies no inferred downstream perimeter; the open supersonic
   zone remains an explicit non-perimeter seam.
+- Added a typed terminal-boundary graph audit. It independently verifies the
+  solver-owned initial-shock, ambient-streamline, centerline, and terminal-
+  shock joins, reports their residuals, and accepts an optional downstream
+  path only as geometry. It never treats that path as a physical downstream
+  condition or mixed-regime field, so chain promotion remains blocked.
 - Added a callback-owned mixed-regime closure gate. A returned field must
   retain the exact terminal object and patch sample count and pass its closed
   perimeter/topology/residual checks before the terminal composite can attach
@@ -786,6 +791,11 @@ Only after MOC-1 through MOC-5 pass:
   solve. Its passing refinement sweep is therefore contract evidence only;
   the canonical terminal still has no physical downstream perimeter and no
   chain-promotion path.
+- The terminal-boundary graph audit confirms that the canonical terminal's
+  four solver-owned supersonic paths join with zero reported residual, while
+  no downstream path or physical downstream condition is supplied. A future
+  mixed-regime solve must provide that path and its state/flux boundary data;
+  the geometry-only audit cannot promote the terminal or continue the chain.
 - The invariant-conditioned shock shoot currently records a canonical
   no-bracket result; a selected constant downstream invariant is not yet an
   accepted physical free-boundary condition. No production solver yet supplies

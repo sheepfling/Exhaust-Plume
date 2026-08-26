@@ -74,6 +74,7 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   planner = report['geometry_cases']['shock_cell_chain_planner_mock']
   invariant_closure = report['geometry_cases']['terminal_source_window_invariant_closure']
   ambient_strip = report['geometry_cases']['solver_generated_ambient_shock_strip']
+  first_cell_terminal = report['geometry_cases']['solver_generated_first_cell_terminal_closure']
   ambient_attachment = report['geometry_cases']['ambient_attachment_closure_probe']
   ambient_transition = report['geometry_cases']['ambient_attachment_transition_probe']
   ambient_closure = report['geometry_cases']['ambient_pressure_closure_probe']
@@ -226,6 +227,15 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert ambient_strip['strip']['topology_forms_closed_zone'] is True
   assert ambient_strip['strip']['physical_closure_verified'] is False
   assert ambient_strip['strip']['chain_promotion_blocked'] is True
+  terminal_graph = first_cell_terminal['terminal_field']['terminal_boundary_graph']
+  assert terminal_graph['status'] == 'converged_upstream_terminal_boundary_graph'
+  assert terminal_graph['upstream_graph_closed'] is True
+  assert terminal_graph['downstream_boundary_geometry_supplied'] is False
+  assert terminal_graph['downstream_boundary_geometry_verified'] is False
+  assert terminal_graph['physical_downstream_condition_supplied'] is False
+  assert terminal_graph['physical_closure_verified'] is False
+  assert terminal_graph['chain_promotion_blocked'] is True
+  assert terminal_graph['maximum_upstream_join_residual_m'] <= 1.0e-10
   assert ambient_attachment['status'] == 'converged_ambient_attachment_open_strip'
   assert ambient_attachment['expected_open_strip'] is True
   assert ambient_attachment['converged'] is True
