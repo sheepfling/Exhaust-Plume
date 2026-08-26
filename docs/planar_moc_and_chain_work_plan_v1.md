@@ -326,6 +326,14 @@ not wait on this research closure.
   does not promote a chain cell, and the positive validation case remains a
   synthetic contract fixture until the canonical plume supplies a real
   subsonic perimeter.
+- Extended the mixed-regime reference with an explicit radial refinement
+  control. ``radial_divisions > 1`` solves a deterministic concentric-ring
+  Dirichlet Laplace reference in scalar/log-total-pressure space, checks every
+  triangular cell, and records 2/3/4-ring refinement evidence. The result is
+  labeled ``elliptic-isentropic-radial-reference`` and remains a declared
+  scalar reference model: it does not provide the missing canonical
+  subsonic boundary condition, a nonlinear compressible potential solve, or a
+  continued supersonic chain handoff.
 - Added an independent MOC shock-cell measurement operator. It extracts
   shock/centerline boundaries, axial extent, boundary lengths, radius, mesh
   area, perimeter-area closure, and optional shock total-pressure loss only
@@ -767,6 +775,12 @@ Only after MOC-1 through MOC-5 pass:
   elliptic reference field validate the seam, mesh, and residual bookkeeping,
   but the canonical case still lacks a physically solved subsonic perimeter;
   the fixture attachment therefore cannot be used as canonical closure.
+- The mixed-regime reference now has a multi-ring mesh/refinement path, but it
+  still consumes a caller-supplied closed perimeter and uses a declared
+  harmonic scalar reference rather than a coupled nonlinear subsonic flow
+  solve. Its passing refinement sweep is therefore contract evidence only;
+  the canonical terminal still has no physical downstream perimeter and no
+  chain-promotion path.
 - The invariant-conditioned shock shoot currently records a canonical
   no-bracket result; a selected constant downstream invariant is not yet an
   accepted physical free-boundary condition. No production solver yet supplies

@@ -1261,6 +1261,13 @@ def _mixed_regime_boundary_probe(
     subsonic_samples=contract_samples,
   )
   contract_field = solve_mixed_regime_subsonic_field(contract_fixture)
+  contract_field_refinement = tuple(
+    solve_mixed_regime_subsonic_field(
+      contract_fixture,
+      radial_divisions=radial_divisions,
+    )
+    for radial_divisions in (2, 3, 4)
+  )
   terminal_attachment_fixture = None
   terminal_attachment_termination_decision = None
   terminal_attachment_closure = None
@@ -1283,6 +1290,7 @@ def _mixed_regime_boundary_probe(
       missing_field.status is MocMixedRegimeBoundaryStatus.SUBSONIC_FIELD_FAILURE
       and contract_fixture.converged
       and contract_field.physical_closure_verified
+      and all(result.physical_closure_verified for result in contract_field_refinement)
       and terminal_attachment_closure is not None
       and terminal_attachment_closure.converged
       and contract_fixture.physical_closure_verified is False
@@ -1293,6 +1301,9 @@ def _mixed_regime_boundary_probe(
     'missing_scalar_field': missing_field.as_report(),
     'scalar_perimeter_contract_fixture': contract_fixture.as_report(),
     'elliptic_subsonic_field_contract_fixture': contract_field.as_report(),
+    'elliptic_subsonic_field_refinement': [
+      result.as_report() for result in contract_field_refinement
+    ],
     'terminal_attachment_closure_result': (
       None
       if terminal_attachment_closure is None

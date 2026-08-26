@@ -128,6 +128,63 @@ def test_elliptic_subsonic_reference_field_closes_only_its_declared_mesh_model()
   assert field.model == 'elliptic-isentropic-subsonic-reference'
 
 
+@pytest.mark.parametrize(
+  ('radial_divisions', 'expected_node_count', 'expected_cell_count'),
+  ((2, 9, 12), (3, 13, 20), (4, 17, 28)),
+)
+def test_radial_elliptic_reference_field_refines_without_promoting_the_chain(
+  radial_divisions: int,
+  expected_node_count: int,
+  expected_cell_count: int,
+) -> None:
+  terminal = _terminal()
+  boundary = validate_mixed_regime_boundary(
+    terminal,
+    _supersonic_patch(),
+    supersonic_patch_converged=True,
+    subsonic_samples=_samples(terminal),
+  )
+
+  field = solve_mixed_regime_subsonic_field(
+    boundary,
+    radial_divisions=radial_divisions,
+  )
+
+  assert field.status is MocMixedRegimeFieldStatus.CONVERGED_ELLIPTIC_FIELD
+  assert field.converged
+  assert field.radial_divisions == radial_divisions
+  assert field.model == 'elliptic-isentropic-radial-reference'
+  assert field.node_count == expected_node_count
+  assert field.cell_count == expected_cell_count
+  assert field.topology.forms_closed_zone
+  assert field.topology.nonmanifold_edge_count == 0
+  assert field.physical_closure_verified
+  assert field.mixed_regime_field_complete
+  assert field.chain_promotion_blocked
+  assert field.maximum_thermodynamic_residual is not None
+  assert field.maximum_thermodynamic_residual <= 1.0e-8
+  assert field.maximum_harmonic_residual is not None
+  assert field.maximum_harmonic_residual <= 1.0e-12
+  assert field.maximum_velocity_divergence_residual is not None
+  assert field.maximum_velocity_divergence_residual <= 1.0e-12
+
+
+def test_mixed_regime_reference_rejects_nonpositive_radial_divisions() -> None:
+  terminal = _terminal()
+  boundary = validate_mixed_regime_boundary(
+    terminal,
+    _supersonic_patch(),
+    supersonic_patch_converged=True,
+    subsonic_samples=_samples(terminal),
+  )
+
+  with pytest.raises(ValueError, match='radial_divisions must be a positive integer'):
+    solve_mixed_regime_subsonic_field(boundary, radial_divisions=0)
+
+  with pytest.raises(ValueError, match='radial_divisions must be a positive integer'):
+    solve_mixed_regime_subsonic_field(boundary, radial_divisions=True)
+
+
 def test_mixed_regime_closure_callback_requires_the_exact_terminal_seam() -> None:
   terminal = _terminal()
   boundary = validate_mixed_regime_boundary(

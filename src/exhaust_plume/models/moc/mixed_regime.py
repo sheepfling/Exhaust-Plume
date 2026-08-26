@@ -18,8 +18,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from math import cos, hypot, isfinite, sin
+from math import cos, exp, hypot, isfinite, log, sin
 from typing import Callable, Sequence
+
+import numpy as np
 
 from exhaust_plume.models.moc.compression import (
   MocNormalShockTerminalResult,
@@ -407,12 +409,12 @@ class MocMixedRegimeBoundaryResult:
 class MocMixedRegimeFieldResult:
   """A mesh-backed elliptic continuation of a scalar subsonic perimeter.
 
-  The solver uses a conservative first reference model for the subsonic side:
-  primitive scalar fields are harmonically extended to one interior control
-  point and the dimensionless velocity field is checked for a zero discrete
-  divergence on every triangular control volume.  This is intentionally a
-  separate elliptic lane, not a supersonic MOC field; its model name and
-  residuals remain in every report.
+  The solver uses a conservative reference model for the subsonic side:
+  primitive scalar fields are harmonically extended on either a one-point
+  fan or an explicitly requested concentric-ring mesh, and the dimensionless
+  velocity field is checked for zero discrete divergence on every triangular
+  control volume.  This is intentionally a separate elliptic lane, not a
+  supersonic MOC field; its model name and residuals remain in every report.
 
   ``physical_closure_verified`` means that this explicitly declared
   elliptic/isentrope model closed its supplied boundary and passed its local
@@ -432,7 +434,16 @@ class MocMixedRegimeFieldResult:
   minimum_mach: float | None
   maximum_mach: float | None
   model: str = 'elliptic-isentropic-subsonic-reference'
+  radial_divisions: int = 1
   message: str = ''
+
+  def __post_init__(self) -> None:
+    if (
+      isinstance(self.radial_divisions, bool)
+      or not isinstance(self.radial_divisions, int)
+      or self.radial_divisions < 1
+    ):
+      raise ValueError('radial_divisions must be a positive integer')
 
   @property
   def converged(self) -> bool:
@@ -480,6 +491,7 @@ class MocMixedRegimeFieldResult:
       'mixed_regime_field_complete': self.mixed_regime_field_complete,
       'chain_promotion_blocked': self.chain_promotion_blocked,
       'model': self.model,
+      'radial_divisions': self.radial_divisions,
       'node_count': self.node_count,
       'cell_count': self.cell_count,
       'topology_status': self.topology.status.value,
@@ -512,6 +524,8 @@ def _field_failure(
   maximum_thermodynamic_residual: float | None = None,
   maximum_harmonic_residual: float | None = None,
   maximum_velocity_divergence_residual: float | None = None,
+  model: str = 'elliptic-isentropic-subsonic-reference',
+  radial_divisions: int = 1,
   message: str,
 ) -> MocMixedRegimeFieldResult:
   return MocMixedRegimeFieldResult(
@@ -526,6 +540,8 @@ def _field_failure(
     maximum_velocity_divergence_residual=maximum_velocity_divergence_residual,
     minimum_mach=min((sample.mach for sample in nodes), default=None),
     maximum_mach=max((sample.mach for sample in nodes), default=None),
+    model=model,
+    radial_divisions=radial_divisions,
     message=message,
   )
 
@@ -566,8 +582,10 @@ def _relative_residual(actual: float, expected: float) -> float:
 
 
 def _triangle_velocity_divergence(
-  vertices: tuple[MocMixedRegimeFieldSample, MocMixedRegimeFieldSample, MocMixedRegimeFieldSample],
+  vertices: Sequence[MocMixedRegimeFieldSample],
 ) -> float:
+  if len(vertices) != 3:
+    return float('inf')
   first, second, third = vertices
   x1, y1 = first.point_m
   x2, y2 = second.point_m
@@ -597,20 +615,378 @@ def _triangle_velocity_divergence(
   return abs(dudy + dvdy)
 
 
+def _harmonic_radial_levels(
+  boundary_values: Sequence[float],
+  radial_divisions: int,
+  *,
+  logarithmic: bool = False,
+) -> tuple[tuple[tuple[float, ...], ...], float]:
+  """Solve a small structured Dirichlet Laplace reference problem.
+
+  The perimeter vertices are connected by concentric polygon rings.  The
+  outer ring is fixed to the supplied boundary values; the center and all
+  inner rings satisfy a five-point graph-Laplacian equation.  This is a
+  deliberately small, deterministic reference discretization: it provides
+  mesh/refinement evidence for the scalar mixed-regime lane, but it is not a
+  compressible potential-flow solve.
+
+  ``logarithmic`` is used for total pressure so positive values and the
+  terminal shock's no-gain lineage are preserved by the interpolation.
+  The returned residual is the largest linear-system residual in the solved
+  variable (log space when requested).
+  """
+
+  values = tuple(float(value) for value in boundary_values)
+  if len(values) < 3:
+    raise ValueError('harmonic radial levels require at least three boundary values')
+  if any(not isfinite(value) for value in values):
+    raise ValueError('harmonic radial levels require finite boundary values')
+  if logarithmic and any(value <= 0.0 for value in values):
+    raise ValueError('logarithmic harmonic radial levels require positive values')
+  transformed = tuple(log(value) for value in values) if logarithmic else values
+  sample_count = len(values)
+
+  if radial_divisions == 1:
+    center = (sum(transformed) / sample_count,)
+    levels = (center, transformed)
+    return (
+      tuple(
+        tuple(exp(value) for value in level) if logarithmic else level
+        for level in levels
+      ),
+      0.0,
+    )
+
+  unknown_count = 1 + (radial_divisions - 1) * sample_count
+  matrix = np.zeros((unknown_count, unknown_count), dtype=float)
+  right_hand_side = np.zeros(unknown_count, dtype=float)
+
+  def ring_index(level: int, index: int) -> int:
+    if level < 1 or level >= radial_divisions:
+      raise ValueError('ring level must be an interior radial level')
+    return 1 + (level - 1) * sample_count + index % sample_count
+
+  # The center node is coupled to the first interior ring.  This keeps the
+  # polygonal mesh single-valued instead of duplicating a center vertex once
+  # per angular sample.
+  matrix[0, 0] = float(sample_count)
+  for index in range(sample_count):
+    matrix[0, ring_index(1, index)] = -1.0
+
+  for level in range(1, radial_divisions):
+    for index in range(sample_count):
+      row = ring_index(level, index)
+      matrix[row, row] = 4.0
+      if level == 1:
+        matrix[row, 0] -= 1.0
+      else:
+        matrix[row, ring_index(level - 1, index)] -= 1.0
+      if level + 1 == radial_divisions:
+        right_hand_side[row] += transformed[index]
+      else:
+        matrix[row, ring_index(level + 1, index)] -= 1.0
+      matrix[row, ring_index(level, index - 1)] -= 1.0
+      matrix[row, ring_index(level, index + 1)] -= 1.0
+
+  try:
+    solution = np.linalg.solve(matrix, right_hand_side)
+  except np.linalg.LinAlgError as error:
+    raise ValueError('harmonic radial reference system is singular') from error
+  if not np.isfinite(solution).all():
+    raise ValueError('harmonic radial reference system returned non-finite values')
+
+  residual = float(np.max(np.abs(matrix @ solution - right_hand_side)))
+  transformed_levels: list[tuple[float, ...]] = [
+    (float(solution[0]),),
+  ]
+  for level in range(1, radial_divisions):
+    transformed_levels.append(
+      tuple(float(solution[ring_index(level, index)]) for index in range(sample_count))
+    )
+  transformed_levels.append(transformed)
+  if logarithmic:
+    return (
+      tuple(
+        tuple(exp(value) for value in level)
+        for level in transformed_levels
+      ),
+      residual,
+    )
+  return tuple(transformed_levels), residual
+
+
+def _radial_mesh_points(
+  perimeter_points: Sequence[tuple[float, float]],
+  center_point: tuple[float, float],
+  radial_divisions: int,
+) -> tuple[tuple[tuple[float, float], ...], ...]:
+  """Return center plus concentric polygon rings for a convex perimeter."""
+
+  rings: list[tuple[tuple[float, float], ...]] = [(center_point,)]
+  for level in range(1, radial_divisions + 1):
+    scale = level / radial_divisions
+    rings.append(
+      tuple(
+        (
+          center_point[0] + scale * (point[0] - center_point[0]),
+          center_point[1] + scale * (point[1] - center_point[1]),
+        )
+        for point in perimeter_points
+      )
+    )
+  return tuple(rings)
+
+
+def _solve_mixed_regime_radial_reference_field(
+  boundary: MocMixedRegimeBoundaryResult,
+  unique_samples: tuple[MocMixedRegimeFieldSample, ...],
+  unique_points: tuple[tuple[float, float], ...],
+  center_point: tuple[float, float],
+  *,
+  radial_divisions: int,
+  position_tolerance_m: float,
+  thermodynamic_tolerance: float,
+  residual_tolerance: float,
+) -> MocMixedRegimeFieldResult:
+  """Build the explicit higher-resolution scalar mixed-regime reference."""
+
+  model = 'elliptic-isentropic-radial-reference'
+  try:
+    mach_levels, mach_residual = _harmonic_radial_levels(
+      tuple(sample.mach for sample in unique_samples),
+      radial_divisions,
+    )
+    angle_levels, angle_residual = _harmonic_radial_levels(
+      tuple(sample.flow_angle_rad for sample in unique_samples),
+      radial_divisions,
+    )
+    pressure_levels, pressure_residual = _harmonic_radial_levels(
+      tuple(sample.total_pressure_Pa for sample in unique_samples),
+      radial_divisions,
+      logarithmic=True,
+    )
+    gamma_levels, gamma_residual = _harmonic_radial_levels(
+      tuple(sample.gamma for sample in unique_samples),
+      radial_divisions,
+    )
+    rings = _radial_mesh_points(unique_points, center_point, radial_divisions)
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return _field_failure(
+      MocMixedRegimeFieldStatus.GEOMETRY_FAILURE,
+      boundary,
+      nodes=unique_samples,
+      interior_point_m=center_point,
+      model=model,
+      radial_divisions=radial_divisions,
+      message=f'mixed-regime radial reference solve failed: {error}',
+    )
+
+  levels: list[tuple[MocMixedRegimeFieldSample, ...]] = []
+  for level, points in enumerate(rings):
+    if level == radial_divisions:
+      levels.append(unique_samples)
+      continue
+    level_samples: list[MocMixedRegimeFieldSample] = []
+    for index, point in enumerate(points):
+      mach = mach_levels[level][index]
+      flow_angle = angle_levels[level][index]
+      total_pressure = pressure_levels[level][index]
+      gamma = gamma_levels[level][index]
+      pressure_factor = (
+        1.0 + 0.5 * (gamma - 1.0) * mach * mach
+      ) ** (gamma / (gamma - 1.0))
+      try:
+        level_samples.append(
+          MocMixedRegimeFieldSample(
+            point_m=point,
+            mach=mach,
+            flow_angle_rad=flow_angle,
+            static_pressure_Pa=total_pressure / pressure_factor,
+            total_pressure_Pa=total_pressure,
+            gamma=gamma,
+          )
+        )
+      except (TypeError, ValueError) as error:
+        return _field_failure(
+          MocMixedRegimeFieldStatus.THERMODYNAMIC_FAILURE,
+          boundary,
+          nodes=tuple(sample for level_samples in levels for sample in level_samples),
+          interior_point_m=center_point,
+          model=model,
+          radial_divisions=radial_divisions,
+          message=f'mixed-regime radial scalar state failed at level {level}: {error}',
+        )
+    levels.append(tuple(level_samples))
+
+  nodes = tuple(sample for level_samples in levels for sample in level_samples)
+  thermodynamic_residual = max(
+    _relative_residual(_isentropic_total_pressure(sample), sample.total_pressure_Pa)
+    for sample in nodes
+  )
+  harmonic_residual = max(
+    mach_residual,
+    angle_residual,
+    pressure_residual,
+    gamma_residual,
+  )
+  if thermodynamic_residual > thermodynamic_tolerance:
+    return _field_failure(
+      MocMixedRegimeFieldStatus.THERMODYNAMIC_FAILURE,
+      boundary,
+      nodes=nodes,
+      interior_point_m=center_point,
+      maximum_thermodynamic_residual=thermodynamic_residual,
+      maximum_harmonic_residual=harmonic_residual,
+      model=model,
+      radial_divisions=radial_divisions,
+      message=(
+        'mixed-regime radial reference scalar states do not satisfy the '
+        f'isentrope relation: residual={thermodynamic_residual}'
+      ),
+    )
+
+  cells: list[MocCharacteristicCell] = []
+  try:
+    first_ring = rings[1]
+    for index, next_index in enumerate(
+      (index + 1) % len(unique_points) for index in range(len(unique_points))
+    ):
+      cells.append(
+        MocCharacteristicCell(
+          cell_index=len(cells),
+          cell_kind='mixed-regime-elliptic-radial-center',
+          vertices_xr_m=(rings[0][0], first_ring[index], first_ring[next_index]),
+          centerline_indices=(),
+          boundary_indices=(index, next_index),
+        )
+      )
+    for level in range(1, radial_divisions):
+      inner_ring = rings[level]
+      outer_ring = rings[level + 1]
+      for index, next_index in enumerate(
+        (index + 1) % len(unique_points) for index in range(len(unique_points))
+      ):
+        inner_first = inner_ring[index]
+        inner_second = inner_ring[next_index]
+        outer_first = outer_ring[index]
+        outer_second = outer_ring[next_index]
+        cells.extend((
+          MocCharacteristicCell(
+            cell_index=len(cells),
+            cell_kind='mixed-regime-elliptic-radial-annulus',
+            vertices_xr_m=(inner_first, inner_second, outer_second),
+            centerline_indices=(),
+            boundary_indices=(index, next_index),
+          ),
+          MocCharacteristicCell(
+            cell_index=len(cells) + 1,
+            cell_kind='mixed-regime-elliptic-radial-annulus',
+            vertices_xr_m=(inner_first, outer_second, outer_first),
+            centerline_indices=(),
+            boundary_indices=(index, next_index),
+          ),
+        ))
+  except (TypeError, ValueError) as error:
+    return _field_failure(
+      MocMixedRegimeFieldStatus.GEOMETRY_FAILURE,
+      boundary,
+      nodes=nodes,
+      cells=cells,
+      interior_point_m=center_point,
+      maximum_thermodynamic_residual=thermodynamic_residual,
+      maximum_harmonic_residual=harmonic_residual,
+      model=model,
+      radial_divisions=radial_divisions,
+      message=f'mixed-regime radial mesh geometry failed: {error}',
+    )
+
+  topology = validate_moc_mesh(tuple(cells))
+  if not topology.connected or not topology.forms_closed_zone or topology.nonmanifold_edge_count:
+    return _field_failure(
+      MocMixedRegimeFieldStatus.TOPOLOGY_FAILURE,
+      boundary,
+      nodes=nodes,
+      cells=cells,
+      topology=topology,
+      interior_point_m=center_point,
+      maximum_thermodynamic_residual=thermodynamic_residual,
+      maximum_harmonic_residual=harmonic_residual,
+      model=model,
+      radial_divisions=radial_divisions,
+      message=f'mixed-regime radial mesh topology failed: {topology.message}',
+    )
+
+  node_lookup: dict[tuple[float, float], MocMixedRegimeFieldSample] = {
+    sample.point_m: sample
+    for level_samples in levels
+    for sample in level_samples
+  }
+  divergence_residual = max(
+    _triangle_velocity_divergence(tuple(
+      node_lookup[point]
+      for point in cell.vertices_xr_m
+    ))
+    for cell in cells
+    if len(cell.vertices_xr_m) == 3
+  )
+  if harmonic_residual > residual_tolerance or divergence_residual > residual_tolerance:
+    return _field_failure(
+      MocMixedRegimeFieldStatus.RESIDUAL_FAILURE,
+      boundary,
+      nodes=nodes,
+      cells=cells,
+      topology=topology,
+      interior_point_m=center_point,
+      maximum_thermodynamic_residual=thermodynamic_residual,
+      maximum_harmonic_residual=harmonic_residual,
+      maximum_velocity_divergence_residual=divergence_residual,
+      model=model,
+      radial_divisions=radial_divisions,
+      message=(
+        'mixed-regime radial reference residual gate failed: '
+        f'harmonic={harmonic_residual}, divergence={divergence_residual}'
+      ),
+    )
+  return MocMixedRegimeFieldResult(
+    status=MocMixedRegimeFieldStatus.CONVERGED_ELLIPTIC_FIELD,
+    boundary=boundary,
+    nodes=nodes,
+    cells=tuple(cells),
+    topology=topology,
+    interior_point_m=center_point,
+    maximum_thermodynamic_residual=thermodynamic_residual,
+    maximum_harmonic_residual=harmonic_residual,
+    maximum_velocity_divergence_residual=divergence_residual,
+    minimum_mach=min(sample.mach for sample in nodes),
+    maximum_mach=max(sample.mach for sample in nodes),
+    model=model,
+    radial_divisions=radial_divisions,
+    message=(
+      'harmonic radial elliptic/isentrope reference field converged on the '
+      'supplied closed perimeter; this model remains separate from the '
+      'supersonic MOC lane'
+    ),
+  )
+
+
 def solve_mixed_regime_subsonic_field(
   boundary: MocMixedRegimeBoundaryResult,
   *,
   position_tolerance_m: float = 1.0e-10,
   thermodynamic_tolerance: float = 1.0e-8,
   residual_tolerance: float = 1.0e-12,
+  radial_divisions: int = 1,
 ) -> MocMixedRegimeFieldResult:
   """Solve the declared elliptic/isentrope subsonic reference field.
 
-  The input perimeter is the physical boundary condition.  The solver
-  creates a convex fan mesh with one interior control point and sets each
-  interior primitive to the arithmetic harmonic extension of the boundary
-  values.  It then checks the isentropic total-pressure relation and the
-  piecewise-linear dimensionless-velocity divergence on every triangle.
+  The input perimeter is the physical boundary condition.  By default the
+  solver creates a convex fan mesh with one interior control point and sets
+  each interior primitive to the arithmetic harmonic extension of the
+  boundary values.  ``radial_divisions`` greater than one selects the
+  higher-resolution concentric-ring reference mesh and solves a small
+  discrete Dirichlet Laplace problem for the interior scalar fields.  Both
+  paths check the isentropic total-pressure relation and the piecewise-linear
+  dimensionless-velocity divergence on every triangle.
 
   This intentionally does not accept an open perimeter, infer missing points,
   or extrapolate a subsonic state from the supersonic MOC field.  The one-cell
@@ -627,6 +1003,12 @@ def solve_mixed_regime_subsonic_field(
   ):
     if not isfinite(float(value)) or value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+  if (
+    isinstance(radial_divisions, bool)
+    or not isinstance(radial_divisions, int)
+    or radial_divisions < 1
+  ):
+    raise ValueError('radial_divisions must be a positive integer')
   if not boundary.converged:
     return _field_failure(
       MocMixedRegimeFieldStatus.BOUNDARY_FAILURE,
@@ -681,6 +1063,17 @@ def solve_mixed_regime_subsonic_field(
     sum(point[0] for point in unique_points) / len(unique_points),
     sum(point[1] for point in unique_points) / len(unique_points),
   )
+  if radial_divisions > 1:
+    return _solve_mixed_regime_radial_reference_field(
+      boundary,
+      tuple(unique_samples),
+      tuple(unique_points),
+      center_point,
+      radial_divisions=radial_divisions,
+      position_tolerance_m=position_tolerance_m,
+      thermodynamic_tolerance=thermodynamic_tolerance,
+      residual_tolerance=residual_tolerance,
+    )
   center_sample = MocMixedRegimeFieldSample(
     point_m=center_point,
     mach=sum(sample.mach for sample in unique_samples) / len(unique_samples),
