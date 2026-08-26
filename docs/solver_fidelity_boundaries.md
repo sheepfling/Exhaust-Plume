@@ -70,6 +70,11 @@ reflected outgoing trace and can return a verified normal-shock chain stop,
 but it remains an open, non-promotable research transition because the
 downstream condition is a named centerline-normal-shock reference and the
 subsonic mixed-regime field is not solved.
+Its terminal-field checkpoint can now close the validated supersonic side of
+the transition at that shock and verify one-perimeter mesh topology. That
+checkpoint preserves the fidelity boundary: it records inherited
+characteristic-cell evidence only, leaves the downstream subsonic field
+unsolved, and therefore cannot set physical closure or promote a chain cell.
 It also has an explicitly labeled constant-`K+`
 simple-wave continuation: it preserves the open-strip topology and advances
 the shock probe through additional samples, but it remains an upstream

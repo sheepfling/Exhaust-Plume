@@ -307,6 +307,16 @@ def test_ambient_attachment_transition_carries_a_next_shock_handoff_to_terminal(
   assert len(result.next_shock_handoff) >= 3
   assert result.downstream_shock is not None
   assert result.downstream_shock.physical_terminal_verified
+  assert result.terminal_field is not None
+  assert result.terminal_field.converged
+  assert result.terminal_field.supersonic_region_closed
+  assert result.terminal_field.characteristic_field_evidence_verified
+  assert result.terminal_field.mixed_regime_field_complete is False
+  assert result.terminal_field.physical_closure_verified is False
+  assert result.terminal_field.chain_promotion_blocked is True
+  assert result.terminal_field.topology.forms_closed_zone
+  assert result.terminal_field.topology.connected
+  assert result.terminal_field.clipped_patch_cell_count > 0
   decision = result.as_physical_termination_decision()
   assert decision.physical_termination
   assert decision.diagnostics['termination_model'] == 'normal-shock-terminal'

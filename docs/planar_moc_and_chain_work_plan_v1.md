@@ -382,6 +382,16 @@ chain-stop decision. The decision is deliberately narrower than cell closure:
 it records the normal-shock model and downstream scalar state, while the
 subsonic field remains outside the supersonic MOC chain.
 
+The transition now also assembles a terminal supersonic composite field by
+clipping the validated reflected characteristic patch to the upstream side
+of the solver-generated shock and revalidating the union with the physical
+shock/ambient strip. This closes the one-perimeter supersonic topology and
+preserves inherited characteristic-cell evidence without inventing a
+post-shock subsonic ``CharacteristicState``. The field therefore reports
+``supersonic_region_closed`` while keeping ``mixed_regime_field_complete``
+and ``physical_closure_verified`` false; it is a geometry/topology checkpoint,
+not a promoted first cell.
+
 The same seam has 9/17/33-sample refinement evidence. The reflected patch
 axis endpoint converges toward the 33-sample result, every resolution covers
 its requested upstream shock samples, and every case reaches the same typed
@@ -492,8 +502,9 @@ Only after MOC-1 through MOC-5 pass:
   axis/centerline closure; the linear-to-centerline law used to generate this
   open strip remains a named reference, not a physical first-cell closure.
   The staged transition can now reflect that trace and carry a next-shock
-  handoff to a typed normal-shock stop, but this is termination evidence rather
-  than a closed mixed-regime cell.
+  handoff to a typed normal-shock stop and close the supersonic-side composite
+  topology, but this is still termination/topology evidence rather than a
+  closed mixed-regime cell.
   The scalar shoot continues to demonstrate the old internal-characteristic
   failure without weakening the gate.
 - The canonical marched shock now classifies a zero-turn/normal-shock endpoint

@@ -121,6 +121,13 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   After complete upstream coverage and a converged normal-shock terminal, it
   returns an explicit physical chain-stop decision while keeping the
   unresolved subsonic field out of the supersonic cell-promotion path;
+- a terminal-shock composite-field assembler that clips the validated
+  shock/ambient strip and reflected characteristic patch to the upstream side
+  of the solver-generated normal shock. It exposes a connected, one-perimeter
+  supersonic-region topology gate and inherited characteristic-cell evidence,
+  while reporting ``mixed_regime_field_complete`` and
+  ``physical_closure_verified`` as hard-false until the downstream subsonic
+  field is solved;
 - a separate MOC cell-chain continuation contract that rejects open cells,
   non-bounded meshes, axial gaps, and scaled reduced-order fidelity;
 - a typed chain termination decision that distinguishes a physical endpoint
@@ -267,6 +274,14 @@ physical chain-stop decision for that mixed-regime terminal. This decision
 does not set ``physical_closure_verified`` and cannot promote a cell; it only
 prevents the chain from misreporting a verified normal shock as a numerical
 truncation.
+The terminal-shock composite-field assembler now closes the supersonic side
+of that same terminal by clipping the reflected characteristic cells against
+the solver-generated shock path and rechecking the combined mesh. Its
+``supersonic_region_closed`` and ``characteristic_field_evidence_verified``
+flags describe topology and inherited source-cell evidence only; they do not
+claim a solved downstream state. ``mixed_regime_field_complete`` remains
+false, so the composite region is still a terminal research artifact rather
+than a chain-promotable first cell.
 The earlier boundary-conditioned triangular assembler is also no longer
 promotion-eligible by default: it does not carry verified shock-``C+`` /
 ambient-``C-`` family-orientation evidence. This guard prevents a numerically

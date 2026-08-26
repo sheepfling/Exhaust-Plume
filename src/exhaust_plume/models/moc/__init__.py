@@ -157,6 +157,9 @@ from exhaust_plume.models.moc.terminal_patch_solver import (
   solve_marched_attached_shock_from_terminal_reflection_patch,
 )
 from exhaust_plume.models.moc.shock_chain import (
+  MocTerminalShockCellFieldStatus,
+  MocTerminalShockCellFieldResult,
+  assemble_terminal_shock_cell_field,
   MocShockCellTransitionStatus,
   MocShockCellTransitionResult,
   solve_marched_ambient_attachment_shock_cell_transition,
@@ -273,6 +276,9 @@ __all__ = (
   'MocTerminalPatchShockCouplingStatus',
   'MocTerminalPatchShockCouplingResult',
   'MocTerminalReflectionPatchShockSolveResult',
+  'MocTerminalShockCellFieldStatus',
+  'MocTerminalShockCellFieldResult',
+  'assemble_terminal_shock_cell_field',
   'MocShockCellTransitionStatus',
   'MocShockCellTransitionResult',
   'solve_marched_ambient_attachment_shock_cell_transition',

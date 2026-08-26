@@ -580,6 +580,10 @@ def _ambient_attachment_transition_probe(
       and result.chain_promotion_blocked
       and result.downstream_shock is not None
       and result.downstream_shock.physical_terminal_verified
+      and result.terminal_field is not None
+      and result.terminal_field.supersonic_region_closed
+      and result.terminal_field.characteristic_field_evidence_verified
+      and not result.terminal_field.mixed_regime_field_complete
     ),
     'claim_status': (
       'staged-ambient-attachment-to-centerline-reflection-to-next-shock; '

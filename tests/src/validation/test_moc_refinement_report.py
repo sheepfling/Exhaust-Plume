@@ -116,6 +116,16 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert ambient_transition['termination_decision_available'] is True
   assert ambient_transition['physical_termination_decision']['reason'] == 'physical-termination'
   assert ambient_transition['downstream_shock']['physical_terminal_verified'] is True
+  terminal_field = ambient_transition['terminal_field']
+  assert terminal_field['status'] == 'converged_closed_supersonic_terminal_region'
+  assert terminal_field['supersonic_region_closed'] is True
+  assert terminal_field['characteristic_field_evidence_verified'] is True
+  assert terminal_field['mixed_regime_field_complete'] is False
+  assert terminal_field['physical_closure_verified'] is False
+  assert terminal_field['chain_promotion_blocked'] is True
+  assert terminal_field['topology_forms_closed_zone'] is True
+  assert terminal_field['topology_connected'] is True
+  assert terminal_field['clipped_patch_cell_count'] > 0
   assert ambient_transition['reflection_patch']['physical_closure_verified'] is False
   terminal_candidate = ambient_strip['terminal_compression_candidate']
   terminal_patch = ambient_strip['terminal_reflection_patch']
