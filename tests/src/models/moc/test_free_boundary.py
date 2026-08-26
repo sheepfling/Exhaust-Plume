@@ -7,6 +7,7 @@ from exhaust_plume.models.moc import (
   CharacteristicState,
   MocAmbientAttachmentStatus,
   MocAmbientClosureStatus,
+  MocChainTerminationDecision,
   MocChainTerminationReason,
   MocFreeBoundaryShockStatus,
   MocInvariantClosureFamily,
@@ -26,6 +27,7 @@ from exhaust_plume.models.moc import (
   solve_marched_attached_shock_with_ambient_attachment_closure,
   solve_marched_ambient_attachment_shock_cell_transition,
   solve_marched_attached_shock_with_ambient_pressure_closure_from_reflected_zone,
+  continue_post_shock_characteristic_chain,
   solve_reflected_free_boundary,
   assemble_source_characteristic_strip,
   extend_source_characteristic_strip_constant_k_plus,
@@ -706,3 +708,62 @@ def test_marched_chain_cell_adapter_returns_a_typed_physical_terminal() -> None:
   assert terminal.reason.value == 'physical-termination'
   assert terminal.diagnostics['termination_model'] == 'normal-shock-terminal'
   assert terminal.diagnostics['upstream_sample_count'] == 8
+
+
+def test_generated_chain_continues_cells_with_exact_state_pressure_handoff() -> None:
+  seed = _uniform_reference(17)
+  assert seed.field is not None
+  observations: list[tuple[int, int, float]] = []
+
+  def solve_next(current, cell_index, handoff):
+    observations.append((cell_index, len(handoff), max(
+      sample.total_pressure_Pa for sample in handoff
+    )))
+    if cell_index >= 3:
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
+        message='generated chain test exhausted its two-cell fixture',
+      )
+    upstream_mach = 2.0
+    upstream_gamma = 1.4
+    pressure_ratio = (1.0 + 0.2 * upstream_mach * upstream_mach) ** (
+      upstream_gamma / (upstream_gamma - 1.0)
+    )
+    upstream_pressure = max(sample.total_pressure_Pa for sample in handoff) / pressure_ratio
+    return solve_marched_attached_shock_chain_cell(
+      current,
+      cell_index,
+      handoff,
+      start_point_m=(current.end_x_m + 0.2, 0.5),
+      end_x_m=current.end_x_m + 0.8,
+      upstream_state_at=lambda point: CharacteristicState(
+        x_m=point[0],
+        y_m=point[1],
+        theta_rad=-0.2,
+        mach=upstream_mach,
+        gamma=upstream_gamma,
+      ),
+      upstream_pressure_at=lambda _point: upstream_pressure,
+      downstream_flow_angle_at=lambda _index, point: 0.05 * point[1] / 0.5,
+      sample_count=9,
+    )
+
+  result = continue_post_shock_characteristic_chain(
+    seed.field,
+    solve_next,
+    start_x_m=0.5,
+    end_x_m=1.0,
+    require_upstream_shock_coupling=True,
+  )
+
+  assert result.status.value == 'solver-terminated'
+  assert result.termination_reason is MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL
+  assert result.physical_termination is False
+  assert result.cell_count == 2
+  assert result.resolved
+  assert all(cell.carries_state for cell in result.cells)
+  assert result.as_report()['continuation_boundary_maxima_nonincreasing'] is True
+  assert [item[0] for item in observations] == [2, 3]
+  assert observations[0][1] == len(result.cells[0].continuation_boundary)
+  assert observations[1][1] == len(result.cells[1].continuation_boundary)
