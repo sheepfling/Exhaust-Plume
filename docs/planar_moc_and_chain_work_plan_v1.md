@@ -11,7 +11,7 @@ reduced-order shock-train provider.
 | --- | --- | --- | --- |
 | `shock-cell-basic-v1` | fast, easy visual exploration | frozen compatibility-backed visual lane | do not change while MOC work proceeds |
 | `shock-train-reduced-order-v1` | bounded engineering-approximate continued chain | implemented with one resolved compatibility first cell plus scaled downstream cells | remains explicitly `scaled-reduced-order` |
-| `planar-moc-research-v2` | numerical planar characteristic research and future resolved first cell/chain | open fan/reflected lattice, sampled attached-shock fit, solver-generated marched attached-shock reference field, shock-seeded closed post-shock field, and a state-carrying chain boundary | requires reflected-field coupling, production next-cell free-boundary solving, refinement, and independent validation |
+| `planar-moc-research-v2` | numerical planar characteristic research and future resolved first cell/chain | open fan/reflected lattice, sampled attached-shock fit, solver-generated marched attached-shock reference field, shock-seeded closed post-shock field, ambient-perimeter shooting seam, and a state-carrying chain boundary | requires reflected-field coupling, a converged physical ambient perimeter, production next-cell free-boundary solving, refinement, and independent validation |
 | signature, ray, and focal-plane-array lanes | downstream measurement products | separate contracts and providers | consume only an accepted upstream field/operator |
 
 The MOC lane must never import a reduced-order cell and relabel it as a
@@ -114,6 +114,17 @@ not wait on this research closure.
   static-pressure matching and flow tangency. The synthetic shrinking-front
   field now records this gate as a pressure/tangency failure rather than
   allowing a topological perimeter to stand in for a free boundary.
+- Added a bounded scalar ambient-pressure closure shoot. It varies an explicit
+  linear downstream-turn endpoint, regenerates the attached shock and
+  post-shock field at every trial, and shoots the signed mean pressure residual
+  on the actual non-shock/non-centerline perimeter. The independent validator
+  still gates every pressure and tangent sample, so a scalar pressure root
+  cannot be promoted when the perimeter is an internal characteristic.
+- Added a reflected-zone ambient-closure adapter and strict chain-promotion
+  method. The adapter independently resamples the generated shock path and
+  records the first missing reflected-zone sample; only a fully ambient-closed
+  result with complete upstream coverage can become a continued MOC chain
+  cell.
 - Added a separate boundary-conditioned triangular assembler. It couples a
   branch-checked shock trace and an independently accepted ambient trace
   through C+/C- intersections, then requires the remaining perimeter to
@@ -151,9 +162,11 @@ not wait on this research closure.
 5. Keep a failed fit as a structured result; do not close the mesh with a
    geometric line merely because its endpoints are finite. The sampled fit
    contract, a solver-generated uniform linear-turn reference, and a
-   domain-bounded invariant-shooting boundary are implemented. The canonical
-   terminal-window attempt does not yet bracket a centerline closure, so the
-   physical downstream condition remains open.
+   domain-bounded invariant-shooting boundary are implemented. A separate
+   bounded ambient-pressure shoot now drives the actual post-shock outer
+   perimeter, but the canonical reflected-zone attempt stops at its first
+   missing upstream sample and the synthetic pressure root still fails full
+   perimeter tangency, so the physical downstream condition remains open.
 
 ### MOC-2 — Assemble the complete post-shock field
 
@@ -230,6 +243,10 @@ still ends before the candidate shock can reach the symmetry line, so the
 expected result is a bounded `upstream_field_failure` rather than an
 extrapolated cell. A future solve must extend or re-mesh the upstream
 characteristic domain and replace the caller-supplied downstream turn law.
+The new ambient-pressure adapter uses the same domain-bounded callbacks and
+adds a strict outer-perimeter pressure/tangency gate; its canonical result is
+therefore a bounded field/coupling failure and cannot be promoted into the
+continued chain.
 
 The verified post-shock result exposes the only seed-promotion adapter for this
 lane. An open zone, prescribed-boundary diagnostic, or scaled reduced-order
@@ -293,8 +310,10 @@ Only after MOC-1 through MOC-5 pass:
 
 - The solver-generated marcher currently uses a uniform upstream state and
   explicit linear downstream-turn law. It closes a higher-fidelity reference
-  field, but is not yet coupled to the reflected MOC upstream state/pressure
-  field or a solved downstream boundary condition.
+  field, but is not yet coupled to a complete reflected MOC upstream
+  state/pressure domain or a converged physical downstream boundary
+  condition. The new scalar ambient shoot is a bounded research seam; it does
+  not change that claim.
 - The reflected-zone shock entry point now consumes the assembled lattice
   directly, but the canonical candidate still leaves that domain after its
   boundary start. A terminal source-window continuation makes that boundary
@@ -307,7 +326,8 @@ Only after MOC-1 through MOC-5 pass:
   measurable, but the prescribed fixture fails the ambient-pressure and
   streamline-tangency gate. A coupled solver still has to replace that
   internal-characteristic edge with a solved free boundary before a cell can
-  be accepted physically.
+  be accepted physically. The scalar shoot now demonstrates this failure
+  without weakening the gate.
 - The canonical marched shock now classifies a zero-turn/normal-shock endpoint
   as `subsonic_terminal_required`. That is an explicit supersonic-MOC validity
   boundary, not a reason to force a bracket or relabel the endpoint as a

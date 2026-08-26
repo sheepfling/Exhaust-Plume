@@ -98,6 +98,11 @@ The reflected-zone shock entry point now drives the attached-shock march from
 the solved reflected state/pressure callbacks and independently reports the
 first outside-domain sample; the canonical attempt is expected to stop there,
 so no continued cell is promoted from that result.
+The same validation report now exercises a bounded scalar ambient-pressure
+shoot against the actual post-shock outer perimeter. Its synthetic pressure
+coordinate reaches a candidate root but the independent streamline-tangency
+gate rejects it, while the reflected-zone adapter stops at the first missing
+upstream sample. Neither bounded result is promoted to a physical cell.
 The same report now runs the independent MOC shock-cell geometry and chain
 operators over the prescribed field, solver-generated reference, and
 three-cell planner mock. Those operators verify explicit perimeter topology,

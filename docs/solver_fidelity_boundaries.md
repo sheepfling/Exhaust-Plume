@@ -12,7 +12,7 @@ applicability, validation evidence, and complexity ceiling.
 
 | Lane | Status | Current role | Allowed primary product | Explicit non-claims |
 | --- | --- | --- | --- | --- |
-| `planar-moc-primitives-v1` | boundary-conditioned field/chain foundation; provider pending | Standalone planar characteristic states, scalar inversions, compatibility residuals, pressure- and turn-prescribed attached compression, sampled attached-shock fit, solver-generated marched attached-shock reference field, reflected centerline-to-free-boundary march, reusable triangular source-boundary strip, assembled open characteristic zone, domain-bounded shock-path coupling probe and reflected-zone shock/chain entry point, shock-seeded closed post-shock C+/C- field, total-pressure handoff, state-carrying chain adapter, and independent shock-cell geometry/topology measurement operators | None yet; future MOC first-cell provider only after reflected-field coupling, canonical free-boundary physical closure, refinement, and external validation gates | No public visual, signature, optical, detector, or FPA claim; no axisymmetric or reacting-flow claim |
+| `planar-moc-primitives-v1` | boundary-conditioned field/chain foundation; provider pending | Standalone planar characteristic states, scalar inversions, compatibility residuals, pressure- and turn-prescribed attached compression, sampled attached-shock fit, solver-generated marched attached-shock reference field, reflected centerline-to-free-boundary march, reusable triangular source-boundary strip, assembled open characteristic zone, domain-bounded shock-path coupling probe and reflected-zone shock/chain entry point, shock-seeded closed post-shock C+/C- field, ambient-perimeter validator and bounded scalar closure shoot, total-pressure handoff, state-carrying chain adapter, and independent shock-cell geometry/topology measurement operators | None yet; future MOC first-cell provider only after complete reflected-field coupling, canonical ambient-perimeter physical closure, refinement, and external validation gates | No public visual, signature, optical, detector, or FPA claim; no axisymmetric or reacting-flow claim |
 | `shock-cell-basic-v1` | active | Fast, steady, straight, low-order shock-cell construction | `plume.visual.sectioned-tube@1`; supporting spatial/engineering handoffs where explicitly advertised | No physical signature, ray transfer, detector image, mixing, chemistry, radiation, or curved/washed flow |
 | `shock-cell-reduced-order-v1` | experimental | One resolved first cell plus explicitly calibrated, scaled downstream shock-train continuation | `plume.visual.sectioned-tube@1` through `plume.shock-train-reduced-order` | No resolved downstream MOC claim, spectral signature, ray transfer, detector image, FPA, or unvalidated universal closure |
 | `signature-table-mvp-v1` | active | Independent unresolved spectral lookup | `plume.signature.spectral-radiant-intensity@1` | No solved flow, geometry reconstruction, atmosphere, optics, detector, or focal-plane array |
@@ -53,7 +53,13 @@ pressure samplers directly and independently reports upstream coverage. In the
 canonical case it stops at the first missing sample, so the new continued-cell
 adapter cannot promote an outside-domain candidate. Its downstream flow-angle
 condition is still caller-supplied and the result is not a production physical
-first-cell solve. The canonical source strip also has an explicitly labeled constant-`K+`
+first-cell solve. A bounded ambient-pressure closure shoot now regenerates the
+shock/field for an explicit outer-turn bracket and validates the actual
+non-shock/non-centerline perimeter; a scalar pressure root is still rejected
+when the full pressure/tangency vector fails. The reflected-zone ambient
+adapter carries the same independent coverage result, so the canonical attempt
+remains a bounded failure and cannot become a chain cell. The canonical source
+strip also has an explicitly labeled constant-`K+`
 simple-wave continuation: it preserves the open-strip topology and advances
 the shock probe through additional samples, but it remains an upstream
 diagnostic assumption rather than a physical shock closure. The separately

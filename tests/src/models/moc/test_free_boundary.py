@@ -5,6 +5,7 @@ import pytest
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput
 from exhaust_plume.models.moc import (
   CharacteristicState,
+  MocAmbientClosureStatus,
   MocFreeBoundaryShockStatus,
   MocInvariantClosureFamily,
   MocInvariantClosureStatus,
@@ -16,6 +17,8 @@ from exhaust_plume.models.moc import (
   solve_marched_attached_shock_field,
   solve_marched_attached_shock_from_reflected_zone,
   solve_marched_attached_shock_from_source_strip,
+  solve_marched_attached_shock_with_ambient_pressure_closure,
+  solve_marched_attached_shock_with_ambient_pressure_closure_from_reflected_zone,
   solve_reflected_free_boundary,
   assemble_source_characteristic_strip,
   extend_source_characteristic_strip_constant_k_plus,
@@ -156,6 +159,107 @@ def test_reflected_zone_shock_solver_keeps_upstream_coverage_domain_bounded() ->
   assert result.coupling.sampled_count == 1
   assert result.coupling.first_missing_sample_index == 1
   assert result.as_report()['downstream_condition_status'] == 'caller-supplied'
+
+
+def test_ambient_pressure_closure_rejects_a_non_straddling_outer_angle_bracket() -> None:
+  state = CharacteristicState(
+    x_m=0.5,
+    y_m=0.5,
+    theta_rad=-0.2,
+    mach=2.0,
+    gamma=1.4,
+  )
+
+  result = solve_marched_attached_shock_with_ambient_pressure_closure(
+    lambda point: CharacteristicState(
+      x_m=point[0],
+      y_m=point[1],
+      theta_rad=state.theta_rad,
+      mach=state.mach,
+      gamma=state.gamma,
+    ),
+    lambda _point: 100000.0,
+    (0.5, 0.5),
+    100000.0,
+    -0.05,
+    0.05,
+    sample_count=17,
+  )
+
+  assert result.status is MocAmbientClosureStatus.BOUNDARY_BRACKET_FAILURE
+  assert not result.converged
+  assert result.ambient_boundary is not None
+  assert result.ambient_boundary.status.value == 'pressure_failure'
+  assert 'does not straddle' in result.message
+
+
+def test_ambient_pressure_closure_does_not_promote_a_pressure_root_without_tangency() -> None:
+  state = CharacteristicState(0.5, 0.5, -0.2, 2.0, 1.4)
+
+  result = solve_marched_attached_shock_with_ambient_pressure_closure(
+    lambda point: CharacteristicState(
+      x_m=point[0],
+      y_m=point[1],
+      theta_rad=state.theta_rad,
+      mach=state.mach,
+      gamma=state.gamma,
+    ),
+    lambda _point: 55000.0,
+    (0.5, 0.5),
+    100000.0,
+    -0.05,
+    0.02,
+    sample_count=17,
+    closure_tolerance=1.0e-4,
+    maximum_shooting_iterations=8,
+  )
+
+  assert result.status is MocAmbientClosureStatus.AMBIENT_BOUNDARY_FAILURE
+  assert not result.converged
+  assert result.ambient_boundary is not None
+  assert result.ambient_boundary.maximum_absolute_tangent_residual is not None
+  assert result.ambient_boundary.maximum_absolute_tangent_residual > 1.0e-2
+  assert not result.physical_closure_verified
+
+
+def test_reflected_zone_ambient_closure_keeps_upstream_coverage_domain_bounded() -> None:
+  reflected_boundary, ambient = _reflected_boundary_reference()
+  gas = CaloricallyPerfectGas.dry_air()
+  exit_state = derive_uniform_nozzle_exit(
+    NozzleExitInput(
+      mach=2.0,
+      total_pressure_Pa=2.0e6,
+      total_temperature_K=900.0,
+      exit_radius_m=0.05,
+    ),
+    gas,
+  )
+  fan = solve_underexpanded_expansion_fan(exit_state, ambient, characteristic_count=8)
+  zone = assemble_reflected_characteristic_zone(
+    fan,
+    reflected_boundary,
+    total_pressure_Pa=exit_state.total_pressure_Pa,
+  )
+  start = reflected_boundary.boundary_points_m[-1]
+
+  result = solve_marched_attached_shock_with_ambient_pressure_closure_from_reflected_zone(
+    zone,
+    start,
+    ambient.pressure_Pa,
+    -0.05,
+    0.02,
+    sample_count=9,
+  )
+
+  assert not result.converged
+  assert not result.upstream_coupling_verified
+  assert result.coupling.status.value == 'outside_reflected_zone_domain'
+  assert result.coupling.sampled_count == 1
+  assert result.coupling.first_missing_sample_index == 1
+  assert result.closure.status is MocAmbientClosureStatus.FIELD_FAILURE
+  assert result.as_report()['physical_closure_verified'] is False
+  with pytest.raises(ValueError, match='ambient closure'):
+    result.as_chain_cell(start_x_m=start[0], end_x_m=start[0] + 0.5)
 
 
 def test_reflected_zone_chain_adapter_rejects_a_shock_outside_the_solved_zone() -> None:

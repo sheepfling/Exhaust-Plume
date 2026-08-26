@@ -16,6 +16,7 @@ if str(REPO_ROOT / 'src') not in sys.path:
 from exhaust_plume.models.moc import (  # noqa: E402
   CharacteristicFamily,
   CharacteristicState,
+  MocAmbientClosureStatus,
   MocInvariantClosureFamily,
   MocFreeBoundaryShockResult,
   MocPostShockClosureStatus,
@@ -40,6 +41,8 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_marched_attached_shock_chain_cell,
   solve_marched_attached_shock_from_reflected_zone,
   solve_marched_attached_shock_from_source_strip,
+  solve_marched_attached_shock_with_ambient_pressure_closure,
+  solve_marched_attached_shock_with_ambient_pressure_closure_from_reflected_zone,
   solve_marched_attached_shock_with_constant_invariant_closure,
   solve_reflected_boundary_trace_extension,
   solve_uniform_attached_shock_field,
@@ -315,6 +318,47 @@ def _solver_generated_shock_fixture() -> MocFreeBoundaryShockResult:
   )
 
 
+def _ambient_pressure_closure_probe() -> dict[str, Any]:
+  """Exercise scalar ambient shooting and retain the full perimeter gate."""
+
+  state = CharacteristicState(
+    x_m=0.5,
+    y_m=0.5,
+    theta_rad=-0.2,
+    mach=2.0,
+    gamma=1.4,
+  )
+  result = solve_marched_attached_shock_with_ambient_pressure_closure(
+    lambda point: CharacteristicState(
+      x_m=point[0],
+      y_m=point[1],
+      theta_rad=state.theta_rad,
+      mach=state.mach,
+      gamma=state.gamma,
+    ),
+    lambda _point: 55000.0,
+    (0.5, 0.5),
+    100000.0,
+    -0.05,
+    0.02,
+    sample_count=17,
+    closure_tolerance=1.0e-4,
+    maximum_shooting_iterations=8,
+  )
+  return {
+    **result.as_report(),
+    'expected_status': MocAmbientClosureStatus.AMBIENT_BOUNDARY_FAILURE.value,
+    'expected_bounded_failure': (
+      result.status is MocAmbientClosureStatus.AMBIENT_BOUNDARY_FAILURE
+      and not result.physical_closure_verified
+    ),
+    'claim_status': (
+      'scalar-ambient-shoot-reached-pressure-coordinate-but-full-perimeter-'
+      'tangency-gate-remains-open'
+    ),
+  }
+
+
 def _solver_generated_shock_refinement_probe() -> list[dict[str, Any]]:
   """Record solver-generated shock endpoint and field refinement evidence."""
 
@@ -549,6 +593,7 @@ def _reflected_zone_shock_coupling_probe(
   reflected_zone: Any,
   reflected_boundary: Any,
   reflected_source_strip: Any,
+  ambient_pressure_Pa: float,
 ) -> dict[str, Any]:
   """Probe the domain-bounded reflected-field callbacks at a shock start."""
 
@@ -602,6 +647,16 @@ def _reflected_zone_shock_coupling_probe(
     ),
     sample_count=9,
   )
+  reflected_zone_ambient_solver = (
+    solve_marched_attached_shock_with_ambient_pressure_closure_from_reflected_zone(
+      reflected_zone,
+      start,
+      ambient_pressure_Pa,
+      -0.05,
+      0.02,
+      sample_count=9,
+    )
+  )
   return {
     'status': result.status.value,
     'sample_count': result.sample_count,
@@ -614,6 +669,12 @@ def _reflected_zone_shock_coupling_probe(
       reflected_zone_solver.shock.status.value == 'upstream_field_failure'
       and not reflected_zone_solver.upstream_coupling_verified
       and reflected_zone_solver.coupling.first_missing_sample_index == 1
+    ),
+    'reflected_zone_ambient_solver': reflected_zone_ambient_solver.as_report(),
+    'reflected_zone_ambient_solver_expected_bounded_failure': (
+      reflected_zone_ambient_solver.closure.status.value == 'ambient_closure_field_failure'
+      and not reflected_zone_ambient_solver.upstream_coupling_verified
+      and reflected_zone_ambient_solver.coupling.first_missing_sample_index == 1
     ),
     'claim_status': (
       'reflected-field-domain-bounded-shock-solver; downstream-boundary-and-'
@@ -815,7 +876,9 @@ def build_moc_primitive_report() -> dict[str, Any]:
     reflected_zone,
     reflected_boundary,
     reflected_source_strip,
+    fan_ambient.pressure_Pa,
   )
+  ambient_pressure_closure_probe = _ambient_pressure_closure_probe()
   reflected_simple_wave_shock_probe = _reflected_simple_wave_extension_probe(
     reflected_boundary,
     reflected_simple_wave_extension,
@@ -1323,6 +1386,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'claim_status': 'open-simple-wave-extension; shock-closure-pending',
     },
     'terminal_source_window_invariant_closure': terminal_source_window_invariant_closure,
+    'ambient_pressure_closure_probe': ambient_pressure_closure_probe,
     'reflected_zone_shock_coupling': reflected_zone_shock_coupling,
     'reflected_boundary_trace_extension': {
       'status': reflected_trace_extension.status.value,

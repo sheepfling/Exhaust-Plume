@@ -18,7 +18,10 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from enum import Enum
 from math import isfinite, sin, tan
-from typing import Callable, Sequence
+from typing import TYPE_CHECKING, Callable, Sequence
+
+if TYPE_CHECKING:
+  from exhaust_plume.models.moc.coupled import MocAmbientClosureResult
 
 from exhaust_plume.models.moc.compression import solve_attached_compression_to_turn
 from exhaust_plume.models.moc.boundary import MocReflectedBoundaryResult
@@ -46,9 +49,11 @@ __all__ = (
   'MocFreeBoundaryShockResult',
   'MocFreeBoundaryShockStatus',
   'MocReflectedZoneShockSolveResult',
+  'MocReflectedZoneAmbientClosureResult',
   'solve_marched_attached_shock_field',
   'solve_marched_attached_shock_from_source_strip',
   'solve_marched_attached_shock_from_reflected_zone',
+  'solve_marched_attached_shock_with_ambient_pressure_closure_from_reflected_zone',
   'solve_reflected_boundary_trace_extension',
   'solve_marched_attached_shock_chain_cell',
   'solve_marched_attached_shock_chain_cell_from_reflected_zone',
@@ -180,6 +185,76 @@ class MocReflectedZoneShockSolveResult:
       'downstream_condition_status': 'caller-supplied',
       'message': self.message,
     }
+  ####
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedZoneAmbientClosureResult:
+  """Ambient closure result carrying an independent reflected-zone probe."""
+
+  closure: MocAmbientClosureResult
+  coupling: MocReflectedZoneShockCouplingResult
+  message: str = ''
+
+  @property
+  def converged(self) -> bool:
+    return self.closure.converged and self.coupling.converged
+  ####
+
+  @property
+  def upstream_coupling_verified(self) -> bool:
+    return self.converged
+  ####
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    return self.converged and self.closure.physical_closure_verified
+  ####
+
+  def as_report(self) -> dict[str, object]:
+    return {
+      'status': self.closure.status.value,
+      'converged': self.converged,
+      'upstream_coupling_verified': self.upstream_coupling_verified,
+      'physical_closure_verified': self.physical_closure_verified,
+      'closure': self.closure.as_report(),
+      'coupling': self.coupling.as_report(),
+      'message': self.message,
+    }
+  ####
+
+  def as_chain_cell(
+    self,
+    *,
+    start_x_m: float,
+    end_x_m: float,
+    cell_index: int = 1,
+    diagnostics: dict[str, object] | None = None,
+  ) -> MocChainCell:
+    """Promote only an ambient-closed field with complete zone coupling."""
+
+    if not self.converged:
+      raise ValueError(
+        'only a converged reflected-zone ambient closure can become a '
+        'continued MOC chain cell'
+      )
+    assert self.coupling.converged
+    coupled_diagnostics: dict[str, object] = {
+      'reflected_zone_upstream_coupling_verified': True,
+      'reflected_zone_coupling_sample_count': self.coupling.sampled_count,
+    }
+    if diagnostics is not None:
+      reserved = set(coupled_diagnostics) & set(diagnostics)
+      if reserved:
+        raise ValueError(
+          f'diagnostics cannot override reserved reflected-zone keys: {sorted(reserved)!r}'
+        )
+      coupled_diagnostics.update(diagnostics)
+    return self.closure.as_chain_cell(
+      start_x_m=start_x_m,
+      end_x_m=end_x_m,
+      cell_index=cell_index,
+      diagnostics=coupled_diagnostics,
+    )
   ####
 
 
@@ -751,6 +826,147 @@ def solve_marched_attached_shock_from_reflected_zone(
     message = shock.message
   return MocReflectedZoneShockSolveResult(
     shock=shock,
+    coupling=coupling,
+    message=message,
+  )
+####
+
+
+def solve_marched_attached_shock_with_ambient_pressure_closure_from_reflected_zone(
+  reflected_zone: MocReflectedCharacteristicZoneResult,
+  start_point_m: tuple[float, float],
+  ambient_pressure_Pa: float,
+  outer_downstream_flow_angle_lower_rad: float,
+  outer_downstream_flow_angle_upper_rad: float,
+  *,
+  target_centerline_y_m: float = 0.0,
+  target_centerline_flow_angle_rad: float = 0.0,
+  incoming_handoff: Sequence[MocChainBoundarySample] | None = None,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  closure_tolerance: float = 1.0e-8,
+  pressure_tolerance: float = 1.0e-8,
+  tangent_tolerance: float = 1.0e-8,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  maximum_shooting_iterations: int = 40,
+) -> MocReflectedZoneAmbientClosureResult:
+  """Solve ambient closure while retaining reflected-zone domain coverage.
+
+  The upstream state and pressure callbacks are owned by the converged
+  reflected characteristic zone.  The returned coupling probe samples the
+  exact generated shock path independently, so a closed downstream fan cannot
+  hide a shock that left the solved upstream domain.
+  """
+
+  from exhaust_plume.models.moc.coupled import (
+    MocAmbientClosureResult,
+    MocAmbientClosureStatus,
+    solve_marched_attached_shock_with_ambient_pressure_closure,
+  )
+
+  try:
+    requested_pressure = float(ambient_pressure_Pa)
+  except (TypeError, ValueError):
+    requested_pressure = None
+  try:
+    requested_bracket = (
+      float(outer_downstream_flow_angle_lower_rad),
+      float(outer_downstream_flow_angle_upper_rad),
+    )
+  except (TypeError, ValueError):
+    requested_bracket = None
+
+  if not isinstance(reflected_zone, MocReflectedCharacteristicZoneResult):
+    shock = _failure(
+      MocFreeBoundaryShockStatus.INVALID_INPUT,
+      message='reflected_zone must be a MocReflectedCharacteristicZoneResult',
+    )
+    coupling = sample_reflected_zone_along_shock_path(reflected_zone, ())
+    closure = MocAmbientClosureResult(
+      status=MocAmbientClosureStatus.INVALID_INPUT,
+      shock=shock,
+      ambient_boundary=None,
+      ambient_pressure_Pa=requested_pressure,
+      outer_downstream_flow_angle_rad=None,
+      outer_flow_angle_bracket=requested_bracket,
+      closure_residual=None,
+      shooting_iterations=0,
+      message='ambient closure rejected an invalid reflected upstream zone',
+    )
+    return MocReflectedZoneAmbientClosureResult(
+      closure=closure,
+      coupling=coupling,
+      message='reflected-zone ambient closure stopped before generating a shock path',
+    )
+  if not reflected_zone.converged:
+    shock = _failure(
+      MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE,
+      message=f'reflected upstream zone is not converged: {reflected_zone.message}',
+    )
+    coupling = sample_reflected_zone_along_shock_path(reflected_zone, ())
+    closure = MocAmbientClosureResult(
+      status=MocAmbientClosureStatus.FIELD_FAILURE,
+      shock=shock,
+      ambient_boundary=None,
+      ambient_pressure_Pa=requested_pressure,
+      outer_downstream_flow_angle_rad=None,
+      outer_flow_angle_bracket=requested_bracket,
+      closure_residual=None,
+      shooting_iterations=0,
+      message='ambient closure stopped at the unconverged reflected upstream field',
+    )
+    return MocReflectedZoneAmbientClosureResult(
+      closure=closure,
+      coupling=coupling,
+      message='reflected-zone ambient closure stopped before generating a shock path',
+    )
+
+  closure = solve_marched_attached_shock_with_ambient_pressure_closure(
+    reflected_zone.state_at,
+    reflected_zone.static_pressure_at,
+    start_point_m,
+    ambient_pressure_Pa,
+    outer_downstream_flow_angle_lower_rad,
+    outer_downstream_flow_angle_upper_rad,
+    target_centerline_y_m=target_centerline_y_m,
+    target_centerline_flow_angle_rad=target_centerline_flow_angle_rad,
+    incoming_handoff=incoming_handoff,
+    sample_count=sample_count,
+    branch=branch,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+    closure_tolerance=closure_tolerance,
+    pressure_tolerance=pressure_tolerance,
+    tangent_tolerance=tangent_tolerance,
+    shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+    maximum_segment_iterations=maximum_segment_iterations,
+    maximum_shooting_iterations=maximum_shooting_iterations,
+  )
+  if closure.shock is None:
+    coupling = sample_reflected_zone_along_shock_path(reflected_zone, ())
+  else:
+    coupling = _coupling_result_for_shock_path(
+      reflected_zone,
+      closure.shock,
+      position_tolerance_m=position_tolerance_m,
+    )
+  if not coupling.converged:
+    message = (
+      'reflected upstream coupling did not cover the ambient-closure shock '
+      f'path: {coupling.message}'
+    )
+  elif not closure.converged:
+    message = closure.message
+  else:
+    message = (
+      'ambient-pressure closure and reflected upstream state/pressure coupling '
+      'both converged on the generated shock path'
+    )
+  return MocReflectedZoneAmbientClosureResult(
+    closure=closure,
     coupling=coupling,
     message=message,
   )

@@ -407,6 +407,47 @@
       ],
       "claim_status": "domain-bounded-invariant-shooting-attempt; constant-downstream-invariant-is-not-yet-a-physical-closure"
     },
+    "ambient_pressure_closure_probe": {
+      "status": "ambient_boundary_failure",
+      "converged": false,
+      "physical_closure_verified": false,
+      "ambient_pressure_Pa": 100000.0,
+      "outer_downstream_flow_angle_rad": -0.0081640625,
+      "outer_flow_angle_bracket": [
+        -0.0084375,
+        -0.007890625
+      ],
+      "closure_residual": 2.772158590018489e-05,
+      "shooting_iterations": 8,
+      "shock": {
+        "status": "converged_free_boundary_field",
+        "converged": true,
+        "physical_closure_verified": true,
+        "subsonic_terminal_required": false,
+        "sample_count": 17,
+        "endpoint_m": [
+          0.8887078161601872,
+          0.0
+        ],
+        "maximum_shock_angle_residual_rad": 0.0002933173985447679,
+        "field_status": "converged_closed",
+        "message": "solver-generated attached-shock boundary reached the symmetry line and closed the post-shock characteristic field"
+      },
+      "ambient_boundary": {
+        "status": "pressure_failure",
+        "converged": false,
+        "physical_closure_verified": false,
+        "sample_count": 18,
+        "ambient_pressure_Pa": 100000.0,
+        "maximum_absolute_pressure_residual": 0.012924052815497416,
+        "maximum_absolute_tangent_residual": 0.6300392159980528,
+        "message": "post-shock outer perimeter validation failed: ambient-pressure boundary static-pressure residual exceeded tolerance"
+      },
+      "message": "the scalar mean ambient-pressure residual reached tolerance, but the full outer perimeter did not pass pressure and tangent validation: post-shock outer perimeter validation failed: ambient-pressure boundary static-pressure residual exceeded tolerance",
+      "expected_status": "ambient_boundary_failure",
+      "expected_bounded_failure": true,
+      "claim_status": "scalar-ambient-shoot-reached-pressure-coordinate-but-full-perimeter-tangency-gate-remains-open"
+    },
     "reflected_zone_shock_coupling": {
       "status": "upstream_field_failure",
       "sample_count": 1,
@@ -466,6 +507,55 @@
         "message": "reflected upstream coupling did not cover the shock path: shock march stopped before it produced a complete path for the reflected-zone coupling probe: upstream field callback returned no CharacteristicState at sample 1"
       },
       "reflected_zone_solver_expected_bounded_failure": true,
+      "reflected_zone_ambient_solver": {
+        "status": "ambient_closure_field_failure",
+        "converged": false,
+        "upstream_coupling_verified": false,
+        "physical_closure_verified": false,
+        "closure": {
+          "status": "ambient_closure_field_failure",
+          "converged": false,
+          "physical_closure_verified": false,
+          "ambient_pressure_Pa": 101325.0,
+          "outer_downstream_flow_angle_rad": -0.05,
+          "outer_flow_angle_bracket": [
+            -0.05,
+            0.02
+          ],
+          "closure_residual": null,
+          "shooting_iterations": 0,
+          "shock": {
+            "status": "upstream_field_failure",
+            "converged": false,
+            "physical_closure_verified": false,
+            "subsonic_terminal_required": false,
+            "sample_count": 1,
+            "endpoint_m": [
+              0.7431488332818272,
+              0.1158153281924007
+            ],
+            "maximum_shock_angle_residual_rad": null,
+            "field_status": null,
+            "message": "upstream field callback returned no CharacteristicState at sample 1"
+          },
+          "ambient_boundary": null,
+          "message": "ambient-pressure shooting requires both bracket endpoints to produce a complete post-shock outer perimeter; lower=generated shock/field did not converge: upstream field callback returned no CharacteristicState at sample 1; upper=generated shock/field did not converge: upstream field callback returned no CharacteristicState at sample 1"
+        },
+        "coupling": {
+          "status": "outside_reflected_zone_domain",
+          "converged": false,
+          "requested_sample_count": 1,
+          "sampled_count": 1,
+          "first_missing_sample_index": 1,
+          "last_valid_point_m": [
+            0.7431488332818272,
+            0.1158153281924007
+          ],
+          "message": "shock march stopped before it produced a complete path for the reflected-zone coupling probe: upstream field callback returned no CharacteristicState at sample 1"
+        },
+        "message": "reflected upstream coupling did not cover the ambient-closure shock path: shock march stopped before it produced a complete path for the reflected-zone coupling probe: upstream field callback returned no CharacteristicState at sample 1"
+      },
+      "reflected_zone_ambient_solver_expected_bounded_failure": true,
       "claim_status": "reflected-field-domain-bounded-shock-solver; downstream-boundary-and-shock-path-extension-pending"
     },
     "reflected_boundary_trace_extension": {

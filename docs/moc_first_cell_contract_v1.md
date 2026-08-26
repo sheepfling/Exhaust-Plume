@@ -70,6 +70,11 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   and centerline edges from a candidate mesh, reconstructs the remaining
   solver-carried state trace, and checks both static-pressure matching and
   flow/boundary tangency;
+- a bounded scalar ambient-pressure closure shoot that regenerates the
+  attached shock/field for each outer-turn trial and uses the perimeter gate
+  as the final acceptance condition;
+- a reflected-zone ambient-closure adapter with independent upstream coverage
+  reporting and a chain-promotion method that refuses incomplete coupling;
 - a separate boundary-conditioned triangular assembler that accepts a
   branch-checked shock trace plus an independently accepted ambient trace and
   only exposes a resolved chain handoff after the characteristic net closes on
@@ -147,6 +152,11 @@ closed for numerical promotion, but that is not an ambient free-boundary
 acceptance. `validate_post_shock_ambient_boundary` is the additional external
 condition gate; the current prescribed fixture fails it because its remaining
 perimeter is an internal characteristic with pressure and tangency residuals.
+The ambient-pressure shooter now uses that same extracted perimeter as a
+scalar pressure coordinate, but it retains the full vector pressure/tangency
+gate. The synthetic pressure-root probe therefore returns a bounded
+`ambient_boundary_failure`, and the canonical reflected-zone probe returns a
+bounded upstream-domain failure rather than manufacturing a first cell.
 The prescribed field still promotes only the
 `TERMINAL_CHARACTERISTIC_TRACE` kind. The separate ambient-closed triangular
 assembler promotes its centerline handoff as
@@ -218,13 +228,13 @@ do not authorize replacing the basic provider or accepting a product claim.
 
 ## Next gates before provider integration
 
-1. Couple the marched shock to the reflected MOC upstream state/pressure field
-   and replace both the uniform reference linear-turn law and the diagnostic
-   constant-`K+` continuation assumption with a solved post-shock boundary
-   condition. The current solver-generated field is higher-fidelity
-   boundary-conditioned evidence, but not yet a production free-boundary
-   first-cell solution. The new outer-perimeter gate is the acceptance seam
-   that the coupled solver must satisfy.
+1. Extend the reflected MOC upstream state/pressure field far enough to cover
+   the generated shock path, then replace both the uniform reference
+   linear-turn law and the diagnostic constant-`K+` continuation assumption
+   with a solved post-shock boundary condition. The new ambient shooter is the
+   bounded research seam for that condition, but the current probes are not a
+   production free-boundary first-cell solution: one fails the full perimeter
+   gate and the canonical reflected case fails upstream coverage.
 2. Demonstrate grid/refinement convergence for the assembled reflected and
    post-shock zones, underexpanded, and mild attached overexpanded reference
    cases.
