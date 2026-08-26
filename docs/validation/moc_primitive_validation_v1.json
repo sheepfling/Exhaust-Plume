@@ -4370,6 +4370,26 @@
         "next_cell_index": 2
       },
       "message": "continued marched shock reached a verified subsonic normal shock; the unresolved mixed-regime downstream field remains outside the supersonic MOC chain",
+      "planner": {
+        "planner_kind": "solver-generated-reference",
+        "planning_only": true,
+        "production_claim_allowed": false,
+        "planner_step_count": 1,
+        "planner_steps": [
+          {
+            "current_cell_index": 1,
+            "next_cell_index": 2,
+            "current_end_x_m": 1.0,
+            "boundary_kind": "post-shock-field-perimeter",
+            "incoming_handoff_sample_count": 18,
+            "incoming_total_pressure_range_Pa": [
+              749635.1347251647,
+              764819.179280032
+            ]
+          }
+        ],
+        "claim_status": "solver-generated-chain-reference; physical-free-boundary-validation-pending"
+      },
       "expected_physical_termination": true,
       "claim_status": "solver-generated-continued-cell-to-typed-normal-shock-stop; mixed-regime-cell-promotion-pending",
       "accepted": true

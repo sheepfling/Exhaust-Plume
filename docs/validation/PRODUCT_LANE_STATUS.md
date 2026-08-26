@@ -86,7 +86,9 @@ record also runs a solver-generated marched attached-shock reference with
 closed-field and 9/17/33-sample refinement diagnostics, plus a three-cell
 solver-generated chain reference and a three-cell prescribed-boundary planner
 mock that check terminal-trace consumption and monotonic total-pressure
-handoff. The reflected-zone shock probe is domain-bounded and records the
+handoff; the typed normal-shock chain-stop probe also records its planner
+handoff before physical termination. The reflected-zone shock probe is
+domain-bounded and records the
 expected upstream-field failure when the candidate shock exits that lattice;
 the source-strip continuation extends that diagnostic domain under an explicit
 constant-`K+` simple-wave assumption, but the separate boundary-trace

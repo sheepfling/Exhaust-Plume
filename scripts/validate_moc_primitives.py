@@ -1354,15 +1354,25 @@ def _solver_generated_chain_terminal_probe(
       sample_count=9,
     )
 
-  chain = continue_post_shock_characteristic_chain(
+  planner = plan_post_shock_characteristic_chain(
     seed_field,
     solve_next,
     start_x_m=0.5,
     end_x_m=1.0,
     require_upstream_shock_coupling=True,
+    planner_kind=MocChainPlannerKind.SOLVER_GENERATED_REFERENCE,
   )
+  chain = planner.chain
   return {
     **chain.as_report(),
+    'planner': {
+      'planner_kind': planner.planner_kind.value,
+      'planning_only': planner.as_report()['planning_only'],
+      'production_claim_allowed': planner.production_claim_allowed,
+      'planner_step_count': len(planner.steps),
+      'planner_steps': [step.as_report() for step in planner.steps],
+      'claim_status': planner.claim_status,
+    },
     'expected_physical_termination': (
       chain.physical_termination
       and chain.status is MocChainStatus.PHYSICALLY_TERMINATED

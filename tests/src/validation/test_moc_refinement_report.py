@@ -104,6 +104,13 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert generated_chain_terminal['cell_count'] == 1
   assert generated_chain_terminal['resolved'] is True
   assert generated_chain_terminal['termination_reason'] == 'physical-termination'
+  terminal_planner = generated_chain_terminal['planner']
+  assert terminal_planner['planner_kind'] == 'solver-generated-reference'
+  assert terminal_planner['planning_only'] is True
+  assert terminal_planner['production_claim_allowed'] is False
+  assert terminal_planner['planner_step_count'] == 1
+  assert terminal_planner['planner_steps'][0]['next_cell_index'] == 2
+  assert terminal_planner['planner_steps'][0]['boundary_kind'] == 'post-shock-field-perimeter'
   assert generated_chain_terminal['expected_physical_termination'] is True
   assert generated_chain_terminal['diagnostics']['termination_model'] == 'normal-shock-terminal'
   assert reflected_chain_boundary['accepted'] is True
