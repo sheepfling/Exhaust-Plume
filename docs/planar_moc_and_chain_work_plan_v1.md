@@ -99,6 +99,10 @@ not wait on this research closure.
   decision can set `physical_termination=true`. The planner mock now uses the
   non-physical typed stop so its three-cell result cannot be mistaken for a
   predicted chain endpoint.
+- Added continued-chain pressure-lineage reporting. Each state-carrying cell
+  now reports its outgoing total-pressure range and the chain report records
+  whether those carried maxima are nonincreasing. This is a handoff
+  bookkeeping check, not a substitute for a physical shock-loss proof.
 - Added axial-boundary, cell-index, domain-limit, and callback termination
   checks.
 - Added a hard fidelity boundary: scaled reduced-order candidates are
@@ -163,11 +167,13 @@ implementation. It must not be used as this callback.
 
 The validation script's planner mock is only an executable contract fixture:
 it supplies the next shock boundary directly so that handoff, pressure-loss,
-and fidelity checks can run. A separate generated-chain reference now runs the
-same continuation adapter with solver-generated boundaries, but its upstream
-field and linear downstream-turn law remain explicit callbacks. Neither is
-evidence for production automatic shock placement, physical termination, or
-external validation.
+and fidelity checks can run. Its prescribed boundary advances with each
+planned cell, and the report checks the carried total-pressure maxima without
+calling that bookkeeping a physical endpoint. A separate generated-chain
+reference now runs the same continuation adapter with solver-generated
+boundaries, but its upstream field and linear downstream-turn law remain
+explicit callbacks. Neither is evidence for production automatic shock
+placement, physical termination, or external validation.
 
 The constant-`K+` source-strip continuation is a separate upstream-only
 diagnostic fixture: it tests how a continued shock probe consumes a growing

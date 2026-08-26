@@ -70,6 +70,9 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   non-bounded meshes, axial gaps, and scaled reduced-order fidelity;
 - a typed chain termination decision that distinguishes a physical endpoint
   from a planner/numerical callback stop;
+- continued-cell reports that expose the outgoing total-pressure range for
+  every carried terminal trace and flag nonincreasing pressure maxima as
+  bookkeeping evidence;
 - mesh connectivity diagnostics that distinguish a topologically bounded
   polygon from an unresolved physical boundary;
 - a shared averaged-characteristic fan/reflected interface whose combined

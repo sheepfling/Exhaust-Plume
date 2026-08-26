@@ -54,7 +54,12 @@ def _cell(
   )
 
 
-def _stateful_cell(index: int, start_x_m: float) -> MocChainCell:
+def _stateful_cell(
+  index: int,
+  start_x_m: float,
+  *,
+  total_pressure_Pa: float = 1.0e6,
+) -> MocChainCell:
   boundary = tuple(
     MocChainBoundarySample(
       state=CharacteristicState(
@@ -64,7 +69,7 @@ def _stateful_cell(index: int, start_x_m: float) -> MocChainCell:
         mach=2.0,
         gamma=1.4,
       ),
-      total_pressure_Pa=1.0e6,
+      total_pressure_Pa=total_pressure_Pa,
     )
     for offset in range(3)
   )
@@ -196,7 +201,27 @@ def test_stateful_moc_chain_preserves_boundary_samples_across_cells() -> None:
   assert result.status is MocChainStatus.SOLVER_TERMINATED
   assert result.resolved
   assert result.as_report()['state_carry_count'] == 2
+  assert result.as_report()['continuation_boundary_maxima_nonincreasing'] is True
+  assert result.as_report()['continuation_total_pressure_ranges_Pa'] == [
+    {'cell_index': 1, 'minimum_Pa': 1.0e6, 'maximum_Pa': 1.0e6},
+    {'cell_index': 2, 'minimum_Pa': 1.0e6, 'maximum_Pa': 1.0e6},
+  ]
   assert calls == [(2, 3), (3, 3)]
+
+
+def test_chain_pressure_report_flags_a_carried_pressure_increase() -> None:
+  result = continue_moc_cell_chain(
+    _stateful_cell(1, 0.0),
+    lambda current, index: (
+      None
+      if index == 3
+      else _stateful_cell(index, current.end_x_m, total_pressure_Pa=1.1e6)
+    ),
+    MocChainContinuationPolicy(max_cells=4, require_state_carry=True),
+  )
+
+  assert result.status is MocChainStatus.SOLVER_TERMINATED
+  assert result.as_report()['continuation_boundary_maxima_nonincreasing'] is False
 
 
 def test_axial_section_boundary_rejects_nonplanar_state_samples() -> None:

@@ -242,6 +242,23 @@ class MocChainCell:
     return bool(self.continuation_boundary)
 ####
 
+  @property
+  def continuation_total_pressure_range_Pa(self) -> tuple[float, float] | None:
+    """Return the carried boundary's total-pressure range, if present.
+
+    This is a bookkeeping diagnostic for a continued chain.  It does not
+    assert a physical shock loss by itself; that remains the responsibility of
+    the producing field's closure diagnostics and the handoff validation.
+    """
+
+    if not self.continuation_boundary:
+      return None
+    pressures = tuple(
+      sample.total_pressure_Pa for sample in self.continuation_boundary
+    )
+    return min(pressures), max(pressures)
+####
+
 
 @dataclass(frozen=True, slots=True)
 class MocChainContinuationPolicy:
@@ -326,6 +343,22 @@ class MocChainResult:
     for cell in self.cells:
       key = cell.geometry_fidelity.value
       fidelity_counts[key] = fidelity_counts.get(key, 0) + 1
+    pressure_ranges = tuple(
+      (cell.cell_index, cell.continuation_total_pressure_range_Pa)
+      for cell in self.cells
+      if cell.continuation_total_pressure_range_Pa is not None
+    )
+    pressure_maxima = tuple(
+      pressure_range[1]
+      for _cell_index, pressure_range in pressure_ranges
+      if pressure_range is not None
+    )
+    pressure_maxima_nonincreasing = None
+    if len(pressure_maxima) >= 2:
+      pressure_maxima_nonincreasing = all(
+        current <= previous + 1.0e-12 * max(1.0, abs(previous), abs(current))
+        for previous, current in zip(pressure_maxima, pressure_maxima[1:])
+      )
     return {
       'status': self.status.value,
       'termination_reason': self.termination_reason.value,
@@ -338,6 +371,15 @@ class MocChainResult:
         cell.continuation_boundary_kind.value for cell in self.cells
         if cell.carries_state
       }),
+      'continuation_total_pressure_ranges_Pa': [
+        {
+          'cell_index': cell_index,
+          'minimum_Pa': pressure_range[0],
+          'maximum_Pa': pressure_range[1],
+        }
+        for cell_index, pressure_range in pressure_ranges
+      ],
+      'continuation_boundary_maxima_nonincreasing': pressure_maxima_nonincreasing,
       'geometry_fidelity_counts': fidelity_counts,
       'diagnostics': dict(self.diagnostics),
       'message': self.message,

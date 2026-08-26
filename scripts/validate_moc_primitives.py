@@ -367,12 +367,10 @@ def _shock_cell_chain_planner_mock(
         reason=MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
         message='planner mock exhausted its prescribed three-cell fixture',
       )
-    points = (
-      (1.00, 0.20),
-      (1.02, 0.14),
-      (1.04, 0.08),
-      (1.06, 0.04),
-      (1.08, 0.0),
+    shock_start_x_m = current.end_x_m + 0.20
+    points = tuple(
+      (shock_start_x_m + 0.02 * index, ordinate)
+      for index, ordinate in enumerate((0.20, 0.14, 0.08, 0.04, 0.0))
     )
     downstream_angles = (-0.30, -0.20, -0.10, -0.05, 0.0)
     samples = tuple(
@@ -426,7 +424,7 @@ def _shock_cell_chain_planner_mock(
         fit,
         incoming_handoff=handoff,
       ),
-      end_x_m=2.0 + 0.5 * (cell_index - 2),
+      end_x_m=current.end_x_m + 0.50,
     )
 
   return (
@@ -464,7 +462,14 @@ def _solver_generated_chain_reference(
       'current_end_x_m': current.end_x_m,
     })
     if cell_index >= 4:
-      return None
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
+        message=(
+          'solver-generated reference stopped after its three-cell fixture; '
+          'no physical endpoint was inferred'
+        ),
+      )
     incoming_max = max(sample.total_pressure_Pa for sample in handoff)
     upstream_mach = 2.0
     upstream_gamma = 1.4
@@ -848,6 +853,16 @@ def build_moc_primitive_report() -> dict[str, Any]:
       or not case['pressure_loss_verified']
     )
   ]
+  solver_generated_chain_report = (
+    None
+    if solver_generated_chain_reference is None
+    else solver_generated_chain_reference.as_report()
+  )
+  shock_cell_chain_mock_report = shock_cell_chain_mock.as_report()
+  solver_generated_chain_pressure_lineage_ok = (
+    solver_generated_chain_report is not None
+    and solver_generated_chain_report['continuation_boundary_maxima_nonincreasing'] is True
+  )
   solver_generated_shock_refinement_failures = [
     case for case in solver_generated_shock_refinement_probe
     if (
@@ -867,6 +882,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
       not cell.carries_state
       for cell in solver_generated_chain_reference.cells
     )
+    or not solver_generated_chain_pressure_lineage_ok
   )
   overexpanded_exit = derive_uniform_nozzle_exit(
     NozzleExitInput(
@@ -1306,10 +1322,25 @@ def build_moc_primitive_report() -> dict[str, Any]:
         if solver_generated_chain_reference is None
         else solver_generated_chain_reference.physical_termination
       ),
+      'termination_reason': (
+        None
+        if solver_generated_chain_reference is None
+        else solver_generated_chain_reference.termination_reason.value
+      ),
       'state_carry_count': (
         None
         if solver_generated_chain_reference is None
         else solver_generated_chain_reference.as_report()['state_carry_count']
+      ),
+      'continuation_total_pressure_ranges_Pa': (
+        None
+        if solver_generated_chain_report is None
+        else solver_generated_chain_report['continuation_total_pressure_ranges_Pa']
+      ),
+      'continuation_boundary_maxima_nonincreasing': (
+        None
+        if solver_generated_chain_report is None
+        else solver_generated_chain_report['continuation_boundary_maxima_nonincreasing']
       ),
       'observations': solver_generated_chain_observations,
       'claim_status': 'solver-generated-chain-reference; upstream-field-coupling-pending',
@@ -1353,6 +1384,12 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'resolved': shock_cell_chain_mock.resolved,
       'state_carry_count': shock_cell_chain_mock.as_report()['state_carry_count'],
       'continuation_boundary_kinds': shock_cell_chain_mock.as_report()['continuation_boundary_kinds'],
+      'continuation_total_pressure_ranges_Pa': shock_cell_chain_mock_report[
+        'continuation_total_pressure_ranges_Pa'
+      ],
+      'continuation_boundary_maxima_nonincreasing': shock_cell_chain_mock_report[
+        'continuation_boundary_maxima_nonincreasing'
+      ],
       'observations': shock_cell_chain_mock_observations,
       'claim_status': (
         'deterministic-prescribed-next-shock-planner-mock; '
@@ -1588,7 +1625,10 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'status': shock_cell_chain_mock.status.value,
         'message': shock_cell_chain_mock.message,
       }
-    ] if not shock_cell_chain_mock.resolved else []),
+    ] if (
+      not shock_cell_chain_mock.resolved
+      or shock_cell_chain_mock_report['continuation_boundary_maxima_nonincreasing'] is not True
+    ) else []),
   ]
   ####
   return {
