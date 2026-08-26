@@ -1,0 +1,128 @@
+from exhaust_plume.models.moc import (
+  CharacteristicState,
+  MocMixedRegimeBoundaryStatus,
+  MocMixedRegimeFieldSample,
+  MocPostShockBoundaryState,
+  solve_normal_shock_terminal,
+  validate_mixed_regime_boundary,
+)
+
+
+def _terminal():
+  return solve_normal_shock_terminal(
+    CharacteristicState(
+      x_m=1.0,
+      y_m=0.0,
+      theta_rad=0.0,
+      mach=2.0,
+      gamma=1.4,
+    ),
+    upstream_pressure_Pa=100000.0,
+  )
+
+
+def _supersonic_patch():
+  return (
+    MocPostShockBoundaryState(
+      point_m=(0.8, 0.2),
+      state=CharacteristicState(
+        x_m=0.8,
+        y_m=0.2,
+        theta_rad=0.1,
+        mach=2.0,
+        gamma=1.4,
+      ),
+      upstream_total_pressure_Pa=2.0e6,
+      downstream_total_pressure_Pa=1.8e6,
+    ),
+    MocPostShockBoundaryState(
+      point_m=(0.9, 0.1),
+      state=CharacteristicState(
+        x_m=0.9,
+        y_m=0.1,
+        theta_rad=0.05,
+        mach=2.0,
+        gamma=1.4,
+      ),
+      upstream_total_pressure_Pa=2.0e6,
+      downstream_total_pressure_Pa=1.8e6,
+    ),
+  )
+
+
+def _samples(terminal, *, interior_total_pressure: float | None = None):
+  assert terminal.shock_point_m is not None
+  assert terminal.downstream_mach is not None
+  assert terminal.downstream_flow_angle_rad is not None
+  assert terminal.downstream_pressure_Pa is not None
+  assert terminal.downstream_total_pressure_Pa is not None
+  gamma = terminal.upstream_state.gamma
+  points = ((1.0, 0.0), (1.1, 0.1), (1.2, 0.1), (1.2, 0.0), (1.0, 0.0))
+  return tuple(
+    MocMixedRegimeFieldSample(
+      point_m=point,
+      mach=terminal.downstream_mach,
+      flow_angle_rad=terminal.downstream_flow_angle_rad,
+      static_pressure_Pa=terminal.downstream_pressure_Pa,
+      total_pressure_Pa=(
+        terminal.downstream_total_pressure_Pa
+        if index in (0, len(points) - 1) or interior_total_pressure is None
+        else interior_total_pressure
+      ),
+      gamma=gamma,
+    )
+    for index, point in enumerate(points)
+  )
+
+
+def test_scalar_mixed_regime_boundary_handoff_is_valid_but_not_field_closure() -> None:
+  terminal = _terminal()
+  result = validate_mixed_regime_boundary(
+    terminal,
+    _supersonic_patch(),
+    supersonic_patch_converged=True,
+    subsonic_samples=_samples(terminal),
+  )
+
+  assert result.status is MocMixedRegimeBoundaryStatus.CONVERGED_BOUNDARY_HANDOFF
+  assert result.converged
+  assert result.supersonic_patch_verified
+  assert result.terminal_continuity_verified
+  assert result.perimeter_geometry_verified
+  assert result.total_pressure_lineage_verified
+  assert result.mixed_regime_field_complete is False
+  assert result.physical_closure_verified is False
+  assert result.chain_promotion_blocked
+
+
+def test_mixed_regime_boundary_rejects_missing_scalar_field() -> None:
+  result = validate_mixed_regime_boundary(
+    _terminal(),
+    _supersonic_patch(),
+    supersonic_patch_converged=True,
+    subsonic_samples=(),
+  )
+
+  assert result.status is MocMixedRegimeBoundaryStatus.SUBSONIC_FIELD_FAILURE
+  assert not result.converged
+  assert result.supersonic_patch_verified
+  assert result.chain_promotion_blocked
+
+
+def test_mixed_regime_boundary_rejects_total_pressure_gain() -> None:
+  terminal = _terminal()
+  assert terminal.downstream_total_pressure_Pa is not None
+  result = validate_mixed_regime_boundary(
+    terminal,
+    _supersonic_patch(),
+    supersonic_patch_converged=True,
+    subsonic_samples=_samples(
+      terminal,
+      interior_total_pressure=terminal.downstream_total_pressure_Pa * 1.1,
+    ),
+  )
+
+  assert result.status is MocMixedRegimeBoundaryStatus.PRESSURE_FAILURE
+  assert not result.converged
+  assert result.terminal_continuity_verified
+  assert not result.total_pressure_lineage_verified

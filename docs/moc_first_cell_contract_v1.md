@@ -312,6 +312,16 @@ its shock point but no downstream ``CharacteristicState``. The branch is
 reported separately from the outer attachment branch, and neither the typed
 strong boundary nor the open supersonic patch relaxes the mixed-regime field
 or chain-promotion gate.
+The separate ``mixed_regime`` contract now accepts only scalar subsonic
+samples on an explicitly closed downstream perimeter. It checks the open
+supersonic patch first, then checks terminal Mach/angle/pressure continuity,
+downstream geometry, and total-pressure lineage. A passing result is named a
+``converged_subsonic_boundary_handoff`` rather than a field: it has no
+subsonic characteristic states or mesh, so ``mixed_regime_field_complete``
+and ``physical_closure_verified`` remain false and chain promotion remains
+blocked. The validation artifact includes a missing-field rejection and a
+non-physical scalar-perimeter contract fixture to keep this boundary
+executable without pretending that the fixture is a solved plume region.
 The earlier boundary-conditioned triangular assembler is also no longer
 promotion-eligible by default: it does not carry verified shock-``C+`` /
 ambient-``C-`` family-orientation evidence. This guard prevents a numerically

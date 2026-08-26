@@ -18,6 +18,8 @@ from exhaust_plume.models.moc import (  # noqa: E402
   CharacteristicState,
   MocAmbientClosureStatus,
   MocAmbientShockStripStatus,
+  MocMixedRegimeBoundaryStatus,
+  MocMixedRegimeFieldSample,
   MocInvariantClosureFamily,
   MocFreeBoundaryShockResult,
   MocPostShockClosureStatus,
@@ -78,6 +80,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   validate_fan_reflected_interface,
   validate_closed_post_shock_field,
   validate_characteristic_trace,
+  validate_mixed_regime_boundary,
   validate_post_shock_ambient_boundary,
   validate_moc_mesh,
 )
@@ -901,6 +904,132 @@ def _terminal_composite_refinement_case_failed(case: dict[str, Any]) -> bool:
   )
 
 
+def _mixed_regime_boundary_probe(
+  solver_generated_shock: MocFreeBoundaryShockResult,
+) -> dict[str, Any]:
+  """Exercise the scalar mixed-regime handoff without promoting a field."""
+
+  shock_fit = solver_generated_shock.shock_fit
+  if shock_fit is None or not shock_fit.converged or not shock_fit.boundary_states:
+    return {
+      'status': 'missing_terminal_input',
+      'accepted': False,
+      'physical_closure_verified': False,
+      'chain_promotion_blocked': True,
+      'claim_status': 'mixed-regime-boundary-contract-pending',
+      'message': 'solver-generated shock fixture did not provide mixed-regime inputs',
+    }
+  first = shock_fit.boundary_states[0]
+  state = first.state
+  ambient_pressure = first.downstream_total_pressure_Pa / (
+    1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
+  ) ** (state.gamma / (state.gamma - 1.0))
+  transition = solve_marched_ambient_attachment_shock_cell_transition(
+    lambda point: CharacteristicState(
+      x_m=point[0],
+      y_m=point[1],
+      theta_rad=-0.2,
+      mach=2.0,
+      gamma=1.4,
+    ),
+    lambda _point: 100000.0,
+    (0.5, 0.5),
+    ambient_pressure,
+    0.0,
+    0.1,
+    sample_count=17,
+    trace_position_tolerance_m=2.0e-4,
+  )
+  field = transition.terminal_field
+  downstream_shock = transition.downstream_shock
+  terminal = (
+    None
+    if downstream_shock is None
+    else downstream_shock.shock.normal_shock_terminal
+  )
+  if (
+    field is None
+    or downstream_shock is None
+    or terminal is None
+    or not field.terminal_supersonic_downstream_patch_converged
+  ):
+    return {
+      'status': 'missing_terminal_input',
+      'accepted': False,
+      'physical_closure_verified': False,
+      'chain_promotion_blocked': True,
+      'claim_status': 'mixed-regime-boundary-contract-pending',
+      'message': 'terminal composite did not expose a verified open supersonic patch and scalar terminal',
+    }
+  patch = field.terminal_shock_supersonic_downstream_states
+  missing_field = validate_mixed_regime_boundary(
+    terminal,
+    patch,
+    supersonic_patch_converged=field.terminal_supersonic_downstream_patch_converged,
+    subsonic_samples=(),
+  )
+  if (
+    terminal.shock_point_m is None
+    or terminal.downstream_mach is None
+    or terminal.downstream_flow_angle_rad is None
+    or terminal.downstream_pressure_Pa is None
+    or terminal.downstream_total_pressure_Pa is None
+    or terminal.upstream_state is None
+  ):
+    return {
+      'status': 'invalid_terminal_scalars',
+      'accepted': False,
+      'physical_closure_verified': False,
+      'chain_promotion_blocked': True,
+      'missing_scalar_field': missing_field.as_report(),
+      'claim_status': 'mixed-regime-boundary-contract-pending',
+      'message': 'normal-shock terminal did not expose complete scalar values',
+    }
+  terminal_x, terminal_y = terminal.shock_point_m
+  contract_points = (
+    (terminal_x, terminal_y),
+    (terminal_x + 0.01, terminal_y + 0.01),
+    (terminal_x + 0.02, terminal_y + 0.01),
+    (terminal_x + 0.02, terminal_y),
+    (terminal_x, terminal_y),
+  )
+  contract_samples = tuple(
+    MocMixedRegimeFieldSample(
+      point_m=point,
+      mach=terminal.downstream_mach,
+      flow_angle_rad=terminal.downstream_flow_angle_rad,
+      static_pressure_Pa=terminal.downstream_pressure_Pa,
+      total_pressure_Pa=terminal.downstream_total_pressure_Pa,
+      gamma=terminal.upstream_state.gamma,
+    )
+    for point in contract_points
+  )
+  contract_fixture = validate_mixed_regime_boundary(
+    terminal,
+    patch,
+    supersonic_patch_converged=field.terminal_supersonic_downstream_patch_converged,
+    subsonic_samples=contract_samples,
+  )
+  return {
+    'status': contract_fixture.status.value,
+    'accepted': (
+      missing_field.status is MocMixedRegimeBoundaryStatus.SUBSONIC_FIELD_FAILURE
+      and contract_fixture.converged
+      and contract_fixture.physical_closure_verified is False
+      and contract_fixture.chain_promotion_blocked
+    ),
+    'physical_closure_verified': contract_fixture.physical_closure_verified,
+    'chain_promotion_blocked': contract_fixture.chain_promotion_blocked,
+    'missing_scalar_field': missing_field.as_report(),
+    'scalar_perimeter_contract_fixture': contract_fixture.as_report(),
+    'claim_status': (
+      'typed-scalar-subsonic-boundary-handoff-only; '
+      'subsonic-field-mesh-and-chain-promotion-pending'
+    ),
+    'message': contract_fixture.message,
+  }
+
+
 def _shock_cell_chain_planner_mock(
   seed_field: MocPostShockCharacteristicFieldResult,
 ) -> tuple[Any, list[dict[str, Any]], list[MocShockCellObservation]]:
@@ -1616,6 +1745,9 @@ def build_moc_primitive_report() -> dict[str, Any]:
   terminal_composite_refinement_probe = _terminal_composite_refinement_probe(
     solver_generated_shock,
   )
+  mixed_regime_boundary_probe = _mixed_regime_boundary_probe(
+    solver_generated_shock,
+  )
   solver_generated_chain_reference = None
   solver_generated_chain_observations: list[dict[str, Any]] = []
   if solver_generated_shock.field is not None and solver_generated_shock.field.converged:
@@ -1762,6 +1894,11 @@ def build_moc_primitive_report() -> dict[str, Any]:
   )
   solver_generated_chain_terminal_failure = (
     solver_generated_chain_terminal_probe.get('expected_physical_termination') is not True
+  )
+  mixed_regime_boundary_failure = (
+    mixed_regime_boundary_probe.get('accepted') is not True
+    or mixed_regime_boundary_probe.get('physical_closure_verified') is not False
+    or mixed_regime_boundary_probe.get('chain_promotion_blocked') is not True
   )
   overexpanded_exit = derive_uniform_nozzle_exit(
     NozzleExitInput(
@@ -2276,6 +2413,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'mixed-regime-downstream-field-pending'
       ),
     },
+    'mixed_regime_boundary_contract': mixed_regime_boundary_probe,
     'solver_generated_chain_reference': {
       'status': (
         None
@@ -2682,6 +2820,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'message': str(terminal_composite_refinement_failures),
       }
     ] if terminal_composite_refinement_failures else []),
+    *([
+      {
+        'case': 'mixed_regime_boundary_contract',
+        'status': str(mixed_regime_boundary_probe.get('status', 'missing')),
+        'message': str(mixed_regime_boundary_probe.get('message', '')),
+      }
+    ] if mixed_regime_boundary_failure else []),
     *([
       {
         'case': 'solver_generated_chain_reference',

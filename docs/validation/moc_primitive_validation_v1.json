@@ -2345,6 +2345,88 @@
       ],
       "claim_status": "supersonic-terminal-topology-and-boundary-coverage-refinement-only; mixed-regime-downstream-field-pending"
     },
+    "mixed_regime_boundary_contract": {
+      "status": "converged_subsonic_boundary_handoff",
+      "accepted": true,
+      "physical_closure_verified": false,
+      "chain_promotion_blocked": true,
+      "missing_scalar_field": {
+        "status": "subsonic_field_failure",
+        "converged": false,
+        "physical_closure_verified": false,
+        "mixed_regime_field_complete": false,
+        "chain_promotion_blocked": true,
+        "supersonic_patch_sample_count": 16,
+        "subsonic_sample_count": 0,
+        "perimeter_sample_count": 0,
+        "supersonic_patch_verified": true,
+        "subsonic_state_samples_verified": false,
+        "terminal_continuity_verified": false,
+        "perimeter_geometry_verified": false,
+        "total_pressure_lineage_verified": false,
+        "maximum_terminal_mach_residual": null,
+        "maximum_terminal_flow_angle_residual_rad": null,
+        "maximum_terminal_static_pressure_residual_Pa": null,
+        "maximum_terminal_total_pressure_residual_Pa": null,
+        "maximum_total_pressure_gain_Pa": null,
+        "terminal": {
+          "status": "converged",
+          "converged": true,
+          "subsonic": true,
+          "shock_point_m": [
+            1.932441612053076,
+            0.0
+          ],
+          "shock_normal_angle_rad": 1.5707963267948966,
+          "downstream_flow_angle_rad": 0.0,
+          "downstream_mach": 0.7425533106434078,
+          "downstream_pressure_Pa": 508788.91048239,
+          "static_pressure_ratio": 2.0981236964211574,
+          "total_pressure_ratio": 0.9598519734029278,
+          "message": ""
+        },
+        "message": "subsonic perimeter requires at least four scalar samples"
+      },
+      "scalar_perimeter_contract_fixture": {
+        "status": "converged_subsonic_boundary_handoff",
+        "converged": true,
+        "physical_closure_verified": false,
+        "mixed_regime_field_complete": false,
+        "chain_promotion_blocked": true,
+        "supersonic_patch_sample_count": 16,
+        "subsonic_sample_count": 5,
+        "perimeter_sample_count": 5,
+        "supersonic_patch_verified": true,
+        "subsonic_state_samples_verified": true,
+        "terminal_continuity_verified": true,
+        "perimeter_geometry_verified": true,
+        "total_pressure_lineage_verified": true,
+        "maximum_terminal_mach_residual": 0.0,
+        "maximum_terminal_flow_angle_residual_rad": 0.0,
+        "maximum_terminal_static_pressure_residual_Pa": 0.0,
+        "maximum_terminal_total_pressure_residual_Pa": 0.0,
+        "maximum_total_pressure_gain_Pa": 0.0,
+        "terminal": {
+          "status": "converged",
+          "converged": true,
+          "subsonic": true,
+          "shock_point_m": [
+            1.932441612053076,
+            0.0
+          ],
+          "shock_normal_angle_rad": 1.5707963267948966,
+          "downstream_flow_angle_rad": 0.0,
+          "downstream_mach": 0.7425533106434078,
+          "downstream_pressure_Pa": 508788.91048239,
+          "static_pressure_ratio": 2.0981236964211574,
+          "total_pressure_ratio": 0.9598519734029278,
+          "message": ""
+        },
+        "message": "scalar subsonic perimeter handoff passed shock-seam, open-supersonic-patch, geometry, and total-pressure lineage checks; a subsonic field mesh is still pending"
+      },
+      "claim_status": "typed-scalar-subsonic-boundary-handoff-only; subsonic-field-mesh-and-chain-promotion-pending",
+      "message": "scalar subsonic perimeter handoff passed shock-seam, open-supersonic-patch, geometry, and total-pressure lineage checks; a subsonic field mesh is still pending"
+    },
     "solver_generated_chain_reference": {
       "status": "solver-terminated",
       "accepted": true,

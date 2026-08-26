@@ -207,6 +207,14 @@ not wait on this research closure.
   interface; this proves a usable downstream patch seam without fabricating a
   subsonic characteristic state, and it remains outside mixed-regime closure
   and chain promotion.
+- Added a typed scalar mixed-regime boundary handoff. It validates the open
+  supersonic patch, an explicitly closed downstream perimeter, subsonic Mach
+  and scalar thermodynamic samples, terminal seam continuity, and
+  total-pressure lineage without constructing a subsonic
+  ``CharacteristicState``. The canonical report exercises both the missing
+  field rejection and a clearly labeled scalar-perimeter contract fixture;
+  both retain ``physical_closure_verified=false`` and block chain promotion
+  until a real subsonic field/mesh solver replaces the fixture.
 - Added an independent MOC shock-cell measurement operator. It extracts
   shock/centerline boundaries, axial extent, boundary lengths, radius, mesh
   area, perimeter-area closure, and optional shock total-pressure loss only
@@ -556,7 +564,8 @@ Only after MOC-1 through MOC-5 pass:
   terminal diagnostic, and can return a physical chain-stop decision after
   full upstream coverage. That is an explicit supersonic-MOC validity
   boundary, not a reason to force a bracket or relabel the endpoint as a
-  converged supersonic cell; a mixed-regime field and perimeter model is still
+  converged supersonic cell. The new scalar mixed-regime handoff validates the
+  seam and perimeter bookkeeping, but a solved subsonic field/mesh is still
   required for that case.
 - The invariant-conditioned shock shoot currently records a canonical
   no-bracket result; a selected constant downstream invariant is not yet an

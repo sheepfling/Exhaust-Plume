@@ -86,7 +86,12 @@ cross-layer, and compatible zone; the canonical 17-sample case reaches the
 centerline with 16 traces and assembles 119 open-zone cells. That evidence
 closes the supersonic patch seam only. The final shock-side endpoint remains
 the typed normal-shock interface, so mixed-regime closure and chain promotion
-remain blocked.
+remain blocked. The separate scalar mixed-regime boundary contract now
+validates that seam plus an explicitly closed downstream perimeter and
+total-pressure lineage without creating subsonic MOC states. Its passing
+status is only ``converged_subsonic_boundary_handoff``: the result remains
+``physical_closure_verified=false`` and cannot promote a chain cell until a
+real subsonic field/mesh solver supplies the missing field evidence.
 The terminal probe now keeps the shock branch explicit as well. The weak
 branch may reach the scalar normal-shock endpoint; a strong attached branch
 that becomes subsonic earlier is retained as a typed scalar boundary with its
