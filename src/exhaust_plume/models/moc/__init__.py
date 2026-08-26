@@ -108,6 +108,14 @@ from exhaust_plume.models.moc.physical_cell import (
   MocPhysicalPostShockFieldStatus,
   assemble_ambient_boundary_post_shock_field,
 )
+from exhaust_plume.models.moc.ambient_shock_strip import (
+  MocAmbientShockBoundaryMarchStatus,
+  MocAmbientShockBoundaryMarchResult,
+  MocAmbientShockStripStatus,
+  MocAmbientShockStripResult,
+  march_post_shock_ambient_boundary,
+  assemble_ambient_shock_characteristic_strip,
+)
 from exhaust_plume.models.moc.post_shock import (
   MocPostShockBoundaryState,
   MocPostShockCharacteristicSegment,
@@ -190,6 +198,10 @@ __all__ = (
   'MocInvariantClosureStatus',
   'MocPhysicalPostShockFieldResult',
   'MocPhysicalPostShockFieldStatus',
+  'MocAmbientShockBoundaryMarchStatus',
+  'MocAmbientShockBoundaryMarchResult',
+  'MocAmbientShockStripStatus',
+  'MocAmbientShockStripResult',
   'MocPostShockBoundaryState',
   'MocPostShockCharacteristicSegment',
   'MocPostShockContinuationResult',
@@ -252,6 +264,8 @@ __all__ = (
   'solve_marched_attached_shock_with_constant_invariant_closure',
   'solve_marched_attached_shock_chain_cell_with_constant_invariant_closure',
   'assemble_ambient_boundary_post_shock_field',
+  'march_post_shock_ambient_boundary',
+  'assemble_ambient_shock_characteristic_strip',
   'sample_reflected_zone_along_shock_path',
   'validate_fan_reflected_interface',
   'continue_post_shock_characteristics_to_centerline',

@@ -135,6 +135,12 @@ not wait on this research closure.
   through C+/C- intersections, then requires the remaining perimeter to
   reproduce the centerline before exposing a resolved chain handoff. No
   production free-boundary shooter is wired to it yet.
+- Added the correctly oriented shock/ambient strip seam. A shock-sourced C+
+  march generates an ambient-pressure, streamline-tangent C- boundary, and
+  the independent strip assembler couples those sources into a 45-node/
+  44-cell (at nine samples) physical-boundary net. Its downstream terminal
+  trace is explicit and chain promotion remains blocked until a centerline
+  closure is solved.
 - Added an independent MOC shock-cell measurement operator. It extracts
   shock/centerline boundaries, axial extent, boundary lengths, radius, mesh
   area, perimeter-area closure, and optional shock total-pressure loss only
@@ -331,8 +337,11 @@ Only after MOC-1 through MOC-5 pass:
   measurable, but the prescribed fixture fails the ambient-pressure and
   streamline-tangency gate. A coupled solver still has to replace that
   internal-characteristic edge with a solved free boundary before a cell can
-  be accepted physically. The scalar shoot now demonstrates this failure
-  without weakening the gate.
+  be accepted physically. The new shock-sourced ambient strip demonstrates the
+  corrected source-family orientation and carries the physical boundary
+  conditions, but its terminal trace still needs an axis/centerline closure.
+  The scalar shoot continues to demonstrate the old internal-characteristic
+  failure without weakening the gate.
 - The canonical marched shock now classifies a zero-turn/normal-shock endpoint
   as `subsonic_terminal_required` and carries a verified typed normal-shock
   terminal diagnostic. That is an explicit supersonic-MOC validity boundary,

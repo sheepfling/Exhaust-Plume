@@ -17,6 +17,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   CharacteristicFamily,
   CharacteristicState,
   MocAmbientClosureStatus,
+  MocAmbientShockStripStatus,
   MocInvariantClosureFamily,
   MocFreeBoundaryShockResult,
   MocPostShockClosureStatus,
@@ -60,7 +61,9 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_overexpanded_lip_shock,
   solve_underexpanded_expansion_fan,
   assemble_source_characteristic_strip,
+  assemble_ambient_shock_characteristic_strip,
   extend_source_characteristic_strip_constant_k_plus,
+  march_post_shock_ambient_boundary,
   sample_reflected_zone_along_shock_path,
   validate_fan_reflected_interface,
   validate_closed_post_shock_field,
@@ -318,6 +321,63 @@ def _solver_generated_shock_fixture() -> MocFreeBoundaryShockResult:
     outer_downstream_flow_angle_rad=0.05,
     sample_count=17,
   )
+
+
+def _ambient_shock_strip_probe(
+  solver_generated_shock: MocFreeBoundaryShockResult,
+) -> dict[str, Any]:
+  """Exercise the correctly oriented physical shock/ambient strip seam."""
+
+  shock_fit = solver_generated_shock.shock_fit
+  if shock_fit is None or not shock_fit.converged or not shock_fit.boundary_states:
+    return {
+      'status': 'shock_boundary_failure',
+      'accepted': False,
+      'message': 'solver-generated shock fixture did not provide a converged shock fit',
+      'claim_status': 'shock-plus-ambient-strip-pending',
+    }
+  first = shock_fit.boundary_states[0]
+  state = first.state
+  ambient_pressure = first.downstream_total_pressure_Pa / (
+    1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
+  ) ** (state.gamma / (state.gamma - 1.0))
+  march = march_post_shock_ambient_boundary(
+    shock_fit,
+    ambient_pressure,
+  )
+  if not march.converged:
+    return {
+      'status': march.status.value,
+      'accepted': False,
+      'ambient_pressure_Pa': ambient_pressure,
+      'march': march.as_report(),
+      'message': march.message,
+      'claim_status': 'shock-plus-ambient-strip-pending',
+    }
+  strip = assemble_ambient_shock_characteristic_strip(
+    shock_fit,
+    march.boundary_samples,
+    ambient_pressure,
+  )
+  accepted = (
+    strip.status is MocAmbientShockStripStatus.CONVERGED_OPEN
+    and strip.topology.forms_closed_zone
+    and strip.topology.nonmanifold_edge_count == 0
+    and not strip.physical_closure_verified
+    and strip.chain_promotion_blocked
+  )
+  return {
+    'status': strip.status.value,
+    'accepted': accepted,
+    'ambient_pressure_Pa': ambient_pressure,
+    'march': march.as_report(),
+    'strip': strip.as_report(),
+    'message': strip.message,
+    'claim_status': (
+      'solver-generated-shock-plus-ambient-C-plus-C-minus-strip; '
+      'terminal-axis-closure-pending'
+    ),
+  }
 
 
 def _ambient_pressure_closure_probe() -> dict[str, Any]:
@@ -958,6 +1018,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
   )
   shock_seeded_refinement_probe = _shock_seeded_field_refinement_probe()
   solver_generated_shock = _solver_generated_shock_fixture()
+  ambient_shock_strip_probe = _ambient_shock_strip_probe(solver_generated_shock)
   solver_generated_shock_refinement_probe = _solver_generated_shock_refinement_probe()
   solver_generated_chain_reference = None
   solver_generated_chain_observations: list[dict[str, Any]] = []
@@ -1514,6 +1575,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'measurement_operator': solver_generated_measurement.as_report(),
       'claim_status': 'solver-generated-boundary-conditioned-field; upstream-field-coupling-pending',
     },
+    'solver_generated_ambient_shock_strip': ambient_shock_strip_probe,
     'solver_generated_shock_refinement': {
       'status': (
         'diagnostic-all-solver-generated-resolutions-converged'
@@ -1864,6 +1926,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'message': solver_generated_shock.message,
       }
     ] if not solver_generated_shock.converged else []),
+    *([
+      {
+        'case': 'solver_generated_ambient_shock_strip',
+        'status': ambient_shock_strip_probe['status'],
+        'message': str(ambient_shock_strip_probe.get('message', '')),
+      }
+    ] if ambient_shock_strip_probe.get('accepted') is not True else []),
     *([
       {
         'case': 'solver_generated_measurement_operator',

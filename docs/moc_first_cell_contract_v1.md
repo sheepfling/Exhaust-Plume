@@ -80,6 +80,12 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   only exposes a resolved chain handoff after the characteristic net closes on
   the centerline. It is an acceptance primitive for the future free-boundary
   shooter, not that shooter itself;
+- a correctly oriented shock/ambient strip assembler in which shock-sourced
+  ``C+`` characteristics and ambient-sourced ``C-`` characteristics form a
+  connected physical-boundary net, plus a shock-to-ambient boundary marcher
+  that enforces the incoming ``K+`` law, ambient pressure, and streamline
+  tangency. The result carries an explicit downstream terminal trace and is
+  not chain-promotable until a centerline closure is solved;
 - a separate MOC cell-chain continuation contract that rejects open cells,
   non-bounded meshes, axial gaps, and scaled reduced-order fidelity;
 - a typed chain termination decision that distinguishes a physical endpoint
@@ -167,6 +173,9 @@ The prescribed field still promotes only the
 assembler promotes its centerline handoff as
 `MocChainBoundaryKind.CENTERLINE_TRACE`; a later true axial cut must declare
 `MocChainBoundaryKind.AXIAL_SECTION`.
+The shock/ambient strip intentionally has no promotion adapter: its
+`terminal-characteristic-trace` is a real unresolved downstream boundary, not
+an inferred centerline or axial section.
 No public provider is wired to these primitives yet. The module does not claim
 axisymmetric, reacting, viscous, or experimentally validated plume physics.
 

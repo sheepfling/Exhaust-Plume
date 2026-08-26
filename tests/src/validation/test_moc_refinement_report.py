@@ -64,6 +64,7 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   trace_extension = report['geometry_cases']['reflected_boundary_trace_extension']
   planner = report['geometry_cases']['shock_cell_chain_planner_mock']
   invariant_closure = report['geometry_cases']['terminal_source_window_invariant_closure']
+  ambient_strip = report['geometry_cases']['solver_generated_ambient_shock_strip']
 
   assert generated['status'] == 'converged_free_boundary_field'
   assert generated['field_status'] == 'converged_closed'
@@ -76,6 +77,13 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert generated_chain['cell_count'] == 3
   assert generated_chain['state_carry_count'] == 3
   assert generated_chain['physical_termination'] is False
+  assert ambient_strip['accepted'] is True
+  assert ambient_strip['status'] == 'converged_open_shock_ambient_strip'
+  assert ambient_strip['strip']['node_count'] == 153
+  assert ambient_strip['strip']['cell_count'] == 152
+  assert ambient_strip['strip']['topology_forms_closed_zone'] is True
+  assert ambient_strip['strip']['physical_closure_verified'] is False
+  assert ambient_strip['strip']['chain_promotion_blocked'] is True
   assert source_strip['status'] == 'converged_open_source_strip'
   assert source_strip['node_count'] == 45
   assert source_strip['cell_count'] == 44

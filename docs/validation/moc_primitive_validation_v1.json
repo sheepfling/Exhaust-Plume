@@ -713,6 +713,65 @@
       },
       "claim_status": "solver-generated-boundary-conditioned-field; upstream-field-coupling-pending"
     },
+    "solver_generated_ambient_shock_strip": {
+      "status": "converged_open_shock_ambient_strip",
+      "accepted": true,
+      "ambient_pressure_Pa": 212165.99747295334,
+      "march": {
+        "status": "converged_post_shock_ambient_boundary",
+        "converged": true,
+        "sample_count": 17,
+        "ambient_boundary": {
+          "status": "converged_ambient_pressure_boundary",
+          "converged": true,
+          "physical_closure_verified": true,
+          "sample_count": 17,
+          "ambient_pressure_Pa": 212165.99747295334,
+          "maximum_absolute_pressure_residual": 8.230488618359449e-16,
+          "maximum_absolute_tangent_residual": 1.2038980923279041e-15,
+          "message": ""
+        },
+        "maximum_geometry_residual_m": 1.690416023678287e-16,
+        "maximum_absolute_pressure_residual": 8.230488618359449e-16,
+        "maximum_absolute_invariant_residual": 0.0,
+        "message": "shock-sourced C+ characteristics generated an ambient-pressure, streamline-tangent C- boundary; downstream axis closure remains pending"
+      },
+      "strip": {
+        "status": "converged_open_shock_ambient_strip",
+        "converged": true,
+        "physical_closure_verified": false,
+        "chain_promotion_blocked": true,
+        "characteristic_layer_count": 16,
+        "node_count": 153,
+        "cell_count": 152,
+        "topology_forms_closed_zone": true,
+        "topology_status": "open",
+        "ambient_boundary": {
+          "status": "converged_ambient_pressure_boundary",
+          "converged": true,
+          "physical_closure_verified": true,
+          "sample_count": 17,
+          "ambient_pressure_Pa": 212165.99747295334,
+          "maximum_absolute_pressure_residual": 8.230488618359449e-16,
+          "maximum_absolute_tangent_residual": 1.2038980923279041e-15,
+          "message": ""
+        },
+        "shock_boundary_sample_count": 17,
+        "terminal_trace_sample_count": 18,
+        "terminal_trace_kind": "terminal-characteristic-trace",
+        "source_families": {
+          "shock": "C+",
+          "ambient": "C-"
+        },
+        "maximum_geometry_residual_m": 2.2887833992611187e-16,
+        "maximum_absolute_invariant_residual": 1.237565605549662e-12,
+        "minimum_post_shock_total_pressure_ratio": 0.9580676266390498,
+        "maximum_post_shock_total_pressure_ratio": 0.977473522728481,
+        "message": "shock-sourced C+ and ambient-sourced C- characteristics formed a connected physical-boundary strip; terminal centerline closure remains pending"
+      },
+      "message": "shock-sourced C+ and ambient-sourced C- characteristics formed a connected physical-boundary strip; terminal centerline closure remains pending",
+      "claim_status": "solver-generated-shock-plus-ambient-C-plus-C-minus-strip; terminal-axis-closure-pending"
+    },
     "solver_generated_shock_refinement": {
       "status": "diagnostic-all-solver-generated-resolutions-converged",
       "cases": [
