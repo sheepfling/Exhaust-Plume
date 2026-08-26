@@ -176,6 +176,12 @@ assembler promotes its centerline handoff as
 The shock/ambient strip intentionally has no promotion adapter: its
 `terminal-characteristic-trace` is a real unresolved downstream boundary, not
 an inferred centerline or axial section.
+The strip exposes that trace as typed `MocChainBoundarySample` values and
+reports independent `C+` characteristic-trace evidence (family invariant,
+forward margin, and discrete geometry residual). A finite trace report is not
+the same as closure: the current coarse strip retains its nonzero
+characteristic-line discretization residual and remains ineligible for chain
+promotion until a converged downstream boundary-value solve accepts it.
 The earlier boundary-conditioned triangular assembler is also no longer
 promotion-eligible by default: it does not carry verified shock-``C+`` /
 ambient-``C-`` family-orientation evidence. This guard prevents a numerically

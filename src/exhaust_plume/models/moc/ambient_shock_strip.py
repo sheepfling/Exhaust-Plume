@@ -30,6 +30,11 @@ from exhaust_plume.models.moc.boundary import (
   MocFreeBoundaryPointResult,
   solve_ambient_pressure_free_boundary_point,
 )
+from exhaust_plume.models.moc.chain import (
+  MocChainBoundarySample,
+  MocCharacteristicTraceResult,
+  validate_characteristic_trace,
+)
 from exhaust_plume.models.moc.post_shock import MocShockBoundaryFitResult
 from exhaust_plume.models.moc.primitives import (
   CharacteristicFamily,
@@ -157,6 +162,30 @@ class MocAmbientShockStripResult:
   ####
 
   @property
+  def terminal_trace_samples(self) -> tuple[MocChainBoundarySample, ...]:
+    """Return the terminal trace in the chain handoff representation."""
+
+    return tuple(
+      MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
+      for state, pressure in zip(
+        self.terminal_trace_states,
+        self.terminal_trace_total_pressure_Pa,
+        strict=True,
+      )
+    )
+  ####
+
+  @property
+  def terminal_trace_validation(self) -> MocCharacteristicTraceResult:
+    """Validate the open terminal trace as a shock-sourced ``C+`` line."""
+
+    return validate_characteristic_trace(
+      self.terminal_trace_samples,
+      CharacteristicFamily.PLUS,
+    )
+  ####
+
+  @property
   def node_count(self) -> int:
     return len(self.nodes)
   ####
@@ -181,6 +210,8 @@ class MocAmbientShockStripResult:
       'shock_boundary_sample_count': len(self.shock_boundary_points_m),
       'terminal_trace_sample_count': len(self.terminal_trace_points_m),
       'terminal_trace_kind': 'terminal-characteristic-trace',
+      'terminal_trace_family': CharacteristicFamily.PLUS.value,
+      'terminal_trace_validation': self.terminal_trace_validation.as_report(),
       'source_families': {'shock': 'C+', 'ambient': 'C-'},
       'maximum_geometry_residual_m': self.maximum_geometry_residual_m,
       'maximum_absolute_invariant_residual': self.maximum_absolute_invariant_residual,

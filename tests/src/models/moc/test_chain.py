@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from exhaust_plume.models.moc import (
@@ -12,9 +14,12 @@ from exhaust_plume.models.moc import (
   MocChainTerminationDecision,
   MocChainStatus,
   MocChainTerminationReason,
+  MocCharacteristicTraceStatus,
   MocCharacteristicCell,
+  CharacteristicFamily,
   CharacteristicState,
   continue_moc_cell_chain,
+  validate_characteristic_trace,
 )
 
 
@@ -271,3 +276,71 @@ def test_axial_section_boundary_rejects_nonplanar_state_samples() -> None:
       continuation_boundary_kind=MocChainBoundaryKind.AXIAL_SECTION,
     )
   ####
+
+
+def test_characteristic_trace_validator_accepts_a_forward_c_plus_trace() -> None:
+  base = CharacteristicState(
+    x_m=0.0,
+    y_m=0.0,
+    theta_rad=0.08,
+    mach=2.2,
+    gamma=1.4,
+  )
+  direction = base.direction(CharacteristicFamily.PLUS)
+  samples = tuple(
+    MocChainBoundarySample(
+      state=CharacteristicState(
+        x_m=base.x_m + distance * direction[0],
+        y_m=base.y_m + distance * direction[1],
+        theta_rad=base.theta_rad,
+        mach=base.mach,
+        gamma=base.gamma,
+      ),
+      total_pressure_Pa=1.0e6,
+    )
+    for distance in (0.0, 0.25, 0.5)
+  )
+
+  result = validate_characteristic_trace(
+    samples,
+    CharacteristicFamily.PLUS,
+  )
+
+  assert result.status is MocCharacteristicTraceStatus.CONVERGED
+  assert result.converged
+  assert result.sample_count == 3
+  assert result.maximum_absolute_invariant_residual == 0.0
+  assert result.maximum_geometry_residual_m is not None
+  assert result.maximum_geometry_residual_m < 1.0e-12
+
+
+def test_characteristic_trace_validator_does_not_hide_a_family_invariant_break() -> None:
+  base = CharacteristicState(
+    x_m=0.0,
+    y_m=0.0,
+    theta_rad=0.08,
+    mach=2.2,
+    gamma=1.4,
+  )
+  direction = base.direction(CharacteristicFamily.PLUS)
+  samples = (
+    MocChainBoundarySample(state=base, total_pressure_Pa=1.0e6),
+    MocChainBoundarySample(
+      state=replace(
+        base,
+        x_m=0.25 * direction[0],
+        y_m=0.25 * direction[1],
+        theta_rad=base.theta_rad + 0.01,
+      ),
+      total_pressure_Pa=1.0e6,
+    ),
+  )
+
+  result = validate_characteristic_trace(
+    samples,
+    CharacteristicFamily.PLUS,
+  )
+
+  assert result.status is MocCharacteristicTraceStatus.INVARIANT_FAILURE
+  assert not result.converged
+  assert 'C+ invariant' in result.message

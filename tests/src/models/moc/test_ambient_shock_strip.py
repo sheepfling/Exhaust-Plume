@@ -4,6 +4,7 @@ from dataclasses import replace
 
 from exhaust_plume.models.moc import (
   CharacteristicState,
+  CharacteristicFamily,
   MocAmbientShockBoundaryMarchStatus,
   MocAmbientShockStripStatus,
   assemble_ambient_shock_characteristic_strip,
@@ -79,6 +80,13 @@ def test_shock_and_ambient_characteristic_strip_keeps_terminal_trace_open() -> N
   assert strip.chain_promotion_blocked is True
   assert len(strip.terminal_trace_points_m) == 10
   assert strip.as_report()['source_families'] == {'shock': 'C+', 'ambient': 'C-'}
+  trace_validation = strip.terminal_trace_validation
+  assert trace_validation.family is CharacteristicFamily.PLUS
+  assert trace_validation.sample_count == 10
+  assert trace_validation.maximum_absolute_invariant_residual is not None
+  assert trace_validation.maximum_absolute_invariant_residual < 1.0e-8
+  assert trace_validation.maximum_geometry_residual_m is not None
+  assert not trace_validation.converged
 
 
 def test_ambient_strip_rejects_a_boundary_trace_with_wrong_family_geometry() -> None:

@@ -140,7 +140,10 @@ not wait on this research closure.
   the independent strip assembler couples those sources into a 45-node/
   44-cell (at nine samples) physical-boundary net. Its downstream terminal
   trace is explicit and chain promotion remains blocked until a centerline
-  closure is solved.
+  closure is solved. The trace is also exported as typed chain-boundary
+  samples and checked independently as a shock-sourced C+ characteristic;
+  its nonzero coarse-grid geometry residual is retained as a rejection
+  diagnostic rather than hidden by the open-strip status.
 - Added an independent MOC shock-cell measurement operator. It extracts
   shock/centerline boundaries, axial extent, boundary lengths, radius, mesh
   area, perimeter-area closure, and optional shock total-pressure loss only

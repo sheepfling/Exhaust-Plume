@@ -145,6 +145,8 @@ from exhaust_plume.models.moc.chain import (
   MocCellClosureStatus,
   MocChainBoundaryKind,
   MocChainBoundarySample,
+  MocCharacteristicTraceResult,
+  MocCharacteristicTraceStatus,
   MocChainCell,
   MocChainContinuationPolicy,
   MocChainGeometryFidelity,
@@ -153,6 +155,7 @@ from exhaust_plume.models.moc.chain import (
   MocChainStatus,
   MocChainTerminationReason,
   continue_moc_cell_chain,
+  validate_characteristic_trace,
 )
 
 __all__ = (
@@ -221,6 +224,8 @@ __all__ = (
   'MocCellClosureStatus',
   'MocChainBoundaryKind',
   'MocChainBoundarySample',
+  'MocCharacteristicTraceResult',
+  'MocCharacteristicTraceStatus',
   'MocChainCell',
   'MocChainContinuationPolicy',
   'MocChainGeometryFidelity',
@@ -276,5 +281,6 @@ __all__ = (
   'fit_attached_shock_boundary',
   'validate_closed_post_shock_field',
   'continue_moc_cell_chain',
+  'validate_characteristic_trace',
   'validate_moc_mesh',
 )

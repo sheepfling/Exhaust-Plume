@@ -15,20 +15,22 @@ section so a trace is not silently treated as a planar cut.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
-from math import isfinite
+from math import isfinite, sqrt
 from types import MappingProxyType
 from typing import Any
 
-from exhaust_plume.models.moc.primitives import CharacteristicState
+from exhaust_plume.models.moc.primitives import CharacteristicFamily, CharacteristicState
 from exhaust_plume.models.moc.topology import MocTopologyResult, validate_moc_mesh
 
 __all__ = (
   'MocCellClosureStatus',
   'MocChainBoundarySample',
   'MocChainBoundaryKind',
+  'MocCharacteristicTraceStatus',
+  'MocCharacteristicTraceResult',
   'MocChainCell',
   'MocChainContinuationPolicy',
   'MocChainGeometryFidelity',
@@ -64,6 +66,16 @@ class MocChainBoundaryKind(str, Enum):
   TERMINAL_CHARACTERISTIC_TRACE = 'terminal-characteristic-trace'
   CENTERLINE_TRACE = 'centerline-trace'
   AXIAL_SECTION = 'axial-section'
+####
+
+
+class MocCharacteristicTraceStatus(str, Enum):
+  """Outcome of validating a carried characteristic trace."""
+
+  CONVERGED = 'converged'
+  INVALID_INPUT = 'invalid_input'
+  INVARIANT_FAILURE = 'invariant_failure'
+  GEOMETRY_FAILURE = 'geometry_failure'
 ####
 
 
@@ -117,6 +129,222 @@ class MocChainBoundarySample:
   @property
   def point_m(self) -> tuple[float, float]:
     return self.state.x_m, self.state.y_m
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocCharacteristicTraceResult:
+  """Evidence that a typed boundary is one downstream characteristic.
+
+  This validator is deliberately narrower than physical cell closure.  A
+  trace can be a valid internal ``C+``/``C-`` characteristic and still need a
+  centerline, compression-system, or ambient-boundary solve before it can
+  seed a continued cell.
+  """
+
+  status: MocCharacteristicTraceStatus
+  family: CharacteristicFamily | None
+  samples: tuple[MocChainBoundarySample, ...]
+  maximum_absolute_invariant_residual: float | None
+  maximum_geometry_residual_m: float | None
+  minimum_forward_margin_m: float | None
+  message: str = ''
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocCharacteristicTraceStatus.CONVERGED
+  ####
+
+  @property
+  def sample_count(self) -> int:
+    return len(self.samples)
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'converged': self.converged,
+      'family': None if self.family is None else self.family.value,
+      'sample_count': self.sample_count,
+      'maximum_absolute_invariant_residual': self.maximum_absolute_invariant_residual,
+      'maximum_geometry_residual_m': self.maximum_geometry_residual_m,
+      'minimum_forward_margin_m': self.minimum_forward_margin_m,
+      'message': self.message,
+    }
+  ####
+
+
+def validate_characteristic_trace(
+  samples: Sequence[MocChainBoundarySample],
+  family: CharacteristicFamily,
+  *,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+) -> MocCharacteristicTraceResult:
+  """Validate a downstream, state-carrying ``C+`` or ``C-`` trace.
+
+  Compatibility is checked against the first sample and geometry is checked
+  with the averaged characteristic direction for each segment.  The
+  downstream-x requirement matches the chain handoff contract.  This helper
+  does not infer an axis or any other physical closure from a successful
+  trace.
+  """
+
+  if not isinstance(family, CharacteristicFamily):
+    return MocCharacteristicTraceResult(
+      status=MocCharacteristicTraceStatus.INVALID_INPUT,
+      family=None,
+      samples=(),
+      maximum_absolute_invariant_residual=None,
+      maximum_geometry_residual_m=None,
+      minimum_forward_margin_m=None,
+      message='family must be a CharacteristicFamily',
+    )
+  for name, value in (
+    ('position_tolerance_m', position_tolerance_m),
+    ('invariant_tolerance', invariant_tolerance),
+  ):
+    if not isfinite(float(value)) or value <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+  try:
+    trace = tuple(samples)
+  except TypeError:
+    return MocCharacteristicTraceResult(
+      status=MocCharacteristicTraceStatus.INVALID_INPUT,
+      family=family,
+      samples=(),
+      maximum_absolute_invariant_residual=None,
+      maximum_geometry_residual_m=None,
+      minimum_forward_margin_m=None,
+      message='samples must be an iterable of MocChainBoundarySample values',
+    )
+  if len(trace) < 2:
+    return MocCharacteristicTraceResult(
+      status=MocCharacteristicTraceStatus.INVALID_INPUT,
+      family=family,
+      samples=trace,
+      maximum_absolute_invariant_residual=None,
+      maximum_geometry_residual_m=None,
+      minimum_forward_margin_m=None,
+      message='a characteristic trace requires at least two samples',
+    )
+  if any(not isinstance(sample, MocChainBoundarySample) for sample in trace):
+    return MocCharacteristicTraceResult(
+      status=MocCharacteristicTraceStatus.INVALID_INPUT,
+      family=family,
+      samples=trace,
+      maximum_absolute_invariant_residual=None,
+      maximum_geometry_residual_m=None,
+      minimum_forward_margin_m=None,
+      message='samples must contain MocChainBoundarySample values',
+    )
+  gamma = trace[0].state.gamma
+  reference_invariant = (
+    trace[0].state.k_plus if family is CharacteristicFamily.PLUS
+    else trace[0].state.k_minus
+  )
+  invariant_residuals: list[float] = []
+  geometry_residuals: list[float] = []
+  forward_margins: list[float] = []
+  for index, (first, second) in enumerate(zip(trace[:-1], trace[1:], strict=True)):
+    first_state = first.state
+    second_state = second.state
+    if abs(second_state.gamma - gamma) > invariant_tolerance:
+      return MocCharacteristicTraceResult(
+        status=MocCharacteristicTraceStatus.INVALID_INPUT,
+        family=family,
+        samples=trace,
+        maximum_absolute_invariant_residual=max(map(abs, invariant_residuals), default=None),
+        maximum_geometry_residual_m=max(geometry_residuals, default=None),
+        minimum_forward_margin_m=min(forward_margins, default=None),
+        message=f'trace sample {index + 1} uses a different gamma',
+      )
+    invariant = (
+      second_state.k_plus if family is CharacteristicFamily.PLUS
+      else second_state.k_minus
+    ) - reference_invariant
+    invariant_residuals.append(invariant)
+    if abs(invariant) > invariant_tolerance:
+      return MocCharacteristicTraceResult(
+        status=MocCharacteristicTraceStatus.INVARIANT_FAILURE,
+        family=family,
+        samples=trace,
+        maximum_absolute_invariant_residual=max(map(abs, invariant_residuals)),
+        maximum_geometry_residual_m=max(geometry_residuals, default=None),
+        minimum_forward_margin_m=min(forward_margins, default=None),
+        message=(
+          f'trace sample {index + 1} does not preserve the '
+          f'{family.value} invariant'
+        ),
+      )
+    displacement = (
+      second_state.x_m - first_state.x_m,
+      second_state.y_m - first_state.y_m,
+    )
+    if displacement[0] <= position_tolerance_m:
+      return MocCharacteristicTraceResult(
+        status=MocCharacteristicTraceStatus.GEOMETRY_FAILURE,
+        family=family,
+        samples=trace,
+        maximum_absolute_invariant_residual=max(map(abs, invariant_residuals)),
+        maximum_geometry_residual_m=max(geometry_residuals, default=None),
+        minimum_forward_margin_m=min(forward_margins, default=None),
+        message=(
+          f'trace sample {index + 1} is not strictly downstream in x'
+        ),
+      )
+    first_direction = first_state.direction(family)
+    second_direction = second_state.direction(family)
+    averaged_direction = (
+      0.5 * (first_direction[0] + second_direction[0]),
+      0.5 * (first_direction[1] + second_direction[1]),
+    )
+    direction_norm = sqrt(
+      averaged_direction[0] ** 2 + averaged_direction[1] ** 2
+    )
+    if direction_norm <= position_tolerance_m:
+      return MocCharacteristicTraceResult(
+        status=MocCharacteristicTraceStatus.GEOMETRY_FAILURE,
+        family=family,
+        samples=trace,
+        maximum_absolute_invariant_residual=max(map(abs, invariant_residuals)),
+        maximum_geometry_residual_m=max(geometry_residuals, default=None),
+        minimum_forward_margin_m=min(forward_margins, default=None),
+        message=f'trace segment {index} has an undefined averaged direction',
+      )
+    unit_direction = (
+      averaged_direction[0] / direction_norm,
+      averaged_direction[1] / direction_norm,
+    )
+    forward_margin = (
+      displacement[0] * unit_direction[0]
+      + displacement[1] * unit_direction[1]
+    )
+    geometry_residual = abs(
+      displacement[0] * unit_direction[1]
+      - displacement[1] * unit_direction[0]
+    )
+    geometry_residuals.append(geometry_residual)
+    forward_margins.append(forward_margin)
+    if forward_margin <= position_tolerance_m or geometry_residual > position_tolerance_m:
+      return MocCharacteristicTraceResult(
+        status=MocCharacteristicTraceStatus.GEOMETRY_FAILURE,
+        family=family,
+        samples=trace,
+        maximum_absolute_invariant_residual=max(map(abs, invariant_residuals)),
+        maximum_geometry_residual_m=max(geometry_residuals),
+        minimum_forward_margin_m=min(forward_margins),
+        message=f'trace segment {index} is not a forward {family.value} characteristic',
+      )
+  ####
+  return MocCharacteristicTraceResult(
+    status=MocCharacteristicTraceStatus.CONVERGED,
+    family=family,
+    samples=trace,
+    maximum_absolute_invariant_residual=max(map(abs, invariant_residuals), default=None),
+    maximum_geometry_residual_m=max(geometry_residuals, default=None),
+    minimum_forward_margin_m=min(forward_margins, default=None),
+  )
 ####
 
 
