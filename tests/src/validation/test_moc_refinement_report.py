@@ -58,6 +58,8 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   generated = report['geometry_cases']['solver_generated_attached_shock_field']
   refinement = report['geometry_cases']['solver_generated_shock_refinement']
   generated_chain = report['geometry_cases']['solver_generated_chain_reference']
+  reflected_probe = report['geometry_cases']['reflected_zone_shock_coupling']
+  trace_extension = report['geometry_cases']['reflected_boundary_trace_extension']
   planner = report['geometry_cases']['shock_cell_chain_planner_mock']
 
   assert generated['status'] == 'converged_free_boundary_field'
@@ -71,6 +73,11 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert generated_chain['cell_count'] == 3
   assert generated_chain['state_carry_count'] == 3
   assert generated_chain['physical_termination'] is False
+  assert reflected_probe['status'] == 'upstream_field_failure'
+  assert reflected_probe['claim_status'] == 'reflected-field-domain-bounded-probe; shock-path-extension-pending'
+  assert trace_extension['accepted'] is True
+  assert trace_extension['field_status'] == 'converged_closed'
+  assert trace_extension['shock_closure_status'] == 'reflected-boundary-trace-extension'
   assert planner['resolved'] is True
   assert planner['cell_count'] == 3
   assert planner['state_carry_count'] == 3

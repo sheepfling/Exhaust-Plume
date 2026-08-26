@@ -33,6 +33,12 @@ not wait on this research closure.
 - Added a generated continued-cell adapter. It records the prior terminal
   characteristic trace as `incoming_handoff` while a new shock boundary and
   closed field are generated from explicit upstream callbacks.
+- Added a domain-bounded reflected-zone sampler for compatible state and
+  static-pressure callbacks. A shock probe now fails explicitly when it leaves
+  the solved reflected lattice instead of silently extrapolating upstream flow.
+- Added a separately labeled reflected-boundary trace-extension reference. It
+  can generate a closed shock field from the terminal boundary trace, while
+  retaining the upstream characteristic-strip coupling gate.
 - Added a closed post-shock field acceptance gate. It requires explicit shock
   and centerline boundary edges, connected finite-cell topology, and converged
   characteristic-node evidence; it does not synthesize missing cells.
@@ -183,6 +189,12 @@ Only after MOC-1 through MOC-5 pass:
   explicit linear downstream-turn law. It closes a higher-fidelity reference
   field, but is not yet coupled to the reflected MOC upstream state/pressure
   field or a solved downstream boundary condition.
+- The reflected-zone sampler currently exposes only the assembled lattice. The
+  candidate shock leaves that domain after its boundary start, so a physical
+  upstream extension/continuation solve is still required.
+- The trace-extension reference uses a constant terminal boundary trace; it is
+  useful for deterministic plumbing and refinement, but it is not the physical
+  upstream characteristic strip.
 - No production solver yet supplies an automatic next-cell shock fit. The
   state-carrying chain adapter therefore requires an explicit re-solved field
   callback and does not use the reduced-order chain.

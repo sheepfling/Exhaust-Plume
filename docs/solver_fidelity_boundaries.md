@@ -46,7 +46,10 @@ remains a prescribed-boundary contract, not a free-boundary solution or
 product-provider result. A separate solver-generated marched attached-shock
 reference now passes its local closed-field and 9/17/33-sample refinement
 diagnostics, but it still uses explicit upstream callbacks and a linear
-downstream-turn law; reflected-field coupling remains open. The existing basic and
+downstream-turn law. The reflected-zone sampler is domain-bounded and its
+shock probe fails explicitly at the first point outside that solved lattice;
+the separately labeled boundary-trace extension is diagnostic only, and the
+upstream characteristic-strip shock-path extension remains open. The existing basic and
 reduced-order visual lanes remain unchanged until a separate MOC assembler
 passes free-boundary/compression closure, refinement, and measurement-operator
 gates.

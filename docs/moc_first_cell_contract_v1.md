@@ -48,6 +48,10 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   explicit upstream-state/pressure callbacks;
 - a continued-cell adapter that passes a typed terminal-trace handoff into a
   new solver-generated shock field before returning a chain-cell solve result;
+- a domain-bounded reflected-zone state/pressure sampler that refuses to
+  extrapolate once a candidate shock leaves the solved upstream lattice;
+- an explicitly labeled reflected-boundary trace-extension reference that
+  generates a closed shock field without claiming a solved upstream strip;
 - a shock-seeded shrinking-front C+/C- characteristic-field assembler with
   explicit shock/centerline edges, total-pressure lineage, forward margins,
   invariant diagnostics, and a typed downstream handoff boundary;

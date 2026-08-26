@@ -33,7 +33,11 @@ def test_reflected_characteristic_zone_assembles_one_open_topological_perimeter(
   fan = solve_underexpanded_expansion_fan(exit_state, ambient, characteristic_count=8)
   reflected_boundary = solve_reflected_free_boundary(fan, exit_state, ambient)
 
-  result = assemble_reflected_characteristic_zone(fan, reflected_boundary)
+  result = assemble_reflected_characteristic_zone(
+    fan,
+    reflected_boundary,
+    total_pressure_Pa=exit_state.total_pressure_Pa,
+  )
 
   assert result.status is MocZoneAssemblyStatus.CONVERGED_OPEN
   assert result.converged
@@ -47,11 +51,52 @@ def test_reflected_characteristic_zone_assembles_one_open_topological_perimeter(
   assert result.coverage_area_residual_m2 == pytest.approx(0.0, abs=1.0e-12)
   assert result.physical_closure_status == 'open'
   assert result.shock_closure_status == 'not_assembled'
+  assert result.total_pressure_Pa == pytest.approx(exit_state.total_pressure_Pa)
   assert all(node.point_result.converged for node in result.nodes)
   assert all(cell.geometry_status.value == 'valid' for cell in result.cells)
   assert sum(cell.cell_kind == 'axis-strip' for cell in result.cells) == 8
   assert sum(cell.cell_kind == 'interior' for cell in result.cells) == 28
   assert sum(cell.cell_kind == 'free-boundary-strip' for cell in result.cells) == 8
+
+
+def test_reflected_zone_sampler_is_pressure_aware_and_domain_bounded() -> None:
+  gas = CaloricallyPerfectGas.dry_air()
+  exit_state = derive_uniform_nozzle_exit(
+    NozzleExitInput(
+      mach=2.0,
+      total_pressure_Pa=2.0e6,
+      total_temperature_K=900.0,
+      exit_radius_m=0.05,
+    ),
+    gas,
+  )
+  ambient = derive_ambient_state(
+    AmbientInput(pressure_Pa=101325.0, temperature_K=300.0),
+    gas,
+  )
+  fan = solve_underexpanded_expansion_fan(exit_state, ambient, characteristic_count=8)
+  reflected_boundary = solve_reflected_free_boundary(fan, exit_state, ambient)
+  zone = assemble_reflected_characteristic_zone(
+    fan,
+    reflected_boundary,
+    total_pressure_Pa=exit_state.total_pressure_Pa,
+  )
+
+  cell = zone.cells[0]
+  sample_point = (
+    sum(point[0] for point in cell.vertices_xr_m) / len(cell.vertices_xr_m),
+    sum(point[1] for point in cell.vertices_xr_m) / len(cell.vertices_xr_m),
+  )
+  state = zone.state_at(sample_point)
+
+  assert state is not None
+  assert state.x_m == pytest.approx(sample_point[0])
+  assert state.y_m == pytest.approx(sample_point[1])
+  assert state.mach > 1.0
+  assert zone.static_pressure_at(sample_point) is not None
+  assert zone.static_pressure_at(sample_point) > 0.0
+  assert zone.state_at((1.0, 0.5)) is None
+  assert zone.static_pressure_at((1.0, 0.5)) is None
 
 
 def test_fan_reflected_interface_reuses_compatibility_grid_and_connects_cells() -> None:

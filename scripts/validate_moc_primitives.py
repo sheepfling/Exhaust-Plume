@@ -34,6 +34,8 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_attached_compression_to_turn,
   solve_attached_shock_to_centerline,
   solve_marched_attached_shock_chain_cell,
+  solve_marched_attached_shock_field,
+  solve_reflected_boundary_trace_extension,
   solve_uniform_attached_shock_field,
   assemble_post_shock_characteristic_zone,
   assemble_post_shock_characteristic_field,
@@ -489,6 +491,49 @@ def _solver_generated_chain_reference(
   )
 
 
+def _reflected_zone_shock_coupling_probe(
+  reflected_zone: Any,
+  reflected_boundary: Any,
+) -> dict[str, Any]:
+  """Probe the domain-bounded reflected-field callbacks at a shock start."""
+
+  if not reflected_zone.converged or not reflected_boundary.boundary_points_m:
+    return {
+      'status': 'invalid_input',
+      'sample_count': 0,
+      'message': 'reflected zone or boundary did not converge',
+      'claim_status': 'reflected-field-shock-coupling-pending',
+    }
+  start = reflected_boundary.boundary_points_m[-1]
+  if start[1] <= 0.0:
+    return {
+      'status': 'invalid_input',
+      'sample_count': 0,
+      'message': 'reflected boundary shock probe requires a positive start ordinate',
+      'claim_status': 'reflected-field-shock-coupling-pending',
+    }
+  result = solve_marched_attached_shock_field(
+    reflected_zone.state_at,
+    reflected_zone.static_pressure_at,
+    start,
+    downstream_flow_angle_at=lambda _index, point: 0.05 * max(
+      0.0,
+      min(1.0, point[1] / start[1]),
+    ),
+    sample_count=9,
+  )
+  return {
+    'status': result.status.value,
+    'sample_count': result.sample_count,
+    'shock_start_m': start,
+    'last_valid_point_m': result.shock_points_m[-1] if result.shock_points_m else None,
+    'message': result.message,
+    'claim_status': (
+      'reflected-field-domain-bounded-probe; shock-path-extension-pending'
+    ),
+  }
+
+
 def build_moc_primitive_report() -> dict[str, Any]:
   cases = [
     (gamma, mach)
@@ -553,8 +598,17 @@ def build_moc_primitive_report() -> dict[str, Any]:
     fan_exit,
     fan_ambient,
   )
+  reflected_trace_extension = solve_reflected_boundary_trace_extension(
+    reflected_boundary,
+    fan_ambient.pressure_Pa,
+  )
   reflected_zone = assemble_reflected_characteristic_zone(
     fan,
+    reflected_boundary,
+    total_pressure_Pa=fan_exit.total_pressure_Pa,
+  )
+  reflected_zone_shock_coupling = _reflected_zone_shock_coupling_probe(
+    reflected_zone,
     reflected_boundary,
   )
   fan_reflected_interface = validate_fan_reflected_interface(
@@ -961,9 +1015,39 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'nonmanifold_edge_count': reflected_zone.topology.nonmanifold_edge_count,
       'coverage_area_m2': reflected_zone.coverage_area_m2,
       'coverage_area_residual_m2': reflected_zone.coverage_area_residual_m2,
+      'total_pressure_Pa': reflected_zone.total_pressure_Pa,
       'physical_closure_status': reflected_zone.physical_closure_status,
       'shock_closure_status': reflected_zone.shock_closure_status,
       'message': reflected_zone.message,
+    },
+    'reflected_zone_shock_coupling': reflected_zone_shock_coupling,
+    'reflected_boundary_trace_extension': {
+      'status': reflected_trace_extension.status.value,
+      'accepted': reflected_trace_extension.converged,
+      'sample_count': reflected_trace_extension.sample_count,
+      'endpoint_m': reflected_trace_extension.endpoint_m,
+      'field_status': (
+        reflected_trace_extension.field_status.value
+        if reflected_trace_extension.field_status is not None
+        else None
+      ),
+      'shock_closure_status': (
+        reflected_trace_extension.field.shock_closure_status
+        if reflected_trace_extension.field is not None
+        else None
+      ),
+      'topology_forms_closed_zone': (
+        reflected_trace_extension.field.topology.forms_closed_zone
+        if reflected_trace_extension.field is not None
+        else None
+      ),
+      'pressure_loss_verified': (
+        reflected_trace_extension.field.pressure_loss_verified
+        if reflected_trace_extension.field is not None
+        else False
+      ),
+      'message': reflected_trace_extension.message,
+      'claim_status': 'reflected-boundary-trace-extension-only; upstream-strip-coupling-pending',
     },
     'sampled_attached_shock_fit': {
       'status': sampled_shock_fit.status.value,
@@ -1226,6 +1310,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'message': reflected_boundary.message,
       }
     ] if not reflected_boundary.converged else []),
+    *([
+      {
+        'case': 'reflected_boundary_trace_extension',
+        'status': reflected_trace_extension.status.value,
+        'message': reflected_trace_extension.message,
+      }
+    ] if not reflected_trace_extension.converged else []),
     *([
       {
         'case': 'reflected_characteristic_zone_assembly',

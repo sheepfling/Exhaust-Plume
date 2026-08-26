@@ -21,6 +21,7 @@ from math import isfinite, sin, tan
 from typing import Callable, Sequence
 
 from exhaust_plume.models.moc.compression import solve_attached_compression_to_turn
+from exhaust_plume.models.moc.boundary import MocReflectedBoundaryResult
 from exhaust_plume.models.moc.chain import MocChainBoundarySample, MocChainCell
 from exhaust_plume.models.moc.post_shock import (
   MocPostShockBoundaryState,
@@ -38,6 +39,7 @@ __all__ = (
   'MocFreeBoundaryShockResult',
   'MocFreeBoundaryShockStatus',
   'solve_marched_attached_shock_field',
+  'solve_reflected_boundary_trace_extension',
   'solve_marched_attached_shock_chain_cell',
   'solve_uniform_attached_shock_field',
 )
@@ -484,6 +486,98 @@ def solve_marched_attached_shock_field(
     message=(
       'solver-generated attached-shock boundary reached the symmetry line '
       'and closed the post-shock characteristic field'
+    ),
+  )
+####
+
+
+def solve_reflected_boundary_trace_extension(
+  reflected_boundary: MocReflectedBoundaryResult,
+  upstream_pressure_Pa: float,
+  *,
+  target_centerline_y_m: float = 0.0,
+  outer_downstream_flow_angle_rad: float = 0.05,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+) -> MocFreeBoundaryShockResult:
+  """Generate a shock from the terminal reflected-boundary trace.
+
+  The terminal reflected state is extended as a constant characteristic trace
+  only to provide a deterministic intermediate reference. This deliberately
+  does not sample or extrapolate the reflected interior lattice; callers must
+  identify the result as ``reflected-boundary-trace-extension`` until an
+  upstream characteristic strip is solved between that boundary and the
+  shock.
+  """
+
+  if not isinstance(reflected_boundary, MocReflectedBoundaryResult):
+    return _failure(
+      MocFreeBoundaryShockStatus.INVALID_INPUT,
+      message='reflected_boundary must be a MocReflectedBoundaryResult',
+    )
+  if not reflected_boundary.converged or not reflected_boundary.boundary_states:
+    return _failure(
+      MocFreeBoundaryShockStatus.INVALID_INPUT,
+      message=f'reflected boundary is not converged: {reflected_boundary.message}',
+    )
+  try:
+    pressure = float(upstream_pressure_Pa)
+  except (TypeError, ValueError):
+    return _failure(
+      MocFreeBoundaryShockStatus.INVALID_INPUT,
+      message='upstream_pressure_Pa must be finite and positive',
+    )
+  if not isfinite(pressure) or pressure <= 0.0:
+    return _failure(
+      MocFreeBoundaryShockStatus.INVALID_INPUT,
+      message='upstream_pressure_Pa must be finite and positive',
+    )
+  start = reflected_boundary.boundary_points_m[-1]
+  anchor = reflected_boundary.boundary_states[-1]
+  if start[1] <= float(target_centerline_y_m):
+    return _failure(
+      MocFreeBoundaryShockStatus.INVALID_INPUT,
+      message='terminal reflected-boundary trace must be above the target centerline',
+    )
+  denominator = start[1] - float(target_centerline_y_m)
+
+  def state_at(point: tuple[float, float]) -> CharacteristicState:
+    return replace(anchor, x_m=point[0], y_m=point[1])
+
+  def angle_at(_index: int, point: tuple[float, float]) -> float:
+    fraction = (point[1] - float(target_centerline_y_m)) / denominator
+    return outer_downstream_flow_angle_rad * max(0.0, min(1.0, fraction))
+
+  result = solve_marched_attached_shock_field(
+    state_at,
+    lambda _point: pressure,
+    start,
+    target_centerline_y_m=float(target_centerline_y_m),
+    downstream_flow_angle_at=angle_at,
+    sample_count=sample_count,
+    branch=branch,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+    shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+  )
+  if not result.converged or result.field is None:
+    return result
+  return replace(
+    result,
+    field=replace(
+      result.field,
+      shock_closure_status='reflected-boundary-trace-extension',
+      message=(
+        'reflected-boundary trace extension generated a closed post-shock '
+        'field; upstream characteristic-strip coupling remains pending'
+      ),
+    ),
+    message=(
+      'terminal reflected-boundary trace reached the symmetry line through a '
+      'callback-conditioned shock extension'
     ),
   )
 ####

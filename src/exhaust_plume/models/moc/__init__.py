@@ -47,6 +47,7 @@ from exhaust_plume.models.moc.free_boundary import (
   MocFreeBoundaryShockResult,
   MocFreeBoundaryShockStatus,
   solve_marched_attached_shock_field,
+  solve_reflected_boundary_trace_extension,
   solve_marched_attached_shock_chain_cell,
   solve_uniform_attached_shock_field,
 )
@@ -170,6 +171,7 @@ __all__ = (
   'solve_ambient_pressure_free_boundary_point',
   'solve_reflected_free_boundary',
   'solve_marched_attached_shock_field',
+  'solve_reflected_boundary_trace_extension',
   'solve_marched_attached_shock_chain_cell',
   'solve_uniform_attached_shock_field',
   'assemble_reflected_characteristic_zone',

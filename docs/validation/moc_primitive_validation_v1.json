@@ -193,9 +193,39 @@
       "nonmanifold_edge_count": 0,
       "coverage_area_m2": 0.04041915264641294,
       "coverage_area_residual_m2": 0.0,
+      "total_pressure_Pa": 2000000.0,
       "physical_closure_status": "open",
       "shock_closure_status": "not_assembled",
       "message": ""
+    },
+    "reflected_zone_shock_coupling": {
+      "status": "upstream_field_failure",
+      "sample_count": 1,
+      "shock_start_m": [
+        0.7431488332818272,
+        0.1158153281924007
+      ],
+      "last_valid_point_m": [
+        0.7431488332818272,
+        0.1158153281924007
+      ],
+      "message": "upstream field callback returned no CharacteristicState at sample 1",
+      "claim_status": "reflected-field-domain-bounded-probe; shock-path-extension-pending"
+    },
+    "reflected_boundary_trace_extension": {
+      "status": "converged_free_boundary_field",
+      "accepted": true,
+      "sample_count": 17,
+      "endpoint_m": [
+        0.8329860429261493,
+        0.0
+      ],
+      "field_status": "converged_closed",
+      "shock_closure_status": "reflected-boundary-trace-extension",
+      "topology_forms_closed_zone": true,
+      "pressure_loss_verified": true,
+      "message": "terminal reflected-boundary trace reached the symmetry line through a callback-conditioned shock extension",
+      "claim_status": "reflected-boundary-trace-extension-only; upstream-strip-coupling-pending"
     },
     "sampled_attached_shock_fit": {
       "status": "converged_fitted",

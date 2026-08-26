@@ -2,13 +2,18 @@ from __future__ import annotations
 
 import pytest
 
+from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput
 from exhaust_plume.models.moc import (
   CharacteristicState,
   MocFreeBoundaryShockStatus,
+  solve_reflected_boundary_trace_extension,
   solve_marched_attached_shock_chain_cell,
   solve_marched_attached_shock_field,
+  solve_reflected_free_boundary,
+  solve_underexpanded_expansion_fan,
   solve_uniform_attached_shock_field,
 )
+from exhaust_plume.models.nozzle.exit_state import derive_ambient_state, derive_uniform_nozzle_exit
 
 
 def _uniform_reference(sample_count: int):
@@ -25,6 +30,25 @@ def _uniform_reference(sample_count: int):
     outer_downstream_flow_angle_rad=0.05,
     sample_count=sample_count,
   )
+
+
+def _reflected_boundary_reference():
+  gas = CaloricallyPerfectGas.dry_air()
+  exit_state = derive_uniform_nozzle_exit(
+    NozzleExitInput(
+      mach=2.0,
+      total_pressure_Pa=2.0e6,
+      total_temperature_K=900.0,
+      exit_radius_m=0.05,
+    ),
+    gas,
+  )
+  ambient = derive_ambient_state(
+    AmbientInput(pressure_Pa=101325.0, temperature_K=300.0),
+    gas,
+  )
+  fan = solve_underexpanded_expansion_fan(exit_state, ambient, characteristic_count=8)
+  return solve_reflected_free_boundary(fan, exit_state, ambient), ambient
 
 
 def test_marched_attached_shock_generates_and_closes_the_field() -> None:
@@ -64,6 +88,23 @@ def test_marched_attached_shock_refines_endpoint_and_tangent_residual() -> None:
   assert abs(fine.endpoint_m[0] - medium.endpoint_m[0]) < abs(
     medium.endpoint_m[0] - coarse.endpoint_m[0]
   )
+
+
+def test_reflected_boundary_trace_extension_is_explicitly_labeled() -> None:
+  reflected_boundary, ambient = _reflected_boundary_reference()
+
+  result = solve_reflected_boundary_trace_extension(
+    reflected_boundary,
+    ambient.pressure_Pa,
+    sample_count=17,
+  )
+
+  assert result.converged
+  assert result.field is not None
+  assert result.field.shock_closure_status == 'reflected-boundary-trace-extension'
+  assert result.field.physical_closure_verified
+  assert result.endpoint_m is not None
+  assert result.endpoint_m[1] == pytest.approx(0.0, abs=1.0e-12)
 
 
 def test_uniform_constant_turn_rejects_zero_area_field() -> None:

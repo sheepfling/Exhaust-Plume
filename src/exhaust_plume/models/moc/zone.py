@@ -22,6 +22,7 @@ from exhaust_plume.models.moc.primitives import (
   CharacteristicPointResult,
   CharacteristicState,
   interior_characteristic_point,
+  inverse_prandtl_meyer_angle_rad,
 )
 from exhaust_plume.models.moc.topology import MocTopologyResult, validate_moc_mesh
 
@@ -136,7 +137,17 @@ class MocReflectedCharacteristicZoneResult:
   coverage_area_residual_m2: float | None
   physical_closure_status: str
   shock_closure_status: str
+  centerline_states: tuple[CharacteristicState, ...] = ()
+  boundary_states: tuple[CharacteristicState, ...] = ()
+  total_pressure_Pa: float | None = None
   message: str = ''
+
+  def __post_init__(self) -> None:
+    if self.total_pressure_Pa is not None and (
+      not isfinite(float(self.total_pressure_Pa)) or self.total_pressure_Pa <= 0.0
+    ):
+      raise ValueError('total_pressure_Pa must be finite and positive when supplied')
+  ####
 
   @property
   def converged(self) -> bool:
@@ -152,6 +163,180 @@ class MocReflectedCharacteristicZoneResult:
   def cell_count(self) -> int:
     return len(self.cells)
   ####
+
+  def state_at(
+    self,
+    point_m: tuple[float, float],
+    *,
+    position_tolerance_m: float = 1.0e-10,
+  ) -> CharacteristicState | None:
+    """Interpolate a compatible state inside the solved reflected lattice.
+
+    The sampler is intentionally domain-bounded: it returns ``None`` outside
+    the assembled open zone instead of extrapolating a shock-side state. This
+    makes the reflected-field coupling gate explicit for the next shock solve.
+    Interpolation is performed in ``theta``/Prandtl--Meyer-angle space so the
+    returned state remains supersonic and uses the common gamma.
+    """
+
+    if len(point_m) != 2 or not all(isfinite(float(value)) for value in point_m):
+      raise ValueError('point_m must contain two finite coordinates')
+    if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
+      raise ValueError('position_tolerance_m must be finite and positive')
+    node_by_key = {
+      (node.centerline_index, node.boundary_index): node
+      for node in self.nodes
+    }
+    point = (float(point_m[0]), float(point_m[1]))
+    for cell in self.cells:
+      samples = _zone_cell_samples(self, cell, node_by_key)
+      if samples is None:
+        continue
+      vertices, states = samples
+      weights = _polygon_interpolation_weights(
+        point,
+        vertices,
+        tolerance_m=position_tolerance_m,
+      )
+      if weights is None:
+        continue
+      theta = sum(
+        weight * state.theta_rad
+        for weight, state in zip(weights, states, strict=True)
+      )
+      nu = sum(
+        weight * state.nu_rad
+        for weight, state in zip(weights, states, strict=True)
+      )
+      inverse = inverse_prandtl_meyer_angle_rad(nu, states[0].gamma)
+      if not inverse.converged or inverse.value is None:
+        return None
+      return CharacteristicState(
+        x_m=point[0],
+        y_m=point[1],
+        theta_rad=theta,
+        mach=inverse.value,
+        gamma=states[0].gamma,
+      )
+    return None
+  ####
+
+  def static_pressure_at(
+    self,
+    point_m: tuple[float, float],
+    *,
+    position_tolerance_m: float = 1.0e-10,
+  ) -> float | None:
+    """Return isentropic static pressure for a sampled reflected state."""
+
+    if self.total_pressure_Pa is None:
+      return None
+    state = self.state_at(point_m, position_tolerance_m=position_tolerance_m)
+    if state is None:
+      return None
+    pressure_ratio = (
+      1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
+    ) ** (state.gamma / (state.gamma - 1.0))
+    return self.total_pressure_Pa / pressure_ratio
+  ####
+####
+
+
+def _zone_cell_samples(
+  zone: MocReflectedCharacteristicZoneResult,
+  cell: MocCharacteristicCell,
+  node_by_key: dict[tuple[int, int], MocCharacteristicNode],
+) -> tuple[tuple[tuple[float, float], ...], tuple[CharacteristicState, ...]] | None:
+  """Return ordered vertex/state samples for one reflected-zone cell."""
+
+  def node_sample(key: tuple[int, int]) -> tuple[tuple[float, float], CharacteristicState] | None:
+    node = node_by_key.get(key)
+    return None if node is None else (node.point_m, node.state)
+
+  if cell.cell_kind == 'axis-strip':
+    if len(cell.centerline_indices) != 2 or not zone.centerline_states:
+      return None
+    first, second = cell.centerline_indices
+    if not (0 <= first < len(zone.centerline_states) and 0 <= second < len(zone.centerline_states)):
+      return None
+    samples = (
+      (cell.vertices_xr_m[0], zone.centerline_states[first]),
+      (cell.vertices_xr_m[1], zone.centerline_states[second]),
+      node_sample((second, 0)),
+      node_sample((first, 0)),
+    )
+  elif cell.cell_kind == 'interior':
+    if len(cell.centerline_indices) != 2 or len(cell.boundary_indices) != 2:
+      return None
+    row, next_row = cell.centerline_indices
+    column, next_column = cell.boundary_indices
+    samples = (
+      node_sample((row, column)),
+      node_sample((next_row, column)),
+      node_sample((next_row, next_column)),
+      node_sample((row, next_column)),
+    )
+  elif cell.cell_kind == 'free-boundary-strip':
+    if len(cell.boundary_indices) != 2:
+      return None
+    first, second = cell.boundary_indices
+    samples = (
+      node_sample((first, first)),
+      node_sample((second, first)),
+      node_sample((second, second)),
+    )
+  else:
+    return None
+  if any(sample is None for sample in samples):
+    return None
+  resolved = tuple(sample for sample in samples if sample is not None)
+  return tuple(cell.vertices_xr_m), tuple(sample[1] for sample in resolved)
+####
+
+
+def _triangle_interpolation_weights(
+  point: tuple[float, float],
+  vertices: tuple[tuple[float, float], ...],
+  *,
+  tolerance_m: float,
+) -> tuple[float, ...] | None:
+  (ax, ay), (bx, by), (cx, cy) = vertices
+  denominator = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy)
+  if abs(denominator) <= max(tolerance_m * tolerance_m, 1.0e-24):
+    return None
+  px, py = point
+  first = ((by - cy) * (px - cx) + (cx - bx) * (py - cy)) / denominator
+  second = ((cy - ay) * (px - cx) + (ax - cx) * (py - cy)) / denominator
+  third = 1.0 - first - second
+  if min(first, second, third) < -1.0e-10 or max(first, second, third) > 1.0 + 1.0e-10:
+    return None
+  return first, second, third
+####
+
+
+def _polygon_interpolation_weights(
+  point: tuple[float, float],
+  vertices: tuple[tuple[float, float], ...],
+  *,
+  tolerance_m: float,
+) -> tuple[float, ...] | None:
+  if len(vertices) == 3:
+    return _triangle_interpolation_weights(point, vertices, tolerance_m=tolerance_m)
+  first = _triangle_interpolation_weights(
+    point,
+    (vertices[0], vertices[1], vertices[2]),
+    tolerance_m=tolerance_m,
+  )
+  if first is not None:
+    return first[0], first[1], first[2], 0.0
+  second = _triangle_interpolation_weights(
+    point,
+    (vertices[0], vertices[2], vertices[3]),
+    tolerance_m=tolerance_m,
+  )
+  if second is not None:
+    return second[0], 0.0, second[1], second[2]
+  return None
 ####
 
 
@@ -350,6 +535,7 @@ def assemble_reflected_characteristic_zone(
   *,
   position_tolerance_m: float = 1.0e-10,
   invariant_tolerance: float = 1.0e-10,
+  total_pressure_Pa: float | None = None,
 ) -> MocReflectedCharacteristicZoneResult:
   """Assemble the reflected centerline/free-boundary characteristic lattice.
 
@@ -369,6 +555,10 @@ def assemble_reflected_characteristic_zone(
     raise ValueError('position_tolerance_m must be finite and positive')
   if not isfinite(invariant_tolerance) or invariant_tolerance <= 0.0:
     raise ValueError('invariant_tolerance must be finite and positive')
+  if total_pressure_Pa is not None and (
+    not isfinite(float(total_pressure_Pa)) or total_pressure_Pa <= 0.0
+  ):
+    raise ValueError('total_pressure_Pa must be finite and positive when supplied')
   if not fan.converged:
     return _failure(
       status=MocZoneAssemblyStatus.INVALID_INPUT,
@@ -450,6 +640,7 @@ def assemble_reflected_characteristic_zone(
         point_m=(float(point[0]), float(point[1])),
         state=point_result.state,
         point_result=point_result,
+        total_pressure_Pa=total_pressure_Pa,
       )
   ####
   nodes = tuple(nodes_by_index.values())
@@ -567,5 +758,8 @@ def assemble_reflected_characteristic_zone(
     coverage_area_residual_m2=coverage_area_residual_m2,
     physical_closure_status='open',
     shock_closure_status='not_assembled',
+    centerline_states=centerline_states,
+    boundary_states=boundary_states,
+    total_pressure_Pa=total_pressure_Pa,
   )
 ####
