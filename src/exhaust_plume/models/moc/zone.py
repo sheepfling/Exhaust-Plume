@@ -86,6 +86,12 @@ class MocCharacteristicNode:
   point_m: tuple[float, float]
   state: CharacteristicState
   point_result: CharacteristicPointResult
+  total_pressure_Pa: float | None = None
+
+  def __post_init__(self) -> None:
+    if self.total_pressure_Pa is not None:
+      if not isfinite(float(self.total_pressure_Pa)) or self.total_pressure_Pa <= 0.0:
+        raise ValueError('total_pressure_Pa must be finite and positive when supplied')
 ####
 
 

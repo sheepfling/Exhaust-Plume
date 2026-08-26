@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from math import cos, sin
 
 import pytest
@@ -11,17 +12,25 @@ from exhaust_plume.models.moc import (
   MocCharacteristicNode,
   MocCellClosureStatus,
   MocChainGeometryFidelity,
+  MocChainStatus,
+  MocChainTerminationReason,
   MocPostShockBoundaryState,
+  MocPostShockChainCellSolve,
   MocPostShockClosureStatus,
+  MocPostShockCharacteristicFieldResult,
+  MocPostShockFieldStatus,
   MocPostShockCharacteristicZoneResult,
   MocPostShockFirstLayerStatus,
   MocPostShockContinuationStatus,
   MocPostShockZoneStatus,
   MocShockBoundaryFitStatus,
+  MocShockBoundaryFitResult,
   MocPrimitiveStatus,
   assemble_post_shock_characteristic_zone,
+  assemble_post_shock_characteristic_field,
   assemble_post_shock_first_layer,
   continue_post_shock_characteristics_to_centerline,
+  continue_post_shock_characteristic_chain,
   fit_attached_shock_boundary,
   solve_attached_compression_to_turn,
   validate_closed_post_shock_field,
@@ -241,6 +250,192 @@ def test_closed_post_shock_field_requires_explicit_boundary_edges() -> None:
   assert chain_cell.geometry_fidelity is MocChainGeometryFidelity.RESOLVED_PLANAR_MOC
   assert chain_cell.physical_closure is MocCellClosureStatus.CLOSED
   assert chain_cell.resolved
+
+
+def test_shock_seeded_post_shock_field_closes_a_characteristic_fan() -> None:
+  samples = _prescribed_boundary()
+  shock_fit = MocShockBoundaryFitResult(
+    status=MocShockBoundaryFitStatus.CONVERGED_FITTED,
+    boundary_states=samples,
+    shock_angle_residuals_rad=(0.0,) * len(samples),
+    maximum_shock_angle_residual_rad=0.0,
+  )
+
+  result = assemble_post_shock_characteristic_field(shock_fit)
+
+  assert isinstance(result, MocPostShockCharacteristicFieldResult)
+  assert result.status is MocPostShockFieldStatus.CONVERGED_CLOSED
+  assert result.converged
+  assert result.physical_closure_verified
+  assert result.characteristic_layer_count == 3
+  assert result.node_count == 7
+  assert result.cell_count == 9
+  assert result.topology.connected
+  assert result.topology.forms_closed_zone
+  assert result.topology.nonmanifold_edge_count == 0
+  assert result.minimum_forward_margin_m is not None
+  assert result.minimum_forward_margin_m > 0.0
+  assert result.pressure_loss_verified
+  assert all(node.total_pressure_Pa is not None for node in result.nodes)
+  assert result.terminal_centerline_state is not None
+  chain_cell = result.as_chain_cell(start_x_m=samples[0].point_m[0], end_x_m=1.5)
+  assert chain_cell.resolved
+  with pytest.raises(ValueError, match='reserved closure keys'):
+    result.as_chain_cell(
+      start_x_m=samples[0].point_m[0],
+      end_x_m=1.5,
+      diagnostics={'physical_closure_verified': False},
+    )
+
+
+def test_shock_seeded_field_rejects_a_zero_area_uniform_turn_closure() -> None:
+  points = _fitted_attached_boundary()
+  upstream_states = tuple(
+    CharacteristicState(
+      x_m=point[0],
+      y_m=point[1],
+      theta_rad=-0.2,
+      mach=2.0,
+      gamma=1.4,
+    )
+    for point in points
+  )
+  shock_fit = fit_attached_shock_boundary(
+    upstream_states,
+    (100000.0,) * 4,
+    points,
+    (0.0,) * 4,
+  )
+
+  result = assemble_post_shock_characteristic_field(shock_fit)
+
+  assert result.status is MocPostShockFieldStatus.GEOMETRY_FAILURE
+  assert not result.converged
+  assert 'zero_area' in result.message
+
+
+def test_shock_seeded_post_shock_field_rejects_nonconverged_fit() -> None:
+  result = assemble_post_shock_characteristic_field(
+    fit_attached_shock_boundary(
+      (),
+      (),
+      (),
+      (),
+    )
+  )
+
+  assert result.status is MocPostShockFieldStatus.SHOCK_FIT_REQUIRED
+  assert not result.converged
+  assert 'converged shock fit' in result.message
+
+
+def _next_chain_field(handoff) -> MocPostShockChainCellSolve:
+  points = (
+    (1.0, 0.20),
+    (1.02, 0.14),
+    (1.04, 0.08),
+    (1.06, 0.04),
+    (1.08, 0.0),
+  )
+  angles = (-0.30, -0.20, -0.10, -0.05, 0.0)
+  samples = tuple(
+    MocPostShockBoundaryState(
+      point_m=point,
+      state=CharacteristicState(
+        x_m=point[0],
+        y_m=point[1],
+        theta_rad=angle,
+        mach=2.0,
+        gamma=1.4,
+      ),
+      upstream_total_pressure_Pa=1.8e6,
+      downstream_total_pressure_Pa=1.6e6,
+    )
+    for point, angle in zip(points, angles, strict=True)
+  )
+  fit = MocShockBoundaryFitResult(
+    status=MocShockBoundaryFitStatus.CONVERGED_FITTED,
+    boundary_states=samples,
+    shock_angle_residuals_rad=(0.0,) * len(samples),
+    maximum_shock_angle_residual_rad=0.0,
+    upstream_states=tuple(sample.state for sample in handoff),
+    upstream_total_pressure_Pa=tuple(sample.total_pressure_Pa for sample in handoff),
+  )
+  return MocPostShockChainCellSolve(
+    field=assemble_post_shock_characteristic_field(fit),
+    end_x_m=2.0,
+  )
+
+
+def test_post_shock_chain_re_solves_with_state_and_pressure_handoff() -> None:
+  seed_fit = MocShockBoundaryFitResult(
+    status=MocShockBoundaryFitStatus.CONVERGED_FITTED,
+    boundary_states=_prescribed_boundary(),
+    shock_angle_residuals_rad=(0.0,) * 4,
+    maximum_shock_angle_residual_rad=0.0,
+  )
+  seed_field = assemble_post_shock_characteristic_field(seed_fit)
+  calls: list[tuple[int, int, float]] = []
+
+  def solve_next(current, index, handoff):
+    calls.append((index, len(handoff), handoff[0].total_pressure_Pa))
+    if index == 3:
+      return None
+    return _next_chain_field(handoff)
+
+  result = continue_post_shock_characteristic_chain(
+    seed_field,
+    solve_next,
+    start_x_m=0.7,
+    end_x_m=1.0,
+  )
+
+  assert result.status is MocChainStatus.SOLVER_TERMINATED
+  assert result.termination_reason is MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL
+  assert result.cell_count == 2
+  assert result.resolved
+  assert all(cell.carries_state for cell in result.cells)
+  assert calls == [
+    (2, 5, pytest.approx(1.8e6)),
+    (3, 6, pytest.approx(1.6e6)),
+  ]
+
+
+def test_post_shock_chain_rejects_a_changed_state_handoff() -> None:
+  seed_fit = MocShockBoundaryFitResult(
+    status=MocShockBoundaryFitStatus.CONVERGED_FITTED,
+    boundary_states=_prescribed_boundary(),
+    shock_angle_residuals_rad=(0.0,) * 4,
+    maximum_shock_angle_residual_rad=0.0,
+  )
+  seed_field = assemble_post_shock_characteristic_field(seed_fit)
+
+  def solve_next(_current, _index, handoff):
+    solved = _next_chain_field(handoff)
+    field = solved.field
+    changed_states = list(field.upstream_boundary_states)
+    changed_states[0] = CharacteristicState(
+      x_m=changed_states[0].x_m,
+      y_m=changed_states[0].y_m,
+      theta_rad=changed_states[0].theta_rad + 0.01,
+      mach=changed_states[0].mach,
+      gamma=changed_states[0].gamma,
+    )
+    return MocPostShockChainCellSolve(
+      field=replace(field, upstream_boundary_states=tuple(changed_states)),
+      end_x_m=2.0,
+    )
+
+  result = continue_post_shock_characteristic_chain(
+    seed_field,
+    solve_next,
+    start_x_m=0.7,
+    end_x_m=1.0,
+  )
+
+  assert result.status is MocChainStatus.SOLVER_FAILURE
+  assert result.termination_reason is MocChainTerminationReason.SOLVER_ERROR
+  assert 'changed carried state sample' in result.message
 
 
 def test_open_post_shock_zone_cannot_be_promoted_without_a_shock_edge() -> None:

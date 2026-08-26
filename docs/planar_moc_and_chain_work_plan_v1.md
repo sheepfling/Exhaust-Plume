@@ -11,7 +11,7 @@ reduced-order shock-train provider.
 | --- | --- | --- | --- |
 | `shock-cell-basic-v1` | fast, easy visual exploration | frozen compatibility-backed visual lane | do not change while MOC work proceeds |
 | `shock-train-reduced-order-v1` | bounded engineering-approximate continued chain | implemented with one resolved compatibility first cell plus scaled downstream cells | remains explicitly `scaled-reduced-order` |
-| `planar-moc-research-v2` | numerical planar characteristic research and future resolved first cell/chain | open fan/reflected lattice, sampled attached-shock fit, post-shock traces, first cross-characteristic layer, and a closed-field acceptance gate | requires a canonical solver-generated closed field and independent validation |
+| `planar-moc-research-v2` | numerical planar characteristic research and future resolved first cell/chain | open fan/reflected lattice, sampled attached-shock fit, shock-seeded closed post-shock field, and a state-carrying chain boundary | requires a canonical free-boundary solver, refinement, and independent validation |
 | signature, ray, and focal-plane-array lanes | downstream measurement products | separate contracts and providers | consume only an accepted upstream field/operator |
 
 The MOC lane must never import a reduced-order cell and relabel it as a
@@ -29,9 +29,16 @@ not wait on this research closure.
 - Added a closed post-shock field acceptance gate. It requires explicit shock
   and centerline boundary edges, connected finite-cell topology, and converged
   characteristic-node evidence; it does not synthesize missing cells.
+- Added a shock-seeded C+/C- field assembler. It grows shrinking compatible
+  fronts from a fitted shock boundary, carries post-shock total pressure along
+  the source lineage, closes the terminal characteristic fan to the symmetry
+  line, and rejects zero-area or missing-edge constructions.
 - Added the only permitted promotion path from a verified closed post-shock
   field into a `RESOLVED_PLANAR_MOC` chain seed, retaining closure and residual
   diagnostics.
+- Added typed downstream characteristic-state/total-pressure handoff samples
+  and a state-carrying chain adapter. Every next field must report the exact
+  incoming handoff before its cell can be appended.
 - Added an MOC chain continuation contract. It accepts only connected,
   topologically bounded meshes with explicit physical closure and resolved
   planar-MOC fidelity.
@@ -67,21 +74,24 @@ not wait on this research closure.
 4. Check invariant residuals, forward-ray margins, cell-area coverage, and
    total-pressure loss across the shock.
 5. Promote `physical_closure` only when all of those checks pass. A
-   topologically bounded open lattice is not sufficient. The explicit
-   closed-field gate is implemented; a solver-generated full candidate still
-   has to pass it.
+   topologically bounded open lattice is not sufficient. The shock-seeded
+   boundary-conditioned assembler now passes this local gate on a varied
+   prescribed fixture; the free-boundary shock fit and external acceptance
+   gates remain open.
 
 ### MOC-3 — Re-solved continued cells
 
-Implement the callback behind `continue_moc_cell_chain` as a real local MOC
-solver:
+Use the state-carrying callback behind
+`continue_post_shock_characteristic_chain` as the local MOC solver boundary:
 
 1. take the previous cell's downstream boundary states and total-pressure
    field;
 2. construct the next local characteristic problem from those states;
 3. solve its compression/expansion boundary and post-shock field;
-4. return a new cell with `resolved-planar-moc` fidelity, or a structured
-   validity/termination result;
+4. return a new field and cell with `resolved-planar-moc` fidelity, or a
+   structured validity/termination result; the adapter verifies that all
+   upstream characteristic states and total pressures equal the prior
+   handoff;
 5. stop on physical model limits, not on an arbitrary count, while retaining
    count and axial distance as safety limits.
 
@@ -90,7 +100,9 @@ implementation. It must not be used as this callback.
 
 The verified post-shock result exposes the only seed-promotion adapter for this
 lane. An open zone, prescribed-boundary diagnostic, or scaled reduced-order
-cell cannot use that adapter.
+cell cannot use that adapter. The continued-cell callback remains an explicit
+solver boundary: it does not invent a shock location when a next free-boundary
+fit has not been supplied.
 
 ### MOC-4 — Refinement and numerical acceptance
 
@@ -126,7 +138,8 @@ Only after MOC-1 through MOC-5 pass:
 ## Definition of done for this long goal
 
 - first-cell shock fitting and post-shock `C+`/`C-` field are physically
-  closed, not merely topologically bounded;
+  closed, not merely topologically bounded, for a canonical free-boundary
+  solver;
 - continued cells are re-solved planar MOC cells with shared boundaries and
   explicit total-pressure bookkeeping;
 - reduced-order cells remain marked and isolated;
@@ -137,12 +150,13 @@ Only after MOC-1 through MOC-5 pass:
 
 ## Current blockers
 
-- No canonical solver-generated shock-fitted downstream field is available in
-  the repository. The new sampled fit is a deterministic boundary contract,
-  not an accepted free-boundary solution.
-- The current prescribed post-shock data prove individual traces and one
-  cross-characteristic layer. The closed-field gate is present, but no
-  production solver has yet supplied a full candidate that passes it.
+- The current full-field pass uses a varied prescribed shock boundary to
+  exercise the characteristic assembler. The sampled fit remains a supplied
+  boundary contract, not an accepted free-boundary shock finder.
+- No production solver yet supplies a canonical free-boundary field or
+  automatic next-cell shock fit. The state-carrying chain adapter therefore
+  requires an explicit re-solved field callback and does not use the
+  reduced-order chain.
 - The recovered validation archive is not a substitute for the missing
   provider-bound measurement/operator bindings.
 

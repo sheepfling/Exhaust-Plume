@@ -20,10 +20,12 @@ from math import isfinite
 from types import MappingProxyType
 from typing import Any
 
+from exhaust_plume.models.moc.primitives import CharacteristicState
 from exhaust_plume.models.moc.topology import MocTopologyResult, validate_moc_mesh
 
 __all__ = (
   'MocCellClosureStatus',
+  'MocChainBoundarySample',
   'MocChainCell',
   'MocChainContinuationPolicy',
   'MocChainGeometryFidelity',
@@ -60,6 +62,7 @@ class MocChainStatus(str, Enum):
   OPEN_CELL = 'open-cell'
   TOPOLOGY_FAILURE = 'topology-failure'
   FIDELITY_BOUNDARY = 'fidelity-boundary'
+  STATE_BOUNDARY = 'state-boundary'
   INVALID_INPUT = 'invalid-input'
   SOLVER_FAILURE = 'solver-failure'
 ####
@@ -76,6 +79,29 @@ class MocChainTerminationReason(str, Enum):
   FIDELITY_NOT_ALLOWED = 'fidelity-not-allowed'
   INVALID_INPUT = 'invalid-input'
   SOLVER_ERROR = 'solver-error'
+  STATE_NOT_CARRIED = 'state-not-carried'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocChainBoundarySample:
+  """One typed characteristic state and total pressure carried downstream."""
+
+  state: CharacteristicState
+  total_pressure_Pa: float
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.state, CharacteristicState):
+      raise TypeError('chain boundary state must be a CharacteristicState')
+    pressure = float(self.total_pressure_Pa)
+    if not isfinite(pressure) or pressure <= 0.0:
+      raise ValueError('chain boundary total pressure must be finite and positive')
+    object.__setattr__(self, 'total_pressure_Pa', pressure)
+  ####
+
+  @property
+  def point_m(self) -> tuple[float, float]:
+    return self.state.x_m, self.state.y_m
 ####
 
 
@@ -96,6 +122,7 @@ class MocChainCell:
   geometry_fidelity: MocChainGeometryFidelity
   physical_closure: MocCellClosureStatus
   diagnostics: dict[str, Any] | MappingProxyType = field(default_factory=dict)
+  continuation_boundary: tuple[MocChainBoundarySample, ...] = ()
 
   def __post_init__(self) -> None:
     if isinstance(self.cell_index, bool) or self.cell_index < 1:
@@ -115,6 +142,12 @@ class MocChainCell:
       raise ValueError('mesh must contain at least one polygon-like cell')
     object.__setattr__(self, 'mesh', mesh)
     object.__setattr__(self, 'diagnostics', MappingProxyType(dict(self.diagnostics)))
+    boundary = tuple(self.continuation_boundary)
+    if any(not isinstance(sample, MocChainBoundarySample) for sample in boundary):
+      raise TypeError(
+        'continuation_boundary must contain MocChainBoundarySample values'
+      )
+    object.__setattr__(self, 'continuation_boundary', boundary)
   ####
 
   @property
@@ -143,6 +176,13 @@ class MocChainCell:
     )
 ####
 
+  @property
+  def carries_state(self) -> bool:
+    """Whether this cell has a typed downstream boundary for re-solving."""
+
+    return bool(self.continuation_boundary)
+####
+
 
 @dataclass(frozen=True, slots=True)
 class MocChainContinuationPolicy:
@@ -154,6 +194,7 @@ class MocChainContinuationPolicy:
   allowed_fidelities: tuple[MocChainGeometryFidelity, ...] = (
     MocChainGeometryFidelity.RESOLVED_PLANAR_MOC,
   )
+  require_state_carry: bool = False
 
   def __post_init__(self) -> None:
     if isinstance(self.max_cells, bool) or self.max_cells < 1:
@@ -181,6 +222,8 @@ class MocChainContinuationPolicy:
         'a resolved planar-MOC chain may allow only '
         'RESOLVED_PLANAR_MOC fidelity'
       )
+    if not isinstance(self.require_state_carry, bool):
+      raise TypeError('require_state_carry must be a bool')
     object.__setattr__(self, 'allowed_fidelities', fidelities)
   ####
 
@@ -228,6 +271,7 @@ class MocChainResult:
       'cell_count': self.cell_count,
       'end_x_m': self.end_x_m,
       'resolved': self.resolved,
+      'state_carry_count': sum(cell.carries_state for cell in self.cells),
       'geometry_fidelity_counts': fidelity_counts,
       'diagnostics': dict(self.diagnostics),
       'message': self.message,
@@ -268,6 +312,21 @@ def _validate_cell_mesh(cell: MocChainCell) -> str | None:
     return topology.message
   if not topology.forms_closed_zone:
     return topology.message
+  return None
+####
+
+
+def _validate_state_carry(cell: MocChainCell) -> str | None:
+  if not cell.continuation_boundary:
+    return 'cell does not carry a downstream characteristic state boundary'
+  if len(cell.continuation_boundary) < 3:
+    return 'state-carrying MOC cells require at least three boundary samples'
+  previous_x: float | None = None
+  for index, sample in enumerate(cell.continuation_boundary):
+    x_value = sample.state.x_m
+    if previous_x is not None and x_value <= previous_x:
+      return f'continuation boundary sample {index} is not strictly downstream in x'
+    previous_x = x_value
   return None
 ####
 
@@ -336,6 +395,15 @@ def continue_moc_cell_chain(
         f'physical closure; received {seed.physical_closure.value!r}'
       ),
     )
+  if policy.require_state_carry:
+    state_error = _validate_state_carry(seed)
+    if state_error is not None:
+      return _result(
+        (seed,),
+        status=MocChainStatus.STATE_BOUNDARY,
+        reason=MocChainTerminationReason.STATE_NOT_CARRIED,
+        message=f'MOC chain seed has no usable state carry: {state_error}',
+      )
   ####
 
   cells = [seed]
@@ -413,6 +481,18 @@ def continue_moc_cell_chain(
           'belongs to the shock-train lane'
         ),
       )
+    if policy.require_state_carry:
+      state_error = _validate_state_carry(candidate)
+      if state_error is not None:
+        return _result(
+          tuple(cells),
+          status=MocChainStatus.STATE_BOUNDARY,
+          reason=MocChainTerminationReason.STATE_NOT_CARRIED,
+          message=(
+            f'MOC cell {candidate.cell_index} did not carry a usable '
+            f'state boundary: {state_error}'
+          ),
+        )
     mesh_error = _validate_cell_mesh(candidate)
     cells.append(candidate)
     if mesh_error is not None:

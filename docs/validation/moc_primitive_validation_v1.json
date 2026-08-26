@@ -216,6 +216,74 @@
       "message": "candidate field is missing explicit shock boundary edge(s): [0, 1, 2]",
       "claim_status": "open-zone-rejection-exercised; canonical-full-field-pending"
     },
+    "shock_seeded_post_shock_field": {
+      "status": "converged_closed",
+      "accepted": true,
+      "characteristic_layer_count": 3,
+      "node_count": 7,
+      "cell_count": 9,
+      "topology_status": "open",
+      "topology_forms_closed_zone": true,
+      "nonmanifold_edge_count": 0,
+      "maximum_geometry_residual_m": 1.3877787807814457e-17,
+      "maximum_absolute_invariant_residual": 1.2211343047852097e-12,
+      "minimum_forward_margin_m": 0.011534435607641114,
+      "minimum_post_shock_total_pressure_ratio": 0.9,
+      "maximum_post_shock_total_pressure_ratio": 0.9,
+      "continuation_boundary_sample_count": 5,
+      "physical_closure_status": "closed-characteristic-fan",
+      "shock_closure_status": "fitted-attached-shock",
+      "message": "shock-seeded post-shock C+/C- characteristic field converged with explicit shock and centerline boundary edges",
+      "claim_status": "synthetic-prescribed-field-contract-only; canonical-free-boundary-pending"
+    },
+    "shock_seeded_field_refinement": {
+      "status": "diagnostic-all-prescribed-resolutions-converged",
+      "cases": [
+        {
+          "shock_sample_count": 3,
+          "status": "converged_closed",
+          "characteristic_layer_count": 2,
+          "node_count": 4,
+          "cell_count": 5,
+          "topology_status": "open",
+          "topology_forms_closed_zone": true,
+          "nonmanifold_edge_count": 0,
+          "maximum_geometry_residual_m": 1.1123893155135927e-16,
+          "maximum_absolute_invariant_residual": 5.635492072997295e-13,
+          "minimum_forward_margin_m": 0.028288355595145864,
+          "pressure_loss_verified": true
+        },
+        {
+          "shock_sample_count": 4,
+          "status": "converged_closed",
+          "characteristic_layer_count": 3,
+          "node_count": 7,
+          "cell_count": 9,
+          "topology_status": "open",
+          "topology_forms_closed_zone": true,
+          "nonmanifold_edge_count": 0,
+          "maximum_geometry_residual_m": 1.3877787807814457e-17,
+          "maximum_absolute_invariant_residual": 1.2211343047852097e-12,
+          "minimum_forward_margin_m": 0.011534435607641114,
+          "pressure_loss_verified": true
+        },
+        {
+          "shock_sample_count": 5,
+          "status": "converged_closed",
+          "characteristic_layer_count": 4,
+          "node_count": 11,
+          "cell_count": 14,
+          "topology_status": "open",
+          "topology_forms_closed_zone": true,
+          "nonmanifold_edge_count": 0,
+          "maximum_geometry_residual_m": 1.0408340855860843e-17,
+          "maximum_absolute_invariant_residual": 7.2730710343194e-13,
+          "minimum_forward_margin_m": 0.003935215600712971,
+          "pressure_loss_verified": true
+        }
+      ],
+      "claim_status": "prescribed-boundary-refinement-only; physical-shock-convergence-pending"
+    },
     "fan_reflected_interface": {
       "status": "aligned",
       "aligned": true,
@@ -365,8 +433,8 @@
   },
   "failures": [],
   "next_gates": [
-    "physical free-boundary/compression geometry closure; pressure-state and open-mesh primitives remain insufficient",
-    "canonical solver-generated shock-boundary state field, post-shock C+ interior continuation, and complete downstream bookkeeping",
+    "canonical free-boundary/compression geometry closure; the current field is prescribed-boundary contract evidence",
+    "production next-cell shock fitting that consumes the typed state/total-pressure handoff without a geometric template",
     "grid/refinement convergence for the assembled reflected zone and mild attached-overexpanded cases",
     "independent measurement-operator comparison before provider integration"
   ]

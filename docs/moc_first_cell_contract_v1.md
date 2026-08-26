@@ -43,6 +43,9 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   compatibility diagnostics while physical closure remains pending;
 - a sampled, branch-checked attached-shock fit that returns downstream states
   and total-pressure loss at every shock sample;
+- a shock-seeded shrinking-front C+/C- characteristic-field assembler with
+  explicit shock/centerline edges, total-pressure lineage, forward margins,
+  invariant diagnostics, and a typed downstream handoff boundary;
 - a closed post-shock field acceptance gate that requires solver-supplied
   converged nodes, explicit shock and centerline boundary edges, connected
   topology, and strict pressure loss before producing a chain seed;
@@ -76,9 +79,16 @@ physical closure claim. The closed-field gate refuses to synthesize missing
 cells: it promotes only a solver-supplied field whose shock and centerline
 edges are explicit and whose characteristic nodes carry converged
 compatibility evidence. Only that verified result can be adapted into a
-resolved planar-MOC chain seed. The separate chain contract is an acceptance
-boundary for a future re-solved continuation callback; it is not a solver
-implementation and does not promote the reduced-order shock train.
+resolved planar-MOC chain seed. The shock-seeded assembler supplies a
+boundary-conditioned full characteristic fan and exposes its terminal path as
+typed state/total-pressure handoff samples. The separate chain adapter checks
+that a re-solved next field consumes those samples unchanged before appending
+the cell; it does not invent a next shock location or promote the reduced-order
+shock train.
+The mesh topology intentionally remains reported as `OPEN`: its boundary edges
+are the physical shock/centerline perimeter. `physical_closure_status` and the
+field status carry the separate evidence that this prescribed-boundary fan is
+closed for promotion.
 No public provider is wired to these primitives yet. The module does not claim
 axisymmetric, reacting, viscous, or experimentally validated plume physics.
 
@@ -145,10 +155,10 @@ do not authorize replacing the basic provider or accepting a product claim.
 
 ## Next gates before provider integration
 
-1. Produce a canonical, solver-generated shock-fitted downstream boundary and
-   candidate node/cell field that passes the closed-field acceptance gate. The
-   current sampled fit and first cross-characteristic layer are numerical
-   sub-gates, not a free-boundary first-cell solution.
+1. Produce a canonical, solver-generated free-boundary shock fit and use the
+   shock-seeded field assembler on it. The current varied prescribed-field
+   fixture passes the local closed-field gate, but remains a solver-contract
+   fixture rather than a free-boundary first-cell solution.
 2. Demonstrate grid/refinement convergence for the assembled reflected and
    post-shock zones, underexpanded, and mild attached overexpanded reference
    cases.

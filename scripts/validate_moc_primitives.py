@@ -18,6 +18,9 @@ from exhaust_plume.models.moc import (  # noqa: E402
   CharacteristicState,
   MocPostShockClosureStatus,
   MocPostShockBoundaryState,
+  MocPostShockCharacteristicFieldResult,
+  MocShockBoundaryFitResult,
+  MocShockBoundaryFitStatus,
   MocTopologyStatus,
   MocPrimitiveStatus,
   assemble_reflected_characteristic_zone,
@@ -29,6 +32,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_attached_compression_to_turn,
   solve_attached_shock_to_centerline,
   assemble_post_shock_characteristic_zone,
+  assemble_post_shock_characteristic_field,
   assemble_post_shock_first_layer,
   continue_post_shock_characteristics_to_centerline,
   fit_attached_shock_boundary,
@@ -178,6 +182,94 @@ def _sampled_attached_shock_gate() -> tuple[Any, Any, Any]:
   return shock_fit, continuation, closed_gate
 
 
+def _shock_seeded_field_fixture() -> MocPostShockCharacteristicFieldResult:
+  """Assemble a varied prescribed field to exercise the full-field contract.
+
+  This fixture is deliberately not a free-boundary solution.  It supplies a
+  turning post-shock boundary so the characteristic fan has finite cell area;
+  the report records it as a solver-contract fixture rather than validation
+  or provider evidence.
+  """
+
+  points = (
+    (0.76, 0.165),
+    (0.78, 0.110),
+    (0.80, 0.055),
+    (0.82, 0.0),
+  )
+  samples = tuple(
+    MocPostShockBoundaryState(
+      point_m=point,
+      state=CharacteristicState(
+        x_m=point[0],
+        y_m=point[1],
+        theta_rad=-0.1 * (3 - index),
+        mach=2.0,
+        gamma=1.4,
+      ),
+      upstream_total_pressure_Pa=2.0e6,
+      downstream_total_pressure_Pa=1.8e6,
+    )
+    for index, point in enumerate(points)
+  )
+  fit = MocShockBoundaryFitResult(
+    status=MocShockBoundaryFitStatus.CONVERGED_FITTED,
+    boundary_states=samples,
+    shock_angle_residuals_rad=(0.0,) * len(samples),
+    maximum_shock_angle_residual_rad=0.0,
+  )
+  return assemble_post_shock_characteristic_field(fit)
+
+
+def _shock_seeded_field_refinement_probe() -> list[dict[str, Any]]:
+  """Probe compatible shock-sample refinement on the prescribed field lane."""
+
+  probe: list[dict[str, Any]] = []
+  for sample_count in (3, 4, 5):
+    points = tuple(
+      (0.76 + 0.02 * index, 0.165 * (1.0 - index / (sample_count - 1)))
+      for index in range(sample_count)
+    )
+    samples = tuple(
+      MocPostShockBoundaryState(
+        point_m=point,
+        state=CharacteristicState(
+          x_m=point[0],
+          y_m=point[1],
+          theta_rad=-0.3 * (1.0 - index / (sample_count - 1)),
+          mach=2.0,
+          gamma=1.4,
+        ),
+        upstream_total_pressure_Pa=2.0e6,
+        downstream_total_pressure_Pa=1.8e6,
+      )
+      for index, point in enumerate(points)
+    )
+    field = assemble_post_shock_characteristic_field(
+      MocShockBoundaryFitResult(
+        status=MocShockBoundaryFitStatus.CONVERGED_FITTED,
+        boundary_states=samples,
+        shock_angle_residuals_rad=(0.0,) * sample_count,
+        maximum_shock_angle_residual_rad=0.0,
+      )
+    )
+    probe.append({
+      'shock_sample_count': sample_count,
+      'status': field.status.value,
+      'characteristic_layer_count': field.characteristic_layer_count,
+      'node_count': field.node_count,
+      'cell_count': field.cell_count,
+      'topology_status': field.topology.status.value,
+      'topology_forms_closed_zone': field.topology.forms_closed_zone,
+      'nonmanifold_edge_count': field.topology.nonmanifold_edge_count,
+      'maximum_geometry_residual_m': field.maximum_geometry_residual_m,
+      'maximum_absolute_invariant_residual': field.maximum_absolute_invariant_residual,
+      'minimum_forward_margin_m': field.minimum_forward_margin_m,
+      'pressure_loss_verified': field.pressure_loss_verified,
+    })
+  return probe
+
+
 def build_moc_primitive_report() -> dict[str, Any]:
   cases = [
     (gamma, mach)
@@ -306,6 +398,17 @@ def build_moc_primitive_report() -> dict[str, Any]:
       ),
     ))
   sampled_shock_fit, sampled_continuation, sampled_closed_gate = _sampled_attached_shock_gate()
+  shock_seeded_field = _shock_seeded_field_fixture()
+  shock_seeded_refinement_probe = _shock_seeded_field_refinement_probe()
+  shock_seeded_refinement_failures = [
+    case for case in shock_seeded_refinement_probe
+    if (
+      case['status'] != 'converged_closed'
+      or not case['topology_forms_closed_zone']
+      or case['nonmanifold_edge_count']
+      or not case['pressure_loss_verified']
+    )
+  ]
   overexpanded_exit = derive_uniform_nozzle_exit(
     NozzleExitInput(
       mach=2.0,
@@ -641,6 +744,35 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'message': sampled_closed_gate.message,
       'claim_status': 'open-zone-rejection-exercised; canonical-full-field-pending',
     },
+    'shock_seeded_post_shock_field': {
+      'status': shock_seeded_field.status.value,
+      'accepted': shock_seeded_field.converged,
+      'characteristic_layer_count': shock_seeded_field.characteristic_layer_count,
+      'node_count': shock_seeded_field.node_count,
+      'cell_count': shock_seeded_field.cell_count,
+      'topology_status': shock_seeded_field.topology.status.value,
+      'topology_forms_closed_zone': shock_seeded_field.topology.forms_closed_zone,
+      'nonmanifold_edge_count': shock_seeded_field.topology.nonmanifold_edge_count,
+      'maximum_geometry_residual_m': shock_seeded_field.maximum_geometry_residual_m,
+      'maximum_absolute_invariant_residual': shock_seeded_field.maximum_absolute_invariant_residual,
+      'minimum_forward_margin_m': shock_seeded_field.minimum_forward_margin_m,
+      'minimum_post_shock_total_pressure_ratio': shock_seeded_field.minimum_post_shock_total_pressure_ratio,
+      'maximum_post_shock_total_pressure_ratio': shock_seeded_field.maximum_post_shock_total_pressure_ratio,
+      'continuation_boundary_sample_count': len(shock_seeded_field.continuation_boundary_states),
+      'physical_closure_status': shock_seeded_field.physical_closure_status,
+      'shock_closure_status': shock_seeded_field.shock_closure_status,
+      'message': shock_seeded_field.message,
+      'claim_status': 'synthetic-prescribed-field-contract-only; canonical-free-boundary-pending',
+    },
+    'shock_seeded_field_refinement': {
+      'status': (
+        'diagnostic-all-prescribed-resolutions-converged'
+        if not shock_seeded_refinement_failures
+        else 'diagnostic-prescribed-resolution-failure'
+      ),
+      'cases': shock_seeded_refinement_probe,
+      'claim_status': 'prescribed-boundary-refinement-only; physical-shock-convergence-pending',
+    },
     'fan_reflected_interface': {
       'status': fan_reflected_interface.status.value,
       'aligned': fan_reflected_interface.aligned,
@@ -799,6 +931,20 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'message': sampled_closed_gate.message,
       }
     ] if sampled_closed_gate.status is not MocPostShockClosureStatus.GEOMETRY_FAILURE else []),
+    *([
+      {
+        'case': 'shock_seeded_post_shock_field',
+        'status': shock_seeded_field.status.value,
+        'message': shock_seeded_field.message,
+      }
+    ] if not shock_seeded_field.converged else []),
+    *([
+      {
+        'case': 'shock_seeded_field_refinement',
+        'status': 'resolution_failure',
+        'message': str(shock_seeded_refinement_failures),
+      }
+    ] if shock_seeded_refinement_failures else []),
   ]
   ####
   return {
@@ -819,8 +965,8 @@ def build_moc_primitive_report() -> dict[str, Any]:
     'geometry_cases': geometry_results,
     'failures': failures,
     'next_gates': [
-      'physical free-boundary/compression geometry closure; pressure-state and open-mesh primitives remain insufficient',
-      'canonical solver-generated shock-boundary state field, post-shock C+ interior continuation, and complete downstream bookkeeping',
+      'canonical free-boundary/compression geometry closure; the current field is prescribed-boundary contract evidence',
+      'production next-cell shock fitting that consumes the typed state/total-pressure handoff without a geometric template',
       'grid/refinement convergence for the assembled reflected zone and mild attached-overexpanded cases',
       'independent measurement-operator comparison before provider integration',
     ],
