@@ -1,5 +1,7 @@
 from dataclasses import replace
 
+import pytest
+
 from exhaust_plume.models.moc import (
   CharacteristicState,
   MocMixedRegimeBoundaryStatus,
@@ -176,6 +178,28 @@ def test_mixed_regime_closure_callback_requires_the_exact_terminal_seam() -> Non
   mismatch_result = run_mixed_regime_closure_solver(request, lambda _request: mismatched)
   assert mismatch_result.status is MocMixedRegimeClosureStatus.SEAM_FAILURE
   assert not mismatch_result.converged
+
+
+def test_mixed_regime_perimeter_request_rejects_inconsistent_terminal_scalars() -> None:
+  terminal = _terminal()
+  assert terminal.shock_point_m is not None
+  assert terminal.downstream_mach is not None
+  assert terminal.downstream_flow_angle_rad is not None
+  assert terminal.downstream_pressure_Pa is not None
+  assert terminal.downstream_total_pressure_Pa is not None
+  assert terminal.total_pressure_ratio is not None
+
+  with pytest.raises(ValueError, match='does not match the terminal shock result'):
+    MocMixedRegimePerimeterRequest(
+      terminal=terminal,
+      terminal_point_m=terminal.shock_point_m,
+      terminal_downstream_mach=terminal.downstream_mach,
+      terminal_downstream_flow_angle_rad=terminal.downstream_flow_angle_rad,
+      terminal_downstream_pressure_Pa=terminal.downstream_pressure_Pa + 1.0,
+      terminal_downstream_total_pressure_Pa=terminal.downstream_total_pressure_Pa,
+      terminal_total_pressure_ratio=terminal.total_pressure_ratio,
+      supersonic_patch=_supersonic_patch(),
+    )
 
 
 def test_mixed_regime_boundary_rejects_missing_scalar_field() -> None:

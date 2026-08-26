@@ -163,12 +163,36 @@ class MocMixedRegimePerimeterRequest:
       raise TypeError('terminal must be a normal-shock or subsonic boundary result')
     if not self.terminal.converged or not self.terminal.subsonic:
       raise ValueError('terminal must be a converged subsonic boundary result')
+    terminal_values = (
+      self.terminal.shock_point_m,
+      self.terminal.downstream_mach,
+      self.terminal.downstream_flow_angle_rad,
+      self.terminal.downstream_pressure_Pa,
+      self.terminal.downstream_total_pressure_Pa,
+      self.terminal.total_pressure_ratio,
+    )
+    if any(value is None for value in terminal_values):
+      raise ValueError(
+        'terminal must expose complete scalar seam values for the perimeter request'
+      )
+    expected_point, expected_mach, expected_angle, expected_pressure, expected_total_pressure, expected_ratio = terminal_values
     try:
       point = (float(self.terminal_point_m[0]), float(self.terminal_point_m[1]))
     except (IndexError, TypeError, ValueError):
       raise ValueError('terminal_point_m must contain two finite coordinates') from None
     if not all(isfinite(value) for value in point):
       raise ValueError('terminal_point_m must contain two finite coordinates')
+    assert expected_point is not None
+    assert expected_mach is not None
+    assert expected_angle is not None
+    assert expected_pressure is not None
+    assert expected_total_pressure is not None
+    assert expected_ratio is not None
+    if (
+      abs(point[0] - expected_point[0]) > 1.0e-10
+      or abs(point[1] - expected_point[1]) > 1.0e-10
+    ):
+      raise ValueError('terminal_point_m does not match the terminal shock point')
     for name, value, lower in (
       ('terminal_downstream_mach', self.terminal_downstream_mach, 0.0),
       ('terminal_downstream_pressure_Pa', self.terminal_downstream_pressure_Pa, 0.0),
@@ -185,6 +209,22 @@ class MocMixedRegimePerimeterRequest:
     angle = float(self.terminal_downstream_flow_angle_rad)
     if not isfinite(angle):
       raise ValueError('terminal_downstream_flow_angle_rad must be finite')
+    scalar_pairs = (
+      ('terminal_downstream_mach', self.terminal_downstream_mach, expected_mach),
+      ('terminal_downstream_flow_angle_rad', angle, expected_angle),
+      ('terminal_downstream_pressure_Pa', self.terminal_downstream_pressure_Pa, expected_pressure),
+      ('terminal_downstream_total_pressure_Pa', self.terminal_downstream_total_pressure_Pa, expected_total_pressure),
+      ('terminal_total_pressure_ratio', self.terminal_total_pressure_ratio, expected_ratio),
+    )
+    for name, supplied, expected in scalar_pairs:
+      supplied_value = float(supplied)
+      expected_value = float(expected)
+      if abs(supplied_value - expected_value) > 1.0e-10 * max(
+        1.0,
+        abs(supplied_value),
+        abs(expected_value),
+      ):
+        raise ValueError(f'{name} does not match the terminal shock result')
     patch = tuple(self.supersonic_patch)
     if not patch:
       raise ValueError('supersonic_patch must contain at least one boundary state')
