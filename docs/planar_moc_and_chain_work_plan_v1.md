@@ -123,6 +123,10 @@ not wait on this research closure.
   composite. It exposes the terminal scalar state and supersonic post-shock
   samples but supplies no inferred downstream perimeter; the open supersonic
   zone remains an explicit non-perimeter seam.
+- Added a callback-owned mixed-regime closure gate. A returned field must
+  retain the exact terminal object and patch sample count and pass its closed
+  perimeter/topology/residual checks before the terminal composite can attach
+  it or issue a physical stop.
 - Added an MOC chain continuation contract. It accepts only connected,
   topologically bounded meshes with explicit physical closure and resolved
   planar-MOC fidelity.

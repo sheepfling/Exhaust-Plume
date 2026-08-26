@@ -31,9 +31,11 @@ from exhaust_plume.models.moc.coupled import (
 from exhaust_plume.models.moc.primitives import CharacteristicState
 from exhaust_plume.models.moc.mixed_regime import (
   MocMixedRegimeBoundaryResult,
+  MocMixedRegimeClosureResult,
   MocMixedRegimeFieldResult,
   MocMixedRegimeFieldSample,
   MocMixedRegimePerimeterRequest,
+  run_mixed_regime_closure_solver,
   validate_mixed_regime_boundary as validate_scalar_mixed_regime_boundary,
 )
 from exhaust_plume.models.moc.post_shock import (
@@ -233,6 +235,7 @@ class MocTerminalShockCellFieldResult:
     assert total_pressure is not None
     assert total_pressure_ratio is not None
     return MocMixedRegimePerimeterRequest(
+      terminal=terminal,
       terminal_point_m=point,
       terminal_downstream_mach=mach,
       terminal_downstream_flow_angle_rad=angle,
@@ -241,6 +244,24 @@ class MocTerminalShockCellFieldResult:
       terminal_total_pressure_ratio=total_pressure_ratio,
       supersonic_patch=self.terminal_shock_supersonic_downstream_states,
     )
+  ####
+
+  def solve_mixed_regime_closure(
+    self,
+    solve_field: Callable[
+      [MocMixedRegimePerimeterRequest],
+      MocMixedRegimeFieldResult | None,
+    ],
+  ) -> MocMixedRegimeClosureResult:
+    """Submit the terminal seam to a downstream mixed-regime field solver.
+
+    A successful callback result is still returned separately.  Callers must
+    explicitly pass its accepted field to :meth:`with_mixed_regime_field`,
+    which keeps the closure gate visible at the attachment site.
+    """
+
+    request = self.mixed_regime_perimeter_request()
+    return run_mixed_regime_closure_solver(request, solve_field)
   ####
 
   def as_chain_termination_decision(self) -> MocChainTerminationDecision:

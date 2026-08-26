@@ -112,7 +112,9 @@ cell.
 The planner wrapper now records each exact post-shock handoff as a separate
 planning step, and the terminal composite emits a mixed-regime perimeter
 request carrying the scalar shock seam without inferring geometry from the
-open supersonic zone. Both additions remain research-lane contracts.
+open supersonic zone. The callback-owned closure gate now rejects a missing or
+mismatched subsonic field before attachment. Both additions remain
+research-lane contracts.
 It remains outside the public product lanes
 until the solver-generated shock is coupled to the reflected upstream
 state/pressure field, the next-cell shock fit is solved, and disjoint

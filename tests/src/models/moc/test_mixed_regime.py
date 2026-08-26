@@ -1,9 +1,14 @@
+from dataclasses import replace
+
 from exhaust_plume.models.moc import (
   CharacteristicState,
   MocMixedRegimeBoundaryStatus,
+  MocMixedRegimeClosureStatus,
   MocMixedRegimeFieldStatus,
   MocMixedRegimeFieldSample,
+  MocMixedRegimePerimeterRequest,
   MocPostShockBoundaryState,
+  run_mixed_regime_closure_solver,
   solve_normal_shock_terminal,
   solve_mixed_regime_subsonic_field,
   validate_mixed_regime_boundary,
@@ -58,6 +63,7 @@ def _samples(terminal, *, interior_total_pressure: float | None = None):
   assert terminal.downstream_flow_angle_rad is not None
   assert terminal.downstream_pressure_Pa is not None
   assert terminal.downstream_total_pressure_Pa is not None
+  assert terminal.total_pressure_ratio is not None
   gamma = terminal.upstream_state.gamma
   points = ((1.0, 0.0), (1.1, 0.1), (1.2, 0.1), (1.2, 0.0), (1.0, 0.0))
   return tuple(
@@ -118,6 +124,58 @@ def test_elliptic_subsonic_reference_field_closes_only_its_declared_mesh_model()
   assert field.mixed_regime_field_complete
   assert field.chain_promotion_blocked
   assert field.model == 'elliptic-isentropic-subsonic-reference'
+
+
+def test_mixed_regime_closure_callback_requires_the_exact_terminal_seam() -> None:
+  terminal = _terminal()
+  boundary = validate_mixed_regime_boundary(
+    terminal,
+    _supersonic_patch(),
+    supersonic_patch_converged=True,
+    subsonic_samples=_samples(terminal),
+  )
+  field = solve_mixed_regime_subsonic_field(boundary)
+  assert terminal.shock_point_m is not None
+  assert terminal.downstream_mach is not None
+  assert terminal.downstream_flow_angle_rad is not None
+  assert terminal.downstream_pressure_Pa is not None
+  assert terminal.downstream_total_pressure_Pa is not None
+  request = MocMixedRegimePerimeterRequest(
+    terminal=terminal,
+    terminal_point_m=terminal.shock_point_m,
+    terminal_downstream_mach=terminal.downstream_mach,
+    terminal_downstream_flow_angle_rad=terminal.downstream_flow_angle_rad,
+    terminal_downstream_pressure_Pa=terminal.downstream_pressure_Pa,
+    terminal_downstream_total_pressure_Pa=terminal.downstream_total_pressure_Pa,
+    terminal_total_pressure_ratio=terminal.total_pressure_ratio,
+    supersonic_patch=_supersonic_patch(),
+  )
+  seen: list[MocMixedRegimePerimeterRequest] = []
+
+  result = run_mixed_regime_closure_solver(
+    request,
+    lambda received: (seen.append(received) or field),
+  )
+
+  assert result.status is MocMixedRegimeClosureStatus.CONVERGED
+  assert result.converged
+  assert result.physical_closure_verified
+  assert seen == [request]
+
+  other_terminal = solve_normal_shock_terminal(
+    CharacteristicState(2.0, 0.0, 0.0, 2.0, 1.4),
+    upstream_pressure_Pa=100000.0,
+  )
+  other_boundary = validate_mixed_regime_boundary(
+    other_terminal,
+    _supersonic_patch(),
+    supersonic_patch_converged=True,
+    subsonic_samples=_samples(other_terminal),
+  )
+  mismatched = replace(field, boundary=other_boundary)
+  mismatch_result = run_mixed_regime_closure_solver(request, lambda _request: mismatched)
+  assert mismatch_result.status is MocMixedRegimeClosureStatus.SEAM_FAILURE
+  assert not mismatch_result.converged
 
 
 def test_mixed_regime_boundary_rejects_missing_scalar_field() -> None:

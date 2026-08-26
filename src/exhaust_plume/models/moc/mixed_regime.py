@@ -19,7 +19,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 from math import cos, hypot, isfinite, sin
-from typing import Sequence
+from typing import Callable, Sequence
 
 from exhaust_plume.models.moc.compression import (
   MocNormalShockTerminalResult,
@@ -33,10 +33,13 @@ __all__ = (
   'MocMixedRegimeBoundaryStatus',
   'MocMixedRegimeFieldSample',
   'MocMixedRegimePerimeterRequest',
+  'MocMixedRegimeClosureStatus',
+  'MocMixedRegimeClosureResult',
   'MocMixedRegimeBoundaryResult',
   'MocMixedRegimeFieldStatus',
   'MocMixedRegimeFieldResult',
   'validate_mixed_regime_boundary',
+  'run_mixed_regime_closure_solver',
   'solve_mixed_regime_subsonic_field',
 )
 
@@ -114,6 +117,17 @@ class MocMixedRegimeFieldSample:
 MocMixedRegimeTerminal = MocNormalShockTerminalResult | MocSubsonicShockBoundaryResult
 
 
+class MocMixedRegimeClosureStatus(str, Enum):
+  """Outcome of a solver callback submitted for terminal closure."""
+
+  CONVERGED = 'converged_mixed_regime_closure'
+  INVALID_INPUT = 'invalid_input'
+  SOLVER_FAILURE = 'mixed_regime_closure_solver_failure'
+  SEAM_FAILURE = 'mixed_regime_closure_seam_failure'
+  FIELD_FAILURE = 'mixed_regime_closure_field_failure'
+####
+
+
 @dataclass(frozen=True, slots=True)
 class MocMixedRegimePerimeterRequest:
   """Solver-owned data required to close a subsonic terminal region.
@@ -126,6 +140,7 @@ class MocMixedRegimePerimeterRequest:
   for the downstream boundary condition.
   """
 
+  terminal: MocMixedRegimeTerminal
   terminal_point_m: tuple[float, float]
   terminal_downstream_mach: float
   terminal_downstream_flow_angle_rad: float
@@ -141,6 +156,13 @@ class MocMixedRegimePerimeterRequest:
   source: str = 'solver-owned-terminal-shock-mixed-regime-handoff'
 
   def __post_init__(self) -> None:
+    if not isinstance(
+        self.terminal,
+        (MocNormalShockTerminalResult, MocSubsonicShockBoundaryResult),
+    ):
+      raise TypeError('terminal must be a normal-shock or subsonic boundary result')
+    if not self.terminal.converged or not self.terminal.subsonic:
+      raise ValueError('terminal must be a converged subsonic boundary result')
     try:
       point = (float(self.terminal_point_m[0]), float(self.terminal_point_m[1]))
     except (IndexError, TypeError, ValueError):
@@ -201,6 +223,7 @@ class MocMixedRegimePerimeterRequest:
     return {
       'status': 'mixed-regime-perimeter-required',
       'source': self.source,
+      'terminal': self.terminal.as_report(),
       'perimeter_supplied': self.perimeter_supplied,
       'open_supersonic_zone_is_a_perimeter': self.open_supersonic_zone_is_a_perimeter,
       'terminal_point_m': self.terminal_point_m,
@@ -220,6 +243,37 @@ class MocMixedRegimePerimeterRequest:
         'the mixed-regime solver must provide the closed downstream perimeter; '
         'no geometry was inferred from the open supersonic zone'
       ),
+    }
+  ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocMixedRegimeClosureResult:
+  """Acceptance result for a callback-supplied subsonic terminal field."""
+
+  status: MocMixedRegimeClosureStatus
+  request: MocMixedRegimePerimeterRequest
+  field: 'MocMixedRegimeFieldResult | None' = None
+  message: str = ''
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocMixedRegimeClosureStatus.CONVERGED
+  ####
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    return bool(self.converged and self.field is not None and self.field.physical_closure_verified)
+  ####
+
+  def as_report(self) -> dict[str, object]:
+    return {
+      'status': self.status.value,
+      'converged': self.converged,
+      'physical_closure_verified': self.physical_closure_verified,
+      'field': None if self.field is None else self.field.as_report(),
+      'request': self.request.as_report(),
+      'message': self.message,
     }
   ####
 
@@ -689,6 +743,91 @@ def solve_mixed_regime_subsonic_field(
       'closed perimeter; this model remains separate from the supersonic MOC lane'
     ),
   )
+
+
+def run_mixed_regime_closure_solver(
+  request: MocMixedRegimePerimeterRequest,
+  solve_field: Callable[
+    [MocMixedRegimePerimeterRequest],
+    MocMixedRegimeFieldResult | None,
+  ],
+) -> MocMixedRegimeClosureResult:
+  """Run and gate a callback-owned mixed-regime perimeter solve.
+
+  The callback receives the terminal seam and must return a field whose
+  boundary carries the same terminal object and an explicitly closed
+  perimeter.  A missing or mismatched field is returned as a typed failure;
+  no scalar samples or geometry are synthesized here.
+  """
+
+  if not isinstance(request, MocMixedRegimePerimeterRequest):
+    raise TypeError('request must be a MocMixedRegimePerimeterRequest')
+  if not callable(solve_field):
+    raise TypeError('solve_field must be callable')
+  try:
+    field = solve_field(request)
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return MocMixedRegimeClosureResult(
+      status=MocMixedRegimeClosureStatus.SOLVER_FAILURE,
+      request=request,
+      message=f'mixed-regime closure callback failed: {error}',
+    )
+  if field is None:
+    return MocMixedRegimeClosureResult(
+      status=MocMixedRegimeClosureStatus.SOLVER_FAILURE,
+      request=request,
+      message='mixed-regime closure callback returned no field',
+    )
+  if not isinstance(field, MocMixedRegimeFieldResult):
+    return MocMixedRegimeClosureResult(
+      status=MocMixedRegimeClosureStatus.INVALID_INPUT,
+      request=request,
+      message='mixed-regime closure callback must return MocMixedRegimeFieldResult or None',
+    )
+  if field.boundary.terminal != request.terminal:
+    return MocMixedRegimeClosureResult(
+      status=MocMixedRegimeClosureStatus.SEAM_FAILURE,
+      request=request,
+      field=field,
+      message='mixed-regime field terminal does not match the requested shock seam',
+    )
+  if field.boundary.supersonic_patch_sample_count != len(request.supersonic_patch):
+    return MocMixedRegimeClosureResult(
+      status=MocMixedRegimeClosureStatus.SEAM_FAILURE,
+      request=request,
+      field=field,
+      message=(
+        'mixed-regime field does not retain the complete supersonic patch '
+        'sample count from the requested seam'
+      ),
+    )
+  if not field.converged or not field.boundary.converged:
+    return MocMixedRegimeClosureResult(
+      status=MocMixedRegimeClosureStatus.FIELD_FAILURE,
+      request=request,
+      field=field,
+      message=(
+        'mixed-regime closure callback returned a field without a converged '
+        'boundary and field acceptance'
+      ),
+    )
+  if not field.physical_closure_verified:
+    return MocMixedRegimeClosureResult(
+      status=MocMixedRegimeClosureStatus.FIELD_FAILURE,
+      request=request,
+      field=field,
+      message='mixed-regime field residual or topology gates are not complete',
+    )
+  return MocMixedRegimeClosureResult(
+    status=MocMixedRegimeClosureStatus.CONVERGED,
+    request=request,
+    field=field,
+    message=(
+      'callback-supplied mixed-regime field matches the terminal seam and '
+      'passed its explicit perimeter, topology, and residual gates'
+    ),
+  )
+####
 
 
 def _failure(

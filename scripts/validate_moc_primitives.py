@@ -1020,8 +1020,16 @@ def _mixed_regime_boundary_probe(
   contract_field = solve_mixed_regime_subsonic_field(contract_fixture)
   terminal_attachment_fixture = None
   terminal_attachment_termination_decision = None
+  terminal_attachment_closure = None
   if field is not None and contract_field.physical_closure_verified:
-    terminal_attachment = field.with_mixed_regime_field(contract_field)
+    terminal_attachment_closure = field.solve_mixed_regime_closure(
+      lambda _request: contract_field,
+    )
+    if terminal_attachment_closure.field is None:
+      raise ValueError(
+        'accepted mixed-regime contract fixture did not return an attachable field'
+      )
+    terminal_attachment = field.with_mixed_regime_field(terminal_attachment_closure.field)
     terminal_attachment_fixture = terminal_attachment.as_report()
     terminal_attachment_termination_decision = (
       terminal_attachment.as_physical_termination_decision().as_report()
@@ -1032,6 +1040,8 @@ def _mixed_regime_boundary_probe(
       missing_field.status is MocMixedRegimeBoundaryStatus.SUBSONIC_FIELD_FAILURE
       and contract_fixture.converged
       and contract_field.physical_closure_verified
+      and terminal_attachment_closure is not None
+      and terminal_attachment_closure.converged
       and contract_fixture.physical_closure_verified is False
       and contract_fixture.chain_promotion_blocked
     ),
@@ -1040,6 +1050,11 @@ def _mixed_regime_boundary_probe(
     'missing_scalar_field': missing_field.as_report(),
     'scalar_perimeter_contract_fixture': contract_fixture.as_report(),
     'elliptic_subsonic_field_contract_fixture': contract_field.as_report(),
+    'terminal_attachment_closure_result': (
+      None
+      if terminal_attachment_closure is None
+      else terminal_attachment_closure.as_report()
+    ),
     'terminal_attachment_contract_fixture': terminal_attachment_fixture,
     'terminal_attachment_termination_decision': terminal_attachment_termination_decision,
     'claim_status': (

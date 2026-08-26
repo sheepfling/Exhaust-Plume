@@ -157,6 +157,10 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   scalar state and exact supersonic post-shock seam while supplying no guessed
   downstream geometry. The open supersonic zone is explicitly rejected as a
   substitute for that perimeter;
+- a callback-owned mixed-regime closure gate that requires the returned field
+  to retain the exact terminal object, patch sample count, closed perimeter,
+  topology, and residual acceptance before attachment. A missing or mismatched
+  callback result remains a typed failure;
 - a separate MOC cell-chain continuation contract that rejects open cells,
   non-bounded meshes, axial gaps, and scaled reduced-order fidelity;
 - a typed chain termination decision that distinguishes a physical endpoint

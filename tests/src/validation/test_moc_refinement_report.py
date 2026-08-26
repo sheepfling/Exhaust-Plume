@@ -134,6 +134,10 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert elliptic_field['maximum_harmonic_residual'] <= 1.0e-12
   assert elliptic_field['maximum_velocity_divergence_residual'] <= 1.0e-12
   terminal_attachment = mixed_regime_boundary['terminal_attachment_contract_fixture']
+  terminal_attachment_closure = mixed_regime_boundary['terminal_attachment_closure_result']
+  assert terminal_attachment_closure['status'] == 'converged_mixed_regime_closure'
+  assert terminal_attachment_closure['converged'] is True
+  assert terminal_attachment_closure['physical_closure_verified'] is True
   assert terminal_attachment['physical_closure_verified'] is True
   assert terminal_attachment['mixed_regime_field_complete'] is True
   assert terminal_attachment['physical_termination_verified'] is True
