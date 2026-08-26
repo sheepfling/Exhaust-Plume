@@ -164,6 +164,11 @@ not wait on this research closure.
   `subsonic_terminal_required` result when the canonical supersonic march
   reaches the centerline normal-shock boundary. The probe verifies upstream
   coverage but remains blocked from physical closure and chain promotion.
+- Added a physical mixed-regime termination adapter for that probe. Once all
+  upstream samples and the normal-shock terminal are verified, it returns an
+  explicit `MocChainTerminationDecision` with `physical_termination=true`.
+  This stops a supersonic chain without relabeling the unresolved subsonic
+  field as a closed MOC cell.
 - Added an independent MOC shock-cell measurement operator. It extracts
   shock/centerline boundaries, axial extent, boundary lengths, radius, mesh
   area, perimeter-area closure, and optional shock total-pressure loss only
@@ -309,6 +314,11 @@ terminal. That is a mixed-regime boundary decision, not a failed attempt to
 hide missing upstream data; a future solver must add the downstream
 mixed-regime field and physical perimeter gate before promotion.
 
+When that terminal is verified, the probe can now return a typed physical
+chain-stop decision. The decision is deliberately narrower than cell closure:
+it records the normal-shock model and downstream scalar state, while the
+subsonic field remains outside the supersonic MOC chain.
+
 The same seam has 9/17/33-sample refinement evidence. The reflected patch
 axis endpoint converges toward the 33-sample result, every resolution covers
 its requested upstream shock samples, and every case reaches the same typed
@@ -400,11 +410,12 @@ Only after MOC-1 through MOC-5 pass:
   The scalar shoot continues to demonstrate the old internal-characteristic
   failure without weakening the gate.
 - The canonical marched shock now classifies a zero-turn/normal-shock endpoint
-  as `subsonic_terminal_required` and carries a verified typed normal-shock
-  terminal diagnostic. That is an explicit supersonic-MOC validity boundary,
-  not a reason to force a bracket or relabel the endpoint as a converged
-  supersonic cell; a mixed-regime field and perimeter model is still required
-  for that case.
+  as `subsonic_terminal_required`, carries a verified typed normal-shock
+  terminal diagnostic, and can return a physical chain-stop decision after
+  full upstream coverage. That is an explicit supersonic-MOC validity
+  boundary, not a reason to force a bracket or relabel the endpoint as a
+  converged supersonic cell; a mixed-regime field and perimeter model is still
+  required for that case.
 - The invariant-conditioned shock shoot currently records a canonical
   no-bracket result; a selected constant downstream invariant is not yet an
   accepted physical free-boundary condition. No production solver yet supplies

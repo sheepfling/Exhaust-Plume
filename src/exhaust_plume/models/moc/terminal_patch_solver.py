@@ -15,7 +15,11 @@ from enum import Enum
 from math import isfinite
 from typing import Callable, Sequence
 
-from exhaust_plume.models.moc.chain import MocChainBoundarySample
+from exhaust_plume.models.moc.chain import (
+  MocChainBoundarySample,
+  MocChainTerminationDecision,
+  MocChainTerminationReason,
+)
 from exhaust_plume.models.moc.free_boundary import (
   MocFreeBoundaryShockResult,
   MocFreeBoundaryShockStatus,
@@ -134,6 +138,50 @@ class MocTerminalReflectionPatchShockSolveResult:
   def chain_promotion_blocked(self) -> bool:
     return True
 
+  @property
+  def physical_terminal_verified(self) -> bool:
+    """Whether the mixed-regime endpoint is strong enough to stop a chain."""
+
+    return (
+      self.coupling.converged
+      and self.shock.subsonic_terminal_required
+      and self.shock.normal_shock_terminal is not None
+      and self.shock.normal_shock_terminal.converged
+      and self.coupling.sampled_count == self.shock.sample_count
+    )
+
+  def as_physical_termination_decision(self) -> MocChainTerminationDecision:
+    """Return a typed chain stop for a verified normal-shock terminal.
+
+    This decision closes the chain's *termination condition*, not the missing
+    subsonic field.  It is therefore intentionally independent of
+    ``physical_closure_verified`` and never promotes a cell.
+    """
+
+    if not self.physical_terminal_verified:
+      raise ValueError(
+        'a physical mixed-regime termination requires complete upstream '
+        'coverage and a converged normal-shock terminal'
+      )
+    terminal = self.shock.normal_shock_terminal
+    assert terminal is not None
+    return MocChainTerminationDecision(
+      physical_termination=True,
+      reason=MocChainTerminationReason.PHYSICAL_TERMINATION,
+      message=(
+        'supersonic terminal-patch march reached a verified subsonic normal '
+        'shock; continued supersonic MOC cells stop at the mixed-regime boundary'
+      ),
+      diagnostics={
+        'termination_model': 'normal-shock-terminal',
+        'shock_point_m': terminal.shock_point_m,
+        'downstream_mach': terminal.downstream_mach,
+        'downstream_pressure_Pa': terminal.downstream_pressure_Pa,
+        'total_pressure_ratio': terminal.total_pressure_ratio,
+        'upstream_sample_count': self.coupling.sampled_count,
+      },
+    )
+
   def as_report(self) -> dict[str, object]:
     return {
       'status': self.shock.status.value,
@@ -141,6 +189,8 @@ class MocTerminalReflectionPatchShockSolveResult:
       'upstream_coupling_verified': self.upstream_coupling_verified,
       'physical_closure_verified': self.physical_closure_verified,
       'chain_promotion_blocked': self.chain_promotion_blocked,
+      'physical_terminal_verified': self.physical_terminal_verified,
+      'termination_decision_available': self.physical_terminal_verified,
       'incoming_handoff_sample_count': len(self.incoming_handoff),
       'downstream_condition_status': self.downstream_condition_status,
       'shock': self.shock.as_report(),

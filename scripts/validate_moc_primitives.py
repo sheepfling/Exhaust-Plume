@@ -589,6 +589,9 @@ def _terminal_reflection_patch_refinement_probe() -> list[dict[str, Any]]:
       'physical_closure_verified': (
         None if shock_probe is None else shock_probe.physical_closure_verified
       ),
+      'physical_terminal_verified': (
+        None if shock_probe is None else shock_probe.physical_terminal_verified
+      ),
     })
   return probe
 
@@ -1291,6 +1294,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
       or case.get('shock_probe_coupling_status') != 'converged_terminal_reflection_patch_field'
       or case.get('shock_probe_coupling_sampled_count') != case.get('shock_probe_sample_count')
       or case.get('physical_closure_verified')
+      or not case.get('physical_terminal_verified')
     )
   ]
   solver_generated_chain_failure = (

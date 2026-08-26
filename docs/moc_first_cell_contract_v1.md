@@ -101,6 +101,10 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   attached-shock marcher, and returns a typed subsonic/normal-shock terminal
   when the supersonic lane reaches its mixed-regime boundary. It verifies
   upstream coverage but remains ineligible for physical closure or promotion;
+- a physical mixed-regime termination adapter for the terminal-patch probe.
+  After complete upstream coverage and a converged normal-shock terminal, it
+  returns an explicit physical chain-stop decision while keeping the
+  unresolved subsonic field out of the supersonic cell-promotion path;
 - a separate MOC cell-chain continuation contract that rejects open cells,
   non-bounded meshes, axial gaps, and scaled reduced-order fidelity;
 - a typed chain termination decision that distinguishes a physical endpoint
@@ -216,6 +220,11 @@ supersonic first-cell result. Its downstream field and physical perimeter
 remain pending. The 9/17/33-sample terminal-patch refinement probe reaches
 the same typed terminal at every resolution and shows a converging centerline
 endpoint; that validates the open transition's numerical behavior only.
+When complete upstream coverage is present, the same result can provide a
+physical chain-stop decision for that mixed-regime terminal. This decision
+does not set ``physical_closure_verified`` and cannot promote a cell; it only
+prevents the chain from misreporting a verified normal shock as a numerical
+truncation.
 The earlier boundary-conditioned triangular assembler is also no longer
 promotion-eligible by default: it does not carry verified shock-``C+`` /
 ambient-``C-`` family-orientation evidence. This guard prevents a numerically

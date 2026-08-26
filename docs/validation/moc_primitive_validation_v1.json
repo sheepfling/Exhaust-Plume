@@ -944,6 +944,8 @@
         "upstream_coupling_verified": false,
         "physical_closure_verified": false,
         "chain_promotion_blocked": true,
+        "physical_terminal_verified": true,
+        "termination_decision_available": true,
         "incoming_handoff_sample_count": 18,
         "downstream_condition_status": "caller-supplied",
         "shock": {
@@ -1088,7 +1090,8 @@
             "total_pressure_ratio": 0.9598420018696722,
             "message": ""
           },
-          "physical_closure_verified": false
+          "physical_closure_verified": false,
+          "physical_terminal_verified": true
         },
         {
           "sample_count": 17,
@@ -1127,7 +1130,8 @@
             "total_pressure_ratio": 0.9598520994838985,
             "message": ""
           },
-          "physical_closure_verified": false
+          "physical_closure_verified": false,
+          "physical_terminal_verified": true
         },
         {
           "sample_count": 33,
@@ -1166,7 +1170,8 @@
             "total_pressure_ratio": 0.9598540763651443,
             "message": ""
           },
-          "physical_closure_verified": false
+          "physical_closure_verified": false,
+          "physical_terminal_verified": true
         }
       ],
       "claim_status": "terminal-patch-upstream-coupling-refinement-only; mixed-regime-downstream-field-pending"

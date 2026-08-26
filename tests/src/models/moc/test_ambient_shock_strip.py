@@ -219,6 +219,10 @@ def test_terminal_reflection_patch_is_domain_bounded_and_reaches_typed_mixed_reg
   assert result.upstream_coupling_verified is False
   assert result.physical_closure_verified is False
   assert result.chain_promotion_blocked is True
+  assert result.physical_terminal_verified is True
+  decision = result.as_physical_termination_decision()
+  assert decision.physical_termination is True
+  assert decision.message.startswith('supersonic terminal-patch march')
 
 
 def test_ambient_strip_rejects_a_boundary_trace_with_wrong_family_geometry() -> None:
