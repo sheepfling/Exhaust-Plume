@@ -381,6 +381,42 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
     and case['result']['chain_termination_decision']['reason'] == 'open-physical-closure'
     for case in band_terminal_field['cases']
   )
+  band_terminal_refinement = centerline_reflection_extension[
+    'caustic_family_band_terminal_refinement'
+  ]
+  assert band_terminal_refinement['status'] == (
+    'diagnostic-caustic-band-terminal-refinement'
+  )
+  assert band_terminal_refinement['accepted'] is True
+  assert all(
+    case['accepted'] is True
+    and [resolution['sample_count'] for resolution in case['resolutions']] == [5, 7, 9, 11]
+    and [resolution['shock_sample_count'] for resolution in case['resolutions']] == [4, 6, 8, 10]
+    and [resolution['zone_cell_count'] for resolution in case['resolutions']] == [5, 14, 27, 44]
+    and all(
+      resolution['physical_terminal_verified'] is True
+      and resolution['physical_closure_verified'] is False
+      and resolution['chain_promotion_blocked'] is True
+      and resolution['zone_physical_closure_status'] == 'open'
+      for resolution in case['resolutions']
+    )
+    for case in band_terminal_refinement['cases']
+  )
+  band_terminal_measurement = centerline_reflection_extension[
+    'caustic_family_band_terminal_measurement'
+  ]
+  assert band_terminal_measurement['status'] == (
+    'diagnostic-independent-measurement-rejects-open-terminal-zone'
+  )
+  assert band_terminal_measurement['accepted'] is True
+  assert all(
+    case['expected_open_zone_rejection'] is True
+    and case['measurement']['status'] == 'geometry_failure'
+    and case['measurement']['message'] == (
+      'shock and centerline boundaries must share their endpoint'
+    )
+    for case in band_terminal_measurement['cases']
+  )
   assert centerline_reflection_extension['remesh']['chain_termination_available'] is True
   assert centerline_reflection_extension['remesh']['chain_termination_decision']['physical_termination'] is False
   assert centerline_reflection_extension['remesh']['chain_termination_decision']['reason'] == (

@@ -94,6 +94,13 @@ not wait on this research closure.
   zone, and retains the typed subsonic normal-shock terminal. The zone remains
   a mixed-regime handoff with chain promotion blocked until the subsonic field
   and complete physical perimeter are solved.
+- Added caustic-band terminal refinement and independent measurement gates.
+  Five, seven, nine, and eleven shock-march samples converge in both
+  orientations with open-zone cell counts 5, 14, 27, and 44 and decreasing
+  shock-fit tangent residuals. The independent shock-cell measurement
+  operator deliberately rejects the open terminal zone because its shock and
+  centerline polylines do not share a physical endpoint; this is retained as
+  evidence of the missing mixed-regime perimeter, not hidden as acceptance.
 - Added the only permitted promotion path from a verified closed post-shock
   field into a `RESOLVED_PLANAR_MOC` chain seed, retaining closure and residual
   diagnostics.
@@ -340,9 +347,11 @@ not wait on this research closure.
    prescribed fixture and the solver-generated uniform reference; reflected
    upstream-field coupling and external acceptance gates remain open. The
    solver-generated terminal also now assembles the oblique downstream
-   supersonic patch through its first cross-layer, but that patch ends at the
-   typed normal-shock interface and does not satisfy the mixed-regime closure
-   gate.
+  supersonic patch through its first cross-layer, but that patch ends at the
+  typed normal-shock interface and does not satisfy the mixed-regime closure
+  gate. The caustic-band terminal seam now supplies the same open-zone evidence
+  from the restarted upstream field at 5/7/9/11 shock samples; the independent
+  measurement operator rejects the unresolved endpoint as expected.
 
 ### MOC-3 — Re-solved continued cells
 

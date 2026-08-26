@@ -1660,6 +1660,223 @@ def _caustic_family_band_terminal_field_probe(
   }
 
 
+def _caustic_family_band_terminal_refinement_probe(
+  seed: Any,
+  total_pressure_Pa: float,
+  ambient_pressure_Pa: float,
+) -> dict[str, Any]:
+  """Check shock/zone behavior as the terminal marcher is refined."""
+
+  if seed is None:
+    return {
+      'status': 'missing_seed',
+      'accepted': False,
+      'cases': [],
+      'claim_status': 'caustic-family-band-terminal-refinement-pending',
+    }
+  cases: list[dict[str, Any]] = []
+  for anchor_edge_index in (0, 1):
+    restart = restart_characteristic_family_from_caustic(
+      seed,
+      total_pressure_Pa,
+      ambient_pressure_Pa,
+      anchor_edge_index=anchor_edge_index,
+      sample_count=6,
+    )
+    band = restart.family_band
+    if band is None or not band.converged:
+      cases.append({
+        'anchor_edge_index': anchor_edge_index,
+        'accepted': False,
+        'resolutions': [],
+        'message': 'missing converged family band',
+      })
+      continue
+    start_point = (
+      0.5 * (band.input_edge_points_m[0][0] + band.input_edge_points_m[1][0]),
+      0.5 * (band.input_edge_points_m[0][1] + band.input_edge_points_m[1][1]),
+    )
+    resolutions: list[dict[str, Any]] = []
+    for sample_count in (5, 7, 9, 11):
+      try:
+        result = solve_marched_attached_shock_from_caustic_family_band(
+          band,
+          start_point,
+          sample_count=sample_count,
+        )
+        terminal = result.terminal_normal_shock
+        resolution = {
+          'sample_count': sample_count,
+          'status': result.status.value,
+          'converged': result.converged,
+          'physical_terminal_verified': result.physical_terminal_verified,
+          'physical_closure_verified': result.physical_closure_verified,
+          'chain_promotion_blocked': result.chain_promotion_blocked,
+          'shock_sample_count': (
+            None if result.shock is None else result.shock.sample_count
+          ),
+          'shock_fit_sample_count': (
+            None
+            if result.shock_fit is None
+            else len(result.shock_fit.boundary_states)
+          ),
+          'maximum_shock_angle_residual_rad': (
+            None
+            if result.shock_fit is None
+            else result.shock_fit.maximum_shock_angle_residual_rad
+          ),
+          'zone_cell_count': None if result.zone is None else result.zone.cell_count,
+          'zone_topology_forms_closed_zone': (
+            None
+            if result.zone is None
+            else result.zone.topology.forms_closed_zone
+          ),
+          'zone_physical_closure_status': (
+            None if result.zone is None else result.zone.physical_closure_status
+          ),
+          'terminal_shock_point_m': (
+            None if terminal is None else terminal.shock_point_m
+          ),
+          'terminal_downstream_mach': (
+            None if terminal is None else terminal.downstream_mach
+          ),
+        }
+        resolution['accepted'] = (
+          result.status.value == 'converged_open_caustic_band_terminal_field'
+          and result.converged
+          and result.physical_terminal_verified
+          and result.physical_closure_verified is False
+          and result.chain_promotion_blocked
+          and result.shock is not None
+          and result.shock.sample_count == sample_count - 1
+          and result.shock_fit is not None
+          and result.shock_fit.converged
+          and result.shock_fit.maximum_shock_angle_residual_rad is not None
+          and result.zone is not None
+          and result.zone.converged
+          and result.zone.cell_count == sample_count * (sample_count - 3) // 2
+          and result.zone.topology.forms_closed_zone
+          and result.zone.physical_closure_status == 'open'
+        )
+      except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+        resolution = {
+          'sample_count': sample_count,
+          'accepted': False,
+          'status': 'exception',
+          'message': f'caustic-band refinement raised: {error}',
+        }
+      resolutions.append(resolution)
+    cases.append({
+      'anchor_edge_index': anchor_edge_index,
+      'start_point_m': start_point,
+      'accepted': all(case['accepted'] is True for case in resolutions),
+      'resolutions': resolutions,
+    })
+  return {
+    'status': 'diagnostic-caustic-band-terminal-refinement',
+    'accepted': all(case['accepted'] is True for case in cases),
+    'cases': cases,
+    'claim_status': (
+      'open-post-shock-zone-refinement-only; mixed-regime-closure-and-'
+      'chain-promotion-pending'
+    ),
+  }
+
+
+def _caustic_family_band_terminal_measurement_probe(
+  seed: Any,
+  total_pressure_Pa: float,
+  ambient_pressure_Pa: float,
+) -> dict[str, Any]:
+  """Run the independent cell operator and retain its open-zone rejection."""
+
+  if seed is None:
+    return {
+      'status': 'missing_seed',
+      'accepted': False,
+      'cases': [],
+      'claim_status': 'caustic-family-band-terminal-measurement-pending',
+    }
+  cases: list[dict[str, Any]] = []
+  for anchor_edge_index in (0, 1):
+    restart = restart_characteristic_family_from_caustic(
+      seed,
+      total_pressure_Pa,
+      ambient_pressure_Pa,
+      anchor_edge_index=anchor_edge_index,
+      sample_count=6,
+    )
+    band = restart.family_band
+    if band is None or not band.converged:
+      cases.append({
+        'anchor_edge_index': anchor_edge_index,
+        'accepted': False,
+        'measurement': None,
+      })
+      continue
+    start_point = (
+      0.5 * (band.input_edge_points_m[0][0] + band.input_edge_points_m[1][0]),
+      0.5 * (band.input_edge_points_m[0][1] + band.input_edge_points_m[1][1]),
+    )
+    result = solve_marched_attached_shock_from_caustic_family_band(
+      band,
+      start_point,
+      sample_count=9,
+    )
+    if result.shock_fit is None or result.continuation is None or result.zone is None:
+      cases.append({
+        'anchor_edge_index': anchor_edge_index,
+        'accepted': False,
+        'measurement': None,
+        'message': 'open terminal field did not expose measurement inputs',
+      })
+      continue
+    observation = MocShockCellObservation(
+      cell_index=1,
+      shock_boundary_points_m=tuple(
+        sample.point_m for sample in result.shock_fit.boundary_states
+      ),
+      centerline_boundary_points_m=tuple(
+        reversed(tuple(
+          (state.x_m, state.y_m)
+          for state in result.continuation.centerline_states
+        ))
+      ),
+      cells=result.zone.cells,
+      upstream_total_pressure_Pa=tuple(
+        sample.upstream_total_pressure_Pa
+        for sample in result.shock_fit.boundary_states
+      ),
+      downstream_total_pressure_Pa=tuple(
+        sample.downstream_total_pressure_Pa
+        for sample in result.shock_fit.boundary_states
+      ),
+    )
+    measurement = measure_moc_shock_cell(observation)
+    report = measurement.as_report()
+    cases.append({
+      'anchor_edge_index': anchor_edge_index,
+      'accepted': (
+        result.converged
+        and result.physical_closure_verified is False
+        and measurement.converged is False
+        and measurement.status.value == 'geometry_failure'
+        and measurement.message == 'shock and centerline boundaries must share their endpoint'
+      ),
+      'measurement': report,
+      'expected_open_zone_rejection': True,
+    })
+  return {
+    'status': 'diagnostic-independent-measurement-rejects-open-terminal-zone',
+    'accepted': all(case['accepted'] is True for case in cases),
+    'cases': cases,
+    'claim_status': (
+      'independent-cell-measurement-preserves-open-terminal-boundary; '
+      'physical-cell-acceptance-pending'
+    ),
+  }
+
+
 def _reflected_zone_shock_coupling_probe(
   reflected_zone: Any,
   reflected_boundary: Any,
@@ -1982,6 +2199,20 @@ def build_moc_primitive_report() -> dict[str, Any]:
     caustic_shock_seed,
     fan_exit.total_pressure_Pa,
     fan_ambient.pressure_Pa,
+  )
+  caustic_family_band_terminal_refinement = (
+    _caustic_family_band_terminal_refinement_probe(
+      caustic_shock_seed,
+      fan_exit.total_pressure_Pa,
+      fan_ambient.pressure_Pa,
+    )
+  )
+  caustic_family_band_terminal_measurement = (
+    _caustic_family_band_terminal_measurement_probe(
+      caustic_shock_seed,
+      fan_exit.total_pressure_Pa,
+      fan_ambient.pressure_Pa,
+    )
   )
   reflected_zone_shock_coupling = _reflected_zone_shock_coupling_probe(
     reflected_zone,
@@ -2627,6 +2858,8 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'caustic_family_restart': caustic_family_restart,
       'caustic_family_band_shock': caustic_family_band_shock,
       'caustic_family_band_terminal_field': caustic_family_band_terminal_field,
+      'caustic_family_band_terminal_refinement': caustic_family_band_terminal_refinement,
+      'caustic_family_band_terminal_measurement': caustic_family_band_terminal_measurement,
       'claim_status': (
         'centerline-C-minus-reflection-boundary-law; '
         'triangular-domain-remesh-or-shock-closure-pending'

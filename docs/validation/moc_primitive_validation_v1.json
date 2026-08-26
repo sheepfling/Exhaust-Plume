@@ -1634,6 +1634,284 @@
         ],
         "claim_status": "solver-generated-open-post-shock-zone-and-typed-normal-shock-terminal; mixed-regime-closure-and-chain-promotion-pending"
       },
+      "caustic_family_band_terminal_refinement": {
+        "status": "diagnostic-caustic-band-terminal-refinement",
+        "accepted": true,
+        "cases": [
+          {
+            "anchor_edge_index": 0,
+            "start_point_m": [
+              0.9074022400998616,
+              0.018023309500579187
+            ],
+            "accepted": true,
+            "resolutions": [
+              {
+                "sample_count": 5,
+                "status": "converged_open_caustic_band_terminal_field",
+                "converged": true,
+                "physical_terminal_verified": true,
+                "physical_closure_verified": false,
+                "chain_promotion_blocked": true,
+                "shock_sample_count": 4,
+                "shock_fit_sample_count": 4,
+                "maximum_shock_angle_residual_rad": 0.017464416629238477,
+                "zone_cell_count": 5,
+                "zone_topology_forms_closed_zone": true,
+                "zone_physical_closure_status": "open",
+                "terminal_shock_point_m": [
+                  0.9433861033062988,
+                  0.0
+                ],
+                "terminal_downstream_mach": 0.5070935739613022,
+                "accepted": true
+              },
+              {
+                "sample_count": 7,
+                "status": "converged_open_caustic_band_terminal_field",
+                "converged": true,
+                "physical_terminal_verified": true,
+                "physical_closure_verified": false,
+                "chain_promotion_blocked": true,
+                "shock_sample_count": 6,
+                "shock_fit_sample_count": 6,
+                "maximum_shock_angle_residual_rad": 0.01160578223622133,
+                "zone_cell_count": 14,
+                "zone_topology_forms_closed_zone": true,
+                "zone_physical_closure_status": "open",
+                "terminal_shock_point_m": [
+                  0.9436003325695939,
+                  0.0
+                ],
+                "terminal_downstream_mach": 0.5071905469328779,
+                "accepted": true
+              },
+              {
+                "sample_count": 9,
+                "status": "converged_open_caustic_band_terminal_field",
+                "converged": true,
+                "physical_terminal_verified": true,
+                "physical_closure_verified": false,
+                "chain_promotion_blocked": true,
+                "shock_sample_count": 8,
+                "shock_fit_sample_count": 8,
+                "maximum_shock_angle_residual_rad": 0.008690176785229653,
+                "zone_cell_count": 27,
+                "zone_topology_forms_closed_zone": true,
+                "zone_physical_closure_status": "open",
+                "terminal_shock_point_m": [
+                  0.9436765952998805,
+                  0.0
+                ],
+                "terminal_downstream_mach": 0.5072250845389011,
+                "accepted": true
+              },
+              {
+                "sample_count": 11,
+                "status": "converged_open_caustic_band_terminal_field",
+                "converged": true,
+                "physical_terminal_verified": true,
+                "physical_closure_verified": false,
+                "chain_promotion_blocked": true,
+                "shock_sample_count": 10,
+                "shock_fit_sample_count": 10,
+                "maximum_shock_angle_residual_rad": 0.00694529253970122,
+                "zone_cell_count": 44,
+                "zone_topology_forms_closed_zone": true,
+                "zone_physical_closure_status": "open",
+                "terminal_shock_point_m": [
+                  0.9437122105881096,
+                  0.0
+                ],
+                "terminal_downstream_mach": 0.5072412168450767,
+                "accepted": true
+              }
+            ]
+          },
+          {
+            "anchor_edge_index": 1,
+            "start_point_m": [
+              0.9321326029775965,
+              0.014956576361320353
+            ],
+            "accepted": true,
+            "resolutions": [
+              {
+                "sample_count": 5,
+                "status": "converged_open_caustic_band_terminal_field",
+                "converged": true,
+                "physical_terminal_verified": true,
+                "physical_closure_verified": false,
+                "chain_promotion_blocked": true,
+                "shock_sample_count": 4,
+                "shock_fit_sample_count": 4,
+                "maximum_shock_angle_residual_rad": 0.02415068593490155,
+                "zone_cell_count": 5,
+                "zone_topology_forms_closed_zone": true,
+                "zone_physical_closure_status": "open",
+                "terminal_shock_point_m": [
+                  0.9603454148571795,
+                  0.0
+                ],
+                "terminal_downstream_mach": 0.5083023125032368,
+                "accepted": true
+              },
+              {
+                "sample_count": 7,
+                "status": "converged_open_caustic_band_terminal_field",
+                "converged": true,
+                "physical_terminal_verified": true,
+                "physical_closure_verified": false,
+                "chain_promotion_blocked": true,
+                "shock_sample_count": 6,
+                "shock_fit_sample_count": 6,
+                "maximum_shock_angle_residual_rad": 0.01603474020135731,
+                "zone_cell_count": 14,
+                "zone_topology_forms_closed_zone": true,
+                "zone_physical_closure_status": "open",
+                "terminal_shock_point_m": [
+                  0.9605702494358009,
+                  -1.734723475976807e-18
+                ],
+                "terminal_downstream_mach": 0.50845121400962,
+                "accepted": true
+              },
+              {
+                "sample_count": 9,
+                "status": "converged_open_caustic_band_terminal_field",
+                "converged": true,
+                "physical_terminal_verified": true,
+                "physical_closure_verified": false,
+                "chain_promotion_blocked": true,
+                "shock_sample_count": 8,
+                "shock_fit_sample_count": 8,
+                "maximum_shock_angle_residual_rad": 0.012001125418481862,
+                "zone_cell_count": 27,
+                "zone_topology_forms_closed_zone": true,
+                "zone_physical_closure_status": "open",
+                "terminal_shock_point_m": [
+                  0.9606507344792572,
+                  0.0
+                ],
+                "terminal_downstream_mach": 0.5085045560063801,
+                "accepted": true
+              },
+              {
+                "sample_count": 11,
+                "status": "converged_open_caustic_band_terminal_field",
+                "converged": true,
+                "physical_terminal_verified": true,
+                "physical_closure_verified": false,
+                "chain_promotion_blocked": true,
+                "shock_sample_count": 10,
+                "shock_fit_sample_count": 10,
+                "maximum_shock_angle_residual_rad": 0.009588872953804284,
+                "zone_cell_count": 44,
+                "zone_topology_forms_closed_zone": true,
+                "zone_physical_closure_status": "open",
+                "terminal_shock_point_m": [
+                  0.9606884327214205,
+                  0.0
+                ],
+                "terminal_downstream_mach": 0.5085295478524797,
+                "accepted": true
+              }
+            ]
+          }
+        ],
+        "claim_status": "open-post-shock-zone-refinement-only; mixed-regime-closure-and-chain-promotion-pending"
+      },
+      "caustic_family_band_terminal_measurement": {
+        "status": "diagnostic-independent-measurement-rejects-open-terminal-zone",
+        "accepted": true,
+        "cases": [
+          {
+            "anchor_edge_index": 0,
+            "accepted": true,
+            "measurement": {
+              "status": "geometry_failure",
+              "operator_id": "op.moc.shock-cell-geometry",
+              "cell_index": 1,
+              "cell_count": 27,
+              "topology": {
+                "status": "invalid_input",
+                "connected": false,
+                "forms_closed_zone": false,
+                "boundary_edge_count": 0,
+                "boundary_component_count": 0,
+                "nonmanifold_edge_count": 0
+              },
+              "boundary_point_counts": {
+                "shock": 8,
+                "centerline": 8
+              },
+              "shock_start_m": null,
+              "shock_end_m": null,
+              "centerline_end_m": null,
+              "axial_extent_m": null,
+              "axial_length_m": null,
+              "shock_boundary_length_m": null,
+              "centerline_boundary_length_m": null,
+              "maximum_radius_m": null,
+              "mesh_area_m2": null,
+              "perimeter_area_m2": null,
+              "area_closure_residual_m2": null,
+              "pressure": {
+                "sample_count": 0,
+                "minimum_total_pressure_ratio": null,
+                "maximum_total_pressure_ratio": null,
+                "pressure_loss_verified": null
+              },
+              "claim_status": "not_accepted",
+              "message": "shock and centerline boundaries must share their endpoint"
+            },
+            "expected_open_zone_rejection": true
+          },
+          {
+            "anchor_edge_index": 1,
+            "accepted": true,
+            "measurement": {
+              "status": "geometry_failure",
+              "operator_id": "op.moc.shock-cell-geometry",
+              "cell_index": 1,
+              "cell_count": 27,
+              "topology": {
+                "status": "invalid_input",
+                "connected": false,
+                "forms_closed_zone": false,
+                "boundary_edge_count": 0,
+                "boundary_component_count": 0,
+                "nonmanifold_edge_count": 0
+              },
+              "boundary_point_counts": {
+                "shock": 8,
+                "centerline": 8
+              },
+              "shock_start_m": null,
+              "shock_end_m": null,
+              "centerline_end_m": null,
+              "axial_extent_m": null,
+              "axial_length_m": null,
+              "shock_boundary_length_m": null,
+              "centerline_boundary_length_m": null,
+              "maximum_radius_m": null,
+              "mesh_area_m2": null,
+              "perimeter_area_m2": null,
+              "area_closure_residual_m2": null,
+              "pressure": {
+                "sample_count": 0,
+                "minimum_total_pressure_ratio": null,
+                "maximum_total_pressure_ratio": null,
+                "pressure_loss_verified": null
+              },
+              "claim_status": "not_accepted",
+              "message": "shock and centerline boundaries must share their endpoint"
+            },
+            "expected_open_zone_rejection": true
+          }
+        ],
+        "claim_status": "independent-cell-measurement-preserves-open-terminal-boundary; physical-cell-acceptance-pending"
+      },
       "claim_status": "centerline-C-minus-reflection-boundary-law; triangular-domain-remesh-or-shock-closure-pending"
     },
     "terminal_source_window_invariant_closure": {

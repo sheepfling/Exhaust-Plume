@@ -134,6 +134,12 @@ characteristic zone, and records a typed subsonic centerline terminal. The
 downstream zone is still an open mixed-regime handoff; physical closure and
 chain promotion remain blocked until a subsonic field and complete perimeter
 are solved.
+The seam's refinement probe reaches the same typed terminal at 5, 7, 9, and
+11 shock samples in both orientations, with open-zone cell counts 5, 14, 27,
+and 44 and decreasing shock-fit tangent residuals. The independent
+shock-cell measurement operator rejects the open zone at the missing physical
+endpoint, preserving the mixed-regime boundary as an explicit validation
+failure rather than treating topology alone as cell acceptance.
 The strict chain mode rejects a prescribed seed that lacks carried upstream
 shock states, and the marcher reports `subsonic_terminal_required` while
 carrying a typed normal-shock terminal diagnostic when an endpoint leaves the
