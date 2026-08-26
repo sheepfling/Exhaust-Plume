@@ -164,16 +164,18 @@ evaluation layers for the four strict `ProductResult` families:
 - `exhaust_plume.products.workflow_comparison` provides same-axis, same-frame
   diagnostics for all four standard product families, retaining both source
   lineages and validity counts. Mismatched domains are reported as blocked;
-  the output is explicitly not validation evidence.
+  the output is explicitly not validation evidence. Its optional static
+  renderer emits an aligned overlay PNG beside the JSON report.
 - The strict ray contract still has no hit mask, optical depth, or intersection
   interval. The gallery records that limitation and does not infer it from
   zero radiance or unit transmittance. The strict visual contract likewise does
   not acquire shock-diamond or plume-region claims from tessellation.
 
-The remaining work is the linked interactive gallery, explicit comparison and
-validation overlays, richer declared uncertainty rendering, and a downstream
+The remaining work is richer declared uncertainty rendering and a downstream
 focal-plane lane only after an explicit camera/optics/detector result contract
-exists.
+exists. Validation datasets, when available, must still enter through their
+declared measurement-space/operator contracts; a gallery cannot promote a
+diagnostic overlay into validation evidence.
 
 ## Milestones and exit gates
 

@@ -37,6 +37,7 @@ from exhaust_plume.api import (
 )
 from exhaust_plume.products import (
   compare_product_results,
+  render_product_comparison,
   render_product_gallery,
   write_product_comparison_report,
   write_interactive_product_gallery,
@@ -302,3 +303,17 @@ def test_comparison_report_dispatches_all_standard_products(result_factory) -> N
   assert report.status == 'computed-diagnostic'
   assert report.left_source['capability_id'] == result.envelope.capability_id
   assert report.right_view_spec.digest_sha256() == report.left_view_spec.digest_sha256()
+
+
+def test_comparison_renderer_emits_overlay_and_report(tmp_path: Path) -> None:
+  os.environ['MPLCONFIGDIR'] = str(tmp_path / 'mplconfig-comparison')
+  import matplotlib
+  matplotlib.use('Agg')
+  left = _signature_result()
+  right = left.model_copy(update={
+    'envelope': left.envelope.model_copy(update={'content_sha256': '5' * 64}),
+  })
+  artifacts = render_product_comparison(left, right, tmp_path / 'comparison')
+  assert artifacts.image_path.exists()
+  assert artifacts.report_path.exists()
+  assert artifacts.report.status == 'computed-diagnostic'

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
-from math import fsum, sqrt
+from math import fsum, isfinite, sqrt
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -31,8 +31,10 @@ from exhaust_plume.products.workflow_gallery import _source_metadata
 
 __all__ = (
   'COMPARISON_REPORT_SCHEMA',
+  'ProductComparisonArtifacts',
   'ProductComparisonReport',
   'compare_product_results',
+  'render_product_comparison',
   'write_product_comparison_report',
 )
 
@@ -76,6 +78,16 @@ class ProductComparisonReport:
   def canonical_json(self) -> str:
     return json.dumps(self.model_dump(), ensure_ascii=True, allow_nan=False, indent=2, sort_keys=True) + '\n'
   ####
+####
+
+
+@dataclass(frozen=True, slots=True)
+class ProductComparisonArtifacts:
+  """PNG/report pair emitted by the optional comparison renderer."""
+
+  report: ProductComparisonReport
+  image_path: Path
+  report_path: Path
 ####
 
 
@@ -466,4 +478,163 @@ def write_product_comparison_report(report: ProductComparisonReport, path: str |
   output.parent.mkdir(parents=True, exist_ok=True)
   output.write_text(report.canonical_json(), encoding='utf-8')
   return output
+####
+
+
+def _comparison_matplotlib() -> Any:
+  try:
+    from matplotlib import pyplot as plt
+  except ImportError as error:
+    raise RuntimeError('comparison overlays require the optional plot dependency: pip install .[plot]') from error
+  ####
+  return plt
+####
+
+
+def _comparison_save(figure: Any, path: Path, report: ProductComparisonReport) -> None:
+  figure.suptitle(
+    f'Comparison diagnostic — {report.product} | status={report.status}\n'
+    f"left={report.left_source['fidelity']['model_fidelity']}/"
+    f"{report.left_source['fidelity']['validation_level']} | "
+    f"right={report.right_source['fidelity']['model_fidelity']}/"
+    f"{report.right_source['fidelity']['validation_level']}",
+    fontsize=10,
+  )
+  figure.tight_layout(rect=(0.0, 0.0, 1.0, 0.9))
+  figure.savefig(path, dpi=140, metadata={
+    'ComparisonReportSchema': report.schema,
+    'LeftContentSHA256': report.left_source['content_sha256'],
+    'RightContentSHA256': report.right_source['content_sha256'],
+    'LeftVisualizationSpecSHA256': report.left_view_spec.digest_sha256(),
+    'RightVisualizationSpecSHA256': report.right_view_spec.digest_sha256(),
+  })
+####
+
+
+def _comparison_text(figure: Any, report: ProductComparisonReport) -> None:
+  axis = figure.add_subplot(111)
+  axis.set_axis_off()
+  axis.text(0.03, 0.96, report.reason or 'No compatible comparison reason; see metrics.', va='top', family='monospace')
+  axis.text(0.03, 0.86, json.dumps(report.model_dump(), indent=2, sort_keys=True), va='top', family='monospace', fontsize=7)
+####
+
+
+def render_product_comparison(
+  left: ProductResult,
+  right: ProductResult,
+  output_dir: str | Path,
+  *,
+  left_spec: VisualizationSpec | None = None,
+  right_spec: VisualizationSpec | None = None,
+) -> ProductComparisonArtifacts:
+  """Render one aligned comparison overlay plus its source-bound report."""
+
+  report = compare_product_results(left, right, left_spec=left_spec, right_spec=right_spec)
+  output = Path(output_dir)
+  output.mkdir(parents=True, exist_ok=True)
+  image_path = output / 'comparison_overlay.png'
+  report_path = output / 'comparison_report.json'
+  write_product_comparison_report(report, report_path)
+  plt = _comparison_matplotlib()
+
+  if report.status == 'blocked-incompatible-domain':
+    figure = plt.figure(figsize=(10.0, 7.0))
+    _comparison_text(figure, report)
+    _comparison_save(figure, image_path, report)
+    plt.close(figure)
+    return ProductComparisonArtifacts(report=report, image_path=image_path, report_path=report_path)
+  ####
+
+  if report.product == 'sectioned-tube-visual' and isinstance(left, SectionedTubeResult) and isinstance(right, SectionedTubeResult):
+    left_data = extract_sectioned_tube_line_data(left)
+    right_data = extract_sectioned_tube_line_data(right)
+    figure, axes = plt.subplots(1, 2, figsize=(10.0, 4.8))
+    axes[0].plot([point[0] for point in left_data.geometry.centerline_m], [point[2] for point in left_data.geometry.centerline_m], color='#3f73a8', marker='o', label='left')
+    axes[0].plot([point[0] for point in right_data.geometry.centerline_m], [point[2] for point in right_data.geometry.centerline_m], color='#c9273f', marker='o', label='right')
+    axes[0].set_xlabel('x [m]')
+    axes[0].set_ylabel('z [m]')
+    axes[0].set_title('centerline XZ overlay')
+    axes[0].legend()
+    errors = tuple(
+      sqrt(fsum((left_point[index] - right_point[index]) ** 2 for index in range(3)))
+      for left_point, right_point in zip(left_data.geometry.centerline_m, right_data.geometry.centerline_m, strict=True)
+    )
+    axes[1].plot(left_data.geometry.arc_length_m, errors, color='#f58518', marker='o')
+    axes[1].set_xlabel('arc length [m]')
+    axes[1].set_ylabel('centerline error [m]')
+    axes[1].set_title('aligned geometry residual')
+    for axis in axes:
+      axis.grid(True, alpha=0.22)
+    ####
+  elif report.product == 'spectral-radiant-intensity' and isinstance(left, SpectralRadiantIntensityResult) and isinstance(right, SpectralRadiantIntensityResult):
+    left_grid = extract_spectral_radiant_intensity_grid(left)
+    right_grid = extract_spectral_radiant_intensity_grid(right)
+    direction_index = report.left_view_spec.selection.direction_index or 0
+    wavelength_axis = tuple(value * 1.0e6 for value in left_grid.wavelengths_m)
+    left_values = tuple(float('nan') if value is None else value for value in left_grid.radiant_intensity_W_sr_m[direction_index])
+    right_values = tuple(float('nan') if value is None else value for value in right_grid.radiant_intensity_W_sr_m[direction_index])
+    deltas = tuple(left_value - right_value if isfinite(left_value) and isfinite(right_value) else float('nan') for left_value, right_value in zip(left_values, right_values, strict=True))
+    figure, axes = plt.subplots(2, 1, figsize=(9.0, 7.0), sharex=True)
+    axes[0].plot(wavelength_axis, left_values, color='#3f73a8', marker='o', label='left')
+    axes[0].plot(wavelength_axis, right_values, color='#c9273f', marker='o', label='right')
+    axes[0].set_ylabel('Jλ [W sr⁻¹ m⁻¹]')
+    axes[0].set_title(f'direction {direction_index} exact-vector spectrum')
+    axes[0].legend()
+    axes[1].plot(wavelength_axis, deltas, color='#f58518', marker='o')
+    axes[1].set_xlabel('wavelength [μm]')
+    axes[1].set_ylabel('left − right')
+    axes[1].set_title('aligned spectral residual')
+    for axis in axes:
+      axis.grid(True, alpha=0.22)
+    ####
+  elif report.product == 'spectral-ray-transfer' and isinstance(left, SpectralRayTransferResult) and isinstance(right, SpectralRayTransferResult):
+    left_data = extract_spectral_ray_transfer_data(left)
+    right_data = extract_spectral_ray_transfer_data(right)
+    ray_id = report.left_view_spec.selection.ray_id or left_data.lines[0].ray_id
+    left_line = next(line for line in left_data.lines if line.ray_id == ray_id)
+    right_line = next(line for line in right_data.lines if line.ray_id == ray_id)
+    wavelength_axis = tuple(value * 1.0e6 for value in left_data.wavelengths_m)
+    figure, axes = plt.subplots(2, 1, figsize=(9.0, 7.0), sharex=True)
+    axes[0].plot(wavelength_axis, left_line.source_radiance_W_m2_sr_m, color='#3f73a8', marker='o', label='left source radiance')
+    axes[0].plot(wavelength_axis, right_line.source_radiance_W_m2_sr_m, color='#c9273f', marker='o', label='right source radiance')
+    axes[0].set_ylabel('source radiance')
+    axes[0].set_title(f'{ray_id} source-radiance overlay')
+    axes[0].legend()
+    axes[1].plot(wavelength_axis, left_line.background_transmittance, color='#3f73a8', marker='o', label='left transmittance')
+    axes[1].plot(wavelength_axis, right_line.background_transmittance, color='#c9273f', marker='o', label='right transmittance')
+    axes[1].set_xlabel('wavelength [μm]')
+    axes[1].set_ylabel('transmittance [1]')
+    axes[1].set_title('separate background-transmittance overlay')
+    axes[1].legend()
+    for axis in axes:
+      axis.grid(True, alpha=0.22)
+    ####
+  elif report.product == 'engineering-flux-section' and isinstance(left, PlumeFluxSectionResult) and isinstance(right, PlumeFluxSectionResult):
+    left_glyph = extract_plume_flux_section_glyph(left)
+    right_glyph = extract_plume_flux_section_glyph(right)
+    figure, axes = plt.subplots(1, 2, figsize=(10.0, 4.8))
+    labels = ('x', 'y', 'z')
+    positions = tuple(index - 0.18 for index in range(3))
+    axes[0].bar(positions, left_glyph.momentum_flux_N, width=0.36, color='#3f73a8', label='left')
+    axes[0].bar(tuple(index + 0.18 for index in range(3)), right_glyph.momentum_flux_N, width=0.36, color='#c9273f', label='right')
+    axes[0].set_xticks(range(3), labels)
+    axes[0].set_ylabel('momentum flux [N]')
+    axes[0].set_title('momentum-flux overlay')
+    axes[0].legend()
+    scalar_names = ('area', 'mass', 'energy', 'pressure', 'residual')
+    left_values = (left_glyph.area_m2, left_glyph.mass_flow_kgps, left_glyph.total_energy_flow_W, left_glyph.pressure_Pa, left_glyph.pressure_match_relative_residual)
+    right_values = (right_glyph.area_m2, right_glyph.mass_flow_kgps, right_glyph.total_energy_flow_W, right_glyph.pressure_Pa, right_glyph.pressure_match_relative_residual)
+    axes[1].bar(tuple(index - 0.18 for index in range(5)), tuple(a - b for a, b in zip(left_values, right_values, strict=True)), width=0.36, color='#f58518')
+    axes[1].set_xticks(range(5), scalar_names, rotation=35, ha='right')
+    axes[1].set_title('left − right scalar deltas')
+    axes[1].grid(True, axis='y', alpha=0.22)
+    ####
+  else:
+    figure = plt.figure(figsize=(10.0, 7.0))
+    _comparison_text(figure, report)
+  ####
+
+  _comparison_save(figure, image_path, report)
+  plt.close(figure)
+  return ProductComparisonArtifacts(report=report, image_path=image_path, report_path=report_path)
 ####

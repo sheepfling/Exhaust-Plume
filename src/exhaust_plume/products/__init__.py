@@ -79,8 +79,10 @@ from exhaust_plume.products.workflow_interactive import (
 )
 from exhaust_plume.products.workflow_comparison import (
     COMPARISON_REPORT_SCHEMA,
+    ProductComparisonArtifacts,
     ProductComparisonReport,
     compare_product_results,
+    render_product_comparison,
     write_product_comparison_report,
 )
 
@@ -112,6 +114,7 @@ __all__ = (
     'OPTICAL_SPECTRAL_RAY_TRANSFER_V1',
     'PlumeProduct',
     'ProductComparisonReport',
+    'ProductComparisonArtifacts',
     'ProductMetadata',
     'ProductReference',
     'Provenance',
@@ -150,6 +153,7 @@ __all__ = (
     'write_interactive_product_gallery',
     'write_product_comparison_report',
     'compare_product_results',
+    'render_product_comparison',
     'write_straight_visual_asset',
     'write_visual_mesh_json',
     'write_visual_obj',
