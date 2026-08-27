@@ -523,6 +523,7 @@ def _ambient_shock_strip_probe(
   terminal_patch_shock_probe = None
   terminal_patch_chain_probe = None
   terminal_patch_chain_planner = None
+  terminal_patch_chain_planner_measurement = None
   first_cell_composite = None
   first_cell_composite_measurement = None
   first_cell_terminal_closure = None
@@ -615,12 +616,23 @@ def _ambient_shock_strip_probe(
         sample_count=len(current_cell.continuation_boundary),
         position_tolerance_m=2.0e-4,
       )
+      terminal_patch_chain_planner_measurement = measure_moc_chain_planner(
+        terminal_patch_chain_planner
+      )
       terminal_patch_chain_probe['planner'] = terminal_patch_chain_planner.as_report()
+      terminal_patch_chain_probe['planner_measurement'] = (
+        terminal_patch_chain_planner_measurement.as_report()
+      )
       terminal_patch_chain_probe['planner_expected_physical_termination'] = (
         terminal_patch_chain_planner.chain.physical_termination
         and terminal_patch_chain_planner.planner_kind is MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
         and not terminal_patch_chain_planner.production_claim_allowed
         and len(terminal_patch_chain_planner.steps) == 1
+        and terminal_patch_chain_planner_measurement.converged
+        and terminal_patch_chain_planner_measurement.termination_verified
+        and terminal_patch_chain_planner_measurement.fidelity_isolation_verified
+        and terminal_patch_chain_planner_measurement.physical_termination is True
+        and terminal_patch_chain_planner_measurement.production_claim_allowed is False
       )
       first_cell_composite = assemble_first_cell_composite(
         shock_fit,
@@ -1965,6 +1977,7 @@ def _ambient_pressure_field_coupled_chain_planner(
   chain = report['chain']
   steps = report['steps']
   diagnostics = chain['diagnostics']
+  planner_measurement = measure_moc_chain_planner(planner)
   accepted = (
     report['planner_kind'] == MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH.value
     and report['planning_only'] is True
@@ -1983,11 +1996,17 @@ def _ambient_pressure_field_coupled_chain_planner(
     and diagnostics['ambient_closure_status'] == 'ambient_closure_field_failure'
     and diagnostics['sampled_count'] == 0
     and diagnostics['first_missing_sample_index'] == 0
+    and planner_measurement.converged
+    and planner_measurement.termination_verified
+    and planner_measurement.fidelity_isolation_verified
+    and planner_measurement.physical_termination is False
+    and planner_measurement.production_claim_allowed is False
   )
   return {
     'status': 'diagnostic-ambient-pressure-field-chain-boundary',
     'accepted': accepted,
     'planner': report,
+    'planner_measurement': planner_measurement.as_report(),
     'claim_status': (
       'ambient-pressure-field-coupled-chain-handoff; '
       'canonical-upstream-domain-extension-pending'
@@ -2026,6 +2045,7 @@ def _source_strip_chain_planner_probe(
   report = planner.as_report()
   chain = report['chain']
   steps = report['steps']
+  planner_measurement = measure_moc_chain_planner(planner)
   accepted = (
     report['planner_kind'] == MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH.value
     and report['planning_only'] is True
@@ -2044,11 +2064,17 @@ def _source_strip_chain_planner_probe(
     and report['diagnostics']['source_strip_reuse_policy'] == (
       'never-reuse-after-one-next-cell-attempt'
     )
+    and planner_measurement.converged
+    and planner_measurement.termination_verified
+    and planner_measurement.fidelity_isolation_verified
+    and planner_measurement.physical_termination is False
+    and planner_measurement.production_claim_allowed is False
   )
   return {
     'status': chain['status'],
     'accepted': accepted,
     'planner': report,
+    'planner_measurement': planner_measurement.as_report(),
     'claim_status': planner.claim_status,
     'message': chain['message'],
   }
@@ -2086,6 +2112,7 @@ def _source_strip_chain_sequence_planner_probe(
   report = planner.as_report()
   chain = report['chain']
   steps = report['steps']
+  planner_measurement = measure_moc_chain_planner(planner)
   expected_reason = (
     MocChainTerminationReason.CHARACTERISTIC_CAUSTIC.value
     if (
@@ -2116,11 +2143,17 @@ def _source_strip_chain_sequence_planner_probe(
     and report['diagnostics']['source_strip_reuse_policy'] == (
       'fresh-bounded-source-strip-required-per-cell'
     )
+    and planner_measurement.converged
+    and planner_measurement.termination_verified
+    and planner_measurement.fidelity_isolation_verified
+    and planner_measurement.physical_termination is False
+    and planner_measurement.production_claim_allowed is False
   )
   return {
     'status': chain['status'],
     'accepted': accepted,
     'planner': report,
+    'planner_measurement': planner_measurement.as_report(),
     'claim_status': planner.claim_status,
     'message': chain['message'],
   }
@@ -2167,6 +2200,7 @@ def _solver_generated_chain_terminal_probe(
     planner_kind=MocChainPlannerKind.SOLVER_GENERATED_REFERENCE,
   )
   chain = planner.chain
+  planner_measurement = measure_moc_chain_planner(planner)
   return {
     **chain.as_report(),
     'planner': {
@@ -2184,7 +2218,13 @@ def _solver_generated_chain_terminal_probe(
       and chain.resolved
       and chain.termination_reason is MocChainTerminationReason.PHYSICAL_TERMINATION
       and chain.diagnostics.get('termination_model') == 'normal-shock-terminal'
+      and planner_measurement.converged
+      and planner_measurement.termination_verified
+      and planner_measurement.fidelity_isolation_verified
+      and planner_measurement.physical_termination is True
+      and planner_measurement.production_claim_allowed is False
     ),
+    'planner_measurement': planner_measurement.as_report(),
     'claim_status': (
       'solver-generated-continued-cell-to-typed-normal-shock-stop; '
       'mixed-regime-cell-promotion-pending'
@@ -2307,6 +2347,7 @@ def _post_shock_zone_chain_planner_probe(
   chain = report['chain']
   steps = report['steps']
   diagnostics = chain['diagnostics']
+  planner_measurement = measure_moc_chain_planner(planner)
   accepted = (
     report['planner_kind'] == MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH.value
     and report['planning_only'] is True
@@ -2325,6 +2366,11 @@ def _post_shock_zone_chain_planner_probe(
     and diagnostics['termination_model'] == 'normal-shock-terminal'
     and diagnostics['upstream_field_model'] == 'bounded-open-post-shock-zone'
     and diagnostics['upstream_sample_count'] == 4
+    and planner_measurement.converged
+    and planner_measurement.termination_verified
+    and planner_measurement.fidelity_isolation_verified
+    and planner_measurement.physical_termination is True
+    and planner_measurement.production_claim_allowed is False
   )
   return {
     'status': 'diagnostic-bounded-open-post-shock-zone-chain',
@@ -2332,6 +2378,7 @@ def _post_shock_zone_chain_planner_probe(
     'physical_termination': chain['physical_termination'],
     'open_zone': post_shock_zone.as_report(),
     'planner': report,
+    'planner_measurement': planner_measurement.as_report(),
     'claim_status': (
       'bounded-open-post-shock-zone-next-shock; '
       'mixed-regime-downstream-closure-pending'
@@ -2721,6 +2768,15 @@ def _caustic_shock_remesh_execution_probe(
   planner_report = planner.as_report()
   downstream_field_planner_report = downstream_field_planner.as_report()
   invariant_downstream_field_planner_report = invariant_downstream_field_planner.as_report()
+  planner_measurement = measure_moc_chain_planner(planner)
+  bridge_coupled_planner_measurement = (
+    None
+    if bridge_coupled_planner is None
+    else measure_moc_chain_planner(bridge_coupled_planner)
+  )
+  simple_wave_terminal_planner_measurement = measure_moc_chain_planner(
+    simple_wave_terminal_planner
+  )
   accepted = (
     prepared.converged
     and direct.status is MocCausticShockRemeshStatus.CONVERGED_COUPLED_REMESH
@@ -2747,6 +2803,11 @@ def _caustic_shock_remesh_execution_probe(
     and planner.steps[0].incoming_handoff_sample_count == len(
       current.continuation_boundary
     )
+    and planner_measurement.converged
+    and planner_measurement.termination_verified
+    and planner_measurement.fidelity_isolation_verified
+    and planner_measurement.physical_termination is False
+    and planner_measurement.production_claim_allowed is False
     and downstream_field_planner.planner_kind is MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
     and downstream_field_planner.production_claim_allowed is False
     and downstream_field_planner.chain.status is MocChainStatus.TRUNCATED
@@ -2781,6 +2842,11 @@ def _caustic_shock_remesh_execution_probe(
     and simple_wave_terminal_planner.steps[0].incoming_handoff_sample_count == len(current.continuation_boundary)
     and simple_wave_terminal_planner.chain.diagnostics.get('terminal_verified') is True
     and simple_wave_terminal_planner.chain.diagnostics.get('chain_promotion_blocked') is True
+    and simple_wave_terminal_planner_measurement.converged
+    and simple_wave_terminal_planner_measurement.termination_verified
+    and simple_wave_terminal_planner_measurement.fidelity_isolation_verified
+    and simple_wave_terminal_planner_measurement.physical_termination is False
+    and simple_wave_terminal_planner_measurement.production_claim_allowed is False
     and bridge_coupled_remesh is not None
     and bridge_coupled_remesh.status is MocCausticShockRemeshStatus.UPSTREAM_FIELD_FAILURE
     and bridge_coupled_remesh.upstream_bridge_verified is False
@@ -2809,6 +2875,12 @@ def _caustic_shock_remesh_execution_probe(
     and bridge_coupled_planner.chain.diagnostics['remesh_report']['upstream_bridge_audit']['status'] == (
       MocCausticBridgeStatus.DOMAIN_GAP.value
     )
+    and bridge_coupled_planner_measurement is not None
+    and bridge_coupled_planner_measurement.converged
+    and bridge_coupled_planner_measurement.termination_verified
+    and bridge_coupled_planner_measurement.fidelity_isolation_verified
+    and bridge_coupled_planner_measurement.physical_termination is False
+    and bridge_coupled_planner_measurement.production_claim_allowed is False
     and invariant_downstream_field_planner.planner_kind is MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
     and invariant_downstream_field_planner.production_claim_allowed is False
     and invariant_downstream_field_planner.chain.status is MocChainStatus.TRUNCATED
@@ -2824,6 +2896,7 @@ def _caustic_shock_remesh_execution_probe(
     'direct': direct_report,
     'direct_measurement': direct_measurement.as_report(),
     'planner': planner_report,
+    'planner_measurement': planner_measurement.as_report(),
     'bridge_coupled_remesh': (
       None if bridge_coupled_remesh is None else bridge_coupled_remesh.as_report()
     ),
@@ -2835,10 +2908,18 @@ def _caustic_shock_remesh_execution_probe(
     'bridge_coupled_planner': (
       None if bridge_coupled_planner is None else bridge_coupled_planner.as_report()
     ),
+    'bridge_coupled_planner_measurement': (
+      None
+      if bridge_coupled_planner_measurement is None
+      else bridge_coupled_planner_measurement.as_report()
+    ),
     'downstream_field_planner': downstream_field_planner_report,
     'invariant_downstream_field_planner': invariant_downstream_field_planner_report,
     'simple_wave_terminal': simple_wave_terminal.as_report(),
     'simple_wave_terminal_planner': simple_wave_terminal_planner.as_report(),
+    'simple_wave_terminal_planner_measurement': (
+      simple_wave_terminal_planner_measurement.as_report()
+    ),
     'incoming_handoff_sample_count': len(current.continuation_boundary),
     'claim_status': (
       'solver-backed-local-caustic-remesh-and-one-step-planner; '
@@ -3187,6 +3268,7 @@ def _caustic_family_band_chain_planner_probe(
       chain = report['chain']
       steps = report['steps']
       diagnostics = chain['diagnostics']
+      planner_measurement = measure_moc_chain_planner(planner)
       accepted = (
         report['planner_kind'] == MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH.value
         and report['planning_only'] is True
@@ -3205,12 +3287,18 @@ def _caustic_family_band_chain_planner_probe(
         and diagnostics['upstream_shock_coupling_verified'] is True
         and diagnostics['physical_terminal_verified'] is True
         and diagnostics['post_shock_zone_converged'] is True
+        and planner_measurement.converged
+        and planner_measurement.termination_verified
+        and planner_measurement.fidelity_isolation_verified
+        and planner_measurement.physical_termination is False
+        and planner_measurement.production_claim_allowed is False
       )
       cases.append({
         'anchor_edge_index': anchor_edge_index,
         'start_point_m': start_point,
         'accepted': accepted,
         'planner': report,
+        'planner_measurement': planner_measurement.as_report(),
       })
     except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
       cases.append({
@@ -3300,6 +3388,7 @@ def _caustic_family_band_invariant_chain_probe(
       sample_count=9,
     )
     planner_report = planner.as_report()
+    planner_measurement = measure_moc_chain_planner(planner)
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return {
       'status': 'planner_failure',
@@ -3332,6 +3421,11 @@ def _caustic_family_band_invariant_chain_probe(
     and steps[0]['incoming_handoff_sample_count'] == len(current.continuation_boundary)
     and diagnostics['upstream_field_model'] == 'bounded-caustic-family-band'
     and diagnostics['first_missing_sample_index'] == 4
+    and planner_measurement.converged
+    and planner_measurement.termination_verified
+    and planner_measurement.fidelity_isolation_verified
+    and planner_measurement.physical_termination is False
+    and planner_measurement.production_claim_allowed is False
   )
   return {
     'status': 'diagnostic-invariant-caustic-band-chain',
@@ -3339,6 +3433,7 @@ def _caustic_family_band_invariant_chain_probe(
     'target_invariant': target_invariant,
     'direct': direct,
     'planner': planner_report,
+    'planner_measurement': planner_measurement.as_report(),
     'claim_status': (
       'invariant-conditioned-shock-march-and-typed-upstream-boundary-stop; '
       'physical-caustic-remesh-pending'
@@ -3495,6 +3590,19 @@ def _caustic_upstream_bridge_probe(
     invariant_planner_report = (
       None if invariant_planner is None else invariant_planner.as_report()
     )
+    planner_measurement = (
+      None if planner is None else measure_moc_chain_planner(planner)
+    )
+    candidate_planner_measurement = (
+      None
+      if candidate_planner is None
+      else measure_moc_chain_planner(candidate_planner)
+    )
+    invariant_planner_measurement = (
+      None
+      if invariant_planner is None
+      else measure_moc_chain_planner(invariant_planner)
+    )
     accepted = (
       bridge.fields_converged
       and covered.status is MocCausticBridgeStatus.CONVERGED_BOUNDED_PATH
@@ -3538,6 +3646,12 @@ def _caustic_upstream_bridge_probe(
       and planner_report['chain']['termination_reason'] == MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE.value
       and planner_report['chain']['physical_termination'] is False
       and planner_report['chain']['cell_count'] == 1
+      and planner_measurement is not None
+      and planner_measurement.converged
+      and planner_measurement.termination_verified
+      and planner_measurement.fidelity_isolation_verified
+      and planner_measurement.physical_termination is False
+      and planner_measurement.production_claim_allowed is False
       and candidate_planner_report is not None
       and candidate_planner_report['planner_kind'] == MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH.value
       and candidate_planner_report['planning_only'] is True
@@ -3547,6 +3661,12 @@ def _caustic_upstream_bridge_probe(
       and candidate_planner_report['chain']['termination_reason'] == MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY.value
       and candidate_planner_report['chain']['physical_termination'] is False
       and candidate_planner_report['chain']['cell_count'] == 1
+      and candidate_planner_measurement is not None
+      and candidate_planner_measurement.converged
+      and candidate_planner_measurement.termination_verified
+      and candidate_planner_measurement.fidelity_isolation_verified
+      and candidate_planner_measurement.physical_termination is False
+      and candidate_planner_measurement.production_claim_allowed is False
       and candidate_planner_report['chain']['diagnostics']['bridge_first_missing_sample_index'] == 1
       and candidate_planner_report['chain']['diagnostics']['bridge_first_missing_point_m'] == candidate_shock.coupling.first_missing_point_m
       and invariant_planner_report is not None
@@ -3558,6 +3678,12 @@ def _caustic_upstream_bridge_probe(
       and invariant_planner_report['chain']['termination_reason'] == MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY.value
       and invariant_planner_report['chain']['physical_termination'] is False
       and invariant_planner_report['chain']['cell_count'] == 1
+      and invariant_planner_measurement is not None
+      and invariant_planner_measurement.converged
+      and invariant_planner_measurement.termination_verified
+      and invariant_planner_measurement.fidelity_isolation_verified
+      and invariant_planner_measurement.physical_termination is False
+      and invariant_planner_measurement.production_claim_allowed is False
     )
     return {
       'status': 'diagnostic-bounded-caustic-upstream-bridge',
@@ -3572,6 +3698,19 @@ def _caustic_upstream_bridge_probe(
       'planner': planner_report,
       'candidate_planner': candidate_planner_report,
       'invariant_planner': invariant_planner_report,
+      'planner_measurement': (
+        None if planner_measurement is None else planner_measurement.as_report()
+      ),
+      'candidate_planner_measurement': (
+        None
+        if candidate_planner_measurement is None
+        else candidate_planner_measurement.as_report()
+      ),
+      'invariant_planner_measurement': (
+        None
+        if invariant_planner_measurement is None
+        else invariant_planner_measurement.as_report()
+      ),
       'claim_status': (
         'bounded-old-family-restarted-family-bridge-and-planner-audit; '
         'physical-caustic-remesh-and-downstream-closure-pending'

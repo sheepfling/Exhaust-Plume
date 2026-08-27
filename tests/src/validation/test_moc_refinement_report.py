@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from scripts.validate_moc_primitives import (
@@ -7,6 +9,20 @@ from scripts.validate_moc_primitives import (
   _refinement_diagnostic,
   build_moc_primitive_report,
 )
+
+
+def _assert_chain_planner_measurement(
+  measurement: dict[str, Any],
+  *,
+  physical_termination: bool,
+) -> None:
+  assert measurement['status'] == 'converged'
+  assert measurement['operator_id'] == 'op.moc.chain-planner'
+  assert all(
+    value for value in measurement['checks'].values() if value is not None
+  )
+  assert measurement['physical_termination'] is physical_termination
+  assert measurement['production_claim_allowed'] is False
 
 
 def test_open_lattice_refinement_order_is_only_a_numerical_diagnostic() -> None:
@@ -88,6 +104,9 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   strong_subsonic_boundary = report['geometry_cases']['marched_strong_subsonic_boundary']
   mixed_regime_boundary = report['geometry_cases']['mixed_regime_boundary_contract']
   post_shock_zone_planner = report['geometry_cases']['post_shock_zone_chain_planner']
+  ambient_pressure_field_coupled_chain_planner = report['geometry_cases'][
+    'ambient_pressure_field_coupled_chain_planner'
+  ]
   source_strip_chain_planner = report['geometry_cases'][
     'solver_generated_source_strip_chain_planner'
   ]
@@ -155,6 +174,10 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert source_strip_chain_planner['planner']['diagnostics']['source_strip_reuse_policy'] == (
     'never-reuse-after-one-next-cell-attempt'
   )
+  _assert_chain_planner_measurement(
+    source_strip_chain_planner['planner_measurement'],
+    physical_termination=False,
+  )
   assert source_strip_chain_sequence_planner['accepted'] is True
   assert source_strip_chain_sequence_planner['planner']['planner_kind'] == (
     'upstream-coupled-research'
@@ -171,6 +194,10 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert source_strip_chain_sequence_planner['planner']['diagnostics']['source_domain_attempt_count'] == 1
   assert source_strip_chain_sequence_planner['planner']['diagnostics']['source_strip_reuse_policy'] == (
     'fresh-bounded-source-strip-required-per-cell'
+  )
+  _assert_chain_planner_measurement(
+    source_strip_chain_sequence_planner['planner_measurement'],
+    physical_termination=False,
   )
   assert all(
     step['incoming_handoff_link_verified'] is True
@@ -205,6 +232,10 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert terminal_planner['planner_steps'][0]['result_physical_termination'] is True
   assert generated_chain_terminal['expected_physical_termination'] is True
   assert generated_chain_terminal['diagnostics']['termination_model'] == 'normal-shock-terminal'
+  _assert_chain_planner_measurement(
+    generated_chain_terminal['planner_measurement'],
+    physical_termination=True,
+  )
   generated_chain_measurement = generated_chain['chain_measurement_operator']
   assert generated_chain_measurement['status'] == 'converged'
   assert generated_chain_measurement['cell_count'] == 3
@@ -277,6 +308,15 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert zone_planner['steps'][0]['result_kind'] == 'termination-returned'
   assert zone_planner['steps'][0]['result_status'] == 'physical-termination'
   assert zone_planner['steps'][0]['result_physical_termination'] is True
+  _assert_chain_planner_measurement(
+    post_shock_zone_planner['planner_measurement'],
+    physical_termination=True,
+  )
+  assert ambient_pressure_field_coupled_chain_planner['accepted'] is True
+  _assert_chain_planner_measurement(
+    ambient_pressure_field_coupled_chain_planner['planner_measurement'],
+    physical_termination=False,
+  )
   assert reflected_chain_boundary['accepted'] is True
   assert reflected_chain_boundary['physical_termination'] is False
   assert reflected_chain_boundary['status'] == 'solver-terminated'
@@ -327,6 +367,10 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert candidate_planner['chain']['diagnostics'][
     'bridge_first_missing_point_m'
   ] == candidate_shock['coupling']['first_missing_point_m']
+  _assert_chain_planner_measurement(
+    caustic_upstream_bridge['candidate_planner_measurement'],
+    physical_termination=False,
+  )
   assert caustic_upstream_bridge['invariant_shock']['shock']['status'] == (
     'upstream_field_failure'
   )
@@ -341,9 +385,17 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert caustic_upstream_bridge['planner']['chain']['termination_reason'] == (
     'open-physical-closure'
   )
+  _assert_chain_planner_measurement(
+    caustic_upstream_bridge['planner_measurement'],
+    physical_termination=False,
+  )
   assert caustic_upstream_bridge['invariant_planner']['production_claim_allowed'] is False
   assert caustic_upstream_bridge['invariant_planner']['chain']['termination_reason'] == (
     'upstream-field-boundary'
+  )
+  _assert_chain_planner_measurement(
+    caustic_upstream_bridge['invariant_planner_measurement'],
+    physical_termination=False,
   )
   assert caustic_remesh['accepted'] is True
   assert caustic_remesh['status'] == 'diagnostic-coupled-caustic-remesh-execution'
@@ -368,6 +420,10 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert caustic_remesh['planner']['chain']['physical_termination'] is False
   assert caustic_remesh['planner']['chain']['termination_reason'] == (
     'open-physical-closure'
+  )
+  _assert_chain_planner_measurement(
+    caustic_remesh['planner_measurement'],
+    physical_termination=False,
   )
   assert caustic_remesh['bridge_coupled_remesh']['status'] == (
     'caustic_remesh_upstream_field_failure'
@@ -403,6 +459,10 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert caustic_remesh['bridge_coupled_planner']['chain']['diagnostics'][
     'remesh_report'
   ]['upstream_bridge_audit']['status'] == 'caustic_bridge_domain_gap'
+  _assert_chain_planner_measurement(
+    caustic_remesh['bridge_coupled_planner_measurement'],
+    physical_termination=False,
+  )
   assert simple_wave_terminal['status'] == (
     'converged_open_simple_wave_terminal_field'
   )
@@ -443,6 +503,10 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert simple_wave_terminal_planner['chain']['diagnostics'][
     'chain_promotion_blocked'
   ] is True
+  _assert_chain_planner_measurement(
+    caustic_remesh['simple_wave_terminal_planner_measurement'],
+    physical_termination=False,
+  )
   assert strong_subsonic_boundary['status'] == 'subsonic_terminal_required'
   assert strong_subsonic_boundary['subsonic_boundary_verified'] is True
   assert strong_subsonic_boundary['terminal_model_verified'] is False
@@ -783,6 +847,10 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert terminal_patch_chain_probe['planner']['planning_only'] is True
   assert terminal_patch_chain_probe['planner']['production_claim_allowed'] is False
   assert terminal_patch_chain_probe['planner']['step_count'] == 1
+  _assert_chain_planner_measurement(
+    terminal_patch_chain_probe['planner_measurement'],
+    physical_termination=True,
+  )
   first_cell = ambient_strip['first_cell_composite']
   assert first_cell['chain_termination_decision']['physical_termination'] is False
   assert first_cell['chain_termination_decision']['reason'] == 'open-physical-closure'
@@ -1014,6 +1082,22 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert all(case['shock']['status'] == 'subsonic_terminal_required' for case in band_shock['cases'])
   assert all(case['shock']['sample_count'] == 4 for case in band_shock['cases'])
   assert all(case['shock']['physical_closure_verified'] is False for case in band_shock['cases'])
+  band_chain_planner = centerline_reflection_extension[
+    'caustic_family_band_chain_planner'
+  ]
+  assert band_chain_planner['status'] == 'diagnostic-caustic-band-next-shock-planner'
+  assert band_chain_planner['accepted'] is True
+  assert len(band_chain_planner['cases']) == 2
+  assert all(
+    case['accepted'] is True
+    and case['planner_measurement']['physical_termination'] is False
+    for case in band_chain_planner['cases']
+  )
+  for case in band_chain_planner['cases']:
+    _assert_chain_planner_measurement(
+      case['planner_measurement'],
+      physical_termination=False,
+    )
   invariant_chain = centerline_reflection_extension[
     'caustic_family_band_invariant_chain'
   ]
@@ -1039,6 +1123,10 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
     'first_missing_sample_index'
   ] == 4
   assert invariant_chain['planner']['steps'][0]['incoming_handoff_sample_count'] >= 3
+  _assert_chain_planner_measurement(
+    invariant_chain['planner_measurement'],
+    physical_termination=False,
+  )
   band_terminal_field = centerline_reflection_extension[
     'caustic_family_band_terminal_field'
   ]

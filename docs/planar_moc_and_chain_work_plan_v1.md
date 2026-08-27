@@ -1184,6 +1184,14 @@ Only after MOC-1 through MOC-5 pass:
   separately preserves its typed physical-stop result. All remain explicitly
   ``not_accepted`` at the product boundary; the operator does not trust the
   planner's own handoff verdict or promote a chain.
+- The same independent planner audit is now attached to every typed-stop
+  continuation probe in the validation report: ambient-pressure field,
+  source-strip/fresh-domain, bounded post-shock-zone, terminal reflection,
+  caustic remesh/simple-wave, caustic-family-band, invariant, and bridge-fed
+  lanes. Each probe must independently reproduce its returned-to-incoming
+  handoff, typed termination, and fidelity isolation. This broadens the
+  bookkeeping evidence for continued shock-cell chains without turning any
+  numerical or open-closure stop into a physical product claim.
 - The independent shock-cell measurement operators now pass local geometry,
   topology, and supplied shock-loss extraction for the current fixtures, but
   they do not provide external observations, uncertainty, or a provider-bound

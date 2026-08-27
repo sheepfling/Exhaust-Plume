@@ -145,8 +145,9 @@ while the separate `op.moc.chain-planner` operator independently audits the
 continued-cell step sequence, returned-to-incoming fingerprints, typed
 termination, and fidelity isolation without using the planner's own handoff
 verdict as evidence across the prescribed mock, generated reference, and
-field-coupled terminal traces. These operators remain `not_accepted` without
-external observations or a physical free-boundary closure.
+field-coupled terminal traces and the typed-stop continuation probes. These
+operators remain `not_accepted` without external observations or a physical
+free-boundary closure.
 At the detected source-strip caustic, a separate one-sided new-family restart
 now reflects either selected C- anchor to the centerline and advances six
 ambient-pressure/tangent C+ boundary samples with finite residuals, then
