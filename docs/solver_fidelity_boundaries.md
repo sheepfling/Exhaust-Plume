@@ -299,6 +299,11 @@ same lower-domain check. This keeps planner bookkeeping from turning an old
 field into a new cell under a fresh endpoint. Chain reports also expose the
 bookkeeping interval and measured mesh/boundary axial extents for each cell,
 making that freshness evidence visible in serialized planner output.
+The independent `op.moc.chain-planner` measurement applies the same domain
+freshness rule to planner traces and emits `domain_failure` plus
+`domain_freshness_verified=false` when a returned cell reuses or fails to
+advance beyond its shared interface. A passing handoff audit therefore does
+not, by itself, certify that the downstream field was re-solved.
 The separate solver-owned simple-wave terminal lane now makes one explicit
 constant-invariant upstream trace from the exact caustic request, marches a
 shock against a linear downstream turn profile, and retains the valid

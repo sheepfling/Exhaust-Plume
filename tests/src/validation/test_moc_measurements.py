@@ -299,6 +299,7 @@ def test_moc_chain_planner_measurement_recomputes_trace_handoffs() -> None:
   assert result.step_count == 3
   assert result.chain_cells_contiguous
   assert result.chain_topology_verified
+  assert result.domain_freshness_verified
   assert result.step_sequence_verified
   assert result.incoming_handoffs_verified
   assert result.returned_handoffs_verified
@@ -309,6 +310,27 @@ def test_moc_chain_planner_measurement_recomputes_trace_handoffs() -> None:
   assert result.physical_termination is False
   assert result.production_claim_allowed is False
   assert result.as_report()['operator_id'] == 'op.moc.chain-planner'
+  assert result.as_report()['checks']['domain_freshness_verified'] is True
+
+
+def test_moc_chain_planner_measurement_rejects_a_reused_mesh_domain() -> None:
+  planner = _planner_fixture()
+  reused_cell = replace(
+    planner.chain.cells[1],
+    mesh=planner.chain.cells[0].mesh,
+  )
+  tampered_chain = replace(
+    planner.chain,
+    cells=(planner.chain.cells[0], reused_cell, planner.chain.cells[2]),
+  )
+  tampered = replace(planner, chain=tampered_chain)
+
+  result = measure_moc_chain_planner(tampered)
+
+  assert result.status is MocChainPlannerMeasurementStatus.DOMAIN_FAILURE
+  assert result.domain_freshness_verified is False
+  assert result.converged is False
+  assert 'reuses an upstream domain' in result.message
 
 
 def test_moc_chain_planner_measurement_rejects_tampered_handoff_metadata() -> None:

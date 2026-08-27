@@ -1281,6 +1281,12 @@ Only after MOC-1 through MOC-5 pass:
   handoff, typed termination, and fidelity isolation. This broadens the
   bookkeeping evidence for continued shock-cell chains without turning any
   numerical or open-closure stop into a physical product claim.
+- The independent planner audit now also checks each continued cell's axial
+  domain freshness against the shared interface. It reports a typed
+  ``domain_failure`` for a reused or non-advancing mesh, non-contiguous cell
+  interval, or upstream-reused carried boundary, and serializes
+  ``domain_freshness_verified`` with the other planner checks. This keeps a
+  passing handoff trace from being mistaken for a genuinely re-solved cell.
 - The independent shock-cell measurement operators now pass local geometry,
   topology, and supplied shock-loss extraction for the current fixtures, but
   they do not provide external observations, uncertainty, or a provider-bound

@@ -1183,6 +1183,7 @@ class MocChainPlannerMeasurementStatus(str, Enum):
   INVALID_INPUT = 'invalid_input'
   STEP_FAILURE = 'step_failure'
   HANDOFF_FAILURE = 'handoff_failure'
+  DOMAIN_FAILURE = 'domain_failure'
   TERMINATION_FAILURE = 'termination_failure'
   FIDELITY_FAILURE = 'fidelity_failure'
   TOPOLOGY_FAILURE = 'topology_failure'
@@ -1209,6 +1210,7 @@ class MocChainPlannerMeasurement:
   chain_cell_count: int
   chain_cells_contiguous: bool
   chain_topology_verified: bool
+  domain_freshness_verified: bool
   step_sequence_verified: bool
   incoming_handoffs_verified: bool
   returned_handoffs_verified: bool
@@ -1244,6 +1246,7 @@ class MocChainPlannerMeasurement:
       'checks': {
         'chain_cells_contiguous': self.chain_cells_contiguous,
         'chain_topology_verified': self.chain_topology_verified,
+        'domain_freshness_verified': self.domain_freshness_verified,
         'step_sequence_verified': self.step_sequence_verified,
         'incoming_handoffs_verified': self.incoming_handoffs_verified,
         'returned_handoffs_verified': self.returned_handoffs_verified,
@@ -1270,6 +1273,7 @@ def _planner_measurement_failure(
   chain_cell_count: int = 0,
   chain_cells_contiguous: bool = False,
   chain_topology_verified: bool = False,
+  domain_freshness_verified: bool = False,
   step_sequence_verified: bool = False,
   incoming_handoffs_verified: bool = False,
   returned_handoffs_verified: bool = False,
@@ -1290,6 +1294,7 @@ def _planner_measurement_failure(
     chain_cell_count=chain_cell_count,
     chain_cells_contiguous=chain_cells_contiguous,
     chain_topology_verified=chain_topology_verified,
+    domain_freshness_verified=domain_freshness_verified,
     step_sequence_verified=step_sequence_verified,
     incoming_handoffs_verified=incoming_handoffs_verified,
     returned_handoffs_verified=returned_handoffs_verified,
@@ -1433,6 +1438,58 @@ def measure_moc_chain_planner(
       **common,
     )
 
+  domain_freshness_verified = True
+  for index, (current, next_cell) in enumerate(
+        zip(cells[:-1], cells[1:], strict=True)
+  ):
+    if abs(next_cell.start_x_m - current.end_x_m) > position_tolerance_m:
+      domain_freshness_verified = False
+      domain_message = (
+        f'planner cell boundary {index + 1}->{index + 2} is not axially '
+        'contiguous'
+      )
+      break
+    mesh_extent = next_cell.mesh_x_extent_m
+    if mesh_extent is None:
+      domain_freshness_verified = False
+      domain_message = f'planner cell {index + 2} does not expose finite mesh x extent'
+      break
+    if mesh_extent[0] < current.end_x_m - position_tolerance_m:
+      domain_freshness_verified = False
+      domain_message = (
+        f'planner cell {index + 2} mesh reuses an upstream domain: '
+        f'minimum_x={mesh_extent[0]}, current_end_x={current.end_x_m}'
+      )
+      break
+    if mesh_extent[1] <= current.end_x_m + position_tolerance_m:
+      domain_freshness_verified = False
+      domain_message = (
+        f'planner cell {index + 2} mesh has no downstream progress: '
+        f'maximum_x={mesh_extent[1]}, current_end_x={current.end_x_m}'
+      )
+      break
+    boundary_extent = next_cell.continuation_boundary_x_extent_m
+    if boundary_extent is not None and (
+      boundary_extent[0] < current.end_x_m - position_tolerance_m
+    ):
+      domain_freshness_verified = False
+      domain_message = (
+        f'planner cell {index + 2} carried boundary reuses an upstream '
+        f'domain: minimum_x={boundary_extent[0]}, '
+        f'current_end_x={current.end_x_m}'
+      )
+      break
+  if not domain_freshness_verified:
+    return _planner_measurement_failure(
+      MocChainPlannerMeasurementStatus.DOMAIN_FAILURE,
+      domain_message,
+      chain_cells_contiguous=True,
+      chain_topology_verified=True,
+      domain_freshness_verified=False,
+      fidelity_isolation_verified=True,
+      **common,
+    )
+
   expected_current_indices = tuple(range(1, chain_cell_count + 1))
   expected_next_indices = tuple(range(2, chain_cell_count + 2))
   step_sequence_verified = (
@@ -1445,6 +1502,7 @@ def measure_moc_chain_planner(
       'planner steps must visit every carried cell and attempt the next index in order',
       chain_cells_contiguous=True,
       chain_topology_verified=True,
+      domain_freshness_verified=True,
       step_sequence_verified=False,
       fidelity_isolation_verified=True,
       **common,
@@ -1477,6 +1535,7 @@ def measure_moc_chain_planner(
         f'planner step {index + 1} does not reproduce its current-cell handoff',
         chain_cells_contiguous=True,
         chain_topology_verified=True,
+        domain_freshness_verified=True,
         step_sequence_verified=True,
         incoming_handoffs_verified=False,
         returned_handoffs_verified=returned_handoffs_verified,
@@ -1498,6 +1557,7 @@ def measure_moc_chain_planner(
         f'planner handoff link {index} is not an exact returned-to-incoming match',
         chain_cells_contiguous=True,
         chain_topology_verified=True,
+        domain_freshness_verified=True,
         step_sequence_verified=True,
         incoming_handoffs_verified=False,
         returned_handoffs_verified=returned_handoffs_verified,
@@ -1517,6 +1577,7 @@ def measure_moc_chain_planner(
           f'planner step {index + 1} returned a cell outside the chain result',
           chain_cells_contiguous=True,
           chain_topology_verified=True,
+          domain_freshness_verified=True,
           step_sequence_verified=True,
           incoming_handoffs_verified=True,
           returned_handoffs_verified=False,
@@ -1551,6 +1612,7 @@ def measure_moc_chain_planner(
           f'planner step {index + 1} does not reproduce its returned-cell handoff',
           chain_cells_contiguous=True,
           chain_topology_verified=True,
+          domain_freshness_verified=True,
           step_sequence_verified=True,
           incoming_handoffs_verified=True,
           returned_handoffs_verified=False,
@@ -1575,6 +1637,7 @@ def measure_moc_chain_planner(
           f'planner step {index + 1} attaches a cell handoff to a termination',
           chain_cells_contiguous=True,
           chain_topology_verified=True,
+          domain_freshness_verified=True,
           step_sequence_verified=True,
           incoming_handoffs_verified=True,
           returned_handoffs_verified=returned_handoffs_verified,
@@ -1589,6 +1652,7 @@ def measure_moc_chain_planner(
       f'planner step {index + 1} has unsupported result kind {step.result_kind!r}',
       chain_cells_contiguous=True,
       chain_topology_verified=True,
+      domain_freshness_verified=True,
       step_sequence_verified=True,
       incoming_handoffs_verified=True,
       returned_handoffs_verified=False,
@@ -1614,6 +1678,7 @@ def measure_moc_chain_planner(
       'planner final step does not match the chain termination decision',
       chain_cells_contiguous=True,
       chain_topology_verified=True,
+      domain_freshness_verified=True,
       step_sequence_verified=True,
       incoming_handoffs_verified=True,
       returned_handoffs_verified=returned_handoffs_verified,
@@ -1635,6 +1700,7 @@ def measure_moc_chain_planner(
     chain_cell_count=chain_cell_count,
     chain_cells_contiguous=True,
     chain_topology_verified=True,
+    domain_freshness_verified=True,
     step_sequence_verified=True,
     incoming_handoffs_verified=True,
     returned_handoffs_verified=returned_handoffs_verified,
