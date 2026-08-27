@@ -65,6 +65,13 @@ not wait on this research closure.
   and caustic/remesh handoff even when the full triangular strip fails; the
   retained prefix remains an open research field and is never relabeled as a
   completed upstream solve.
+- Added the solver-owned source-strip-to-chain adapter and planner. A
+  converged source strip can feed one bounded next-shock attempt with the
+  exact prior post-shock perimeter recorded; a reflected continuation that
+  reaches the canonical caustic returns a typed non-physical
+  ``CHARACTERISTIC_CAUSTIC`` stop before shock fitting, while a finite strip
+  boundary returns ``UPSTREAM_FIELD_BOUNDARY``. The source strip is never
+  reused for a later cell and the planner remains research-only.
 - Added explicit source-window metadata and a terminal-window continuation
   result. When the full triangular continuation reaches a characteristic
   caustic, a converged terminal patch can be consumed without hiding the

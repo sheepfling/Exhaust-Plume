@@ -61,6 +61,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   plan_field_coupled_post_shock_chain_reference,
   plan_post_shock_field_invariant_chain,
   plan_post_shock_zone_chain,
+  plan_source_strip_shock_chain,
   plan_terminal_reflection_patch_chain,
   MocShockBoundaryFitResult,
   MocShockBoundaryFitStatus,
@@ -1932,6 +1933,65 @@ def _ambient_pressure_field_coupled_chain_planner(
       'ambient-pressure-field-coupled-chain-handoff; '
       'canonical-upstream-domain-extension-pending'
     ),
+  }
+
+
+def _source_strip_chain_planner_probe(
+  source_continuation: Any,
+  seed_field: MocPostShockCharacteristicFieldResult | None,
+  start_point_m: tuple[float, float],
+) -> dict[str, Any]:
+  """Audit the source-strip-to-chain seam at the canonical caustic boundary."""
+
+  if (
+    seed_field is None
+    or not seed_field.converged
+    or not seed_field.upstream_shock_coupling_verified
+  ):
+    return {
+      'status': 'invalid_seed',
+      'accepted': False,
+      'planner': None,
+      'claim_status': 'source-strip-shock-chain-pending',
+      'message': 'source-strip planner did not receive a coupled closed seed field',
+    }
+  planner = plan_source_strip_shock_chain(
+    seed_field,
+    source_continuation,
+    start_point_m=start_point_m,
+    start_x_m=0.5,
+    end_x_m=0.9,
+    downstream_flow_angle_rad=0.05,
+    sample_count=9,
+  )
+  report = planner.as_report()
+  chain = report['chain']
+  steps = report['steps']
+  accepted = (
+    report['planner_kind'] == MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH.value
+    and report['planning_only'] is True
+    and report['production_claim_allowed'] is False
+    and report['step_count'] == 1
+    and chain['status'] == MocChainStatus.SOLVER_TERMINATED.value
+    and chain['termination_reason'] == MocChainTerminationReason.CHARACTERISTIC_CAUSTIC.value
+    and chain['physical_termination'] is False
+    and chain['cell_count'] == 1
+    and len(steps) == 1
+    and steps[0]['boundary_kind'] == MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER.value
+    and steps[0]['result_kind'] == 'termination-returned'
+    and steps[0]['result_termination_reason'] == MocChainTerminationReason.CHARACTERISTIC_CAUSTIC.value
+    and report['diagnostics']['source_strip_chain_model'] == 'bounded-source-strip-one-step'
+    and report['diagnostics']['one_step_domain'] is True
+    and report['diagnostics']['source_strip_reuse_policy'] == (
+      'never-reuse-after-one-next-cell-attempt'
+    )
+  )
+  return {
+    'status': chain['status'],
+    'accepted': accepted,
+    'planner': report,
+    'claim_status': planner.claim_status,
+    'message': chain['message'],
   }
 
 
@@ -4057,6 +4117,15 @@ def build_moc_primitive_report() -> dict[str, Any]:
   )
   shock_seeded_refinement_probe = _shock_seeded_field_refinement_probe()
   solver_generated_shock = _solver_generated_shock_fixture()
+  source_strip_chain_planner = _source_strip_chain_planner_probe(
+    reflected_centerline_reflection_extension,
+    solver_generated_shock.field,
+    (
+      reflected_boundary.boundary_points_m[-1]
+      if reflected_boundary.boundary_points_m
+      else (0.0, 0.0)
+    ),
+  )
   caustic_family_band_chain_planner = _caustic_family_band_chain_planner_probe(
     caustic_shock_seed,
     fan_exit.total_pressure_Pa,
@@ -4331,6 +4400,9 @@ def build_moc_primitive_report() -> dict[str, Any]:
   ambient_pressure_field_coupled_chain_failure = (
     ambient_pressure_field_coupled_chain_planner is None
     or ambient_pressure_field_coupled_chain_planner.get('accepted') is not True
+  )
+  source_strip_chain_planner_failure = (
+    source_strip_chain_planner.get('accepted') is not True
   )
   mixed_regime_boundary_failure = (
     mixed_regime_boundary_probe.get('accepted') is not True
@@ -4910,6 +4982,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'claim_status': 'open-zone-rejection-exercised; canonical-full-field-pending',
     },
     'post_shock_zone_chain_planner': post_shock_zone_chain_planner,
+    'solver_generated_source_strip_chain_planner': source_strip_chain_planner,
     'solver_generated_attached_shock_field': {
       'status': solver_generated_shock.status.value,
       'accepted': solver_generated_shock.converged,
@@ -5816,6 +5889,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
         ),
       }
     ] if ambient_pressure_field_coupled_chain_failure else []),
+    *([
+      {
+        'case': 'solver_generated_source_strip_chain_planner',
+        'status': str(source_strip_chain_planner.get('status', 'missing')),
+        'message': str(source_strip_chain_planner.get('message', '')),
+      }
+    ] if source_strip_chain_planner_failure else []),
     *([
       {
         'case': 'shock_cell_chain_planner_mock',

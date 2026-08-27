@@ -8,6 +8,7 @@ from exhaust_plume.models.moc import (
   CharacteristicState,
   MocAmbientAttachmentStatus,
   MocAmbientClosureStatus,
+  MocChainPlannerKind,
   MocChainStatus,
   MocChainTerminationDecision,
   MocChainTerminationReason,
@@ -28,6 +29,8 @@ from exhaust_plume.models.moc import (
   solve_marched_attached_shock_chain_cell_from_reflected_zone_or_termination,
   solve_marched_attached_shock_chain_cell_from_post_shock_field,
   solve_marched_attached_shock_chain_cell_from_post_shock_field_or_termination,
+  solve_marched_attached_shock_chain_cell_from_source_strip,
+  solve_marched_attached_shock_chain_cell_from_source_strip_or_termination,
   solve_marched_attached_shock_chain_cell_from_post_shock_field_with_invariant_boundary_or_termination,
   solve_marched_attached_shock_chain_cell_with_ambient_pressure_closure,
   solve_marched_attached_shock_chain_cell_with_ambient_pressure_closure_or_termination,
@@ -46,9 +49,11 @@ from exhaust_plume.models.moc import (
   plan_field_coupled_post_shock_chain_reference,
   plan_post_shock_field_invariant_chain,
   plan_post_shock_field_chain,
+  plan_source_strip_shock_chain,
   solve_reflected_free_boundary,
   assemble_source_characteristic_strip,
   extend_source_characteristic_strip_constant_k_plus,
+  extend_source_characteristic_strip_centerline_reflection,
   solve_marched_attached_shock_with_constant_invariant_closure,
   solve_attached_compression_to_turn,
   prandtl_meyer_angle_rad,
@@ -1007,6 +1012,140 @@ def test_source_strip_march_stops_at_the_first_missing_upstream_sample() -> None
   assert result.status is MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE
   assert result.sample_count == 1
   assert result.endpoint_m == pytest.approx(reflected_boundary.boundary_points_m[-1])
+
+
+def test_source_strip_chain_adapter_preserves_bounded_upstream_stop() -> None:
+  reflected_boundary, _ambient = _reflected_boundary_reference()
+  strip = assemble_source_characteristic_strip(
+    reflected_boundary.centerline_states,
+    reflected_boundary.boundary_states,
+    2.0e6,
+  )
+  seed_result = _uniform_reference(17)
+  assert seed_result.field is not None
+  current = seed_result.field.as_coupled_chain_cell(
+    start_x_m=0.5,
+    end_x_m=0.6,
+  )
+
+  decision = solve_marched_attached_shock_chain_cell_from_source_strip_or_termination(
+    current,
+    2,
+    current.continuation_boundary,
+    strip,
+    start_point_m=reflected_boundary.boundary_points_m[-1],
+    end_x_m=0.9,
+    downstream_flow_angle_rad=0.05,
+    sample_count=9,
+  )
+
+  assert decision.physical_termination is False
+  assert decision.reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+  assert decision.diagnostics['termination_model'] == (
+    'bounded-source-characteristic-strip-boundary'
+  )
+  assert decision.diagnostics['upstream_field_model'] == (
+    'bounded-source-characteristic-strip'
+  )
+  assert decision.diagnostics['sampled_count'] == 1
+  assert decision.diagnostics['first_missing_sample_index'] == 1
+  assert decision.diagnostics['last_valid_point_m'] == pytest.approx(
+    reflected_boundary.boundary_points_m[-1]
+  )
+
+  with pytest.raises(ValueError, match='left the bounded upstream characteristic strip'):
+    solve_marched_attached_shock_chain_cell_from_source_strip(
+      current,
+      2,
+      current.continuation_boundary,
+      strip,
+      start_point_m=reflected_boundary.boundary_points_m[-1],
+      end_x_m=0.9,
+      downstream_flow_angle_rad=0.05,
+      sample_count=9,
+    )
+
+
+def test_source_strip_chain_planner_records_caustic_before_shock_attempt() -> None:
+  reflected_boundary, ambient = _reflected_boundary_reference()
+  continuation = extend_source_characteristic_strip_centerline_reflection(
+    reflected_boundary.centerline_states,
+    reflected_boundary.boundary_states,
+    2.0e6,
+    ambient.pressure_Pa,
+    additional_sample_count=1,
+  )
+  assert continuation.remesh is not None
+  assert continuation.remesh.chain_termination_available
+
+  seed_result = _uniform_reference(17)
+  assert seed_result.field is not None
+  planner = plan_source_strip_shock_chain(
+    seed_result.field,
+    continuation,
+    start_point_m=reflected_boundary.boundary_points_m[-1],
+    start_x_m=0.5,
+    end_x_m=0.6,
+    downstream_flow_angle_rad=0.05,
+    sample_count=9,
+  )
+
+  assert planner.planner_kind is MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
+  assert planner.production_claim_allowed is False
+  assert planner.chain.status is MocChainStatus.SOLVER_TERMINATED
+  assert planner.chain.termination_reason is MocChainTerminationReason.CHARACTERISTIC_CAUSTIC
+  assert planner.chain.physical_termination is False
+  assert planner.chain.cell_count == 1
+  assert len(planner.steps) == 1
+  assert planner.steps[0].result_kind == 'termination-returned'
+  assert planner.steps[0].result_termination_reason is MocChainTerminationReason.CHARACTERISTIC_CAUSTIC
+  assert planner.diagnostics['source_strip_chain_model'] == (
+    'bounded-source-strip-one-step'
+  )
+  assert planner.diagnostics['one_step_domain'] is True
+  assert planner.diagnostics['source_strip_reuse_policy'] == (
+    'never-reuse-after-one-next-cell-attempt'
+  )
+
+
+def test_source_strip_chain_planner_uses_a_converged_strip_once() -> None:
+  reflected_boundary, ambient = _reflected_boundary_reference()
+  continuation = extend_source_characteristic_strip_constant_k_plus(
+    reflected_boundary.centerline_states,
+    reflected_boundary.boundary_states,
+    2.0e6,
+    ambient.pressure_Pa,
+    additional_sample_count=12,
+    axis_step_m=0.03,
+  )
+  assert continuation.converged
+  assert continuation.strip is not None and continuation.strip.converged
+
+  seed_result = _uniform_reference(17)
+  assert seed_result.field is not None
+  planner = plan_source_strip_shock_chain(
+    seed_result.field,
+    continuation,
+    start_point_m=reflected_boundary.boundary_points_m[-1],
+    start_x_m=0.5,
+    end_x_m=0.6,
+    downstream_flow_angle_at=lambda _index, point: 0.05 * max(
+      0.0,
+      min(1.0, point[1] / reflected_boundary.boundary_points_m[-1][1]),
+    ),
+    sample_count=17,
+  )
+
+  assert planner.chain.status is MocChainStatus.SOLVER_TERMINATED
+  assert planner.chain.termination_reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+  assert planner.chain.physical_termination is False
+  assert planner.chain.cell_count == 1
+  assert len(planner.steps) == 1
+  assert planner.steps[0].result_termination_reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+  assert planner.diagnostics['source_strip_continuation']['status'] == (
+    'converged_constant_k_plus_extension'
+  )
+  assert planner.diagnostics['one_step_domain'] is True
 
 
 def test_invariant_boundary_march_solves_local_turns_before_field_assembly() -> None:

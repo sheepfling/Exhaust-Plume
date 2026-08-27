@@ -67,6 +67,7 @@ from exhaust_plume.models.moc.mixed_regime import (
   solve_mixed_regime_downstream_perimeter,
 )
 from exhaust_plume.models.moc.primitives import CharacteristicFamily, CharacteristicState
+from exhaust_plume.models.moc.source_strip import MocSourceStripContinuationResult
 from exhaust_plume.models.moc.terminal_patch import MocTerminalReflectionPatchResult
 from exhaust_plume.models.moc.terminal_patch_solver import (
   solve_marched_attached_shock_chain_cell_from_terminal_reflection_patch_or_termination,
@@ -81,6 +82,7 @@ from exhaust_plume.models.moc.free_boundary import (
   solve_marched_attached_shock_chain_cell_from_post_shock_field_or_termination,
   solve_marched_attached_shock_chain_cell_from_post_shock_field_with_invariant_boundary_or_termination,
   solve_marched_attached_shock_chain_cell_from_post_shock_zone_or_termination,
+  solve_marched_attached_shock_chain_cell_from_source_strip_or_termination,
 )
 from exhaust_plume.models.moc.family_band_solver import (
   MocCausticFamilyBandEnvelopeStatus,
@@ -102,6 +104,7 @@ __all__ = (
   'plan_moc_chain',
   'plan_post_shock_characteristic_chain',
   'plan_post_shock_field_chain',
+  'plan_source_strip_shock_chain',
   'plan_post_shock_field_invariant_chain',
   'plan_prescribed_post_shock_chain_mock',
   'plan_solver_generated_post_shock_chain_reference',
@@ -3263,6 +3266,151 @@ def plan_post_shock_field_chain(
       'production-shock-boundary-and-external-validation-pending'
     ),
   )
+####
+
+
+def plan_source_strip_shock_chain(
+  seed: MocPostShockCharacteristicFieldResult,
+  source_continuation: MocSourceStripContinuationResult,
+  *,
+  start_point_m: tuple[float, float],
+  start_x_m: float,
+  end_x_m: float,
+  target_centerline_y_m: float = 0.0,
+  downstream_flow_angle_at: Callable[[int, tuple[float, float]], float] | None = None,
+  downstream_flow_angle_rad: float | None = None,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  policy: MocChainContinuationPolicy | None = None,
+) -> MocChainPlannerResult:
+  """Plan one shock-cell step from a bounded source-strip continuation.
+
+  A source strip supplies upstream state and pressure samples for one new
+  shock attempt.  It is not reused as though it were a downstream chain
+  field: a successful first attempt may produce one new field, after which
+  the planner returns an explicit non-physical one-step-domain stop.  A
+  source-strip caustic is preserved as a typed characteristic stop before
+  the shock solver is called.
+  """
+
+  if not isinstance(seed, MocPostShockCharacteristicFieldResult):
+    raise TypeError('seed must be a MocPostShockCharacteristicFieldResult')
+  if not isinstance(source_continuation, MocSourceStripContinuationResult):
+    raise TypeError(
+      'source_continuation must be a MocSourceStripContinuationResult'
+    )
+  if (downstream_flow_angle_at is None) == (downstream_flow_angle_rad is None):
+    raise ValueError('supply exactly one downstream flow-angle provider')
+  if not isfinite(float(start_x_m)) or not isfinite(float(end_x_m)):
+    raise ValueError('start_x_m and end_x_m must be finite')
+  if end_x_m <= start_x_m:
+    raise ValueError('end_x_m must be strictly downstream of start_x_m')
+  cell_axial_length_m = float(end_x_m) - float(start_x_m)
+
+  source_strip = source_continuation.strip
+  if source_continuation.converged and source_strip is not None and source_strip.converged:
+    initial_decision: MocChainTerminationDecision | None = None
+  elif (
+    source_continuation.remesh is not None
+    and source_continuation.remesh.chain_termination_available
+  ):
+    source_strip = None
+    initial_decision = source_continuation.remesh.as_chain_termination_decision()
+  else:
+    source_strip = None
+    initial_decision = MocChainTerminationDecision(
+      physical_termination=False,
+      reason=MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
+      message=(
+        'source-strip continuation did not provide a converged bounded '
+        'upstream field for a next shock-cell attempt'
+      ),
+      diagnostics={
+        'termination_model': 'source-strip-continuation-boundary',
+        'upstream_field_model': 'bounded-source-characteristic-strip-continuation',
+        'source_continuation_status': source_continuation.status.value,
+        'source_continuation_message': source_continuation.message,
+        'last_converged_strip': (
+          None
+          if source_continuation.last_converged_strip is None
+          else source_continuation.last_converged_strip.as_report()
+        ),
+      },
+    )
+
+  attempted = False
+
+  def solve_next(
+    current: MocChainCell,
+    next_cell_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+  ) -> MocPostShockChainCellSolve | MocChainTerminationDecision:
+    nonlocal attempted
+    if attempted:
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
+        message=(
+          'source-strip shock planner completed its one-step upstream '
+          'domain; a later cell requires a newly solved bounded upstream field'
+        ),
+        diagnostics={
+          'termination_model': 'bounded-source-strip-one-step-domain',
+          'upstream_field_model': 'bounded-source-characteristic-strip',
+          'source_strip_reuse_policy': 'never-reuse-after-one-next-cell-attempt',
+          'next_cell_index': next_cell_index,
+        },
+      )
+    attempted = True
+    if initial_decision is not None:
+      return initial_decision
+    assert source_strip is not None
+    solved = solve_marched_attached_shock_chain_cell_from_source_strip_or_termination(
+      current,
+      next_cell_index,
+      incoming_handoff,
+      source_strip,
+      start_point_m=start_point_m,
+      end_x_m=current.end_x_m + cell_axial_length_m,
+      target_centerline_y_m=target_centerline_y_m,
+      downstream_flow_angle_at=downstream_flow_angle_at,
+      downstream_flow_angle_rad=downstream_flow_angle_rad,
+      sample_count=sample_count,
+      branch=branch,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+      shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+      maximum_segment_iterations=maximum_segment_iterations,
+    )
+    if isinstance(solved, MocChainTerminationDecision):
+      return solved
+    return solved
+
+  planner = plan_post_shock_characteristic_chain(
+    seed,
+    solve_next,
+    start_x_m=start_x_m,
+    end_x_m=end_x_m,
+    policy=policy,
+    require_upstream_shock_coupling=True,
+    planner_kind=MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH,
+    claim_status=(
+      'solver-generated-source-strip-shock-chain-planner; '
+      'one-step-domain; caustic-or-downstream-closure-pending'
+    ),
+  )
+  diagnostics = dict(planner.diagnostics)
+  diagnostics.update({
+    'source_strip_continuation': source_continuation.as_report(),
+    'source_strip_chain_model': 'bounded-source-strip-one-step',
+    'one_step_domain': True,
+    'source_strip_reuse_policy': 'never-reuse-after-one-next-cell-attempt',
+  })
+  return replace(planner, diagnostics=diagnostics)
 ####
 
 
