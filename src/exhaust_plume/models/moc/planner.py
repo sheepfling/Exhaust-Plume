@@ -46,6 +46,14 @@ from exhaust_plume.models.moc.post_shock import (
   continue_post_shock_characteristic_chain,
   fit_attached_shock_boundary,
 )
+from exhaust_plume.models.moc.mixed_regime import (
+  MocMixedRegimeClosureResult,
+  MocMixedRegimeDownstreamConditionKind,
+  MocMixedRegimeDownstreamPerimeterSpec,
+  MocMixedRegimeFieldSample,
+  MocMixedRegimePerimeterRequest,
+  solve_mixed_regime_downstream_perimeter,
+)
 from exhaust_plume.models.moc.primitives import CharacteristicFamily, CharacteristicState
 from exhaust_plume.models.moc.terminal_patch import MocTerminalReflectionPatchResult
 from exhaust_plume.models.moc.terminal_patch_solver import (
@@ -74,6 +82,7 @@ __all__ = (
   'MocChainPlannerKind',
   'MocChainPlannerStep',
   'MocChainPlannerResult',
+  'MocPrescribedMixedRegimeClosureMock',
   'MocPrescribedPostShockChainMock',
   'MocSolverGeneratedPostShockChainReference',
   'MocFieldCoupledPostShockChainReference',
@@ -489,6 +498,169 @@ class MocChainPlannerResult:
       'chain': self.chain.as_report(),
       'diagnostics': dict(self.diagnostics),
     }
+  ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocPrescribedMixedRegimeClosureMock:
+  """Explicit synthetic terminal closure fixture for planner validation.
+
+  The fixture supplies a small rectangular perimeter and a constant scalar
+  subsonic state, then routes both through the real mixed-regime perimeter
+  adapter.  It exists to exercise the exact terminal seam and typed closure
+  result while the canonical downstream perimeter is still unsolved.  The
+  pressure-outflow condition is intentionally the only supported condition:
+  this mock must not be mistaken for a free-boundary or slip-wall solver.
+  """
+
+  streamwise_length_m: float = 0.02
+  transverse_length_m: float = 0.01
+  radial_divisions: int = 2
+  condition_kind: MocMixedRegimeDownstreamConditionKind = (
+    MocMixedRegimeDownstreamConditionKind.PRESSURE_OUTFLOW_SECTION
+  )
+  model: str = 'prescribed-pressure-outflow-mixed-regime-closure-mock'
+
+  def __post_init__(self) -> None:
+    for name, value in (
+      ('streamwise_length_m', self.streamwise_length_m),
+      ('transverse_length_m', self.transverse_length_m),
+    ):
+      if not isfinite(float(value)) or float(value) <= 0.0:
+        raise ValueError(f'{name} must be finite and positive')
+    if (
+      isinstance(self.radial_divisions, bool)
+      or not isinstance(self.radial_divisions, int)
+      or self.radial_divisions < 1
+    ):
+      raise ValueError('radial_divisions must be a positive integer')
+    if not isinstance(
+      self.condition_kind,
+      MocMixedRegimeDownstreamConditionKind,
+    ):
+      raise TypeError(
+        'condition_kind must be a MocMixedRegimeDownstreamConditionKind'
+      )
+    if self.condition_kind is not MocMixedRegimeDownstreamConditionKind.PRESSURE_OUTFLOW_SECTION:
+      raise ValueError(
+        'MocPrescribedMixedRegimeClosureMock only supports the '
+        'PRESSURE_OUTFLOW_SECTION condition'
+      )
+    model = str(self.model)
+    if not model:
+      raise ValueError('model must be a non-empty string')
+    object.__setattr__(self, 'streamwise_length_m', float(self.streamwise_length_m))
+    object.__setattr__(self, 'transverse_length_m', float(self.transverse_length_m))
+    object.__setattr__(self, 'model', model)
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    """Whether this synthetic fixture may support a product claim."""
+
+    return False
+
+  def as_report(self) -> dict[str, Any]:
+    """Return the fixture configuration and its hard fidelity ceiling."""
+
+    return {
+      'model': self.model,
+      'planning_only': True,
+      'production_claim_allowed': self.production_claim_allowed,
+      'streamwise_length_m': self.streamwise_length_m,
+      'transverse_length_m': self.transverse_length_m,
+      'radial_divisions': self.radial_divisions,
+      'condition_kind': self.condition_kind.value,
+      'claim_status': (
+        'prescribed-mixed-regime-pressure-outflow-closure-mock; '
+        'canonical-downstream-perimeter-and-free-boundary-solve-pending'
+      ),
+    }
+
+  @staticmethod
+  def _validate_request(request: MocMixedRegimePerimeterRequest) -> None:
+    if not isinstance(request, MocMixedRegimePerimeterRequest):
+      raise TypeError(
+        'request must be a MocMixedRegimePerimeterRequest'
+      )
+
+  def perimeter_points(
+    self,
+    request: MocMixedRegimePerimeterRequest,
+  ) -> tuple[tuple[float, float], ...]:
+    """Return the explicit closed rectangle anchored at the terminal seam."""
+
+    self._validate_request(request)
+    x_m, y_m = request.terminal_point_m
+    return (
+      (x_m, y_m),
+      (x_m + self.streamwise_length_m, y_m),
+      (x_m + self.streamwise_length_m, y_m + self.transverse_length_m),
+      (x_m, y_m + self.transverse_length_m),
+      (x_m, y_m),
+    )
+
+  def specification(
+    self,
+    request: MocMixedRegimePerimeterRequest,
+  ) -> MocMixedRegimeDownstreamPerimeterSpec:
+    """Build the explicit pressure-outflow specification for one request."""
+
+    self._validate_request(request)
+    return MocMixedRegimeDownstreamPerimeterSpec(
+      perimeter_points_m=self.perimeter_points(request),
+      condition_kind=self.condition_kind,
+      ambient_pressure_Pa=request.terminal_downstream_pressure_Pa,
+      model=self.model,
+    )
+
+  def sample_at(
+    self,
+    request: MocMixedRegimePerimeterRequest,
+    index: int,
+    point: tuple[float, float],
+  ) -> MocMixedRegimeFieldSample:
+    """Return the constant scalar state at one exact prescribed point."""
+
+    self._validate_request(request)
+    points = self.perimeter_points(request)
+    if isinstance(index, bool) or not isinstance(index, int) or not 0 <= index < len(points):
+      raise ValueError('sample index is outside the prescribed perimeter')
+    expected_point = points[index]
+    try:
+      received_point = (float(point[0]), float(point[1]))
+    except (IndexError, TypeError, ValueError) as error:
+      raise ValueError('sample point must contain two numeric coordinates') from error
+    if any(
+      abs(received - expected) > 1.0e-10
+      for received, expected in zip(received_point, expected_point, strict=True)
+    ):
+      raise ValueError('sample point does not match the prescribed perimeter')
+    upstream_state = request.terminal.upstream_state
+    if upstream_state is None:
+      raise ValueError('terminal request does not expose its upstream state')
+    return MocMixedRegimeFieldSample(
+      point_m=expected_point,
+      mach=request.terminal_downstream_mach,
+      flow_angle_rad=request.terminal_downstream_flow_angle_rad,
+      static_pressure_Pa=request.terminal_downstream_pressure_Pa,
+      total_pressure_Pa=request.terminal_downstream_total_pressure_Pa,
+      gamma=upstream_state.gamma,
+    )
+
+  def solve(
+    self,
+    request: MocMixedRegimePerimeterRequest,
+  ) -> MocMixedRegimeClosureResult:
+    """Solve the explicit fixture through the real downstream adapter."""
+
+    self._validate_request(request)
+    specification = self.specification(request)
+    return solve_mixed_regime_downstream_perimeter(
+      request,
+      specification,
+      self.sample_at,
+      radial_divisions=self.radial_divisions,
+    )
   ####
 
 

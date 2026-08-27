@@ -13,6 +13,7 @@ from exhaust_plume.models.moc import (
   MocMixedRegimeFieldStatus,
   MocMixedRegimeFieldSample,
   MocMixedRegimePerimeterRequest,
+  MocPrescribedMixedRegimeClosureMock,
   MocPostShockBoundaryState,
   run_mixed_regime_closure_solver,
   solve_normal_shock_terminal,
@@ -403,6 +404,43 @@ def test_explicit_downstream_perimeter_solver_never_repairs_a_changed_sample_poi
   assert not result.converged
   assert result.field is None
   assert 'changed the explicit perimeter coordinate' in result.message
+
+
+def test_prescribed_mixed_regime_closure_mock_is_explicit_reference_only() -> None:
+  terminal = _terminal()
+  assert terminal.shock_point_m is not None
+  assert terminal.downstream_mach is not None
+  assert terminal.downstream_flow_angle_rad is not None
+  assert terminal.downstream_pressure_Pa is not None
+  assert terminal.downstream_total_pressure_Pa is not None
+  assert terminal.total_pressure_ratio is not None
+  request = MocMixedRegimePerimeterRequest(
+    terminal=terminal,
+    terminal_point_m=terminal.shock_point_m,
+    terminal_downstream_mach=terminal.downstream_mach,
+    terminal_downstream_flow_angle_rad=terminal.downstream_flow_angle_rad,
+    terminal_downstream_pressure_Pa=terminal.downstream_pressure_Pa,
+    terminal_downstream_total_pressure_Pa=terminal.downstream_total_pressure_Pa,
+    terminal_total_pressure_ratio=terminal.total_pressure_ratio,
+    supersonic_patch=_supersonic_patch(),
+  )
+
+  mock = MocPrescribedMixedRegimeClosureMock()
+  result = mock.solve(request)
+
+  assert result.status is MocMixedRegimeClosureStatus.CONVERGED
+  assert result.converged
+  assert result.physical_closure_verified
+  assert result.request is request
+  assert result.field is not None
+  assert result.field.radial_divisions == mock.radial_divisions
+  assert result.perimeter_spec is not None
+  assert result.perimeter_spec.model == mock.model
+  assert result.perimeter_spec.condition_kind is mock.condition_kind
+  report = mock.as_report()
+  assert report['planning_only'] is True
+  assert report['production_claim_allowed'] is False
+  assert report['condition_kind'] == 'prescribed-pressure-outflow-section'
 
 
 def test_elliptic_subsonic_reference_field_closes_only_its_declared_mesh_model() -> None:

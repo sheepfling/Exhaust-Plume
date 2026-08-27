@@ -10639,6 +10639,16 @@
         },
         "message": "subsonic perimeter requires at least four scalar samples"
       },
+      "mixed_regime_closure_mock": {
+        "model": "prescribed-pressure-outflow-mixed-regime-closure-mock",
+        "planning_only": true,
+        "production_claim_allowed": false,
+        "streamwise_length_m": 0.02,
+        "transverse_length_m": 0.01,
+        "radial_divisions": 2,
+        "condition_kind": "prescribed-pressure-outflow-section",
+        "claim_status": "prescribed-mixed-regime-pressure-outflow-closure-mock; canonical-downstream-perimeter-and-free-boundary-solve-pending"
+      },
       "scalar_perimeter_contract_fixture": {
         "status": "converged_subsonic_boundary_handoff",
         "converged": true,
@@ -10763,12 +10773,12 @@
           "topology_forms_closed_zone": true,
           "topology_nonmanifold_edge_count": 0,
           "interior_point_m": [
-            1.944941612053076,
+            1.942441612053076,
             0.005
           ],
           "maximum_thermodynamic_residual": 0.0,
           "maximum_harmonic_residual": 7.105427357601002e-15,
-          "maximum_velocity_divergence_residual": 2.3129646346357924e-14,
+          "maximum_velocity_divergence_residual": 3.4694469519536887e-14,
           "minimum_mach": 0.7425533106434077,
           "maximum_mach": 0.7425533106434078,
           "boundary": {
@@ -11253,23 +11263,23 @@
           "message": "subsonic downstream perimeter passed scalar seam and its declared pressure-outflow condition without a tangency claim"
         },
         "perimeter_spec": {
-          "model": "synthetic-terminal-pressure-outflow-perimeter",
+          "model": "prescribed-pressure-outflow-mixed-regime-closure-mock",
           "perimeter_points_m": [
             [
               1.932441612053076,
               0.0
             ],
             [
-              1.942441612053076,
-              0.01
-            ],
-            [
-              1.952441612053076,
-              0.01
-            ],
-            [
               1.952441612053076,
               0.0
+            ],
+            [
+              1.952441612053076,
+              0.01
+            ],
+            [
+              1.932441612053076,
+              0.01
             ],
             [
               1.932441612053076,
@@ -11654,7 +11664,7 @@
         "topology_forms_closed_zone": true,
         "topology_nonmanifold_edge_count": 0,
         "interior_point_m": [
-          1.944941612053076,
+          1.942441612053076,
           0.005
         ],
         "maximum_thermodynamic_residual": 0.0,
@@ -11786,12 +11796,12 @@
           "topology_forms_closed_zone": true,
           "topology_nonmanifold_edge_count": 0,
           "interior_point_m": [
-            1.944941612053076,
+            1.942441612053076,
             0.005
           ],
           "maximum_thermodynamic_residual": 0.0,
           "maximum_harmonic_residual": 7.105427357601002e-15,
-          "maximum_velocity_divergence_residual": 2.3129646346357924e-14,
+          "maximum_velocity_divergence_residual": 3.4694469519536887e-14,
           "minimum_mach": 0.7425533106434077,
           "maximum_mach": 0.7425533106434078,
           "boundary": {
@@ -11917,12 +11927,12 @@
           "topology_forms_closed_zone": true,
           "topology_nonmanifold_edge_count": 0,
           "interior_point_m": [
-            1.944941612053076,
+            1.942441612053076,
             0.005
           ],
           "maximum_thermodynamic_residual": 0.0,
           "maximum_harmonic_residual": 7.105427357601002e-15,
-          "maximum_velocity_divergence_residual": 1.0408340855861065e-13,
+          "maximum_velocity_divergence_residual": 7.806255641895973e-14,
           "minimum_mach": 0.7425533106434075,
           "maximum_mach": 0.7425533106434078,
           "boundary": {
@@ -12048,12 +12058,12 @@
           "topology_forms_closed_zone": true,
           "topology_nonmanifold_edge_count": 0,
           "interior_point_m": [
-            1.944941612053076,
+            1.942441612053076,
             0.005
           ],
           "maximum_thermodynamic_residual": 0.0,
           "maximum_harmonic_residual": 1.0658141036401503e-14,
-          "maximum_velocity_divergence_residual": 1.3877787807815575e-13,
+          "maximum_velocity_divergence_residual": 1.0408340855861063e-13,
           "minimum_mach": 0.7425533106434073,
           "maximum_mach": 0.7425533106434078,
           "boundary": {
@@ -12180,7 +12190,7 @@
         "topology_forms_closed_zone": true,
         "topology_nonmanifold_edge_count": 0,
         "interior_point_m": [
-          1.944941612053076,
+          1.942441612053076,
           0.005
         ],
         "maximum_thermodynamic_residual": 0.0,
@@ -12429,12 +12439,12 @@
           "topology_forms_closed_zone": true,
           "topology_nonmanifold_edge_count": 0,
           "interior_point_m": [
-            1.944941612053076,
+            1.942441612053076,
             0.005
           ],
           "maximum_thermodynamic_residual": 0.0,
           "maximum_harmonic_residual": 7.105427357601002e-15,
-          "maximum_velocity_divergence_residual": 2.3129646346357924e-14,
+          "maximum_velocity_divergence_residual": 3.4694469519536887e-14,
           "minimum_mach": 0.7425533106434077,
           "maximum_mach": 0.7425533106434078,
           "boundary": {
@@ -12677,12 +12687,12 @@
           "topology_forms_closed_zone": true,
           "topology_nonmanifold_edge_count": 0,
           "interior_point_m": [
-            1.944941612053076,
+            1.942441612053076,
             0.005
           ],
           "maximum_thermodynamic_residual": 0.0,
           "maximum_harmonic_residual": 7.105427357601002e-15,
-          "maximum_velocity_divergence_residual": 1.0408340855861065e-13,
+          "maximum_velocity_divergence_residual": 7.806255641895973e-14,
           "minimum_mach": 0.7425533106434075,
           "maximum_mach": 0.7425533106434078,
           "boundary": {
@@ -12925,12 +12935,12 @@
           "topology_forms_closed_zone": true,
           "topology_nonmanifold_edge_count": 0,
           "interior_point_m": [
-            1.944941612053076,
+            1.942441612053076,
             0.005
           ],
           "maximum_thermodynamic_residual": 0.0,
           "maximum_harmonic_residual": 1.0658141036401503e-14,
-          "maximum_velocity_divergence_residual": 1.3877787807815575e-13,
+          "maximum_velocity_divergence_residual": 1.0408340855861063e-13,
           "minimum_mach": 0.7425533106434073,
           "maximum_mach": 0.7425533106434078,
           "boundary": {
@@ -13249,22 +13259,22 @@
           "physical_closure_verified": true,
           "mixed_regime_field_complete": true,
           "chain_promotion_blocked": true,
-          "model": "elliptic-isentropic-subsonic-reference",
-          "radial_divisions": 1,
-          "node_count": 5,
-          "cell_count": 4,
+          "model": "elliptic-isentropic-radial-reference",
+          "radial_divisions": 2,
+          "node_count": 9,
+          "cell_count": 12,
           "topology_status": "open",
           "topology_connected": true,
           "topology_forms_closed_zone": true,
           "topology_nonmanifold_edge_count": 0,
           "interior_point_m": [
-            1.944941612053076,
+            1.942441612053076,
             0.005
           ],
           "maximum_thermodynamic_residual": 0.0,
-          "maximum_harmonic_residual": 0.0,
-          "maximum_velocity_divergence_residual": 0.0,
-          "minimum_mach": 0.7425533106434078,
+          "maximum_harmonic_residual": 7.105427357601002e-15,
+          "maximum_velocity_divergence_residual": 3.4694469519536887e-14,
+          "minimum_mach": 0.7425533106434077,
           "maximum_mach": 0.7425533106434078,
           "boundary": {
             "status": "converged_subsonic_boundary_handoff",
@@ -13487,7 +13497,7 @@
             },
             "message": "subsonic downstream perimeter passed scalar seam and its declared pressure-outflow condition without a tangency claim"
           },
-          "message": "elliptic/isentrope subsonic reference field converged on the supplied closed perimeter; the exact downstream physical condition is attached; this model remains separate from the supersonic MOC lane"
+          "message": "harmonic radial elliptic/isentrope reference field converged on the supplied closed perimeter; this model remains separate from the supersonic MOC lane"
         },
         "request": {
           "status": "mixed-regime-perimeter-required",
@@ -13629,8 +13639,153 @@
           ],
           "message": "the mixed-regime solver must provide the closed downstream perimeter; no geometry was inferred from the open supersonic zone"
         },
-        "downstream_condition": null,
-        "perimeter_spec": null,
+        "downstream_condition": {
+          "status": "converged-downstream-condition",
+          "converged": true,
+          "physical_condition_verified": true,
+          "chain_promotion_blocked": true,
+          "condition_kind": "prescribed-pressure-outflow-section",
+          "tangent_sample_count": 0,
+          "pressure_sample_count": 5,
+          "maximum_tangent_residual_rad": null,
+          "maximum_pressure_residual_Pa": 0.0,
+          "tangency_condition_applicable": false,
+          "tangency_condition_verified": true,
+          "pressure_condition_verified": true,
+          "boundary": {
+            "status": "converged_subsonic_boundary_handoff",
+            "converged": true,
+            "physical_closure_verified": false,
+            "mixed_regime_field_complete": false,
+            "chain_promotion_blocked": true,
+            "supersonic_patch_sample_count": 16,
+            "subsonic_sample_count": 5,
+            "perimeter_sample_count": 5,
+            "supersonic_patch_verified": true,
+            "subsonic_state_samples_verified": true,
+            "terminal_continuity_verified": true,
+            "perimeter_geometry_verified": true,
+            "total_pressure_lineage_verified": true,
+            "maximum_terminal_mach_residual": 0.0,
+            "maximum_terminal_flow_angle_residual_rad": 0.0,
+            "maximum_terminal_static_pressure_residual_Pa": 0.0,
+            "maximum_terminal_total_pressure_residual_Pa": 0.0,
+            "maximum_total_pressure_gain_Pa": 0.0,
+            "supersonic_patch_points_m": [
+              [
+                1.4720719054145763,
+                0.4979922117641763
+              ],
+              [
+                1.4996068085862775,
+                0.4668676985289153
+              ],
+              [
+                1.5272295918096628,
+                0.43574318529365424
+              ],
+              [
+                1.5549396105016047,
+                0.40461867205839325
+              ],
+              [
+                1.582772502676111,
+                0.3734941588231322
+              ],
+              [
+                1.610802196382813,
+                0.3423696455878712
+              ],
+              [
+                1.6390615894207616,
+                0.3112451323526102
+              ],
+              [
+                1.6675417948509283,
+                0.2801206191173492
+              ],
+              [
+                1.6962349706311752,
+                0.24899610588208815
+              ],
+              [
+                1.7251328199038731,
+                0.21787159264682715
+              ],
+              [
+                1.75422722428391,
+                0.1867470794115661
+              ],
+              [
+                1.7835111080485049,
+                0.1556225661763051
+              ],
+              [
+                1.8129774887248693,
+                0.1244980529410441
+              ],
+              [
+                1.8426186835645062,
+                0.09337353970578305
+              ],
+              [
+                1.8724270249165245,
+                0.06224902647052205
+              ],
+              [
+                1.9023953791872266,
+                0.031124513235260998
+              ]
+            ],
+            "terminal": {
+              "status": "converged",
+              "converged": true,
+              "subsonic": true,
+              "shock_point_m": [
+                1.932441612053076,
+                0.0
+              ],
+              "shock_normal_angle_rad": 1.5707963267948966,
+              "downstream_flow_angle_rad": 0.0,
+              "downstream_mach": 0.7425533106434078,
+              "downstream_pressure_Pa": 508788.91048239,
+              "static_pressure_ratio": 2.0981236964211574,
+              "total_pressure_ratio": 0.9598519734029278,
+              "message": ""
+            },
+            "message": "scalar subsonic perimeter handoff passed shock-seam, open-supersonic-patch, geometry, and total-pressure lineage checks; a subsonic field mesh is still pending"
+          },
+          "message": "subsonic downstream perimeter passed scalar seam and its declared pressure-outflow condition without a tangency claim"
+        },
+        "perimeter_spec": {
+          "model": "prescribed-pressure-outflow-mixed-regime-closure-mock",
+          "perimeter_points_m": [
+            [
+              1.932441612053076,
+              0.0
+            ],
+            [
+              1.952441612053076,
+              0.0
+            ],
+            [
+              1.952441612053076,
+              0.01
+            ],
+            [
+              1.932441612053076,
+              0.01
+            ],
+            [
+              1.932441612053076,
+              0.0
+            ]
+          ],
+          "sample_count": 5,
+          "condition_kind": "prescribed-pressure-outflow-section",
+          "ambient_pressure_Pa": 508788.91048239,
+          "claim_status": "explicit-downstream-perimeter-reference; canonical-free-boundary-perimeter-not-inferred"
+        },
         "message": "callback-supplied mixed-regime field matches the terminal seam and passed its explicit perimeter, topology, and residual gates"
       },
       "terminal_attachment_contract_fixture": {
@@ -13655,9 +13810,9 @@
             "downstream_mach": 0.7425533106434078,
             "downstream_pressure_Pa": 508788.91048239,
             "total_pressure_ratio": 0.9598519734029278,
-            "mixed_regime_model": "elliptic-isentropic-subsonic-reference",
-            "mixed_regime_node_count": 5,
-            "mixed_regime_cell_count": 4
+            "mixed_regime_model": "elliptic-isentropic-radial-reference",
+            "mixed_regime_node_count": 9,
+            "mixed_regime_cell_count": 12
           }
         },
         "terminal_supersonic_downstream_patch_converged": true,
@@ -13920,22 +14075,22 @@
           "physical_closure_verified": true,
           "mixed_regime_field_complete": true,
           "chain_promotion_blocked": true,
-          "model": "elliptic-isentropic-subsonic-reference",
-          "radial_divisions": 1,
-          "node_count": 5,
-          "cell_count": 4,
+          "model": "elliptic-isentropic-radial-reference",
+          "radial_divisions": 2,
+          "node_count": 9,
+          "cell_count": 12,
           "topology_status": "open",
           "topology_connected": true,
           "topology_forms_closed_zone": true,
           "topology_nonmanifold_edge_count": 0,
           "interior_point_m": [
-            1.944941612053076,
+            1.942441612053076,
             0.005
           ],
           "maximum_thermodynamic_residual": 0.0,
-          "maximum_harmonic_residual": 0.0,
-          "maximum_velocity_divergence_residual": 0.0,
-          "minimum_mach": 0.7425533106434078,
+          "maximum_harmonic_residual": 7.105427357601002e-15,
+          "maximum_velocity_divergence_residual": 3.4694469519536887e-14,
+          "minimum_mach": 0.7425533106434077,
           "maximum_mach": 0.7425533106434078,
           "boundary": {
             "status": "converged_subsonic_boundary_handoff",
@@ -14158,7 +14313,7 @@
             },
             "message": "subsonic downstream perimeter passed scalar seam and its declared pressure-outflow condition without a tangency claim"
           },
-          "message": "elliptic/isentrope subsonic reference field converged on the supplied closed perimeter; the exact downstream physical condition is attached; this model remains separate from the supersonic MOC lane"
+          "message": "harmonic radial elliptic/isentrope reference field converged on the supplied closed perimeter; this model remains separate from the supersonic MOC lane"
         },
         "source_strip_cell_count": 152,
         "source_patch_cell_count": 153,
@@ -14197,9 +14352,9 @@
           "downstream_mach": 0.7425533106434078,
           "downstream_pressure_Pa": 508788.91048239,
           "total_pressure_ratio": 0.9598519734029278,
-          "mixed_regime_model": "elliptic-isentropic-subsonic-reference",
-          "mixed_regime_node_count": 5,
-          "mixed_regime_cell_count": 4
+          "mixed_regime_model": "elliptic-isentropic-radial-reference",
+          "mixed_regime_node_count": 9,
+          "mixed_regime_cell_count": 12
         }
       },
       "claim_status": "typed-scalar-subsonic-boundary-handoff-only; condition-qualified-elliptic-reference-is-synthetic; canonical-subsonic-field-and-chain-promotion-pending",

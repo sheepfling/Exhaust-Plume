@@ -248,6 +248,12 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   the exact terminal and supersonic patch are retained; this can produce a
   typed physical termination fixture, but the canonical plume perimeter is
   still not inferred from the open supersonic zone;
+- a reusable ``MocPrescribedMixedRegimeClosureMock`` that makes the positive
+  pressure-outflow fixture executable from the planner namespace. It supplies
+  a small explicit rectangle and constant scalar seam state to the real
+  downstream-perimeter adapter, and remains hard-coded as planning-only and
+  non-production. It does not infer the canonical perimeter or create a
+  supersonic next-cell handoff;
 - a typed downstream-perimeter adapter for that reference lane. It accepts an
   explicitly closed perimeter specification plus a caller-owned scalar sample
   provider, validates the exact terminal/supersonic seam and named downstream

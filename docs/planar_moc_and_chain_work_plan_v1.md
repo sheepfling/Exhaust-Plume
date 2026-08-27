@@ -270,6 +270,13 @@ not wait on this research closure.
   terminal decision. The perimeter is deliberately a contract fixture; the
   canonical downstream boundary is still not inferred from the open
   supersonic field.
+- Promoted that synthetic pressure-outflow terminal fixture into the reusable
+  planner namespace as `MocPrescribedMixedRegimeClosureMock`. It now owns an
+  explicit closed rectangle, exact terminal-seam scalar samples, and the
+  separate elliptic reference solve, while reporting a hard planning-only,
+  non-production claim ceiling. It is executable planner evidence for the
+  mixed-regime handoff, not a canonical free-boundary perimeter or a
+  continued supersonic chain cell.
 - Added an MOC chain continuation contract. It accepts only connected,
   topologically bounded meshes with explicit physical closure and resolved
   planar-MOC fidelity.
