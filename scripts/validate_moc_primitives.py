@@ -2386,6 +2386,7 @@ def _caustic_shock_remesh_execution_probe(
       MocCausticRemeshObservation(
         remesh_result=bridge_coupled_remesh,
         upstream_bridge=upstream_bridge,
+        incoming_handoff=current.continuation_boundary,
       ),
     )
     bridge_coupled_planner = plan_caustic_shock_remesh_chain_from_upstream_bridge(
@@ -2436,7 +2437,10 @@ def _caustic_shock_remesh_execution_probe(
   )
   direct_report = direct.as_report()
   direct_measurement = measure_moc_caustic_remesh(
-    MocCausticRemeshObservation(remesh_result=direct),
+    MocCausticRemeshObservation(
+      remesh_result=direct,
+      incoming_handoff=current.continuation_boundary,
+    ),
   )
   planner_report = planner.as_report()
   downstream_field_planner_report = downstream_field_planner.as_report()

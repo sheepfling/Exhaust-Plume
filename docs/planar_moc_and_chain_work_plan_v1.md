@@ -1054,8 +1054,10 @@ Only after MOC-1 through MOC-5 pass:
   closure.
 - Added an independent ``op.moc.caustic-remesh`` measurement operator. It
   re-fits the carried shock boundary, recomputes total-pressure loss, checks
-  the returned characteristic mesh/topology and state-carry residuals, and
-  re-samples an optional strict old/restarted-family bridge. The canonical
+  the returned characteristic mesh/topology and state-carry residuals,
+  independently compares the returned incoming handoff to the exact prior
+  chain boundary when supplied, and re-samples an optional strict
+  old/restarted-family bridge. The canonical
   callback-owned remesh passes only its bounded research gates; the strict
   bridge measurement preserves the first selected-side domain gap. Both
   results remain ``not_accepted`` and chain promotion stays blocked.

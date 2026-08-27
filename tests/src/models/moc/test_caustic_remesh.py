@@ -182,16 +182,37 @@ def test_caustic_remesh_generates_a_bounded_new_family_field() -> None:
   assert result.chain_promotion_blocked
 
   measurement = measure_moc_caustic_remesh(
-    MocCausticRemeshObservation(remesh_result=result),
+    MocCausticRemeshObservation(
+      remesh_result=result,
+      incoming_handoff=current.continuation_boundary,
+    ),
   )
   assert measurement.status is MocCausticRemeshMeasurementStatus.CONVERGED
   assert measurement.converged
   assert measurement.bounded_remesh_verified
   assert measurement.remesh_seam_verified
   assert measurement.downstream_field_verified
+  assert measurement.incoming_handoff_verified is True
   assert measurement.physical_closure_verified is False
   assert measurement.chain_promotion_blocked
   assert measurement.as_report()['field_topology']['forms_closed_zone'] is True
+
+  mismatched_handoff = tuple(
+    MocChainBoundarySample(
+      sample.state,
+      sample.total_pressure_Pa * 1.001,
+    )
+    for sample in current.continuation_boundary
+  )
+  mismatched_measurement = measure_moc_caustic_remesh(
+    MocCausticRemeshObservation(
+      remesh_result=result,
+      incoming_handoff=mismatched_handoff,
+    ),
+  )
+  assert mismatched_measurement.status is MocCausticRemeshMeasurementStatus.FIELD_FAILURE
+  assert mismatched_measurement.incoming_handoff_verified is False
+  assert mismatched_measurement.bounded_remesh_verified is False
 
   assert result.shock is not None
   assert result.shock.field is not None
@@ -384,10 +405,12 @@ def test_caustic_remesh_uses_the_bounded_old_restarted_family_bridge() -> None:
     MocCausticRemeshObservation(
       remesh_result=result,
       upstream_bridge=bridge,
+      incoming_handoff=current.continuation_boundary,
     ),
   )
   assert measurement.status is MocCausticRemeshMeasurementStatus.UPSTREAM_FAILURE
   assert measurement.upstream_bridge_verified is False
+  assert measurement.incoming_handoff_verified is False
   assert measurement.first_missing_sample_index == 1
   assert measurement.first_missing_point_m == result.shock.failed_point_m
 

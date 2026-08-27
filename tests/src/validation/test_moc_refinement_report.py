@@ -286,6 +286,7 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert caustic_remesh['direct']['chain_promotion_blocked'] is True
   assert caustic_remesh['direct_measurement']['status'] == 'converged'
   assert caustic_remesh['direct_measurement']['checks']['bounded_remesh_verified'] is True
+  assert caustic_remesh['direct_measurement']['checks']['incoming_handoff_verified'] is True
   assert caustic_remesh['direct_measurement']['physical_closure_verified'] is False
   assert caustic_remesh['direct_measurement']['chain_promotion_blocked'] is True
   assert caustic_remesh['direct_measurement']['field_topology']['forms_closed_zone'] is True
@@ -311,6 +312,7 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   ] == 1
   assert caustic_remesh['bridge_coupled_remesh']['shock']['failed_sample_index'] == 1
   assert caustic_remesh['bridge_coupled_measurement']['status'] == 'upstream_failure'
+  assert caustic_remesh['bridge_coupled_measurement']['checks']['incoming_handoff_verified'] is False
   assert caustic_remesh['bridge_coupled_measurement']['bridge_status'] == (
     'caustic_bridge_selected_side_domain_gap'
   )

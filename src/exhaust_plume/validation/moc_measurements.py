@@ -32,6 +32,7 @@ from exhaust_plume.models.moc.caustic_remesh import (
   MocCausticShockRemeshRequest,
   MocCausticShockRemeshResult,
 )
+from exhaust_plume.models.moc.chain import MocChainBoundarySample
 from exhaust_plume.models.moc.compression import MocNormalShockTerminalResult
 from exhaust_plume.models.moc.primitives import CharacteristicState
 from exhaust_plume.models.moc.post_shock import (
@@ -243,11 +244,13 @@ class MocCausticRemeshObservation:
   the operator resamples that bridge along the retained shock path, including
   a solver-reported failed sample when present.  This makes an open bridge
   gap independently observable instead of accepting the remesh object's
-  cached coupling flags.
+  cached coupling flags.  When ``incoming_handoff`` is supplied, the returned
+  field must also carry the exact prior chain states and total pressures.
   """
 
   remesh_result: MocCausticShockRemeshResult
   upstream_bridge: MocCausticUpstreamBridge | None = None
+  incoming_handoff: tuple[MocChainBoundarySample, ...] | None = None
 ####
 
 
@@ -271,6 +274,7 @@ class MocCausticRemeshMeasurement:
   field_node_count: int
   field_cell_count: int
   incoming_handoff_sample_count: int
+  incoming_handoff_verified: bool | None
   field_topology: MocTopologyResult
   first_missing_sample_index: int | None
   first_missing_point_m: Point | None
@@ -342,6 +346,7 @@ class MocCausticRemeshMeasurement:
         'shock_pressure_loss_verified': self.shock_pressure_loss_verified,
         'upstream_field_verified': self.upstream_field_verified,
         'upstream_bridge_verified': self.upstream_bridge_verified,
+        'incoming_handoff_verified': self.incoming_handoff_verified,
         'field_topology_verified': self.field_topology_verified,
         'field_boundary_verified': self.field_boundary_verified,
         'field_state_carry_verified': self.field_state_carry_verified,
@@ -1937,6 +1942,7 @@ def _caustic_remesh_measurement_failure(
   field_node_count: int = 0,
   field_cell_count: int = 0,
   incoming_handoff_sample_count: int = 0,
+  incoming_handoff_verified: bool | None = None,
   field_topology: MocTopologyResult | None = None,
   first_missing_sample_index: int | None = None,
   first_missing_point_m: Point | None = None,
@@ -1974,6 +1980,7 @@ def _caustic_remesh_measurement_failure(
     field_node_count=field_node_count,
     field_cell_count=field_cell_count,
     incoming_handoff_sample_count=incoming_handoff_sample_count,
+    incoming_handoff_verified=incoming_handoff_verified,
     field_topology=_empty_topology() if field_topology is None else field_topology,
     first_missing_sample_index=first_missing_sample_index,
     first_missing_point_m=first_missing_point_m,
@@ -2128,6 +2135,33 @@ def measure_moc_caustic_remesh(
       remesh_status=remesh_status,
       message='upstream_bridge must be a MocCausticUpstreamBridge when supplied',
     )
+  expected_handoff: tuple[MocChainBoundarySample, ...] | None = None
+  incoming_handoff_verified: bool | None = None
+  raw_handoff = observation.incoming_handoff
+  if raw_handoff is not None:
+    try:
+      expected_handoff = tuple(raw_handoff)
+    except TypeError:
+      return _caustic_remesh_measurement_failure(
+        MocCausticRemeshMeasurementStatus.INVALID_INPUT,
+        remesh_status=remesh_status,
+        message='incoming_handoff must be an iterable of MocChainBoundarySample values',
+      )
+    if len(expected_handoff) < 3 or any(
+      not isinstance(sample, MocChainBoundarySample)
+      for sample in expected_handoff
+    ):
+      return _caustic_remesh_measurement_failure(
+        MocCausticRemeshMeasurementStatus.INVALID_INPUT,
+        remesh_status=remesh_status,
+        incoming_handoff_sample_count=len(expected_handoff),
+        incoming_handoff_verified=False,
+        message=(
+          'incoming_handoff must contain at least three '
+          'MocChainBoundarySample values'
+        ),
+      )
+    incoming_handoff_verified = False
   request = remesh.request
   if not isinstance(request, MocCausticShockRemeshRequest):
     return _caustic_remesh_measurement_failure(
@@ -2310,10 +2344,15 @@ def measure_moc_caustic_remesh(
         event_point_m=event_point,
         shock_sample_count=shock_sample_count,
         incoming_handoff_sample_count=(
-          0
-          if shock.field is None
-          else len(shock.field.incoming_handoff_states)
+          len(expected_handoff)
+          if expected_handoff is not None
+          else (
+            0
+            if shock.field is None
+            else len(shock.field.incoming_handoff_states)
+          )
         ),
+        incoming_handoff_verified=incoming_handoff_verified,
         first_missing_sample_index=first_missing_sample_index,
         first_missing_point_m=first_missing_point_m,
         event_point_verified=event_point_verified,
@@ -2456,6 +2495,8 @@ def measure_moc_caustic_remesh(
   field_node_count = 0
   field_cell_count = 0
   incoming_handoff_sample_count = 0
+  if expected_handoff is not None:
+    incoming_handoff_sample_count = len(expected_handoff)
   field_boundary_verified = False
   field_state_carry_verified = False
   field_residuals_verified = False
@@ -2465,7 +2506,8 @@ def measure_moc_caustic_remesh(
   if isinstance(field, MocPostShockCharacteristicFieldResult):
     field_node_count = len(field.nodes)
     field_cell_count = len(field.cells)
-    incoming_handoff_sample_count = len(field.incoming_handoff_states)
+    if expected_handoff is None:
+      incoming_handoff_sample_count = len(field.incoming_handoff_states)
     try:
       field_topology = validate_moc_mesh(
         field.cells,
@@ -2534,6 +2576,34 @@ def measure_moc_caustic_remesh(
       field_boundary_verified = False
 
     if refit is not None and refit.converged:
+      incoming_handoff_matches = (
+        expected_handoff is None
+        or (
+          len(field.incoming_handoff_states) == len(expected_handoff)
+          and len(field.incoming_handoff_total_pressure_Pa) == len(expected_handoff)
+          and all(
+            _caustic_state_matches(
+              actual,
+              expected.state,
+              position_tolerance_m=position_tolerance_m,
+              state_tolerance=state_tolerance,
+            )
+            and _pressure_matches(
+              pressure,
+              expected.total_pressure_Pa,
+              pressure_tolerance=pressure_tolerance,
+            )
+            for actual, pressure, expected in zip(
+              field.incoming_handoff_states,
+              field.incoming_handoff_total_pressure_Pa,
+              expected_handoff,
+              strict=True,
+            )
+          )
+        )
+      )
+      if expected_handoff is not None:
+        incoming_handoff_verified = bool(incoming_handoff_matches)
       field_state_carry_verified = bool(
         len(field.shock_boundary_states) == len(refit.boundary_states)
         and len(field.shock_boundary_total_pressure_Pa) == len(refit.boundary_states)
@@ -2587,6 +2657,7 @@ def measure_moc_caustic_remesh(
           isfinite(float(pressure)) and float(pressure) > 0.0
           for pressure in field.incoming_handoff_total_pressure_Pa
         )
+        and incoming_handoff_matches
         and len(field.continuation_boundary_states) == len(
           field.continuation_boundary_total_pressure_Pa
         )
@@ -2726,6 +2797,7 @@ def measure_moc_caustic_remesh(
     field_node_count=field_node_count,
     field_cell_count=field_cell_count,
     incoming_handoff_sample_count=incoming_handoff_sample_count,
+    incoming_handoff_verified=incoming_handoff_verified,
     field_topology=field_topology,
     first_missing_sample_index=first_missing_sample_index,
     first_missing_point_m=first_missing_point_m,

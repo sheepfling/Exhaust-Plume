@@ -1610,6 +1610,7 @@
             "shock_pressure_loss_verified": true,
             "upstream_field_verified": true,
             "upstream_bridge_verified": null,
+            "incoming_handoff_verified": true,
             "field_topology_verified": true,
             "field_boundary_verified": true,
             "field_state_carry_verified": true,
@@ -1995,7 +1996,7 @@
             "shock_fit_sample_count": 0,
             "field_node_count": 0,
             "field_cell_count": 0,
-            "incoming_handoff_sample_count": 0
+            "incoming_handoff_sample_count": 10
           },
           "field_topology": {
             "status": "invalid_input",
@@ -2020,6 +2021,7 @@
             "shock_pressure_loss_verified": false,
             "upstream_field_verified": false,
             "upstream_bridge_verified": false,
+            "incoming_handoff_verified": false,
             "field_topology_verified": false,
             "field_boundary_verified": false,
             "field_state_carry_verified": false,
