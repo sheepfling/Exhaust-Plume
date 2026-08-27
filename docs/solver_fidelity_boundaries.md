@@ -181,6 +181,9 @@ uses the bounded old-family/restarted-family bridge at the exact event and
 along the generated shock path. A gap or ambiguous branch is retained as an
 explicit event/upstream failure with an independent bridge audit; no last
 state or callback extrapolation can satisfy the remesh contract.
+``plan_caustic_shock_remesh_chain_from_upstream_bridge`` routes the planner
+through that same strict entry point and carries its bridge audit into the
+typed one-step chain stop.
 The converged post-shock field now exposes bounded state, static-pressure, and
 total-pressure samplers backed by its solver-carried cell vertices and shock
 boundary. A separate field-coupled continued-cell adapter and planner uses

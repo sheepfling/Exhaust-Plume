@@ -35,6 +35,7 @@ from exhaust_plume.models.moc.caustic_remesh import (
   MocCausticShockRemeshRequest,
   MocCausticShockRemeshResult,
   solve_caustic_shock_remesh,
+  solve_caustic_shock_remesh_from_upstream_bridge,
 )
 from exhaust_plume.models.moc.post_shock import (
   MocPostShockChainCellSolve,
@@ -88,6 +89,7 @@ __all__ = (
   'plan_caustic_upstream_bridge_chain',
   'plan_caustic_upstream_bridge_invariant_chain',
   'plan_caustic_shock_remesh_chain',
+  'plan_caustic_shock_remesh_chain_from_upstream_bridge',
   'plan_caustic_remesh_downstream_field_chain',
   'plan_caustic_remesh_downstream_field_invariant_chain',
   'plan_ambient_pressure_field_chain',
@@ -2004,6 +2006,7 @@ def plan_caustic_shock_remesh_chain(
   maximum_invariant_scan_samples: int = 64,
   maximum_invariant_iterations: int = 80,
   policy: MocChainContinuationPolicy | None = None,
+  _upstream_bridge: MocCausticUpstreamBridge | None = None,
 ) -> MocChainPlannerResult:
   """Plan one solver-backed caustic shock/new-family remesh attempt.
 
@@ -2024,6 +2027,11 @@ def plan_caustic_shock_remesh_chain(
     raise TypeError('upstream_pressure_at must be callable')
   if downstream_invariant_at is not None and not callable(downstream_invariant_at):
     raise TypeError('downstream_invariant_at must be callable when supplied')
+  if _upstream_bridge is not None and not isinstance(
+    _upstream_bridge,
+    MocCausticUpstreamBridge,
+  ):
+    raise TypeError('_upstream_bridge must be a MocCausticUpstreamBridge when supplied')
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('invariant_tolerance', invariant_tolerance),
@@ -2089,24 +2097,43 @@ def plan_caustic_shock_remesh_chain(
           'next_cell_index': next_cell_index,
         },
       )
-    result = solve_caustic_shock_remesh(
-      request,
-      upstream_state_at,
-      upstream_pressure_at,
-      current.continuation_boundary,
-      downstream_invariant_at=downstream_invariant_at,
-      target_centerline_y_m=target_centerline_y_m,
-      sample_count=sample_count,
-      branch=branch,
-      position_tolerance_m=position_tolerance_m,
-      invariant_tolerance=invariant_tolerance,
-      pressure_tolerance=pressure_tolerance,
-      shock_angle_tolerance_rad=shock_angle_tolerance_rad,
-      maximum_segment_iterations=maximum_segment_iterations,
-      maximum_downstream_angle_rad=maximum_downstream_angle_rad,
-      maximum_invariant_scan_samples=maximum_invariant_scan_samples,
-      maximum_invariant_iterations=maximum_invariant_iterations,
-    )
+    if _upstream_bridge is None:
+      result = solve_caustic_shock_remesh(
+        request,
+        upstream_state_at,
+        upstream_pressure_at,
+        current.continuation_boundary,
+        downstream_invariant_at=downstream_invariant_at,
+        target_centerline_y_m=target_centerline_y_m,
+        sample_count=sample_count,
+        branch=branch,
+        position_tolerance_m=position_tolerance_m,
+        invariant_tolerance=invariant_tolerance,
+        pressure_tolerance=pressure_tolerance,
+        shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+        maximum_segment_iterations=maximum_segment_iterations,
+        maximum_downstream_angle_rad=maximum_downstream_angle_rad,
+        maximum_invariant_scan_samples=maximum_invariant_scan_samples,
+        maximum_invariant_iterations=maximum_invariant_iterations,
+      )
+    else:
+      result = solve_caustic_shock_remesh_from_upstream_bridge(
+        request,
+        _upstream_bridge,
+        current.continuation_boundary,
+        downstream_invariant_at=downstream_invariant_at,
+        target_centerline_y_m=target_centerline_y_m,
+        sample_count=sample_count,
+        branch=branch,
+        position_tolerance_m=position_tolerance_m,
+        invariant_tolerance=invariant_tolerance,
+        pressure_tolerance=pressure_tolerance,
+        shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+        maximum_segment_iterations=maximum_segment_iterations,
+        maximum_downstream_angle_rad=maximum_downstream_angle_rad,
+        maximum_invariant_scan_samples=maximum_invariant_scan_samples,
+        maximum_invariant_iterations=maximum_invariant_iterations,
+      )
     return remesh_decision(result, next_cell_index)
 
   effective_policy = policy
@@ -2130,7 +2157,70 @@ def plan_caustic_shock_remesh_chain(
       'caustic_shock_remesh_request': request.as_report(),
       'one_step_domain': True,
       'physical_closure_pending': True,
+      'upstream_field_model': (
+        'bounded-old-family-restarted-family-bridge'
+        if _upstream_bridge is not None
+        else 'callback-owned-upstream-field'
+      ),
     },
+  )
+
+
+def plan_caustic_shock_remesh_chain_from_upstream_bridge(
+  seed: MocChainCell,
+  request: MocCausticShockRemeshRequest,
+  bridge: MocCausticUpstreamBridge,
+  *,
+  downstream_invariant_at: Callable[[int, tuple[float, float]], float] | None = None,
+  target_centerline_y_m: float = 0.0,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  pressure_tolerance: float = 1.0e-8,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  maximum_downstream_angle_rad: float = 0.9,
+  maximum_invariant_scan_samples: int = 64,
+  maximum_invariant_iterations: int = 80,
+  policy: MocChainContinuationPolicy | None = None,
+) -> MocChainPlannerResult:
+  """Plan a caustic remesh using the strict bounded upstream bridge."""
+
+  if not isinstance(bridge, MocCausticUpstreamBridge):
+    raise TypeError('bridge must be a MocCausticUpstreamBridge')
+  planner = plan_caustic_shock_remesh_chain(
+    seed,
+    request,
+    bridge.state_at,
+    bridge.static_pressure_at,
+    downstream_invariant_at=downstream_invariant_at,
+    target_centerline_y_m=target_centerline_y_m,
+    sample_count=sample_count,
+    branch=branch,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+    pressure_tolerance=pressure_tolerance,
+    shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+    maximum_segment_iterations=maximum_segment_iterations,
+    maximum_downstream_angle_rad=maximum_downstream_angle_rad,
+    maximum_invariant_scan_samples=maximum_invariant_scan_samples,
+    maximum_invariant_iterations=maximum_invariant_iterations,
+    policy=policy,
+    _upstream_bridge=bridge,
+  )
+  diagnostics = dict(planner.diagnostics)
+  diagnostics.update({
+    'upstream_field_model': 'bounded-old-family-restarted-family-bridge',
+    'strict_bridge_required': True,
+  })
+  return replace(
+    planner,
+    claim_status=(
+      'caustic-shock-remesh strict bridge planner; physical-first-cell-'
+      'closure-pending'
+    ),
+    diagnostics=diagnostics,
   )
 
 

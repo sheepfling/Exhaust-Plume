@@ -165,9 +165,11 @@ not wait on this research closure.
   old-family/restarted-family bridge at the exact event and every generated
   shock sample, retains the first uncovered point as a typed upstream-field
   boundary, and never falls back to a last state or callback extrapolation.
-  The callback-owned remesh fixture remains available as a separate local
-  solver contract; the bridge-fed path is the explicit canonical coupling
-  gate and remains non-promotable when the caustic corridor ends.
+  The matching planner entry point carries the same audit into the one-step
+  chain decision. The callback-owned remesh fixture remains available as a
+  separate local solver contract; the bridge-fed path is the explicit
+  canonical coupling gate and remains non-promotable when the caustic corridor
+  ends.
 - Added a weak-branch caustic-origin forward-envelope reachability gate. It
   follows the local zero-turn attached limit through the bounded restarted
   family band, retains the valid prefix and first missing point, and returns a

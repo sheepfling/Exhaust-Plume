@@ -113,6 +113,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_caustic_shock_remesh,
   solve_caustic_shock_remesh_from_upstream_bridge,
   plan_caustic_shock_remesh_chain,
+  plan_caustic_shock_remesh_chain_from_upstream_bridge,
   plan_caustic_remesh_downstream_field_chain,
   plan_caustic_remesh_downstream_field_invariant_chain,
   restart_characteristic_family_from_caustic,
@@ -2077,6 +2078,7 @@ def _caustic_shock_remesh_execution_probe(
       'direct': None,
       'planner': None,
       'bridge_coupled_remesh': None,
+      'bridge_coupled_planner': None,
       'claim_status': 'caustic-remesh-execution-pending',
     }
 
@@ -2102,6 +2104,7 @@ def _caustic_shock_remesh_execution_probe(
       'direct': None,
       'planner': None,
       'bridge_coupled_remesh': None,
+      'bridge_coupled_planner': None,
       'preparation': prepared.as_report(),
       'claim_status': 'caustic-remesh-execution-pending',
     }
@@ -2114,6 +2117,7 @@ def _caustic_shock_remesh_execution_probe(
       'direct': None,
       'planner': None,
       'bridge_coupled_remesh': None,
+      'bridge_coupled_planner': None,
       'preparation': prepared.as_report(),
       'claim_status': 'caustic-remesh-execution-pending',
     }
@@ -2132,6 +2136,7 @@ def _caustic_shock_remesh_execution_probe(
       'direct': None,
       'planner': None,
       'bridge_coupled_remesh': None,
+      'bridge_coupled_planner': None,
       'preparation': prepared.as_report(),
       'claim_status': 'caustic-remesh-execution-pending',
     }
@@ -2184,6 +2189,7 @@ def _caustic_shock_remesh_execution_probe(
     sample_count=6,
   )
   bridge_coupled_remesh = None
+  bridge_coupled_planner = None
   if bridge_restart.family_band is not None and bridge_restart.family_band.converged:
     upstream_bridge = build_caustic_upstream_bridge(
       old_family,
@@ -2194,6 +2200,15 @@ def _caustic_shock_remesh_execution_probe(
       request,
       upstream_bridge,
       current.continuation_boundary,
+      downstream_invariant_at=lambda _index, _point: request.downstream_invariant_target,
+      target_centerline_y_m=0.0,
+      sample_count=9,
+      shock_angle_tolerance_rad=0.2,
+    )
+    bridge_coupled_planner = plan_caustic_shock_remesh_chain_from_upstream_bridge(
+      current,
+      request,
+      upstream_bridge,
       downstream_invariant_at=lambda _index, _point: request.downstream_invariant_target,
       target_centerline_y_m=0.0,
       sample_count=9,
@@ -2283,6 +2298,16 @@ def _caustic_shock_remesh_execution_probe(
     and bridge_coupled_remesh.upstream_bridge_audit.first_missing_point_m == (
       bridge_coupled_remesh.shock.failed_point_m
     )
+    and bridge_coupled_planner is not None
+    and bridge_coupled_planner.planner_kind is MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
+    and bridge_coupled_planner.production_claim_allowed is False
+    and bridge_coupled_planner.chain.cell_count == 1
+    and bridge_coupled_planner.chain.physical_termination is False
+    and bridge_coupled_planner.chain.termination_reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+    and bridge_coupled_planner.diagnostics.get('strict_bridge_required') is True
+    and bridge_coupled_planner.chain.diagnostics['remesh_report']['upstream_bridge_audit']['status'] == (
+      MocCausticBridgeStatus.DOMAIN_GAP.value
+    )
     and invariant_downstream_field_planner.planner_kind is MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
     and invariant_downstream_field_planner.production_claim_allowed is False
     and invariant_downstream_field_planner.chain.status is MocChainStatus.TRUNCATED
@@ -2299,6 +2324,9 @@ def _caustic_shock_remesh_execution_probe(
     'planner': planner_report,
     'bridge_coupled_remesh': (
       None if bridge_coupled_remesh is None else bridge_coupled_remesh.as_report()
+    ),
+    'bridge_coupled_planner': (
+      None if bridge_coupled_planner is None else bridge_coupled_planner.as_report()
     ),
     'downstream_field_planner': downstream_field_planner_report,
     'invariant_downstream_field_planner': invariant_downstream_field_planner_report,

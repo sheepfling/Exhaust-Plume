@@ -17,6 +17,7 @@ from exhaust_plume.models.moc import (
   MocChainContinuationPolicy,
   MocChainStatus,
   plan_caustic_shock_remesh_chain,
+  plan_caustic_shock_remesh_chain_from_upstream_bridge,
   plan_caustic_remesh_downstream_field_chain,
   plan_caustic_remesh_downstream_field_invariant_chain,
   assemble_source_characteristic_strip,
@@ -174,6 +175,7 @@ def test_caustic_remesh_generates_a_bounded_new_family_field() -> None:
   assert result.remesh_seam_verified
   assert result.physical_closure_verified is False
   assert result.chain_promotion_blocked
+
   assert result.shock is not None
   assert result.shock.field is not None
   assert result.bounded_downstream_field_available
@@ -360,6 +362,25 @@ def test_caustic_remesh_uses_the_bounded_old_restarted_family_bridge() -> None:
   assert result.upstream_bridge_audit.first_missing_point_m == result.shock.failed_point_m
   assert result.physical_closure_verified is False
   assert result.chain_promotion_blocked
+
+  planner = plan_caustic_shock_remesh_chain_from_upstream_bridge(
+    current,
+    request,
+    bridge,
+    downstream_invariant_at=lambda _index, _point: request.downstream_invariant_target,
+    target_centerline_y_m=0.0,
+    sample_count=9,
+    shock_angle_tolerance_rad=0.2,
+  )
+  assert planner.planner_kind is MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
+  assert planner.production_claim_allowed is False
+  assert planner.chain.cell_count == 1
+  assert planner.chain.physical_termination is False
+  assert planner.chain.termination_reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+  assert planner.diagnostics['strict_bridge_required'] is True
+  assert planner.chain.diagnostics['remesh_report']['upstream_bridge_audit']['status'] == (
+    MocCausticBridgeStatus.DOMAIN_GAP.value
+  )
 
 
 def test_caustic_remesh_planner_carries_exact_perimeter_to_typed_stop() -> None:
