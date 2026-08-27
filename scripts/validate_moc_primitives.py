@@ -36,6 +36,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocChainPlannerKind,
   MocCausticFamilyBandEnvelopeStatus,
   MocCausticShockBridgeStatus,
+  MocCausticShockRemeshPreparationStatus,
   MocCausticBridgeSide,
   MocCausticBridgeStatus,
   build_caustic_upstream_bridge,
@@ -101,6 +102,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   build_caustic_shock_seed,
   resolve_caustic_shock_seed,
   solve_caustic_shock_bridge,
+  prepare_caustic_shock_remesh,
   restart_characteristic_family_from_caustic,
   trace_caustic_family_band_forward_envelope,
   extend_source_characteristic_strip_centerline_reflection,
@@ -1858,7 +1860,14 @@ def _caustic_shock_bridge_probe(seed: Any) -> dict[str, Any]:
     target_invariant,
     upstream_edge_index=0,
   )
+  remesh = prepare_caustic_shock_remesh(
+    seed,
+    CharacteristicFamily.PLUS,
+    target_invariant,
+    upstream_edge_index=0,
+  )
   report = bridge.as_report()
+  remesh_report = remesh.as_report()
   report['accepted'] = (
     bridge.status is MocCausticShockBridgeStatus.CONVERGED_LOCAL_COMPATIBILITY
     and bridge.converged
@@ -1870,11 +1879,30 @@ def _caustic_shock_bridge_probe(seed: Any) -> dict[str, Any]:
     and bridge.shock_curve_verified is False
     and bridge.physical_closure_verified is False
     and bridge.chain_promotion_blocked
+    and remesh.status is MocCausticShockRemeshPreparationStatus.READY_FOR_COUPLED_REMESH
+    and remesh.converged
+    and remesh.local_shock_state_ready
+    and remesh.request is not None
+    and remesh.request.event_point_m == seed.event.caustic_point_m
+    and remesh.request.local_bridge is remesh.local_bridge
+    and remesh.shock_curve_verified is False
+    and remesh.downstream_field_verified is False
+    and remesh.physical_closure_verified is False
+    and remesh.chain_promotion_blocked
+  )
+  report['remesh_preparation'] = remesh_report
+  report['remesh_preparation_accepted'] = (
+    remesh.status is MocCausticShockRemeshPreparationStatus.READY_FOR_COUPLED_REMESH
+    and remesh.converged
+    and remesh.local_shock_state_ready
+    and remesh.request is not None
   )
   return {
     'status': 'diagnostic-invariant-conditioned-caustic-shock-bridge',
     'accepted': report['accepted'],
     'bridge': report,
+    'remesh_preparation': remesh_report,
+    'remesh_preparation_accepted': report['remesh_preparation_accepted'],
     'claim_status': (
       'local-invariant-conditioned-shock-state-only; shock-curve-and-'
       'downstream-field-pending'

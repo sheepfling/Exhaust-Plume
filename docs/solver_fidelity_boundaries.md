@@ -146,6 +146,12 @@ independently resamples each generated shock point and returns an explicit
 upstream-field boundary or verified normal-shock terminal. This is a solver
 interface only and does not promote the open zone or replace the missing
 mixed-regime perimeter.
+At the caustic handoff, a separate remesh-preparation contract now binds the
+selected one-sided state, exact crossing point, local invariant-conditioned
+shock bridge, and the required future shock-curve/new-family outputs. A ready
+request is still a non-physical ``characteristic-caustic`` stop: it supplies
+the next solver's exact inputs without treating a local shock state as a
+remeshed field or a chain cell.
 The converged post-shock field now exposes bounded state, static-pressure, and
 total-pressure samplers backed by its solver-carried cell vertices and shock
 boundary. A separate field-coupled continued-cell adapter and planner uses

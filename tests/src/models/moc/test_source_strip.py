@@ -10,6 +10,7 @@ from exhaust_plume.models.moc import (
   MocChainTerminationReason,
   MocCausticFamilyRestartStatus,
   MocCausticShockBridgeStatus,
+  MocCausticShockRemeshPreparationStatus,
   MocCausticShockResolutionStatus,
   MocSourceStripCausticStatus,
   MocSourceStripCausticSeedStatus,
@@ -18,6 +19,7 @@ from exhaust_plume.models.moc import (
   MocSourceStripContinuationStatus,
   extend_source_characteristic_strip_centerline_reflection,
   build_caustic_shock_seed,
+  prepare_caustic_shock_remesh,
   resolve_caustic_shock_seed,
   solve_caustic_shock_bridge,
   restart_characteristic_family_from_caustic,
@@ -150,6 +152,33 @@ def test_centerline_reflection_extension_carries_a_physical_boundary_law() -> No
     assert shock_bridge.shock_curve_verified is False
     assert shock_bridge.physical_closure_verified is False
     assert shock_bridge.chain_promotion_blocked is True
+    remesh = prepare_caustic_shock_remesh(
+      seed,
+      CharacteristicFamily.PLUS,
+      target_invariant,
+      upstream_edge_index=0,
+    )
+    assert remesh.status is MocCausticShockRemeshPreparationStatus.READY_FOR_COUPLED_REMESH
+    assert remesh.converged is True
+    assert remesh.local_shock_state_ready is True
+    assert remesh.request is not None
+    assert remesh.request.event_point_m == seed.event.caustic_point_m
+    assert remesh.request.upstream_state == seed.edge_states[0].state
+    assert remesh.request.upstream_static_pressure_Pa == (
+      seed.edge_states[0].static_pressure_Pa
+    )
+    assert remesh.request.local_bridge is remesh.local_bridge
+    assert remesh.shock_curve_verified is False
+    assert remesh.downstream_field_verified is False
+    assert remesh.physical_closure_verified is False
+    assert remesh.chain_promotion_blocked is True
+    remesh_report = remesh.as_report()
+    assert remesh_report['request']['event_point_m'] == seed.event.caustic_point_m
+    termination = remesh.as_chain_termination_decision()
+    assert termination.reason is MocChainTerminationReason.CHARACTERISTIC_CAUSTIC
+    assert termination.physical_termination is False
+    assert termination.diagnostics['remesh_request_ready'] is True
+    assert termination.diagnostics['shock_curve_verified'] is False
     unreachable_bridge = solve_caustic_shock_bridge(
       seed,
       CharacteristicFamily.PLUS,
@@ -159,6 +188,18 @@ def test_centerline_reflection_extension_carries_a_physical_boundary_law() -> No
     assert unreachable_bridge.status is MocCausticShockBridgeStatus.INVARIANT_BRACKET_FAILURE
     assert unreachable_bridge.converged is False
     assert unreachable_bridge.chain_promotion_blocked is True
+    unresolved_remesh = prepare_caustic_shock_remesh(
+      seed,
+      CharacteristicFamily.PLUS,
+      seed.edge_states[0].state.k_plus,
+      upstream_edge_index=0,
+    )
+    assert unresolved_remesh.status is MocCausticShockRemeshPreparationStatus.LOCAL_SHOCK_FAILURE
+    assert unresolved_remesh.converged is False
+    assert unresolved_remesh.request is None
+    assert unresolved_remesh.as_chain_termination_decision().reason is (
+      MocChainTerminationReason.CHARACTERISTIC_CAUSTIC
+    )
     assert result.remesh.chain_termination_available is True
     termination = result.remesh.as_chain_termination_decision()
     assert termination.physical_termination is False

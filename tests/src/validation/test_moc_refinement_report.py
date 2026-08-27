@@ -538,6 +538,32 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert caustic_shock_bridge['bridge']['shock_curve_verified'] is False
   assert caustic_shock_bridge['bridge']['physical_closure_verified'] is False
   assert caustic_shock_bridge['bridge']['chain_promotion_blocked'] is True
+  assert caustic_shock_bridge['remesh_preparation_accepted'] is True
+  remesh_preparation = caustic_shock_bridge['remesh_preparation']
+  assert remesh_preparation['status'] == (
+    'ready_for_coupled_caustic_shock_remesh'
+  )
+  assert remesh_preparation['converged'] is True
+  assert remesh_preparation['local_shock_state_ready'] is True
+  assert remesh_preparation['shock_curve_verified'] is False
+  assert remesh_preparation['downstream_field_verified'] is False
+  assert remesh_preparation['physical_closure_verified'] is False
+  assert remesh_preparation['chain_promotion_blocked'] is True
+  assert remesh_preparation['request']['event_point_m'] == (
+    caustic_seed['event']['caustic_point_m']
+  )
+  assert remesh_preparation['request']['required_outputs'] == [
+    'shock_boundary_points_m',
+    'shock_boundary_upstream_states',
+    'shock_boundary_downstream_states',
+    'shock_boundary_total_pressure_loss',
+    'post_shock_characteristic_field',
+    'exact_incoming_handoff',
+  ]
+  assert remesh_preparation['chain_termination_decision']['reason'] == (
+    'characteristic-caustic'
+  )
+  assert remesh_preparation['chain_termination_decision']['physical_termination'] is False
   origin_envelope = centerline_reflection_extension[
     'caustic_family_band_origin_envelope'
   ]

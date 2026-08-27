@@ -1069,8 +1069,242 @@
           ],
           "iterations": 25,
           "message": "explicit downstream characteristic invariant produced an entropy-admissible local shock state; shock curve, downstream field, and physical closure remain pending",
-          "accepted": true
+          "accepted": true,
+          "remesh_preparation": {
+            "status": "ready_for_coupled_caustic_shock_remesh",
+            "converged": true,
+            "local_shock_state_ready": true,
+            "shock_curve_verified": false,
+            "downstream_field_verified": false,
+            "physical_closure_verified": false,
+            "chain_promotion_blocked": true,
+            "seed_status": "converged_one_sided_caustic_seed",
+            "local_bridge": {
+              "status": "converged_local_caustic_shock_compatibility",
+              "converged": true,
+              "entropy_admissible": true,
+              "shock_curve_verified": false,
+              "physical_closure_verified": false,
+              "chain_promotion_blocked": true,
+              "upstream_edge_index": 0,
+              "downstream_invariant_family": "C+",
+              "downstream_invariant_target": -0.7773765674048146,
+              "upstream_state": {
+                "x_m": 0.6584201957653014,
+                "y_m": 0.056970655192732075,
+                "theta_rad": 0.06251802535060723,
+                "mach": 2.9524960898197605,
+                "gamma": 1.4
+              },
+              "downstream_state": {
+                "x_m": 0.6584201957653014,
+                "y_m": 0.056970655192732075,
+                "theta_rad": 0.06871363426217914,
+                "mach": 2.9344925126658867,
+                "gamma": 1.4
+              },
+              "compression": {
+                "status": "converged",
+                "shock_status": "attached",
+                "converged": true,
+                "target_turn_rad": 0.0061956089115719,
+                "beta_rad": 0.34975487984367093,
+                "downstream_mach": 2.9344925126658867,
+                "downstream_pressure_Pa": 60087.13526679321,
+                "downstream_total_pressure_Pa": 1999995.9176687687,
+                "total_pressure_ratio": 0.9999979588343844,
+                "message": ""
+              },
+              "shock_angle_rad": -0.2872368544930637,
+              "flow_turn_rad": 0.0061956089115719,
+              "invariant_residual": -9.419931501497558e-11,
+              "turn_bracket_rad": [
+                0.006195608492476746,
+                0.006195609330667054
+              ],
+              "iterations": 25,
+              "message": "explicit downstream characteristic invariant produced an entropy-admissible local shock state; shock curve, downstream field, and physical closure remain pending"
+            },
+            "request": {
+              "event_point_m": [
+                0.6584201957653014,
+                0.056970655192732075
+              ],
+              "upstream_edge_index": 0,
+              "upstream_state": {
+                "x_m": 0.6584201957653014,
+                "y_m": 0.056970655192732075,
+                "theta_rad": 0.06251802535060723,
+                "mach": 2.9524960898197605,
+                "gamma": 1.4
+              },
+              "upstream_static_pressure_Pa": 58477.95657993019,
+              "downstream_invariant_family": "C+",
+              "downstream_invariant_target": -0.7773765674048146,
+              "local_shock_state_ready": true,
+              "required_outputs": [
+                "shock_boundary_points_m",
+                "shock_boundary_upstream_states",
+                "shock_boundary_downstream_states",
+                "shock_boundary_total_pressure_loss",
+                "post_shock_characteristic_field",
+                "exact_incoming_handoff"
+              ],
+              "local_bridge_status": "converged_local_caustic_shock_compatibility",
+              "shock_curve_verified": false,
+              "downstream_field_verified": false,
+              "physical_closure_verified": false,
+              "chain_promotion_blocked": true
+            },
+            "chain_termination_decision": {
+              "physical_termination": false,
+              "reason": "characteristic-caustic",
+              "message": "local entropy-admissible caustic shock state is ready for a coupled shock-curve/new-family remesh; no curve or downstream field is solved",
+              "diagnostics": {
+                "termination_model": "caustic-shock-remesh-contract",
+                "remesh_request_ready": true,
+                "local_shock_state_ready": true,
+                "shock_curve_verified": false,
+                "downstream_field_verified": false,
+                "physical_closure_verified": false,
+                "chain_promotion_blocked": true,
+                "caustic_point_m": [
+                  0.6584201957653014,
+                  0.056970655192732075
+                ],
+                "upstream_edge_index": 0,
+                "downstream_invariant_family": "C+",
+                "required_outputs": [
+                  "shock_boundary_points_m",
+                  "shock_boundary_upstream_states",
+                  "shock_boundary_downstream_states",
+                  "shock_boundary_total_pressure_loss",
+                  "post_shock_characteristic_field",
+                  "exact_incoming_handoff"
+                ]
+              }
+            },
+            "message": "local entropy-admissible caustic shock state is ready for a coupled shock-curve/new-family remesh; no curve or downstream field is solved"
+          },
+          "remesh_preparation_accepted": true
         },
+        "remesh_preparation": {
+          "status": "ready_for_coupled_caustic_shock_remesh",
+          "converged": true,
+          "local_shock_state_ready": true,
+          "shock_curve_verified": false,
+          "downstream_field_verified": false,
+          "physical_closure_verified": false,
+          "chain_promotion_blocked": true,
+          "seed_status": "converged_one_sided_caustic_seed",
+          "local_bridge": {
+            "status": "converged_local_caustic_shock_compatibility",
+            "converged": true,
+            "entropy_admissible": true,
+            "shock_curve_verified": false,
+            "physical_closure_verified": false,
+            "chain_promotion_blocked": true,
+            "upstream_edge_index": 0,
+            "downstream_invariant_family": "C+",
+            "downstream_invariant_target": -0.7773765674048146,
+            "upstream_state": {
+              "x_m": 0.6584201957653014,
+              "y_m": 0.056970655192732075,
+              "theta_rad": 0.06251802535060723,
+              "mach": 2.9524960898197605,
+              "gamma": 1.4
+            },
+            "downstream_state": {
+              "x_m": 0.6584201957653014,
+              "y_m": 0.056970655192732075,
+              "theta_rad": 0.06871363426217914,
+              "mach": 2.9344925126658867,
+              "gamma": 1.4
+            },
+            "compression": {
+              "status": "converged",
+              "shock_status": "attached",
+              "converged": true,
+              "target_turn_rad": 0.0061956089115719,
+              "beta_rad": 0.34975487984367093,
+              "downstream_mach": 2.9344925126658867,
+              "downstream_pressure_Pa": 60087.13526679321,
+              "downstream_total_pressure_Pa": 1999995.9176687687,
+              "total_pressure_ratio": 0.9999979588343844,
+              "message": ""
+            },
+            "shock_angle_rad": -0.2872368544930637,
+            "flow_turn_rad": 0.0061956089115719,
+            "invariant_residual": -9.419931501497558e-11,
+            "turn_bracket_rad": [
+              0.006195608492476746,
+              0.006195609330667054
+            ],
+            "iterations": 25,
+            "message": "explicit downstream characteristic invariant produced an entropy-admissible local shock state; shock curve, downstream field, and physical closure remain pending"
+          },
+          "request": {
+            "event_point_m": [
+              0.6584201957653014,
+              0.056970655192732075
+            ],
+            "upstream_edge_index": 0,
+            "upstream_state": {
+              "x_m": 0.6584201957653014,
+              "y_m": 0.056970655192732075,
+              "theta_rad": 0.06251802535060723,
+              "mach": 2.9524960898197605,
+              "gamma": 1.4
+            },
+            "upstream_static_pressure_Pa": 58477.95657993019,
+            "downstream_invariant_family": "C+",
+            "downstream_invariant_target": -0.7773765674048146,
+            "local_shock_state_ready": true,
+            "required_outputs": [
+              "shock_boundary_points_m",
+              "shock_boundary_upstream_states",
+              "shock_boundary_downstream_states",
+              "shock_boundary_total_pressure_loss",
+              "post_shock_characteristic_field",
+              "exact_incoming_handoff"
+            ],
+            "local_bridge_status": "converged_local_caustic_shock_compatibility",
+            "shock_curve_verified": false,
+            "downstream_field_verified": false,
+            "physical_closure_verified": false,
+            "chain_promotion_blocked": true
+          },
+          "chain_termination_decision": {
+            "physical_termination": false,
+            "reason": "characteristic-caustic",
+            "message": "local entropy-admissible caustic shock state is ready for a coupled shock-curve/new-family remesh; no curve or downstream field is solved",
+            "diagnostics": {
+              "termination_model": "caustic-shock-remesh-contract",
+              "remesh_request_ready": true,
+              "local_shock_state_ready": true,
+              "shock_curve_verified": false,
+              "downstream_field_verified": false,
+              "physical_closure_verified": false,
+              "chain_promotion_blocked": true,
+              "caustic_point_m": [
+                0.6584201957653014,
+                0.056970655192732075
+              ],
+              "upstream_edge_index": 0,
+              "downstream_invariant_family": "C+",
+              "required_outputs": [
+                "shock_boundary_points_m",
+                "shock_boundary_upstream_states",
+                "shock_boundary_downstream_states",
+                "shock_boundary_total_pressure_loss",
+                "post_shock_characteristic_field",
+                "exact_incoming_handoff"
+              ]
+            }
+          },
+          "message": "local entropy-admissible caustic shock state is ready for a coupled shock-curve/new-family remesh; no curve or downstream field is solved"
+        },
+        "remesh_preparation_accepted": true,
         "claim_status": "local-invariant-conditioned-shock-state-only; shock-curve-and-downstream-field-pending"
       },
       "caustic_family_restart": {

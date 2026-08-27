@@ -143,6 +143,12 @@ from exhaust_plume.models.moc.caustic_shock import (
   resolve_caustic_shock_seed,
   solve_caustic_shock_bridge,
 )
+from exhaust_plume.models.moc.caustic_remesh import (
+  MocCausticShockRemeshPreparationStatus,
+  MocCausticShockRemeshRequest,
+  MocCausticShockRemeshPreparationResult,
+  prepare_caustic_shock_remesh,
+)
 from exhaust_plume.models.moc.caustic_bridge import (
   MocCausticBridgeSide,
   MocCausticBridgeStatus,
@@ -510,6 +516,10 @@ __all__ = (
   'build_caustic_shock_seed',
   'resolve_caustic_shock_seed',
   'solve_caustic_shock_bridge',
+  'MocCausticShockRemeshPreparationStatus',
+  'MocCausticShockRemeshRequest',
+  'MocCausticShockRemeshPreparationResult',
+  'prepare_caustic_shock_remesh',
   'restart_characteristic_family_from_caustic',
   'trace_caustic_family_band_forward_envelope',
   'solve_marched_attached_shock_from_caustic_family_band',

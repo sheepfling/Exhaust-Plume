@@ -449,6 +449,15 @@ not wait on this research closure.
   Both preserve the exact prior chain handoff and report bounded upstream
   coverage, but remain one-step research diagnostics with physical closure
   and production chain promotion disabled.
+- Added an explicit caustic shock-remesh preparation contract. It binds a
+  selected one-sided seed edge, its exact event point and static pressure, and
+  a caller-selected downstream invariant to the local entropy-admissible
+  bridge. The request enumerates the future solver outputs—shock curve,
+  carried upstream/downstream states and pressure loss, post-shock field, and
+  exact incoming handoff—and exposes a typed ``CHARACTERISTIC_CAUSTIC`` stop
+  until those outputs are actually solved. This is solver-boundary and
+  planner/validation evidence; it does not create a shock curve or promote a
+  chain cell.
 - Hardened the caustic restart handoff for continued-chain planning. The
   selected one-sided seed edge is now retained as an exact anchor and an
   anchor wedge is included in the family-band mesh. The band proves that its
@@ -870,6 +879,12 @@ Only after MOC-1 through MOC-5 pass:
   ``UPSTREAM_FIELD_BOUNDARY`` stop instead of treating the retained one-point
   prefix as a continued cell. This is the required corridor evidence for the
   next physical remesher, not a substitute for one.
+- The remesh-preparation contract now packages the exact crossing point,
+  selected one-sided state/pressure, local invariant-conditioned bridge, and
+  required shock/new-family outputs. A ready request is still a
+  non-physical ``characteristic-caustic`` stop; it is an auditable input to a
+  future coupled remesher, not evidence that the remesher or a continued cell
+  already exists.
 - The independent shock-cell measurement operators now pass local geometry,
   topology, and supplied shock-loss extraction for the current fixtures, but
   they do not provide external observations, uncertainty, or a provider-bound
