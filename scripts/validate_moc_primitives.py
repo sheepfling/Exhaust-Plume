@@ -46,6 +46,8 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocCausticShockBridgeStatus,
   MocCausticShockRemeshStatus,
   MocCausticShockRemeshPreparationStatus,
+  MocCausticSimpleWaveTerminalStatus,
+  MocCausticSimpleWaveTraceStatus,
   MocCausticBridgeSide,
   MocCausticBridgeStatus,
   build_caustic_upstream_bridge,
@@ -115,8 +117,10 @@ from exhaust_plume.models.moc import (  # noqa: E402
   prepare_caustic_shock_remesh,
   solve_caustic_shock_remesh,
   solve_caustic_shock_remesh_from_upstream_bridge,
+  solve_caustic_simple_wave_terminal_remesh,
   plan_caustic_shock_remesh_chain,
   plan_caustic_shock_remesh_chain_from_upstream_bridge,
+  plan_caustic_simple_wave_terminal_chain,
   plan_caustic_remesh_downstream_field_chain,
   plan_caustic_remesh_downstream_field_invariant_chain,
   restart_characteristic_family_from_caustic,
@@ -2408,6 +2412,24 @@ def _caustic_shock_remesh_execution_probe(
     sample_count=9,
     shock_angle_tolerance_rad=0.2,
   )
+  simple_wave_terminal = solve_caustic_simple_wave_terminal_remesh(
+    request,
+    current.continuation_boundary,
+    sample_count=9,
+    shock_angle_tolerance_rad=0.2,
+  )
+  simple_wave_terminal_planner = plan_caustic_simple_wave_terminal_chain(
+    current,
+    request,
+    sample_count=9,
+    shock_angle_tolerance_rad=0.2,
+    policy=MocChainContinuationPolicy(
+      # The seed counts as cell one; two permits exactly one attempted
+      # research handoff before the terminal decision is recorded.
+      max_cells=2,
+      require_state_carry=True,
+    ),
+  )
   bridge_restart = restart_characteristic_family_from_caustic(
     fixture_seed,
     total_pressure_Pa,
@@ -2532,6 +2554,30 @@ def _caustic_shock_remesh_execution_probe(
     )
     and downstream_field_planner.diagnostics.get('remesh_physical_closure_verified') is False
     and downstream_field_planner.diagnostics.get('remesh_chain_promotion_blocked') is True
+    and simple_wave_terminal.status is MocCausticSimpleWaveTerminalStatus.CONVERGED_OPEN_TERMINAL_FIELD
+    and simple_wave_terminal.converged
+    and simple_wave_terminal.trace is not None
+    and simple_wave_terminal.trace.status is MocCausticSimpleWaveTraceStatus.CONVERGED_TRACE
+    and simple_wave_terminal.event_seam_verified
+    and simple_wave_terminal.local_bridge_state_verified
+    and simple_wave_terminal.upstream_coupling_verified
+    and simple_wave_terminal.shock_prefix_verified
+    and simple_wave_terminal.downstream_zone_verified
+    and simple_wave_terminal.terminal_verified
+    and simple_wave_terminal.physical_terminal_verified
+    and simple_wave_terminal.physical_closure_verified is False
+    and simple_wave_terminal.chain_promotion_blocked
+    and simple_wave_terminal_planner.planner_kind is MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
+    and simple_wave_terminal_planner.production_claim_allowed is False
+    and simple_wave_terminal_planner.chain.status is MocChainStatus.SOLVER_TERMINATED
+    and simple_wave_terminal_planner.chain.termination_reason is MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+    and simple_wave_terminal_planner.chain.physical_termination is False
+    and simple_wave_terminal_planner.chain.cell_count == 1
+    and len(simple_wave_terminal_planner.steps) == 1
+    and simple_wave_terminal_planner.steps[0].result_kind == 'termination-returned'
+    and simple_wave_terminal_planner.steps[0].incoming_handoff_sample_count == len(current.continuation_boundary)
+    and simple_wave_terminal_planner.chain.diagnostics.get('terminal_verified') is True
+    and simple_wave_terminal_planner.chain.diagnostics.get('chain_promotion_blocked') is True
     and bridge_coupled_remesh is not None
     and bridge_coupled_remesh.status is MocCausticShockRemeshStatus.UPSTREAM_FIELD_FAILURE
     and bridge_coupled_remesh.upstream_bridge_verified is False
@@ -2588,6 +2634,8 @@ def _caustic_shock_remesh_execution_probe(
     ),
     'downstream_field_planner': downstream_field_planner_report,
     'invariant_downstream_field_planner': invariant_downstream_field_planner_report,
+    'simple_wave_terminal': simple_wave_terminal.as_report(),
+    'simple_wave_terminal_planner': simple_wave_terminal_planner.as_report(),
     'incoming_handoff_sample_count': len(current.continuation_boundary),
     'claim_status': (
       'solver-backed-local-caustic-remesh-and-one-step-planner; '

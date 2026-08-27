@@ -96,6 +96,12 @@ extension remains diagnostic-only. The report also records a terminal
 source-window attempt after the full continuation reaches a characteristic
 caustic, plus a bracketed constant-invariant shock closure attempt; the
 canonical bracket does not straddle a centerline closure and is not promoted.
+The latest caustic report additionally executes the solver-owned constant-
+invariant simple-wave terminal lane: it verifies the exact event state,
+attached-shock prefix, open post-shock zone, typed subsonic terminal, and the
+one-step planner's exact incoming handoff. That lane remains explicitly
+non-promotable until the physical caustic remesh and mixed-regime perimeter
+are solved.
 The reflected-zone shock entry point now drives the attached-shock march from
 the solved reflected state/pressure callbacks and independently reports the
 first outside-domain sample; the canonical attempt is expected to stop there,
