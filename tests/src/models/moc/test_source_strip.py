@@ -4,9 +4,11 @@ from dataclasses import replace
 
 import pytest
 
+from exhaust_plume.models.moc import source_strip as source_strip_module
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput
 from exhaust_plume.models.moc import (
   CharacteristicFamily,
+  MocPrimitiveStatus,
   MocChainTerminationReason,
   MocCausticFamilyRestartStatus,
   MocCausticShockBridgeStatus,
@@ -293,3 +295,49 @@ def test_centerline_reflection_extension_carries_a_physical_boundary_law() -> No
   )
   assert report['domain_x_extent_m'] == restart.family_band.domain_x_extent_m
   assert report['domain_y_extent_m'] == restart.family_band.domain_y_extent_m
+
+
+def test_centerline_reflection_boundary_failure_retains_longest_valid_prefix(
+  monkeypatch: pytest.MonkeyPatch,
+) -> None:
+  exit_state, ambient, reflected = _reflected_boundary_fixture()
+  original_solver = source_strip_module.solve_ambient_pressure_free_boundary_point
+  call_count = 0
+
+  def fail_on_second_boundary_step(*args, **kwargs):
+    nonlocal call_count
+    call_count += 1
+    result = original_solver(*args, **kwargs)
+    if call_count == 2:
+      return replace(
+        result,
+        status=MocPrimitiveStatus.OUTSIDE_DOMAIN,
+        state=None,
+        point_m=None,
+        message='forced boundary failure for prefix-retention test',
+      )
+    return result
+
+  monkeypatch.setattr(
+    source_strip_module,
+    'solve_ambient_pressure_free_boundary_point',
+    fail_on_second_boundary_step,
+  )
+
+  result = extend_source_characteristic_strip_centerline_reflection(
+    reflected.centerline_states,
+    reflected.boundary_states,
+    exit_state.total_pressure_Pa,
+    ambient.pressure_Pa,
+    additional_sample_count=2,
+  )
+
+  assert result.status is MocSourceStripContinuationStatus.BOUNDARY_FAILURE
+  assert result.added_sample_count == 1
+  assert result.last_converged_strip is not None
+  assert result.last_converged_strip.source_window_count == 9
+  assert result.frontier is not None
+  assert result.frontier.source_index == 9
+  assert result.remesh is not None
+  assert result.remesh.source_index == 9
+  assert 'forced boundary failure' in result.message

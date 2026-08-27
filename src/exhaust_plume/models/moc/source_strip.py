@@ -2738,6 +2738,41 @@ def extend_source_characteristic_strip_centerline_reflection(
     )
   extended_plus = list(plus)
   extended_minus = list(minus)
+
+  def continuation_failure(message: str) -> MocSourceStripContinuationResult:
+    """Retain the longest valid prefix when a boundary step fails."""
+
+    last_converged_strip = _latest_converged_source_strip(
+      initial_strip,
+      extended_plus,
+      extended_minus,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+    )
+    frontier, remesh = _source_strip_continuation_frontier(
+      last_converged_strip,
+      extended_plus,
+      extended_minus,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+    )
+    return MocSourceStripContinuationResult(
+      status=MocSourceStripContinuationStatus.BOUNDARY_FAILURE,
+      strip=initial_strip,
+      plus_source_states=tuple(extended_plus),
+      minus_source_states=tuple(extended_minus),
+      added_sample_count=len(extended_minus) - len(minus),
+      axis_step_m=None,
+      continuation_k_plus=None,
+      message=message,
+      continuation_law=law,
+      source_window_start_index=source_window_start_index,
+      source_window_total_count=len(extended_plus),
+      frontier=frontier,
+      remesh=remesh,
+      last_converged_strip=last_converged_strip,
+    )
+
   for step in range(additional_sample_count):
     previous_plus = extended_plus[-1]
     previous_minus = extended_minus[-1]
@@ -2748,37 +2783,13 @@ def extend_source_characteristic_strip_centerline_reflection(
       invariant_tolerance=invariant_tolerance,
     )
     if not axis_result.converged or axis_result.state is None or axis_result.point_m is None:
-      return MocSourceStripContinuationResult(
-        status=MocSourceStripContinuationStatus.BOUNDARY_FAILURE,
-        strip=initial_strip,
-        plus_source_states=tuple(extended_plus),
-        minus_source_states=tuple(extended_minus),
-        added_sample_count=len(extended_minus) - len(minus),
-        axis_step_m=None,
-        continuation_k_plus=None,
-        message=(
-          f'centerline reflection failed at step {step}: '
-          f'{axis_result.message}'
-        ),
-        continuation_law=law,
-        last_converged_strip=initial_strip,
+      return continuation_failure(
+        f'centerline reflection failed at step {step}: {axis_result.message}'
       )
     axis_state = axis_result.state
     if axis_state.x_m <= previous_plus.x_m + position_tolerance_m:
-      return MocSourceStripContinuationResult(
-        status=MocSourceStripContinuationStatus.BOUNDARY_FAILURE,
-        strip=initial_strip,
-        plus_source_states=tuple(extended_plus),
-        minus_source_states=tuple(extended_minus),
-        added_sample_count=len(extended_minus) - len(minus),
-        axis_step_m=None,
-        continuation_k_plus=None,
-        message=(
-          f'centerline reflection step {step} has no downstream axis '
-          'progress'
-        ),
-        continuation_law=law,
-        last_converged_strip=initial_strip,
+      return continuation_failure(
+        f'centerline reflection step {step} has no downstream axis progress'
       )
     boundary_result = solve_ambient_pressure_free_boundary_point(
       axis_state,
@@ -2795,52 +2806,19 @@ def extend_source_characteristic_strip_centerline_reflection(
       or boundary_result.state is None
       or boundary_result.point_m is None
     ):
-      return MocSourceStripContinuationResult(
-        status=MocSourceStripContinuationStatus.BOUNDARY_FAILURE,
-        strip=initial_strip,
-        plus_source_states=tuple(extended_plus),
-        minus_source_states=tuple(extended_minus),
-        added_sample_count=len(extended_minus) - len(minus),
-        axis_step_m=None,
-        continuation_k_plus=None,
-        message=(
-          f'ambient boundary after centerline reflection failed at step '
-          f'{step}: {boundary_result.message}'
-        ),
-        continuation_law=law,
-        last_converged_strip=initial_strip,
+      return continuation_failure(
+        'ambient boundary after centerline reflection failed at step '
+        f'{step}: {boundary_result.message}'
       )
     if boundary_result.point_m[0] <= previous_minus.x_m + position_tolerance_m:
-      return MocSourceStripContinuationResult(
-        status=MocSourceStripContinuationStatus.BOUNDARY_FAILURE,
-        strip=initial_strip,
-        plus_source_states=tuple(extended_plus),
-        minus_source_states=tuple(extended_minus),
-        added_sample_count=len(extended_minus) - len(minus),
-        axis_step_m=None,
-        continuation_k_plus=None,
-        message=(
-          f'ambient boundary after centerline reflection step {step} '
-          'has no downstream progress'
-        ),
-        continuation_law=law,
-        last_converged_strip=initial_strip,
+      return continuation_failure(
+        f'ambient boundary after centerline reflection step {step} '
+        'has no downstream progress'
       )
     if abs(boundary_result.state.k_plus - axis_state.k_plus) > invariant_tolerance:
-      return MocSourceStripContinuationResult(
-        status=MocSourceStripContinuationStatus.BOUNDARY_FAILURE,
-        strip=initial_strip,
-        plus_source_states=tuple(extended_plus),
-        minus_source_states=tuple(extended_minus),
-        added_sample_count=len(extended_minus) - len(minus),
-        axis_step_m=None,
-        continuation_k_plus=None,
-        message=(
-          f'ambient boundary after centerline reflection step {step} '
-          'did not preserve the reflected C+ invariant'
-        ),
-        continuation_law=law,
-        last_converged_strip=initial_strip,
+      return continuation_failure(
+        f'ambient boundary after centerline reflection step {step} '
+        'did not preserve the reflected C+ invariant'
       )
     extended_plus.append(axis_state)
     extended_minus.append(boundary_result.state)

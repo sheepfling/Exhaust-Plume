@@ -227,6 +227,90 @@ class MocReflectedCharacteristicZoneResult:
     return len(self.cells)
   ####
 
+  def _domain_points(self) -> tuple[tuple[float, float], ...]:
+    """Return the mesh vertices that bound the assembled reflected zone."""
+
+    return tuple(
+      (float(point[0]), float(point[1]))
+      for cell in self.cells
+      for point in cell.vertices_xr_m
+    )
+
+  @property
+  def domain_x_extent_m(self) -> tuple[float, float] | None:
+    """Return the finite axial extent available to bounded state probes."""
+
+    points = self._domain_points()
+    if not points or any(
+      not all(isfinite(value) for value in point)
+      for point in points
+    ):
+      return None
+    x_values = tuple(point[0] for point in points)
+    return min(x_values), max(x_values)
+
+  @property
+  def domain_y_extent_m(self) -> tuple[float, float] | None:
+    """Return the finite transverse extent available to bounded state probes."""
+
+    points = self._domain_points()
+    if not points or any(
+      not all(isfinite(value) for value in point)
+      for point in points
+    ):
+      return None
+    y_values = tuple(point[1] for point in points)
+    return min(y_values), max(y_values)
+
+  @property
+  def state_sampling_available(self) -> bool:
+    """Whether the open zone carries bounded state and pressure samples."""
+
+    return bool(
+      self.converged
+      and self.cells
+      and len(self.centerline_states) >= 2
+      and len(self.centerline_states) == len(self.boundary_states)
+      and all(node.total_pressure_Pa is not None for node in self.nodes)
+      and self.total_pressure_Pa is not None
+      and isfinite(float(self.total_pressure_Pa))
+      and self.total_pressure_Pa > 0.0
+      and self.domain_x_extent_m is not None
+      and self.domain_y_extent_m is not None
+    )
+
+  def as_report(self) -> dict[str, object]:
+    """Serialize open-zone geometry and its bounded sampling capability."""
+
+    return {
+      'status': self.status.value,
+      'converged': self.converged,
+      'characteristic_count': self.characteristic_count,
+      'node_count': self.node_count,
+      'cell_count': self.cell_count,
+      'topology_status': self.topology.status.value,
+      'topology_connected': self.topology.connected,
+      'topology_forms_closed_zone': self.topology.forms_closed_zone,
+      'topology_nonmanifold_edge_count': self.topology.nonmanifold_edge_count,
+      'coverage_area_m2': self.coverage_area_m2,
+      'coverage_area_residual_m2': self.coverage_area_residual_m2,
+      'physical_closure_status': self.physical_closure_status,
+      'shock_closure_status': self.shock_closure_status,
+      'state_sampling_available': self.state_sampling_available,
+      'state_sampling_model': 'bounded-cell-barycentric-no-extrapolation',
+      'domain_x_extent_m': self.domain_x_extent_m,
+      'domain_y_extent_m': self.domain_y_extent_m,
+      'centerline_sample_count': len(self.centerline_states),
+      'boundary_sample_count': len(self.boundary_states),
+      'total_pressure_Pa': self.total_pressure_Pa,
+      'cell_kind_counts': {
+        cell_kind: sum(cell.cell_kind == cell_kind for cell in self.cells)
+        for cell_kind in sorted({cell.cell_kind for cell in self.cells})
+      },
+      'message': self.message,
+    }
+  ####
+
   def state_at(
     self,
     point_m: tuple[float, float],

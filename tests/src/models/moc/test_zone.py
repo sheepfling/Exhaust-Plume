@@ -57,6 +57,22 @@ def test_reflected_characteristic_zone_assembles_one_open_topological_perimeter(
   assert result.physical_closure_status == 'open'
   assert result.shock_closure_status == 'not_assembled'
   assert result.total_pressure_Pa == pytest.approx(exit_state.total_pressure_Pa)
+  assert result.state_sampling_available
+  assert result.domain_x_extent_m is not None
+  assert result.domain_x_extent_m[1] > result.domain_x_extent_m[0]
+  assert result.domain_y_extent_m is not None
+  assert result.domain_y_extent_m[0] == pytest.approx(0.0, abs=1.0e-12)
+  assert result.domain_y_extent_m[1] > result.domain_y_extent_m[0]
+  report = result.as_report()
+  assert report['state_sampling_available'] is True
+  assert report['state_sampling_model'] == 'bounded-cell-barycentric-no-extrapolation'
+  assert report['domain_x_extent_m'] == pytest.approx(result.domain_x_extent_m)
+  assert report['domain_y_extent_m'] == pytest.approx(result.domain_y_extent_m)
+  assert report['cell_kind_counts'] == {
+    'axis-strip': 8,
+    'free-boundary-strip': 8,
+    'interior': 28,
+  }
   assert all(node.point_result.converged for node in result.nodes)
   assert all(cell.geometry_status.value == 'valid' for cell in result.cells)
   assert sum(cell.cell_kind == 'axis-strip' for cell in result.cells) == 8
