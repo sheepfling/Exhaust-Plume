@@ -1,11 +1,22 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
-from exhaust_plume.models.moc import MocCharacteristicCell
+from exhaust_plume.models.moc import (
+  CharacteristicState,
+  MocCharacteristicCell,
+  MocPrescribedMixedRegimeClosureMock,
+  solve_marched_ambient_attachment_shock_cell_transition,
+  solve_uniform_attached_shock_field,
+)
 from exhaust_plume.validation.moc_measurements import (
+  MocTerminalClosureMeasurementStatus,
+  MocTerminalClosureObservation,
   MocShockCellMeasurementStatus,
   MocShockCellObservation,
+  measure_moc_terminal_closure,
   measure_moc_shock_cell,
   measure_moc_shock_cell_chain,
 )
@@ -50,6 +61,44 @@ def _observation(
     upstream_total_pressure_Pa=(2.0e6,) * len(shock),
     downstream_total_pressure_Pa=(1.8e6 if pressure_loss else 2.0e6,) * len(shock),
   )
+
+
+def _terminal_field():
+  reference = solve_uniform_attached_shock_field(
+    CharacteristicState(
+      x_m=0.5,
+      y_m=0.5,
+      theta_rad=-0.2,
+      mach=2.0,
+      gamma=1.4,
+    ),
+    100000.0,
+    (0.5, 0.5),
+    outer_downstream_flow_angle_rad=0.05,
+    sample_count=17,
+  )
+  assert reference.shock_fit is not None
+  first = reference.shock_fit.boundary_states[0]
+  ambient_pressure = first.downstream_total_pressure_Pa / (
+    1.0 + 0.5 * (first.state.gamma - 1.0) * first.state.mach * first.state.mach
+  ) ** (first.state.gamma / (first.state.gamma - 1.0))
+  transition = solve_marched_ambient_attachment_shock_cell_transition(
+    lambda point: CharacteristicState(
+      x_m=point[0],
+      y_m=point[1],
+      theta_rad=-0.2,
+      mach=2.0,
+      gamma=1.4,
+    ),
+    lambda _point: 100000.0,
+    (0.5, 0.5),
+    ambient_pressure,
+    0.0,
+    0.1,
+    sample_count=17,
+  )
+  assert transition.terminal_field is not None
+  return transition.terminal_field
 
 
 def test_moc_measurement_extracts_geometry_and_shock_pressure_loss() -> None:
@@ -109,3 +158,75 @@ def test_moc_chain_measurement_rejects_reordered_indices() -> None:
 
   assert result.status is MocShockCellMeasurementStatus.CHAIN_FAILURE
   assert 'contiguous' in result.message
+
+
+def test_terminal_measurement_keeps_an_open_mixed_regime_boundary_blocked() -> None:
+  field = _terminal_field()
+
+  result = measure_moc_terminal_closure(
+    MocTerminalClosureObservation(terminal_field=field)
+  )
+
+  assert result.status is MocTerminalClosureMeasurementStatus.MIXED_REGIME_FAILURE
+  assert result.terminal_normal_shock_verified
+  assert result.terminal_shock_geometry_verified
+  assert result.terminal_pressure_loss_verified
+  assert result.supersonic_patch_verified
+  assert result.physical_closure_verified is False
+  assert result.physical_termination_verified is False
+  assert result.chain_promotion_blocked
+  assert result.as_report()['counts']['terminal_shock_edge_count'] > 0
+
+
+def test_terminal_measurement_rechecks_an_explicit_mixed_regime_attachment() -> None:
+  field = _terminal_field()
+  mock = MocPrescribedMixedRegimeClosureMock(radial_divisions=2)
+  closure = mock.solve(field.mixed_regime_perimeter_request())
+
+  result = measure_moc_terminal_closure(
+    MocTerminalClosureObservation(
+      terminal_field=field,
+      mixed_regime_closure=closure,
+    )
+  )
+
+  assert result.status is MocTerminalClosureMeasurementStatus.CONVERGED
+  assert result.mixed_regime_request_verified
+  assert result.mixed_regime_boundary_verified
+  assert result.mixed_regime_model_verified
+  assert result.downstream_condition_verified
+  assert result.physical_closure_verified
+  assert result.physical_termination_verified
+  assert result.chain_promotion_blocked
+  assert result.maximum_thermodynamic_residual == pytest.approx(0.0, abs=1.0e-12)
+  assert result.as_report()['mixed_regime_topology']['forms_closed_zone'] is True
+
+
+def test_terminal_measurement_does_not_trust_reported_mixed_regime_status() -> None:
+  field = _terminal_field()
+  mock = MocPrescribedMixedRegimeClosureMock(radial_divisions=2)
+  closure = mock.solve(field.mixed_regime_perimeter_request())
+  assert closure.field is not None
+  corrupted_sample = replace(
+    closure.field.nodes[0],
+    static_pressure_Pa=closure.field.nodes[0].static_pressure_Pa * 1.1,
+  )
+  corrupted_field = replace(
+    closure.field,
+    nodes=(corrupted_sample, *closure.field.nodes[1:]),
+  )
+  corrupted_closure = replace(closure, field=corrupted_field)
+
+  result = measure_moc_terminal_closure(
+    MocTerminalClosureObservation(
+      terminal_field=field,
+      mixed_regime_closure=corrupted_closure,
+    )
+  )
+
+  assert result.status is MocTerminalClosureMeasurementStatus.MIXED_REGIME_FAILURE
+  assert result.mixed_regime_model_verified is False
+  assert result.maximum_thermodynamic_residual is not None
+  assert result.maximum_thermodynamic_residual > 1.0e-8
+  assert result.physical_closure_verified is False
+  assert result.chain_promotion_blocked

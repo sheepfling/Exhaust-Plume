@@ -413,6 +413,12 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   )
   terminal_attachment = mixed_regime_boundary['terminal_attachment_contract_fixture']
   terminal_attachment_closure = mixed_regime_boundary['terminal_attachment_closure_result']
+  terminal_closure_measurement = mixed_regime_boundary[
+    'terminal_closure_measurement'
+  ]
+  terminal_attachment_measurement = mixed_regime_boundary[
+    'terminal_attachment_measurement'
+  ]
   assert terminal_attachment_closure['status'] == 'converged_mixed_regime_closure'
   assert terminal_attachment_closure['converged'] is True
   assert terminal_attachment_closure['physical_closure_verified'] is True
@@ -433,6 +439,21 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert terminal_attachment_decision['diagnostics']['mixed_regime_model'] == (
     'elliptic-isentropic-radial-reference'
   )
+  assert terminal_closure_measurement['status'] == 'mixed_regime_failure'
+  assert terminal_closure_measurement['physical_closure_verified'] is False
+  assert terminal_closure_measurement['chain_promotion_blocked'] is True
+  assert terminal_closure_measurement['checks']['terminal_shock_geometry_verified'] is True
+  assert terminal_closure_measurement['checks']['terminal_pressure_loss_verified'] is True
+  assert terminal_attachment_measurement['status'] == 'converged'
+  assert terminal_attachment_measurement['converged'] is True
+  assert terminal_attachment_measurement['physical_closure_verified'] is True
+  assert terminal_attachment_measurement['physical_termination_verified'] is True
+  assert terminal_attachment_measurement['chain_promotion_blocked'] is True
+  assert terminal_attachment_measurement['checks']['mixed_regime_model_verified'] is True
+  assert terminal_attachment_measurement['checks']['downstream_condition_verified'] is True
+  assert terminal_attachment_measurement['residuals'][
+    'maximum_thermodynamic_residual'
+  ] <= 1.0e-8
   assert ambient_closure['status'] == 'ambient_boundary_failure'
   assert ambient_closure['physical_closure_verified'] is False
   assert ambient_closure['upstream_coupling_verified'] is False

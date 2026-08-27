@@ -873,6 +873,17 @@ external measurement-space mapping, uncertainty/provenance, and closure
 domain are complete. The operator must not infer physical shock cells from a
 centerline pressure trace or repair an open mesh.
 
+The `op.moc.terminal-closure` operator now measures the terminal lane
+separately from the terminal solver. It rechecks the closed supersonic mesh,
+sampled terminal-shock coverage and total-pressure loss, exact mixed-regime
+seam, explicit downstream condition, and independently recomputed reference
+field residuals. With no mixed-regime closure it reports an open physical
+boundary; with the prescribed perimeter fixture it reports a terminal
+measurement and physical-stop diagnostic while retaining
+`chain_promotion_blocked=true` and `claim_status=not_accepted`. This is
+measurement evidence for the fidelity boundary, not canonical plume
+validation.
+
 ### MOC-6 — Product integration
 
 Only after MOC-1 through MOC-5 pass:

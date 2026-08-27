@@ -61,12 +61,17 @@ from exhaust_plume.validation.measurement_operators import (
   sample_spectral_rows,
 )
 from exhaust_plume.validation.moc_measurements import (
+  MOC_TERMINAL_CLOSURE_OPERATOR_ID,
   MOC_SHOCK_CELL_CHAIN_OPERATOR_ID,
   MOC_SHOCK_CELL_GEOMETRY_OPERATOR_ID,
+  MocTerminalClosureMeasurement,
+  MocTerminalClosureMeasurementStatus,
+  MocTerminalClosureObservation,
   MocShockCellChainMeasurement,
   MocShockCellMeasurement,
   MocShockCellMeasurementStatus,
   MocShockCellObservation,
+  measure_moc_terminal_closure,
   measure_moc_shock_cell,
   measure_moc_shock_cell_chain,
 )
@@ -143,6 +148,10 @@ __all__ = (
   'MeasurementOperatorSpec',
   'MOC_SHOCK_CELL_CHAIN_OPERATOR_ID',
   'MOC_SHOCK_CELL_GEOMETRY_OPERATOR_ID',
+  'MOC_TERMINAL_CLOSURE_OPERATOR_ID',
+  'MocTerminalClosureMeasurement',
+  'MocTerminalClosureMeasurementStatus',
+  'MocTerminalClosureObservation',
   'MocShockCellChainMeasurement',
   'MocShockCellMeasurement',
   'MocShockCellMeasurementStatus',
@@ -196,6 +205,7 @@ __all__ = (
   'sample_spectral_rows',
   'measure_moc_shock_cell',
   'measure_moc_shock_cell_chain',
+  'measure_moc_terminal_closure',
   'write_validity_report_csv',
   'write_validity_report_json',
 )

@@ -135,7 +135,9 @@ from exhaust_plume.models.moc import (  # noqa: E402
   validate_moc_mesh,
 )
 from exhaust_plume.validation.moc_measurements import (  # noqa: E402
+  MocTerminalClosureObservation,
   MocShockCellObservation,
+  measure_moc_terminal_closure,
   measure_moc_shock_cell,
   measure_moc_shock_cell_chain,
 )
@@ -1456,6 +1458,10 @@ def _mixed_regime_boundary_probe(
   terminal_attachment_fixture = None
   terminal_attachment_termination_decision = None
   terminal_attachment_closure = None
+  terminal_closure_measurement = measure_moc_terminal_closure(
+    MocTerminalClosureObservation(terminal_field=field)
+  )
+  terminal_attachment_measurement = None
   if field is not None and explicit_perimeter_closure.converged:
     terminal_attachment_closure = explicit_perimeter_closure
     if terminal_attachment_closure.field is None:
@@ -1466,6 +1472,12 @@ def _mixed_regime_boundary_probe(
     terminal_attachment_fixture = terminal_attachment.as_report()
     terminal_attachment_termination_decision = (
       terminal_attachment.as_physical_termination_decision().as_report()
+    )
+    terminal_attachment_measurement = measure_moc_terminal_closure(
+      MocTerminalClosureObservation(
+        terminal_field=field,
+        mixed_regime_closure=terminal_attachment_closure,
+      )
     )
   return {
     'status': contract_fixture.status.value,
@@ -1494,6 +1506,14 @@ def _mixed_regime_boundary_probe(
       )
       and terminal_attachment_closure is not None
       and terminal_attachment_closure.converged
+      and terminal_closure_measurement.status.value == 'mixed_regime_failure'
+      and terminal_closure_measurement.physical_closure_verified is False
+      and terminal_closure_measurement.chain_promotion_blocked
+      and terminal_attachment_measurement is not None
+      and terminal_attachment_measurement.converged
+      and terminal_attachment_measurement.physical_closure_verified
+      and terminal_attachment_measurement.physical_termination_verified
+      and terminal_attachment_measurement.chain_promotion_blocked
       and contract_fixture.physical_closure_verified is False
       and contract_fixture.chain_promotion_blocked
       and contract_condition.status.value == 'downstream-tangency-failure'
@@ -1522,6 +1542,12 @@ def _mixed_regime_boundary_probe(
       None
       if terminal_attachment_closure is None
       else terminal_attachment_closure.as_report()
+    ),
+    'terminal_closure_measurement': terminal_closure_measurement.as_report(),
+    'terminal_attachment_measurement': (
+      None
+      if terminal_attachment_measurement is None
+      else terminal_attachment_measurement.as_report()
     ),
     'terminal_attachment_contract_fixture': terminal_attachment_fixture,
     'terminal_attachment_termination_decision': terminal_attachment_termination_decision,

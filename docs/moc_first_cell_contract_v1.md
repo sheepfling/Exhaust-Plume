@@ -207,6 +207,11 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   to retain the exact terminal object, patch sample count, closed perimeter,
   topology, and residual acceptance before attachment. A missing or mismatched
   callback result remains a typed failure;
+- an independent `op.moc.terminal-closure` measurement operator that
+  rechecks the terminal supersonic topology, shock pressure-loss samples,
+  mixed-regime seam, explicit downstream condition, and reference-field
+  residuals. It reports an attached terminal stop without permitting
+  supersonic chain promotion and remains `not_accepted` evidence;
 - a separate MOC cell-chain continuation contract that rejects open cells,
   non-bounded meshes, axial gaps, and scaled reduced-order fidelity;
 - a typed chain termination decision that distinguishes a physical endpoint

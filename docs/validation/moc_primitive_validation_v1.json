@@ -13790,6 +13790,120 @@
         },
         "message": "callback-supplied mixed-regime field matches the terminal seam and passed its explicit perimeter, topology, and residual gates"
       },
+      "terminal_closure_measurement": {
+        "status": "mixed_regime_failure",
+        "operator_id": "op.moc.terminal-closure",
+        "converged": false,
+        "terminal_field_status": "converged_closed_supersonic_terminal_region",
+        "mixed_regime_status": null,
+        "supersonic_topology": {
+          "status": "open",
+          "connected": true,
+          "forms_closed_zone": true,
+          "boundary_edge_count": 81,
+          "boundary_component_count": 1,
+          "nonmanifold_edge_count": 0
+        },
+        "mixed_regime_topology": {
+          "status": "invalid_input",
+          "connected": false,
+          "forms_closed_zone": false,
+          "boundary_edge_count": 0,
+          "boundary_component_count": 0,
+          "nonmanifold_edge_count": 0
+        },
+        "counts": {
+          "terminal_shock_sample_count": 17,
+          "terminal_shock_edge_count": 32,
+          "terminal_shock_downstream_sample_count": 16,
+          "perimeter_sample_count": 0,
+          "supersonic_node_count": 290,
+          "supersonic_cell_count": 333,
+          "mixed_regime_node_count": 0,
+          "mixed_regime_cell_count": 0
+        },
+        "checks": {
+          "terminal_normal_shock_verified": true,
+          "terminal_shock_geometry_verified": true,
+          "terminal_pressure_loss_verified": true,
+          "supersonic_patch_verified": true,
+          "mixed_regime_request_verified": false,
+          "mixed_regime_boundary_verified": false,
+          "mixed_regime_model_verified": false,
+          "downstream_condition_verified": false
+        },
+        "physical_closure_verified": false,
+        "physical_termination_verified": false,
+        "chain_promotion_blocked": true,
+        "pressure": {
+          "minimum_terminal_total_pressure_ratio": 0.9598519734029284,
+          "maximum_terminal_total_pressure_ratio": 0.9999999226266983
+        },
+        "residuals": {
+          "maximum_thermodynamic_residual": null,
+          "maximum_harmonic_residual": null,
+          "maximum_velocity_divergence_residual": null
+        },
+        "claim_status": "not_accepted",
+        "message": "no mixed-regime closure was supplied; the terminal remains an open physical-closure boundary"
+      },
+      "terminal_attachment_measurement": {
+        "status": "converged",
+        "operator_id": "op.moc.terminal-closure",
+        "converged": true,
+        "terminal_field_status": "converged_closed_supersonic_terminal_region",
+        "mixed_regime_status": "converged_mixed_regime_closure",
+        "supersonic_topology": {
+          "status": "open",
+          "connected": true,
+          "forms_closed_zone": true,
+          "boundary_edge_count": 81,
+          "boundary_component_count": 1,
+          "nonmanifold_edge_count": 0
+        },
+        "mixed_regime_topology": {
+          "status": "open",
+          "connected": true,
+          "forms_closed_zone": true,
+          "boundary_edge_count": 4,
+          "boundary_component_count": 1,
+          "nonmanifold_edge_count": 0
+        },
+        "counts": {
+          "terminal_shock_sample_count": 17,
+          "terminal_shock_edge_count": 32,
+          "terminal_shock_downstream_sample_count": 16,
+          "perimeter_sample_count": 5,
+          "supersonic_node_count": 290,
+          "supersonic_cell_count": 333,
+          "mixed_regime_node_count": 9,
+          "mixed_regime_cell_count": 12
+        },
+        "checks": {
+          "terminal_normal_shock_verified": true,
+          "terminal_shock_geometry_verified": true,
+          "terminal_pressure_loss_verified": true,
+          "supersonic_patch_verified": true,
+          "mixed_regime_request_verified": true,
+          "mixed_regime_boundary_verified": true,
+          "mixed_regime_model_verified": true,
+          "downstream_condition_verified": true
+        },
+        "physical_closure_verified": true,
+        "physical_termination_verified": true,
+        "chain_promotion_blocked": true,
+        "pressure": {
+          "minimum_terminal_total_pressure_ratio": 0.9598519734029284,
+          "maximum_terminal_total_pressure_ratio": 0.9999999226266983
+        },
+        "residuals": {
+          "maximum_thermodynamic_residual": 0.0,
+          "maximum_harmonic_residual": 5.329070518200751e-15,
+          "maximum_velocity_divergence_residual": 3.4694469519536887e-14
+        },
+        "claim_status": "not_accepted",
+        "message": "terminal supersonic region and supplied mixed-regime closure passed independent geometry, topology, seam, pressure, and residual checks; the result remains a terminal stop and is not a production validation claim"
+      },
       "terminal_attachment_contract_fixture": {
         "status": "converged_closed_supersonic_terminal_region",
         "converged": true,
