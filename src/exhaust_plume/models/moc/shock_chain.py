@@ -32,11 +32,14 @@ from exhaust_plume.models.moc.primitives import CharacteristicState
 from exhaust_plume.models.moc.mixed_regime import (
   MocMixedRegimeBoundaryResult,
   MocMixedRegimeClosureResult,
+  MocMixedRegimeDownstreamConditionKind,
+  MocMixedRegimeDownstreamConditionResult,
   MocMixedRegimeFieldResult,
   MocMixedRegimeFieldSample,
   MocMixedRegimePerimeterRequest,
   run_mixed_regime_closure_solver,
   validate_mixed_regime_boundary as validate_scalar_mixed_regime_boundary,
+  validate_mixed_regime_downstream_condition,
 )
 from exhaust_plume.models.moc.post_shock import (
   MocPostShockBoundaryState,
@@ -350,6 +353,43 @@ class MocTerminalShockCellFieldResult:
       terminal_downstream_total_pressure_Pa=total_pressure,
       terminal_total_pressure_ratio=total_pressure_ratio,
       supersonic_patch=self.terminal_shock_supersonic_downstream_states,
+    )
+  ####
+
+  def validate_mixed_regime_downstream_condition(
+    self,
+    subsonic_samples: Sequence[MocMixedRegimeFieldSample],
+    condition_kind: MocMixedRegimeDownstreamConditionKind,
+    *,
+    ambient_pressure_Pa: float | None = None,
+    perimeter_points_m: Sequence[tuple[float, float]] | None = None,
+    position_tolerance_m: float = 1.0e-10,
+    state_tolerance: float = 1.0e-10,
+    pressure_tolerance: float = 1.0e-8,
+    tangent_tolerance_rad: float = 1.0e-8,
+  ) -> MocMixedRegimeDownstreamConditionResult:
+    """Validate a caller-supplied physical condition at this terminal seam.
+
+    This convenience method keeps the terminal composite's exact shock and
+    supersonic-patch seam attached to the scalar perimeter validator.  It
+    still accepts no inferred geometry and does not turn a passing condition
+    into a supersonic chain-cell handoff.
+    """
+
+    boundary = self.validate_mixed_regime_boundary(
+      subsonic_samples,
+      perimeter_points_m=perimeter_points_m,
+      position_tolerance_m=position_tolerance_m,
+      state_tolerance=state_tolerance,
+      pressure_tolerance=pressure_tolerance,
+    )
+    return validate_mixed_regime_downstream_condition(
+      boundary,
+      condition_kind,
+      ambient_pressure_Pa=ambient_pressure_Pa,
+      position_tolerance_m=position_tolerance_m,
+      tangent_tolerance_rad=tangent_tolerance_rad,
+      pressure_tolerance=pressure_tolerance,
     )
   ####
 

@@ -1,4 +1,5 @@
 from dataclasses import replace
+from math import pi
 
 import pytest
 
@@ -6,14 +7,18 @@ from exhaust_plume.models.moc import (
   CharacteristicState,
   MocMixedRegimeBoundaryStatus,
   MocMixedRegimeClosureStatus,
+  MocMixedRegimeDownstreamConditionKind,
+  MocMixedRegimeDownstreamConditionStatus,
   MocMixedRegimeFieldStatus,
   MocMixedRegimeFieldSample,
   MocMixedRegimePerimeterRequest,
   MocPostShockBoundaryState,
   run_mixed_regime_closure_solver,
   solve_normal_shock_terminal,
+  solve_mixed_regime_downstream_condition,
   solve_mixed_regime_subsonic_field,
   validate_mixed_regime_boundary,
+  validate_mixed_regime_downstream_condition,
 )
 
 
@@ -85,6 +90,35 @@ def _samples(terminal, *, interior_total_pressure: float | None = None):
   )
 
 
+def _slip_wall_samples(terminal):
+  assert terminal.shock_point_m is not None
+  assert terminal.downstream_mach is not None
+  assert terminal.downstream_pressure_Pa is not None
+  assert terminal.downstream_total_pressure_Pa is not None
+  assert terminal.total_pressure_ratio is not None
+  gamma = terminal.upstream_state.gamma
+  terminal_x, terminal_y = terminal.shock_point_m
+  points = (
+    (terminal_x, terminal_y),
+    (terminal_x + 0.1, terminal_y),
+    (terminal_x + 0.1, terminal_y + 0.1),
+    (terminal_x, terminal_y + 0.1),
+    (terminal_x, terminal_y),
+  )
+  flow_angles = (0.0, 0.0, pi, pi, 0.0)
+  return tuple(
+    MocMixedRegimeFieldSample(
+      point_m=point,
+      mach=terminal.downstream_mach,
+      flow_angle_rad=flow_angle,
+      static_pressure_Pa=terminal.downstream_pressure_Pa,
+      total_pressure_Pa=terminal.downstream_total_pressure_Pa,
+      gamma=gamma,
+    )
+    for point, flow_angle in zip(points, flow_angles, strict=True)
+  )
+
+
 def test_scalar_mixed_regime_boundary_handoff_is_valid_but_not_field_closure() -> None:
   terminal = _terminal()
   result = validate_mixed_regime_boundary(
@@ -103,6 +137,123 @@ def test_scalar_mixed_regime_boundary_handoff_is_valid_but_not_field_closure() -
   assert result.mixed_regime_field_complete is False
   assert result.physical_closure_verified is False
   assert result.chain_promotion_blocked
+
+
+def test_downstream_slip_wall_condition_is_separate_from_scalar_boundary_handoff() -> None:
+  terminal = _terminal()
+  boundary = validate_mixed_regime_boundary(
+    terminal,
+    _supersonic_patch(),
+    supersonic_patch_converged=True,
+    subsonic_samples=_slip_wall_samples(terminal),
+  )
+
+  result = validate_mixed_regime_downstream_condition(
+    boundary,
+    MocMixedRegimeDownstreamConditionKind.SLIP_WALL,
+  )
+
+  assert result.status is MocMixedRegimeDownstreamConditionStatus.CONVERGED
+  assert result.converged
+  assert result.physical_condition_verified
+  assert result.tangency_condition_verified
+  assert result.pressure_condition_verified
+  assert result.maximum_tangent_residual_rad == pytest.approx(0.0)
+  assert result.chain_promotion_blocked
+
+
+def test_downstream_condition_rejects_a_geometrically_closed_but_nontangent_perimeter() -> None:
+  terminal = _terminal()
+  boundary = validate_mixed_regime_boundary(
+    terminal,
+    _supersonic_patch(),
+    supersonic_patch_converged=True,
+    subsonic_samples=_samples(terminal),
+  )
+
+  result = validate_mixed_regime_downstream_condition(
+    boundary,
+    MocMixedRegimeDownstreamConditionKind.SLIP_WALL,
+  )
+
+  assert result.status is MocMixedRegimeDownstreamConditionStatus.TANGENCY_FAILURE
+  assert not result.converged
+  assert not result.physical_condition_verified
+  assert result.boundary is boundary
+  assert result.maximum_tangent_residual_rad is not None
+  assert result.maximum_tangent_residual_rad > 0.0
+  assert result.chain_promotion_blocked
+
+
+def test_downstream_ambient_condition_requires_tangency_and_static_pressure() -> None:
+  terminal = _terminal()
+  boundary = validate_mixed_regime_boundary(
+    terminal,
+    _supersonic_patch(),
+    supersonic_patch_converged=True,
+    subsonic_samples=_slip_wall_samples(terminal),
+  )
+  assert terminal.downstream_pressure_Pa is not None
+
+  result = validate_mixed_regime_downstream_condition(
+    boundary,
+    MocMixedRegimeDownstreamConditionKind.AMBIENT_PRESSURE_FREE_BOUNDARY,
+    ambient_pressure_Pa=terminal.downstream_pressure_Pa,
+  )
+
+  assert result.status is MocMixedRegimeDownstreamConditionStatus.CONVERGED
+  assert result.tangency_condition_verified
+  assert result.pressure_condition_verified
+  assert result.maximum_pressure_residual_Pa == pytest.approx(0.0)
+  assert result.chain_promotion_blocked
+
+
+def test_downstream_condition_callback_preserves_exact_terminal_and_patch_seams() -> None:
+  terminal = _terminal()
+  patch = _supersonic_patch()
+  boundary = validate_mixed_regime_boundary(
+    terminal,
+    patch,
+    supersonic_patch_converged=True,
+    subsonic_samples=_slip_wall_samples(terminal),
+  )
+  assert terminal.shock_point_m is not None
+  assert terminal.downstream_mach is not None
+  assert terminal.downstream_flow_angle_rad is not None
+  assert terminal.downstream_pressure_Pa is not None
+  assert terminal.downstream_total_pressure_Pa is not None
+  assert terminal.total_pressure_ratio is not None
+  request = MocMixedRegimePerimeterRequest(
+    terminal=terminal,
+    terminal_point_m=terminal.shock_point_m,
+    terminal_downstream_mach=terminal.downstream_mach,
+    terminal_downstream_flow_angle_rad=terminal.downstream_flow_angle_rad,
+    terminal_downstream_pressure_Pa=terminal.downstream_pressure_Pa,
+    terminal_downstream_total_pressure_Pa=terminal.downstream_total_pressure_Pa,
+    terminal_total_pressure_ratio=terminal.total_pressure_ratio,
+    supersonic_patch=patch,
+  )
+
+  result = solve_mixed_regime_downstream_condition(
+    request,
+    lambda received: boundary if received is request else None,
+    condition_kind=MocMixedRegimeDownstreamConditionKind.SLIP_WALL,
+  )
+
+  assert result.status is MocMixedRegimeDownstreamConditionStatus.CONVERGED
+  assert result.boundary is boundary
+  assert result.chain_promotion_blocked
+
+  mismatched = replace(boundary, supersonic_patch=())
+  mismatch_result = solve_mixed_regime_downstream_condition(
+    request,
+    lambda _received: mismatched,
+    condition_kind=MocMixedRegimeDownstreamConditionKind.SLIP_WALL,
+  )
+
+  assert mismatch_result.status is MocMixedRegimeDownstreamConditionStatus.BOUNDARY_FAILURE
+  assert not mismatch_result.converged
+  assert 'supersonic patch' in mismatch_result.message
 
 
 def test_elliptic_subsonic_reference_field_closes_only_its_declared_mesh_model() -> None:

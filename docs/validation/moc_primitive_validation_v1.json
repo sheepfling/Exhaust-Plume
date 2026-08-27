@@ -7598,6 +7598,240 @@
         },
         "message": "scalar subsonic perimeter handoff passed shock-seam, open-supersonic-patch, geometry, and total-pressure lineage checks; a subsonic field mesh is still pending"
       },
+      "downstream_condition_contract": {
+        "status": "downstream-tangency-failure",
+        "converged": false,
+        "physical_condition_verified": false,
+        "chain_promotion_blocked": true,
+        "condition_kind": "slip-wall",
+        "tangent_sample_count": 4,
+        "pressure_sample_count": 0,
+        "maximum_tangent_residual_rad": 1.5707963267948966,
+        "maximum_pressure_residual_Pa": null,
+        "tangency_condition_verified": false,
+        "pressure_condition_verified": true,
+        "boundary": {
+          "status": "converged_subsonic_boundary_handoff",
+          "converged": true,
+          "physical_closure_verified": false,
+          "mixed_regime_field_complete": false,
+          "chain_promotion_blocked": true,
+          "supersonic_patch_sample_count": 16,
+          "subsonic_sample_count": 5,
+          "perimeter_sample_count": 5,
+          "supersonic_patch_verified": true,
+          "subsonic_state_samples_verified": true,
+          "terminal_continuity_verified": true,
+          "perimeter_geometry_verified": true,
+          "total_pressure_lineage_verified": true,
+          "maximum_terminal_mach_residual": 0.0,
+          "maximum_terminal_flow_angle_residual_rad": 0.0,
+          "maximum_terminal_static_pressure_residual_Pa": 0.0,
+          "maximum_terminal_total_pressure_residual_Pa": 0.0,
+          "maximum_total_pressure_gain_Pa": 0.0,
+          "supersonic_patch_points_m": [
+            [
+              1.4720719054145763,
+              0.4979922117641763
+            ],
+            [
+              1.4996068085862775,
+              0.4668676985289153
+            ],
+            [
+              1.5272295918096628,
+              0.43574318529365424
+            ],
+            [
+              1.5549396105016047,
+              0.40461867205839325
+            ],
+            [
+              1.582772502676111,
+              0.3734941588231322
+            ],
+            [
+              1.610802196382813,
+              0.3423696455878712
+            ],
+            [
+              1.6390615894207616,
+              0.3112451323526102
+            ],
+            [
+              1.6675417948509283,
+              0.2801206191173492
+            ],
+            [
+              1.6962349706311752,
+              0.24899610588208815
+            ],
+            [
+              1.7251328199038731,
+              0.21787159264682715
+            ],
+            [
+              1.75422722428391,
+              0.1867470794115661
+            ],
+            [
+              1.7835111080485049,
+              0.1556225661763051
+            ],
+            [
+              1.8129774887248693,
+              0.1244980529410441
+            ],
+            [
+              1.8426186835645062,
+              0.09337353970578305
+            ],
+            [
+              1.8724270249165245,
+              0.06224902647052205
+            ],
+            [
+              1.9023953791872266,
+              0.031124513235260998
+            ]
+          ],
+          "terminal": {
+            "status": "converged",
+            "converged": true,
+            "subsonic": true,
+            "shock_point_m": [
+              1.932441612053076,
+              0.0
+            ],
+            "shock_normal_angle_rad": 1.5707963267948966,
+            "downstream_flow_angle_rad": 0.0,
+            "downstream_mach": 0.7425533106434078,
+            "downstream_pressure_Pa": 508788.91048239,
+            "static_pressure_ratio": 2.0981236964211574,
+            "total_pressure_ratio": 0.9598519734029278,
+            "message": ""
+          },
+          "message": "scalar subsonic perimeter handoff passed shock-seam, open-supersonic-patch, geometry, and total-pressure lineage checks; a subsonic field mesh is still pending"
+        },
+        "message": "subsonic flow is not tangent to the proposed downstream perimeter: maximum residual=1.5707963267948966"
+      },
+      "downstream_condition_positive_wall_fixture": {
+        "status": "converged-downstream-condition",
+        "converged": true,
+        "physical_condition_verified": true,
+        "chain_promotion_blocked": true,
+        "condition_kind": "slip-wall",
+        "tangent_sample_count": 4,
+        "pressure_sample_count": 0,
+        "maximum_tangent_residual_rad": 0.0,
+        "maximum_pressure_residual_Pa": null,
+        "tangency_condition_verified": true,
+        "pressure_condition_verified": true,
+        "boundary": {
+          "status": "converged_subsonic_boundary_handoff",
+          "converged": true,
+          "physical_closure_verified": false,
+          "mixed_regime_field_complete": false,
+          "chain_promotion_blocked": true,
+          "supersonic_patch_sample_count": 16,
+          "subsonic_sample_count": 5,
+          "perimeter_sample_count": 5,
+          "supersonic_patch_verified": true,
+          "subsonic_state_samples_verified": true,
+          "terminal_continuity_verified": true,
+          "perimeter_geometry_verified": true,
+          "total_pressure_lineage_verified": true,
+          "maximum_terminal_mach_residual": 0.0,
+          "maximum_terminal_flow_angle_residual_rad": 0.0,
+          "maximum_terminal_static_pressure_residual_Pa": 0.0,
+          "maximum_terminal_total_pressure_residual_Pa": 0.0,
+          "maximum_total_pressure_gain_Pa": 0.0,
+          "supersonic_patch_points_m": [
+            [
+              1.4720719054145763,
+              0.4979922117641763
+            ],
+            [
+              1.4996068085862775,
+              0.4668676985289153
+            ],
+            [
+              1.5272295918096628,
+              0.43574318529365424
+            ],
+            [
+              1.5549396105016047,
+              0.40461867205839325
+            ],
+            [
+              1.582772502676111,
+              0.3734941588231322
+            ],
+            [
+              1.610802196382813,
+              0.3423696455878712
+            ],
+            [
+              1.6390615894207616,
+              0.3112451323526102
+            ],
+            [
+              1.6675417948509283,
+              0.2801206191173492
+            ],
+            [
+              1.6962349706311752,
+              0.24899610588208815
+            ],
+            [
+              1.7251328199038731,
+              0.21787159264682715
+            ],
+            [
+              1.75422722428391,
+              0.1867470794115661
+            ],
+            [
+              1.7835111080485049,
+              0.1556225661763051
+            ],
+            [
+              1.8129774887248693,
+              0.1244980529410441
+            ],
+            [
+              1.8426186835645062,
+              0.09337353970578305
+            ],
+            [
+              1.8724270249165245,
+              0.06224902647052205
+            ],
+            [
+              1.9023953791872266,
+              0.031124513235260998
+            ]
+          ],
+          "terminal": {
+            "status": "converged",
+            "converged": true,
+            "subsonic": true,
+            "shock_point_m": [
+              1.932441612053076,
+              0.0
+            ],
+            "shock_normal_angle_rad": 1.5707963267948966,
+            "downstream_flow_angle_rad": 0.0,
+            "downstream_mach": 0.7425533106434078,
+            "downstream_pressure_Pa": 508788.91048239,
+            "static_pressure_ratio": 2.0981236964211574,
+            "total_pressure_ratio": 0.9598519734029278,
+            "message": ""
+          },
+          "message": "scalar subsonic perimeter handoff passed shock-seam, open-supersonic-patch, geometry, and total-pressure lineage checks; a subsonic field mesh is still pending"
+        },
+        "message": "subsonic downstream perimeter passed scalar seam, kinematic tangency, and its declared physical pressure condition"
+      },
       "elliptic_subsonic_field_contract_fixture": {
         "status": "converged_elliptic_subsonic_field",
         "converged": true,

@@ -376,6 +376,16 @@ not wait on this research closure.
   field rejection and a clearly labeled scalar-perimeter contract fixture;
   both retain ``physical_closure_verified=false`` and block chain promotion
   until a real subsonic field/mesh solver replaces the fixture.
+- Added a separate downstream-condition validator for that scalar handoff.
+  Slip-wall candidates must be flow-tangent on every perimeter segment;
+  ambient-pressure free-boundary candidates must also match static pressure.
+  The report retains both a deliberately non-tangent rejection and a
+  wall-aligned positive contract fixture. A passing condition is still only a
+  boundary-condition seam: it remains chain-promotion-blocked and does not
+  upgrade the harmonic reference field into a physical plume solve.
+  The terminal supersonic field exposes the same check as a convenience
+  method, so callers cannot accidentally validate a perimeter against a
+  detached shock/patch seam.
 - Added a separate solver-backed elliptic subsonic reference field. It accepts
   only a closed scalar perimeter, builds an explicit triangular mesh around an
   interior control point, checks connected topology, isentropic total-pressure

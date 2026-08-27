@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from math import cos, exp, hypot, isfinite, log, sin
+from math import atan2, cos, exp, hypot, isfinite, log, pi, sin
 from typing import Callable, Sequence
 
 import numpy as np
@@ -35,12 +35,17 @@ __all__ = (
   'MocMixedRegimeBoundaryStatus',
   'MocMixedRegimeFieldSample',
   'MocMixedRegimePerimeterRequest',
+  'MocMixedRegimeDownstreamConditionKind',
+  'MocMixedRegimeDownstreamConditionStatus',
+  'MocMixedRegimeDownstreamConditionResult',
   'MocMixedRegimeClosureStatus',
   'MocMixedRegimeClosureResult',
   'MocMixedRegimeBoundaryResult',
   'MocMixedRegimeFieldStatus',
   'MocMixedRegimeFieldResult',
   'validate_mixed_regime_boundary',
+  'validate_mixed_regime_downstream_condition',
+  'solve_mixed_regime_downstream_condition',
   'run_mixed_regime_closure_solver',
   'solve_mixed_regime_subsonic_field',
 )
@@ -68,6 +73,26 @@ class MocMixedRegimeFieldStatus(str, Enum):
   TOPOLOGY_FAILURE = 'mixed_regime_mesh_topology_failure'
   THERMODYNAMIC_FAILURE = 'mixed_regime_thermodynamic_failure'
   RESIDUAL_FAILURE = 'mixed_regime_elliptic_residual_failure'
+
+
+class MocMixedRegimeDownstreamConditionKind(str, Enum):
+  """Physical condition that a subsonic downstream perimeter claims."""
+
+  SLIP_WALL = 'slip-wall'
+  AMBIENT_PRESSURE_FREE_BOUNDARY = 'ambient-pressure-free-boundary'
+####
+
+
+class MocMixedRegimeDownstreamConditionStatus(str, Enum):
+  """Outcome of the physical downstream-condition seam."""
+
+  CONVERGED = 'converged-downstream-condition'
+  INVALID_INPUT = 'invalid_input'
+  BOUNDARY_FAILURE = 'downstream-boundary-failure'
+  TANGENCY_FAILURE = 'downstream-tangency-failure'
+  PRESSURE_FAILURE = 'downstream-pressure-condition-failure'
+  SOLVER_FAILURE = 'downstream-condition-solver-failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -401,6 +426,62 @@ class MocMixedRegimeBoundaryResult:
         list(sample.point_m) for sample in self.supersonic_patch
       ],
       'terminal': terminal_report,
+      'message': self.message,
+    }
+
+
+@dataclass(frozen=True, slots=True)
+class MocMixedRegimeDownstreamConditionResult:
+  """Acceptance result for a scalar perimeter's physical boundary condition.
+
+  The scalar perimeter validator checks the shock seam and pressure lineage.
+  This narrower result adds the downstream kinematic/pressure condition that
+  the perimeter itself must satisfy before a mixed-regime field can be called
+  physically bounded.  It remains separate from the harmonic reference-field
+  solve and never creates a subsonic ``CharacteristicState``.
+  """
+
+  status: MocMixedRegimeDownstreamConditionStatus
+  condition_kind: MocMixedRegimeDownstreamConditionKind | None
+  boundary: MocMixedRegimeBoundaryResult | None
+  tangent_residuals_rad: tuple[float, ...]
+  pressure_residuals_Pa: tuple[float, ...]
+  maximum_tangent_residual_rad: float | None
+  maximum_pressure_residual_Pa: float | None
+  tangency_condition_verified: bool
+  pressure_condition_verified: bool
+  message: str = ''
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocMixedRegimeDownstreamConditionStatus.CONVERGED
+
+  @property
+  def physical_condition_verified(self) -> bool:
+    return self.converged
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    """A boundary condition is not a resolved supersonic chain handoff."""
+
+    return True
+
+  def as_report(self) -> dict[str, object]:
+    return {
+      'status': self.status.value,
+      'converged': self.converged,
+      'physical_condition_verified': self.physical_condition_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'condition_kind': (
+        None if self.condition_kind is None else self.condition_kind.value
+      ),
+      'tangent_sample_count': len(self.tangent_residuals_rad),
+      'pressure_sample_count': len(self.pressure_residuals_Pa),
+      'maximum_tangent_residual_rad': self.maximum_tangent_residual_rad,
+      'maximum_pressure_residual_Pa': self.maximum_pressure_residual_Pa,
+      'tangency_condition_verified': self.tangency_condition_verified,
+      'pressure_condition_verified': self.pressure_condition_verified,
+      'boundary': None if self.boundary is None else self.boundary.as_report(),
       'message': self.message,
     }
 
@@ -1637,4 +1718,355 @@ def validate_mixed_regime_boundary(
       'scalar subsonic perimeter handoff passed shock-seam, open-supersonic-patch, '
       'geometry, and total-pressure lineage checks; a subsonic field mesh is still pending'
     ),
+  )
+
+
+def _downstream_condition_failure(
+  status: MocMixedRegimeDownstreamConditionStatus,
+  *,
+  condition_kind: MocMixedRegimeDownstreamConditionKind | None,
+  boundary: MocMixedRegimeBoundaryResult | None = None,
+  tangent_residuals_rad: Sequence[float] = (),
+  pressure_residuals_Pa: Sequence[float] = (),
+  tangency_condition_verified: bool = False,
+  pressure_condition_verified: bool = False,
+  message: str,
+) -> MocMixedRegimeDownstreamConditionResult:
+  tangent_residuals = tuple(float(value) for value in tangent_residuals_rad)
+  pressure_residuals = tuple(float(value) for value in pressure_residuals_Pa)
+  return MocMixedRegimeDownstreamConditionResult(
+    status=status,
+    condition_kind=condition_kind,
+    boundary=boundary,
+    tangent_residuals_rad=tangent_residuals,
+    pressure_residuals_Pa=pressure_residuals,
+    maximum_tangent_residual_rad=max(tangent_residuals, default=None),
+    maximum_pressure_residual_Pa=max(
+      (abs(value) for value in pressure_residuals),
+      default=None,
+    ),
+    tangency_condition_verified=tangency_condition_verified,
+    pressure_condition_verified=pressure_condition_verified,
+    message=message,
+  )
+
+
+def _segment_flow_angle(
+  first_angle_rad: float,
+  second_angle_rad: float,
+) -> float:
+  """Interpolate directed flow angles across a polygon segment."""
+
+  delta = (second_angle_rad - first_angle_rad + pi) % (2.0 * pi) - pi
+  return first_angle_rad + 0.5 * delta
+
+
+def _line_angle_residual(
+  flow_angle_rad: float,
+  tangent_angle_rad: float,
+) -> float:
+  """Return the acute residual between a flow direction and a line."""
+
+  residual = (
+    flow_angle_rad - tangent_angle_rad + 0.5 * pi
+  ) % pi - 0.5 * pi
+  return abs(residual)
+
+
+def validate_mixed_regime_downstream_condition(
+  boundary: MocMixedRegimeBoundaryResult,
+  condition_kind: MocMixedRegimeDownstreamConditionKind,
+  *,
+  ambient_pressure_Pa: float | None = None,
+  position_tolerance_m: float = 1.0e-10,
+  tangent_tolerance_rad: float = 1.0e-8,
+  pressure_tolerance: float = 1.0e-8,
+) -> MocMixedRegimeDownstreamConditionResult:
+  """Validate the physical condition carried by a scalar perimeter.
+
+  The perimeter and scalar seam are validated first by
+  :func:`validate_mixed_regime_boundary`.  This function then checks the
+  condition that makes the perimeter physical: a slip wall requires the
+  subsonic flow to be tangent to every boundary segment, while an ambient
+  free boundary requires both tangency and static-pressure matching.  The
+  open supersonic patch is never used as a replacement for this path.
+  """
+
+  if not isinstance(condition_kind, MocMixedRegimeDownstreamConditionKind):
+    return _downstream_condition_failure(
+      MocMixedRegimeDownstreamConditionStatus.INVALID_INPUT,
+      condition_kind=None,
+      message='condition_kind must be a MocMixedRegimeDownstreamConditionKind',
+    )
+  try:
+    for name, value in (
+      ('position_tolerance_m', position_tolerance_m),
+      ('tangent_tolerance_rad', tangent_tolerance_rad),
+      ('pressure_tolerance', pressure_tolerance),
+    ):
+      if not isfinite(float(value)) or float(value) <= 0.0:
+        raise ValueError(f'{name} must be finite and positive')
+  except (TypeError, ValueError) as error:
+    return _downstream_condition_failure(
+      MocMixedRegimeDownstreamConditionStatus.INVALID_INPUT,
+      condition_kind=condition_kind,
+      boundary=boundary if isinstance(boundary, MocMixedRegimeBoundaryResult) else None,
+      message=f'downstream condition inputs are invalid: {error}',
+    )
+  if not isinstance(boundary, MocMixedRegimeBoundaryResult):
+    return _downstream_condition_failure(
+      MocMixedRegimeDownstreamConditionStatus.INVALID_INPUT,
+      condition_kind=condition_kind,
+      message='boundary must be a MocMixedRegimeBoundaryResult',
+    )
+  if condition_kind is MocMixedRegimeDownstreamConditionKind.SLIP_WALL:
+    if ambient_pressure_Pa is not None:
+      return _downstream_condition_failure(
+        MocMixedRegimeDownstreamConditionStatus.INVALID_INPUT,
+        condition_kind=condition_kind,
+        boundary=boundary,
+        message='ambient_pressure_Pa is only valid for an ambient free boundary',
+      )
+    pressure_verified = True
+  else:
+    if ambient_pressure_Pa is None:
+      return _downstream_condition_failure(
+        MocMixedRegimeDownstreamConditionStatus.INVALID_INPUT,
+        condition_kind=condition_kind,
+        boundary=boundary,
+        message='ambient_pressure_Pa is required for an ambient free boundary',
+      )
+    try:
+      ambient_pressure = float(ambient_pressure_Pa)
+    except (TypeError, ValueError):
+      ambient_pressure = float('nan')
+    if not isfinite(ambient_pressure) or ambient_pressure <= 0.0:
+      return _downstream_condition_failure(
+        MocMixedRegimeDownstreamConditionStatus.INVALID_INPUT,
+        condition_kind=condition_kind,
+        boundary=boundary,
+        message='ambient_pressure_Pa must be finite and positive',
+      )
+    pressure_verified = False
+
+  if not boundary.converged:
+    return _downstream_condition_failure(
+      MocMixedRegimeDownstreamConditionStatus.BOUNDARY_FAILURE,
+      condition_kind=condition_kind,
+      boundary=boundary,
+      pressure_condition_verified=pressure_verified,
+      message=(
+        'downstream physical condition requires a converged scalar perimeter: '
+        f'{boundary.message}'
+      ),
+    )
+  points = boundary.perimeter_points_m
+  samples = boundary.subsonic_samples
+  if len(points) != len(samples) or len(points) < 4:
+    return _downstream_condition_failure(
+      MocMixedRegimeDownstreamConditionStatus.BOUNDARY_FAILURE,
+      condition_kind=condition_kind,
+      boundary=boundary,
+      pressure_condition_verified=pressure_verified,
+      message='downstream physical condition requires a closed perimeter with matching samples',
+    )
+
+  tangent_residuals: list[float] = []
+  for first_point, second_point, first_sample, second_sample in zip(
+    points[:-1],
+    points[1:],
+    samples[:-1],
+    samples[1:],
+    strict=True,
+  ):
+    displacement = (
+      second_point[0] - first_point[0],
+      second_point[1] - first_point[1],
+    )
+    if hypot(*displacement) <= float(position_tolerance_m):
+      return _downstream_condition_failure(
+        MocMixedRegimeDownstreamConditionStatus.BOUNDARY_FAILURE,
+        condition_kind=condition_kind,
+        boundary=boundary,
+        tangent_residuals_rad=tangent_residuals,
+        pressure_condition_verified=pressure_verified,
+        message='downstream physical condition encountered a zero-length perimeter segment',
+      )
+    tangent_angle = atan2(displacement[1], displacement[0])
+    flow_angle = _segment_flow_angle(
+      first_sample.flow_angle_rad,
+      second_sample.flow_angle_rad,
+    )
+    tangent_residuals.append(
+      _line_angle_residual(flow_angle, tangent_angle)
+    )
+  maximum_tangent_residual = max(tangent_residuals, default=float('inf'))
+  tangency_verified = maximum_tangent_residual <= float(tangent_tolerance_rad)
+  if not tangency_verified:
+    return _downstream_condition_failure(
+      MocMixedRegimeDownstreamConditionStatus.TANGENCY_FAILURE,
+      condition_kind=condition_kind,
+      boundary=boundary,
+      tangent_residuals_rad=tangent_residuals,
+      pressure_condition_verified=pressure_verified,
+      message=(
+        'subsonic flow is not tangent to the proposed downstream perimeter: '
+        f'maximum residual={maximum_tangent_residual}'
+      ),
+    )
+
+  pressure_residuals: tuple[float, ...] = ()
+  if condition_kind is MocMixedRegimeDownstreamConditionKind.AMBIENT_PRESSURE_FREE_BOUNDARY:
+    assert ambient_pressure_Pa is not None
+    ambient_pressure = float(ambient_pressure_Pa)
+    pressure_residuals = tuple(
+      sample.static_pressure_Pa - ambient_pressure
+      for sample in samples
+    )
+    maximum_pressure_residual = max(
+      (abs(value) for value in pressure_residuals),
+      default=float('inf'),
+    )
+    pressure_verified = maximum_pressure_residual <= float(pressure_tolerance) * max(
+      1.0,
+      abs(ambient_pressure),
+    )
+    if not pressure_verified:
+      return _downstream_condition_failure(
+        MocMixedRegimeDownstreamConditionStatus.PRESSURE_FAILURE,
+        condition_kind=condition_kind,
+        boundary=boundary,
+        tangent_residuals_rad=tangent_residuals,
+        pressure_residuals_Pa=pressure_residuals,
+        tangency_condition_verified=tangency_verified,
+        pressure_condition_verified=False,
+        message=(
+          'subsonic perimeter does not match the requested ambient pressure: '
+          f'maximum residual={maximum_pressure_residual}'
+        ),
+      )
+
+  return MocMixedRegimeDownstreamConditionResult(
+    status=MocMixedRegimeDownstreamConditionStatus.CONVERGED,
+    condition_kind=condition_kind,
+    boundary=boundary,
+    tangent_residuals_rad=tuple(tangent_residuals),
+    pressure_residuals_Pa=pressure_residuals,
+    maximum_tangent_residual_rad=maximum_tangent_residual,
+    maximum_pressure_residual_Pa=(
+      None
+      if not pressure_residuals
+      else max(abs(value) for value in pressure_residuals)
+    ),
+    tangency_condition_verified=True,
+    pressure_condition_verified=pressure_verified,
+    message=(
+      'subsonic downstream perimeter passed scalar seam, kinematic tangency, '
+      'and its declared physical pressure condition'
+    ),
+  )
+
+
+def solve_mixed_regime_downstream_condition(
+  request: MocMixedRegimePerimeterRequest,
+  solve_boundary: Callable[
+    [MocMixedRegimePerimeterRequest],
+    MocMixedRegimeBoundaryResult | None,
+  ],
+  *,
+  condition_kind: MocMixedRegimeDownstreamConditionKind,
+  ambient_pressure_Pa: float | None = None,
+  position_tolerance_m: float = 1.0e-10,
+  tangent_tolerance_rad: float = 1.0e-8,
+  pressure_tolerance: float = 1.0e-8,
+) -> MocMixedRegimeDownstreamConditionResult:
+  """Run a solver-owned downstream-boundary callback and apply its gates.
+
+  The callback owns the boundary construction.  This adapter only checks
+  that it used the exact terminal shock seam and then applies the physical
+  downstream-condition validator.  A missing or mismatched callback result
+  cannot be turned into a guessed perimeter.
+  """
+
+  if not isinstance(request, MocMixedRegimePerimeterRequest):
+    return _downstream_condition_failure(
+      MocMixedRegimeDownstreamConditionStatus.INVALID_INPUT,
+      condition_kind=(
+        condition_kind
+        if isinstance(condition_kind, MocMixedRegimeDownstreamConditionKind)
+        else None
+      ),
+      message='request must be a MocMixedRegimePerimeterRequest',
+    )
+  if not callable(solve_boundary):
+    return _downstream_condition_failure(
+      MocMixedRegimeDownstreamConditionStatus.INVALID_INPUT,
+      condition_kind=(
+        condition_kind
+        if isinstance(condition_kind, MocMixedRegimeDownstreamConditionKind)
+        else None
+      ),
+      message='solve_boundary must be callable',
+    )
+  try:
+    boundary = solve_boundary(request)
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return _downstream_condition_failure(
+      MocMixedRegimeDownstreamConditionStatus.SOLVER_FAILURE,
+      condition_kind=(
+        condition_kind
+        if isinstance(condition_kind, MocMixedRegimeDownstreamConditionKind)
+        else None
+      ),
+      message=f'downstream boundary callback failed: {error}',
+    )
+  if boundary is None:
+    return _downstream_condition_failure(
+      MocMixedRegimeDownstreamConditionStatus.SOLVER_FAILURE,
+      condition_kind=(
+        condition_kind
+        if isinstance(condition_kind, MocMixedRegimeDownstreamConditionKind)
+        else None
+      ),
+      message='downstream boundary callback returned no perimeter',
+    )
+  if not isinstance(boundary, MocMixedRegimeBoundaryResult):
+    return _downstream_condition_failure(
+      MocMixedRegimeDownstreamConditionStatus.INVALID_INPUT,
+      condition_kind=(
+        condition_kind
+        if isinstance(condition_kind, MocMixedRegimeDownstreamConditionKind)
+        else None
+      ),
+      message='downstream boundary callback must return MocMixedRegimeBoundaryResult or None',
+    )
+  if boundary.terminal != request.terminal:
+    return _downstream_condition_failure(
+      MocMixedRegimeDownstreamConditionStatus.BOUNDARY_FAILURE,
+      condition_kind=(
+        condition_kind
+        if isinstance(condition_kind, MocMixedRegimeDownstreamConditionKind)
+        else None
+      ),
+      boundary=boundary,
+      message='downstream boundary callback changed the requested terminal seam',
+    )
+  if boundary.supersonic_patch != request.supersonic_patch:
+    return _downstream_condition_failure(
+      MocMixedRegimeDownstreamConditionStatus.BOUNDARY_FAILURE,
+      condition_kind=(
+        condition_kind
+        if isinstance(condition_kind, MocMixedRegimeDownstreamConditionKind)
+        else None
+      ),
+      boundary=boundary,
+      message='downstream boundary callback changed the requested supersonic patch',
+    )
+  return validate_mixed_regime_downstream_condition(
+    boundary,
+    condition_kind,
+    ambient_pressure_Pa=ambient_pressure_Pa,
+    position_tolerance_m=position_tolerance_m,
+    tangent_tolerance_rad=tangent_tolerance_rad,
+    pressure_tolerance=pressure_tolerance,
   )

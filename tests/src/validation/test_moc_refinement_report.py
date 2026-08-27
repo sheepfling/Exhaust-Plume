@@ -82,6 +82,10 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   ambient_closure = report['geometry_cases']['ambient_pressure_closure_probe']
   strong_subsonic_boundary = report['geometry_cases']['marched_strong_subsonic_boundary']
   mixed_regime_boundary = report['geometry_cases']['mixed_regime_boundary_contract']
+  downstream_condition = mixed_regime_boundary['downstream_condition_contract']
+  positive_wall_condition = mixed_regime_boundary[
+    'downstream_condition_positive_wall_fixture'
+  ]
 
   assert generated['status'] == 'converged_free_boundary_field'
   assert generated['field_status'] == 'converged_closed'
@@ -258,6 +262,12 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert strong_subsonic_boundary['subsonic_shock_boundary']['subsonic'] is True
   assert strong_subsonic_boundary['normal_shock_terminal'] is None
   assert mixed_regime_boundary['accepted'] is True
+  assert downstream_condition['status'] == 'downstream-tangency-failure'
+  assert downstream_condition['physical_condition_verified'] is False
+  assert downstream_condition['chain_promotion_blocked'] is True
+  assert positive_wall_condition['status'] == 'converged-downstream-condition'
+  assert positive_wall_condition['physical_condition_verified'] is True
+  assert positive_wall_condition['chain_promotion_blocked'] is True
   assert mixed_regime_boundary['physical_closure_verified'] is False
   assert mixed_regime_boundary['chain_promotion_blocked'] is True
   assert mixed_regime_boundary['missing_scalar_field']['status'] == 'subsonic_field_failure'

@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import replace
 import json
-from math import cos, isfinite, log, sin
+from math import cos, isfinite, log, pi, sin
 from pathlib import Path
 import sys
 from typing import Any
@@ -20,6 +20,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocAmbientClosureStatus,
   MocAmbientShockStripStatus,
   MocMixedRegimeBoundaryStatus,
+  MocMixedRegimeDownstreamConditionKind,
   MocMixedRegimeFieldSample,
   MocInvariantClosureFamily,
   MocFreeBoundaryShockResult,
@@ -116,6 +117,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   validate_closed_post_shock_field,
   validate_characteristic_trace,
   validate_mixed_regime_boundary,
+  validate_mixed_regime_downstream_condition,
   validate_post_shock_ambient_boundary,
   validate_moc_mesh,
 )
@@ -1280,6 +1282,42 @@ def _mixed_regime_boundary_probe(
     supersonic_patch_converged=field.terminal_supersonic_downstream_patch_converged,
     subsonic_samples=contract_samples,
   )
+  contract_condition = validate_mixed_regime_downstream_condition(
+    contract_fixture,
+    MocMixedRegimeDownstreamConditionKind.SLIP_WALL,
+  )
+  wall_points = (
+    (terminal_x, terminal_y),
+    (terminal_x + 0.02, terminal_y),
+    (terminal_x + 0.02, terminal_y + 0.01),
+    (terminal_x, terminal_y + 0.01),
+    (terminal_x, terminal_y),
+  )
+  wall_samples = tuple(
+    MocMixedRegimeFieldSample(
+      point_m=point,
+      mach=terminal.downstream_mach,
+      flow_angle_rad=flow_angle,
+      static_pressure_Pa=terminal.downstream_pressure_Pa,
+      total_pressure_Pa=terminal.downstream_total_pressure_Pa,
+      gamma=terminal.upstream_state.gamma,
+    )
+    for point, flow_angle in zip(
+      wall_points,
+      (0.0, 0.0, pi, pi, 0.0),
+      strict=True,
+    )
+  )
+  wall_fixture = validate_mixed_regime_boundary(
+    terminal,
+    patch,
+    supersonic_patch_converged=field.terminal_supersonic_downstream_patch_converged,
+    subsonic_samples=wall_samples,
+  )
+  wall_condition = validate_mixed_regime_downstream_condition(
+    wall_fixture,
+    MocMixedRegimeDownstreamConditionKind.SLIP_WALL,
+  )
   contract_field = solve_mixed_regime_subsonic_field(contract_fixture)
   contract_field_refinement = tuple(
     solve_mixed_regime_subsonic_field(
@@ -1338,11 +1376,16 @@ def _mixed_regime_boundary_probe(
       and terminal_attachment_closure.converged
       and contract_fixture.physical_closure_verified is False
       and contract_fixture.chain_promotion_blocked
+      and contract_condition.status.value == 'downstream-tangency-failure'
+      and wall_condition.converged
+      and wall_condition.chain_promotion_blocked
     ),
     'physical_closure_verified': contract_fixture.physical_closure_verified,
     'chain_promotion_blocked': contract_fixture.chain_promotion_blocked,
     'missing_scalar_field': missing_field.as_report(),
     'scalar_perimeter_contract_fixture': contract_fixture.as_report(),
+    'downstream_condition_contract': contract_condition.as_report(),
+    'downstream_condition_positive_wall_fixture': wall_condition.as_report(),
     'elliptic_subsonic_field_contract_fixture': contract_field.as_report(),
     'elliptic_subsonic_field_refinement': [
       result.as_report() for result in contract_field_refinement

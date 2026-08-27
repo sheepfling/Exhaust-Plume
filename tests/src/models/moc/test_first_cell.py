@@ -6,6 +6,8 @@ from exhaust_plume.models.moc import (
   CharacteristicState,
   MocFirstCellCompositeStatus,
   MocFirstCellTerminalClosureStatus,
+  MocMixedRegimeDownstreamConditionKind,
+  MocMixedRegimeDownstreamConditionStatus,
   MocMixedRegimeFieldSample,
   MocTerminalBoundaryGraphStatus,
   MocChainTerminationReason,
@@ -217,6 +219,12 @@ def test_first_cell_terminal_closure_attaches_a_separate_mixed_regime_field() ->
 
   boundary = result.terminal_field.validate_mixed_regime_boundary(samples)
   assert boundary.converged
+  condition = result.terminal_field.validate_mixed_regime_downstream_condition(
+    samples,
+    MocMixedRegimeDownstreamConditionKind.SLIP_WALL,
+  )
+  assert condition.status is MocMixedRegimeDownstreamConditionStatus.TANGENCY_FAILURE
+  assert condition.chain_promotion_blocked
   field = solve_mixed_regime_subsonic_field(boundary, radial_divisions=2)
   assert field.converged
   assert field.physical_closure_verified
