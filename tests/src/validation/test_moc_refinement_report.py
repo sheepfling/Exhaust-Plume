@@ -501,6 +501,42 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
     and case['chain_promotion_blocked'] is True
     for case in conditioned_refinement
   )
+  potential_field = mixed_regime_boundary[
+    'compressible_potential_field_reference'
+  ]
+  assert potential_field['status'] == (
+    'converged_compressible_potential_subsonic_field'
+  )
+  assert potential_field['model'] == (
+    'compressible-isentropic-potential-reference'
+  )
+  assert potential_field['model_closure_verified'] is True
+  assert potential_field['physical_closure_verified'] is True
+  assert potential_field['chain_promotion_blocked'] is True
+  assert potential_field['velocity_potential_sample_count'] == (
+    potential_field['node_count']
+  )
+  assert potential_field['maximum_mass_conservation_residual'] <= 1.0e-8
+  assert potential_field['maximum_boundary_velocity_residual'] <= 1.0e-8
+  assert potential_field['potential_circulation_residual'] <= 1.0e-8
+  potential_refinement = mixed_regime_boundary[
+    'compressible_potential_field_refinement'
+  ]
+  assert [case['radial_divisions'] for case in potential_refinement] == [2, 3, 4]
+  assert [case['node_count'] for case in potential_refinement] == [9, 13, 17]
+  assert [case['cell_count'] for case in potential_refinement] == [12, 20, 28]
+  assert all(
+    case['status'] == 'converged_compressible_potential_subsonic_field'
+    and case['model'] == 'compressible-isentropic-potential-reference'
+    and case['model_closure_verified'] is True
+    and case['physical_closure_verified'] is True
+    and case['downstream_condition_verified'] is True
+    and case['chain_promotion_blocked'] is True
+    and case['maximum_mass_conservation_residual'] <= 1.0e-8
+    and case['maximum_boundary_velocity_residual'] <= 1.0e-8
+    and case['potential_circulation_residual'] <= 1.0e-8
+    for case in potential_refinement
+  )
   terminal_attachment_refinement = mixed_regime_boundary['terminal_attachment_refinement']
   assert [case['radial_divisions'] for case in terminal_attachment_refinement] == [2, 3, 4]
   assert all(

@@ -79,6 +79,14 @@ not wait on this research closure.
   prior continuation result or its strip object is rejected as a typed
   ``UPSTREAM_FIELD_BOUNDARY``; the sequence remains research-only until the
   physical reflected-field and downstream closure are solved.
+- Added a separately named compressible isentropic potential-flow reference
+  for an explicit downstream perimeter. It solves the conservative nonlinear
+  subsonic potential equation on a triangular radial mesh, checks uniform
+  total-pressure/gamma lineage, single-valued boundary potential,
+  mass-conservation and boundary-velocity residuals, and records radial
+  refinement. It remains a scalar research model with chain promotion blocked;
+  it does not infer the canonical free boundary or create a supersonic MOC
+  ``CharacteristicState`` field.
 - Added explicit source-window metadata and a terminal-window continuation
   result. When the full triangular continuation reaches a characteristic
   caustic, a converged terminal patch can be consumed without hiding the
@@ -1076,6 +1084,14 @@ Only after MOC-1 through MOC-5 pass:
   request-matching seam before exposing its typed physical stop; this keeps
   terminal attachment auditable without making the mixed-regime result a
   continued supersonic cell.
+- The compressible potential reference now supplies a nonlinear conservative
+  field solve for an explicit perimeter, but it is still a finite-domain
+  scalar reference. It requires uniform isentropic total pressure and a
+  single-valued boundary potential, does not solve the free-boundary geometry,
+  and does not produce subsonic ``CharacteristicState`` values for chain
+  continuation. The canonical terminal therefore remains physically open and
+  chain promotion remains blocked until a coupled downstream perimeter and
+  compatible MOC/field handoff are solved.
 - The terminal-boundary graph audit confirms that the canonical terminal's
   four solver-owned supersonic paths join with zero reported residual, while
   no downstream path or physical downstream condition is supplied. A future

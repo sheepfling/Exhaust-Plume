@@ -5,21 +5,23 @@ The supersonic MOC lane cannot represent a subsonic downstream state as a
 contract: a caller may provide scalar subsonic samples and an explicitly
 closed perimeter after a verified terminal shock.  The validator checks the
 shock seam, the open supersonic patch, scalar state validity, pressure
-lineage, and perimeter geometry.
+lineage, and perimeter geometry.  It also contains a separately named
+compressible isentropic potential-flow reference for that explicit perimeter.
 
-This is a boundary handoff, not a subsonic characteristic solver.  A passing
-handoff still reports ``physical_closure_verified=False`` and cannot seed a
-continued shock-cell chain.  The reference mesh solver can be used to inspect
-the declared scalar field, but terminal attachment additionally requires the
-exact validated downstream condition without changing the supersonic
-``CharacteristicState`` type.
+This remains a boundary handoff, not a subsonic characteristic solver.  A
+passing scalar handoff still reports ``physical_closure_verified=False`` and
+cannot seed a continued shock-cell chain.  The harmonic and compressible
+potential reference solvers can inspect the declared scalar field, but
+terminal attachment additionally requires the exact validated downstream
+condition without changing the supersonic ``CharacteristicState`` type or
+inferring a free boundary.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from enum import Enum
-from math import atan2, cos, exp, hypot, isfinite, log, pi, sin
+from math import atan2, cos, exp, hypot, isfinite, log, pi, sin, sqrt
 from typing import Callable, Sequence
 
 import numpy as np
@@ -50,6 +52,7 @@ __all__ = (
   'solve_mixed_regime_downstream_condition',
   'run_mixed_regime_closure_solver',
   'solve_mixed_regime_subsonic_field',
+  'solve_mixed_regime_compressible_potential_field',
   'solve_mixed_regime_downstream_perimeter',
 )
 
@@ -67,15 +70,19 @@ class MocMixedRegimeBoundaryStatus(str, Enum):
 
 
 class MocMixedRegimeFieldStatus(str, Enum):
-  """Outcome for the separate elliptic subsonic field solver."""
+  """Outcome for the separate elliptic subsonic field solvers."""
 
   CONVERGED_ELLIPTIC_FIELD = 'converged_elliptic_subsonic_field'
+  CONVERGED_COMPRESSIBLE_POTENTIAL_FIELD = (
+    'converged_compressible_potential_subsonic_field'
+  )
   INVALID_INPUT = 'invalid_input'
   BOUNDARY_FAILURE = 'mixed_regime_boundary_failure'
   GEOMETRY_FAILURE = 'mixed_regime_mesh_geometry_failure'
   TOPOLOGY_FAILURE = 'mixed_regime_mesh_topology_failure'
   THERMODYNAMIC_FAILURE = 'mixed_regime_thermodynamic_failure'
   RESIDUAL_FAILURE = 'mixed_regime_elliptic_residual_failure'
+  POTENTIAL_FLOW_FAILURE = 'mixed_regime_potential_flow_failure'
 
 
 class MocMixedRegimeDownstreamConditionKind(str, Enum):
@@ -614,12 +621,12 @@ class MocMixedRegimeDownstreamConditionResult:
 class MocMixedRegimeFieldResult:
   """A mesh-backed elliptic continuation of a scalar subsonic perimeter.
 
-  The solver uses a conservative reference model for the subsonic side:
-  primitive scalar fields are harmonically extended on either a one-point
-  fan or an explicitly requested concentric-ring mesh, and the dimensionless
-  velocity field is checked for zero discrete divergence on every triangular
-  control volume.  This is intentionally a separate elliptic lane, not a
-  supersonic MOC field; its model name and residuals remain in every report.
+  The harmonic reference and the separately named compressible potential
+  reference use a conservative scalar model for the subsonic side.  The
+  former harmonically extends primitive fields, while the latter solves a
+  nonlinear isentropic potential equation on the same explicit radial mesh.
+  Both remain in a separate elliptic lane, not a supersonic MOC field; their
+  model name and residuals remain in every report.
 
   ``model_closure_verified`` means that this explicitly declared
   elliptic/isentrope model closed its supplied boundary and passed its local
@@ -645,6 +652,12 @@ class MocMixedRegimeFieldResult:
   radial_divisions: int = 1
   message: str = ''
   downstream_condition: MocMixedRegimeDownstreamConditionResult | None = None
+  maximum_mass_conservation_residual: float | None = None
+  maximum_boundary_velocity_residual: float | None = None
+  potential_circulation_residual: float | None = None
+  nonlinear_iteration_count: int = 0
+  nonlinear_update_residual: float | None = None
+  velocity_potential: tuple[float, ...] = ()
 
   def __post_init__(self) -> None:
     if (
@@ -653,6 +666,16 @@ class MocMixedRegimeFieldResult:
       or self.radial_divisions < 1
     ):
       raise ValueError('radial_divisions must be a positive integer')
+    if (
+      isinstance(self.nonlinear_iteration_count, bool)
+      or not isinstance(self.nonlinear_iteration_count, int)
+      or self.nonlinear_iteration_count < 0
+    ):
+      raise ValueError('nonlinear_iteration_count must be a nonnegative integer')
+    potential = tuple(float(value) for value in self.velocity_potential)
+    if any(not isfinite(value) for value in potential):
+      raise ValueError('velocity_potential must contain finite values')
+    object.__setattr__(self, 'velocity_potential', potential)
     if self.downstream_condition is not None:
       if not isinstance(
         self.downstream_condition,
@@ -669,7 +692,10 @@ class MocMixedRegimeFieldResult:
 
   @property
   def converged(self) -> bool:
-    return self.status is MocMixedRegimeFieldStatus.CONVERGED_ELLIPTIC_FIELD
+    return self.status in (
+      MocMixedRegimeFieldStatus.CONVERGED_ELLIPTIC_FIELD,
+      MocMixedRegimeFieldStatus.CONVERGED_COMPRESSIBLE_POTENTIAL_FIELD,
+    )
 
   @property
   def node_count(self) -> int:
@@ -687,16 +713,32 @@ class MocMixedRegimeFieldResult:
   def model_closure_verified(self) -> bool:
     """Whether the declared mesh/reference model passed its local gates."""
 
-    return bool(
+    mesh_gates = (
       self.converged
       and self.boundary.converged
       and self.topology.connected
       and self.topology.forms_closed_zone
       and not self.topology.nonmanifold_edge_count
       and self.maximum_thermodynamic_residual is not None
+      and self.maximum_thermodynamic_residual <= 1.0e-8
+    )
+    if self.model == 'compressible-isentropic-potential-reference':
+      return bool(
+        mesh_gates
+        and self.maximum_mass_conservation_residual is not None
+        and self.maximum_boundary_velocity_residual is not None
+        and self.potential_circulation_residual is not None
+        and self.nonlinear_update_residual is not None
+        and len(self.velocity_potential) == self.node_count
+        and self.maximum_mass_conservation_residual <= 1.0e-8
+        and self.maximum_boundary_velocity_residual <= 1.0e-8
+        and self.potential_circulation_residual <= 1.0e-8
+        and self.nonlinear_update_residual <= 1.0e-8
+      )
+    return bool(
+      mesh_gates
       and self.maximum_harmonic_residual is not None
       and self.maximum_velocity_divergence_residual is not None
-      and self.maximum_thermodynamic_residual <= 1.0e-8
       and self.maximum_harmonic_residual <= 1.0e-12
       and self.maximum_velocity_divergence_residual <= 1.0e-12
     )
@@ -746,6 +788,12 @@ class MocMixedRegimeFieldResult:
       'maximum_velocity_divergence_residual': self.maximum_velocity_divergence_residual,
       'minimum_mach': self.minimum_mach,
       'maximum_mach': self.maximum_mach,
+      'maximum_mass_conservation_residual': self.maximum_mass_conservation_residual,
+      'maximum_boundary_velocity_residual': self.maximum_boundary_velocity_residual,
+      'potential_circulation_residual': self.potential_circulation_residual,
+      'nonlinear_iteration_count': self.nonlinear_iteration_count,
+      'nonlinear_update_residual': self.nonlinear_update_residual,
+      'velocity_potential_sample_count': len(self.velocity_potential),
       'boundary': self.boundary.as_report(),
       'downstream_condition': (
         None
@@ -774,6 +822,12 @@ def _field_failure(
   model: str = 'elliptic-isentropic-subsonic-reference',
   radial_divisions: int = 1,
   downstream_condition: MocMixedRegimeDownstreamConditionResult | None = None,
+  maximum_mass_conservation_residual: float | None = None,
+  maximum_boundary_velocity_residual: float | None = None,
+  potential_circulation_residual: float | None = None,
+  nonlinear_iteration_count: int = 0,
+  nonlinear_update_residual: float | None = None,
+  velocity_potential: Sequence[float] = (),
   message: str,
 ) -> MocMixedRegimeFieldResult:
   return MocMixedRegimeFieldResult(
@@ -791,6 +845,12 @@ def _field_failure(
     model=model,
     radial_divisions=radial_divisions,
     downstream_condition=downstream_condition,
+    maximum_mass_conservation_residual=maximum_mass_conservation_residual,
+    maximum_boundary_velocity_residual=maximum_boundary_velocity_residual,
+    potential_circulation_residual=potential_circulation_residual,
+    nonlinear_iteration_count=nonlinear_iteration_count,
+    nonlinear_update_residual=nonlinear_update_residual,
+    velocity_potential=tuple(velocity_potential),
     message=message,
   )
 
@@ -984,6 +1044,136 @@ def _radial_mesh_points(
       )
     )
   return tuple(rings)
+
+
+def _radial_mesh_connectivity(
+  rings: Sequence[Sequence[tuple[float, float]]],
+  perimeter_count: int,
+) -> tuple[tuple[MocCharacteristicCell, ...], tuple[tuple[int, int, int], ...]]:
+  """Build the shared connectivity used by the scalar radial meshes."""
+
+  if len(rings) < 2 or len(rings[0]) != 1:
+    raise ValueError('radial mesh must contain a center and an outer ring')
+  if perimeter_count < 3:
+    raise ValueError('radial mesh requires at least three perimeter vertices')
+
+  def ring_node_index(level: int, index: int) -> int:
+    if level < 1 or level >= len(rings):
+      raise ValueError('radial mesh ring level is outside the mesh')
+    return 1 + (level - 1) * perimeter_count + index % perimeter_count
+
+  cells: list[MocCharacteristicCell] = []
+  connectivity: list[tuple[int, int, int]] = []
+  first_ring = rings[1]
+  for index in range(perimeter_count):
+    next_index = (index + 1) % perimeter_count
+    connectivity.append((0, ring_node_index(1, index), ring_node_index(1, next_index)))
+    cells.append(
+      MocCharacteristicCell(
+        cell_index=len(cells),
+        cell_kind='mixed-regime-elliptic-radial-center',
+        vertices_xr_m=(rings[0][0], first_ring[index], first_ring[next_index]),
+        centerline_indices=(),
+        boundary_indices=(index, next_index),
+      )
+    )
+  for level in range(1, len(rings) - 1):
+    inner_ring = rings[level]
+    outer_ring = rings[level + 1]
+    for index in range(perimeter_count):
+      next_index = (index + 1) % perimeter_count
+      inner_first = ring_node_index(level, index)
+      inner_second = ring_node_index(level, next_index)
+      outer_first = ring_node_index(level + 1, index)
+      outer_second = ring_node_index(level + 1, next_index)
+      connectivity.extend((
+        (inner_first, inner_second, outer_second),
+        (inner_first, outer_second, outer_first),
+      ))
+      cells.extend((
+        MocCharacteristicCell(
+          cell_index=len(cells),
+          cell_kind='mixed-regime-elliptic-radial-annulus',
+          vertices_xr_m=(inner_ring[index], inner_ring[next_index], outer_ring[next_index]),
+          centerline_indices=(),
+          boundary_indices=(index, next_index),
+        ),
+        MocCharacteristicCell(
+          cell_index=len(cells) + 1,
+          cell_kind='mixed-regime-elliptic-radial-annulus',
+          vertices_xr_m=(inner_ring[index], outer_ring[next_index], outer_ring[index]),
+          centerline_indices=(),
+          boundary_indices=(index, next_index),
+        ),
+      ))
+  return tuple(cells), tuple(connectivity)
+
+
+def _potential_primitive(
+  q_x: float,
+  q_y: float,
+  gamma: float,
+) -> tuple[float, float]:
+  """Return Mach number and normalized density for an isentropic potential."""
+
+  if not isfinite(q_x) or not isfinite(q_y) or not isfinite(gamma) or gamma <= 1.0:
+    raise ValueError('potential primitive inputs must be finite with gamma greater than one')
+  speed_squared = q_x * q_x + q_y * q_y
+  sonic_factor = 0.5 * (gamma - 1.0)
+  enthalpy_factor = 1.0 - sonic_factor * speed_squared
+  if enthalpy_factor <= 0.0:
+    raise ValueError('potential velocity reached a nonphysical enthalpy factor')
+  mach = sqrt(speed_squared / enthalpy_factor)
+  density = enthalpy_factor ** (1.0 / (gamma - 1.0))
+  if not isfinite(mach) or not isfinite(density):
+    raise ValueError('potential primitive returned a non-finite state')
+  return mach, density
+
+
+def _potential_flux_and_jacobian(
+  q_x: float,
+  q_y: float,
+  gamma: float,
+) -> tuple[float, float, float, float, float, float, float]:
+  """Return Mach, mass flux, and the compressible potential-flow Jacobian."""
+
+  mach, density = _potential_primitive(q_x, q_y, gamma)
+  sonic_factor = 0.5 * (gamma - 1.0)
+  enthalpy_factor = 1.0 - sonic_factor * (q_x * q_x + q_y * q_y)
+  flux_x = density * q_x
+  flux_y = density * q_y
+  jacobian_scale = density / enthalpy_factor
+  return (
+    mach,
+    flux_x,
+    flux_y,
+    density - jacobian_scale * q_x * q_x,
+    -jacobian_scale * q_x * q_y,
+    -jacobian_scale * q_y * q_x,
+    density - jacobian_scale * q_y * q_y,
+  )
+
+
+def _triangle_basis_gradients(
+  vertices: Sequence[tuple[float, float]],
+) -> tuple[float, tuple[tuple[float, float], ...]]:
+  """Return positive area and constant linear basis gradients for a triangle."""
+
+  if len(vertices) != 3:
+    raise ValueError('potential-flow finite elements require triangular cells')
+  first, second, third = vertices
+  x1, y1 = first
+  x2, y2 = second
+  x3, y3 = third
+  area_twice = (x2 - x1) * (y3 - y1) - (y2 - y1) * (x3 - x1)
+  if not isfinite(area_twice) or abs(area_twice) <= 1.0e-20:
+    raise ValueError('potential-flow finite element has zero area')
+  gradients = (
+    ((y2 - y3) / area_twice, (x3 - x2) / area_twice),
+    ((y3 - y1) / area_twice, (x1 - x3) / area_twice),
+    ((y1 - y2) / area_twice, (x2 - x1) / area_twice),
+  )
+  return abs(area_twice) * 0.5, gradients
 
 
 def _solve_mixed_regime_radial_reference_field(
@@ -1478,6 +1668,771 @@ def solve_mixed_regime_subsonic_field(
         else 'the downstream physical condition is still pending; '
       )
       + 'this model remains separate from the supersonic MOC lane'
+    ),
+  )
+
+
+def solve_mixed_regime_compressible_potential_field(
+  boundary: MocMixedRegimeBoundaryResult,
+  *,
+  position_tolerance_m: float = 1.0e-10,
+  thermodynamic_tolerance: float = 1.0e-8,
+  potential_tolerance: float = 1.0e-10,
+  residual_tolerance: float = 1.0e-10,
+  velocity_tolerance: float = 1.0e-8,
+  subsonic_margin: float = 1.0e-6,
+  radial_divisions: int = 1,
+  maximum_iterations: int = 80,
+  downstream_condition: MocMixedRegimeDownstreamConditionResult | None = None,
+) -> MocMixedRegimeFieldResult:
+  """Solve a compressible isentropic potential field on an explicit perimeter.
+
+  This is a deliberately separate research reference model for the subsonic
+  side of a terminal shock.  It solves the conservative nonlinear potential
+  equation ``div(rho(grad(phi)) grad(phi)) = 0`` with linear triangular
+  finite elements and Dirichlet potential values obtained by integrating the
+  supplied boundary velocity tangentially around the declared perimeter.
+  The input perimeter remains caller-owned: this function neither discovers
+  a free boundary from the open supersonic patch nor infers a canonical plume
+  shape.
+
+  The boundary total pressure and gamma must be uniform, because a single
+  isentropic potential region cannot represent an imposed total-pressure
+  jump.  The result records mass-conservation, boundary-potential,
+  circulation, subsonic, and nonlinear iteration diagnostics.  It remains a
+  scalar mixed-regime field and ``chain_promotion_blocked`` stays true; it is
+  not a ``CharacteristicState`` field and cannot continue a supersonic MOC
+  chain.
+  """
+
+  model = 'compressible-isentropic-potential-reference'
+  if not isinstance(boundary, MocMixedRegimeBoundaryResult):
+    raise TypeError('boundary must be a MocMixedRegimeBoundaryResult')
+  for name, value in (
+    ('position_tolerance_m', position_tolerance_m),
+    ('thermodynamic_tolerance', thermodynamic_tolerance),
+    ('potential_tolerance', potential_tolerance),
+    ('residual_tolerance', residual_tolerance),
+    ('velocity_tolerance', velocity_tolerance),
+    ('subsonic_margin', subsonic_margin),
+  ):
+    if not isfinite(float(value)) or float(value) <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+  if subsonic_margin >= 1.0:
+    raise ValueError('subsonic_margin must be less than one')
+  if (
+    isinstance(radial_divisions, bool)
+    or not isinstance(radial_divisions, int)
+    or radial_divisions < 1
+  ):
+    raise ValueError('radial_divisions must be a positive integer')
+  if (
+    isinstance(maximum_iterations, bool)
+    or not isinstance(maximum_iterations, int)
+    or maximum_iterations < 1
+  ):
+    raise ValueError('maximum_iterations must be a positive integer')
+
+  if downstream_condition is not None:
+    if not isinstance(
+      downstream_condition,
+      MocMixedRegimeDownstreamConditionResult,
+    ):
+      raise TypeError(
+        'downstream_condition must be a '
+        'MocMixedRegimeDownstreamConditionResult or None'
+      )
+    if downstream_condition.boundary != boundary:
+      return _field_failure(
+        MocMixedRegimeFieldStatus.BOUNDARY_FAILURE,
+        boundary,
+        model=model,
+        radial_divisions=radial_divisions,
+        message=(
+          'compressible potential field requires the exact scalar boundary '
+          'retained by the downstream condition'
+        ),
+      )
+    if not downstream_condition.converged:
+      return _field_failure(
+        MocMixedRegimeFieldStatus.BOUNDARY_FAILURE,
+        boundary,
+        model=model,
+        radial_divisions=radial_divisions,
+        downstream_condition=downstream_condition,
+        message=(
+          'compressible potential field requires a converged downstream '
+          f'physical condition: {downstream_condition.message}'
+        ),
+      )
+  if not boundary.converged:
+    return _field_failure(
+      MocMixedRegimeFieldStatus.BOUNDARY_FAILURE,
+      boundary,
+      model=model,
+      radial_divisions=radial_divisions,
+      message=(
+        'compressible potential field requires a converged scalar boundary '
+        f'handoff: {boundary.message}'
+      ),
+    )
+
+  samples = boundary.subsonic_samples
+  points = boundary.perimeter_points_m
+  if len(samples) < 4 or len(points) != len(samples):
+    return _field_failure(
+      MocMixedRegimeFieldStatus.BOUNDARY_FAILURE,
+      boundary,
+      nodes=samples,
+      model=model,
+      radial_divisions=radial_divisions,
+      message=(
+        'compressible potential field requires a closed perimeter with '
+        'matching scalar samples'
+      ),
+    )
+  if any(not isinstance(sample, MocMixedRegimeFieldSample) for sample in samples):
+    return _field_failure(
+      MocMixedRegimeFieldStatus.BOUNDARY_FAILURE,
+      boundary,
+      model=model,
+      radial_divisions=radial_divisions,
+      message='compressible potential field requires scalar mixed-regime samples',
+    )
+  if any(
+    hypot(sample.point_m[0] - point[0], sample.point_m[1] - point[1])
+    > position_tolerance_m
+    for sample, point in zip(samples, points, strict=True)
+  ):
+    return _field_failure(
+      MocMixedRegimeFieldStatus.BOUNDARY_FAILURE,
+      boundary,
+      nodes=samples,
+      model=model,
+      radial_divisions=radial_divisions,
+      message='compressible potential field scalar coordinates do not match the perimeter',
+    )
+
+  unique_samples = tuple(samples[:-1])
+  unique_points = tuple(points[:-1])
+  if len(unique_samples) < 3:
+    return _field_failure(
+      MocMixedRegimeFieldStatus.GEOMETRY_FAILURE,
+      boundary,
+      nodes=samples,
+      model=model,
+      radial_divisions=radial_divisions,
+      message='compressible potential field requires at least three unique perimeter vertices',
+    )
+  area = _polygon_signed_area(unique_points)
+  if abs(area) <= position_tolerance_m * position_tolerance_m:
+    return _field_failure(
+      MocMixedRegimeFieldStatus.GEOMETRY_FAILURE,
+      boundary,
+      nodes=samples,
+      model=model,
+      radial_divisions=radial_divisions,
+      message='compressible potential perimeter has zero signed area',
+    )
+  if not _convex_polygon(unique_points, position_tolerance_m):
+    return _field_failure(
+      MocMixedRegimeFieldStatus.GEOMETRY_FAILURE,
+      boundary,
+      nodes=samples,
+      model=model,
+      radial_divisions=radial_divisions,
+      message='compressible potential reference field requires a convex perimeter',
+    )
+
+  center_point = (
+    sum(point[0] for point in unique_points) / len(unique_points),
+    sum(point[1] for point in unique_points) / len(unique_points),
+  )
+  total_pressure_reference = unique_samples[0].total_pressure_Pa
+  gamma_reference = unique_samples[0].gamma
+  maximum_total_pressure_residual = max(
+    _relative_residual(sample.total_pressure_Pa, total_pressure_reference)
+    for sample in unique_samples
+  )
+  maximum_gamma_residual = max(
+    _relative_residual(sample.gamma, gamma_reference)
+    for sample in unique_samples
+  )
+  if (
+    maximum_total_pressure_residual > thermodynamic_tolerance
+    or maximum_gamma_residual > thermodynamic_tolerance
+  ):
+    return _field_failure(
+      MocMixedRegimeFieldStatus.THERMODYNAMIC_FAILURE,
+      boundary,
+      nodes=samples,
+      model=model,
+      radial_divisions=radial_divisions,
+      maximum_thermodynamic_residual=max(
+        maximum_total_pressure_residual,
+        maximum_gamma_residual,
+      ),
+      message=(
+        'compressible isentropic potential flow requires uniform boundary '
+        'total pressure and gamma: '
+        f'total_pressure={maximum_total_pressure_residual}, '
+        f'gamma={maximum_gamma_residual}'
+      ),
+    )
+
+  boundary_velocities: list[tuple[float, float]] = []
+  try:
+    for index, sample in enumerate(unique_samples):
+      if sample.mach >= 1.0 - subsonic_margin:
+        raise ValueError(
+          f'boundary sample {index} is too close to sonic for the declared '
+          f'subsonic margin: mach={sample.mach}'
+        )
+      sonic_factor = 0.5 * (gamma_reference - 1.0)
+      speed = sample.mach / sqrt(1.0 + sonic_factor * sample.mach * sample.mach)
+      boundary_velocities.append(
+        (
+          speed * cos(sample.flow_angle_rad),
+          speed * sin(sample.flow_angle_rad),
+        )
+      )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return _field_failure(
+      MocMixedRegimeFieldStatus.THERMODYNAMIC_FAILURE,
+      boundary,
+      nodes=samples,
+      model=model,
+      radial_divisions=radial_divisions,
+      maximum_thermodynamic_residual=max(
+        maximum_total_pressure_residual,
+        maximum_gamma_residual,
+      ),
+      message=f'compressible potential boundary velocity conversion failed: {error}',
+    )
+
+  perimeter_length = sum(
+    hypot(
+      unique_points[(index + 1) % len(unique_points)][0] - point[0],
+      unique_points[(index + 1) % len(unique_points)][1] - point[1],
+    )
+    for index, point in enumerate(unique_points)
+  )
+  boundary_potential = [0.0]
+  for index in range(1, len(unique_points)):
+    previous = index - 1
+    displacement = (
+      unique_points[index][0] - unique_points[previous][0],
+      unique_points[index][1] - unique_points[previous][1],
+    )
+    boundary_potential.append(
+      boundary_potential[-1]
+      + 0.5 * (
+        (boundary_velocities[previous][0] + boundary_velocities[index][0]) * displacement[0]
+        + (boundary_velocities[previous][1] + boundary_velocities[index][1]) * displacement[1]
+      )
+    )
+  closing_displacement = (
+    unique_points[0][0] - unique_points[-1][0],
+    unique_points[0][1] - unique_points[-1][1],
+  )
+  closing_increment = 0.5 * (
+    (boundary_velocities[-1][0] + boundary_velocities[0][0]) * closing_displacement[0]
+    + (boundary_velocities[-1][1] + boundary_velocities[0][1]) * closing_displacement[1]
+  )
+  circulation_residual = abs(boundary_potential[-1] + closing_increment)
+  circulation_scale = max(
+    1.0,
+    perimeter_length * max(
+      1.0,
+      max(hypot(*velocity) for velocity in boundary_velocities),
+    ),
+  )
+  if circulation_residual > potential_tolerance * circulation_scale:
+    return _field_failure(
+      MocMixedRegimeFieldStatus.POTENTIAL_FLOW_FAILURE,
+      boundary,
+      nodes=samples,
+      interior_point_m=center_point,
+      maximum_thermodynamic_residual=max(
+        maximum_total_pressure_residual,
+        maximum_gamma_residual,
+      ),
+      potential_circulation_residual=circulation_residual,
+      model=model,
+      radial_divisions=radial_divisions,
+      message=(
+        'compressible potential boundary velocities are not single-valued '
+        f'around the explicit perimeter: circulation={circulation_residual}, '
+        f'tolerance={potential_tolerance * circulation_scale}'
+      ),
+    )
+
+  try:
+    rings = _radial_mesh_points(
+      unique_points,
+      center_point,
+      radial_divisions,
+    )
+    cells, connectivity = _radial_mesh_connectivity(
+      rings,
+      len(unique_points),
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return _field_failure(
+      MocMixedRegimeFieldStatus.GEOMETRY_FAILURE,
+      boundary,
+      nodes=samples,
+      interior_point_m=center_point,
+      potential_circulation_residual=circulation_residual,
+      model=model,
+      radial_divisions=radial_divisions,
+      message=f'compressible potential radial mesh geometry failed: {error}',
+    )
+  topology = validate_moc_mesh(cells)
+  if not topology.connected or not topology.forms_closed_zone or topology.nonmanifold_edge_count:
+    return _field_failure(
+      MocMixedRegimeFieldStatus.TOPOLOGY_FAILURE,
+      boundary,
+      nodes=samples,
+      cells=cells,
+      topology=topology,
+      interior_point_m=center_point,
+      potential_circulation_residual=circulation_residual,
+      model=model,
+      radial_divisions=radial_divisions,
+      message=f'compressible potential radial mesh topology failed: {topology.message}',
+    )
+
+  node_points = tuple(point for ring in rings for point in ring)
+  perimeter_count = len(unique_points)
+  unknown_count = 1 + (radial_divisions - 1) * perimeter_count
+  outer_start = unknown_count
+  total_node_count = len(node_points)
+  fixed_boundary_potential = np.asarray(boundary_potential, dtype=float)
+
+  try:
+    initial_matrix = np.zeros((unknown_count, unknown_count), dtype=float)
+    initial_right_hand_side = np.zeros(unknown_count, dtype=float)
+    for triangle in connectivity:
+      vertices = tuple(node_points[index] for index in triangle)
+      triangle_area, gradients = _triangle_basis_gradients(vertices)
+      for local, row_index in enumerate(triangle):
+        if row_index >= unknown_count:
+          continue
+        row_gradient_x, row_gradient_y = gradients[local]
+        for column_local, column_index in enumerate(triangle):
+          column_gradient_x, column_gradient_y = gradients[column_local]
+          coefficient = triangle_area * (
+            row_gradient_x * column_gradient_x
+            + row_gradient_y * column_gradient_y
+          )
+          if column_index < unknown_count:
+            initial_matrix[row_index, column_index] += coefficient
+          else:
+            initial_right_hand_side[row_index] -= coefficient * (
+              fixed_boundary_potential[column_index - outer_start]
+            )
+    current_unknown = np.linalg.solve(
+      initial_matrix,
+      initial_right_hand_side,
+    )
+    if not np.isfinite(current_unknown).all():
+      raise ValueError('compressible potential initial Laplace solve returned non-finite values')
+    initial_harmonic_residual = float(
+      np.max(np.abs(initial_matrix @ current_unknown - initial_right_hand_side))
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError, np.linalg.LinAlgError) as error:
+    return _field_failure(
+      MocMixedRegimeFieldStatus.POTENTIAL_FLOW_FAILURE,
+      boundary,
+      nodes=samples,
+      cells=cells,
+      topology=topology,
+      interior_point_m=center_point,
+      potential_circulation_residual=circulation_residual,
+      model=model,
+      radial_divisions=radial_divisions,
+      message=f'compressible potential initial Dirichlet solve failed: {error}',
+    )
+
+  def full_potential(unknown: np.ndarray) -> np.ndarray:
+    if unknown.shape != (unknown_count,):
+      raise ValueError('potential unknown vector has an invalid shape')
+    values = np.empty(total_node_count, dtype=float)
+    values[:unknown_count] = unknown
+    values[outer_start:] = fixed_boundary_potential
+    return values
+
+  def assemble(
+    unknown: np.ndarray,
+    *,
+    with_jacobian: bool,
+  ):
+    values = full_potential(unknown)
+    residual = np.zeros(unknown_count, dtype=float)
+    jacobian = (
+      np.zeros((unknown_count, unknown_count), dtype=float)
+      if with_jacobian
+      else None
+    )
+    triangle_velocities: list[tuple[float, float]] = []
+    for triangle in connectivity:
+      vertices = tuple(node_points[index] for index in triangle)
+      area, gradients = _triangle_basis_gradients(vertices)
+      q_x = sum(values[index] * gradients[local][0] for local, index in enumerate(triangle))
+      q_y = sum(values[index] * gradients[local][1] for local, index in enumerate(triangle))
+      primitive = _potential_flux_and_jacobian(q_x, q_y, gamma_reference)
+      mach, flux_x, flux_y, jacobian_xx, jacobian_xy, jacobian_yx, jacobian_yy = primitive
+      if mach >= 1.0 - subsonic_margin:
+        raise ValueError(
+          f'interior potential state reached the sonic limit: mach={mach}'
+        )
+      triangle_velocities.append((q_x, q_y))
+      for local, row_index in enumerate(triangle):
+        if row_index >= unknown_count:
+          continue
+        gradient_x, gradient_y = gradients[local]
+        residual[row_index] += area * (gradient_x * flux_x + gradient_y * flux_y)
+        if jacobian is None:
+          continue
+        for column_local, column_index in enumerate(triangle):
+          if column_index >= unknown_count:
+            continue
+          column_gradient_x, column_gradient_y = gradients[column_local]
+          jacobian[row_index, column_index] += area * (
+            gradient_x * (
+              jacobian_xx * column_gradient_x
+              + jacobian_xy * column_gradient_y
+            )
+            + gradient_y * (
+              jacobian_yx * column_gradient_x
+              + jacobian_yy * column_gradient_y
+            )
+          )
+    if not np.isfinite(residual).all():
+      raise ValueError('compressible potential residual contains non-finite values')
+    if jacobian is not None and not np.isfinite(jacobian).all():
+      raise ValueError('compressible potential Jacobian contains non-finite values')
+    return residual, jacobian, tuple(triangle_velocities)
+
+  iteration_count = 0
+  nonlinear_update_residual = 0.0
+  converged = False
+  current_residual_norm = float('inf')
+  for iteration_index in range(maximum_iterations + 1):
+    try:
+      current_residual, current_jacobian, _ = assemble(
+        current_unknown,
+        with_jacobian=True,
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      return _field_failure(
+        MocMixedRegimeFieldStatus.POTENTIAL_FLOW_FAILURE,
+        boundary,
+        nodes=samples,
+        cells=cells,
+        topology=topology,
+        interior_point_m=center_point,
+        maximum_harmonic_residual=initial_harmonic_residual,
+        potential_circulation_residual=circulation_residual,
+        nonlinear_iteration_count=iteration_count,
+        nonlinear_update_residual=nonlinear_update_residual,
+        velocity_potential=tuple(full_potential(current_unknown)),
+        model=model,
+        radial_divisions=radial_divisions,
+        message=f'compressible potential residual assembly failed: {error}',
+      )
+    current_residual_norm = float(np.max(np.abs(current_residual)))
+    if current_residual_norm <= residual_tolerance:
+      converged = True
+      nonlinear_update_residual = 0.0
+      break
+    if iteration_index >= maximum_iterations:
+      break
+    if current_jacobian is None:
+      raise AssertionError('potential Newton assembly omitted its Jacobian')
+    try:
+      delta = np.linalg.solve(current_jacobian, -current_residual)
+    except (np.linalg.LinAlgError, TypeError, ValueError) as error:
+      return _field_failure(
+        MocMixedRegimeFieldStatus.POTENTIAL_FLOW_FAILURE,
+        boundary,
+        nodes=samples,
+        cells=cells,
+        topology=topology,
+        interior_point_m=center_point,
+        maximum_harmonic_residual=initial_harmonic_residual,
+        maximum_velocity_divergence_residual=current_residual_norm,
+        potential_circulation_residual=circulation_residual,
+        nonlinear_iteration_count=iteration_count,
+        nonlinear_update_residual=nonlinear_update_residual,
+        velocity_potential=tuple(full_potential(current_unknown)),
+        model=model,
+        radial_divisions=radial_divisions,
+        message=f'compressible potential Newton system failed: {error}',
+      )
+    if not np.isfinite(delta).all():
+      return _field_failure(
+        MocMixedRegimeFieldStatus.POTENTIAL_FLOW_FAILURE,
+        boundary,
+        nodes=samples,
+        cells=cells,
+        topology=topology,
+        interior_point_m=center_point,
+        maximum_harmonic_residual=initial_harmonic_residual,
+        maximum_velocity_divergence_residual=current_residual_norm,
+        potential_circulation_residual=circulation_residual,
+        nonlinear_iteration_count=iteration_count,
+        nonlinear_update_residual=nonlinear_update_residual,
+        velocity_potential=tuple(full_potential(current_unknown)),
+        model=model,
+        radial_divisions=radial_divisions,
+        message='compressible potential Newton system returned a non-finite update',
+      )
+    delta_norm = float(np.max(np.abs(delta)))
+    if delta_norm <= np.finfo(float).eps * max(
+      1.0,
+      float(np.max(np.abs(current_unknown))),
+    ):
+      break
+    accepted_unknown: np.ndarray | None = None
+    accepted_residual_norm = float('inf')
+    step_scale = 1.0
+    for _ in range(20):
+      candidate = current_unknown + step_scale * delta
+      try:
+        candidate_residual, _, _ = assemble(candidate, with_jacobian=False)
+      except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+        candidate_residual = None
+      if candidate_residual is not None:
+        candidate_norm = float(np.max(np.abs(candidate_residual)))
+        if (
+          candidate_norm < current_residual_norm
+          or candidate_norm <= residual_tolerance
+        ):
+          accepted_unknown = candidate
+          accepted_residual_norm = candidate_norm
+          break
+      step_scale *= 0.5
+    if accepted_unknown is None:
+      break
+    nonlinear_update_residual = float(
+      np.max(np.abs(accepted_unknown - current_unknown))
+    )
+    current_unknown = accepted_unknown
+    current_residual_norm = accepted_residual_norm
+    iteration_count = iteration_index + 1
+  if not converged:
+    return _field_failure(
+      MocMixedRegimeFieldStatus.POTENTIAL_FLOW_FAILURE,
+      boundary,
+      nodes=samples,
+      cells=cells,
+      topology=topology,
+      interior_point_m=center_point,
+      maximum_harmonic_residual=initial_harmonic_residual,
+      maximum_velocity_divergence_residual=current_residual_norm,
+      potential_circulation_residual=circulation_residual,
+      nonlinear_iteration_count=iteration_count,
+      nonlinear_update_residual=nonlinear_update_residual,
+      velocity_potential=tuple(full_potential(current_unknown)),
+      model=model,
+      radial_divisions=radial_divisions,
+      message=(
+        'compressible potential Newton solve did not converge: '
+        f'residual={current_residual_norm}, iterations={iteration_count}'
+      ),
+    )
+
+  try:
+    final_residual, _, triangle_velocities = assemble(
+      current_unknown,
+      with_jacobian=False,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return _field_failure(
+      MocMixedRegimeFieldStatus.POTENTIAL_FLOW_FAILURE,
+      boundary,
+      nodes=samples,
+      cells=cells,
+      topology=topology,
+      interior_point_m=center_point,
+      maximum_harmonic_residual=initial_harmonic_residual,
+      potential_circulation_residual=circulation_residual,
+      nonlinear_iteration_count=iteration_count,
+      nonlinear_update_residual=nonlinear_update_residual,
+      velocity_potential=tuple(full_potential(current_unknown)),
+      model=model,
+      radial_divisions=radial_divisions,
+      message=f'compressible potential final assembly failed: {error}',
+    )
+  mass_residual = float(np.max(np.abs(final_residual)))
+  potential_values = full_potential(current_unknown)
+  velocity_sums = [[0.0, 0.0] for _ in range(total_node_count)]
+  velocity_counts = [0 for _ in range(total_node_count)]
+  for triangle, velocity in zip(connectivity, triangle_velocities, strict=True):
+    for node_index in triangle:
+      velocity_sums[node_index][0] += velocity[0]
+      velocity_sums[node_index][1] += velocity[1]
+      velocity_counts[node_index] += 1
+
+  nodes: list[MocMixedRegimeFieldSample] = []
+  try:
+    for node_index, point in enumerate(node_points):
+      if node_index >= outer_start:
+        nodes.append(unique_samples[node_index - outer_start])
+        continue
+      if velocity_counts[node_index] == 0:
+        raise ValueError(f'potential mesh node {node_index} has no adjacent cells')
+      q_x = velocity_sums[node_index][0] / velocity_counts[node_index]
+      q_y = velocity_sums[node_index][1] / velocity_counts[node_index]
+      mach, _ = _potential_primitive(q_x, q_y, gamma_reference)
+      if mach <= 0.0 or mach >= 1.0 - subsonic_margin:
+        raise ValueError(
+          f'potential mesh node {node_index} is outside the strict subsonic '
+          f'range: mach={mach}'
+        )
+      sonic_factor = 0.5 * (gamma_reference - 1.0)
+      enthalpy_factor = 1.0 - sonic_factor * (q_x * q_x + q_y * q_y)
+      nodes.append(
+        MocMixedRegimeFieldSample(
+          point_m=point,
+          mach=mach,
+          flow_angle_rad=atan2(q_y, q_x),
+          static_pressure_Pa=(
+            total_pressure_reference
+            * enthalpy_factor ** (gamma_reference / (gamma_reference - 1.0))
+          ),
+          total_pressure_Pa=total_pressure_reference,
+          gamma=gamma_reference,
+        )
+      )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return _field_failure(
+      MocMixedRegimeFieldStatus.THERMODYNAMIC_FAILURE,
+      boundary,
+      nodes=nodes,
+      cells=cells,
+      topology=topology,
+      interior_point_m=center_point,
+      maximum_velocity_divergence_residual=mass_residual,
+      potential_circulation_residual=circulation_residual,
+      nonlinear_iteration_count=iteration_count,
+      nonlinear_update_residual=nonlinear_update_residual,
+      velocity_potential=tuple(potential_values),
+      model=model,
+      radial_divisions=radial_divisions,
+      message=f'compressible potential field state construction failed: {error}',
+    )
+
+  boundary_velocity_residual = 0.0
+  for index in range(perimeter_count):
+    next_index = (index + 1) % perimeter_count
+    first_point = unique_points[index]
+    second_point = unique_points[next_index]
+    displacement = (
+      second_point[0] - first_point[0],
+      second_point[1] - first_point[1],
+    )
+    segment_length = hypot(*displacement)
+    if segment_length <= position_tolerance_m:
+      return _field_failure(
+        MocMixedRegimeFieldStatus.GEOMETRY_FAILURE,
+        boundary,
+        nodes=nodes,
+        cells=cells,
+        topology=topology,
+        interior_point_m=center_point,
+        maximum_velocity_divergence_residual=mass_residual,
+        potential_circulation_residual=circulation_residual,
+        nonlinear_iteration_count=iteration_count,
+        nonlinear_update_residual=nonlinear_update_residual,
+        velocity_potential=tuple(potential_values),
+        model=model,
+        radial_divisions=radial_divisions,
+        message='compressible potential field encountered a zero-length perimeter segment',
+      )
+    tangent = (
+      displacement[0] / segment_length,
+      displacement[1] / segment_length,
+    )
+    computed_tangent_velocity = (
+      potential_values[outer_start + next_index]
+      - potential_values[outer_start + index]
+    ) / segment_length
+    prescribed_tangent_velocity = 0.5 * (
+      (boundary_velocities[index][0] + boundary_velocities[next_index][0]) * tangent[0]
+      + (boundary_velocities[index][1] + boundary_velocities[next_index][1]) * tangent[1]
+    )
+    boundary_velocity_residual = max(
+      boundary_velocity_residual,
+      abs(computed_tangent_velocity - prescribed_tangent_velocity),
+    )
+
+  thermodynamic_residual = max(
+    max(
+      _relative_residual(_isentropic_total_pressure(sample), sample.total_pressure_Pa)
+      for sample in nodes
+    ),
+    maximum_total_pressure_residual,
+    maximum_gamma_residual,
+  )
+  maximum_mach = max(sample.mach for sample in nodes)
+  if (
+    mass_residual > residual_tolerance
+    or boundary_velocity_residual > velocity_tolerance
+    or thermodynamic_residual > thermodynamic_tolerance
+    or maximum_mach >= 1.0 - subsonic_margin
+  ):
+    return _field_failure(
+      MocMixedRegimeFieldStatus.RESIDUAL_FAILURE,
+      boundary,
+      nodes=nodes,
+      cells=cells,
+      topology=topology,
+      interior_point_m=center_point,
+      maximum_thermodynamic_residual=thermodynamic_residual,
+      maximum_velocity_divergence_residual=mass_residual,
+      maximum_mass_conservation_residual=mass_residual,
+      maximum_boundary_velocity_residual=boundary_velocity_residual,
+      potential_circulation_residual=circulation_residual,
+      nonlinear_iteration_count=iteration_count,
+      nonlinear_update_residual=nonlinear_update_residual,
+      velocity_potential=tuple(potential_values),
+      model=model,
+      radial_divisions=radial_divisions,
+      message=(
+        'compressible potential field residual gate failed: '
+        f'mass={mass_residual}, boundary_velocity={boundary_velocity_residual}, '
+        f'thermodynamic={thermodynamic_residual}, maximum_mach={maximum_mach}'
+      ),
+    )
+  return MocMixedRegimeFieldResult(
+    status=MocMixedRegimeFieldStatus.CONVERGED_COMPRESSIBLE_POTENTIAL_FIELD,
+    boundary=boundary,
+    nodes=tuple(nodes),
+    cells=cells,
+    topology=topology,
+    interior_point_m=center_point,
+    maximum_thermodynamic_residual=thermodynamic_residual,
+    maximum_harmonic_residual=initial_harmonic_residual,
+    maximum_velocity_divergence_residual=mass_residual,
+    minimum_mach=min(sample.mach for sample in nodes),
+    maximum_mach=maximum_mach,
+    model=model,
+    radial_divisions=radial_divisions,
+    downstream_condition=downstream_condition,
+    maximum_mass_conservation_residual=mass_residual,
+    maximum_boundary_velocity_residual=boundary_velocity_residual,
+    potential_circulation_residual=circulation_residual,
+    nonlinear_iteration_count=iteration_count,
+    nonlinear_update_residual=nonlinear_update_residual,
+    velocity_potential=tuple(potential_values),
+    message=(
+      'compressible isentropic potential field converged on the supplied '
+      'closed perimeter with nonlinear mass, circulation, boundary-potential, '
+      'and strict-subsonic gates; this research reference remains separate '
+      'from the supersonic MOC chain and does not infer a free boundary'
     ),
   )
 

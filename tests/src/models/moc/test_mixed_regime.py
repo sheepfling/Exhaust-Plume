@@ -1,5 +1,5 @@
 from dataclasses import replace
-from math import pi
+from math import atan2, pi
 
 import pytest
 
@@ -17,6 +17,7 @@ from exhaust_plume.models.moc import (
   MocPostShockBoundaryState,
   run_mixed_regime_closure_solver,
   solve_normal_shock_terminal,
+  solve_mixed_regime_compressible_potential_field,
   solve_mixed_regime_downstream_condition,
   solve_mixed_regime_downstream_perimeter,
   solve_mixed_regime_subsonic_field,
@@ -529,6 +530,131 @@ def test_condition_qualified_elliptic_reference_field_can_be_attached() -> None:
   assert field.mixed_regime_field_complete
   assert condition.tangency_condition_applicable is False
   assert condition.tangent_residuals_rad == ()
+
+
+@pytest.mark.parametrize(
+  ('radial_divisions', 'expected_node_count', 'expected_cell_count'),
+  ((1, 5, 4), (2, 9, 12), (3, 13, 20)),
+)
+def test_compressible_potential_reference_solves_a_declared_subsonic_field(
+  radial_divisions: int,
+  expected_node_count: int,
+  expected_cell_count: int,
+) -> None:
+  terminal = _terminal()
+  boundary, condition = _pressure_outflow_boundary_and_condition(terminal)
+
+  field = solve_mixed_regime_compressible_potential_field(
+    boundary,
+    radial_divisions=radial_divisions,
+    downstream_condition=condition,
+  )
+
+  assert field.status is MocMixedRegimeFieldStatus.CONVERGED_COMPRESSIBLE_POTENTIAL_FIELD
+  assert field.converged
+  assert field.model == 'compressible-isentropic-potential-reference'
+  assert field.radial_divisions == radial_divisions
+  assert field.node_count == expected_node_count
+  assert field.cell_count == expected_cell_count
+  assert field.topology.forms_closed_zone
+  assert field.model_closure_verified
+  assert field.physical_closure_verified
+  assert field.mixed_regime_field_complete
+  assert field.chain_promotion_blocked
+  assert field.downstream_condition is condition
+  assert len(field.velocity_potential) == field.node_count
+  assert field.maximum_mass_conservation_residual is not None
+  assert field.maximum_mass_conservation_residual <= 1.0e-8
+  assert field.maximum_boundary_velocity_residual is not None
+  assert field.maximum_boundary_velocity_residual <= 1.0e-8
+  assert field.potential_circulation_residual is not None
+  assert field.potential_circulation_residual <= 1.0e-8
+  assert field.maximum_mach is not None
+  assert field.maximum_mach < 1.0
+
+
+def test_compressible_potential_reference_reports_nonlinear_iterations() -> None:
+  terminal = _terminal()
+  patch = _supersonic_patch()
+  assert terminal.shock_point_m is not None
+  assert terminal.downstream_mach is not None
+  assert terminal.downstream_pressure_Pa is not None
+  assert terminal.downstream_total_pressure_Pa is not None
+  assert terminal.total_pressure_ratio is not None
+  gamma = terminal.upstream_state.gamma
+  sonic_factor = 0.5 * (gamma - 1.0)
+  reference_speed = terminal.downstream_mach / (
+    1.0 + sonic_factor * terminal.downstream_mach * terminal.downstream_mach
+  ) ** 0.5
+  quadratic_strength = 0.02
+  points = (
+    terminal.shock_point_m,
+    (terminal.shock_point_m[0] + 0.1, terminal.shock_point_m[1] + 0.1),
+    (terminal.shock_point_m[0] + 0.2, terminal.shock_point_m[1] + 0.1),
+    (terminal.shock_point_m[0] + 0.2, terminal.shock_point_m[1]),
+    terminal.shock_point_m,
+  )
+
+  def sample_at(point: tuple[float, float]) -> MocMixedRegimeFieldSample:
+    q_x = reference_speed + 2.0 * quadratic_strength * (
+      point[0] - terminal.shock_point_m[0]
+    )
+    q_y = -2.0 * quadratic_strength * (point[1] - terminal.shock_point_m[1])
+    speed_squared = q_x * q_x + q_y * q_y
+    enthalpy_factor = 1.0 - sonic_factor * speed_squared
+    mach = (speed_squared / enthalpy_factor) ** 0.5
+    return MocMixedRegimeFieldSample(
+      point_m=point,
+      mach=mach,
+      flow_angle_rad=atan2(q_y, q_x),
+      static_pressure_Pa=(
+        terminal.downstream_total_pressure_Pa
+        * enthalpy_factor ** (gamma / (gamma - 1.0))
+      ),
+      total_pressure_Pa=terminal.downstream_total_pressure_Pa,
+      gamma=gamma,
+    )
+
+  boundary = validate_mixed_regime_boundary(
+    terminal,
+    patch,
+    supersonic_patch_converged=True,
+    subsonic_samples=tuple(sample_at(point) for point in points),
+  )
+  assert boundary.converged
+
+  field = solve_mixed_regime_compressible_potential_field(
+    boundary,
+    radial_divisions=2,
+  )
+
+  assert field.status is MocMixedRegimeFieldStatus.CONVERGED_COMPRESSIBLE_POTENTIAL_FIELD
+  assert field.model_closure_verified
+  assert field.nonlinear_iteration_count >= 1
+  assert field.maximum_mass_conservation_residual is not None
+  assert field.maximum_mass_conservation_residual <= 1.0e-8
+
+
+def test_compressible_potential_reference_rejects_incompatible_boundary_circulation() -> None:
+  terminal = _terminal()
+  samples = list(_samples(terminal))
+  samples[1] = replace(samples[1], flow_angle_rad=0.5)
+  boundary = validate_mixed_regime_boundary(
+    terminal,
+    _supersonic_patch(),
+    supersonic_patch_converged=True,
+    subsonic_samples=tuple(samples),
+  )
+  assert boundary.converged
+
+  field = solve_mixed_regime_compressible_potential_field(boundary)
+
+  assert field.status is MocMixedRegimeFieldStatus.POTENTIAL_FLOW_FAILURE
+  assert not field.converged
+  assert field.model == 'compressible-isentropic-potential-reference'
+  assert field.potential_circulation_residual is not None
+  assert field.potential_circulation_residual > 0.0
+  assert 'not single-valued' in field.message
 
 
 def test_field_solver_rejects_a_condition_from_a_different_scalar_boundary() -> None:

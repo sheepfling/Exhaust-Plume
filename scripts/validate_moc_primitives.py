@@ -97,6 +97,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_marched_attached_shock_with_ambient_attachment_closure,
   solve_marched_ambient_attachment_shock_cell_transition,
   solve_marched_attached_shock_with_constant_invariant_closure,
+  solve_mixed_regime_compressible_potential_field,
   solve_mixed_regime_subsonic_field,
   solve_reflected_boundary_trace_extension,
   solve_uniform_attached_shock_field,
@@ -1460,6 +1461,18 @@ def _mixed_regime_boundary_probe(
     )
     for radial_divisions in (2, 3, 4)
   )
+  compressible_potential_field = solve_mixed_regime_compressible_potential_field(
+    contract_fixture,
+    downstream_condition=outflow_condition,
+  )
+  compressible_potential_field_refinement = tuple(
+    solve_mixed_regime_compressible_potential_field(
+      contract_fixture,
+      radial_divisions=radial_divisions,
+      downstream_condition=outflow_condition,
+    )
+    for radial_divisions in (2, 3, 4)
+  )
   terminal_attachment_refinement: tuple[dict[str, Any], ...] = ()
   if field is not None and all(
     result.physical_closure_verified for result in conditioned_field_refinement
@@ -1520,6 +1533,21 @@ def _mixed_regime_boundary_probe(
         result.physical_closure_verified
         for result in conditioned_field_refinement
       )
+      and compressible_potential_field.physical_closure_verified
+      and compressible_potential_field.model == (
+        'compressible-isentropic-potential-reference'
+      )
+      and all(
+        result.physical_closure_verified
+        and result.model == 'compressible-isentropic-potential-reference'
+        and result.maximum_mass_conservation_residual is not None
+        and result.maximum_mass_conservation_residual <= 1.0e-8
+        and result.maximum_boundary_velocity_residual is not None
+        and result.maximum_boundary_velocity_residual <= 1.0e-8
+        and result.potential_circulation_residual is not None
+        and result.potential_circulation_residual <= 1.0e-8
+        for result in compressible_potential_field_refinement
+      )
       and len(terminal_attachment_refinement) == len(conditioned_field_refinement)
       and all(
         case['physical_termination_verified'] is True
@@ -1558,6 +1586,10 @@ def _mixed_regime_boundary_probe(
     'elliptic_subsonic_field_conditioned_fixture': conditioned_field.as_report(),
     'elliptic_subsonic_field_conditioned_refinement': [
       result.as_report() for result in conditioned_field_refinement
+    ],
+    'compressible_potential_field_reference': compressible_potential_field.as_report(),
+    'compressible_potential_field_refinement': [
+      result.as_report() for result in compressible_potential_field_refinement
     ],
     'terminal_attachment_refinement': list(terminal_attachment_refinement),
     'terminal_attachment_closure_result': (
