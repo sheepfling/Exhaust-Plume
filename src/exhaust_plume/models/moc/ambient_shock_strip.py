@@ -41,6 +41,7 @@ from exhaust_plume.models.moc.primitives import (
   CharacteristicPointResult,
   CharacteristicState,
   MocPrimitiveStatus,
+  centerline_characteristic_point,
   interior_characteristic_point,
 )
 from exhaust_plume.models.moc.topology import MocTopologyResult, validate_moc_mesh
@@ -49,9 +50,12 @@ from exhaust_plume.models.moc.zone import MocCharacteristicCell, MocCharacterist
 __all__ = (
   'MocAmbientShockBoundaryMarchStatus',
   'MocAmbientShockBoundaryMarchResult',
+  'MocAmbientAxisClosureStatus',
+  'MocAmbientAxisClosureResult',
   'MocAmbientShockStripStatus',
   'MocAmbientShockStripResult',
   'march_post_shock_ambient_boundary',
+  'probe_post_shock_ambient_axis_closure',
   'assemble_ambient_shock_characteristic_strip',
 )
 
@@ -66,6 +70,17 @@ class MocAmbientShockBoundaryMarchStatus(str, Enum):
   BOUNDARY_FAILURE = 'ambient_boundary_march_failure'
   GEOMETRY_FAILURE = 'ambient_boundary_geometry_failure'
   PRESSURE_FAILURE = 'ambient_boundary_pressure_failure'
+####
+
+
+class MocAmbientAxisClosureStatus(str, Enum):
+  """Outcome of extending the marched ambient boundary to the axis."""
+
+  CONVERGED = 'converged_ambient_axis_candidate'
+  INVALID_INPUT = 'invalid_input'
+  MARCH_FAILURE = 'ambient_boundary_march_failure'
+  AXIS_FAILURE = 'centerline_axis_failure'
+  PRESSURE_FAILURE = 'ambient_axis_pressure_failure'
 ####
 
 
@@ -114,6 +129,141 @@ class MocAmbientShockBoundaryMarchResult:
       'maximum_geometry_residual_m': self.maximum_geometry_residual_m,
       'maximum_absolute_pressure_residual': self.maximum_absolute_pressure_residual,
       'maximum_absolute_invariant_residual': self.maximum_absolute_invariant_residual,
+      'message': self.message,
+    }
+  ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocAmbientAxisClosureResult:
+  """A bounded centerline candidate and its ambient-pressure residual.
+
+  The last ambient-boundary state is continued along its compatible ``C-``
+  characteristic to ``y=0``.  This produces a physically meaningful axis
+  candidate, but it is only a local closure gate: a pressure mismatch means
+  the upstream shock/boundary solve still has to change.  Even a candidate
+  that passes this scalar check is deliberately not a promoted MOC cell.
+  """
+
+  status: MocAmbientAxisClosureStatus
+  source_boundary_sample: MocAmbientBoundarySample | None
+  axis_point_m: tuple[float, float] | None
+  axis_state: CharacteristicState | None
+  axis_total_pressure_Pa: float | None
+  axis_static_pressure_Pa: float | None
+  ambient_pressure_Pa: float | None
+  pressure_residual_Pa: float | None
+  relative_pressure_residual: float | None
+  axis_geometry_residual_m: float | None
+  axis_invariant_residual: float | None
+  axis_candidate_verified: bool
+  ambient_pressure_verified: bool
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.status, MocAmbientAxisClosureStatus):
+      raise TypeError('status must be a MocAmbientAxisClosureStatus')
+    if self.source_boundary_sample is not None and not isinstance(
+        self.source_boundary_sample,
+        MocAmbientBoundarySample,
+    ):
+      raise TypeError(
+        'source_boundary_sample must be a MocAmbientBoundarySample or None'
+      )
+    if self.axis_state is not None and not isinstance(
+        self.axis_state,
+        CharacteristicState,
+    ):
+      raise TypeError('axis_state must be a CharacteristicState or None')
+    for name, value in (
+      ('axis_total_pressure_Pa', self.axis_total_pressure_Pa),
+      ('axis_static_pressure_Pa', self.axis_static_pressure_Pa),
+      ('ambient_pressure_Pa', self.ambient_pressure_Pa),
+    ):
+      if value is not None and (
+        not isfinite(float(value)) or float(value) <= 0.0
+      ):
+        raise ValueError(f'{name} must be finite and positive when supplied')
+    for name, value in (
+      ('pressure_residual_Pa', self.pressure_residual_Pa),
+      ('relative_pressure_residual', self.relative_pressure_residual),
+      ('axis_geometry_residual_m', self.axis_geometry_residual_m),
+      ('axis_invariant_residual', self.axis_invariant_residual),
+    ):
+      if value is not None and not isfinite(float(value)):
+        raise ValueError(f'{name} must be finite when supplied')
+    if self.axis_point_m is not None:
+      if len(self.axis_point_m) != 2 or not all(
+        isfinite(float(value)) for value in self.axis_point_m
+      ):
+        raise ValueError('axis_point_m must contain two finite coordinates')
+      object.__setattr__(
+        self,
+        'axis_point_m',
+        (float(self.axis_point_m[0]), float(self.axis_point_m[1])),
+      )
+    if not isinstance(self.axis_candidate_verified, bool):
+      raise TypeError('axis_candidate_verified must be a bool')
+    if not isinstance(self.ambient_pressure_verified, bool):
+      raise TypeError('ambient_pressure_verified must be a bool')
+  ####
+
+  @property
+  def converged(self) -> bool:
+    """Whether both the axis characteristic and pressure gate passed."""
+
+    return self.status is MocAmbientAxisClosureStatus.CONVERGED
+  ####
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    """Whether this local axis probe proves a complete physical cell."""
+
+    return False
+  ####
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    """Whether the local axis candidate must remain outside chain promotion."""
+
+    return True
+  ####
+
+  def as_report(self) -> dict[str, object]:
+    """Serialize the axis candidate and both independent closure gates."""
+
+    axis_state = self.axis_state
+    return {
+      'status': self.status.value,
+      'converged': self.converged,
+      'axis_candidate_verified': self.axis_candidate_verified,
+      'ambient_pressure_verified': self.ambient_pressure_verified,
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'source_boundary_point_m': (
+        None
+        if self.source_boundary_sample is None
+        else self.source_boundary_sample.point_m
+      ),
+      'axis_point_m': self.axis_point_m,
+      'axis_state': (
+        None
+        if axis_state is None
+        else {
+          'x_m': axis_state.x_m,
+          'y_m': axis_state.y_m,
+          'theta_rad': axis_state.theta_rad,
+          'mach': axis_state.mach,
+          'gamma': axis_state.gamma,
+        }
+      ),
+      'axis_total_pressure_Pa': self.axis_total_pressure_Pa,
+      'axis_static_pressure_Pa': self.axis_static_pressure_Pa,
+      'ambient_pressure_Pa': self.ambient_pressure_Pa,
+      'pressure_residual_Pa': self.pressure_residual_Pa,
+      'relative_pressure_residual': self.relative_pressure_residual,
+      'axis_geometry_residual_m': self.axis_geometry_residual_m,
+      'axis_invariant_residual': self.axis_invariant_residual,
       'message': self.message,
     }
   ####
@@ -691,6 +841,163 @@ def _shock_endpoint_characteristic_point(
     iterations=0,
     intersection_status='ambient-boundary-endpoint',
   )
+
+
+def probe_post_shock_ambient_axis_closure(
+  march: MocAmbientShockBoundaryMarchResult,
+  ambient_pressure_Pa: float,
+  *,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  pressure_tolerance: float = 1.0e-8,
+) -> MocAmbientAxisClosureResult:
+  """Probe the final ambient ``C-`` sample against a centerline closure.
+
+  The probe carries the last accepted ambient total pressure to the axis and
+  reconstructs the compatible ``theta=0`` state.  It does not alter the
+  marched boundary and does not infer a downstream perimeter.  A pressure
+  mismatch is therefore a useful residual for a future global shock/boundary
+  solve, not a reason to accept this candidate as a physical first cell.
+  """
+
+  try:
+    ambient_pressure = float(ambient_pressure_Pa)
+  except (TypeError, ValueError):
+    ambient_pressure = None
+  if ambient_pressure is None or not isfinite(ambient_pressure) or ambient_pressure <= 0.0:
+    return MocAmbientAxisClosureResult(
+      status=MocAmbientAxisClosureStatus.INVALID_INPUT,
+      source_boundary_sample=None,
+      axis_point_m=None,
+      axis_state=None,
+      axis_total_pressure_Pa=None,
+      axis_static_pressure_Pa=None,
+      ambient_pressure_Pa=ambient_pressure,
+      pressure_residual_Pa=None,
+      relative_pressure_residual=None,
+      axis_geometry_residual_m=None,
+      axis_invariant_residual=None,
+      axis_candidate_verified=False,
+      ambient_pressure_verified=False,
+      message='ambient_pressure_Pa must be finite and positive',
+    )
+  for name, value in (
+    ('position_tolerance_m', position_tolerance_m),
+    ('invariant_tolerance', invariant_tolerance),
+    ('pressure_tolerance', pressure_tolerance),
+  ):
+    if not isfinite(float(value)) or value <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+  if not isinstance(march, MocAmbientShockBoundaryMarchResult):
+    return MocAmbientAxisClosureResult(
+      status=MocAmbientAxisClosureStatus.INVALID_INPUT,
+      source_boundary_sample=None,
+      axis_point_m=None,
+      axis_state=None,
+      axis_total_pressure_Pa=None,
+      axis_static_pressure_Pa=None,
+      ambient_pressure_Pa=ambient_pressure,
+      pressure_residual_Pa=None,
+      relative_pressure_residual=None,
+      axis_geometry_residual_m=None,
+      axis_invariant_residual=None,
+      axis_candidate_verified=False,
+      ambient_pressure_verified=False,
+      message='march must be a MocAmbientShockBoundaryMarchResult',
+    )
+  source = march.boundary_samples[-1] if march.boundary_samples else None
+  if not march.converged or source is None:
+    return MocAmbientAxisClosureResult(
+      status=MocAmbientAxisClosureStatus.MARCH_FAILURE,
+      source_boundary_sample=source,
+      axis_point_m=None,
+      axis_state=None,
+      axis_total_pressure_Pa=None,
+      axis_static_pressure_Pa=None,
+      ambient_pressure_Pa=ambient_pressure,
+      pressure_residual_Pa=None,
+      relative_pressure_residual=None,
+      axis_geometry_residual_m=None,
+      axis_invariant_residual=None,
+      axis_candidate_verified=False,
+      ambient_pressure_verified=False,
+      message=(
+        'ambient axis closure requires a converged marched boundary with a '
+        f'final sample: {march.message}'
+      ),
+    )
+
+  axis = centerline_characteristic_point(
+    source.state,
+    CharacteristicFamily.MINUS,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+  )
+  axis_candidate_verified = (
+    axis.converged
+    and axis.point_m is not None
+    and axis.state is not None
+    and abs(axis.point_m[1]) <= position_tolerance_m
+    and abs(axis.state.theta_rad) <= invariant_tolerance
+  )
+  if not axis_candidate_verified:
+    return MocAmbientAxisClosureResult(
+      status=MocAmbientAxisClosureStatus.AXIS_FAILURE,
+      source_boundary_sample=source,
+      axis_point_m=axis.point_m,
+      axis_state=axis.state,
+      axis_total_pressure_Pa=source.total_pressure_Pa,
+      axis_static_pressure_Pa=None,
+      ambient_pressure_Pa=ambient_pressure,
+      pressure_residual_Pa=None,
+      relative_pressure_residual=None,
+      axis_geometry_residual_m=axis.geometry_residual,
+      axis_invariant_residual=axis.invariant_residual_minus,
+      axis_candidate_verified=False,
+      ambient_pressure_verified=False,
+      message=f'final ambient C- sample did not produce a valid axis candidate: {axis.message}',
+    )
+
+  assert axis.state is not None
+  assert axis.point_m is not None
+  axis_static_pressure = _static_pressure_from_total(
+    axis.state,
+    source.total_pressure_Pa,
+  )
+  pressure_residual = axis_static_pressure - ambient_pressure
+  relative_pressure_residual = pressure_residual / ambient_pressure
+  ambient_pressure_verified = abs(relative_pressure_residual) <= pressure_tolerance
+  if ambient_pressure_verified:
+    status = MocAmbientAxisClosureStatus.CONVERGED
+    message = (
+      'final ambient C- sample reaches a centerline candidate and its '
+      'carried static pressure matches ambient within tolerance; full '
+      'physical downstream closure remains pending'
+    )
+  else:
+    status = MocAmbientAxisClosureStatus.PRESSURE_FAILURE
+    message = (
+      'final ambient C- sample reaches a geometric centerline candidate, '
+      'but its carried static pressure does not match ambient: '
+      f'relative residual={relative_pressure_residual}'
+    )
+  return MocAmbientAxisClosureResult(
+    status=status,
+    source_boundary_sample=source,
+    axis_point_m=axis.point_m,
+    axis_state=axis.state,
+    axis_total_pressure_Pa=source.total_pressure_Pa,
+    axis_static_pressure_Pa=axis_static_pressure,
+    ambient_pressure_Pa=ambient_pressure,
+    pressure_residual_Pa=pressure_residual,
+    relative_pressure_residual=relative_pressure_residual,
+    axis_geometry_residual_m=axis.geometry_residual,
+    axis_invariant_residual=axis.invariant_residual_minus,
+    axis_candidate_verified=axis_candidate_verified,
+    ambient_pressure_verified=ambient_pressure_verified,
+    message=message,
+  )
+####
 
 
 def _point_key(point: tuple[float, float], tolerance_m: float) -> tuple[int, int]:

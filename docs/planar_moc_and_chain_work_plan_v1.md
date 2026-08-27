@@ -621,6 +621,11 @@ not wait on this research closure.
   The open zone now retains a bounded supersonic state/pressure sampler for
   downstream solver probes; this interface does not extend the domain or
   change its open-closure status.
+  The ambient-strip validation now also carries the final ambient ``C-``
+  sample to a geometric centerline candidate and reports the carried static-
+  pressure residual. The canonical candidate reaches ``y=0`` but misses
+  ambient pressure by about 15 percent, so the result is a solver-owned
+  boundary residual—not a physical closure or a chain-promotion input.
 
 ### MOC-3 — Re-solved continued cells
 

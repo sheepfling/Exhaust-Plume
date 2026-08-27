@@ -122,6 +122,12 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   only exposes a resolved chain handoff after the characteristic net closes on
   the centerline. It is an acceptance primitive for the future free-boundary
   shooter, not that shooter itself;
+- a solver-owned ambient-axis closure probe that continues the final marched
+  ambient ``C-`` sample to a geometric centerline candidate and separately
+  checks its carried static pressure against ambient. A geometric axis reach
+  with a pressure mismatch is retained as a typed residual for the future
+  global boundary/shock solve and remains hard-false for physical closure and
+  chain promotion;
 - a correctly oriented shock/ambient strip assembler in which shock-sourced
   ``C+`` characteristics and ambient-sourced ``C-`` characteristics form a
   connected physical-boundary net, plus a shock-to-ambient boundary marcher

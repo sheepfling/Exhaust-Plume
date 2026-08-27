@@ -19,6 +19,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   CharacteristicState,
   MocAmbientClosureStatus,
   MocAmbientShockStripStatus,
+  MocAmbientAxisClosureStatus,
   MocMixedRegimeBoundaryStatus,
   MocMixedRegimeDownstreamPerimeterSpec,
   MocMixedRegimeDownstreamConditionKind,
@@ -122,6 +123,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   extend_source_characteristic_strip_centerline_reflection,
   extend_source_characteristic_strip_constant_k_plus,
   march_post_shock_ambient_boundary,
+  probe_post_shock_ambient_axis_closure,
   sample_reflected_zone_along_shock_path,
   validate_fan_reflected_interface,
   validate_closed_post_shock_field,
@@ -415,6 +417,17 @@ def _ambient_shock_strip_probe(
       'message': march.message,
       'claim_status': 'shock-plus-ambient-strip-pending',
     }
+  ambient_axis_closure = probe_post_shock_ambient_axis_closure(
+    march,
+    ambient_pressure,
+  )
+  ambient_axis_closure_probe_accepted = (
+    ambient_axis_closure.status is MocAmbientAxisClosureStatus.PRESSURE_FAILURE
+    and ambient_axis_closure.axis_candidate_verified
+    and not ambient_axis_closure.ambient_pressure_verified
+    and not ambient_axis_closure.physical_closure_verified
+    and ambient_axis_closure.chain_promotion_blocked
+  )
   strip = assemble_ambient_shock_characteristic_strip(
     shock_fit,
     march.boundary_samples,
@@ -567,6 +580,8 @@ def _ambient_shock_strip_probe(
     'accepted': accepted,
     'ambient_pressure_Pa': ambient_pressure,
     'march': march.as_report(),
+    'ambient_axis_closure': ambient_axis_closure.as_report(),
+    'ambient_axis_closure_probe_accepted': ambient_axis_closure_probe_accepted,
     'strip': strip.as_report(),
     'terminal_compression_candidate': solve_terminal_compression_candidate(
       strip,
@@ -4103,6 +4118,10 @@ def build_moc_primitive_report() -> dict[str, Any]:
   post_shock_zone_chain_planner_failure = (
     post_shock_zone_chain_planner.get('accepted') is not True
   )
+  ambient_axis_closure_probe_failure = (
+    ambient_shock_strip_probe.get('accepted') is True
+    and ambient_shock_strip_probe.get('ambient_axis_closure_probe_accepted') is not True
+  )
   terminal_patch_chain_probe = ambient_shock_strip_probe.get(
     'terminal_reflection_patch_chain_probe',
   )
@@ -5228,6 +5247,23 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'message': str(ambient_shock_strip_probe.get('message', '')),
       }
     ] if ambient_shock_strip_probe.get('accepted') is not True else []),
+    *([
+      {
+        'case': 'solver_generated_ambient_axis_closure_probe',
+        'status': str(
+          ambient_shock_strip_probe.get('ambient_axis_closure', {}).get(
+            'status',
+            'missing',
+          )
+        ),
+        'message': str(
+          ambient_shock_strip_probe.get('ambient_axis_closure', {}).get(
+            'message',
+            '',
+          )
+        ),
+      }
+    ] if ambient_axis_closure_probe_failure else []),
     *([
       {
         'case': 'solver_generated_terminal_patch_chain_probe',

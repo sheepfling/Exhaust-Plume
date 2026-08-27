@@ -429,6 +429,14 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert ambient_strip['strip']['topology_forms_closed_zone'] is True
   assert ambient_strip['strip']['physical_closure_verified'] is False
   assert ambient_strip['strip']['chain_promotion_blocked'] is True
+  ambient_axis_closure = ambient_strip['ambient_axis_closure']
+  assert ambient_strip['ambient_axis_closure_probe_accepted'] is True
+  assert ambient_axis_closure['status'] == 'ambient_axis_pressure_failure'
+  assert ambient_axis_closure['axis_candidate_verified'] is True
+  assert ambient_axis_closure['ambient_pressure_verified'] is False
+  assert ambient_axis_closure['physical_closure_verified'] is False
+  assert ambient_axis_closure['chain_promotion_blocked'] is True
+  assert ambient_axis_closure['relative_pressure_residual'] > 0.0
   terminal_graph = first_cell_terminal['terminal_field']['terminal_boundary_graph']
   assert terminal_graph['status'] == 'converged_upstream_terminal_boundary_graph'
   assert terminal_graph['upstream_graph_closed'] is True

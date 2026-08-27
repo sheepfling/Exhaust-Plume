@@ -12,6 +12,7 @@ from exhaust_plume.models.moc import (
   MocChainTerminationDecision,
   MocChainTerminationReason,
   MocAmbientShockBoundaryMarchStatus,
+  MocAmbientAxisClosureStatus,
   MocAmbientShockStripStatus,
   MocFreeBoundaryShockStatus,
   MocTerminalPatchShockCouplingStatus,
@@ -20,6 +21,7 @@ from exhaust_plume.models.moc import (
   assemble_ambient_shock_characteristic_strip,
   assemble_terminal_trace_centerline_patch,
   march_post_shock_ambient_boundary,
+  probe_post_shock_ambient_axis_closure,
   plan_terminal_reflection_patch_chain,
   solve_terminal_compression_candidate,
   solve_marched_attached_shock_chain_cell_from_terminal_reflection_patch,
@@ -72,6 +74,35 @@ def test_shock_sourced_ambient_march_closes_the_boundary_conditions() -> None:
   assert result.maximum_absolute_pressure_residual < 1.0e-8
   assert result.maximum_absolute_invariant_residual is not None
   assert result.maximum_absolute_invariant_residual < 1.0e-8
+
+
+def test_ambient_axis_probe_retains_the_centerline_pressure_gap() -> None:
+  shock_fit = _shock_reference()
+  ambient_pressure = _ambient_pressure(shock_fit)
+  march = march_post_shock_ambient_boundary(
+    shock_fit,
+    ambient_pressure,
+  )
+
+  result = probe_post_shock_ambient_axis_closure(
+    march,
+    ambient_pressure,
+  )
+
+  assert result.status is MocAmbientAxisClosureStatus.PRESSURE_FAILURE
+  assert not result.converged
+  assert result.axis_candidate_verified
+  assert not result.ambient_pressure_verified
+  assert result.axis_point_m is not None
+  assert result.axis_point_m[1] == pytest.approx(0.0, abs=1.0e-12)
+  assert result.axis_state is not None
+  assert result.axis_state.theta_rad == pytest.approx(0.0, abs=1.0e-12)
+  assert result.axis_static_pressure_Pa is not None
+  assert result.relative_pressure_residual is not None
+  assert abs(result.relative_pressure_residual) > 1.0e-8
+  assert result.physical_closure_verified is False
+  assert result.chain_promotion_blocked is True
+  assert result.as_report()['axis_candidate_verified'] is True
 
 
 def test_shock_and_ambient_characteristic_strip_keeps_terminal_trace_open() -> None:

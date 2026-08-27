@@ -6157,6 +6157,38 @@
         "maximum_absolute_invariant_residual": 0.0,
         "message": "shock-sourced C+ characteristics generated an ambient-pressure, streamline-tangent C- boundary; downstream axis closure remains pending"
       },
+      "ambient_axis_closure": {
+        "status": "ambient_axis_pressure_failure",
+        "converged": false,
+        "axis_candidate_verified": true,
+        "ambient_pressure_verified": false,
+        "physical_closure_verified": false,
+        "chain_promotion_blocked": true,
+        "source_boundary_point_m": [
+          1.4720719054145763,
+          0.4979922117641763
+        ],
+        "axis_point_m": [
+          1.9592114806116385,
+          0.0
+        ],
+        "axis_state": {
+          "x_m": 1.9592114806116385,
+          "y_m": 0.0,
+          "theta_rad": 0.0,
+          "mach": 1.3875587424772675,
+          "gamma": 1.4
+        },
+        "axis_total_pressure_Pa": 764819.179280032,
+        "axis_static_pressure_Pa": 244576.36541557626,
+        "ambient_pressure_Pa": 212165.99747295334,
+        "pressure_residual_Pa": 32410.36794262292,
+        "relative_pressure_residual": 0.15275948233295278,
+        "axis_geometry_residual_m": 3.572089991649734e-17,
+        "axis_invariant_residual": 5.67323965583455e-14,
+        "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=0.15275948233295278"
+      },
+      "ambient_axis_closure_probe_accepted": true,
       "strip": {
         "status": "converged_open_shock_ambient_strip",
         "converged": true,
