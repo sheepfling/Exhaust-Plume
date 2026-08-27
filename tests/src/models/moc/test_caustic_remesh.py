@@ -38,6 +38,11 @@ from exhaust_plume.models.nozzle.exit_state import (
   derive_ambient_state,
   derive_uniform_nozzle_exit,
 )
+from exhaust_plume.validation.moc_measurements import (
+  MocCausticRemeshMeasurementStatus,
+  MocCausticRemeshObservation,
+  measure_moc_caustic_remesh,
+)
 
 
 def _fixture():
@@ -175,6 +180,18 @@ def test_caustic_remesh_generates_a_bounded_new_family_field() -> None:
   assert result.remesh_seam_verified
   assert result.physical_closure_verified is False
   assert result.chain_promotion_blocked
+
+  measurement = measure_moc_caustic_remesh(
+    MocCausticRemeshObservation(remesh_result=result),
+  )
+  assert measurement.status is MocCausticRemeshMeasurementStatus.CONVERGED
+  assert measurement.converged
+  assert measurement.bounded_remesh_verified
+  assert measurement.remesh_seam_verified
+  assert measurement.downstream_field_verified
+  assert measurement.physical_closure_verified is False
+  assert measurement.chain_promotion_blocked
+  assert measurement.as_report()['field_topology']['forms_closed_zone'] is True
 
   assert result.shock is not None
   assert result.shock.field is not None
@@ -362,6 +379,17 @@ def test_caustic_remesh_uses_the_bounded_old_restarted_family_bridge() -> None:
   assert result.upstream_bridge_audit.first_missing_point_m == result.shock.failed_point_m
   assert result.physical_closure_verified is False
   assert result.chain_promotion_blocked
+
+  measurement = measure_moc_caustic_remesh(
+    MocCausticRemeshObservation(
+      remesh_result=result,
+      upstream_bridge=bridge,
+    ),
+  )
+  assert measurement.status is MocCausticRemeshMeasurementStatus.UPSTREAM_FAILURE
+  assert measurement.upstream_bridge_verified is False
+  assert measurement.first_missing_sample_index == 1
+  assert measurement.first_missing_point_m == result.shock.failed_point_m
 
   planner = plan_caustic_shock_remesh_chain_from_upstream_bridge(
     current,

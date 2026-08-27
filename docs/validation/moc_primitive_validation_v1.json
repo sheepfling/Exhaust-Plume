@@ -1573,6 +1573,65 @@
           },
           "message": "caustic remesh generated a bounded attached shock and closed downstream characteristic field with exact event/upstream coupling; ambient physical closure remains a separate first-cell gate"
         },
+        "direct_measurement": {
+          "status": "converged",
+          "operator_id": "op.moc.caustic-remesh",
+          "converged": true,
+          "remesh_status": "converged_coupled_caustic_shock_remesh",
+          "bridge_status": null,
+          "event_point_m": [
+            0.6584201957653014,
+            0.056970655192732075
+          ],
+          "counts": {
+            "shock_sample_count": 9,
+            "shock_fit_sample_count": 9,
+            "field_node_count": 37,
+            "field_cell_count": 44,
+            "incoming_handoff_sample_count": 10
+          },
+          "field_topology": {
+            "status": "open",
+            "connected": true,
+            "forms_closed_zone": true,
+            "boundary_edge_count": 18,
+            "boundary_component_count": 1,
+            "nonmanifold_edge_count": 0
+          },
+          "first_missing_sample_index": null,
+          "first_missing_point_m": null,
+          "checks": {
+            "event_point_verified": true,
+            "event_state_verified": true,
+            "event_pressure_verified": true,
+            "local_bridge_verified": true,
+            "shock_geometry_verified": true,
+            "shock_fit_verified": true,
+            "shock_pressure_loss_verified": true,
+            "upstream_field_verified": true,
+            "upstream_bridge_verified": null,
+            "field_topology_verified": true,
+            "field_boundary_verified": true,
+            "field_state_carry_verified": true,
+            "field_residuals_verified": true,
+            "downstream_field_verified": true,
+            "remesh_seam_verified": true,
+            "bounded_remesh_verified": true
+          },
+          "physical_closure_verified": false,
+          "chain_promotion_blocked": true,
+          "residuals": {
+            "maximum_shock_angle_residual_rad": 0.0038234076384963123,
+            "maximum_field_geometry_residual_m": 1.1102230246251565e-16,
+            "maximum_field_invariant_residual": 1.6476819908461948e-12
+          },
+          "pressure": {
+            "minimum_total_pressure_ratio": 0.9489490920769317,
+            "maximum_total_pressure_ratio": 0.9823053936284721
+          },
+          "claim_status": "not_accepted",
+          "message": "bounded caustic remesh passed independent event, shock, pressure, topology, state-carry, and characteristic-residual checks; physical old/new-family and ambient closure remain separate pending gates"
+        },
         "planner": {
           "planner_kind": "upstream-coupled-research",
           "planning_only": true,
@@ -1920,6 +1979,68 @@
             }
           },
           "message": "caustic remesh did not generate a complete shock curve: upstream field callback returned no CharacteristicState at sample 1"
+        },
+        "bridge_coupled_measurement": {
+          "status": "upstream_failure",
+          "operator_id": "op.moc.caustic-remesh",
+          "converged": false,
+          "remesh_status": "caustic_remesh_upstream_field_failure",
+          "bridge_status": "caustic_bridge_selected_side_domain_gap",
+          "event_point_m": [
+            0.6584201957653014,
+            0.056970655192732075
+          ],
+          "counts": {
+            "shock_sample_count": 1,
+            "shock_fit_sample_count": 0,
+            "field_node_count": 0,
+            "field_cell_count": 0,
+            "incoming_handoff_sample_count": 0
+          },
+          "field_topology": {
+            "status": "invalid_input",
+            "connected": false,
+            "forms_closed_zone": false,
+            "boundary_edge_count": 0,
+            "boundary_component_count": 0,
+            "nonmanifold_edge_count": 0
+          },
+          "first_missing_sample_index": 1,
+          "first_missing_point_m": [
+            0.6678014426246475,
+            0.049849323293640564
+          ],
+          "checks": {
+            "event_point_verified": true,
+            "event_state_verified": false,
+            "event_pressure_verified": false,
+            "local_bridge_verified": false,
+            "shock_geometry_verified": false,
+            "shock_fit_verified": false,
+            "shock_pressure_loss_verified": false,
+            "upstream_field_verified": false,
+            "upstream_bridge_verified": false,
+            "field_topology_verified": false,
+            "field_boundary_verified": false,
+            "field_state_carry_verified": false,
+            "field_residuals_verified": false,
+            "downstream_field_verified": false,
+            "remesh_seam_verified": false,
+            "bounded_remesh_verified": false
+          },
+          "physical_closure_verified": false,
+          "chain_promotion_blocked": true,
+          "residuals": {
+            "maximum_shock_angle_residual_rad": null,
+            "maximum_field_geometry_residual_m": null,
+            "maximum_field_invariant_residual": null
+          },
+          "pressure": {
+            "minimum_total_pressure_ratio": null,
+            "maximum_total_pressure_ratio": null
+          },
+          "claim_status": "not_accepted",
+          "message": "caustic upstream bridge did not cover the complete retained shock path"
         },
         "bridge_coupled_planner": {
           "planner_kind": "upstream-coupled-research",

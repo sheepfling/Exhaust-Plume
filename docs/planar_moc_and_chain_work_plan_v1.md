@@ -1052,6 +1052,13 @@ Only after MOC-1 through MOC-5 pass:
   caustic corridor a real solver input boundary rather than a callback-owned
   assumption; it still does not solve the missing physical downstream
   closure.
+- Added an independent ``op.moc.caustic-remesh`` measurement operator. It
+  re-fits the carried shock boundary, recomputes total-pressure loss, checks
+  the returned characteristic mesh/topology and state-carry residuals, and
+  re-samples an optional strict old/restarted-family bridge. The canonical
+  callback-owned remesh passes only its bounded research gates; the strict
+  bridge measurement preserves the first selected-side domain gap. Both
+  results remain ``not_accepted`` and chain promotion stays blocked.
 - Planner steps now record both sides of each continued-cell handoff: the
   incoming fingerprint, the returned cell/field boundary kind and pressure
   range, and the outgoing fingerprint. Multi-step mock and solver-generated

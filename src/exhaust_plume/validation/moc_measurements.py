@@ -24,16 +24,37 @@ from exhaust_plume.models.moc.mixed_regime import (
   validate_mixed_regime_boundary,
   validate_mixed_regime_downstream_condition,
 )
+from exhaust_plume.models.moc.caustic_bridge import (
+  MocCausticUpstreamBridge,
+  sample_caustic_upstream_bridge,
+)
+from exhaust_plume.models.moc.caustic_remesh import (
+  MocCausticShockRemeshRequest,
+  MocCausticShockRemeshResult,
+)
 from exhaust_plume.models.moc.compression import MocNormalShockTerminalResult
 from exhaust_plume.models.moc.primitives import CharacteristicState
-from exhaust_plume.models.moc.post_shock import MocPostShockBoundaryState
+from exhaust_plume.models.moc.post_shock import (
+  MocPostShockBoundaryState,
+  MocPostShockCharacteristicFieldResult,
+  MocPostShockFieldStatus,
+  MocShockBoundaryFitResult,
+  fit_attached_shock_boundary,
+)
 from exhaust_plume.models.moc.shock_chain import MocTerminalShockCellFieldResult
 from exhaust_plume.models.moc.topology import MocTopologyResult, validate_moc_mesh
+from exhaust_plume.models.moc.zone import MocCharacteristicNode
+from exhaust_plume.models.moc.free_boundary import MocFreeBoundaryShockResult
+from exhaust_plume.util.aero.shock_validity import ShockBranch
 
 __all__ = (
+  'MOC_CAUSTIC_REMESH_OPERATOR_ID',
   'MOC_SHOCK_CELL_CHAIN_OPERATOR_ID',
   'MOC_SHOCK_CELL_GEOMETRY_OPERATOR_ID',
   'MOC_TERMINAL_CLOSURE_OPERATOR_ID',
+  'MocCausticRemeshMeasurement',
+  'MocCausticRemeshMeasurementStatus',
+  'MocCausticRemeshObservation',
   'MocTerminalClosureMeasurement',
   'MocTerminalClosureMeasurementStatus',
   'MocTerminalClosureObservation',
@@ -41,6 +62,7 @@ __all__ = (
   'MocShockCellMeasurement',
   'MocShockCellMeasurementStatus',
   'MocShockCellObservation',
+  'measure_moc_caustic_remesh',
   'measure_moc_terminal_closure',
   'measure_moc_shock_cell',
   'measure_moc_shock_cell_chain',
@@ -50,6 +72,7 @@ __all__ = (
 MOC_SHOCK_CELL_GEOMETRY_OPERATOR_ID = 'op.moc.shock-cell-geometry'
 MOC_SHOCK_CELL_CHAIN_OPERATOR_ID = 'op.moc.shock-cell-chain'
 MOC_TERMINAL_CLOSURE_OPERATOR_ID = 'op.moc.terminal-closure'
+MOC_CAUSTIC_REMESH_OPERATOR_ID = 'op.moc.caustic-remesh'
 
 Point = tuple[float, float]
 
@@ -192,6 +215,151 @@ class MocTerminalClosureMeasurement:
         'maximum_thermodynamic_residual': self.maximum_thermodynamic_residual,
         'maximum_harmonic_residual': self.maximum_harmonic_residual,
         'maximum_velocity_divergence_residual': self.maximum_velocity_divergence_residual,
+      },
+      'claim_status': self.claim_status,
+      'message': self.message,
+    }
+  ####
+
+
+class MocCausticRemeshMeasurementStatus(str, Enum):
+  """Outcome of the independent bounded caustic-remesh measurement."""
+
+  CONVERGED = 'converged'
+  INVALID_INPUT = 'invalid_input'
+  EVENT_FAILURE = 'event_failure'
+  UPSTREAM_FAILURE = 'upstream_failure'
+  SHOCK_FAILURE = 'shock_failure'
+  FIELD_FAILURE = 'field_failure'
+  SEAM_FAILURE = 'seam_failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocCausticRemeshObservation:
+  """Solver output and optional domain-bounded bridge for measurement.
+
+  The remesh result is treated as data.  When ``upstream_bridge`` is supplied,
+  the operator resamples that bridge along the retained shock path, including
+  a solver-reported failed sample when present.  This makes an open bridge
+  gap independently observable instead of accepting the remesh object's
+  cached coupling flags.
+  """
+
+  remesh_result: MocCausticShockRemeshResult
+  upstream_bridge: MocCausticUpstreamBridge | None = None
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocCausticRemeshMeasurement:
+  """Independent gates for a bounded caustic shock/new-family remesh.
+
+  ``CONVERGED`` means the bounded remesh data passed this operator's local
+  event, shock, field, and optional bridge checks.  It is intentionally not a
+  physical first-cell closure result: the old-family/new-family seam and the
+  downstream ambient/mixed-regime boundary remain outside this operator.
+  """
+
+  status: MocCausticRemeshMeasurementStatus
+  operator_id: str
+  remesh_status: str | None
+  bridge_status: str | None
+  event_point_m: Point | None
+  shock_sample_count: int
+  shock_fit_sample_count: int
+  field_node_count: int
+  field_cell_count: int
+  incoming_handoff_sample_count: int
+  field_topology: MocTopologyResult
+  first_missing_sample_index: int | None
+  first_missing_point_m: Point | None
+  event_point_verified: bool
+  event_state_verified: bool
+  event_pressure_verified: bool
+  local_bridge_verified: bool
+  shock_geometry_verified: bool
+  shock_fit_verified: bool
+  shock_pressure_loss_verified: bool
+  upstream_field_verified: bool
+  upstream_bridge_verified: bool | None
+  field_topology_verified: bool
+  field_boundary_verified: bool
+  field_state_carry_verified: bool
+  field_residuals_verified: bool
+  downstream_field_verified: bool
+  remesh_seam_verified: bool
+  bounded_remesh_verified: bool
+  physical_closure_verified: bool
+  chain_promotion_blocked: bool
+  maximum_shock_angle_residual_rad: float | None
+  maximum_field_geometry_residual_m: float | None
+  maximum_field_invariant_residual: float | None
+  minimum_total_pressure_ratio: float | None
+  maximum_total_pressure_ratio: float | None
+  claim_status: str
+  message: str
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocCausticRemeshMeasurementStatus.CONVERGED
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    """Return a JSON-compatible bounded-remesh measurement record."""
+
+    return {
+      'status': self.status.value,
+      'operator_id': self.operator_id,
+      'converged': self.converged,
+      'remesh_status': self.remesh_status,
+      'bridge_status': self.bridge_status,
+      'event_point_m': self.event_point_m,
+      'counts': {
+        'shock_sample_count': self.shock_sample_count,
+        'shock_fit_sample_count': self.shock_fit_sample_count,
+        'field_node_count': self.field_node_count,
+        'field_cell_count': self.field_cell_count,
+        'incoming_handoff_sample_count': self.incoming_handoff_sample_count,
+      },
+      'field_topology': {
+        'status': self.field_topology.status.value,
+        'connected': self.field_topology.connected,
+        'forms_closed_zone': self.field_topology.forms_closed_zone,
+        'boundary_edge_count': self.field_topology.boundary_edge_count,
+        'boundary_component_count': self.field_topology.boundary_component_count,
+        'nonmanifold_edge_count': self.field_topology.nonmanifold_edge_count,
+      },
+      'first_missing_sample_index': self.first_missing_sample_index,
+      'first_missing_point_m': self.first_missing_point_m,
+      'checks': {
+        'event_point_verified': self.event_point_verified,
+        'event_state_verified': self.event_state_verified,
+        'event_pressure_verified': self.event_pressure_verified,
+        'local_bridge_verified': self.local_bridge_verified,
+        'shock_geometry_verified': self.shock_geometry_verified,
+        'shock_fit_verified': self.shock_fit_verified,
+        'shock_pressure_loss_verified': self.shock_pressure_loss_verified,
+        'upstream_field_verified': self.upstream_field_verified,
+        'upstream_bridge_verified': self.upstream_bridge_verified,
+        'field_topology_verified': self.field_topology_verified,
+        'field_boundary_verified': self.field_boundary_verified,
+        'field_state_carry_verified': self.field_state_carry_verified,
+        'field_residuals_verified': self.field_residuals_verified,
+        'downstream_field_verified': self.downstream_field_verified,
+        'remesh_seam_verified': self.remesh_seam_verified,
+        'bounded_remesh_verified': self.bounded_remesh_verified,
+      },
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'residuals': {
+        'maximum_shock_angle_residual_rad': self.maximum_shock_angle_residual_rad,
+        'maximum_field_geometry_residual_m': self.maximum_field_geometry_residual_m,
+        'maximum_field_invariant_residual': self.maximum_field_invariant_residual,
+      },
+      'pressure': {
+        'minimum_total_pressure_ratio': self.minimum_total_pressure_ratio,
+        'maximum_total_pressure_ratio': self.maximum_total_pressure_ratio,
       },
       'claim_status': self.claim_status,
       'message': self.message,
@@ -1758,6 +1926,835 @@ def measure_moc_terminal_closure(
 ####
 
 
+def _caustic_remesh_measurement_failure(
+  status: MocCausticRemeshMeasurementStatus,
+  *,
+  remesh_status: str | None = None,
+  bridge_status: str | None = None,
+  event_point_m: Point | None = None,
+  shock_sample_count: int = 0,
+  shock_fit_sample_count: int = 0,
+  field_node_count: int = 0,
+  field_cell_count: int = 0,
+  incoming_handoff_sample_count: int = 0,
+  field_topology: MocTopologyResult | None = None,
+  first_missing_sample_index: int | None = None,
+  first_missing_point_m: Point | None = None,
+  event_point_verified: bool = False,
+  event_state_verified: bool = False,
+  event_pressure_verified: bool = False,
+  local_bridge_verified: bool = False,
+  shock_geometry_verified: bool = False,
+  shock_fit_verified: bool = False,
+  shock_pressure_loss_verified: bool = False,
+  upstream_field_verified: bool = False,
+  upstream_bridge_verified: bool | None = None,
+  field_topology_verified: bool = False,
+  field_boundary_verified: bool = False,
+  field_state_carry_verified: bool = False,
+  field_residuals_verified: bool = False,
+  downstream_field_verified: bool = False,
+  remesh_seam_verified: bool = False,
+  bounded_remesh_verified: bool = False,
+  maximum_shock_angle_residual_rad: float | None = None,
+  maximum_field_geometry_residual_m: float | None = None,
+  maximum_field_invariant_residual: float | None = None,
+  minimum_total_pressure_ratio: float | None = None,
+  maximum_total_pressure_ratio: float | None = None,
+  message: str,
+) -> MocCausticRemeshMeasurement:
+  return MocCausticRemeshMeasurement(
+    status=status,
+    operator_id=MOC_CAUSTIC_REMESH_OPERATOR_ID,
+    remesh_status=remesh_status,
+    bridge_status=bridge_status,
+    event_point_m=event_point_m,
+    shock_sample_count=shock_sample_count,
+    shock_fit_sample_count=shock_fit_sample_count,
+    field_node_count=field_node_count,
+    field_cell_count=field_cell_count,
+    incoming_handoff_sample_count=incoming_handoff_sample_count,
+    field_topology=_empty_topology() if field_topology is None else field_topology,
+    first_missing_sample_index=first_missing_sample_index,
+    first_missing_point_m=first_missing_point_m,
+    event_point_verified=event_point_verified,
+    event_state_verified=event_state_verified,
+    event_pressure_verified=event_pressure_verified,
+    local_bridge_verified=local_bridge_verified,
+    shock_geometry_verified=shock_geometry_verified,
+    shock_fit_verified=shock_fit_verified,
+    shock_pressure_loss_verified=shock_pressure_loss_verified,
+    upstream_field_verified=upstream_field_verified,
+    upstream_bridge_verified=upstream_bridge_verified,
+    field_topology_verified=field_topology_verified,
+    field_boundary_verified=field_boundary_verified,
+    field_state_carry_verified=field_state_carry_verified,
+    field_residuals_verified=field_residuals_verified,
+    downstream_field_verified=downstream_field_verified,
+    remesh_seam_verified=remesh_seam_verified,
+    bounded_remesh_verified=bounded_remesh_verified,
+    physical_closure_verified=False,
+    chain_promotion_blocked=True,
+    maximum_shock_angle_residual_rad=maximum_shock_angle_residual_rad,
+    maximum_field_geometry_residual_m=maximum_field_geometry_residual_m,
+    maximum_field_invariant_residual=maximum_field_invariant_residual,
+    minimum_total_pressure_ratio=minimum_total_pressure_ratio,
+    maximum_total_pressure_ratio=maximum_total_pressure_ratio,
+    claim_status='not_accepted',
+    message=message,
+  )
+####
+
+
+def _caustic_state_matches(
+  actual: object,
+  expected: object,
+  *,
+  position_tolerance_m: float,
+  state_tolerance: float,
+) -> bool:
+  if not isinstance(actual, CharacteristicState) or not isinstance(
+    expected,
+    CharacteristicState,
+  ):
+    return False
+  return (
+    abs(actual.x_m - expected.x_m) <= position_tolerance_m
+    and abs(actual.y_m - expected.y_m) <= position_tolerance_m
+    and abs(actual.theta_rad - expected.theta_rad)
+    <= state_tolerance * max(1.0, abs(actual.theta_rad), abs(expected.theta_rad))
+    and abs(actual.mach - expected.mach)
+    <= state_tolerance * max(1.0, abs(actual.mach), abs(expected.mach))
+    and abs(actual.gamma - expected.gamma)
+    <= state_tolerance * max(1.0, abs(actual.gamma), abs(expected.gamma))
+  )
+####
+
+
+def _caustic_points_match(
+  actual: Sequence[Point],
+  expected: Sequence[Point],
+  *,
+  position_tolerance_m: float,
+) -> bool:
+  return len(actual) == len(expected) and all(
+    hypot(first[0] - second[0], first[1] - second[1])
+    <= position_tolerance_m
+    for first, second in zip(actual, expected, strict=True)
+  )
+####
+
+
+def _pressure_matches(
+  actual: object,
+  expected: object,
+  *,
+  pressure_tolerance: float,
+) -> bool:
+  if not isinstance(actual, (int, float)) or not isinstance(expected, (int, float)):
+    return False
+  actual_value = float(actual)
+  expected_value = float(expected)
+  return (
+    isfinite(actual_value)
+    and isfinite(expected_value)
+    and abs(actual_value - expected_value)
+    <= pressure_tolerance * max(1.0, abs(actual_value), abs(expected_value))
+  )
+####
+
+
+def measure_moc_caustic_remesh(
+  observation: MocCausticRemeshObservation,
+  *,
+  target_centerline_y_m: float = 0.0,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-9,
+  axis_tolerance_m: float = 1.0e-10,
+  state_tolerance: float = 1.0e-8,
+  pressure_tolerance: float = 1.0e-8,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  residual_tolerance: float = 1.0e-10,
+  mesh_vertex_tolerance_m: float = 1.0e-12,
+) -> MocCausticRemeshMeasurement:
+  """Independently audit a bounded caustic shock/new-family remesh.
+
+  The operator refits the attached shock from carried upstream samples,
+  rebuilds the shock pressure-loss ratios, and rechecks the returned
+  post-shock mesh and characteristic residuals.  An optional bridge is
+  resampled along the complete retained path; a failed solver sample is
+  included in that path so a bounded-domain gap cannot be hidden by a partial
+  result.  A passing result is still a research remesh measurement, not a
+  physically closed first cell.
+  """
+
+  if not isinstance(observation, MocCausticRemeshObservation):
+    return _caustic_remesh_measurement_failure(
+      MocCausticRemeshMeasurementStatus.INVALID_INPUT,
+      message='observation must be a MocCausticRemeshObservation',
+    )
+  for name, value in (
+    ('target_centerline_y_m', target_centerline_y_m),
+    ('position_tolerance_m', position_tolerance_m),
+    ('axis_tolerance_m', axis_tolerance_m),
+    ('state_tolerance', state_tolerance),
+    ('pressure_tolerance', pressure_tolerance),
+    ('shock_angle_tolerance_rad', shock_angle_tolerance_rad),
+    ('residual_tolerance', residual_tolerance),
+    ('mesh_vertex_tolerance_m', mesh_vertex_tolerance_m),
+  ):
+    if name == 'target_centerline_y_m':
+      if not isfinite(float(value)):
+        raise ValueError(f'{name} must be finite')
+    elif not isfinite(float(value)) or float(value) <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+  if not isinstance(branch, ShockBranch):
+    return _caustic_remesh_measurement_failure(
+      MocCausticRemeshMeasurementStatus.INVALID_INPUT,
+      message='branch must be a ShockBranch',
+    )
+
+  remesh = observation.remesh_result
+  if not isinstance(remesh, MocCausticShockRemeshResult):
+    return _caustic_remesh_measurement_failure(
+      MocCausticRemeshMeasurementStatus.INVALID_INPUT,
+      message='remesh_result must be a MocCausticShockRemeshResult',
+    )
+  remesh_status = getattr(remesh.status, 'value', str(remesh.status))
+  bridge = observation.upstream_bridge
+  if bridge is not None and not isinstance(bridge, MocCausticUpstreamBridge):
+    return _caustic_remesh_measurement_failure(
+      MocCausticRemeshMeasurementStatus.INVALID_INPUT,
+      remesh_status=remesh_status,
+      message='upstream_bridge must be a MocCausticUpstreamBridge when supplied',
+    )
+  request = remesh.request
+  if not isinstance(request, MocCausticShockRemeshRequest):
+    return _caustic_remesh_measurement_failure(
+      MocCausticRemeshMeasurementStatus.INVALID_INPUT,
+      remesh_status=remesh_status,
+      message='caustic remesh result does not carry a request',
+    )
+  event_point: Point | None = None
+  try:
+    raw_event_point = request.event_point_m
+    if len(raw_event_point) != 2 or not all(
+      isfinite(float(value)) for value in raw_event_point
+    ):
+      raise ValueError('event point must contain two finite coordinates')
+    event_point = (float(raw_event_point[0]), float(raw_event_point[1]))
+  except (AttributeError, TypeError, ValueError) as error:
+    return _caustic_remesh_measurement_failure(
+      MocCausticRemeshMeasurementStatus.INVALID_INPUT,
+      remesh_status=remesh_status,
+      message=f'caustic remesh request event point could not be read: {error}',
+    )
+
+  event_point_verified = bool(
+    remesh.event_point_m is not None
+    and hypot(
+      remesh.event_point_m[0] - event_point[0],
+      remesh.event_point_m[1] - event_point[1],
+    ) <= position_tolerance_m
+  )
+  shock = remesh.shock
+  if not isinstance(shock, MocFreeBoundaryShockResult):
+    return _caustic_remesh_measurement_failure(
+      MocCausticRemeshMeasurementStatus.SHOCK_FAILURE,
+      remesh_status=remesh_status,
+      event_point_m=event_point,
+      event_point_verified=event_point_verified,
+      message='caustic remesh result does not carry a free-boundary shock result',
+    )
+  shock_sample_count = len(shock.shock_points_m)
+  try:
+    shock_points = tuple(
+      (float(point[0]), float(point[1]))
+      for point in shock.shock_points_m
+    )
+    if not shock_points:
+      raise ValueError('caustic shock boundary requires at least one point')
+    if any(
+      not all(isfinite(coordinate) for coordinate in point)
+      for point in shock_points
+    ):
+      raise ValueError('caustic shock boundary points must be finite')
+  except ValueError as error:
+    return _caustic_remesh_measurement_failure(
+      MocCausticRemeshMeasurementStatus.SHOCK_FAILURE,
+      remesh_status=remesh_status,
+      event_point_m=event_point,
+      shock_sample_count=shock_sample_count,
+      event_point_verified=event_point_verified,
+      message=str(error),
+    )
+
+  arrays_aligned = len(shock_points) == len(shock.upstream_states) == len(
+    shock.upstream_pressure_Pa
+  ) == len(shock.downstream_flow_angles_rad) == len(
+    shock.shock_angle_residuals_rad
+  )
+  state_coordinates_verified = bool(
+    arrays_aligned
+    and all(
+      isinstance(state, CharacteristicState)
+      and hypot(state.x_m - point[0], state.y_m - point[1])
+      <= position_tolerance_m
+      for state, point in zip(shock.upstream_states, shock_points, strict=True)
+    )
+  )
+  pressure_samples_verified = bool(
+    arrays_aligned
+    and all(
+      isfinite(float(pressure)) and float(pressure) > 0.0
+      for pressure in shock.upstream_pressure_Pa
+    )
+  )
+  event_state_verified = bool(
+    arrays_aligned
+    and _caustic_state_matches(
+      shock.upstream_states[0],
+      request.upstream_state,
+      position_tolerance_m=position_tolerance_m,
+      state_tolerance=state_tolerance,
+    )
+  )
+  event_pressure_verified = bool(
+    arrays_aligned
+    and _pressure_matches(
+      shock.upstream_pressure_Pa[0],
+      request.upstream_static_pressure_Pa,
+      pressure_tolerance=pressure_tolerance,
+    )
+  )
+  shock_geometry_verified = bool(
+    event_point_verified
+    and hypot(
+      shock_points[0][0] - event_point[0],
+      shock_points[0][1] - event_point[1],
+    ) <= position_tolerance_m
+    and abs(shock_points[-1][1] - target_centerline_y_m) <= axis_tolerance_m
+    and all(
+      point[1] >= -axis_tolerance_m
+      for point in shock_points
+    )
+    and all(
+      second[0] > first[0] + position_tolerance_m
+      and second[1] <= first[1] + position_tolerance_m
+      for first, second in zip(shock_points, shock_points[1:])
+    )
+  )
+  upstream_field_verified = bool(
+    arrays_aligned
+    and state_coordinates_verified
+    and pressure_samples_verified
+    and all(isfinite(float(value)) for value in shock.downstream_flow_angles_rad)
+    and all(isfinite(float(value)) for value in shock.shock_angle_residuals_rad)
+  )
+
+  bridge_status: str | None = None
+  upstream_bridge_verified: bool | None = None
+  first_missing_sample_index: int | None = None
+  first_missing_point_m: Point | None = None
+  if bridge is not None:
+    bridge_path = list(shock_points)
+    if shock.failed_point_m is not None and (
+      not bridge_path
+      or hypot(
+        shock.failed_point_m[0] - bridge_path[-1][0],
+        shock.failed_point_m[1] - bridge_path[-1][1],
+      ) > position_tolerance_m
+    ):
+      bridge_path.append(shock.failed_point_m)
+    try:
+      bridge_audit = sample_caustic_upstream_bridge(
+        bridge,
+        bridge_path,
+        position_tolerance_m=position_tolerance_m,
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      bridge_audit = None
+      bridge_status = 'measurement_exception'
+      bridge_message = f'caustic bridge measurement raised: {error}'
+    else:
+      bridge_status = bridge_audit.status.value
+      first_missing_sample_index = bridge_audit.first_missing_sample_index
+      first_missing_point_m = bridge_audit.first_missing_point_m
+      bridge_samples_match = len(bridge_audit.samples) >= len(shock_points) and all(
+        _caustic_state_matches(
+          sample.state,
+          shock.upstream_states[index],
+          position_tolerance_m=position_tolerance_m,
+          state_tolerance=state_tolerance,
+        )
+        and _pressure_matches(
+          sample.static_pressure_Pa,
+          shock.upstream_pressure_Pa[index],
+          pressure_tolerance=pressure_tolerance,
+        )
+        for index, sample in enumerate(bridge_audit.samples[:len(shock_points)])
+      )
+      upstream_bridge_verified = bool(
+        bridge_audit.converged and bridge_samples_match
+      )
+      bridge_message = (
+        'caustic upstream bridge did not cover the complete retained shock path'
+        if not upstream_bridge_verified
+        else ''
+      )
+    if not upstream_bridge_verified:
+      return _caustic_remesh_measurement_failure(
+        MocCausticRemeshMeasurementStatus.UPSTREAM_FAILURE,
+        remesh_status=remesh_status,
+        bridge_status=bridge_status,
+        event_point_m=event_point,
+        shock_sample_count=shock_sample_count,
+        incoming_handoff_sample_count=(
+          0
+          if shock.field is None
+          else len(shock.field.incoming_handoff_states)
+        ),
+        first_missing_sample_index=first_missing_sample_index,
+        first_missing_point_m=first_missing_point_m,
+        event_point_verified=event_point_verified,
+        event_state_verified=event_state_verified,
+        event_pressure_verified=event_pressure_verified,
+        shock_geometry_verified=shock_geometry_verified,
+        upstream_field_verified=upstream_field_verified,
+        upstream_bridge_verified=False,
+        message=bridge_message,
+      )
+
+  refit: MocShockBoundaryFitResult | None = None
+  refit_message = ''
+  if shock_geometry_verified and upstream_field_verified:
+    try:
+      refit = fit_attached_shock_boundary(
+        shock.upstream_states,
+        shock.upstream_pressure_Pa,
+        shock_points,
+        shock.downstream_flow_angles_rad,
+        branch=branch,
+        position_tolerance_m=position_tolerance_m,
+        shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      refit_message = f'independent attached-shock refit raised: {error}'
+  if refit is not None:
+    refit_message = refit.message
+  shock_fit_sample_count = 0 if refit is None else len(refit.boundary_states)
+  reported_fit = shock.shock_fit
+  reported_fit_consistent = bool(
+    isinstance(reported_fit, MocShockBoundaryFitResult)
+    and reported_fit.converged
+    and refit is not None
+    and refit.converged
+    and len(reported_fit.boundary_states) == len(refit.boundary_states)
+    and len(reported_fit.upstream_states) == len(shock.upstream_states)
+    and len(reported_fit.upstream_total_pressure_Pa) == len(shock_points)
+    and all(
+      _caustic_state_matches(
+        actual.state,
+        expected.state,
+        position_tolerance_m=position_tolerance_m,
+        state_tolerance=state_tolerance,
+      )
+      and _pressure_matches(
+        actual.upstream_total_pressure_Pa,
+        expected.upstream_total_pressure_Pa,
+        pressure_tolerance=pressure_tolerance,
+      )
+      and _pressure_matches(
+        actual.downstream_total_pressure_Pa,
+        expected.downstream_total_pressure_Pa,
+        pressure_tolerance=pressure_tolerance,
+      )
+      for actual, expected in zip(
+        reported_fit.boundary_states,
+        refit.boundary_states,
+        strict=True,
+      )
+    )
+  )
+  shock_fit_verified = bool(
+    refit is not None
+    and refit.converged
+    and refit.maximum_shock_angle_residual_rad is not None
+    and reported_fit_consistent
+  )
+  ratios: tuple[float, ...] = ()
+  if refit is not None and refit.converged:
+    ratio_values: list[float] = []
+    pressure_consistent = True
+    try:
+      for state, pressure, boundary in zip(
+        shock.upstream_states,
+        shock.upstream_pressure_Pa,
+        refit.boundary_states,
+        strict=True,
+      ):
+        expected_upstream_total = _state_total_pressure(state, pressure)
+        pressure_consistent = pressure_consistent and (
+          _pressure_matches(
+            expected_upstream_total,
+            boundary.upstream_total_pressure_Pa,
+            pressure_tolerance=pressure_tolerance,
+          )
+          and boundary.downstream_total_pressure_Pa > 0.0
+          and boundary.downstream_total_pressure_Pa
+          < boundary.upstream_total_pressure_Pa
+        )
+        ratio_values.append(
+          boundary.downstream_total_pressure_Pa
+          / boundary.upstream_total_pressure_Pa
+        )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError, ZeroDivisionError):
+      pressure_consistent = False
+      ratio_values = []
+    ratios = tuple(ratio_values)
+    shock_pressure_loss_verified = bool(
+      shock_fit_verified
+      and pressure_consistent
+      and ratios
+      and all(isfinite(value) and 0.0 < value < 1.0 for value in ratios)
+    )
+  else:
+    shock_pressure_loss_verified = False
+  maximum_shock_angle_residual_rad = (
+    None
+    if refit is None
+    else refit.maximum_shock_angle_residual_rad
+  )
+  minimum_total_pressure_ratio = min(ratios) if ratios else None
+  maximum_total_pressure_ratio = max(ratios) if ratios else None
+
+  local_bridge_verified = False
+  if shock_fit_verified and refit is not None and refit.boundary_states:
+    bridge_state = getattr(request.local_bridge, 'downstream_state', None)
+    compression = getattr(request.local_bridge, 'compression', None)
+    compression_pressure = (
+      None if compression is None
+      else getattr(compression, 'downstream_total_pressure_Pa', None)
+    )
+    local_bridge_verified = bool(
+      _caustic_state_matches(
+        refit.boundary_states[0].state,
+        bridge_state,
+        position_tolerance_m=position_tolerance_m,
+        state_tolerance=state_tolerance,
+      )
+      and compression_pressure is not None
+      and _pressure_matches(
+        refit.boundary_states[0].downstream_total_pressure_Pa,
+        compression_pressure,
+        pressure_tolerance=pressure_tolerance,
+      )
+    )
+
+  field = shock.field
+  field_topology = _empty_topology()
+  field_node_count = 0
+  field_cell_count = 0
+  incoming_handoff_sample_count = 0
+  field_boundary_verified = False
+  field_state_carry_verified = False
+  field_residuals_verified = False
+  maximum_field_geometry_residual_m: float | None = None
+  maximum_field_invariant_residual: float | None = None
+  field_topology_verified = False
+  if isinstance(field, MocPostShockCharacteristicFieldResult):
+    field_node_count = len(field.nodes)
+    field_cell_count = len(field.cells)
+    incoming_handoff_sample_count = len(field.incoming_handoff_states)
+    try:
+      field_topology = validate_moc_mesh(
+        field.cells,
+        vertex_tolerance_m=mesh_vertex_tolerance_m,
+      )
+      field_topology_verified = bool(
+        field_topology.connected
+        and field_topology.forms_closed_zone
+        and not field_topology.nonmanifold_edge_count
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+      field_topology = _empty_topology()
+      field_topology_verified = False
+    try:
+      field_shock_points = _points(
+        field.shock_boundary_points_m,
+        'caustic remesh field shock boundary',
+      )
+      field_centerline_points = _points(
+        field.centerline_boundary_points_m,
+        'caustic remesh field centerline boundary',
+      )
+      field_edges, field_vertices = _edge_counts(
+        field.cells,
+        vertex_tolerance_m=mesh_vertex_tolerance_m,
+      )
+      field_perimeter = _perimeter_points(field_edges, field_vertices)
+      field_boundary_verified = bool(
+        field.status is MocPostShockFieldStatus.CONVERGED_CLOSED
+        and _caustic_points_match(
+          field_shock_points,
+          shock_points,
+          position_tolerance_m=position_tolerance_m,
+        )
+        and _validate_polyline(
+          field_shock_points,
+          'caustic remesh field shock boundary',
+          position_tolerance_m=position_tolerance_m,
+          require_strict_x=True,
+        ) is None
+        and _validate_polyline(
+          field_centerline_points,
+          'caustic remesh field centerline boundary',
+          position_tolerance_m=position_tolerance_m,
+          require_strict_x=False,
+        ) is None
+        and hypot(
+          field_centerline_points[0][0] - shock_points[-1][0],
+          field_centerline_points[0][1] - shock_points[-1][1],
+        ) <= position_tolerance_m
+        and abs(field_centerline_points[-1][1] - target_centerline_y_m)
+        <= axis_tolerance_m
+        and _polyline_has_boundary_edges(
+          field_shock_points,
+          field_edges,
+          vertex_tolerance_m=mesh_vertex_tolerance_m,
+        )
+        and _polyline_has_boundary_edges(
+          field_centerline_points,
+          field_edges,
+          vertex_tolerance_m=mesh_vertex_tolerance_m,
+        )
+        and field_perimeter is not None
+      )
+    except (AttributeError, TypeError, ValueError):
+      field_boundary_verified = False
+
+    if refit is not None and refit.converged:
+      field_state_carry_verified = bool(
+        len(field.shock_boundary_states) == len(refit.boundary_states)
+        and len(field.shock_boundary_total_pressure_Pa) == len(refit.boundary_states)
+        and all(
+          _caustic_state_matches(
+            actual,
+            expected.state,
+            position_tolerance_m=position_tolerance_m,
+            state_tolerance=state_tolerance,
+          )
+          and _pressure_matches(
+            pressure,
+            expected.downstream_total_pressure_Pa,
+            pressure_tolerance=pressure_tolerance,
+          )
+          for actual, pressure, expected in zip(
+            field.shock_boundary_states,
+            field.shock_boundary_total_pressure_Pa,
+            refit.boundary_states,
+            strict=True,
+          )
+        )
+        and len(field.upstream_boundary_states) == len(shock.upstream_states)
+        and len(field.upstream_boundary_total_pressure_Pa) == len(shock_points)
+        and all(
+          _caustic_state_matches(
+            actual,
+            expected,
+            position_tolerance_m=position_tolerance_m,
+            state_tolerance=state_tolerance,
+          )
+          and _pressure_matches(
+            pressure,
+            boundary.upstream_total_pressure_Pa,
+            pressure_tolerance=pressure_tolerance,
+          )
+          for actual, pressure, expected, boundary in zip(
+            field.upstream_boundary_states,
+            field.upstream_boundary_total_pressure_Pa,
+            shock.upstream_states,
+            refit.boundary_states,
+            strict=True,
+          )
+        )
+        and len(field.incoming_handoff_states) == len(
+          field.incoming_handoff_total_pressure_Pa
+        )
+        and len(field.incoming_handoff_states) >= 3
+        and all(isinstance(state, CharacteristicState) for state in field.incoming_handoff_states)
+        and all(
+          isfinite(float(pressure)) and float(pressure) > 0.0
+          for pressure in field.incoming_handoff_total_pressure_Pa
+        )
+        and len(field.continuation_boundary_states) == len(
+          field.continuation_boundary_total_pressure_Pa
+        )
+        and len(field.continuation_boundary_states) >= 2
+        and all(
+          isinstance(state, CharacteristicState)
+          for state in field.continuation_boundary_states
+        )
+        and all(
+          isfinite(float(pressure)) and float(pressure) > 0.0
+          for pressure in field.continuation_boundary_total_pressure_Pa
+        )
+      )
+
+    geometry_residuals: list[float] = []
+    invariant_residuals: list[float] = []
+    node_data_verified = bool(field.nodes and field.cells)
+    for node in field.nodes:
+      point_result = getattr(node, 'point_result', None)
+      point = getattr(node, 'point_m', None)
+      state = getattr(node, 'state', None)
+      pressure = getattr(node, 'total_pressure_Pa', None)
+      geometry_residual = getattr(point_result, 'geometry_residual', None)
+      invariant_values = (
+        getattr(point_result, 'invariant_residual_plus', None),
+        getattr(point_result, 'invariant_residual_minus', None),
+      )
+      pressure_value = (
+        float(pressure)
+        if isinstance(pressure, (int, float))
+        else None
+      )
+      node_data_verified = node_data_verified and bool(
+        isinstance(node, MocCharacteristicNode)
+        and isinstance(state, CharacteristicState)
+        and point is not None
+        and len(point) == 2
+        and all(isfinite(float(value)) for value in point)
+        and hypot(state.x_m - float(point[0]), state.y_m - float(point[1]))
+        <= position_tolerance_m
+        and pressure_value is not None
+        and isfinite(pressure_value)
+        and pressure_value > 0.0
+        and getattr(point_result, 'converged', False)
+        and geometry_residual is not None
+        and isfinite(float(geometry_residual))
+        and abs(float(geometry_residual)) <= residual_tolerance
+        and all(
+          value is None or (
+            isfinite(float(value)) and abs(float(value)) <= residual_tolerance
+          )
+          for value in invariant_values
+        )
+      )
+      if geometry_residual is not None and isfinite(float(geometry_residual)):
+        geometry_residuals.append(abs(float(geometry_residual)))
+      invariant_residuals.extend(
+        abs(float(value))
+        for value in invariant_values
+        if value is not None and isfinite(float(value))
+      )
+    maximum_field_geometry_residual_m = max(geometry_residuals, default=None)
+    maximum_field_invariant_residual = max(invariant_residuals, default=None)
+    reported_geometry_residual = field.maximum_geometry_residual_m
+    reported_invariant_residual = field.maximum_absolute_invariant_residual
+    reported_residuals_verified = bool(
+      maximum_field_geometry_residual_m is not None
+      and maximum_field_invariant_residual is not None
+      and reported_geometry_residual is not None
+      and reported_invariant_residual is not None
+      and isfinite(float(reported_geometry_residual))
+      and isfinite(float(reported_invariant_residual))
+      and _relative_value_residual(
+        float(reported_geometry_residual),
+        maximum_field_geometry_residual_m,
+      ) <= residual_tolerance
+      and _relative_value_residual(
+        float(reported_invariant_residual),
+        maximum_field_invariant_residual,
+      ) <= residual_tolerance
+    )
+    field_residuals_verified = bool(
+      node_data_verified and reported_residuals_verified
+    )
+
+  downstream_field_verified = bool(
+    isinstance(field, MocPostShockCharacteristicFieldResult)
+    and field_topology_verified
+    and field_boundary_verified
+    and field_state_carry_verified
+    and field_residuals_verified
+  )
+  remesh_seam_verified = bool(
+    event_point_verified
+    and event_state_verified
+    and event_pressure_verified
+    and shock_geometry_verified
+    and shock_fit_verified
+    and shock_pressure_loss_verified
+    and local_bridge_verified
+  )
+  bounded_remesh_verified = bool(
+    remesh_seam_verified
+    and upstream_field_verified
+    and downstream_field_verified
+    and (bridge is None or upstream_bridge_verified)
+  )
+  if not event_point_verified or not event_state_verified or not event_pressure_verified:
+    status = MocCausticRemeshMeasurementStatus.EVENT_FAILURE
+    message = 'caustic remesh event point, state, or pressure seam failed independent measurement'
+  elif not upstream_field_verified:
+    status = MocCausticRemeshMeasurementStatus.UPSTREAM_FAILURE
+    message = 'caustic remesh did not carry an aligned finite upstream shock field'
+  elif not shock_geometry_verified or not shock_fit_verified or not shock_pressure_loss_verified:
+    status = MocCausticRemeshMeasurementStatus.SHOCK_FAILURE
+    message = refit_message or 'caustic remesh shock curve failed independent measurement'
+  elif not local_bridge_verified or not remesh_seam_verified:
+    status = MocCausticRemeshMeasurementStatus.SEAM_FAILURE
+    message = 'caustic remesh local bridge seam failed independent measurement'
+  elif not downstream_field_verified:
+    status = MocCausticRemeshMeasurementStatus.FIELD_FAILURE
+    message = 'caustic remesh downstream characteristic field failed independent measurement'
+  else:
+    status = MocCausticRemeshMeasurementStatus.CONVERGED
+    message = (
+      'bounded caustic remesh passed independent event, shock, pressure, '
+      'topology, state-carry, and characteristic-residual checks; physical '
+      'old/new-family and ambient closure remain separate pending gates'
+    )
+  return _caustic_remesh_measurement_failure(
+    status,
+    remesh_status=remesh_status,
+    bridge_status=bridge_status,
+    event_point_m=event_point,
+    shock_sample_count=shock_sample_count,
+    shock_fit_sample_count=shock_fit_sample_count,
+    field_node_count=field_node_count,
+    field_cell_count=field_cell_count,
+    incoming_handoff_sample_count=incoming_handoff_sample_count,
+    field_topology=field_topology,
+    first_missing_sample_index=first_missing_sample_index,
+    first_missing_point_m=first_missing_point_m,
+    event_point_verified=event_point_verified,
+    event_state_verified=event_state_verified,
+    event_pressure_verified=event_pressure_verified,
+    local_bridge_verified=local_bridge_verified,
+    shock_geometry_verified=shock_geometry_verified,
+    shock_fit_verified=shock_fit_verified,
+    shock_pressure_loss_verified=shock_pressure_loss_verified,
+    upstream_field_verified=upstream_field_verified,
+    upstream_bridge_verified=upstream_bridge_verified,
+    field_topology_verified=field_topology_verified,
+    field_boundary_verified=field_boundary_verified,
+    field_state_carry_verified=field_state_carry_verified,
+    field_residuals_verified=field_residuals_verified,
+    downstream_field_verified=downstream_field_verified,
+    remesh_seam_verified=remesh_seam_verified,
+    bounded_remesh_verified=bounded_remesh_verified,
+    maximum_shock_angle_residual_rad=maximum_shock_angle_residual_rad,
+    maximum_field_geometry_residual_m=maximum_field_geometry_residual_m,
+    maximum_field_invariant_residual=maximum_field_invariant_residual,
+    minimum_total_pressure_ratio=minimum_total_pressure_ratio,
+    maximum_total_pressure_ratio=maximum_total_pressure_ratio,
+    message=message,
+  )
+####
+
+
 def _chain_failure(message: str) -> MocShockCellChainMeasurement:
   return MocShockCellChainMeasurement(
     status=MocShockCellMeasurementStatus.CHAIN_FAILURE,
@@ -1769,6 +2766,7 @@ def _chain_failure(message: str) -> MocShockCellChainMeasurement:
     claim_status='not_accepted',
     message=message,
   )
+####
 ####
 
 

@@ -135,8 +135,11 @@ from exhaust_plume.models.moc import (  # noqa: E402
   validate_moc_mesh,
 )
 from exhaust_plume.validation.moc_measurements import (  # noqa: E402
+  MocCausticRemeshMeasurementStatus,
+  MocCausticRemeshObservation,
   MocTerminalClosureObservation,
   MocShockCellObservation,
+  measure_moc_caustic_remesh,
   measure_moc_terminal_closure,
   measure_moc_shock_cell,
   measure_moc_shock_cell_chain,
@@ -2242,7 +2245,9 @@ def _caustic_shock_remesh_execution_probe(
       'accepted': False,
       'direct': None,
       'planner': None,
+      'direct_measurement': None,
       'bridge_coupled_remesh': None,
+      'bridge_coupled_measurement': None,
       'bridge_coupled_planner': None,
       'claim_status': 'caustic-remesh-execution-pending',
     }
@@ -2268,7 +2273,9 @@ def _caustic_shock_remesh_execution_probe(
       'accepted': False,
       'direct': None,
       'planner': None,
+      'direct_measurement': None,
       'bridge_coupled_remesh': None,
+      'bridge_coupled_measurement': None,
       'bridge_coupled_planner': None,
       'preparation': prepared.as_report(),
       'claim_status': 'caustic-remesh-execution-pending',
@@ -2281,7 +2288,9 @@ def _caustic_shock_remesh_execution_probe(
       'accepted': False,
       'direct': None,
       'planner': None,
+      'direct_measurement': None,
       'bridge_coupled_remesh': None,
+      'bridge_coupled_measurement': None,
       'bridge_coupled_planner': None,
       'preparation': prepared.as_report(),
       'claim_status': 'caustic-remesh-execution-pending',
@@ -2300,7 +2309,9 @@ def _caustic_shock_remesh_execution_probe(
       'accepted': False,
       'direct': None,
       'planner': None,
+      'direct_measurement': None,
       'bridge_coupled_remesh': None,
+      'bridge_coupled_measurement': None,
       'bridge_coupled_planner': None,
       'preparation': prepared.as_report(),
       'claim_status': 'caustic-remesh-execution-pending',
@@ -2354,6 +2365,7 @@ def _caustic_shock_remesh_execution_probe(
     sample_count=6,
   )
   bridge_coupled_remesh = None
+  bridge_coupled_measurement = None
   bridge_coupled_planner = None
   if bridge_restart.family_band is not None and bridge_restart.family_band.converged:
     upstream_bridge = build_caustic_upstream_bridge(
@@ -2369,6 +2381,12 @@ def _caustic_shock_remesh_execution_probe(
       target_centerline_y_m=0.0,
       sample_count=9,
       shock_angle_tolerance_rad=0.2,
+    )
+    bridge_coupled_measurement = measure_moc_caustic_remesh(
+      MocCausticRemeshObservation(
+        remesh_result=bridge_coupled_remesh,
+        upstream_bridge=upstream_bridge,
+      ),
     )
     bridge_coupled_planner = plan_caustic_shock_remesh_chain_from_upstream_bridge(
       current,
@@ -2417,6 +2435,9 @@ def _caustic_shock_remesh_execution_probe(
     allow_research_continuation=True,
   )
   direct_report = direct.as_report()
+  direct_measurement = measure_moc_caustic_remesh(
+    MocCausticRemeshObservation(remesh_result=direct),
+  )
   planner_report = planner.as_report()
   downstream_field_planner_report = downstream_field_planner.as_report()
   invariant_downstream_field_planner_report = invariant_downstream_field_planner.as_report()
@@ -2432,6 +2453,10 @@ def _caustic_shock_remesh_execution_probe(
     and direct.downstream_field_verified
     and direct.physical_closure_verified is False
     and direct.chain_promotion_blocked
+    and direct_measurement.status is MocCausticRemeshMeasurementStatus.CONVERGED
+    and direct_measurement.bounded_remesh_verified
+    and direct_measurement.physical_closure_verified is False
+    and direct_measurement.chain_promotion_blocked
     and planner.planner_kind is MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
     and planner.production_claim_allowed is False
     and planner.chain.cell_count == 1
@@ -2463,6 +2488,13 @@ def _caustic_shock_remesh_execution_probe(
     and bridge_coupled_remesh.upstream_bridge_audit.first_missing_point_m == (
       bridge_coupled_remesh.shock.failed_point_m
     )
+    and bridge_coupled_measurement is not None
+    and bridge_coupled_measurement.status is MocCausticRemeshMeasurementStatus.UPSTREAM_FAILURE
+    and bridge_coupled_measurement.upstream_bridge_verified is False
+    and bridge_coupled_measurement.first_missing_sample_index == 1
+    and bridge_coupled_measurement.first_missing_point_m == (
+      bridge_coupled_remesh.shock.failed_point_m
+    )
     and bridge_coupled_planner is not None
     and bridge_coupled_planner.planner_kind is MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
     and bridge_coupled_planner.production_claim_allowed is False
@@ -2486,9 +2518,15 @@ def _caustic_shock_remesh_execution_probe(
     'accepted': accepted,
     'preparation': prepared.as_report(),
     'direct': direct_report,
+    'direct_measurement': direct_measurement.as_report(),
     'planner': planner_report,
     'bridge_coupled_remesh': (
       None if bridge_coupled_remesh is None else bridge_coupled_remesh.as_report()
+    ),
+    'bridge_coupled_measurement': (
+      None
+      if bridge_coupled_measurement is None
+      else bridge_coupled_measurement.as_report()
     ),
     'bridge_coupled_planner': (
       None if bridge_coupled_planner is None else bridge_coupled_planner.as_report()
