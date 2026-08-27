@@ -214,6 +214,13 @@ not wait on this research closure.
   boundary mock. Each step now also records the typed callback outcome (field
   solve, cell, termination, no-cell, or solver error) and its status, so a
   multi-cell mock and a physical-stop research path are auditable step by step.
+- Extended the independent shock-cell chain measurement with optional raw
+  incoming/outgoing typed handoffs. When a chain supplies that metadata, the
+  operator now requires exact state/total-pressure equality and matching
+  boundary kinds across every adjacent cell. Both the three-cell prescribed
+  planner mock and the three-cell solver-generated reference pass this audit;
+  a tampered handoff is retained as a chain failure. This validates state
+  transport without treating either research fixture as physical plume data.
 - Added a terminal-reflection-patch planner wrapper that routes the exact
   outgoing ``C-`` handoff through the generic planner and records the typed
   normal-shock stop. It permits only the patch's one solved domain step;

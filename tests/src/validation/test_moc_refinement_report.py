@@ -151,6 +151,11 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert terminal_planner['planner_steps'][0]['result_physical_termination'] is True
   assert generated_chain_terminal['expected_physical_termination'] is True
   assert generated_chain_terminal['diagnostics']['termination_model'] == 'normal-shock-terminal'
+  generated_chain_measurement = generated_chain['chain_measurement_operator']
+  assert generated_chain_measurement['status'] == 'converged'
+  assert generated_chain_measurement['cell_count'] == 3
+  assert generated_chain_measurement['handoff']['link_count'] == 2
+  assert generated_chain_measurement['handoff']['links_verified'] is True
   assert field_coupled_chain_planner['accepted'] is True
   assert field_coupled_chain_planner['planner_kind'] == 'upstream-coupled-research'
   assert field_coupled_chain_planner['planning_only'] is True
@@ -982,6 +987,8 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert planner['cell_count'] == 3
   assert planner['state_carry_count'] == 3
   assert planner['continuation_boundary_kinds'] == ['post-shock-field-perimeter']
+  assert planner['measurement_operator']['handoff']['link_count'] == 2
+  assert planner['measurement_operator']['handoff']['links_verified'] is True
   assert len(planner['terminal_trace_validation']) == 3
   assert all(
     entry['boundary_kind'] == 'post-shock-field-perimeter'

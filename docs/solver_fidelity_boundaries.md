@@ -131,8 +131,9 @@ patch without extrapolation. The canonical shoot currently returns a
 no-bracket diagnostic, so the coupled upstream characteristic-strip/shock-path
 closure remains open. The independent `op.moc.shock-cell-geometry` and
 `op.moc.shock-cell-chain` operators now measure explicit shock-cell geometry,
-perimeter topology, and supplied shock-loss lineage for the reference and
-planner fixtures, but remain `not_accepted` without external observations.
+perimeter topology, supplied shock-loss lineage, and exact adjacent
+state/total-pressure handoff identity for the reference and planner fixtures,
+but remain `not_accepted` without external observations.
 At the detected source-strip caustic, a separate one-sided new-family restart
 now reflects either selected C- anchor to the centerline and advances six
 ambient-pressure/tangent C+ boundary samples with finite residuals, then

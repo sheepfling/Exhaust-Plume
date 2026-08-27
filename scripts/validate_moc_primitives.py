@@ -36,6 +36,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocFieldCoupledPostShockChainReference,
   MocReflectedCharacteristicZoneResult,
   MocChainBoundaryKind,
+  MocChainBoundarySample,
   MocChainContinuationPolicy,
   MocChainTerminationDecision,
   MocChainTerminationReason,
@@ -1578,12 +1579,7 @@ def _shock_cell_chain_planner_mock(
 
   observations: list[dict[str, Any]] = []
   measurement_observations = [
-    MocShockCellObservation(
-      cell_index=1,
-      shock_boundary_points_m=seed_field.shock_boundary_points_m,
-      centerline_boundary_points_m=seed_field.centerline_boundary_points_m,
-      cells=seed_field.cells,
-    )
+    _post_shock_field_measurement_observation(seed_field, cell_index=1)
   ]
   mock = MocPrescribedPostShockChainMock()
 
@@ -1601,19 +1597,7 @@ def _shock_cell_chain_planner_mock(
     if isinstance(solved, MocPostShockChainCellSolve):
       field = solved.field
       measurement_observations.append(
-        MocShockCellObservation(
-          cell_index=cell_index,
-          shock_boundary_points_m=field.shock_boundary_points_m,
-          centerline_boundary_points_m=field.centerline_boundary_points_m,
-          cells=field.cells,
-          upstream_total_pressure_Pa=field.upstream_boundary_total_pressure_Pa,
-          downstream_total_pressure_Pa=(
-            ()
-            if field.downstream_total_pressure_range_Pa is None
-            else (field.downstream_total_pressure_range_Pa[0],)
-            * len(field.shock_boundary_points_m)
-          ),
-        )
+        _post_shock_field_measurement_observation(field, cell_index=cell_index)
       )
     return solved
 
@@ -1629,6 +1613,62 @@ def _shock_cell_chain_planner_mock(
     observations,
     measurement_observations,
     planner,
+  )
+
+
+def _post_shock_field_measurement_observation(
+  field: MocPostShockCharacteristicFieldResult,
+  *,
+  cell_index: int,
+) -> MocShockCellObservation:
+  """Convert a solved field into raw data for the independent chain operator."""
+
+  shock_count = len(field.shock_boundary_points_m)
+  upstream_pressures = field.upstream_boundary_total_pressure_Pa
+  downstream_pressures = field.shock_boundary_total_pressure_Pa
+  pressure_kwargs: dict[str, Any] = {}
+  if (
+    len(upstream_pressures) == shock_count
+    and len(downstream_pressures) == shock_count
+  ):
+    pressure_kwargs = {
+      'upstream_total_pressure_Pa': upstream_pressures,
+      'downstream_total_pressure_Pa': downstream_pressures,
+    }
+  incoming_handoff = tuple(
+    MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
+    for state, pressure in zip(
+      field.incoming_handoff_states,
+      field.incoming_handoff_total_pressure_Pa,
+      strict=True,
+    )
+  )
+  outgoing_handoff = tuple(
+    MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
+    for state, pressure in zip(
+      field.continuation_boundary_states,
+      field.continuation_boundary_total_pressure_Pa,
+      strict=True,
+    )
+  )
+  return MocShockCellObservation(
+    cell_index=cell_index,
+    shock_boundary_points_m=field.shock_boundary_points_m,
+    centerline_boundary_points_m=field.centerline_boundary_points_m,
+    cells=field.cells,
+    incoming_handoff=incoming_handoff,
+    outgoing_handoff=outgoing_handoff,
+    incoming_boundary_kind=(
+      MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER
+      if incoming_handoff
+      else None
+    ),
+    outgoing_boundary_kind=(
+      MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER
+      if outgoing_handoff
+      else None
+    ),
+    **pressure_kwargs,
   )
 
 
@@ -1694,7 +1734,7 @@ def _planner_boundary_validation(cell: Any) -> dict[str, Any]:
 
 def _solver_generated_chain_reference(
   seed_field: MocPostShockCharacteristicFieldResult,
-) -> tuple[Any, list[dict[str, Any]], Any]:
+) -> tuple[Any, list[dict[str, Any]], list[MocShockCellObservation], Any]:
   """Exercise the reusable generated reference with report observations.
 
   The fixture owns the solver-backed local solve and its research-only claim
@@ -1703,6 +1743,9 @@ def _solver_generated_chain_reference(
   """
 
   observations: list[dict[str, Any]] = []
+  measurement_observations = [
+    _post_shock_field_measurement_observation(seed_field, cell_index=1)
+  ]
   reference = MocSolverGeneratedPostShockChainReference()
 
   def solve_next(current, cell_index, handoff):
@@ -1715,7 +1758,15 @@ def _solver_generated_chain_reference(
       ),
       'current_end_x_m': current.end_x_m,
     })
-    return reference.solve_next(current, cell_index, handoff)
+    solved = reference.solve_next(current, cell_index, handoff)
+    if isinstance(solved, MocPostShockChainCellSolve):
+      measurement_observations.append(
+        _post_shock_field_measurement_observation(
+          solved.field,
+          cell_index=cell_index,
+        )
+      )
+    return solved
 
   planner = plan_post_shock_characteristic_chain(
     seed_field,
@@ -1731,7 +1782,7 @@ def _solver_generated_chain_reference(
       'solver_generated_chain_reference': reference.as_report(),
     },
   )
-  return planner.chain, observations, planner
+  return planner.chain, observations, measurement_observations, planner
 
 
 def _solver_generated_field_coupled_chain_planner(
@@ -3986,6 +4037,8 @@ def build_moc_primitive_report() -> dict[str, Any]:
   )
   solver_generated_chain_reference = None
   solver_generated_chain_observations: list[dict[str, Any]] = []
+  solver_generated_chain_measurement_observations: list[MocShockCellObservation] = []
+  solver_generated_chain_measurement = None
   solver_generated_chain_planner = None
   solver_generated_field_coupled_chain_planner = None
   solver_generated_invariant_field_coupled_chain_planner = None
@@ -3994,6 +4047,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
     (
       solver_generated_chain_reference,
       solver_generated_chain_observations,
+      solver_generated_chain_measurement_observations,
       solver_generated_chain_planner,
     ) = _solver_generated_chain_reference(
       solver_generated_shock.field,
@@ -4008,6 +4062,9 @@ def build_moc_primitive_report() -> dict[str, Any]:
     )
     ambient_pressure_field_coupled_chain_planner = (
       _ambient_pressure_field_coupled_chain_planner(solver_generated_shock.field)
+    )
+    solver_generated_chain_measurement = measure_moc_shock_cell_chain(
+      solver_generated_chain_measurement_observations,
     )
   solver_generated_chain_terminal_probe = _solver_generated_chain_terminal_probe(
     solver_generated_shock.field
@@ -4174,6 +4231,9 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or solver_generated_chain_planner.production_claim_allowed
     or len(solver_generated_chain_planner.steps) != 3
     or solver_generated_chain_planner.handoff_links_verified is not True
+    or solver_generated_chain_measurement is None
+    or not solver_generated_chain_measurement.converged
+    or solver_generated_chain_measurement.handoff_links_verified is not True
   )
   solver_generated_chain_terminal_failure = (
     solver_generated_chain_terminal_probe.get('expected_physical_termination') is not True
@@ -4884,6 +4944,11 @@ def build_moc_primitive_report() -> dict[str, Any]:
       ),
       'observations': solver_generated_chain_observations,
       'measurement_operator': solver_generated_measurement.as_report(),
+      'chain_measurement_operator': (
+        None
+        if solver_generated_chain_measurement is None
+        else solver_generated_chain_measurement.as_report()
+      ),
       'strict_upstream_coupling_mode': True,
       'claim_status': 'strict-upstream-coupled-chain-reference; reflected-field-coupling-pending',
     },
@@ -5657,6 +5722,8 @@ def build_moc_primitive_report() -> dict[str, Any]:
       not shock_cell_chain_mock.resolved
       or shock_cell_chain_mock_report['continuation_boundary_maxima_nonincreasing'] is not True
       or shock_cell_chain_planner.handoff_links_verified is not True
+      or not shock_cell_chain_measurement.converged
+      or shock_cell_chain_measurement.handoff_links_verified is not True
     ) else []),
     *([
       {

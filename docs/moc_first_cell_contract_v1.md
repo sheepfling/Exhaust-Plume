@@ -230,6 +230,11 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   every carried state and total-pressure sample. Its prescribed-boundary
   planner mode is an executable mock with a hard
   ``production_claim_allowed=false`` ceiling;
+- an independent shock-cell-chain measurement gate that can consume raw
+  incoming/outgoing handoffs and requires exact state/total-pressure equality
+  plus matching typed boundary kinds across adjacent cells. This validates
+  chain transport separately from planner bookkeeping and does not promote
+  research fixtures;
 - a terminal-reflection-patch planner wrapper that audits one exact outgoing
   ``C-`` handoff and its typed normal-shock stop through the generic chain
   planner. It stops after that finite patch domain; later cells require a new

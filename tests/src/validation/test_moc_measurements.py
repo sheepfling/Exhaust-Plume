@@ -7,6 +7,8 @@ import pytest
 from exhaust_plume.models.moc import (
   CharacteristicState,
   MocCharacteristicCell,
+  MocChainBoundaryKind,
+  MocChainBoundarySample,
   MocPrescribedMixedRegimeClosureMock,
   solve_marched_ambient_attachment_shock_cell_transition,
   solve_uniform_attached_shock_field,
@@ -146,6 +148,73 @@ def test_moc_chain_measurement_preserves_cell_order_and_spacing() -> None:
   assert result.shock_start_spacing_m == pytest.approx((4.0,))
   assert result.axial_extent_m == pytest.approx((0.0, 7.0))
   assert result.as_report()['cell_count'] == 2
+
+
+def test_moc_chain_measurement_verifies_exact_state_pressure_handoff() -> None:
+  handoff = tuple(
+    MocChainBoundarySample(
+      state=CharacteristicState(
+        x_m=3.0 + index,
+        y_m=0.05 * (2 - index),
+        theta_rad=0.01 * index,
+        mach=2.0,
+        gamma=1.4,
+      ),
+      total_pressure_Pa=1.8e6 - 1.0e4 * index,
+    )
+    for index in range(3)
+  )
+  first = replace(
+    _observation(cell_index=1, shock_start_x_m=0.0),
+    outgoing_handoff=handoff,
+    outgoing_boundary_kind=MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER,
+  )
+  second = replace(
+    _observation(cell_index=2, shock_start_x_m=4.0),
+    incoming_handoff=handoff,
+    incoming_boundary_kind=MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER,
+  )
+
+  result = measure_moc_shock_cell_chain((first, second))
+
+  assert result.status is MocShockCellMeasurementStatus.CONVERGED
+  assert result.handoff_link_count == 1
+  assert result.handoff_links_verified is True
+  assert result.as_report()['handoff']['links_verified'] is True
+
+
+def test_moc_chain_measurement_rejects_tampered_state_pressure_handoff() -> None:
+  handoff = tuple(
+    MocChainBoundarySample(
+      state=CharacteristicState(
+        x_m=3.0 + index,
+        y_m=0.05 * (2 - index),
+        theta_rad=0.01 * index,
+        mach=2.0,
+        gamma=1.4,
+      ),
+      total_pressure_Pa=1.8e6 - 1.0e4 * index,
+    )
+    for index in range(3)
+  )
+  tampered = replace(handoff[1], total_pressure_Pa=1.7e6)
+  first = replace(
+    _observation(cell_index=1, shock_start_x_m=0.0),
+    outgoing_handoff=handoff,
+    outgoing_boundary_kind=MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER,
+  )
+  second = replace(
+    _observation(cell_index=2, shock_start_x_m=4.0),
+    incoming_handoff=(handoff[0], tampered, handoff[2]),
+    incoming_boundary_kind=MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER,
+  )
+
+  result = measure_moc_shock_cell_chain((first, second))
+
+  assert result.status is MocShockCellMeasurementStatus.CHAIN_FAILURE
+  assert result.handoff_link_count == 1
+  assert result.handoff_links_verified is False
+  assert 'exact state/pressure' in result.message
 
 
 def test_moc_chain_measurement_rejects_reordered_indices() -> None:

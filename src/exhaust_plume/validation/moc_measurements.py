@@ -32,7 +32,10 @@ from exhaust_plume.models.moc.caustic_remesh import (
   MocCausticShockRemeshRequest,
   MocCausticShockRemeshResult,
 )
-from exhaust_plume.models.moc.chain import MocChainBoundarySample
+from exhaust_plume.models.moc.chain import (
+  MocChainBoundaryKind,
+  MocChainBoundarySample,
+)
 from exhaust_plume.models.moc.compression import MocNormalShockTerminalResult
 from exhaust_plume.models.moc.primitives import CharacteristicState
 from exhaust_plume.models.moc.post_shock import (
@@ -388,6 +391,10 @@ class MocShockCellObservation:
   cells: tuple[object, ...]
   upstream_total_pressure_Pa: tuple[float, ...] = ()
   downstream_total_pressure_Pa: tuple[float, ...] = ()
+  incoming_handoff: tuple[MocChainBoundarySample, ...] = ()
+  outgoing_handoff: tuple[MocChainBoundarySample, ...] = ()
+  incoming_boundary_kind: MocChainBoundaryKind | None = None
+  outgoing_boundary_kind: MocChainBoundaryKind | None = None
 
   def __post_init__(self) -> None:
     if isinstance(self.cell_index, bool) or not isinstance(self.cell_index, int):
@@ -415,6 +422,28 @@ class MocShockCellObservation:
       'downstream_total_pressure_Pa',
       tuple(float(value) for value in self.downstream_total_pressure_Pa),
     )
+    for name in ('incoming_handoff', 'outgoing_handoff'):
+      try:
+        handoff = tuple(getattr(self, name))
+      except TypeError as error:
+        raise TypeError(
+          f'{name} must be an iterable of MocChainBoundarySample values'
+        ) from error
+      if any(not isinstance(sample, MocChainBoundarySample) for sample in handoff):
+        raise TypeError(
+          f'{name} must contain MocChainBoundarySample values'
+        )
+      if handoff and len(handoff) < 3:
+        raise ValueError(
+          f'{name} must contain at least three samples when supplied'
+        )
+      object.__setattr__(self, name, handoff)
+    for name in ('incoming_boundary_kind', 'outgoing_boundary_kind'):
+      kind = getattr(self, name)
+      if kind is not None and not isinstance(kind, MocChainBoundaryKind):
+        raise TypeError(
+          f'{name} must be a MocChainBoundaryKind or None'
+        )
   ####
 
 
@@ -507,6 +536,8 @@ class MocShockCellChainMeasurement:
   total_mesh_area_m2: float | None
   claim_status: str
   message: str
+  handoff_link_count: int = 0
+  handoff_links_verified: bool | None = None
 
   @property
   def converged(self) -> bool:
@@ -524,6 +555,10 @@ class MocShockCellChainMeasurement:
       'axial_extent_m': self.axial_extent_m,
       'shock_start_spacing_m': list(self.shock_start_spacing_m),
       'total_mesh_area_m2': self.total_mesh_area_m2,
+      'handoff': {
+        'link_count': self.handoff_link_count,
+        'links_verified': self.handoff_links_verified,
+      },
       'claim_status': self.claim_status,
       'message': self.message,
     }
@@ -2827,18 +2862,81 @@ def measure_moc_caustic_remesh(
 ####
 
 
-def _chain_failure(message: str) -> MocShockCellChainMeasurement:
+def _chain_failure(
+  message: str,
+  *,
+  cells: Sequence[MocShockCellMeasurement] = (),
+  handoff_link_count: int = 0,
+  handoff_links_verified: bool | None = None,
+) -> MocShockCellChainMeasurement:
   return MocShockCellChainMeasurement(
     status=MocShockCellMeasurementStatus.CHAIN_FAILURE,
     operator_id=MOC_SHOCK_CELL_CHAIN_OPERATOR_ID,
-    cells=(),
+    cells=tuple(cells),
     axial_extent_m=None,
     shock_start_spacing_m=(),
     total_mesh_area_m2=None,
     claim_status='not_accepted',
     message=message,
+    handoff_link_count=handoff_link_count,
+    handoff_links_verified=handoff_links_verified,
   )
 ####
+
+
+def _handoff_link_audit(
+  observations: Sequence[MocShockCellObservation],
+) -> tuple[int, bool | None, str | None]:
+  """Audit exact state/pressure handoffs when observations provide them.
+
+  The geometry operator remains backwards compatible with observations that
+  contain no chain handoff metadata.  Once any handoff is supplied, however,
+  every adjacent link is required to expose the exact same typed samples and
+  compatible boundary kind.  Equality is intentionally exact: a later cell
+  must consume the prior solver result, not a re-sampled or re-labeled copy.
+  """
+
+  link_count = max(0, len(observations) - 1)
+  metadata_present = any(
+    item.incoming_handoff
+    or item.outgoing_handoff
+    or item.incoming_boundary_kind is not None
+    or item.outgoing_boundary_kind is not None
+    for item in observations
+  )
+  if not metadata_present:
+    return link_count, None, None
+  for index, (left, right) in enumerate(
+    zip(observations, observations[1:]),
+  ):
+    if not left.outgoing_handoff or not right.incoming_handoff:
+      return (
+        link_count,
+        False,
+        f'chain handoff link {index} is missing an incoming or outgoing boundary',
+      )
+    if left.outgoing_handoff != right.incoming_handoff:
+      return (
+        link_count,
+        False,
+        f'chain handoff link {index} does not preserve exact state/pressure samples',
+      )
+    if (
+      left.outgoing_boundary_kind is None
+      or right.incoming_boundary_kind is None
+    ):
+      return (
+        link_count,
+        False,
+        f'chain handoff link {index} is missing typed boundary-kind metadata',
+      )
+    if left.outgoing_boundary_kind is not right.incoming_boundary_kind:
+      return (
+        link_count,
+        False,
+        f'chain handoff link {index} changes boundary kind',
+      )
+  return link_count, True, None
 ####
 
 
@@ -2860,6 +2958,7 @@ def measure_moc_shock_cell_chain(
   indices = tuple(item.cell_index for item in items)
   if indices != tuple(range(1, len(items) + 1)):
     return _chain_failure('shock-cell observations must have contiguous one-based indices')
+  handoff_link_count, handoff_links_verified, handoff_error = _handoff_link_audit(items)
   measurements = tuple(
     measure_moc_shock_cell(
       item,
@@ -2880,6 +2979,15 @@ def measure_moc_shock_cell_chain(
       total_mesh_area_m2=None,
       claim_status='not_accepted',
       message='one or more cell measurements failed; no chain metric was promoted',
+      handoff_link_count=handoff_link_count,
+      handoff_links_verified=handoff_links_verified,
+    )
+  if handoff_error is not None:
+    return _chain_failure(
+      handoff_error,
+      cells=measurements,
+      handoff_link_count=handoff_link_count,
+      handoff_links_verified=False,
     )
   extents = tuple(measurement.axial_extent_m for measurement in measurements)
   if any(extent is None for extent in extents):
@@ -2898,6 +3006,8 @@ def measure_moc_shock_cell_chain(
       total_mesh_area_m2=None,
       claim_status='not_accepted',
       message='continued shock-cell measurement extents overlap or reverse order',
+      handoff_link_count=handoff_link_count,
+      handoff_links_verified=handoff_links_verified,
     )
   shock_starts = tuple(
     measurement.shock_start_m[0]
@@ -2922,5 +3032,7 @@ def measure_moc_shock_cell_chain(
       'continued shock-cell geometry measured with independent per-cell '
       'topology checks; this does not establish physical chain closure'
     ),
+    handoff_link_count=handoff_link_count,
+    handoff_links_verified=handoff_links_verified,
   )
 ####
