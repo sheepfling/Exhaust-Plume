@@ -4,16 +4,21 @@ import pytest
 
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput
 from exhaust_plume.models.moc import (
+  CharacteristicFamily,
   CharacteristicState,
+  MocCausticFamilyBandInvariantShockStatus,
   MocCausticFamilyBandShockStatus,
   MocChainTerminationReason,
   build_caustic_shock_seed,
   extend_source_characteristic_strip_centerline_reflection,
   plan_caustic_family_band_chain,
+  plan_caustic_family_band_invariant_chain,
   restart_characteristic_family_from_caustic,
   solve_marched_attached_shock_chain_cell_from_caustic_family_band,
   solve_marched_attached_shock_chain_cell_from_caustic_family_band_or_termination,
+  solve_marched_attached_shock_chain_cell_from_caustic_family_band_with_invariant_boundary_or_termination,
   solve_marched_attached_shock_from_caustic_family_band,
+  solve_marched_attached_shock_from_caustic_family_band_with_invariant_boundary,
   solve_reflected_free_boundary,
   solve_underexpanded_expansion_fan,
   solve_uniform_attached_shock_field,
@@ -215,3 +220,85 @@ def test_caustic_band_chain_planner_carries_handoff_and_stops_at_open_mixed_regi
       start_point_m=start,
       end_x_m=1.4,
     )
+
+
+def test_invariant_caustic_band_chain_reports_the_first_missing_upstream_sample() -> None:
+  exit_state, ambient, seed = _caustic_band_fixtures()
+  restart = restart_characteristic_family_from_caustic(
+    seed,
+    exit_state.total_pressure_Pa,
+    ambient.pressure_Pa,
+    anchor_edge_index=0,
+    sample_count=6,
+  )
+  assert restart.family_band is not None
+  band = restart.family_band
+  assert band.anchor_point_m is not None
+  assert seed.edge_states[1].state is not None
+  target_invariant = seed.edge_states[1].state.k_plus
+
+  result = solve_marched_attached_shock_from_caustic_family_band_with_invariant_boundary(
+    band,
+    band.anchor_point_m,
+    CharacteristicFamily.PLUS,
+    lambda _index, _point: target_invariant,
+    sample_count=9,
+  )
+
+  assert result.status is MocCausticFamilyBandInvariantShockStatus.UPSTREAM_DOMAIN_FAILURE
+  assert result.converged is False
+  assert result.first_missing_sample_index == 4
+  assert result.shock is not None
+  assert result.shock.status.value == 'upstream_field_failure'
+  assert result.shock.sample_count == 4
+  assert result.shock_curve_verified is False
+  assert result.physical_closure_verified is False
+  assert result.chain_promotion_blocked is True
+
+  reference = solve_uniform_attached_shock_field(
+    CharacteristicState(.5, .5, -.2, 2.0, 1.4),
+    100000.0,
+    (.5, .5),
+    outer_downstream_flow_angle_rad=.05,
+    sample_count=17,
+  )
+  assert reference.field is not None
+  current = reference.field.as_coupled_chain_cell(start_x_m=.2, end_x_m=.5)
+  decision = solve_marched_attached_shock_chain_cell_from_caustic_family_band_with_invariant_boundary_or_termination(
+    current,
+    2,
+    current.continuation_boundary,
+    band,
+    start_point_m=band.anchor_point_m,
+    end_x_m=1.4,
+    downstream_invariant_family=CharacteristicFamily.PLUS,
+    downstream_invariant_at=lambda _index, _point: target_invariant,
+    sample_count=9,
+  )
+
+  assert decision.physical_termination is False
+  assert decision.reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+  assert decision.diagnostics['sampled_count'] == 4
+  assert decision.diagnostics['first_missing_sample_index'] == 4
+  assert decision.diagnostics['last_valid_point_m'] == pytest.approx(
+    result.shock.endpoint_m,
+  )
+
+  planner = plan_caustic_family_band_invariant_chain(
+    current,
+    band,
+    start_point_m=band.anchor_point_m,
+    end_x_m=1.4,
+    downstream_invariant_family=CharacteristicFamily.PLUS,
+    downstream_invariant_at=lambda _index, _point: target_invariant,
+    sample_count=9,
+  )
+  assert planner.planner_kind.value == 'upstream-coupled-research'
+  assert planner.production_claim_allowed is False
+  assert planner.chain.status.value == 'solver-terminated'
+  assert planner.chain.termination_reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+  assert planner.chain.diagnostics['first_missing_sample_index'] == 4
+  assert len(planner.steps) == 1
+  assert planner.steps[0].incoming_handoff_sample_count == len(
+    current.continuation_boundary
+  )

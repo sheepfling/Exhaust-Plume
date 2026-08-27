@@ -36,6 +36,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocChainPlannerKind,
   MocCausticShockBridgeStatus,
   plan_caustic_family_band_chain,
+  plan_caustic_family_band_invariant_chain,
   plan_post_shock_characteristic_chain,
   plan_post_shock_field_chain,
   plan_terminal_reflection_patch_chain,
@@ -57,6 +58,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   assemble_first_cell_terminal_shock_field,
   solve_marched_attached_shock_from_terminal_reflection_patch,
   solve_marched_attached_shock_from_caustic_family_band,
+  solve_marched_attached_shock_from_caustic_family_band_with_invariant_boundary,
   solve_normal_shock_terminal,
   solve_marched_attached_shock_chain_cell,
   solve_marched_attached_shock_chain_cell_or_termination,
@@ -2121,6 +2123,121 @@ def _caustic_family_band_chain_planner_probe(
   }
 
 
+def _caustic_family_band_invariant_chain_probe(
+  seed: Any,
+  total_pressure_Pa: float,
+  ambient_pressure_Pa: float,
+  current_field: MocPostShockCharacteristicFieldResult | None,
+) -> dict[str, Any]:
+  """Audit the invariant-conditioned caustic shock path and chain stop."""
+
+  if seed is None or len(getattr(seed, 'edge_states', ())) != 2:
+    return {
+      'status': 'missing_seed',
+      'accepted': False,
+      'direct': None,
+      'planner': None,
+      'claim_status': 'invariant-caustic-band-chain-pending',
+    }
+  if (
+    current_field is None
+    or not current_field.converged
+    or not current_field.upstream_shock_coupling_verified
+  ):
+    return {
+      'status': 'invalid_current_field',
+      'accepted': False,
+      'direct': None,
+      'planner': None,
+      'claim_status': 'invariant-caustic-band-chain-pending',
+    }
+  assert seed.edge_states[1].state is not None
+  target_invariant = seed.edge_states[1].state.k_plus
+  restart = restart_characteristic_family_from_caustic(
+    seed,
+    total_pressure_Pa,
+    ambient_pressure_Pa,
+    anchor_edge_index=0,
+    sample_count=6,
+  )
+  band = restart.family_band
+  if band is None or not band.converged or band.anchor_point_m is None:
+    return {
+      'status': 'missing_open_family_band',
+      'accepted': False,
+      'direct': None,
+      'planner': None,
+      'claim_status': 'invariant-caustic-band-chain-pending',
+    }
+  direct_result = solve_marched_attached_shock_from_caustic_family_band_with_invariant_boundary(
+    band,
+    band.anchor_point_m,
+    CharacteristicFamily.PLUS,
+    lambda _index, _point: target_invariant,
+    sample_count=9,
+  )
+  direct = direct_result.as_report()
+  try:
+    current = current_field.as_coupled_chain_cell(
+      start_x_m=0.2,
+      end_x_m=0.5,
+    )
+    planner = plan_caustic_family_band_invariant_chain(
+      current,
+      band,
+      start_point_m=band.anchor_point_m,
+      end_x_m=1.4,
+      downstream_invariant_family=CharacteristicFamily.PLUS,
+      downstream_invariant_at=lambda _index, _point: target_invariant,
+      sample_count=9,
+    )
+    planner_report = planner.as_report()
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return {
+      'status': 'planner_failure',
+      'accepted': False,
+      'direct': direct,
+      'planner': None,
+      'message': str(error),
+      'claim_status': 'invariant-caustic-band-chain-pending',
+    }
+  chain = planner_report['chain']
+  steps = planner_report['steps']
+  diagnostics = chain['diagnostics']
+  accepted = (
+    direct_result.status.value == 'invariant_caustic_band_upstream_domain_failure'
+    and direct_result.first_missing_sample_index == 4
+    and direct_result.shock is not None
+    and direct_result.shock.sample_count == 4
+    and direct_result.shock_curve_verified is False
+    and direct_result.physical_closure_verified is False
+    and direct_result.chain_promotion_blocked is True
+    and planner_report['planner_kind'] == MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH.value
+    and planner_report['planning_only'] is True
+    and planner_report['production_claim_allowed'] is False
+    and planner_report['step_count'] == 1
+    and chain['status'] == MocChainStatus.SOLVER_TERMINATED.value
+    and chain['termination_reason'] == MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY.value
+    and chain['physical_termination'] is False
+    and chain['cell_count'] == 1
+    and len(steps) == 1
+    and steps[0]['incoming_handoff_sample_count'] == len(current.continuation_boundary)
+    and diagnostics['upstream_field_model'] == 'bounded-caustic-family-band'
+    and diagnostics['first_missing_sample_index'] == 4
+  )
+  return {
+    'status': 'diagnostic-invariant-caustic-band-chain',
+    'accepted': accepted,
+    'target_invariant': target_invariant,
+    'direct': direct,
+    'planner': planner_report,
+    'claim_status': (
+      'invariant-conditioned-shock-march-and-typed-upstream-boundary-stop; '
+      'physical-caustic-remesh-pending'
+    ),
+  }
+
+
 def _caustic_family_band_terminal_refinement_probe(
   seed: Any,
   total_pressure_Pa: float,
@@ -2766,6 +2883,12 @@ def build_moc_primitive_report() -> dict[str, Any]:
     fan_ambient.pressure_Pa,
     solver_generated_shock.field,
   )
+  caustic_family_band_invariant_chain = _caustic_family_band_invariant_chain_probe(
+    caustic_shock_seed,
+    fan_exit.total_pressure_Pa,
+    fan_ambient.pressure_Pa,
+    solver_generated_shock.field,
+  )
   reflected_zone_chain_boundary_probe = _reflected_zone_chain_boundary_probe(
     reflected_zone,
     solver_generated_shock.field,
@@ -3047,6 +3170,9 @@ def build_moc_primitive_report() -> dict[str, Any]:
   )
   caustic_family_band_chain_planner_failure = (
     caustic_family_band_chain_planner.get('accepted') is not True
+  )
+  caustic_family_band_invariant_chain_failure = (
+    caustic_family_band_invariant_chain.get('accepted') is not True
   )
   overexpanded_exit = derive_uniform_nozzle_exit(
     NozzleExitInput(
@@ -3427,6 +3553,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'caustic_family_band_shock': caustic_family_band_shock,
       'caustic_family_band_terminal_field': caustic_family_band_terminal_field,
       'caustic_family_band_chain_planner': caustic_family_band_chain_planner,
+      'caustic_family_band_invariant_chain': caustic_family_band_invariant_chain,
       'caustic_family_band_terminal_refinement': caustic_family_band_terminal_refinement,
       'caustic_family_band_terminal_measurement': caustic_family_band_terminal_measurement,
       'claim_status': (
@@ -4178,6 +4305,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'message': str(caustic_family_band_chain_planner.get('message', '')),
       }
     ] if caustic_family_band_chain_planner_failure else []),
+    *([
+      {
+        'case': 'caustic_family_band_invariant_chain',
+        'status': str(caustic_family_band_invariant_chain.get('status', 'missing')),
+        'message': str(caustic_family_band_invariant_chain.get('message', '')),
+      }
+    ] if caustic_family_band_invariant_chain_failure else []),
     *([
       {
         'case': 'solver_generated_chain_reference',

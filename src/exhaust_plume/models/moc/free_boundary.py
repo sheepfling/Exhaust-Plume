@@ -51,7 +51,11 @@ from exhaust_plume.models.moc.post_shock import (
   fit_attached_shock_boundary,
   sample_post_shock_zone_along_shock_path,
 )
-from exhaust_plume.models.moc.primitives import CharacteristicState
+from exhaust_plume.models.moc.primitives import (
+  CharacteristicFamily,
+  CharacteristicState,
+  prandtl_meyer_angle_rad,
+)
 from exhaust_plume.models.moc.source_strip import MocSourceCharacteristicStripResult
 from exhaust_plume.models.moc.zone import (
   MocReflectedCharacteristicZoneResult,
@@ -68,6 +72,7 @@ __all__ = (
   'MocPostShockZoneShockSolveResult',
   'MocReflectedZoneAmbientClosureResult',
   'solve_marched_attached_shock_field',
+  'solve_marched_attached_shock_with_invariant_boundary',
   'solve_marched_attached_shock_from_source_strip',
   'solve_marched_attached_shock_from_reflected_zone',
   'solve_marched_attached_shock_from_post_shock_zone',
@@ -91,11 +96,20 @@ class MocFreeBoundaryShockStatus(str, Enum):
   CONVERGED_FIELD = 'converged_free_boundary_field'
   INVALID_INPUT = 'invalid_input'
   UPSTREAM_FIELD_FAILURE = 'upstream_field_failure'
+  INVARIANT_BOUNDARY_FAILURE = 'invariant_boundary_failure'
   COMPRESSION_FAILURE = 'compression_failure'
   SUBSONIC_TERMINAL_REQUIRED = 'subsonic_terminal_required'
   GEOMETRY_FAILURE = 'geometry_failure'
   SHOCK_FIT_FAILURE = 'shock_fit_failure'
   FIELD_FAILURE = 'field_failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class _InvariantBoundaryAngleResult:
+  angle_rad: float | None
+  residual: float | None
+  message: str
 ####
 
 
@@ -416,6 +430,146 @@ def _finite_point(point_m: tuple[float, float], name: str) -> tuple[float, float
   if len(point_m) != 2 or not all(isfinite(float(value)) for value in point_m):
     raise ValueError(f'{name} must contain two finite coordinates')
   return float(point_m[0]), float(point_m[1])
+####
+
+
+def _characteristic_invariant_value(
+  family: CharacteristicFamily,
+  theta_rad: float,
+  mach: float,
+  gamma: float,
+) -> float:
+  nu = prandtl_meyer_angle_rad(mach, gamma)
+  return theta_rad - nu if family is CharacteristicFamily.PLUS else theta_rad + nu
+####
+
+
+def _solve_downstream_angle_for_invariant(
+  state: CharacteristicState,
+  pressure_Pa: float,
+  family: CharacteristicFamily,
+  invariant_target: float,
+  *,
+  branch: ShockBranch,
+  maximum_downstream_angle_rad: float,
+  invariant_tolerance: float,
+  maximum_scan_samples: int,
+  maximum_iterations: int,
+) -> _InvariantBoundaryAngleResult:
+  """Solve one attached downstream turn for an explicit invariant target."""
+
+  lower = state.theta_rad + max(1.0e-8, float(invariant_tolerance))
+  upper = float(maximum_downstream_angle_rad)
+  if upper <= lower:
+    return _InvariantBoundaryAngleResult(
+      angle_rad=None,
+      residual=None,
+      message='downstream invariant search interval is empty for the local state',
+    )
+
+  def evaluate(angle_rad: float) -> tuple[float, object] | None:
+    try:
+      compression = solve_attached_compression_to_turn(
+        upstream_mach=state.mach,
+        gamma=state.gamma,
+        upstream_pressure_Pa=pressure_Pa,
+        target_turn_rad=angle_rad - state.theta_rad,
+        branch=branch,
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+      return None
+    if (
+      not compression.converged
+      or compression.downstream_mach is None
+      or compression.downstream_mach <= 1.0
+    ):
+      return None
+    residual = (
+      _characteristic_invariant_value(
+        family,
+        angle_rad,
+        compression.downstream_mach,
+        state.gamma,
+      )
+      - invariant_target
+    )
+    if not isfinite(residual):
+      return None
+    return residual, compression
+
+  lower_evaluation = evaluate(lower)
+  if lower_evaluation is None:
+    return _InvariantBoundaryAngleResult(
+      angle_rad=None,
+      residual=None,
+      message='local attached-compression branch is unavailable at the lower angle',
+    )
+  lower_residual = lower_evaluation[0]
+  if abs(lower_residual) <= invariant_tolerance:
+    return _InvariantBoundaryAngleResult(
+      angle_rad=lower,
+      residual=lower_residual,
+      message='',
+    )
+
+  previous_angle = lower
+  previous_residual = lower_residual
+  for scan_index in range(1, maximum_scan_samples + 1):
+    current_angle = lower + (upper - lower) * scan_index / maximum_scan_samples
+    current_evaluation = evaluate(current_angle)
+    if current_evaluation is None:
+      if scan_index == 1:
+        continue
+      break
+    current_residual = current_evaluation[0]
+    if abs(current_residual) <= invariant_tolerance:
+      return _InvariantBoundaryAngleResult(
+        angle_rad=current_angle,
+        residual=current_residual,
+        message='',
+      )
+    if previous_residual * current_residual < 0.0:
+      bracket_lower = previous_angle
+      bracket_upper = current_angle
+      bracket_residual = previous_residual
+      midpoint_residual = current_residual
+      for iteration in range(1, maximum_iterations + 1):
+        midpoint = 0.5 * (bracket_lower + bracket_upper)
+        midpoint_evaluation = evaluate(midpoint)
+        if midpoint_evaluation is None:
+          return _InvariantBoundaryAngleResult(
+            angle_rad=None,
+            residual=None,
+            message='local invariant bisection left the attached-compression branch',
+          )
+        midpoint_residual = midpoint_evaluation[0]
+        if abs(midpoint_residual) <= invariant_tolerance:
+          return _InvariantBoundaryAngleResult(
+            angle_rad=midpoint,
+            residual=midpoint_residual,
+            message='',
+          )
+        if bracket_residual * midpoint_residual <= 0.0:
+          bracket_upper = midpoint
+        else:
+          bracket_lower = midpoint
+          bracket_residual = midpoint_residual
+      return _InvariantBoundaryAngleResult(
+        angle_rad=None,
+        residual=midpoint_residual,
+        message=(
+          'local invariant bisection did not meet its residual tolerance '
+          f'after {maximum_iterations} iterations'
+        ),
+      )
+    previous_angle = current_angle
+    previous_residual = current_residual
+  ####
+  return _InvariantBoundaryAngleResult(
+    angle_rad=None,
+    residual=previous_residual,
+    message='the requested downstream invariant was not reached on the attached branch',
+  )
 ####
 
 
@@ -789,6 +943,128 @@ def solve_marched_attached_shock_field(
       'and closed the post-shock characteristic field'
     ),
   )
+####
+
+
+def solve_marched_attached_shock_with_invariant_boundary(
+  upstream_state_at: Callable[[tuple[float, float]], CharacteristicState | None],
+  upstream_pressure_at: Callable[[tuple[float, float]], float | None],
+  start_point_m: tuple[float, float],
+  downstream_invariant_family: CharacteristicFamily,
+  downstream_invariant_at: Callable[[int, tuple[float, float]], float],
+  *,
+  target_centerline_y_m: float = 0.0,
+  incoming_handoff: Sequence[MocChainBoundarySample] | None = None,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  maximum_downstream_angle_rad: float = 0.9,
+  maximum_invariant_scan_samples: int = 64,
+  maximum_invariant_iterations: int = 80,
+) -> MocFreeBoundaryShockResult:
+  """March a shock whose downstream turn is set by a characteristic invariant.
+
+  The upstream state and pressure remain caller-owned, bounded fields.  At
+  each shock sample the solver inverts the attached-compression relation for
+  the supplied downstream invariant, then delegates geometry, shock fitting,
+  and post-shock characteristic closure to
+  :func:`solve_marched_attached_shock_field`.  A missing upstream sample or an
+  unreachable invariant is returned as a typed failure; no state is
+  extrapolated and no one-point compatibility result is promoted to a cell.
+  """
+
+  if not isinstance(downstream_invariant_family, CharacteristicFamily):
+    return _failure(
+      MocFreeBoundaryShockStatus.INVALID_INPUT,
+      message='downstream_invariant_family must be a CharacteristicFamily',
+    )
+  if not callable(downstream_invariant_at):
+    return _failure(
+      MocFreeBoundaryShockStatus.INVALID_INPUT,
+      message='downstream_invariant_at must be callable',
+    )
+  invariant_errors: dict[int, str] = {}
+
+  def downstream_angle_at(index: int, point_m: tuple[float, float]) -> float:
+    try:
+      state = upstream_state_at(point_m)
+      pressure = upstream_pressure_at(point_m)
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      message = f'invariant boundary upstream sample {index} failed: {error}'
+      invariant_errors[index] = message
+      return float('nan')
+    if not isinstance(state, CharacteristicState):
+      message = f'invariant boundary upstream sample {index} returned no state'
+      invariant_errors[index] = message
+      return float('nan')
+    if pressure is None or not isfinite(float(pressure)) or float(pressure) <= 0.0:
+      message = f'invariant boundary upstream sample {index} returned invalid pressure'
+      invariant_errors[index] = message
+      return float('nan')
+    try:
+      target = float(downstream_invariant_at(index, point_m))
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      message = f'downstream invariant callback failed at sample {index}: {error}'
+      invariant_errors[index] = message
+      return float('nan')
+    if not isfinite(target):
+      message = f'downstream invariant target at sample {index} must be finite'
+      invariant_errors[index] = message
+      return float('nan')
+    local = _solve_downstream_angle_for_invariant(
+      state,
+      float(pressure),
+      downstream_invariant_family,
+      target,
+      branch=branch,
+      maximum_downstream_angle_rad=maximum_downstream_angle_rad,
+      invariant_tolerance=invariant_tolerance,
+      maximum_scan_samples=maximum_invariant_scan_samples,
+      maximum_iterations=maximum_invariant_iterations,
+    )
+    if local.angle_rad is None:
+      message = (
+        f'downstream invariant boundary failed at sample {index}: '
+        f'{local.message}'
+      )
+      invariant_errors[index] = message
+      return float('nan')
+    return local.angle_rad
+
+  shock = solve_marched_attached_shock_field(
+    upstream_state_at,
+    upstream_pressure_at,
+    start_point_m,
+    target_centerline_y_m=target_centerline_y_m,
+    downstream_flow_angle_at=downstream_angle_at,
+    incoming_handoff=incoming_handoff,
+    sample_count=sample_count,
+    branch=branch,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+    shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+    maximum_segment_iterations=maximum_segment_iterations,
+  )
+  if invariant_errors:
+    first_error = invariant_errors[min(invariant_errors)]
+    return _failure(
+      MocFreeBoundaryShockStatus.INVARIANT_BOUNDARY_FAILURE,
+      shock_fit=shock.shock_fit,
+      field=shock.field,
+      shock_points=shock.shock_points_m,
+      upstream_states=shock.upstream_states,
+      upstream_pressures=shock.upstream_pressure_Pa,
+      downstream_angles=shock.downstream_flow_angles_rad,
+      shock_angle_residuals=shock.shock_angle_residuals_rad,
+      endpoint_m=shock.endpoint_m,
+      normal_shock_terminal=shock.normal_shock_terminal,
+      subsonic_shock_boundary=shock.subsonic_shock_boundary,
+      message=first_error,
+    )
+  return shock
 ####
 
 

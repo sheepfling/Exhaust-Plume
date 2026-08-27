@@ -4,6 +4,7 @@ import pytest
 
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput
 from exhaust_plume.models.moc import (
+  CharacteristicFamily,
   CharacteristicState,
   MocAmbientAttachmentStatus,
   MocAmbientClosureStatus,
@@ -23,6 +24,7 @@ from exhaust_plume.models.moc import (
   solve_marched_attached_shock_chain_cell,
   solve_marched_attached_shock_chain_cell_or_termination,
   solve_marched_attached_shock_field,
+  solve_marched_attached_shock_with_invariant_boundary,
   solve_marched_attached_shock_from_reflected_zone,
   solve_marched_attached_shock_from_source_strip,
   solve_marched_attached_shock_with_ambient_pressure_closure,
@@ -35,6 +37,8 @@ from exhaust_plume.models.moc import (
   assemble_source_characteristic_strip,
   extend_source_characteristic_strip_constant_k_plus,
   solve_marched_attached_shock_with_constant_invariant_closure,
+  solve_attached_compression_to_turn,
+  prandtl_meyer_angle_rad,
   solve_underexpanded_expansion_fan,
   solve_uniform_attached_shock_field,
 )
@@ -643,6 +647,48 @@ def test_source_strip_march_stops_at_the_first_missing_upstream_sample() -> None
   assert result.status is MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE
   assert result.sample_count == 1
   assert result.endpoint_m == pytest.approx(reflected_boundary.boundary_points_m[-1])
+
+
+def test_invariant_boundary_march_solves_local_turns_before_field_assembly() -> None:
+  def upstream(point: tuple[float, float]) -> CharacteristicState:
+    return CharacteristicState(
+      x_m=point[0],
+      y_m=point[1],
+      theta_rad=-0.2,
+      mach=2.0,
+      gamma=1.4,
+    )
+
+  def invariant_target(_index: int, point: tuple[float, float]) -> float:
+    downstream_angle = 0.05 * point[1] / 0.5
+    compression = solve_attached_compression_to_turn(
+      upstream_mach=2.0,
+      gamma=1.4,
+      upstream_pressure_Pa=100000.0,
+      target_turn_rad=downstream_angle + 0.2,
+    )
+    assert compression.downstream_mach is not None
+    return downstream_angle - prandtl_meyer_angle_rad(
+      compression.downstream_mach,
+      1.4,
+    )
+
+  result = solve_marched_attached_shock_with_invariant_boundary(
+    upstream,
+    lambda _point: 100000.0,
+    (0.5, 0.5),
+    CharacteristicFamily.PLUS,
+    invariant_target,
+    sample_count=9,
+    shock_angle_tolerance_rad=0.1,
+  )
+
+  assert result.status is MocFreeBoundaryShockStatus.CONVERGED_FIELD
+  assert result.converged
+  assert result.shock_fit is not None and result.shock_fit.converged
+  assert result.field is not None and result.field.converged
+  assert result.upstream_states
+  assert result.downstream_flow_angles_rad[-1] == pytest.approx(0.0, abs=1.0e-8)
 
 
 def test_constant_k_plus_source_strip_extension_advances_the_shock_probe() -> None:

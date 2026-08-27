@@ -508,6 +508,31 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert all(case['shock']['status'] == 'subsonic_terminal_required' for case in band_shock['cases'])
   assert all(case['shock']['sample_count'] == 4 for case in band_shock['cases'])
   assert all(case['shock']['physical_closure_verified'] is False for case in band_shock['cases'])
+  invariant_chain = centerline_reflection_extension[
+    'caustic_family_band_invariant_chain'
+  ]
+  assert invariant_chain['status'] == 'diagnostic-invariant-caustic-band-chain'
+  assert invariant_chain['accepted'] is True
+  assert invariant_chain['direct']['status'] == (
+    'invariant_caustic_band_upstream_domain_failure'
+  )
+  assert invariant_chain['direct']['first_missing_sample_index'] == 4
+  assert invariant_chain['direct']['shock']['status'] == 'upstream_field_failure'
+  assert invariant_chain['direct']['shock']['sample_count'] == 4
+  assert invariant_chain['direct']['shock_curve_verified'] is False
+  assert invariant_chain['direct']['physical_closure_verified'] is False
+  assert invariant_chain['direct']['chain_promotion_blocked'] is True
+  assert invariant_chain['planner']['planner_kind'] == 'upstream-coupled-research'
+  assert invariant_chain['planner']['planning_only'] is True
+  assert invariant_chain['planner']['production_claim_allowed'] is False
+  assert invariant_chain['planner']['chain']['status'] == 'solver-terminated'
+  assert invariant_chain['planner']['chain']['termination_reason'] == (
+    'upstream-field-boundary'
+  )
+  assert invariant_chain['planner']['chain']['diagnostics'][
+    'first_missing_sample_index'
+  ] == 4
+  assert invariant_chain['planner']['steps'][0]['incoming_handoff_sample_count'] >= 3
   band_terminal_field = centerline_reflection_extension[
     'caustic_family_band_terminal_field'
   ]

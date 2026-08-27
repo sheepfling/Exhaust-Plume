@@ -78,6 +78,13 @@ not wait on this research closure.
   exact prior terminal trace before a solved field can become a next chain-cell
   result. It raises on unresolved closure and cannot relabel reduced-order
   geometry.
+- Added a reusable invariant-boundary shock marcher and caustic-family chain
+  adapter. It solves the local downstream turn from an explicit `C+`/`C-`
+  invariant at every generated shock sample, preserves the bounded upstream
+  family-band domain, and records the first missing sample as a typed
+  `upstream-field-boundary` planner stop. The canonical one-sided caustic
+  wedge reaches four valid shock samples before its next shock point exits the
+  solved field; no extrapolated state or physical termination is inferred.
 - Added a separately labeled reflected-boundary trace-extension reference. It
   can generate a closed shock field from the terminal boundary trace, while
   retaining the upstream characteristic-strip coupling gate.

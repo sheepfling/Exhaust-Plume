@@ -38,7 +38,7 @@ from exhaust_plume.models.moc.post_shock import (
   continue_post_shock_characteristic_chain,
   fit_attached_shock_boundary,
 )
-from exhaust_plume.models.moc.primitives import CharacteristicState
+from exhaust_plume.models.moc.primitives import CharacteristicFamily, CharacteristicState
 from exhaust_plume.models.moc.terminal_patch import MocTerminalReflectionPatchResult
 from exhaust_plume.models.moc.terminal_patch_solver import (
   solve_marched_attached_shock_chain_cell_from_terminal_reflection_patch_or_termination,
@@ -48,6 +48,7 @@ from exhaust_plume.models.moc.free_boundary import (
 )
 from exhaust_plume.models.moc.family_band_solver import (
   solve_marched_attached_shock_chain_cell_from_caustic_family_band_or_termination,
+  solve_marched_attached_shock_chain_cell_from_caustic_family_band_with_invariant_boundary_or_termination,
 )
 from exhaust_plume.util.aero.shock_validity import ShockBranch
 
@@ -62,6 +63,7 @@ __all__ = (
   'plan_prescribed_post_shock_chain_mock',
   'plan_terminal_reflection_patch_chain',
   'plan_caustic_family_band_chain',
+  'plan_caustic_family_band_invariant_chain',
 )
 
 
@@ -861,6 +863,102 @@ def plan_caustic_family_band_chain(
     ),
   )
 ####
+
+
+def plan_caustic_family_band_invariant_chain(
+  seed: MocChainCell,
+  band: MocCausticFamilyBandResult,
+  *,
+  start_point_m: tuple[float, float],
+  end_x_m: float,
+  downstream_invariant_family: CharacteristicFamily,
+  downstream_invariant_at: Callable[[int, tuple[float, float]], float],
+  target_centerline_y_m: float = 0.0,
+  sample_count: int = 9,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  shock_angle_tolerance_rad: float = 0.1,
+  maximum_segment_iterations: int = 24,
+  maximum_downstream_angle_rad: float = 0.9,
+  maximum_invariant_scan_samples: int = 64,
+  maximum_invariant_iterations: int = 80,
+  policy: MocChainContinuationPolicy | None = None,
+) -> MocChainPlannerResult:
+  """Plan an invariant-conditioned caustic shock-chain continuation.
+
+  The planner records the exact prior handoff and permits at most the finite
+  family-band domain to be consumed.  Its provenance is always
+  ``UPSTREAM_COUPLED_RESEARCH`` and its production claim remains disabled,
+  even if a future remeshed band allows the local field to converge.
+  """
+
+  if not isinstance(band, MocCausticFamilyBandResult):
+    raise TypeError('band must be a MocCausticFamilyBandResult')
+  attempted = False
+
+  def solve_next(
+    current: MocChainCell,
+    next_cell_index: int,
+  ) -> MocChainCell | MocChainTerminationDecision:
+    nonlocal attempted
+    if attempted:
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
+        message=(
+          'invariant-conditioned caustic-band planner consumed its one-step '
+          'upstream domain; a later cell requires a new upstream field'
+        ),
+        diagnostics={
+          'termination_model': 'invariant-caustic-band-one-step-domain',
+          'next_cell_index': next_cell_index,
+        },
+      )
+    attempted = True
+    solved = solve_marched_attached_shock_chain_cell_from_caustic_family_band_with_invariant_boundary_or_termination(
+      current,
+      next_cell_index,
+      current.continuation_boundary,
+      band,
+      start_point_m=start_point_m,
+      end_x_m=end_x_m,
+      downstream_invariant_family=downstream_invariant_family,
+      downstream_invariant_at=downstream_invariant_at,
+      target_centerline_y_m=target_centerline_y_m,
+      sample_count=sample_count,
+      branch=branch,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+      shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+      maximum_segment_iterations=maximum_segment_iterations,
+      maximum_downstream_angle_rad=maximum_downstream_angle_rad,
+      maximum_invariant_scan_samples=maximum_invariant_scan_samples,
+      maximum_invariant_iterations=maximum_invariant_iterations,
+    )
+    if isinstance(solved, MocChainTerminationDecision):
+      return solved
+    return solved.field.as_coupled_chain_cell(
+      start_x_m=current.end_x_m,
+      end_x_m=solved.end_x_m,
+      cell_index=next_cell_index,
+    )
+
+  effective_policy = policy
+  if effective_policy is None:
+    effective_policy = MocChainContinuationPolicy(require_state_carry=True)
+  elif not effective_policy.require_state_carry:
+    effective_policy = replace(effective_policy, require_state_carry=True)
+  return plan_moc_chain(
+    seed,
+    solve_next,
+    policy=effective_policy,
+    planner_kind=MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH,
+    claim_status=(
+      'invariant-conditioned-caustic-band-shock-planner; '
+      'one-sided-upstream-domain-and-physical-remesh-pending'
+    ),
+  )
 
 
 def plan_post_shock_characteristic_chain(
