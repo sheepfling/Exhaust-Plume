@@ -310,6 +310,9 @@ prescribed post-shock planner mock now reports
 exercise exact handoff bookkeeping, but they retain
 `free_boundary_verified=false` and
 `physical_chain_promotion_allowed=false`.
+The standalone primitive artifact exercises a five-cell instance of that
+fixture; the default three-cell unit fixture remains available for compact
+tests.
 Shock-seeded post-shock fields now expose a bounded `as_report()` contract
 with mesh extents, explicit boundary paths, topology/residual summaries,
 pressure-loss lineage, and incoming-handoff counts. The report is intended

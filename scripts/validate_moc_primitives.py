@@ -1857,7 +1857,9 @@ def _shock_cell_chain_planner_mock(
   measurement_observations = [
     _post_shock_field_measurement_observation(seed_field, cell_index=1)
   ]
-  mock = MocPrescribedPostShockChainMock()
+  # Exercise a longer chain in the standalone artifact so the exact
+  # handoff/fresh-domain checks cover more than the unit-test default.
+  mock = MocPrescribedPostShockChainMock(total_cell_count=5)
 
   def solve_next(current, cell_index, handoff):
     observations.append({

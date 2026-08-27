@@ -1258,7 +1258,9 @@ Only after MOC-1 through MOC-5 pass:
   solver-backed, but the shock ordinates and downstream angles remain
   prescribed. Increasing the fixture length therefore exercises arbitrary
   handoff depth without changing ``free_boundary_verified=false`` or allowing
-  physical chain promotion.
+  physical chain promotion. The standalone primitive artifact exercises a
+  five-cell instance; the default three-cell fixture remains the compact unit
+  test case.
 - Added an independent ``op.moc.chain-planner`` audit for continued-cell
   traces. It reconstructs each cell's topology, sequence position, exact
   state/total-pressure handoff, returned-cell correspondence, typed terminal
