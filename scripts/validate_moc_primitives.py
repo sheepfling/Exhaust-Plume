@@ -1569,6 +1569,12 @@ def _mixed_regime_boundary_probe(
     lambda _request, _section, _specification: explicit_perimeter_closure.field,
     solver_model='scalar-reference-callback-fixture',
   )
+  planar_handoff_measurement = measure_moc_terminal_closure(
+    MocTerminalClosureObservation(
+      terminal_field=field,
+      mixed_regime_closure=planar_downstream_handoff.closure,
+    )
+  )
   contract_condition = validate_mixed_regime_downstream_condition(
     contract_fixture,
     MocMixedRegimeDownstreamConditionKind.SLIP_WALL,
@@ -1769,6 +1775,9 @@ def _mixed_regime_boundary_probe(
       and planar_downstream_handoff.canonical_free_boundary_verified is False
       and planar_downstream_handoff.chain_promotion_blocked
       and planar_downstream_handoff.production_claim_allowed is False
+      and planar_handoff_measurement.converged
+      and planar_handoff_measurement.physical_closure_verified
+      and planar_handoff_measurement.chain_promotion_blocked
       and contract_condition.status.value == 'downstream-tangency-failure'
       and wall_condition.converged
       and wall_condition.chain_promotion_blocked
@@ -1779,6 +1788,7 @@ def _mixed_regime_boundary_probe(
     'control_section_requirement': control_section_requirement.as_report(),
     'control_section_measurement': control_section_measurement.as_report(),
     'planar_downstream_handoff': planar_downstream_handoff.as_report(),
+    'planar_downstream_handoff_measurement': planar_handoff_measurement.as_report(),
     'mixed_regime_closure_mock': perimeter_mock.as_report(),
     'scalar_perimeter_contract_fixture': contract_fixture.as_report(),
     'explicit_downstream_perimeter_solver': explicit_perimeter_closure.as_report(),

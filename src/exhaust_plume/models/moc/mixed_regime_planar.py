@@ -25,6 +25,7 @@ from exhaust_plume.models.moc.mixed_regime import (
   MocMixedRegimeClosureStatus,
   MocMixedRegimeControlSection,
   MocMixedRegimeControlSectionResult,
+  MocMixedRegimeDownstreamConditionKind,
   MocMixedRegimeDownstreamPerimeterSpec,
   MocMixedRegimeFieldResult,
   MocMixedRegimePerimeterRequest,
@@ -522,6 +523,51 @@ def run_mixed_regime_planar_field_solver(
         'selection'
       ),
     )
+  if perimeter_spec.condition_kind in (
+    MocMixedRegimeDownstreamConditionKind.AMBIENT_PRESSURE_FREE_BOUNDARY,
+    MocMixedRegimeDownstreamConditionKind.PRESSURE_OUTFLOW_SECTION,
+  ):
+    ambient_pressure = perimeter_spec.ambient_pressure_Pa
+    if ambient_pressure is None:
+      return _failure(
+        MocMixedRegimePlanarSolveStatus.PERIMETER_FAILURE,
+        request,
+        control_section=control_section,
+        perimeter_spec=perimeter_spec,
+        control_section_validation=section_validation,
+        field=field,
+        solver_model=solver_model,
+        message=(
+          'the declared pressure-conditioned planar perimeter must provide '
+          'ambient_pressure_Pa'
+        ),
+      )
+    selected_pressure_residual = max(
+      (
+        abs(
+          boundary.subsonic_samples[index].static_pressure_Pa
+          - ambient_pressure
+        )
+        for index in expected_condition_samples
+      ),
+      default=None,
+    )
+    if selected_pressure_residual is None or selected_pressure_residual > (
+      pressure_tolerance * max(1.0, abs(ambient_pressure))
+    ):
+      return _failure(
+        MocMixedRegimePlanarSolveStatus.SEAM_FAILURE,
+        request,
+        control_section=control_section,
+        perimeter_spec=perimeter_spec,
+        control_section_validation=section_validation,
+        field=field,
+        solver_model=solver_model,
+        message=(
+          'planar field pressure samples do not match the declared '
+          f'downstream pressure condition: residual={selected_pressure_residual}'
+        ),
+      )
   if not condition.converged:
     return _failure(
       MocMixedRegimePlanarSolveStatus.FIELD_FAILURE,

@@ -1229,6 +1229,21 @@ def test_planar_downstream_handoff_requires_and_retains_a_varying_control_sectio
   assert result.closure.converged
   assert result.closure.physical_closure_verified
 
+  pressure_mismatch_spec = replace(
+    perimeter_spec,
+    ambient_pressure_Pa=terminal.downstream_pressure_Pa + 1.0,
+  )
+  pressure_mismatch = run_mixed_regime_planar_field_solver(
+    request,
+    section,
+    pressure_mismatch_spec,
+    solve_field,
+  )
+  assert pressure_mismatch.status is MocMixedRegimePlanarSolveStatus.SEAM_FAILURE
+  assert not pressure_mismatch.converged
+  assert 'pressure samples' in pressure_mismatch.message
+  assert pressure_mismatch.chain_promotion_blocked
+
 
 def test_planar_downstream_handoff_rejects_a_changed_perimeter() -> None:
   terminal = _terminal()
