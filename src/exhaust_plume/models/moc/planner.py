@@ -70,6 +70,11 @@ from exhaust_plume.models.moc.mixed_regime import (
   solve_mixed_regime_downstream_free_boundary,
   solve_mixed_regime_downstream_free_boundary_from_control_section,
 )
+from exhaust_plume.models.moc.mixed_regime_planar import (
+  MocMixedRegimePlanarFieldSolver,
+  MocMixedRegimePlanarSolveResult,
+  run_mixed_regime_planar_field_solver,
+)
 from exhaust_plume.models.moc.primitives import CharacteristicFamily, CharacteristicState
 from exhaust_plume.models.moc.source_strip import MocSourceStripContinuationResult
 from exhaust_plume.models.moc.terminal_patch import MocTerminalReflectionPatchResult
@@ -133,6 +138,7 @@ __all__ = (
   'plan_prescribed_first_cell_terminal_closure_mock',
   'plan_solver_generated_first_cell_terminal_closure_reference',
   'plan_solver_generated_first_cell_terminal_closure_reference_from_control_section',
+  'plan_first_cell_terminal_closure_with_planar_handoff',
 )
 
 
@@ -912,6 +918,7 @@ class MocFirstCellTerminalClosurePlannerResult:
   planner_kind: MocChainPlannerKind
   claim_status: str
   diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+  mixed_regime_planar_handoff: MocMixedRegimePlanarSolveResult | None = None
 
   def __post_init__(self) -> None:
     if not isinstance(self.terminal, MocFirstCellTerminalClosureResult):
@@ -931,6 +938,14 @@ class MocFirstCellTerminalClosurePlannerResult:
     ):
       raise TypeError(
         'termination must be a MocChainTerminationDecision or None'
+      )
+    if self.mixed_regime_planar_handoff is not None and not isinstance(
+      self.mixed_regime_planar_handoff,
+      MocMixedRegimePlanarSolveResult,
+    ):
+      raise TypeError(
+        'mixed_regime_planar_handoff must be a '
+        'MocMixedRegimePlanarSolveResult or None'
       )
     if not isinstance(self.planner_kind, MocChainPlannerKind):
       raise TypeError('planner_kind must be a MocChainPlannerKind')
@@ -988,6 +1003,11 @@ class MocFirstCellTerminalClosurePlannerResult:
         None
         if self.mixed_regime_closure is None
         else self.mixed_regime_closure.as_report()
+      ),
+      'mixed_regime_planar_handoff': (
+        None
+        if self.mixed_regime_planar_handoff is None
+        else self.mixed_regime_planar_handoff.as_report()
       ),
       'diagnostics': dict(self.diagnostics),
     }
@@ -1214,6 +1234,68 @@ def plan_solver_generated_first_cell_terminal_closure_reference_from_control_sec
     terminal,
     solver=reference,
     control_section=control_section,
+  )
+  ####
+
+
+def plan_first_cell_terminal_closure_with_planar_handoff(
+  terminal: MocFirstCellTerminalClosureResult,
+  control_section: MocMixedRegimeControlSection,
+  perimeter_spec: MocMixedRegimeDownstreamPerimeterSpec,
+  solve_field: MocMixedRegimePlanarFieldSolver,
+  *,
+  position_tolerance_m: float = 1.0e-10,
+  state_tolerance: float = 1.0e-8,
+  pressure_tolerance: float = 1.0e-8,
+  normal_flux_tolerance: float = 1.0e-8,
+  solver_model: str = 'caller-supplied-planar-mixed-regime-solver',
+) -> MocFirstCellTerminalClosurePlannerResult:
+  """Audit a first cell against an explicit downstream planar handoff.
+
+  This wrapper records a successful callback-owned planar handoff beside the
+  first-cell result, but deliberately does not attach it to the terminal or
+  issue a physical termination decision.  The current planar field value can
+  represent a scalar reference mesh, so promotion must wait for a solver that
+  proves the canonical reflected-MOC downstream field and free boundary.
+  """
+
+  if not isinstance(terminal, MocFirstCellTerminalClosureResult):
+    raise TypeError(
+      'terminal must be a MocFirstCellTerminalClosureResult'
+    )
+  request = terminal.mixed_regime_perimeter_request()
+  handoff = run_mixed_regime_planar_field_solver(
+    request,
+    control_section,
+    perimeter_spec,
+    solve_field,
+    position_tolerance_m=position_tolerance_m,
+    state_tolerance=state_tolerance,
+    pressure_tolerance=pressure_tolerance,
+    normal_flux_tolerance=normal_flux_tolerance,
+    solver_model=solver_model,
+  )
+  base = plan_first_cell_terminal_closure(terminal)
+  diagnostics = dict(base.diagnostics)
+  diagnostics.update({
+    'mixed_regime_planar_handoff_verified': handoff.handoff_verified,
+    'mixed_regime_planar_handoff': handoff.as_report(),
+    'mixed_regime_planar_handoff_attached': False,
+    'mixed_regime_planar_handoff_chain_promotion_blocked': (
+      handoff.chain_promotion_blocked
+    ),
+    'mixed_regime_planar_handoff_physical_closure_verified': (
+      handoff.physical_closure_verified
+    ),
+  })
+  return replace(
+    base,
+    claim_status=(
+      'explicit-planar-downstream-handoff-only; canonical-reflected-moc-'
+      'free-boundary-and-external-validation-pending'
+    ),
+    diagnostics=diagnostics,
+    mixed_regime_planar_handoff=handoff,
   )
   ####
 

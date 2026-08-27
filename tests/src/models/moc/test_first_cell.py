@@ -12,6 +12,7 @@ from exhaust_plume.models.moc import (
   MocMixedRegimeDownstreamPerimeterSpec,
   MocMixedRegimeDownstreamConditionKind,
   MocMixedRegimeDownstreamConditionStatus,
+  MocMixedRegimePerimeterRequest,
   MocPrescribedMixedRegimeClosureMock,
   MocSolverGeneratedMixedRegimeClosureReference,
   MocTerminalBoundaryGraphStatus,
@@ -25,6 +26,7 @@ from exhaust_plume.models.moc import (
   plan_prescribed_first_cell_terminal_closure_mock,
   plan_solver_generated_first_cell_terminal_closure_reference,
   plan_solver_generated_first_cell_terminal_closure_reference_from_control_section,
+  plan_first_cell_terminal_closure_with_planar_handoff,
   solve_mixed_regime_subsonic_field,
   solve_marched_first_cell_terminal_closure,
   solve_marched_attached_shock_field,
@@ -474,6 +476,104 @@ def test_first_cell_terminal_closure_uses_the_explicit_perimeter_solver_seam() -
   assert closure.perimeter_spec is specification
   assert closure.downstream_condition is not None
   assert closure.downstream_condition.converged
+
+
+def test_first_cell_planner_records_planar_handoff_without_promoting_it() -> None:
+  shock_fit, strip, patch = _first_cell_inputs()
+  composite = assemble_first_cell_composite(
+    shock_fit,
+    strip,
+    patch,
+    position_tolerance_m=1.0e-3,
+  )
+  terminal_closure = solve_marched_first_cell_terminal_closure(
+    composite,
+    downstream_flow_angle_rad=0.0,
+    sample_count=17,
+    shock_position_tolerance_m=2.0e-4,
+  )
+  request = terminal_closure.mixed_regime_perimeter_request()
+  point = request.terminal_point_m
+  specification = MocMixedRegimeDownstreamPerimeterSpec(
+    perimeter_points_m=(
+      point,
+      (point[0] + 0.05, point[1] + 0.05),
+      (point[0] + 0.1, point[1] + 0.05),
+      (point[0] + 0.1, point[1]),
+      point,
+    ),
+    condition_kind=MocMixedRegimeDownstreamConditionKind.PRESSURE_OUTFLOW_SECTION,
+    ambient_pressure_Pa=request.terminal_downstream_pressure_Pa,
+  )
+  section_points = (
+    (point[0] + 0.02, point[1] - 0.01),
+    (point[0] + 0.02, point[1]),
+    (point[0] + 0.02, point[1] + 0.01),
+  )
+  gamma = request.terminal.upstream_state.gamma
+  varying_mach = request.terminal_downstream_mach + 0.01
+  varying_static_pressure = request.terminal_downstream_total_pressure_Pa / (
+    1.0 + 0.5 * (gamma - 1.0) * varying_mach * varying_mach
+  ) ** (gamma / (gamma - 1.0))
+  section = MocMixedRegimeControlSection(
+    points_m=section_points,
+    samples=tuple(
+      MocMixedRegimeFieldSample(
+        point_m=sample_point,
+        mach=varying_mach,
+        flow_angle_rad=request.terminal_downstream_flow_angle_rad,
+        static_pressure_Pa=varying_static_pressure,
+        total_pressure_Pa=request.terminal_downstream_total_pressure_Pa,
+        gamma=gamma,
+      )
+      for sample_point in section_points
+    ),
+    normal_angle_rad=0.0,
+  )
+
+  def sample_at(
+    received: MocMixedRegimePerimeterRequest,
+    _index: int,
+    sample_point: tuple[float, float],
+  ) -> MocMixedRegimeFieldSample:
+    return MocMixedRegimeFieldSample(
+      point_m=sample_point,
+      mach=received.terminal_downstream_mach,
+      flow_angle_rad=received.terminal_downstream_flow_angle_rad,
+      static_pressure_Pa=received.terminal_downstream_pressure_Pa,
+      total_pressure_Pa=received.terminal_downstream_total_pressure_Pa,
+      gamma=received.terminal.upstream_state.gamma,
+    )
+
+  scalar_closure = terminal_closure.solve_mixed_regime_downstream_perimeter(
+    specification,
+    sample_at,
+    radial_divisions=2,
+  )
+  assert scalar_closure.field is not None
+  assert scalar_closure.field.physical_closure_verified
+
+  planner = plan_first_cell_terminal_closure_with_planar_handoff(
+    terminal_closure,
+    section,
+    specification,
+    lambda _request, _section, _specification: scalar_closure.field,
+  )
+
+  assert planner.resolved
+  assert planner.physical_closure_verified is False
+  assert planner.physical_termination is False
+  assert planner.chain_promotion_blocked
+  assert planner.termination is not None
+  assert planner.termination.reason is MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+  assert planner.terminal.mixed_regime_field is None
+  assert planner.mixed_regime_planar_handoff is not None
+  assert planner.mixed_regime_planar_handoff.converged
+  assert planner.mixed_regime_planar_handoff.section_is_varying
+  assert planner.mixed_regime_planar_handoff.field_physical_closure_verified
+  assert planner.mixed_regime_planar_handoff.physical_closure_verified is False
+  assert planner.diagnostics['mixed_regime_planar_handoff_attached'] is False
+  assert planner.diagnostics['mixed_regime_planar_handoff_verified'] is True
 
 
 def test_first_cell_terminal_closure_rejects_a_changed_outgoing_handoff() -> None:

@@ -61,6 +61,18 @@ the section geometry, placement, scalar state, pressure lineage, and oriented
 flux separately; its convergence is input evidence only, not external plume
 validation.
 
+The downstream planar handoff is now an explicit callback seam through
+``run_mixed_regime_planar_field_solver``. It requires the exact terminal
+request, the control section, and a closed ``MocMixedRegimeDownstreamPerimeterSpec``
+as separate inputs, then checks that the returned field retains the exact
+shock patch, perimeter geometry, and downstream-condition selections. A
+varying section may pass this seam, but the result remains
+``physical_closure_verified=false``, ``canonical_free_boundary_verified=false``,
+and ``chain_promotion_blocked=true``. The first-cell planner stores the result
+as evidence and leaves the terminal's open-closure decision unchanged; this
+is the boundary for a future genuine planar mixed-regime solver, not a relabel
+for the scalar reference.
+
 ## Planar MOC foundation
 
 The first high-fidelity tranche is isolated in

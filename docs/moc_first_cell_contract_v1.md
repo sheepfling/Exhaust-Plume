@@ -538,6 +538,14 @@ physical product claims and supersonic chain promotion blocked.
 The independent ``op.moc.mixed-regime-control-section`` measurement
 recomputes those section gates separately; it is input evidence for the
 reference lane, not external plume validation.
+The explicit planar downstream handoff adapter additionally requires that
+control section, the exact terminal request, and an explicitly closed
+``MocMixedRegimeDownstreamPerimeterSpec`` to reach a callback-owned field
+solver. It rechecks the returned shock patch, perimeter geometry, and named
+condition selections. The first-cell planner records a passing handoff but
+does not attach it or promote a physical stop: the scalar field value object
+still includes reduced reference meshes, so canonical planar closure remains
+pending.
 The independent
 ``op.moc.mixed-regime-free-boundary-reference`` operator recomputes the height
 root, generated geometry, selected pressure/tangency condition, radial layout,

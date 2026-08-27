@@ -564,6 +564,14 @@ not wait on this research closure.
   residuals, total-pressure gain, and oriented mass-flux evidence without
   trusting the solver's cached verdict. A passing measurement is still only
   input evidence for the declared reference lane.
+- Added an explicit planar downstream handoff adapter for the next fidelity
+  boundary. It requires the exact terminal request, an explicit transverse
+  control section, and an explicit closed perimeter before invoking a
+  callback-owned field solver; returned fields must retain the shock patch,
+  perimeter, and named downstream-condition selections. The first-cell
+  planner records this handoff without attaching it or issuing a physical
+  stop, so even a varying-section callback cannot promote a scalar reference
+  mesh into canonical 2-D closure.
 - Added an independent
   ``op.moc.mixed-regime-free-boundary-reference`` measurement. It recomputes
   the scalar height root, generated perimeter geometry, selected pressure and

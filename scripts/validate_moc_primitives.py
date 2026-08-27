@@ -23,8 +23,10 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocAmbientAxisClosureShootStatus,
   MocAmbientPhysicalFieldStatus,
   MocMixedRegimeBoundaryStatus,
+  MocMixedRegimeControlSection,
   MocMixedRegimeDownstreamConditionKind,
   MocMixedRegimeFieldSample,
+  MocMixedRegimePlanarSolveStatus,
   MocSolverGeneratedMixedRegimeClosureReference,
   MocInvariantClosureFamily,
   MocFreeBoundaryShockResult,
@@ -142,6 +144,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   validate_fan_reflected_interface,
   validate_closed_post_shock_field,
   validate_mixed_regime_control_section,
+  run_mixed_regime_planar_field_solver,
   validate_characteristic_trace,
   validate_mixed_regime_boundary,
   validate_mixed_regime_downstream_condition,
@@ -1534,6 +1537,38 @@ def _mixed_regime_boundary_probe(
     subsonic_samples=contract_samples,
   )
   explicit_perimeter_closure = perimeter_mock.solve(perimeter_request)
+  planar_section_mach = terminal.downstream_mach + 0.01
+  planar_section_static_pressure = terminal.downstream_total_pressure_Pa / (
+    1.0 + 0.5 * (terminal.upstream_state.gamma - 1.0)
+    * planar_section_mach * planar_section_mach
+  ) ** (terminal.upstream_state.gamma / (terminal.upstream_state.gamma - 1.0))
+  planar_section_points = (
+    (terminal_x + 0.02, terminal_y - 0.01),
+    (terminal_x + 0.02, terminal_y),
+    (terminal_x + 0.02, terminal_y + 0.01),
+  )
+  planar_control_section = MocMixedRegimeControlSection(
+    points_m=planar_section_points,
+    samples=tuple(
+      MocMixedRegimeFieldSample(
+        point_m=point,
+        mach=planar_section_mach,
+        flow_angle_rad=terminal.downstream_flow_angle_rad,
+        static_pressure_Pa=planar_section_static_pressure,
+        total_pressure_Pa=terminal.downstream_total_pressure_Pa,
+        gamma=terminal.upstream_state.gamma,
+      )
+      for point in planar_section_points
+    ),
+    normal_angle_rad=0.0,
+  )
+  planar_downstream_handoff = run_mixed_regime_planar_field_solver(
+    perimeter_request,
+    planar_control_section,
+    perimeter_specification,
+    lambda _request, _section, _specification: explicit_perimeter_closure.field,
+    solver_model='scalar-reference-callback-fixture',
+  )
   contract_condition = validate_mixed_regime_downstream_condition(
     contract_fixture,
     MocMixedRegimeDownstreamConditionKind.SLIP_WALL,
@@ -1726,6 +1761,14 @@ def _mixed_regime_boundary_probe(
       and control_section_measurement.status.value == 'invalid_input'
       and not control_section_measurement.physical_closure_verified
       and control_section_measurement.chain_promotion_blocked
+      and planar_downstream_handoff.status is MocMixedRegimePlanarSolveStatus.CONVERGED_HANDOFF
+      and planar_downstream_handoff.handoff_verified
+      and planar_downstream_handoff.section_is_varying
+      and planar_downstream_handoff.field_physical_closure_verified
+      and planar_downstream_handoff.physical_closure_verified is False
+      and planar_downstream_handoff.canonical_free_boundary_verified is False
+      and planar_downstream_handoff.chain_promotion_blocked
+      and planar_downstream_handoff.production_claim_allowed is False
       and contract_condition.status.value == 'downstream-tangency-failure'
       and wall_condition.converged
       and wall_condition.chain_promotion_blocked
@@ -1735,6 +1778,7 @@ def _mixed_regime_boundary_probe(
     'missing_scalar_field': missing_field.as_report(),
     'control_section_requirement': control_section_requirement.as_report(),
     'control_section_measurement': control_section_measurement.as_report(),
+    'planar_downstream_handoff': planar_downstream_handoff.as_report(),
     'mixed_regime_closure_mock': perimeter_mock.as_report(),
     'scalar_perimeter_contract_fixture': contract_fixture.as_report(),
     'explicit_downstream_perimeter_solver': explicit_perimeter_closure.as_report(),

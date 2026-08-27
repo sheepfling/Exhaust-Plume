@@ -13,12 +13,15 @@ from exhaust_plume.models.moc import (
   MocMixedRegimeDownstreamConditionKind,
   MocMixedRegimeDownstreamConditionStatus,
   MocMixedRegimeFieldStatus,
+  MocMixedRegimeFieldResult,
   MocMixedRegimeFieldSample,
   MocMixedRegimeFreeBoundaryStatus,
+  MocMixedRegimePlanarSolveStatus,
   MocMixedRegimePerimeterRequest,
   MocPrescribedMixedRegimeClosureMock,
   MocPostShockBoundaryState,
   run_mixed_regime_closure_solver,
+  run_mixed_regime_planar_field_solver,
   solve_normal_shock_terminal,
   solve_mixed_regime_compressible_potential_field,
   solve_mixed_regime_downstream_condition,
@@ -1112,6 +1115,208 @@ def test_control_section_reference_uses_measure_and_rejects_varying_section_proj
   assert varying_result.control_section_validation.converged
   assert 'two-dimensional mixed-regime coupling' in varying_result.message
   assert varying_result.chain_promotion_blocked
+
+
+def test_planar_downstream_handoff_requires_and_retains_a_varying_control_section() -> None:
+  terminal = _terminal()
+  patch = _supersonic_patch()
+  assert terminal.shock_point_m is not None
+  assert terminal.downstream_mach is not None
+  assert terminal.downstream_flow_angle_rad is not None
+  assert terminal.downstream_pressure_Pa is not None
+  assert terminal.downstream_total_pressure_Pa is not None
+  assert terminal.total_pressure_ratio is not None
+  request = MocMixedRegimePerimeterRequest(
+    terminal=terminal,
+    terminal_point_m=terminal.shock_point_m,
+    terminal_downstream_mach=terminal.downstream_mach,
+    terminal_downstream_flow_angle_rad=terminal.downstream_flow_angle_rad,
+    terminal_downstream_pressure_Pa=terminal.downstream_pressure_Pa,
+    terminal_downstream_total_pressure_Pa=terminal.downstream_total_pressure_Pa,
+    terminal_total_pressure_ratio=terminal.total_pressure_ratio,
+    supersonic_patch=patch,
+  )
+  terminal_x, terminal_y = request.terminal_point_m
+  perimeter_spec = MocMixedRegimeDownstreamPerimeterSpec(
+    perimeter_points_m=(
+      (terminal_x, terminal_y),
+      (terminal_x + 0.1, terminal_y + 0.1),
+      (terminal_x + 0.2, terminal_y + 0.1),
+      (terminal_x + 0.2, terminal_y),
+      (terminal_x, terminal_y),
+    ),
+    condition_kind=MocMixedRegimeDownstreamConditionKind.PRESSURE_OUTFLOW_SECTION,
+    ambient_pressure_Pa=terminal.downstream_pressure_Pa,
+  )
+
+  def sample_at(
+    received: MocMixedRegimePerimeterRequest,
+    _index: int,
+    point: tuple[float, float],
+  ) -> MocMixedRegimeFieldSample:
+    return MocMixedRegimeFieldSample(
+      point_m=point,
+      mach=received.terminal_downstream_mach,
+      flow_angle_rad=received.terminal_downstream_flow_angle_rad,
+      static_pressure_Pa=received.terminal_downstream_pressure_Pa,
+      total_pressure_Pa=received.terminal_downstream_total_pressure_Pa,
+      gamma=received.terminal.upstream_state.gamma,
+    )
+
+  scalar_closure = solve_mixed_regime_downstream_perimeter(
+    request,
+    perimeter_spec,
+    sample_at,
+    radial_divisions=2,
+  )
+  assert scalar_closure.field is not None
+  assert scalar_closure.field.physical_closure_verified
+
+  varying_mach = request.terminal_downstream_mach + 0.01
+  gamma = request.terminal.upstream_state.gamma
+  varying_static_pressure = request.terminal_downstream_total_pressure_Pa / (
+    1.0 + 0.5 * (gamma - 1.0) * varying_mach * varying_mach
+  ) ** (gamma / (gamma - 1.0))
+  section_points = (
+    (terminal_x + 0.02, terminal_y - 0.01),
+    (terminal_x + 0.02, terminal_y),
+    (terminal_x + 0.02, terminal_y + 0.01),
+  )
+  section = MocMixedRegimeControlSection(
+    points_m=section_points,
+    samples=tuple(
+      MocMixedRegimeFieldSample(
+        point_m=point,
+        mach=varying_mach,
+        flow_angle_rad=request.terminal_downstream_flow_angle_rad,
+        static_pressure_Pa=varying_static_pressure,
+        total_pressure_Pa=request.terminal_downstream_total_pressure_Pa,
+        gamma=gamma,
+      )
+      for point in section_points
+    ),
+    normal_angle_rad=0.0,
+  )
+  callback_arguments: list[object] = []
+
+  def solve_field(
+    received: MocMixedRegimePerimeterRequest,
+    received_section: MocMixedRegimeControlSection,
+    received_specification: MocMixedRegimeDownstreamPerimeterSpec,
+  ) -> MocMixedRegimeFieldResult:
+    callback_arguments.extend((received, received_section, received_specification))
+    return scalar_closure.field
+
+  result = run_mixed_regime_planar_field_solver(
+    request,
+    section,
+    perimeter_spec,
+    solve_field,
+  )
+
+  assert result.status is MocMixedRegimePlanarSolveStatus.CONVERGED_HANDOFF
+  assert result.converged
+  assert result.handoff_verified
+  assert result.section_is_varying
+  assert result.field is scalar_closure.field
+  assert result.field_physical_closure_verified
+  assert result.physical_closure_verified is False
+  assert result.canonical_free_boundary_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  assert callback_arguments == [request, section, perimeter_spec]
+  assert result.closure is not None
+  assert result.closure.converged
+  assert result.closure.physical_closure_verified
+
+
+def test_planar_downstream_handoff_rejects_a_changed_perimeter() -> None:
+  terminal = _terminal()
+  patch = _supersonic_patch()
+  assert terminal.shock_point_m is not None
+  assert terminal.downstream_mach is not None
+  assert terminal.downstream_flow_angle_rad is not None
+  assert terminal.downstream_pressure_Pa is not None
+  assert terminal.downstream_total_pressure_Pa is not None
+  assert terminal.total_pressure_ratio is not None
+  request = MocMixedRegimePerimeterRequest(
+    terminal=terminal,
+    terminal_point_m=terminal.shock_point_m,
+    terminal_downstream_mach=terminal.downstream_mach,
+    terminal_downstream_flow_angle_rad=terminal.downstream_flow_angle_rad,
+    terminal_downstream_pressure_Pa=terminal.downstream_pressure_Pa,
+    terminal_downstream_total_pressure_Pa=terminal.downstream_total_pressure_Pa,
+    terminal_total_pressure_ratio=terminal.total_pressure_ratio,
+    supersonic_patch=patch,
+  )
+  section = _terminal_equivalent_control_section(request)
+  point = request.terminal_point_m
+  perimeter_spec = MocMixedRegimeDownstreamPerimeterSpec(
+    perimeter_points_m=(
+      point,
+      (point[0] + 0.1, point[1] + 0.1),
+      (point[0] + 0.2, point[1] + 0.1),
+      (point[0] + 0.2, point[1]),
+      point,
+    ),
+    condition_kind=MocMixedRegimeDownstreamConditionKind.PRESSURE_OUTFLOW_SECTION,
+    ambient_pressure_Pa=terminal.downstream_pressure_Pa,
+  )
+
+  def sample_at(
+    received: MocMixedRegimePerimeterRequest,
+    _index: int,
+    sample_point: tuple[float, float],
+  ) -> MocMixedRegimeFieldSample:
+    return MocMixedRegimeFieldSample(
+      point_m=sample_point,
+      mach=received.terminal_downstream_mach,
+      flow_angle_rad=received.terminal_downstream_flow_angle_rad,
+      static_pressure_Pa=received.terminal_downstream_pressure_Pa,
+      total_pressure_Pa=received.terminal_downstream_total_pressure_Pa,
+      gamma=received.terminal.upstream_state.gamma,
+    )
+
+  scalar_closure = solve_mixed_regime_downstream_perimeter(
+    request,
+    perimeter_spec,
+    sample_at,
+  )
+  assert scalar_closure.field is not None
+  changed_boundary = replace(
+    scalar_closure.field.boundary,
+    perimeter_points_m=(
+      point,
+      (point[0] + 0.1, point[1] + 0.1),
+      (point[0] + 0.2, point[1] + 0.1),
+      (point[0] + 0.2, point[1] + 0.001),
+      point,
+    ),
+  )
+  assert scalar_closure.field.downstream_condition is not None
+  changed_condition = replace(
+    scalar_closure.field.downstream_condition,
+    boundary=changed_boundary,
+  )
+  changed_field = replace(
+    scalar_closure.field,
+    boundary=changed_boundary,
+    downstream_condition=changed_condition,
+  )
+
+  result = run_mixed_regime_planar_field_solver(
+    request,
+    section,
+    perimeter_spec,
+    lambda _request, _section, _specification: changed_field,
+  )
+
+  assert result.status is MocMixedRegimePlanarSolveStatus.PERIMETER_FAILURE
+  assert not result.converged
+  assert not result.handoff_verified
+  assert result.field is changed_field
+  assert result.chain_promotion_blocked
+  assert 'perimeter geometry' in result.message
 
 
 def test_solver_owned_free_boundary_reference_shoots_height_and_closes_scalar_field() -> None:
