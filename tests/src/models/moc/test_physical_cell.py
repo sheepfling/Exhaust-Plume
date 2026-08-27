@@ -26,6 +26,7 @@ from exhaust_plume.models.moc import (
   march_post_shock_ambient_boundary,
   plan_ambient_closed_post_shock_chain,
   solve_marched_attached_shock_field,
+  solve_ambient_closed_post_shock_chain_cell_from_physical_field_or_termination,
   validate_ambient_pressure_boundary,
   validate_moc_mesh,
 )
@@ -343,7 +344,73 @@ def _manufactured_closed_physical_field(
     ),
     upstream_shock_boundary_states=upstream_states,
     upstream_shock_boundary_total_pressure_Pa=(200000.0, 200000.0, 200000.0),
+    post_shock_boundary_states=tuple(
+      CharacteristicState(
+        x_m=point[0],
+        y_m=point[1],
+        theta_rad=0.0,
+        mach=mach,
+        gamma=gamma,
+      )
+      for point in shock_points
+    ),
+    post_shock_boundary_total_pressure_Pa=(1.8e6, 1.8e6, 1.8e6),
   )
+
+
+def test_ambient_closed_physical_field_sampling_is_bounded_and_state_carrying() -> None:
+  field = _manufactured_closed_physical_field()
+
+  assert field.state_sampling_available
+  state = field.state_at((0.4, 0.6))
+  assert state is not None
+  assert state.x_m == pytest.approx(0.4)
+  assert state.y_m == pytest.approx(0.6)
+  assert state.mach > 1.0
+  assert field.total_pressure_at((0.4, 0.6)) == pytest.approx(1.8e6)
+  assert field.static_pressure_at((0.4, 0.6)) is not None
+  assert field.state_at((2.5, 0.1)) is None
+  assert field.total_pressure_at((2.5, 0.1)) is None
+
+
+def test_physical_field_next_shock_returns_bounded_upstream_stop_without_extrapolation() -> None:
+  field = _manufactured_closed_physical_field()
+  current = field.as_coupled_chain_cell(
+    start_x_m=0.0,
+    end_x_m=2.0,
+    cell_index=1,
+  )
+  ambient_boundary = tuple(
+    MocAmbientBoundarySample(
+      point_m=point,
+      state=state,
+      total_pressure_Pa=pressure,
+    )
+    for point, state, pressure in zip(
+      field.ambient_boundary.points_m,
+      field.ambient_boundary.states,
+      field.ambient_boundary.total_pressure_Pa,
+      strict=True,
+    )
+  )
+
+  decision = solve_ambient_closed_post_shock_chain_cell_from_physical_field_or_termination(
+    current,
+    2,
+    current.continuation_boundary,
+    field,
+    shock_points_m=((2.5, 0.4), (2.7, 0.2), (2.9, 0.0)),
+    downstream_flow_angles_rad=(0.1, 0.1, 0.1),
+    ambient_boundary=ambient_boundary,
+    ambient_pressure_Pa=100000.0,
+    end_x_m=3.0,
+  )
+
+  assert isinstance(decision, MocChainTerminationDecision)
+  assert not decision.physical_termination
+  assert decision.reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+  assert decision.diagnostics['first_missing_sample_index'] == 0
+  assert decision.diagnostics['sampled_count'] == 0
 
 
 def test_ambient_closed_physical_chain_requires_exact_incoming_handoff() -> None:

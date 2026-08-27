@@ -212,6 +212,15 @@ normal-shock stop without extrapolation; its downstream turn law remains
 caller-supplied and its planner is explicitly research-only, so this closes
 the upstream sampling seam without creating a production continued-cell
 provider.
+The ambient-closed physical-field result now retains its downstream shock
+states and total-pressure samples as well as its ambient and centerline
+perimeters. Its bounded state/pressure samplers are available only when every
+assembled cell vertex resolves to solver-carried data. A separate explicit-
+perimeter next-cell adapter fits the candidate shock from that bounded field,
+records the exact centerline handoff, and returns typed upstream-domain or
+open-closure stops. It is a continuation foundation; the reflected-domain and
+automatic ambient free-boundary shooter are still required before canonical
+provider promotion.
 The caustic-family-band branch has the same hard ceiling through a separate
 one-step planner. It carries the exact prior post-shock perimeter into both
 canonical restarted-family orientations, solves a bounded next shock and open

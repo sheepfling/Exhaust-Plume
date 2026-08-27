@@ -343,6 +343,13 @@ typed field-boundary or normal-shock stop without extrapolation. The reusable
 a complete next field is returned. Its canonical reference reaches a typed
 normal-shock stop after one seed cell, while its downstream turn condition and
 production validation remain explicitly pending.
+The ambient-closed physical-field result now retains the downstream shock
+state/total-pressure samples needed to make its own mesh a bounded upstream
+domain. Its explicit-perimeter next-cell adapter fits the candidate shock from
+those samples and preserves the exact centerline handoff; leaving the bounded
+domain or failing the next ambient perimeter is a typed non-physical stop.
+This is a solver/chain foundation only: automatic reflected-domain and
+ambient free-boundary shooting remain promotion gates.
 The caustic-family-band continuation is isolated as a separate one-step
 planner path: it carries the exact prior perimeter into the bounded restarted
 family, solves the next shock and open supersonic zone, and records the typed

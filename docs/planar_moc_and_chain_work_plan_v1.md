@@ -239,6 +239,13 @@ not wait on this research closure.
   shock total-pressure loss in addition to its solver status. Tampering with
   the declared paths therefore cannot turn a planner fixture into a resolved
   chain cell.
+- Added solver-carried downstream shock states and bounded state, static-
+  pressure, and total-pressure samplers to the ambient-closed physical field.
+  A strict explicit-perimeter next-cell adapter now fits a new attached shock
+  using only those samples, records the exact prior centerline handoff, and
+  returns typed ``UPSTREAM_FIELD_BOUNDARY`` or ``OPEN_PHYSICAL_CLOSURE`` stops
+  instead of extrapolating or fabricating a cell. Automatic reflected-domain
+  and ambient free-boundary shooting remain pending.
 - Added typed downstream characteristic-state/total-pressure handoff samples
   and a state-carrying chain adapter. The shock-seeded field labels its
   composite carried edge as a post-shock field perimeter, not a single

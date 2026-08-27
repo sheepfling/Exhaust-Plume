@@ -227,6 +227,7 @@ from exhaust_plume.models.moc.physical_cell import (
   MocPhysicalPostShockFieldResult,
   MocPhysicalPostShockFieldStatus,
   assemble_ambient_boundary_post_shock_field,
+  solve_ambient_closed_post_shock_chain_cell_from_physical_field_or_termination,
   continue_ambient_closed_post_shock_chain,
 )
 from exhaust_plume.models.moc.ambient_shock_strip import (
@@ -636,6 +637,7 @@ __all__ = (
   'plan_first_cell_terminal_closure',
   'plan_prescribed_first_cell_terminal_closure_mock',
   'assemble_ambient_boundary_post_shock_field',
+  'solve_ambient_closed_post_shock_chain_cell_from_physical_field_or_termination',
   'continue_ambient_closed_post_shock_chain',
   'march_post_shock_ambient_boundary',
   'assemble_ambient_shock_characteristic_strip',
