@@ -762,7 +762,10 @@ def solve_marched_attached_shock_field(
     if turn <= 0.0:
       if (
         abs(turn) <= position_tolerance_m
-        and abs(target_y) <= position_tolerance_m
+        and (
+          index == 0
+          or abs(point[1] - target_y) <= position_tolerance_m
+        )
       ):
         normal_shock_terminal = solve_normal_shock_terminal(
           state,

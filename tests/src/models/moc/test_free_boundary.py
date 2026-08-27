@@ -898,6 +898,38 @@ def test_zero_turn_symmetry_endpoint_reports_subsonic_terminal_boundary() -> Non
   assert result.normal_shock_terminal.shock_point_m is not None
 
 
+def test_zero_turn_above_symmetry_line_is_not_classified_as_a_terminal() -> None:
+  result = solve_marched_attached_shock_field(
+    lambda point: CharacteristicState(point[0], point[1], 0.0, 2.0, 1.4),
+    lambda _point: 100000.0,
+    (0.5, 0.5),
+    downstream_flow_angle_at=lambda index, _point: 0.1 if index == 0 else 0.0,
+    sample_count=5,
+  )
+
+  assert result.status is MocFreeBoundaryShockStatus.COMPRESSION_FAILURE
+  assert result.subsonic_terminal_required is False
+  assert result.normal_shock_terminal is None
+  assert result.sample_count == 1
+  assert 'does not require a positive compression turn' in result.message
+
+
+def test_zero_turn_is_terminal_only_at_the_requested_symmetry_ordinate() -> None:
+  result = solve_marched_attached_shock_field(
+    lambda point: CharacteristicState(point[0], point[1], 0.0, 2.0, 1.4),
+    lambda _point: 100000.0,
+    (0.5, 0.5),
+    downstream_flow_angle_at=lambda index, _point: 0.1 * (1.0 - index / 4.0),
+    sample_count=5,
+  )
+
+  assert result.status is MocFreeBoundaryShockStatus.SUBSONIC_TERMINAL_REQUIRED
+  assert result.terminal_model_verified
+  assert result.normal_shock_terminal is not None
+  assert result.normal_shock_terminal.shock_point_m is not None
+  assert result.normal_shock_terminal.shock_point_m[1] == pytest.approx(0.0)
+
+
 def test_strong_branch_retains_subsonic_boundary_without_fabricating_moc_state() -> None:
   result = solve_marched_attached_shock_field(
     lambda point: CharacteristicState(point[0], point[1], -0.2, 2.0, 1.4),
