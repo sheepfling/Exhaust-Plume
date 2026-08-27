@@ -4409,6 +4409,34 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'terminal_shock_boundary_coverage_verified'
     ) is not True
   )
+  first_cell_terminal_closure_planner_probe = ambient_shock_strip_probe.get(
+    'first_cell_terminal_closure_planner',
+  )
+  first_cell_terminal_closure_planner_failure = (
+    not isinstance(first_cell_terminal_closure_planner_probe, dict)
+    or first_cell_terminal_closure_planner_probe.get('planner_kind')
+    != MocChainPlannerKind.PRESCRIBED_BOUNDARY_MOCK.value
+    or first_cell_terminal_closure_planner_probe.get('planning_only') is not True
+    or first_cell_terminal_closure_planner_probe.get('production_claim_allowed') is not False
+    or first_cell_terminal_closure_planner_probe.get('resolved') is not True
+    or first_cell_terminal_closure_planner_probe.get('physical_closure_verified') is not True
+    or first_cell_terminal_closure_planner_probe.get('physical_termination') is not True
+    or first_cell_terminal_closure_planner_probe.get('chain_promotion_blocked') is not True
+    or not isinstance(
+      first_cell_terminal_closure_planner_probe.get('termination'),
+      dict,
+    )
+    or first_cell_terminal_closure_planner_probe['termination'].get(
+      'reason'
+    ) != MocChainTerminationReason.PHYSICAL_TERMINATION.value
+    or not isinstance(
+      first_cell_terminal_closure_planner_probe.get('mixed_regime_closure'),
+      dict,
+    )
+    or first_cell_terminal_closure_planner_probe['mixed_regime_closure'].get(
+      'status'
+    ) != 'converged_mixed_regime_closure'
+  )
   caustic_family_restart_failure = (
     caustic_family_restart.get('accepted') is not True
   )
@@ -4924,6 +4952,22 @@ def build_moc_primitive_report() -> dict[str, Any]:
     'solver_generated_terminal_patch_chain_probe': terminal_patch_chain_probe,
     'solver_generated_first_cell_composite': first_cell_composite_probe,
     'solver_generated_first_cell_terminal_closure': first_cell_terminal_closure_probe,
+    'solver_generated_first_cell_terminal_closure_planner': (
+      {
+        'status': 'missing',
+        'accepted': False,
+        'planner': None,
+      }
+      if not isinstance(first_cell_terminal_closure_planner_probe, dict)
+      else {
+        'status': first_cell_terminal_closure_planner_probe.get(
+          'planner_kind',
+          'missing',
+        ),
+        'accepted': not first_cell_terminal_closure_planner_failure,
+        'planner': first_cell_terminal_closure_planner_probe,
+      }
+    ),
     'ambient_attachment_closure_probe': ambient_attachment_closure_probe,
     'ambient_attachment_transition_probe': ambient_attachment_transition_probe,
     'solver_generated_shock_refinement': {

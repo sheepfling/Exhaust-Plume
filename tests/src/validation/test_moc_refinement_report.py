@@ -79,6 +79,9 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   invariant_closure = report['geometry_cases']['terminal_source_window_invariant_closure']
   ambient_strip = report['geometry_cases']['solver_generated_ambient_shock_strip']
   first_cell_terminal = report['geometry_cases']['solver_generated_first_cell_terminal_closure']
+  first_cell_terminal_planner_summary = report['geometry_cases'][
+    'solver_generated_first_cell_terminal_closure_planner'
+  ]
   ambient_attachment = report['geometry_cases']['ambient_attachment_closure_probe']
   ambient_transition = report['geometry_cases']['ambient_attachment_transition_probe']
   ambient_closure = report['geometry_cases']['ambient_pressure_closure_probe']
@@ -683,6 +686,9 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   )
   assert first_cell_terminal_closure['terminal_field']['terminal_shock_boundary_coverage_verified'] is True
   assert first_cell_terminal_closure['terminal_field']['terminal_shock_boundary_sample_count'] == 18
+  assert first_cell_terminal_planner_summary['accepted'] is True
+  assert first_cell_terminal_planner_summary['status'] == 'prescribed-boundary-mock'
+  assert first_cell_terminal_planner_summary['planner']['physical_termination'] is True
   first_cell_terminal_planner = ambient_strip['first_cell_terminal_closure_planner']
   assert first_cell_terminal_planner['planner_kind'] == 'prescribed-boundary-mock'
   assert first_cell_terminal_planner['planning_only'] is True
