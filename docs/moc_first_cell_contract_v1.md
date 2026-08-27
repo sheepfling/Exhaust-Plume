@@ -243,6 +243,10 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   missing samples or geometry from the open supersonic zone. Its accepted
   result is a reproducible finite-domain reference/termination fixture, not a
   canonical free-boundary perimeter or a new supersonic chain cell;
+- a first-cell ``attach_mixed_regime_closure`` seam that accepts only a
+  converged closure retaining the exact terminal request before attaching the
+  scalar field. The resulting terminal can expose the typed physical stop,
+  but remains non-promotable by design;
 - mesh connectivity diagnostics that distinguish a topologically bounded
   polygon from an unresolved physical boundary;
 - a shared averaged-characteristic fan/reflected interface whose combined

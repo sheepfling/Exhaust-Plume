@@ -207,6 +207,32 @@ class MocFirstCellTerminalClosureResult:
     )
   ####
 
+  def attach_mixed_regime_closure(
+    self,
+    closure: MocMixedRegimeClosureResult,
+  ) -> 'MocFirstCellTerminalClosureResult':
+    """Attach one accepted closure while preserving its exact terminal seam.
+
+    The closure result is the ownership boundary between a downstream scalar
+    solver and this first-cell terminal.  Requiring the exact request here
+    prevents a valid field solved for a different shock or supersonic patch
+    from being attached accidentally.  This method still does not promote a
+    chain cell: a mixed-regime terminal is an explicit chain stop.
+    """
+
+    if not isinstance(closure, MocMixedRegimeClosureResult):
+      raise TypeError('closure must be a MocMixedRegimeClosureResult')
+    if closure.request != self.mixed_regime_perimeter_request():
+      raise ValueError(
+        'mixed-regime closure does not retain this first-cell terminal seam'
+      )
+    if not closure.converged or closure.field is None:
+      raise ValueError(
+        'only a converged mixed-regime closure with an accepted field can be attached'
+      )
+    return self.with_mixed_regime_field(closure.field)
+  ####
+
   def as_chain_termination_decision(self) -> MocChainTerminationDecision:
     """Preserve either the open-closure or verified physical terminal stop."""
 

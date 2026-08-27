@@ -240,7 +240,10 @@ def test_first_cell_terminal_closure_attaches_a_separate_mixed_regime_field() ->
   assert field.converged
   assert field.physical_closure_verified
 
-  attached = result.with_mixed_regime_field(field)
+  closure = result.solve_mixed_regime_closure(lambda _request: field)
+  assert closure.converged
+  assert closure.field is field
+  attached = result.attach_mixed_regime_closure(closure)
   assert attached.mixed_regime_field is field
   assert attached.physical_closure_verified
   assert attached.physical_termination_verified

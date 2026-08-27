@@ -942,6 +942,10 @@ Only after MOC-1 through MOC-5 pass:
   The typed downstream-perimeter adapter now makes that caller-owned boundary
   and sample model explicit and reproducible, but it does not change the
   canonical status or promote the reference field into the supersonic chain.
+  The first-cell result also accepts an attached closure only through an exact
+  request-matching seam before exposing its typed physical stop; this keeps
+  terminal attachment auditable without making the mixed-regime result a
+  continued supersonic cell.
 - The terminal-boundary graph audit confirms that the canonical terminal's
   four solver-owned supersonic paths join with zero reported residual, while
   no downstream path or physical downstream condition is supplied. A future
