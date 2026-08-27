@@ -291,6 +291,14 @@ supersonic MOC validity lane. The existing
 basic and reduced-order visual lanes remain unchanged until a separate MOC
 assembler passes free-boundary/compression closure, refinement, and external
 measurement gates.
+The generic resolved-chain contract also checks every returned candidate's
+mesh against the shared axial interface. A shared-interface vertex is
+allowed, but an upstream-reused mesh or a mesh with no downstream progress is
+rejected; when state carry is required, the carried boundary receives the
+same lower-domain check. This keeps planner bookkeeping from turning an old
+field into a new cell under a fresh endpoint. Chain reports also expose the
+bookkeeping interval and measured mesh/boundary axial extents for each cell,
+making that freshness evidence visible in serialized planner output.
 The separate solver-owned simple-wave terminal lane now makes one explicit
 constant-invariant upstream trace from the exact caustic request, marches a
 shock against a linear downstream turn profile, and retains the valid

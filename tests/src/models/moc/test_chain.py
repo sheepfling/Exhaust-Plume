@@ -143,7 +143,63 @@ def test_resolved_moc_chain_continues_until_solver_returns_none() -> None:
   assert result.cell_count == 2
   assert result.resolved
   assert calls == [2, 3]
-  assert result.as_report()['geometry_fidelity_counts'] == {'resolved-planar-moc': 2}
+  report = result.as_report()
+  assert report['geometry_fidelity_counts'] == {'resolved-planar-moc': 2}
+  assert report['cell_axial_domains_m'] == [
+    {
+      'cell_index': 1,
+      'start_x_m': 0.0,
+      'end_x_m': 1.0,
+      'mesh_x_extent_m': (0.0, 1.0),
+      'continuation_boundary_x_extent_m': None,
+    },
+    {
+      'cell_index': 2,
+      'start_x_m': 1.0,
+      'end_x_m': 2.0,
+      'mesh_x_extent_m': (1.0, 2.0),
+      'continuation_boundary_x_extent_m': None,
+    },
+  ]
+
+
+def test_resolved_moc_chain_rejects_a_candidate_mesh_reused_upstream() -> None:
+  def solver(current: MocChainCell, index: int) -> MocChainCell:
+    return replace(
+      _cell(index, current.end_x_m),
+      mesh=_mesh(current.end_x_m - 0.1),
+    )
+
+  result = continue_moc_cell_chain(_cell(1, 0.0), solver)
+
+  assert result.status is MocChainStatus.INVALID_INPUT
+  assert result.termination_reason is MocChainTerminationReason.INVALID_INPUT
+  assert 'begins upstream of the shared axial interface' in result.message
+  assert result.cell_count == 1
+
+
+def test_stateful_moc_chain_rejects_a_carried_boundary_reused_upstream() -> None:
+  def solver(current: MocChainCell, index: int) -> MocChainCell:
+    candidate = _stateful_cell(index, current.end_x_m)
+    boundary = tuple(
+      MocChainBoundarySample(
+        state=replace(sample.state, x_m=sample.state.x_m - 0.1),
+        total_pressure_Pa=sample.total_pressure_Pa,
+      )
+      for sample in candidate.continuation_boundary
+    )
+    return replace(candidate, continuation_boundary=boundary)
+
+  result = continue_moc_cell_chain(
+    _stateful_cell(1, 0.0),
+    solver,
+    MocChainContinuationPolicy(require_state_carry=True),
+  )
+
+  assert result.status is MocChainStatus.STATE_BOUNDARY
+  assert result.termination_reason is MocChainTerminationReason.STATE_NOT_CARRIED
+  assert 'upstream of the shared axial interface' in result.message
+  assert result.cell_count == 1
 
 
 def test_explicit_physical_termination_is_not_inferred_from_none() -> None:

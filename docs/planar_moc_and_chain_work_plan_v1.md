@@ -1286,6 +1286,16 @@ Only after MOC-1 through MOC-5 pass:
   they do not provide external observations, uncertainty, or a provider-bound
   measurement-space mapping. Their successful status must not be read as
   physical MOC closure or validation acceptance.
+- The generic state-carrying chain contract now checks the returned cell mesh
+  against the shared axial interface before accepting a candidate. Shared
+  interface vertices remain legal, but a candidate whose mesh starts
+  upstream, or never advances downstream, is rejected. State-carrying
+  boundaries receive the matching upstream-domain check. This closes a
+  planner-level relabeling hole independently of the stricter post-shock
+  field freshness gate; it does not loosen the physical-closure boundary.
+  Chain reports now expose each cell's bookkeeping interval alongside the
+  measured mesh and carried-boundary axial extents so a continued-cell trace
+  can be audited without reconstructing geometry from the solver objects.
 - The recovered validation archive is not a substitute for the missing
   provider-bound measurement/operator bindings.
 

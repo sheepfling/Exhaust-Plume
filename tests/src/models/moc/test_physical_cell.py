@@ -207,6 +207,8 @@ def test_coupled_post_shock_field_accepts_an_explicit_axis_corner_before_axis_ga
 
 def _manufactured_closed_physical_field(
   incoming_handoff: tuple = (),
+  *,
+  x_offset_m: float = 0.0,
 ):
   """Build a small accepted field to exercise the physical chain adapter.
 
@@ -221,7 +223,10 @@ def _manufactured_closed_physical_field(
   total_pressure = ambient_pressure * (
     1.0 + 0.5 * (gamma - 1.0) * mach * mach
   ) ** (gamma / (gamma - 1.0))
-  centerline_points = ((1.0, 0.0), (1.5, 0.0), (2.0, 0.0))
+  centerline_points = tuple(
+    (x_m + x_offset_m, y_m)
+    for x_m, y_m in ((1.0, 0.0), (1.5, 0.0), (2.0, 0.0))
+  )
   centerline_states = tuple(
     CharacteristicState(
       x_m=point[0],
@@ -232,7 +237,10 @@ def _manufactured_closed_physical_field(
     )
     for point in centerline_points
   )
-  shock_points = ((0.0, 1.0), (0.5, 0.5), (1.0, 0.0))
+  shock_points = tuple(
+    (x_m + x_offset_m, y_m)
+    for x_m, y_m in ((0.0, 1.0), (0.5, 0.5), (1.0, 0.0))
+  )
   upstream_states = tuple(
     CharacteristicState(
       x_m=point[0],
@@ -243,7 +251,10 @@ def _manufactured_closed_physical_field(
     )
     for point in shock_points
   )
-  ambient_points = ((0.0, 1.0), (1.0, 0.5), (2.0, 0.0))
+  ambient_points = tuple(
+    (x_m + x_offset_m, y_m)
+    for x_m, y_m in ((0.0, 1.0), (1.0, 0.5), (2.0, 0.0))
+  )
   ambient_angle = atan2(-0.5, 1.0)
   ambient_samples = tuple(
     MocAmbientBoundarySample(
@@ -466,7 +477,10 @@ def test_ambient_closed_physical_chain_and_planner_carry_multiple_cells() -> Non
         message='manufactured physical-field test chain exhausted',
       )
     return MocPhysicalPostShockFieldContinuationSolve(
-      field=_manufactured_closed_physical_field(incoming_handoff),
+      field=_manufactured_closed_physical_field(
+        incoming_handoff,
+        x_offset_m=current.end_x_m,
+      ),
       end_x_m=current.end_x_m + 1.0,
     )
 

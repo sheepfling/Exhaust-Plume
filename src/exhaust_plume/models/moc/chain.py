@@ -464,6 +464,39 @@ class MocChainCell:
   ####
 
   @property
+  def mesh_x_extent_m(self) -> tuple[float, float] | None:
+    """Return the finite axial extent of the supplied mesh vertices."""
+
+    points: list[tuple[float, float]] = []
+    for polygon in self.mesh:
+      vertices = getattr(polygon, 'vertices_xr_m', None)
+      if vertices is None:
+        continue
+      try:
+        for point in vertices:
+          if len(point) != 2 or not all(isfinite(float(value)) for value in point):
+            return None
+          points.append((float(point[0]), float(point[1])))
+      except (TypeError, ValueError):
+        return None
+    if not points:
+      return None
+    return min(point[0] for point in points), max(point[0] for point in points)
+  ####
+
+  @property
+  def continuation_boundary_x_extent_m(self) -> tuple[float, float] | None:
+    """Return the finite axial extent of the carried state boundary."""
+
+    if not self.continuation_boundary:
+      return None
+    x_values = tuple(sample.state.x_m for sample in self.continuation_boundary)
+    if not all(isfinite(value) for value in x_values):
+      return None
+    return min(x_values), max(x_values)
+  ####
+
+  @property
   def mesh_is_well_formed(self) -> bool:
     """Whether the supplied polygons form one connected bounded patch."""
 
@@ -627,6 +660,18 @@ class MocChainResult:
         for cell_index, pressure_range in pressure_ranges
       ],
       'continuation_boundary_maxima_nonincreasing': pressure_maxima_nonincreasing,
+      'cell_axial_domains_m': [
+        {
+          'cell_index': cell.cell_index,
+          'start_x_m': cell.start_x_m,
+          'end_x_m': cell.end_x_m,
+          'mesh_x_extent_m': cell.mesh_x_extent_m,
+          'continuation_boundary_x_extent_m': (
+            cell.continuation_boundary_x_extent_m
+          ),
+        }
+        for cell in self.cells
+      ],
       'geometry_fidelity_counts': fidelity_counts,
       'diagnostics': dict(self.diagnostics),
       'message': self.message,
@@ -673,16 +718,72 @@ def _validate_cell_mesh(cell: MocChainCell) -> str | None:
 ####
 
 
+def _validate_candidate_domain(
+  candidate: MocChainCell,
+  current_end_x_m: float,
+  *,
+  position_tolerance_m: float,
+) -> str | None:
+  """Reject a returned cell whose mesh reuses an upstream axial domain.
+
+  The shared interface itself may be present as a mesh vertex.  At least one
+  mesh vertex must nevertheless lie strictly downstream of that interface;
+  otherwise a callback can relabel an upstream patch with a new cell index and
+  endpoint without producing a new cell.  The upper extent is intentionally
+  not constrained by ``candidate.end_x_m`` because oblique characteristic
+  closure can extend beyond the bookkeeping endpoint.
+  """
+
+  points: list[tuple[float, float]] = []
+  for polygon in candidate.mesh:
+    vertices = getattr(polygon, 'vertices_xr_m', None)
+    if vertices is None:
+      continue
+    try:
+      for point in vertices:
+        if len(point) != 2 or not all(isfinite(float(value)) for value in point):
+          return 'continued MOC cell mesh contains non-finite geometry'
+        points.append((float(point[0]), float(point[1])))
+    except (TypeError, ValueError):
+      return 'continued MOC cell mesh contains invalid vertex geometry'
+  if not points:
+    return None
+  minimum_x = min(point[0] for point in points)
+  maximum_x = max(point[0] for point in points)
+  if minimum_x < current_end_x_m - position_tolerance_m:
+    return (
+      'continued MOC cell mesh begins upstream of the shared axial interface: '
+      f'minimum_x={minimum_x}, current_end_x={current_end_x_m}'
+    )
+  if maximum_x <= current_end_x_m + position_tolerance_m:
+    return (
+      'continued MOC cell mesh does not advance downstream of the shared '
+      f'axial interface: maximum_x={maximum_x}, current_end_x={current_end_x_m}'
+    )
+  return None
+####
+
+
 def _validate_state_carry(
   cell: MocChainCell,
   *,
   position_tolerance_m: float,
   state_tolerance: float,
+  minimum_x_m: float | None = None,
 ) -> str | None:
   if not cell.continuation_boundary:
     return 'cell does not carry a downstream characteristic state boundary'
   if len(cell.continuation_boundary) < 3:
     return 'state-carrying MOC cells require at least three boundary samples'
+  if minimum_x_m is not None:
+    if not isfinite(float(minimum_x_m)):
+      return 'the downstream state-carry reference x coordinate must be finite'
+    for index, sample in enumerate(cell.continuation_boundary):
+      if sample.state.x_m < float(minimum_x_m) - position_tolerance_m:
+        return (
+          f'continuation boundary sample {index} lies upstream of the '
+          f'shared axial interface x={minimum_x_m}'
+        )
   if cell.continuation_boundary_kind is MocChainBoundaryKind.AXIAL_SECTION:
     section_x = cell.continuation_boundary[0].state.x_m
     if any(
@@ -873,6 +974,18 @@ def continue_moc_cell_chain(
         reason=MocChainTerminationReason.INVALID_INPUT,
         message='continued MOC cells must share an axial boundary',
       )
+    domain_error = _validate_candidate_domain(
+      candidate,
+      current.end_x_m,
+      position_tolerance_m=policy.position_tolerance_m,
+    )
+    if domain_error is not None:
+      return _result(
+        tuple(cells),
+        status=MocChainStatus.INVALID_INPUT,
+        reason=MocChainTerminationReason.INVALID_INPUT,
+        message=domain_error,
+      )
     if policy.max_axial_distance_m is not None and candidate.end_x_m > policy.max_axial_distance_m + policy.position_tolerance_m:
       return _result(
         tuple(cells),
@@ -896,6 +1009,7 @@ def continue_moc_cell_chain(
         candidate,
         position_tolerance_m=policy.position_tolerance_m,
         state_tolerance=policy.state_tolerance,
+        minimum_x_m=current.end_x_m,
       )
       if state_error is not None:
         return _result(
