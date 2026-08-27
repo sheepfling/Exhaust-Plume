@@ -615,6 +615,12 @@ def test_marched_attached_shock_generates_and_closes_the_field() -> None:
   assert result.field.pressure_loss_verified
   assert result.field.as_chain_cell(start_x_m=0.5, end_x_m=1.0).resolved
   assert result.field.as_coupled_chain_cell(start_x_m=0.5, end_x_m=1.0).resolved
+  report = result.as_report()
+  assert report['field']['status'] == result.field.status.value
+  assert report['field']['domain_x_extent_m'] == pytest.approx(
+    result.field.domain_x_extent_m
+  )
+  assert report['field']['state_sampling_available'] is True
 
 
 def test_marched_attached_shock_refines_endpoint_and_tangent_residual() -> None:

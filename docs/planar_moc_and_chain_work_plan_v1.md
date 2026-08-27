@@ -1308,6 +1308,10 @@ Only after MOC-1 through MOC-5 pass:
   incoming-handoff counts. This replaces ad hoc field serialization in
   planner/validation consumers while keeping the field's finite-domain and
   research-only closure boundary explicit.
+- Threaded that bounded field report through the solver-generated free-boundary
+  result, so a higher-level shock/remesh report carries the same geometry and
+  handoff data instead of exposing only `field_status`. This is an inspection
+  API improvement; it does not change the solver's closure or promotion gates.
 - The recovered validation archive is not a substitute for the missing
   provider-bound measurement/operator bindings.
 

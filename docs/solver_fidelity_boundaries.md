@@ -309,6 +309,9 @@ with mesh extents, explicit boundary paths, topology/residual summaries,
 pressure-loss lineage, and incoming-handoff counts. The report is intended
 for planner and visualization inspection; it does not convert the finite
 shock-seeded field into canonical reflected-plume closure.
+Solver-generated free-boundary shock reports now carry that field report under
+`field`, preserving the same bounded inspection contract through the
+higher-level shock/remesh handoff.
 The separate solver-owned simple-wave terminal lane now makes one explicit
 constant-invariant upstream trace from the exact caustic request, marches a
 shock against a linear downstream turn profile, and retains the valid

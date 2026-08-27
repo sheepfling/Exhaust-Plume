@@ -223,6 +223,7 @@ class MocFreeBoundaryShockResult:
       'endpoint_m': self.endpoint_m,
       'maximum_shock_angle_residual_rad': self.maximum_shock_angle_residual_rad,
       'field_status': None if self.field_status is None else self.field_status.value,
+      'field': None if self.field is None else self.field.as_report(),
       'subsonic_boundary_verified': self.subsonic_boundary_verified,
       'subsonic_shock_boundary': (
         None
