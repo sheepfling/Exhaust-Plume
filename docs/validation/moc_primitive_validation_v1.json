@@ -9440,6 +9440,24 @@
       "accepted": true
     },
     "solver_generated_field_coupled_chain_planner": {
+      "reference": {
+        "model": "field-coupled-post-shock-chain-reference",
+        "planning_only": true,
+        "production_claim_allowed": false,
+        "total_cell_count_including_seed": 3,
+        "cell_axial_length_m": 0.4,
+        "shock_start_offset_m": 0.02,
+        "shock_start_y_m": 0.05,
+        "target_centerline_y_m": 0.0,
+        "sample_count": 9,
+        "downstream_flow_angle_scale_rad_per_m": 2.4,
+        "branch": "weak",
+        "upstream_state_model": "bounded-previous-post-shock-field",
+        "upstream_pressure_model": "bounded-previous-post-shock-field",
+        "downstream_condition_model": "linear-explicit-reference-turn-law",
+        "claim_status": "field-coupled-research-reference; canonical-reflected-domain-and-physical-downstream-boundary-pending"
+      },
+      "upstream_field_replacement_policy": "replace-only-after-complete-field-coupled-solve",
       "planner_kind": "upstream-coupled-research",
       "planning_only": true,
       "production_claim_allowed": false,
@@ -9489,7 +9507,7 @@
         "next_cell_index": 2
       },
       "accepted": true,
-      "claim_status": "bounded-post-shock-field-coupled-planner; production-shock-boundary-and-external-validation-pending"
+      "claim_status": "bounded-field-coupled-shock-chain-reference; canonical-reflected-domain-and-physical-downstream-boundary-pending"
     },
     "ambient_pressure_field_coupled_chain_planner": {
       "status": "diagnostic-ambient-pressure-field-chain-boundary",

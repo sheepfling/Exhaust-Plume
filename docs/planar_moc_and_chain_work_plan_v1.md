@@ -199,6 +199,14 @@ not wait on this research closure.
   exercises state/total-pressure handoff and is still research-only; it does
   not stand in for the reflected upstream field or a physical downstream
   boundary.
+- Added a separate `MocFieldCoupledPostShockChainReference` and planner entry
+  point. Its shock/pressure solve samples only the currently accepted bounded
+  post-shock field and replaces that field only after a complete returned
+  cell. The canonical seed reaches the typed normal-shock termination before
+  a second cell, while a synthetic broad-domain contract fixture proves that
+  a re-solved cell can be followed by a typed upstream-field boundary without
+  extrapolation. This remains planner/research evidence, not canonical plume
+  closure or production-chain validation.
 - Hardened the prescribed planner mock so every continued cell passes its
   prescribed curve through the real branch-checked attached-shock fitter. The
   default fixture is a nondegenerate varying-state shock line, the returned

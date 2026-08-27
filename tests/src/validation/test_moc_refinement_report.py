@@ -151,6 +151,15 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert field_coupled_chain_planner['planner_kind'] == 'upstream-coupled-research'
   assert field_coupled_chain_planner['planning_only'] is True
   assert field_coupled_chain_planner['production_claim_allowed'] is False
+  assert field_coupled_chain_planner['reference']['model'] == (
+    'field-coupled-post-shock-chain-reference'
+  )
+  assert field_coupled_chain_planner['reference']['upstream_state_model'] == (
+    'bounded-previous-post-shock-field'
+  )
+  assert field_coupled_chain_planner['upstream_field_replacement_policy'] == (
+    'replace-only-after-complete-field-coupled-solve'
+  )
   assert field_coupled_chain_planner['status'] == 'physically-terminated'
   assert field_coupled_chain_planner['termination_reason'] == 'physical-termination'
   assert field_coupled_chain_planner['physical_termination'] is True

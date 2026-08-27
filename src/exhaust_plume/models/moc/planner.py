@@ -72,11 +72,13 @@ __all__ = (
   'MocChainPlannerResult',
   'MocPrescribedPostShockChainMock',
   'MocSolverGeneratedPostShockChainReference',
+  'MocFieldCoupledPostShockChainReference',
   'plan_moc_chain',
   'plan_post_shock_characteristic_chain',
   'plan_post_shock_field_chain',
   'plan_prescribed_post_shock_chain_mock',
   'plan_solver_generated_post_shock_chain_reference',
+  'plan_field_coupled_post_shock_chain_reference',
   'plan_terminal_reflection_patch_chain',
   'plan_caustic_family_band_chain',
   'plan_caustic_family_band_invariant_chain',
@@ -897,6 +899,175 @@ class MocSolverGeneratedPostShockChainReference:
     return result
 
 
+@dataclass(frozen=True, slots=True)
+class MocFieldCoupledPostShockChainReference:
+  """Deterministic reference for continuation fed by the prior solved field.
+
+  This reference deliberately differs from
+  :class:`MocSolverGeneratedPostShockChainReference`: its upstream state and
+  pressure are sampled from the currently accepted bounded
+  ``MocPostShockCharacteristicFieldResult``.  The start point, axial step,
+  and downstream turn law remain explicit reference conditions.  A finite
+  field boundary therefore becomes a typed stop instead of an opportunity to
+  fall back to a uniform state.
+
+  The class is a research/planner fixture.  It does not claim that the
+  supplied field is the canonical reflected upstream plume domain.
+  """
+
+  total_cell_count: int = 3
+  cell_axial_length_m: float = 0.40
+  shock_start_offset_m: float = 0.02
+  shock_start_y_m: float = 0.05
+  target_centerline_y_m: float = 0.0
+  sample_count: int = 9
+  downstream_flow_angle_scale_rad_per_m: float = 2.40
+  branch: ShockBranch = ShockBranch.WEAK
+
+  def __post_init__(self) -> None:
+    if (
+      isinstance(self.total_cell_count, bool)
+      or not isinstance(self.total_cell_count, int)
+      or self.total_cell_count < 1
+    ):
+      raise ValueError('total_cell_count must be a positive integer')
+    if (
+      isinstance(self.sample_count, bool)
+      or not isinstance(self.sample_count, int)
+      or self.sample_count < 3
+    ):
+      raise ValueError('sample_count must be an integer of at least three')
+    for name, value in (
+      ('cell_axial_length_m', self.cell_axial_length_m),
+      ('shock_start_offset_m', self.shock_start_offset_m),
+      ('shock_start_y_m', self.shock_start_y_m),
+      ('target_centerline_y_m', self.target_centerline_y_m),
+      (
+        'downstream_flow_angle_scale_rad_per_m',
+        self.downstream_flow_angle_scale_rad_per_m,
+      ),
+    ):
+      if not isfinite(float(value)):
+        raise ValueError(f'{name} must be finite')
+    if self.cell_axial_length_m <= 0.0:
+      raise ValueError('cell_axial_length_m must be finite and positive')
+    if self.shock_start_offset_m <= 0.0:
+      raise ValueError('shock_start_offset_m must be finite and positive')
+    if self.shock_start_y_m <= self.target_centerline_y_m:
+      raise ValueError(
+        'shock_start_y_m must be strictly above target_centerline_y_m'
+      )
+    if self.downstream_flow_angle_scale_rad_per_m <= 0.0:
+      raise ValueError(
+        'downstream_flow_angle_scale_rad_per_m must be finite and positive'
+      )
+    if not isinstance(self.branch, ShockBranch):
+      raise ValueError('branch must be a ShockBranch')
+
+  def as_report(self) -> dict[str, Any]:
+    """Return the explicit bounded-field reference configuration."""
+
+    return {
+      'model': 'field-coupled-post-shock-chain-reference',
+      'planning_only': True,
+      'production_claim_allowed': False,
+      'total_cell_count_including_seed': self.total_cell_count,
+      'cell_axial_length_m': self.cell_axial_length_m,
+      'shock_start_offset_m': self.shock_start_offset_m,
+      'shock_start_y_m': self.shock_start_y_m,
+      'target_centerline_y_m': self.target_centerline_y_m,
+      'sample_count': self.sample_count,
+      'downstream_flow_angle_scale_rad_per_m': (
+        self.downstream_flow_angle_scale_rad_per_m
+      ),
+      'branch': self.branch.value,
+      'upstream_state_model': 'bounded-previous-post-shock-field',
+      'upstream_pressure_model': 'bounded-previous-post-shock-field',
+      'downstream_condition_model': 'linear-explicit-reference-turn-law',
+      'claim_status': (
+        'field-coupled-research-reference; canonical-reflected-domain-and-'
+        'physical-downstream-boundary-pending'
+      ),
+    }
+
+  def start_point_at(
+    self,
+    _field: MocPostShockCharacteristicFieldResult,
+    current: MocChainCell,
+    _next_cell_index: int,
+  ) -> tuple[float, float]:
+    """Choose the next reference shock start downstream of the current cell."""
+
+    return (
+      current.end_x_m + self.shock_start_offset_m,
+      self.shock_start_y_m,
+    )
+
+  def end_x_at(
+    self,
+    _field: MocPostShockCharacteristicFieldResult,
+    current: MocChainCell,
+    _next_cell_index: int,
+  ) -> float:
+    """Return the deterministic axial endpoint for one reference cell."""
+
+    return current.end_x_m + self.cell_axial_length_m
+
+  def downstream_flow_angle_at(
+    self,
+    _index: int,
+    point_m: tuple[float, float],
+  ) -> float:
+    """Return the explicit linear turn law, zero at the target centerline."""
+
+    return self.downstream_flow_angle_scale_rad_per_m * (
+      point_m[1] - self.target_centerline_y_m
+    )
+
+  def solve_next(
+    self,
+    current: MocChainCell,
+    next_cell_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+    upstream_field: MocPostShockCharacteristicFieldResult,
+  ) -> MocPostShockChainCellSolve | MocChainTerminationDecision:
+    """Solve one cell from the exact bounded prior field, or return a stop."""
+
+    if not isinstance(current, MocChainCell):
+      raise TypeError('current must be a MocChainCell')
+    if (
+      isinstance(next_cell_index, bool)
+      or not isinstance(next_cell_index, int)
+      or next_cell_index != current.cell_index + 1
+    ):
+      raise ValueError('next_cell_index must immediately follow current.cell_index')
+    if next_cell_index > self.total_cell_count:
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
+        message=(
+          'field-coupled post-shock reference exhausted its configured '
+          f'{self.total_cell_count}-cell fixture'
+        ),
+      )
+    return solve_marched_attached_shock_chain_cell_from_post_shock_field_or_termination(
+      current,
+      next_cell_index,
+      incoming_handoff,
+      upstream_field,
+      start_point_m=self.start_point_at(
+        upstream_field,
+        current,
+        next_cell_index,
+      ),
+      end_x_m=self.end_x_at(upstream_field, current, next_cell_index),
+      target_centerline_y_m=self.target_centerline_y_m,
+      downstream_flow_angle_at=self.downstream_flow_angle_at,
+      sample_count=self.sample_count,
+      branch=self.branch,
+    )
+
+
 def plan_prescribed_post_shock_chain_mock(
   seed: MocPostShockCharacteristicFieldResult,
   *,
@@ -958,6 +1129,67 @@ def plan_solver_generated_post_shock_chain_reference(
     planner,
     diagnostics={
       'solver_generated_chain_reference': fixture.as_report(),
+    },
+  )
+
+
+def plan_field_coupled_post_shock_chain_reference(
+  seed: MocPostShockCharacteristicFieldResult,
+  *,
+  start_x_m: float,
+  end_x_m: float,
+  reference: MocFieldCoupledPostShockChainReference | None = None,
+  policy: MocChainContinuationPolicy | None = None,
+) -> MocChainPlannerResult:
+  """Run the bounded prior-field-fed, research-only chain reference."""
+
+  fixture = (
+    MocFieldCoupledPostShockChainReference()
+    if reference is None
+    else reference
+  )
+  if not isinstance(fixture, MocFieldCoupledPostShockChainReference):
+    raise TypeError(
+      'reference must be a MocFieldCoupledPostShockChainReference'
+    )
+  current_field = seed
+
+  def solve_next(
+    current: MocChainCell,
+    next_cell_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+  ) -> MocPostShockChainCellSolve | MocChainTerminationDecision:
+    nonlocal current_field
+    solved = fixture.solve_next(
+      current,
+      next_cell_index,
+      incoming_handoff,
+      current_field,
+    )
+    if isinstance(solved, MocPostShockChainCellSolve):
+      current_field = solved.field
+    return solved
+
+  planner = plan_post_shock_characteristic_chain(
+    seed,
+    solve_next,
+    start_x_m=start_x_m,
+    end_x_m=end_x_m,
+    policy=policy,
+    require_upstream_shock_coupling=True,
+    planner_kind=MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH,
+    claim_status=(
+      'bounded-field-coupled-shock-chain-reference; '
+      'canonical-reflected-domain-and-physical-downstream-boundary-pending'
+    ),
+  )
+  return replace(
+    planner,
+    diagnostics={
+      'field_coupled_chain_reference': fixture.as_report(),
+      'upstream_field_replacement_policy': (
+        'replace-only-after-complete-field-coupled-solve'
+      ),
     },
   )
 ####

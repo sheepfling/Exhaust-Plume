@@ -8,11 +8,16 @@ from exhaust_plume.models.moc import (
   CharacteristicState,
   MocAmbientAttachmentStatus,
   MocAmbientClosureStatus,
+  MocChainStatus,
   MocChainTerminationDecision,
   MocChainTerminationReason,
+  MocCharacteristicCell,
   MocFreeBoundaryShockStatus,
+  MocFieldCoupledPostShockChainReference,
   MocInvariantClosureFamily,
   MocInvariantClosureStatus,
+  MocPostShockCharacteristicFieldResult,
+  MocPostShockFieldStatus,
   MocShockCellTransitionStatus,
   MocSourceStripContinuationStatus,
   assemble_reflected_characteristic_zone,
@@ -35,6 +40,7 @@ from exhaust_plume.models.moc import (
   solve_marched_attached_shock_with_ambient_pressure_closure_from_reflected_zone,
   continue_post_shock_characteristic_chain,
   plan_ambient_pressure_field_chain,
+  plan_field_coupled_post_shock_chain_reference,
   plan_post_shock_field_chain,
   solve_reflected_free_boundary,
   assemble_source_characteristic_strip,
@@ -44,6 +50,7 @@ from exhaust_plume.models.moc import (
   prandtl_meyer_angle_rad,
   solve_underexpanded_expansion_fan,
   solve_uniform_attached_shock_field,
+  validate_moc_mesh,
 )
 from exhaust_plume.models.nozzle.exit_state import derive_ambient_state, derive_uniform_nozzle_exit
 from exhaust_plume.util.aero.shock_validity import ShockBranch
@@ -62,6 +69,71 @@ def _uniform_reference(sample_count: int):
     (0.5, 0.5),
     outer_downstream_flow_angle_rad=0.05,
     sample_count=sample_count,
+  )
+
+
+def _broad_bounded_field_reference() -> MocPostShockCharacteristicFieldResult:
+  """Build a clearly labeled broad domain for continuation-contract tests."""
+
+  points = ((0.5, 0.0), (0.5, 0.5), (2.0, 0.5), (2.0, 0.0))
+  cell = MocCharacteristicCell(
+    cell_index=0,
+    cell_kind='synthetic-bounded-domain',
+    vertices_xr_m=points,
+    centerline_indices=(0,),
+    boundary_indices=(0,),
+  )
+  states = tuple(
+    CharacteristicState(
+      x_m=point[0],
+      y_m=point[1],
+      theta_rad=-0.2,
+      mach=2.0,
+      gamma=1.4,
+    )
+    for point in points
+  )
+  continuation_points = (
+    (0.5, 0.0),
+    (0.75, 0.15),
+    (1.3, 0.35),
+    (2.0, 0.5),
+  )
+  continuation_states = tuple(
+    CharacteristicState(
+      x_m=point[0],
+      y_m=point[1],
+      theta_rad=-0.2,
+      mach=2.0,
+      gamma=1.4,
+    )
+    for point in continuation_points
+  )
+  return MocPostShockCharacteristicFieldResult(
+    status=MocPostShockFieldStatus.CONVERGED_CLOSED,
+    characteristic_layer_count=1,
+    nodes=(),
+    cells=(cell,),
+    topology=validate_moc_mesh((cell,)),
+    shock_boundary_points_m=points,
+    centerline_boundary_points_m=((0.5, 0.0), (2.0, 0.0)),
+    upstream_boundary_states=states,
+    upstream_boundary_total_pressure_Pa=(100000.0,) * len(states),
+    continuation_boundary_states=continuation_states,
+    continuation_boundary_total_pressure_Pa=(90000.0,) * len(continuation_states),
+    terminal_centerline_state=states[0],
+    maximum_geometry_residual_m=0.0,
+    maximum_absolute_invariant_residual=0.0,
+    minimum_forward_margin_m=1.0,
+    upstream_total_pressure_range_Pa=(100000.0, 100000.0),
+    downstream_total_pressure_range_Pa=(90000.0, 90000.0),
+    minimum_post_shock_total_pressure_ratio=0.9,
+    maximum_post_shock_total_pressure_ratio=0.9,
+    physical_closure_status='synthetic-bounded-domain-reference',
+    shock_closure_status='synthetic-reference',
+    maximum_shock_angle_residual_rad=0.0,
+    shock_boundary_states=states,
+    shock_boundary_total_pressure_Pa=(90000.0,) * len(states),
   )
 
 
@@ -190,6 +262,37 @@ def test_field_coupled_planner_audits_the_resolved_field_handoff() -> None:
   assert planner.steps[0].result_termination_reason is MocChainTerminationReason.PHYSICAL_TERMINATION
   assert planner.steps[0].result_physical_termination is True
   assert seen == [(True, 1, 2)]
+
+
+def test_field_coupled_planner_re_solves_a_cell_then_stops_at_field_boundary() -> None:
+  seed = _broad_bounded_field_reference()
+  reference = MocFieldCoupledPostShockChainReference(
+    cell_axial_length_m=0.1,
+    shock_start_offset_m=0.05,
+    shock_start_y_m=0.25,
+    downstream_flow_angle_scale_rad_per_m=0.2,
+  )
+
+  planner = plan_field_coupled_post_shock_chain_reference(
+    seed,
+    start_x_m=0.5,
+    end_x_m=0.6,
+    reference=reference,
+  )
+
+  assert planner.chain.status is MocChainStatus.SOLVER_TERMINATED
+  assert planner.chain.termination_reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+  assert planner.chain.physical_termination is False
+  assert planner.chain.cell_count == 2
+  assert planner.steps[0].result_kind == 'field-solve-returned'
+  assert planner.steps[0].result_status == 'converged_closed'
+  assert planner.steps[1].result_kind == 'termination-returned'
+  assert planner.steps[1].result_termination_reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+  assert planner.handoff_links_verified is True
+  assert planner.diagnostics['field_coupled_chain_reference']['cell_axial_length_m'] == 0.1
+  assert planner.diagnostics['field_coupled_chain_reference']['upstream_pressure_model'] == (
+    'bounded-previous-post-shock-field'
+  )
 
 
 def test_ambient_pressure_field_chain_adapter_reports_bounded_upstream_stop() -> None:

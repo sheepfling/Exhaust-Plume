@@ -33,6 +33,7 @@ from exhaust_plume.models.moc import (
   MocShockBoundaryFitResult,
   MocPrescribedPostShockChainMock,
   MocSolverGeneratedPostShockChainReference,
+  MocFieldCoupledPostShockChainReference,
   MocPrimitiveStatus,
   assemble_post_shock_characteristic_zone,
   assemble_post_shock_characteristic_field,
@@ -42,6 +43,7 @@ from exhaust_plume.models.moc import (
   continue_post_shock_characteristic_chain,
   plan_post_shock_characteristic_chain,
   plan_solver_generated_post_shock_chain_reference,
+  plan_field_coupled_post_shock_chain_reference,
   plan_prescribed_post_shock_chain_mock,
   fit_attached_shock_boundary,
   sample_post_shock_zone_along_shock_path,
@@ -753,6 +755,44 @@ def test_solver_generated_post_shock_reference_re_solves_multiple_cells() -> Non
   ]
   assert planner.diagnostics['solver_generated_chain_reference']['planning_only'] is True
   assert planner.diagnostics['solver_generated_chain_reference']['production_claim_allowed'] is False
+
+
+def test_field_coupled_post_shock_reference_uses_the_bounded_prior_field() -> None:
+  generated = solve_uniform_attached_shock_field(
+    CharacteristicState(
+      x_m=0.5,
+      y_m=0.5,
+      theta_rad=-0.2,
+      mach=2.0,
+      gamma=1.4,
+    ),
+    100000.0,
+    (0.5, 0.5),
+    outer_downstream_flow_angle_rad=0.05,
+    sample_count=17,
+  )
+  assert generated.field is not None
+  reference = MocFieldCoupledPostShockChainReference()
+
+  planner = plan_field_coupled_post_shock_chain_reference(
+    generated.field,
+    start_x_m=0.5,
+    end_x_m=0.9,
+    reference=reference,
+  )
+
+  assert planner.planner_kind is MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
+  assert planner.production_claim_allowed is False
+  assert planner.chain.cell_count == 1
+  assert planner.chain.physical_termination is True
+  assert planner.chain.termination_reason is MocChainTerminationReason.PHYSICAL_TERMINATION
+  assert planner.steps[0].result_termination_reason is MocChainTerminationReason.PHYSICAL_TERMINATION
+  assert planner.diagnostics['field_coupled_chain_reference']['upstream_state_model'] == (
+    'bounded-previous-post-shock-field'
+  )
+  assert planner.diagnostics['upstream_field_replacement_policy'] == (
+    'replace-only-after-complete-field-coupled-solve'
+  )
 
 
 def test_prescribed_chain_mock_uses_a_solver_backed_attached_shock_fit() -> None:

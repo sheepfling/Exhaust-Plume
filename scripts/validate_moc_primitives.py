@@ -30,6 +30,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocPostShockCharacteristicFieldResult,
   MocPrescribedPostShockChainMock,
   MocSolverGeneratedPostShockChainReference,
+  MocFieldCoupledPostShockChainReference,
   MocReflectedCharacteristicZoneResult,
   MocChainBoundaryKind,
   MocChainTerminationDecision,
@@ -50,7 +51,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   plan_caustic_upstream_bridge_invariant_chain,
   plan_ambient_pressure_field_chain,
   plan_post_shock_characteristic_chain,
-  plan_post_shock_field_chain,
+  plan_field_coupled_post_shock_chain_reference,
   plan_terminal_reflection_patch_chain,
   MocShockBoundaryFitResult,
   MocShockBoundaryFitStatus,
@@ -1580,7 +1581,7 @@ def _solver_generated_chain_reference(
 def _solver_generated_field_coupled_chain_planner(
   seed_field: MocPostShockCharacteristicFieldResult,
 ) -> Any:
-  """Exercise the planner whose next shock samples the solved prior field.
+  """Exercise the public planner whose next shock samples the solved field.
 
   The start point and downstream turn law are deliberately explicit reference
   conditions. The upstream state and pressure are no longer callbacks that
@@ -1591,17 +1592,11 @@ def _solver_generated_field_coupled_chain_planner(
 
   if not seed_field.converged or not seed_field.upstream_shock_coupling_verified:
     return None
-  start_point = (0.92, 0.05)
-  return plan_post_shock_field_chain(
+  return plan_field_coupled_post_shock_chain_reference(
     seed_field,
     start_x_m=0.5,
     end_x_m=0.9,
-    start_point_at=lambda _field, _current, _cell_index: start_point,
-    downstream_flow_angle_at=(
-      lambda _index, point: 0.12 * point[1] / start_point[1]
-    ),
-    sample_count=9,
-    position_tolerance_m=1.0e-8,
+    reference=MocFieldCoupledPostShockChainReference(),
   )
 
 
@@ -3719,6 +3714,8 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or solver_generated_field_coupled_chain_planner.steps[0].boundary_kind is not MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER
     or solver_generated_field_coupled_chain_planner.chain.diagnostics.get('termination_model') != 'normal-shock-terminal'
     or solver_generated_field_coupled_chain_planner.chain.diagnostics.get('upstream_field_model') != 'bounded-post-shock-characteristic-field'
+    or solver_generated_field_coupled_chain_planner.diagnostics.get('field_coupled_chain_reference', {}).get('upstream_state_model') != 'bounded-previous-post-shock-field'
+    or solver_generated_field_coupled_chain_planner.diagnostics.get('upstream_field_replacement_policy') != 'replace-only-after-complete-field-coupled-solve'
   )
   ambient_pressure_field_coupled_chain_failure = (
     ambient_pressure_field_coupled_chain_planner is None
@@ -4427,6 +4424,23 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'accepted': not solver_generated_chain_terminal_failure,
     },
     'solver_generated_field_coupled_chain_planner': {
+      'reference': (
+        {}
+        if solver_generated_field_coupled_chain_planner is None
+        else dict(
+          solver_generated_field_coupled_chain_planner.diagnostics.get(
+            'field_coupled_chain_reference',
+            {},
+          )
+        )
+      ),
+      'upstream_field_replacement_policy': (
+        None
+        if solver_generated_field_coupled_chain_planner is None
+        else solver_generated_field_coupled_chain_planner.diagnostics.get(
+          'upstream_field_replacement_policy'
+        )
+      ),
       'planner_kind': (
         None
         if solver_generated_field_coupled_chain_planner is None
