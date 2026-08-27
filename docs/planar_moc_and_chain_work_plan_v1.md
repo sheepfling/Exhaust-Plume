@@ -1316,6 +1316,10 @@ Only after MOC-1 through MOC-5 pass:
   is exposed only when the returned field has state samples and finite axial
   and transverse extents. A converged status alone can no longer make an
   unsampleable field available to continued-cell probes.
+- Retained shock/centerline state and total-pressure samples in the validated
+  closed-field result. Its chain adapter now emits a typed centerline handoff
+  and requires bounded state-sampling evidence, so a validated field can seed
+  continued-cell bookkeeping without dropping the downstream boundary.
 - The recovered validation archive is not a substitute for the missing
   provider-bound measurement/operator bindings.
 

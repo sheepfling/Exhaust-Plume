@@ -186,16 +186,17 @@ def _closed_post_shock_candidate():
       boundary_index=index,
       point_m=point,
       state=state,
-      point_result=CharacteristicPointResult(
-        status=MocPrimitiveStatus.CONVERGED,
-        state=state,
-        point_m=point,
-        invariant_residual_plus=0.0,
-        invariant_residual_minus=0.0,
-        geometry_residual=0.0,
-        iterations=0,
-      ),
-    )
+        point_result=CharacteristicPointResult(
+          status=MocPrimitiveStatus.CONVERGED,
+          state=state,
+          point_m=point,
+          invariant_residual_plus=0.0,
+          invariant_residual_minus=0.0,
+          geometry_residual=0.0,
+          iterations=0,
+        ),
+        total_pressure_Pa=1.8e6,
+      )
     for index, (point, state) in enumerate(states_by_point.items())
   )
   return shock_fit, continuation, nodes, tuple(cells)
@@ -493,10 +494,18 @@ def test_closed_post_shock_field_requires_explicit_boundary_edges() -> None:
   assert result.physical_closure_verified
   assert result.topology.forms_closed_zone
   assert result.pressure_loss_verified
+  assert result.state_sampling_available
+  assert len(result.shock_boundary_states) == len(result.shock_boundary_points_m)
+  assert len(result.axis_boundary_states) == len(result.axis_boundary_points_m)
   chain_cell = result.as_chain_cell(start_x_m=0.5, end_x_m=1.2)
   assert chain_cell.geometry_fidelity is MocChainGeometryFidelity.RESOLVED_PLANAR_MOC
   assert chain_cell.physical_closure is MocCellClosureStatus.CLOSED
+  assert chain_cell.continuation_boundary_kind is MocChainBoundaryKind.CENTERLINE_TRACE
+  assert len(chain_cell.continuation_boundary) == len(result.axis_boundary_states)
   assert chain_cell.resolved
+  report = result.as_report()
+  assert report['state_sampling_available'] is True
+  assert report['topology_forms_closed_zone'] is True
 
 
 def test_shock_seeded_post_shock_field_closes_a_characteristic_fan() -> None:

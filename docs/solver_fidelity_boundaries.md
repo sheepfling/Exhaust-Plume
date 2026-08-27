@@ -315,6 +315,10 @@ higher-level shock/remesh handoff.
 The caustic-remesh adapter applies the corresponding state-sampling and
 finite-extent gate before exposing a bounded downstream field to
 research-only continuation.
+The generic validated closed-field result now retains its shock/centerline
+state and total-pressure samples and emits a `CENTERLINE_TRACE` handoff when
+it is used as a chain seed; status-only mesh validation is not enough for
+continuation.
 The separate solver-owned simple-wave terminal lane now makes one explicit
 constant-invariant upstream trace from the exact caustic request, marches a
 shock against a linear downstream turn profile, and retains the valid

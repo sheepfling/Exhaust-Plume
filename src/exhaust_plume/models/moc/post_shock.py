@@ -751,6 +751,56 @@ class MocPostShockClosedFieldResult:
   minimum_post_shock_total_pressure_ratio: float | None
   maximum_post_shock_total_pressure_ratio: float | None
   message: str = ''
+  shock_boundary_states: tuple[CharacteristicState, ...] = ()
+  shock_boundary_total_pressure_Pa: tuple[float, ...] = ()
+  axis_boundary_states: tuple[CharacteristicState, ...] = ()
+  axis_boundary_total_pressure_Pa: tuple[float, ...] = ()
+
+  def __post_init__(self) -> None:
+    for name, states, points in (
+      (
+        'shock boundary',
+        self.shock_boundary_states,
+        self.shock_boundary_points_m,
+      ),
+      (
+        'axis boundary',
+        self.axis_boundary_states,
+        self.axis_boundary_points_m,
+      ),
+    ):
+      if states and len(states) != len(points):
+        raise ValueError(f'{name} states must match the boundary point count')
+      if any(not isinstance(state, CharacteristicState) for state in states):
+        raise TypeError(f'{name} states must contain CharacteristicState values')
+    for name, pressures, points in (
+      (
+        'shock_boundary_total_pressure_Pa',
+        self.shock_boundary_total_pressure_Pa,
+        self.shock_boundary_points_m,
+      ),
+      (
+        'axis_boundary_total_pressure_Pa',
+        self.axis_boundary_total_pressure_Pa,
+        self.axis_boundary_points_m,
+      ),
+    ):
+      if pressures and len(pressures) != len(points):
+        raise ValueError(f'{name} must match the boundary point count')
+      if any(not isfinite(float(value)) or value <= 0.0 for value in pressures):
+        raise ValueError(f'{name} must contain finite positive values')
+    object.__setattr__(self, 'shock_boundary_states', tuple(self.shock_boundary_states))
+    object.__setattr__(
+      self,
+      'shock_boundary_total_pressure_Pa',
+      tuple(float(value) for value in self.shock_boundary_total_pressure_Pa),
+    )
+    object.__setattr__(self, 'axis_boundary_states', tuple(self.axis_boundary_states))
+    object.__setattr__(
+      self,
+      'axis_boundary_total_pressure_Pa',
+      tuple(float(value) for value in self.axis_boundary_total_pressure_Pa),
+    )
 
   @property
   def converged(self) -> bool:
@@ -782,6 +832,62 @@ class MocPostShockClosedFieldResult:
     )
   ####
 
+  @property
+  def state_sampling_available(self) -> bool:
+    """Whether the validated field can carry a bounded state handoff."""
+
+    return bool(
+      self.converged
+      and self.cells
+      and len(self.shock_boundary_states) == len(self.shock_boundary_points_m)
+      and len(self.shock_boundary_total_pressure_Pa)
+      == len(self.shock_boundary_points_m)
+      and len(self.axis_boundary_states) == len(self.axis_boundary_points_m)
+      and len(self.axis_boundary_total_pressure_Pa)
+      == len(self.axis_boundary_points_m)
+      and all(node.total_pressure_Pa is not None for node in self.nodes)
+    )
+
+  def as_report(self) -> dict[str, Any]:
+    """Serialize the validated field and its bounded state-carry evidence."""
+
+    points = (
+      *self.shock_boundary_points_m,
+      *self.axis_boundary_points_m,
+      *(node.point_m for node in self.nodes),
+    )
+    x_extent = None if not points else (
+      min(point[0] for point in points),
+      max(point[0] for point in points),
+    )
+    y_extent = None if not points else (
+      min(point[1] for point in points),
+      max(point[1] for point in points),
+    )
+    return {
+      'status': self.status.value,
+      'converged': self.converged,
+      'physical_closure_verified': self.physical_closure_verified,
+      'state_sampling_available': self.state_sampling_available,
+      'node_count': self.node_count,
+      'cell_count': self.cell_count,
+      'domain_x_extent_m': x_extent,
+      'domain_y_extent_m': y_extent,
+      'shock_boundary_sample_count': len(self.shock_boundary_points_m),
+      'axis_boundary_sample_count': len(self.axis_boundary_points_m),
+      'topology_status': self.topology.status.value,
+      'topology_connected': self.topology.connected,
+      'topology_forms_closed_zone': self.topology.forms_closed_zone,
+      'topology_nonmanifold_edge_count': self.topology.nonmanifold_edge_count,
+      'maximum_geometry_residual_m': self.maximum_geometry_residual_m,
+      'maximum_absolute_invariant_residual': self.maximum_absolute_invariant_residual,
+      'maximum_shock_angle_residual_rad': self.maximum_shock_angle_residual_rad,
+      'minimum_post_shock_total_pressure_ratio': self.minimum_post_shock_total_pressure_ratio,
+      'maximum_post_shock_total_pressure_ratio': self.maximum_post_shock_total_pressure_ratio,
+      'message': self.message,
+    }
+  ####
+
   def as_chain_cell(
     self,
     *,
@@ -795,9 +901,10 @@ class MocPostShockClosedFieldResult:
     An open or failed field can never be promoted through this adapter.
     """
 
-    if not self.converged:
+    if not self.converged or not self.state_sampling_available:
       raise ValueError(
-        'only a converged closed post-shock field can become a chain cell'
+        'only a converged closed post-shock field with bounded state samples '
+        'can become a chain cell'
       )
     chain_diagnostics: dict[str, Any] = {
       'source': 'validated-closed-post-shock-field',
@@ -809,6 +916,7 @@ class MocPostShockClosedFieldResult:
       'maximum_shock_angle_residual_rad': self.maximum_shock_angle_residual_rad,
       'minimum_post_shock_total_pressure_ratio': self.minimum_post_shock_total_pressure_ratio,
       'maximum_post_shock_total_pressure_ratio': self.maximum_post_shock_total_pressure_ratio,
+      'state_sampling_available': self.state_sampling_available,
     }
     if diagnostics is not None:
       reserved = set(chain_diagnostics) & set(diagnostics)
@@ -823,6 +931,15 @@ class MocPostShockClosedFieldResult:
       geometry_fidelity=MocChainGeometryFidelity.RESOLVED_PLANAR_MOC,
       physical_closure=MocCellClosureStatus.CLOSED,
       diagnostics=chain_diagnostics,
+      continuation_boundary=tuple(
+        MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
+        for state, pressure in zip(
+          self.axis_boundary_states,
+          self.axis_boundary_total_pressure_Pa,
+          strict=True,
+        )
+      ),
+      continuation_boundary_kind=MocChainBoundaryKind.CENTERLINE_TRACE,
     )
   ####
 
@@ -2572,6 +2689,10 @@ def _closed_field_failure(
   maximum_absolute_invariant_residual: float | None = None,
   maximum_shock_angle_residual_rad: float | None = None,
   pressure_ratios: tuple[float, ...] = (),
+  shock_boundary_states: tuple[CharacteristicState, ...] = (),
+  shock_boundary_total_pressure_Pa: tuple[float, ...] = (),
+  axis_boundary_states: tuple[CharacteristicState, ...] = (),
+  axis_boundary_total_pressure_Pa: tuple[float, ...] = (),
   message: str,
 ) -> MocPostShockClosedFieldResult:
   return MocPostShockClosedFieldResult(
@@ -2587,6 +2708,10 @@ def _closed_field_failure(
     minimum_post_shock_total_pressure_ratio=min(pressure_ratios, default=None),
     maximum_post_shock_total_pressure_ratio=max(pressure_ratios, default=None),
     message=message,
+    shock_boundary_states=shock_boundary_states,
+    shock_boundary_total_pressure_Pa=shock_boundary_total_pressure_Pa,
+    axis_boundary_states=axis_boundary_states,
+    axis_boundary_total_pressure_Pa=axis_boundary_total_pressure_Pa,
   )
 
 
@@ -2965,6 +3090,16 @@ def validate_closed_post_shock_field(
     maximum_absolute_invariant_residual=maximum_invariant_residual,
     maximum_shock_angle_residual_rad=maximum_angle_residual,
     pressure_ratios=pressure_ratios,
+    shock_boundary_states=tuple(sample.state for sample in shock_states),
+    shock_boundary_total_pressure_Pa=tuple(
+      sample.downstream_total_pressure_Pa for sample in shock_states
+    ),
+    axis_boundary_states=tuple(
+      segment.centerline_state for segment in continuation.segments
+    ),
+    axis_boundary_total_pressure_Pa=tuple(
+      sample.downstream_total_pressure_Pa for sample in shock_states
+    ),
     message=(
       'closed post-shock characteristic field verified with explicit shock '
       'and centerline boundary edges'
