@@ -57,6 +57,7 @@ from exhaust_plume.models.moc.free_boundary import (
   solve_marched_attached_shock_from_caustic_upstream_bridge,
   solve_marched_attached_shock_from_caustic_upstream_bridge_with_invariant_boundary,
   solve_marched_attached_shock_chain_cell_from_post_shock_field_or_termination,
+  solve_marched_attached_shock_chain_cell_from_post_shock_field_with_invariant_boundary_or_termination,
 )
 from exhaust_plume.models.moc.family_band_solver import (
   MocCausticFamilyBandEnvelopeStatus,
@@ -76,6 +77,7 @@ __all__ = (
   'plan_moc_chain',
   'plan_post_shock_characteristic_chain',
   'plan_post_shock_field_chain',
+  'plan_post_shock_field_invariant_chain',
   'plan_prescribed_post_shock_chain_mock',
   'plan_solver_generated_post_shock_chain_reference',
   'plan_field_coupled_post_shock_chain_reference',
@@ -2292,6 +2294,126 @@ def plan_post_shock_field_chain(
     claim_status=(
       'bounded-post-shock-field-coupled-planner; '
       'production-shock-boundary-and-external-validation-pending'
+    ),
+  )
+####
+
+
+def plan_post_shock_field_invariant_chain(
+  seed: MocPostShockCharacteristicFieldResult,
+  *,
+  start_x_m: float,
+  end_x_m: float,
+  start_point_at: Callable[
+    [MocPostShockCharacteristicFieldResult, MocChainCell, int],
+    tuple[float, float],
+  ],
+  downstream_invariant_family: CharacteristicFamily,
+  downstream_invariant_at: Callable[
+    [MocPostShockCharacteristicFieldResult, int, tuple[float, float]],
+    float,
+  ],
+  end_x_at: Callable[
+    [MocPostShockCharacteristicFieldResult, MocChainCell, int],
+    float,
+  ] | None = None,
+  target_centerline_y_m: float = 0.0,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  maximum_downstream_angle_rad: float = 0.9,
+  maximum_invariant_scan_samples: int = 64,
+  maximum_invariant_iterations: int = 80,
+  policy: MocChainContinuationPolicy | None = None,
+) -> MocChainPlannerResult:
+  """Plan field-coupled cells with an explicit downstream invariant law.
+
+  The invariant callback receives the currently accepted bounded field, so a
+  caller can derive a target from the local upstream state and pressure before
+  the continuation solver inverts it through attached compression.  The
+  planner replaces the upstream field only after a complete cell is returned;
+  typed physical and numerical stops remain visible in the step audit.
+
+  This is a research planner.  A selected invariant is an explicit downstream
+  condition, not a canonical mixed-regime closure or a production shock
+  placement model.
+  """
+
+  if not isinstance(seed, MocPostShockCharacteristicFieldResult):
+    raise TypeError('seed must be a MocPostShockCharacteristicFieldResult')
+  if not callable(start_point_at):
+    raise TypeError('start_point_at must be callable')
+  if not isinstance(downstream_invariant_family, CharacteristicFamily):
+    raise TypeError(
+      'downstream_invariant_family must be a CharacteristicFamily'
+    )
+  if not callable(downstream_invariant_at):
+    raise TypeError('downstream_invariant_at must be callable')
+  if end_x_at is not None and not callable(end_x_at):
+    raise TypeError('end_x_at must be callable when supplied')
+  if not isfinite(float(start_x_m)) or not isfinite(float(end_x_m)):
+    raise ValueError('start_x_m and end_x_m must be finite')
+  if end_x_m <= start_x_m:
+    raise ValueError('end_x_m must be strictly downstream of start_x_m')
+  cell_axial_length_m = float(end_x_m) - float(start_x_m)
+  current_field = seed
+
+  def solve_next(
+    current: MocChainCell,
+    next_cell_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+  ) -> MocPostShockChainCellSolve | MocChainTerminationDecision:
+    nonlocal current_field
+    start_point = start_point_at(current_field, current, next_cell_index)
+    next_end_x = (
+      end_x_at(current_field, current, next_cell_index)
+      if end_x_at is not None
+      else current.end_x_m + cell_axial_length_m
+    )
+    solved = solve_marched_attached_shock_chain_cell_from_post_shock_field_with_invariant_boundary_or_termination(
+      current,
+      next_cell_index,
+      incoming_handoff,
+      current_field,
+      start_point_m=start_point,
+      end_x_m=next_end_x,
+      downstream_invariant_family=downstream_invariant_family,
+      downstream_invariant_at=(
+        lambda index, point: downstream_invariant_at(
+          current_field,
+          index,
+          point,
+        )
+      ),
+      target_centerline_y_m=target_centerline_y_m,
+      sample_count=sample_count,
+      branch=branch,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+      shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+      maximum_segment_iterations=maximum_segment_iterations,
+      maximum_downstream_angle_rad=maximum_downstream_angle_rad,
+      maximum_invariant_scan_samples=maximum_invariant_scan_samples,
+      maximum_invariant_iterations=maximum_invariant_iterations,
+    )
+    if isinstance(solved, MocPostShockChainCellSolve):
+      current_field = solved.field
+    return solved
+
+  return plan_post_shock_characteristic_chain(
+    seed,
+    solve_next,
+    start_x_m=start_x_m,
+    end_x_m=end_x_m,
+    policy=policy,
+    require_upstream_shock_coupling=True,
+    planner_kind=MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH,
+    claim_status=(
+      'bounded-post-shock-field-invariant-coupled-planner; '
+      'selected-invariant-and-external-validation-pending'
     ),
   )
 ####

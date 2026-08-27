@@ -84,6 +84,13 @@ not wait on this research closure.
   exact prior terminal trace before a solved field can become a next chain-cell
   result. It raises on unresolved closure and cannot relabel reduced-order
   geometry.
+- Added a field-coupled invariant-conditioned continued-cell solver. It uses
+  the exact prior post-shock perimeter plus bounded state/pressure samples,
+  inverts an explicitly selected downstream ``C+``/``C-`` invariant through
+  the attached-compression relation at every shock sample, and returns either
+  a newly assembled state-carrying field or a typed physical/numerical stop.
+  The invariant law remains a research boundary; it does not close the
+  canonical mixed-regime perimeter or promote the fast/reduced-order lanes.
 - Added a reusable invariant-boundary shock marcher and caustic-family chain
   adapter. It solves the local downstream turn from an explicit `C+`/`C-`
   invariant at every generated shock sample, preserves the bounded upstream
@@ -640,11 +647,20 @@ reflected MOC state/pressure field. A terminal source window is allowed as a
 domain-bounded research input only when its omitted prefix and full-strip
 status are retained alongside it.
 
-The invariant-conditioned shock solver is the next explicit boundary for this
-work: it can reject an unbracketed or domain-limited closure, but it does not
-invent a downstream physical law. A converged invariant-conditioned field is
-therefore still research evidence until the selected invariant, case domain,
-and independent measurements are validated.
+The invariant-conditioned shock solver is now an explicit solver boundary for
+this work: it can reject an unbracketed or domain-limited closure, but it does
+not invent a downstream physical law. A converged invariant-conditioned field
+is therefore still research evidence until the selected invariant, case
+domain, and independent measurements are validated.
+
+The field-coupled invariant adapter now applies that same condition to a
+continued cell: it consumes the prior field's exact perimeter, samples only
+inside that finite field, and re-solves the next attached shock and closed
+post-shock characteristic field. A successful cell carries the prior state and
+total-pressure handoff; an invariant miss, upstream-domain miss, solver
+failure, or verified normal-shock endpoint remains typed. This is a solver
+boundary for continued-cell experiments, not a production next-cell shock
+placement or a canonical downstream closure.
 
 The reflected-zone shock solver now closes the upstream callback seam without
 claiming a complete first-cell solution. Its independent coverage report is a
@@ -923,8 +939,10 @@ Only after MOC-1 through MOC-5 pass:
   the geometry-only audit cannot promote the terminal or continue the chain.
 - The invariant-conditioned shock shoot currently records a canonical
   no-bracket result; a selected constant downstream invariant is not yet an
-  accepted physical free-boundary condition. No production solver yet supplies
-  an automatic next-cell shock fit. The state-carrying chain adapters therefore
+  accepted physical free-boundary condition. The field-coupled invariant
+  adapter now supplies a bounded research next-cell shock fit when a caller
+  provides that invariant, but no production solver yet supplies automatic
+  next-cell shock placement. The state-carrying chain adapters therefore
   require a converged explicit research solve and do not use the reduced-order
   chain.
 - A bounded caustic upstream bridge now composes the converged old-family strip

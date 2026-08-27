@@ -52,6 +52,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   plan_ambient_pressure_field_chain,
   plan_post_shock_characteristic_chain,
   plan_field_coupled_post_shock_chain_reference,
+  plan_post_shock_field_invariant_chain,
   plan_terminal_reflection_patch_chain,
   MocShockBoundaryFitResult,
   MocShockBoundaryFitStatus,
@@ -1626,6 +1627,61 @@ def _solver_generated_field_coupled_chain_planner(
     start_x_m=0.5,
     end_x_m=0.9,
     reference=MocFieldCoupledPostShockChainReference(),
+  )
+
+
+def _solver_generated_invariant_field_coupled_chain_planner(
+  seed_field: MocPostShockCharacteristicFieldResult,
+) -> Any:
+  """Exercise continued cells with a field-aware invariant boundary law."""
+
+  if not seed_field.converged or not seed_field.upstream_shock_coupling_verified:
+    return None
+
+  start_y_m = 0.05
+
+  def invariant_target(
+    field: MocPostShockCharacteristicFieldResult,
+    _index: int,
+    point: tuple[float, float],
+  ) -> float:
+    state = field.state_at(point)
+    pressure = field.static_pressure_at(point)
+    if state is None or pressure is None:
+      raise ValueError(
+        'invariant planner could not sample the bounded prior field at '
+        f'{point!r}'
+      )
+    downstream_angle = 2.4 * point[1]
+    compression = solve_attached_compression_to_turn(
+      upstream_mach=state.mach,
+      gamma=state.gamma,
+      upstream_pressure_Pa=pressure,
+      target_turn_rad=downstream_angle - state.theta_rad,
+    )
+    if not compression.converged or compression.downstream_mach is None:
+      raise ValueError(
+        'invariant planner could not derive an attached-compression target: '
+        f'{compression.message}'
+      )
+    return downstream_angle - prandtl_meyer_angle_rad(
+      compression.downstream_mach,
+      state.gamma,
+    )
+
+  return plan_post_shock_field_invariant_chain(
+    seed_field,
+    start_x_m=0.5,
+    end_x_m=0.9,
+    start_point_at=lambda _field, current, _cell_index: (
+      current.end_x_m + 0.02,
+      start_y_m,
+    ),
+    downstream_invariant_family=CharacteristicFamily.PLUS,
+    downstream_invariant_at=invariant_target,
+    sample_count=9,
+    position_tolerance_m=1.0e-8,
+    shock_angle_tolerance_rad=0.1,
   )
 
 
@@ -3551,6 +3607,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
   solver_generated_chain_observations: list[dict[str, Any]] = []
   solver_generated_chain_planner = None
   solver_generated_field_coupled_chain_planner = None
+  solver_generated_invariant_field_coupled_chain_planner = None
   ambient_pressure_field_coupled_chain_planner = None
   if solver_generated_shock.field is not None and solver_generated_shock.field.converged:
     (
@@ -3562,6 +3619,11 @@ def build_moc_primitive_report() -> dict[str, Any]:
     )
     solver_generated_field_coupled_chain_planner = (
       _solver_generated_field_coupled_chain_planner(solver_generated_shock.field)
+    )
+    solver_generated_invariant_field_coupled_chain_planner = (
+      _solver_generated_invariant_field_coupled_chain_planner(
+        solver_generated_shock.field
+      )
     )
     ambient_pressure_field_coupled_chain_planner = (
       _ambient_pressure_field_coupled_chain_planner(solver_generated_shock.field)
@@ -3669,6 +3731,11 @@ def build_moc_primitive_report() -> dict[str, Any]:
     if solver_generated_field_coupled_chain_planner is None
     else solver_generated_field_coupled_chain_planner.as_report()
   )
+  solver_generated_invariant_field_coupled_chain_planner_report = (
+    None
+    if solver_generated_invariant_field_coupled_chain_planner is None
+    else solver_generated_invariant_field_coupled_chain_planner.as_report()
+  )
   shock_cell_chain_mock_report = shock_cell_chain_mock.as_report()
   solver_generated_chain_pressure_lineage_ok = (
     solver_generated_chain_report is not None
@@ -3745,6 +3812,20 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or solver_generated_field_coupled_chain_planner.chain.diagnostics.get('upstream_field_model') != 'bounded-post-shock-characteristic-field'
     or solver_generated_field_coupled_chain_planner.diagnostics.get('field_coupled_chain_reference', {}).get('upstream_state_model') != 'bounded-previous-post-shock-field'
     or solver_generated_field_coupled_chain_planner.diagnostics.get('upstream_field_replacement_policy') != 'replace-only-after-complete-field-coupled-solve'
+  )
+  solver_generated_invariant_field_coupled_chain_failure = (
+    solver_generated_invariant_field_coupled_chain_planner is None
+    or solver_generated_invariant_field_coupled_chain_planner.planner_kind is not MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
+    or not solver_generated_invariant_field_coupled_chain_planner.as_report()['planning_only']
+    or solver_generated_invariant_field_coupled_chain_planner.production_claim_allowed
+    or not solver_generated_invariant_field_coupled_chain_planner.chain.physical_termination
+    or not solver_generated_invariant_field_coupled_chain_planner.chain.resolved
+    or solver_generated_invariant_field_coupled_chain_planner.chain.cell_count != 1
+    or solver_generated_invariant_field_coupled_chain_planner.chain.termination_reason is not MocChainTerminationReason.PHYSICAL_TERMINATION
+    or len(solver_generated_invariant_field_coupled_chain_planner.steps) != 1
+    or solver_generated_invariant_field_coupled_chain_planner.steps[0].boundary_kind is not MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER
+    or solver_generated_invariant_field_coupled_chain_planner.chain.diagnostics.get('termination_model') != 'normal-shock-terminal'
+    or solver_generated_invariant_field_coupled_chain_planner.chain.diagnostics.get('shock_condition_model') != 'explicit-downstream-characteristic-invariant'
   )
   ambient_pressure_field_coupled_chain_failure = (
     ambient_pressure_field_coupled_chain_planner is None
@@ -4535,6 +4616,19 @@ def build_moc_primitive_report() -> dict[str, Any]:
         else solver_generated_field_coupled_chain_planner.claim_status
       ),
     },
+    'solver_generated_invariant_field_coupled_chain_planner': {
+      'planner': (
+        None
+        if solver_generated_invariant_field_coupled_chain_planner_report is None
+        else solver_generated_invariant_field_coupled_chain_planner_report
+      ),
+      'accepted': not solver_generated_invariant_field_coupled_chain_failure,
+      'claim_status': (
+        None
+        if solver_generated_invariant_field_coupled_chain_planner is None
+        else solver_generated_invariant_field_coupled_chain_planner.claim_status
+      ),
+    },
     'ambient_pressure_field_coupled_chain_planner': (
       {
         'status': 'missing',
@@ -5065,6 +5159,22 @@ def build_moc_primitive_report() -> dict[str, Any]:
         ),
       }
     ] if solver_generated_field_coupled_chain_failure else []),
+    *([
+      {
+        'case': 'solver_generated_invariant_field_coupled_chain_planner',
+        'status': (
+          'missing'
+          if solver_generated_invariant_field_coupled_chain_planner is None
+          else solver_generated_invariant_field_coupled_chain_planner.chain.status.value
+        ),
+        'message': (
+          'invariant-conditioned field-coupled planner did not preserve its '
+          'typed physical-terminal and exact-handoff contract'
+          if solver_generated_invariant_field_coupled_chain_planner is not None
+          else 'invariant-conditioned field-coupled planner could not be constructed'
+        ),
+      }
+    ] if solver_generated_invariant_field_coupled_chain_failure else []),
     *([
       {
         'case': 'ambient_pressure_field_coupled_chain_planner',

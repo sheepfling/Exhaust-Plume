@@ -17,6 +17,7 @@ from exhaust_plume.models.moc import (
   MocInvariantClosureFamily,
   MocInvariantClosureStatus,
   MocPostShockCharacteristicFieldResult,
+  MocPostShockChainCellSolve,
   MocPostShockFieldStatus,
   MocShockCellTransitionStatus,
   MocSourceStripContinuationStatus,
@@ -27,6 +28,7 @@ from exhaust_plume.models.moc import (
   solve_marched_attached_shock_chain_cell_from_reflected_zone_or_termination,
   solve_marched_attached_shock_chain_cell_from_post_shock_field,
   solve_marched_attached_shock_chain_cell_from_post_shock_field_or_termination,
+  solve_marched_attached_shock_chain_cell_from_post_shock_field_with_invariant_boundary_or_termination,
   solve_marched_attached_shock_chain_cell_with_ambient_pressure_closure,
   solve_marched_attached_shock_chain_cell_with_ambient_pressure_closure_or_termination,
   solve_marched_attached_shock_chain_cell,
@@ -42,6 +44,7 @@ from exhaust_plume.models.moc import (
   continue_post_shock_characteristic_chain,
   plan_ambient_pressure_field_chain,
   plan_field_coupled_post_shock_chain_reference,
+  plan_post_shock_field_invariant_chain,
   plan_post_shock_field_chain,
   solve_reflected_free_boundary,
   assemble_source_characteristic_strip,
@@ -229,6 +232,108 @@ def test_field_coupled_next_shock_reports_the_prior_field_domain_boundary() -> N
   assert decision.diagnostics['last_valid_point_m'] is None
 
 
+def test_invariant_field_coupled_next_shock_re_solves_a_state_carrying_cell() -> None:
+  seed = _broad_bounded_field_reference()
+  current = seed.as_coupled_chain_cell(start_x_m=0.5, end_x_m=0.6)
+  start = (0.75, 0.25)
+
+  def invariant_target(_index: int, point: tuple[float, float]) -> float:
+    state = seed.state_at(point)
+    pressure = seed.static_pressure_at(point)
+    assert state is not None
+    assert pressure is not None
+    downstream_angle = 0.12 * point[1] / start[1]
+    compression = solve_attached_compression_to_turn(
+      upstream_mach=state.mach,
+      gamma=state.gamma,
+      upstream_pressure_Pa=pressure,
+      target_turn_rad=downstream_angle - state.theta_rad,
+    )
+    assert compression.converged
+    assert compression.downstream_mach is not None
+    return downstream_angle - prandtl_meyer_angle_rad(
+      compression.downstream_mach,
+      state.gamma,
+    )
+
+  solved = solve_marched_attached_shock_chain_cell_from_post_shock_field_with_invariant_boundary_or_termination(
+    current,
+    2,
+    current.continuation_boundary,
+    seed,
+    start_point_m=start,
+    end_x_m=1.2,
+    downstream_invariant_family=CharacteristicFamily.PLUS,
+    downstream_invariant_at=invariant_target,
+    sample_count=9,
+    position_tolerance_m=1.0e-8,
+    shock_angle_tolerance_rad=0.1,
+  )
+
+  assert isinstance(solved, MocPostShockChainCellSolve)
+  assert solved.end_x_m == pytest.approx(1.2)
+  assert solved.field.converged
+  assert solved.field.shock_closure_status == (
+    'invariant-conditioned-marched-attached-shock'
+  )
+  assert solved.field.incoming_handoff_states == tuple(
+    sample.state for sample in current.continuation_boundary
+  )
+  assert solved.field.incoming_handoff_total_pressure_Pa == tuple(
+    sample.total_pressure_Pa for sample in current.continuation_boundary
+  )
+  assert solved.field.upstream_shock_coupling_verified
+  assert len(solved.field.shock_boundary_points_m) == 9
+
+
+def test_invariant_field_coupled_next_shock_preserves_physical_terminal() -> None:
+  result = _uniform_reference(17)
+  assert result.field is not None
+  current = result.field.as_coupled_chain_cell(start_x_m=0.5, end_x_m=0.9)
+  start = (0.92, 0.05)
+
+  def invariant_target(_index: int, point: tuple[float, float]) -> float:
+    state = result.field.state_at(point)
+    pressure = result.field.static_pressure_at(point)
+    assert state is not None
+    assert pressure is not None
+    downstream_angle = 0.12 * point[1] / start[1]
+    compression = solve_attached_compression_to_turn(
+      upstream_mach=state.mach,
+      gamma=state.gamma,
+      upstream_pressure_Pa=pressure,
+      target_turn_rad=downstream_angle - state.theta_rad,
+    )
+    assert compression.converged
+    assert compression.downstream_mach is not None
+    return downstream_angle - prandtl_meyer_angle_rad(
+      compression.downstream_mach,
+      state.gamma,
+    )
+
+  decision = solve_marched_attached_shock_chain_cell_from_post_shock_field_with_invariant_boundary_or_termination(
+    current,
+    2,
+    current.continuation_boundary,
+    result.field,
+    start_point_m=start,
+    end_x_m=1.4,
+    downstream_invariant_family=CharacteristicFamily.PLUS,
+    downstream_invariant_at=invariant_target,
+    sample_count=9,
+    position_tolerance_m=1.0e-8,
+    shock_angle_tolerance_rad=0.1,
+  )
+
+  assert isinstance(decision, MocChainTerminationDecision)
+  assert decision.physical_termination
+  assert decision.reason is MocChainTerminationReason.PHYSICAL_TERMINATION
+  assert decision.diagnostics['termination_model'] == 'normal-shock-terminal'
+  assert decision.diagnostics['shock_condition_model'] == (
+    'explicit-downstream-characteristic-invariant'
+  )
+
+
 def test_field_coupled_planner_audits_the_resolved_field_handoff() -> None:
   result = _uniform_reference(17)
   assert result.field is not None
@@ -263,6 +368,66 @@ def test_field_coupled_planner_audits_the_resolved_field_handoff() -> None:
   assert planner.steps[0].result_termination_reason is MocChainTerminationReason.PHYSICAL_TERMINATION
   assert planner.steps[0].result_physical_termination is True
   assert seen == [(True, 1, 2)]
+
+
+def test_invariant_field_coupled_planner_replaces_only_complete_fields() -> None:
+  seed = _broad_bounded_field_reference()
+  seen_fields: list[MocPostShockCharacteristicFieldResult] = []
+
+  def start_point_at(
+    field: MocPostShockCharacteristicFieldResult,
+    current,
+    _next_cell_index: int,
+  ) -> tuple[float, float]:
+    seen_fields.append(field)
+    return (current.end_x_m + 0.05, 0.25)
+
+  def invariant_target(
+    field: MocPostShockCharacteristicFieldResult,
+    _index: int,
+    point: tuple[float, float],
+  ) -> float:
+    state = field.state_at(point)
+    pressure = field.static_pressure_at(point)
+    assert state is not None
+    assert pressure is not None
+    downstream_angle = 0.12 * point[1] / 0.25
+    compression = solve_attached_compression_to_turn(
+      upstream_mach=state.mach,
+      gamma=state.gamma,
+      upstream_pressure_Pa=pressure,
+      target_turn_rad=downstream_angle - state.theta_rad,
+    )
+    assert compression.converged
+    assert compression.downstream_mach is not None
+    return downstream_angle - prandtl_meyer_angle_rad(
+      compression.downstream_mach,
+      state.gamma,
+    )
+
+  planner = plan_post_shock_field_invariant_chain(
+    seed,
+    start_x_m=0.5,
+    end_x_m=0.6,
+    start_point_at=start_point_at,
+    downstream_invariant_family=CharacteristicFamily.PLUS,
+    downstream_invariant_at=invariant_target,
+    sample_count=9,
+    position_tolerance_m=1.0e-8,
+    shock_angle_tolerance_rad=0.1,
+  )
+
+  assert planner.planner_kind.value == 'upstream-coupled-research'
+  assert planner.production_claim_allowed is False
+  assert planner.chain.status is MocChainStatus.SOLVER_TERMINATED
+  assert planner.chain.termination_reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+  assert planner.chain.cell_count == 2
+  assert planner.handoff_links_verified is True
+  assert len(seen_fields) == 2
+  assert seen_fields[0] is seed
+  assert seen_fields[1] is not seed
+  assert planner.steps[0].result_status == 'converged_closed'
+  assert planner.steps[1].result_termination_reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
 
 
 def test_field_coupled_planner_re_solves_a_cell_then_stops_at_field_boundary() -> None:

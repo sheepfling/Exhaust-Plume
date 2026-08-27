@@ -93,6 +93,8 @@ __all__ = (
   'solve_marched_attached_shock_chain_cell_from_reflected_zone_or_termination',
   'solve_marched_attached_shock_chain_cell_from_post_shock_field',
   'solve_marched_attached_shock_chain_cell_from_post_shock_field_or_termination',
+  'solve_marched_attached_shock_chain_cell_from_post_shock_field_with_invariant_boundary',
+  'solve_marched_attached_shock_chain_cell_from_post_shock_field_with_invariant_boundary_or_termination',
   'solve_marched_attached_shock_chain_cell_from_post_shock_zone',
   'solve_marched_attached_shock_chain_cell_from_post_shock_zone_or_termination',
   'solve_uniform_attached_shock_field',
@@ -596,6 +598,16 @@ def _solve_downstream_angle_for_invariant(
       return None
     return residual, compression
 
+  zero_turn_evaluation = evaluate(state.theta_rad)
+  if (
+    zero_turn_evaluation is not None
+    and abs(zero_turn_evaluation[0]) <= invariant_tolerance
+  ):
+    return _InvariantBoundaryAngleResult(
+      angle_rad=state.theta_rad,
+      residual=zero_turn_evaluation[0],
+      message='',
+    )
   lower_evaluation = evaluate(lower)
   if lower_evaluation is None:
     return _InvariantBoundaryAngleResult(
@@ -2252,6 +2264,112 @@ def solve_marched_attached_shock_chain_cell_from_post_shock_field(
 ####
 
 
+def _invariant_post_shock_field_chain_result_or_termination(
+  current_cell: MocChainCell,
+  next_cell_index: int,
+  handoff: tuple[MocChainBoundarySample, ...],
+  solved: MocFreeBoundaryShockResult,
+  end_x: float,
+) -> MocPostShockChainCellSolve | MocChainTerminationDecision:
+  """Convert an invariant-conditioned field solve into a cell or stop."""
+
+  if solved.subsonic_terminal_required:
+    terminal = solved.normal_shock_terminal
+    if (
+      not solved.terminal_model_verified
+      or terminal is None
+      or len(solved.upstream_states) != solved.sample_count
+      or len(solved.upstream_pressure_Pa) != solved.sample_count
+      or terminal.upstream_state is None
+      or terminal.upstream_pressure_Pa is None
+    ):
+      raise ValueError(
+        'field-coupled invariant shock reached an incomplete normal-shock terminal'
+      )
+    return MocChainTerminationDecision(
+      physical_termination=True,
+      reason=MocChainTerminationReason.PHYSICAL_TERMINATION,
+      message=(
+        'field-coupled invariant shock reached a verified subsonic normal shock; '
+        'the mixed-regime downstream field remains outside the supersonic MOC chain'
+      ),
+      diagnostics={
+        'termination_model': 'normal-shock-terminal',
+        'shock_condition_model': 'explicit-downstream-characteristic-invariant',
+        'upstream_field_model': 'bounded-post-shock-characteristic-field',
+        'shock_point_m': terminal.shock_point_m,
+        'downstream_mach': terminal.downstream_mach,
+        'downstream_pressure_Pa': terminal.downstream_pressure_Pa,
+        'total_pressure_ratio': terminal.total_pressure_ratio,
+        'upstream_sample_count': solved.sample_count,
+        'next_cell_index': next_cell_index,
+      },
+    )
+  if solved.status is MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE:
+    last_valid = solved.upstream_states[-1] if solved.upstream_states else None
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
+      message=(
+        'field-coupled invariant shock left the bounded prior post-shock field '
+        'before a complete next cell was solved; no extrapolation or physical '
+        'endpoint was inferred'
+      ),
+      diagnostics={
+        'termination_model': 'bounded-post-shock-field-boundary',
+        'shock_condition_model': 'explicit-downstream-characteristic-invariant',
+        'upstream_field_model': 'bounded-post-shock-characteristic-field',
+        'sampled_count': len(solved.upstream_states),
+        'first_missing_sample_index': len(solved.upstream_states),
+        'last_valid_point_m': (
+          None if last_valid is None else (last_valid.x_m, last_valid.y_m)
+        ),
+        'shock_status': solved.status.value,
+        'next_cell_index': next_cell_index,
+      },
+    )
+  if not solved.converged or solved.field is None:
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=MocChainTerminationReason.SOLVER_ERROR,
+      message=(
+        'field-coupled invariant shock solver did not produce a complete next '
+        'cell; no physical endpoint was inferred'
+      ),
+      diagnostics={
+        'termination_model': 'bounded-post-shock-field-solver-failure',
+        'shock_condition_model': 'explicit-downstream-characteristic-invariant',
+        'shock_status': solved.status.value,
+        'shock_message': solved.message,
+        'next_cell_index': next_cell_index,
+      },
+    )
+  field = solved.field
+  expected_states = tuple(sample.state for sample in handoff)
+  expected_pressures = tuple(sample.total_pressure_Pa for sample in handoff)
+  if (
+    field.incoming_handoff_states != expected_states
+    or field.incoming_handoff_total_pressure_Pa != expected_pressures
+    or not field.upstream_shock_coupling_verified
+  ):
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=MocChainTerminationReason.STATE_NOT_CARRIED,
+      message=(
+        'field-coupled invariant shock did not retain the exact incoming '
+        'boundary or its upstream shock carry'
+      ),
+      diagnostics={
+        'termination_model': 'bounded-post-shock-field-state-handoff',
+        'shock_condition_model': 'explicit-downstream-characteristic-invariant',
+        'next_cell_index': next_cell_index,
+        'incoming_handoff_sample_count': len(handoff),
+      },
+    )
+  return MocPostShockChainCellSolve(field=field, end_x_m=end_x)
+####
+
+
 def solve_marched_attached_shock_chain_cell_from_post_shock_field_or_termination(
   current_cell: MocChainCell,
   next_cell_index: int,
@@ -2380,6 +2498,144 @@ def solve_marched_attached_shock_chain_cell_from_post_shock_field_or_termination
       },
     )
   return MocPostShockChainCellSolve(field=field, end_x_m=end_x)
+####
+
+
+def solve_marched_attached_shock_chain_cell_from_post_shock_field_with_invariant_boundary(
+  current_cell: MocChainCell,
+  next_cell_index: int,
+  incoming_handoff: Sequence[MocChainBoundarySample],
+  upstream_field: MocPostShockCharacteristicFieldResult,
+  *,
+  start_point_m: tuple[float, float],
+  end_x_m: float,
+  downstream_invariant_family: CharacteristicFamily,
+  downstream_invariant_at: Callable[[int, tuple[float, float]], float],
+  target_centerline_y_m: float = 0.0,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  maximum_downstream_angle_rad: float = 0.9,
+  maximum_invariant_scan_samples: int = 64,
+  maximum_invariant_iterations: int = 80,
+) -> MocPostShockChainCellSolve:
+  """Solve one invariant-conditioned continued cell from a bounded field.
+
+  The prior resolved post-shock field supplies the only upstream state and
+  pressure data.  At each shock sample the supplied characteristic invariant
+  is inverted through the attached-compression relation before the shock and
+  post-shock field are re-solved.  The invariant callback is an explicit
+  research boundary condition; this adapter does not promote it to the
+  canonical mixed-regime production closure.
+  """
+
+  solved = (
+    solve_marched_attached_shock_chain_cell_from_post_shock_field_with_invariant_boundary_or_termination(
+      current_cell,
+      next_cell_index,
+      incoming_handoff,
+      upstream_field,
+      start_point_m=start_point_m,
+      end_x_m=end_x_m,
+      downstream_invariant_family=downstream_invariant_family,
+      downstream_invariant_at=downstream_invariant_at,
+      target_centerline_y_m=target_centerline_y_m,
+      sample_count=sample_count,
+      branch=branch,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+      shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+      maximum_segment_iterations=maximum_segment_iterations,
+      maximum_downstream_angle_rad=maximum_downstream_angle_rad,
+      maximum_invariant_scan_samples=maximum_invariant_scan_samples,
+      maximum_invariant_iterations=maximum_invariant_iterations,
+    )
+  )
+  if isinstance(solved, MocChainTerminationDecision):
+    raise ValueError(solved.message)
+  return solved
+####
+
+
+def solve_marched_attached_shock_chain_cell_from_post_shock_field_with_invariant_boundary_or_termination(
+  current_cell: MocChainCell,
+  next_cell_index: int,
+  incoming_handoff: Sequence[MocChainBoundarySample],
+  upstream_field: MocPostShockCharacteristicFieldResult,
+  *,
+  start_point_m: tuple[float, float],
+  end_x_m: float,
+  downstream_invariant_family: CharacteristicFamily,
+  downstream_invariant_at: Callable[[int, tuple[float, float]], float],
+  target_centerline_y_m: float = 0.0,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  maximum_downstream_angle_rad: float = 0.9,
+  maximum_invariant_scan_samples: int = 64,
+  maximum_invariant_iterations: int = 80,
+) -> MocPostShockChainCellSolve | MocChainTerminationDecision:
+  """Solve an invariant-conditioned field-coupled cell or return a typed stop.
+
+  The incoming perimeter must be the exact continuation boundary of the
+  current cell and of the bounded upstream field.  No upstream state is
+  extrapolated.  If the invariant is unreachable, the generated shock exits
+  the field, or a physical normal-shock terminal is reached, the result is
+  returned as a typed termination decision.
+  """
+
+  handoff, start = _validate_post_shock_field_chain_inputs(
+    current_cell,
+    next_cell_index,
+    incoming_handoff,
+    upstream_field,
+    start_point_m=start_point_m,
+    end_x_m=end_x_m,
+    position_tolerance_m=position_tolerance_m,
+  )
+  solved = solve_marched_attached_shock_with_invariant_boundary(
+    upstream_field.state_at,
+    upstream_field.static_pressure_at,
+    start,
+    downstream_invariant_family,
+    downstream_invariant_at,
+    target_centerline_y_m=target_centerline_y_m,
+    incoming_handoff=handoff,
+    sample_count=sample_count,
+    branch=branch,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+    shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+    maximum_segment_iterations=maximum_segment_iterations,
+    maximum_downstream_angle_rad=maximum_downstream_angle_rad,
+    maximum_invariant_scan_samples=maximum_invariant_scan_samples,
+    maximum_invariant_iterations=maximum_invariant_iterations,
+  )
+  if solved.converged and solved.field is not None:
+    solved = replace(
+      solved,
+      field=replace(
+        solved.field,
+        shock_closure_status='invariant-conditioned-marched-attached-shock',
+        message=(
+          'invariant-conditioned marched attached shock and post-shock C+/C- '
+          'field converged with explicit shock and centerline boundary edges'
+        ),
+      ),
+    )
+  return _invariant_post_shock_field_chain_result_or_termination(
+    current_cell,
+    next_cell_index,
+    handoff,
+    solved,
+    float(end_x_m),
+  )
 ####
 
 

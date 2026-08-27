@@ -11451,6 +11451,83 @@
       "accepted": true,
       "claim_status": "bounded-field-coupled-shock-chain-reference; canonical-reflected-domain-and-physical-downstream-boundary-pending"
     },
+    "solver_generated_invariant_field_coupled_chain_planner": {
+      "planner": {
+        "planner_kind": "upstream-coupled-research",
+        "planning_only": true,
+        "production_claim_allowed": false,
+        "claim_status": "bounded-post-shock-field-invariant-coupled-planner; selected-invariant-and-external-validation-pending",
+        "step_count": 1,
+        "handoff_links_verified": null,
+        "steps": [
+          {
+            "current_cell_index": 1,
+            "next_cell_index": 2,
+            "current_end_x_m": 0.9,
+            "boundary_kind": "post-shock-field-perimeter",
+            "incoming_handoff_sample_count": 18,
+            "incoming_total_pressure_range_Pa": [
+              749635.1347251647,
+              764819.179280032
+            ],
+            "incoming_handoff_fingerprint": "d0c3cfd5c26535d39ff1ee5d6c0ce16797ff445aaf2d3130e41244d662347b9b",
+            "incoming_handoff_link_verified": null,
+            "result_kind": "termination-returned",
+            "result_status": "physical-termination",
+            "result_end_x_m": null,
+            "result_geometry_fidelity": null,
+            "result_physical_closure": null,
+            "result_termination_reason": "physical-termination",
+            "result_physical_termination": true,
+            "result_boundary_kind": null,
+            "result_handoff_sample_count": null,
+            "result_total_pressure_range_Pa": null,
+            "result_handoff_fingerprint": null
+          }
+        ],
+        "chain": {
+          "status": "physically-terminated",
+          "termination_reason": "physical-termination",
+          "physical_termination": true,
+          "cell_count": 1,
+          "end_x_m": 0.9,
+          "resolved": true,
+          "state_carry_count": 1,
+          "continuation_boundary_kinds": [
+            "post-shock-field-perimeter"
+          ],
+          "continuation_total_pressure_ranges_Pa": [
+            {
+              "cell_index": 1,
+              "minimum_Pa": 749635.1347251647,
+              "maximum_Pa": 764819.179280032
+            }
+          ],
+          "continuation_boundary_maxima_nonincreasing": null,
+          "geometry_fidelity_counts": {
+            "resolved-planar-moc": 1
+          },
+          "diagnostics": {
+            "termination_model": "normal-shock-terminal",
+            "shock_condition_model": "explicit-downstream-characteristic-invariant",
+            "upstream_field_model": "bounded-post-shock-characteristic-field",
+            "shock_point_m": [
+              0.9734163467348739,
+              0.0
+            ],
+            "downstream_mach": 0.6749290583810074,
+            "downstream_pressure_Pa": 504327.9553094632,
+            "total_pressure_ratio": 0.9029893158083261,
+            "upstream_sample_count": 8,
+            "next_cell_index": 2
+          },
+          "message": "field-coupled invariant shock reached a verified subsonic normal shock; the mixed-regime downstream field remains outside the supersonic MOC chain"
+        },
+        "diagnostics": {}
+      },
+      "accepted": true,
+      "claim_status": "bounded-post-shock-field-invariant-coupled-planner; selected-invariant-and-external-validation-pending"
+    },
     "ambient_pressure_field_coupled_chain_planner": {
       "status": "diagnostic-ambient-pressure-field-chain-boundary",
       "accepted": true,
