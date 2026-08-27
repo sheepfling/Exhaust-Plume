@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput
@@ -50,6 +52,7 @@ from exhaust_plume.models.moc import (
   plan_post_shock_field_invariant_chain,
   plan_post_shock_field_chain,
   plan_source_strip_shock_chain,
+  plan_source_strip_shock_chain_sequence,
   solve_reflected_free_boundary,
   assemble_source_characteristic_strip,
   extend_source_characteristic_strip_constant_k_plus,
@@ -1146,6 +1149,169 @@ def test_source_strip_chain_planner_uses_a_converged_strip_once() -> None:
     'converged_constant_k_plus_extension'
   )
   assert planner.diagnostics['one_step_domain'] is True
+
+
+def test_source_strip_sequence_planner_requires_fresh_domains_per_cell(
+  monkeypatch: pytest.MonkeyPatch,
+) -> None:
+  reflected_boundary, ambient = _reflected_boundary_reference()
+  initial = extend_source_characteristic_strip_constant_k_plus(
+    reflected_boundary.centerline_states,
+    reflected_boundary.boundary_states,
+    2.0e6,
+    ambient.pressure_Pa,
+    additional_sample_count=12,
+    axis_step_m=0.03,
+  )
+  replacement = extend_source_characteristic_strip_constant_k_plus(
+    reflected_boundary.centerline_states,
+    reflected_boundary.boundary_states,
+    2.0e6,
+    ambient.pressure_Pa,
+    additional_sample_count=13,
+    axis_step_m=0.03,
+  )
+  assert initial.converged and initial.strip is not None
+  assert replacement.converged and replacement.strip is not None
+  seed_result = _uniform_reference(17)
+  assert seed_result.field is not None
+  seed_field = seed_result.field
+  solver_strips = []
+
+  def fake_source_solver(
+    current,
+    next_cell_index,
+    incoming_handoff,
+    upstream_strip,
+    **kwargs,
+  ):
+    del next_cell_index
+    solver_strips.append(upstream_strip)
+    incoming = tuple(incoming_handoff)
+    field = replace(
+      seed_field,
+      incoming_handoff_states=tuple(sample.state for sample in incoming),
+      incoming_handoff_total_pressure_Pa=tuple(
+        sample.total_pressure_Pa for sample in incoming
+      ),
+      upstream_boundary_total_pressure_Pa=(
+        min(sample.total_pressure_Pa for sample in incoming),
+      ) * len(seed_field.upstream_boundary_states),
+    )
+    return MocPostShockChainCellSolve(
+      field=field,
+      end_x_m=current.end_x_m + 0.1,
+    )
+
+  monkeypatch.setattr(
+    'exhaust_plume.models.moc.planner.solve_marched_attached_shock_chain_cell_from_source_strip_or_termination',
+    fake_source_solver,
+  )
+  provider_calls = []
+
+  def source_at(current, next_cell_index, incoming_handoff):
+    provider_calls.append((current.cell_index, next_cell_index, incoming_handoff))
+    if next_cell_index == 3:
+      return replacement
+    return None
+
+  planner = plan_source_strip_shock_chain_sequence(
+    seed_field,
+    initial,
+    source_at,
+    start_point_at=lambda current, _index, _source: (
+      current.end_x_m + 0.01,
+      0.1,
+    ),
+    start_x_m=0.5,
+    end_x_m=0.6,
+    downstream_flow_angle_rad=0.05,
+  )
+
+  assert planner.chain.cell_count == 3
+  assert planner.chain.termination_reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+  assert planner.chain.physical_termination is False
+  assert planner.handoff_links_verified is True
+  assert len(provider_calls) == 2
+  assert provider_calls[0][2] == planner.chain.cells[0].continuation_boundary
+  assert provider_calls[1][2] == planner.chain.cells[1].continuation_boundary
+  assert solver_strips == [initial.strip, replacement.strip]
+  assert planner.diagnostics['source_strip_chain_model'] == (
+    'bounded-source-strip-fresh-domain-sequence'
+  )
+  assert planner.diagnostics['one_step_domain'] is False
+  assert planner.diagnostics['source_domain_count'] == 2
+  assert planner.diagnostics['source_domain_attempt_count'] == 3
+  assert planner.diagnostics['source_strip_reuse_policy'] == (
+    'fresh-bounded-source-strip-required-per-cell'
+  )
+
+
+def test_source_strip_sequence_planner_rejects_reused_strip(
+  monkeypatch: pytest.MonkeyPatch,
+) -> None:
+  reflected_boundary, ambient = _reflected_boundary_reference()
+  continuation = extend_source_characteristic_strip_constant_k_plus(
+    reflected_boundary.centerline_states,
+    reflected_boundary.boundary_states,
+    2.0e6,
+    ambient.pressure_Pa,
+    additional_sample_count=12,
+    axis_step_m=0.03,
+  )
+  assert continuation.converged and continuation.strip is not None
+  reissued = replace(continuation, message='reissued-with-same-source-strip')
+  seed_result = _uniform_reference(17)
+  assert seed_result.field is not None
+  seed_field = seed_result.field
+
+  def fake_source_solver(current, _next_cell_index, incoming_handoff, _strip, **kwargs):
+    incoming = tuple(incoming_handoff)
+    field = replace(
+      seed_field,
+      incoming_handoff_states=tuple(sample.state for sample in incoming),
+      incoming_handoff_total_pressure_Pa=tuple(
+        sample.total_pressure_Pa for sample in incoming
+      ),
+      upstream_boundary_total_pressure_Pa=(
+        min(sample.total_pressure_Pa for sample in incoming),
+      ) * len(seed_field.upstream_boundary_states),
+    )
+    return MocPostShockChainCellSolve(
+      field=field,
+      end_x_m=current.end_x_m + 0.1,
+    )
+
+  monkeypatch.setattr(
+    'exhaust_plume.models.moc.planner.solve_marched_attached_shock_chain_cell_from_source_strip_or_termination',
+    fake_source_solver,
+  )
+  planner = plan_source_strip_shock_chain_sequence(
+    seed_field,
+    continuation,
+    lambda _current, _next_index, _handoff: reissued,
+    start_point_at=lambda current, _index, _source: (
+      current.end_x_m + 0.01,
+      0.1,
+    ),
+    start_x_m=0.5,
+    end_x_m=0.6,
+    downstream_flow_angle_rad=0.05,
+  )
+
+  assert planner.chain.cell_count == 2
+  assert planner.chain.termination_reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+  assert planner.chain.physical_termination is False
+  assert planner.steps[-1].result_termination_reason is (
+    MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+  )
+  assert planner.diagnostics['source_domain_count'] == 1
+  reused_attempt = planner.diagnostics['source_domain_attempts'][1]
+  assert reused_attempt['fresh_continuation'] is True
+  assert reused_attempt['fresh_strip'] is False
+  assert planner.chain.diagnostics['source_strip_reuse_policy'] == (
+    'reject-reused-source-continuation-or-strip'
+  )
 
 
 def test_invariant_boundary_march_solves_local_turns_before_field_assembly() -> None:

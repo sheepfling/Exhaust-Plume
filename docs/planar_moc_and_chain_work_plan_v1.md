@@ -72,6 +72,13 @@ not wait on this research closure.
   ``CHARACTERISTIC_CAUSTIC`` stop before shock fitting, while a finite strip
   boundary returns ``UPSTREAM_FIELD_BOUNDARY``. The source strip is never
   reused for a later cell and the planner remains research-only.
+- Added a fresh-domain source-strip sequence planner. Each continued shock
+  cell requests a new bounded upstream continuation, carries the exact prior
+  post-shock perimeter into the source-strip shock adapter, and records the
+  source-domain reports alongside the cell handoff audit. Reusing either a
+  prior continuation result or its strip object is rejected as a typed
+  ``UPSTREAM_FIELD_BOUNDARY``; the sequence remains research-only until the
+  physical reflected-field and downstream closure are solved.
 - Added explicit source-window metadata and a terminal-window continuation
   result. When the full triangular continuation reaches a characteristic
   caustic, a converged terminal patch can be consumed without hiding the
@@ -727,6 +734,16 @@ reflected MOC state/pressure field. A terminal source window is allowed as a
 domain-bounded research input only when its omitted prefix and full-strip
 status are retained alongside it.
 
+The source-strip sequence planner now makes the later-cell contract explicit:
+the first shock uses the supplied continuation, and every subsequent shock
+must receive a distinct continuation result and distinct strip object from
+the upstream solver. A missing, nonconverged, caustic, or reused source domain
+is a typed non-physical upstream boundary; the prior resolved cell is retained
+and no source field is extrapolated or reused as a downstream chain field.
+The current validation case exercises the canonical caustic as a one-cell
+sequence stop, while the planner contract tests cover successive fresh-domain
+callbacks separately from the numerical source/shock solve.
+
 The invariant-conditioned shock solver is now an explicit solver boundary for
 this work: it can reject an unbracketed or domain-limited closure, but it does
 not invent a downstream physical law. A converged invariant-conditioned field
@@ -966,6 +983,12 @@ Only after MOC-1 through MOC-5 pass:
   boundary start. A terminal source-window continuation makes that boundary
   explicit, but the full continuation still reaches a characteristic caustic
   and the physical upstream extension/continuation solve is still required.
+- The fresh-domain source-strip sequence planner now enforces the later-cell
+  boundary, but it does not invent the next upstream source solve. The
+  canonical sequence therefore stops at the same caustic until a coupled
+  remesher/new-family solver can supply a distinct bounded field for the next
+  shock; the sequence API is continuation plumbing, not automatic chain
+  closure.
 - The canonical reflected continuation now identifies that caustic as two
   disjoint forward intervals (`0..2` and `8..9`) for the new axis row. Those
   intervals cannot be stitched into one triangular strip. The first local

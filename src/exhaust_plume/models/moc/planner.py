@@ -105,6 +105,7 @@ __all__ = (
   'plan_post_shock_characteristic_chain',
   'plan_post_shock_field_chain',
   'plan_source_strip_shock_chain',
+  'plan_source_strip_shock_chain_sequence',
   'plan_post_shock_field_invariant_chain',
   'plan_prescribed_post_shock_chain_mock',
   'plan_solver_generated_post_shock_chain_reference',
@@ -467,6 +468,41 @@ def _handoff_fingerprint(
     )
     for sample in boundary
   )
+  return sha256(payload.encode('ascii')).hexdigest()
+
+
+def _source_strip_fingerprint(
+  continuation: MocSourceStripContinuationResult,
+) -> str | None:
+  """Return a deterministic identity for a consumed source-strip domain."""
+
+  strip = continuation.strip
+  if strip is None:
+    return None
+
+  def state_payload(state: CharacteristicState) -> str:
+    return '|'.join(
+      value.hex()
+      for value in (
+        state.x_m,
+        state.y_m,
+        state.theta_rad,
+        state.mach,
+        state.gamma,
+      )
+    )
+
+  payload = '\n'.join((
+    f'total-pressure:{strip.total_pressure_Pa.hex()}',
+    f'window-start:{strip.source_window_start_index}',
+    f'window-total:{strip.source_window_total_count}',
+    'plus:' + '\n'.join(
+      state_payload(state) for state in strip.plus_source_states
+    ),
+    'minus:' + '\n'.join(
+      state_payload(state) for state in strip.minus_source_states
+    ),
+  ))
   return sha256(payload.encode('ascii')).hexdigest()
 
 
@@ -3409,6 +3445,318 @@ def plan_source_strip_shock_chain(
     'source_strip_chain_model': 'bounded-source-strip-one-step',
     'one_step_domain': True,
     'source_strip_reuse_policy': 'never-reuse-after-one-next-cell-attempt',
+  })
+  return replace(planner, diagnostics=diagnostics)
+####
+
+
+def plan_source_strip_shock_chain_sequence(
+  seed: MocPostShockCharacteristicFieldResult,
+  source_continuation: MocSourceStripContinuationResult,
+  source_continuation_at: Callable[
+    [MocChainCell, int, tuple[MocChainBoundarySample, ...]],
+    MocSourceStripContinuationResult | MocChainTerminationDecision | None,
+  ],
+  *,
+  start_point_at: Callable[
+    [MocChainCell, int, MocSourceStripContinuationResult],
+    tuple[float, float],
+  ],
+  start_x_m: float,
+  end_x_m: float,
+  end_x_at: Callable[
+    [MocChainCell, int, MocSourceStripContinuationResult],
+    float,
+  ] | None = None,
+  target_centerline_y_m: float = 0.0,
+  downstream_flow_angle_at: Callable[[int, tuple[float, float]], float] | None = None,
+  downstream_flow_angle_rad: float | None = None,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  policy: MocChainContinuationPolicy | None = None,
+) -> MocChainPlannerResult:
+  """Plan a chain with a newly solved bounded source field per cell.
+
+  ``source_continuation`` supplies the first next-shock attempt.  After a
+  successful cell, ``source_continuation_at`` must return a distinct,
+  converged source-strip continuation for the next attempt.  The planner
+  rejects reuse of either the continuation result or its strip object, and a
+  missing/nonconverged source domain becomes a typed upstream-field boundary.
+  This keeps a finite source strip from being mistaken for a downstream chain
+  field or silently reused outside its solved domain.
+
+  The sequence remains a solver-generated research planner.  It does not
+  provide the physical reflected-field or mixed-regime downstream closure
+  required for product promotion.
+  """
+
+  if not isinstance(seed, MocPostShockCharacteristicFieldResult):
+    raise TypeError('seed must be a MocPostShockCharacteristicFieldResult')
+  if not isinstance(source_continuation, MocSourceStripContinuationResult):
+    raise TypeError(
+      'source_continuation must be a MocSourceStripContinuationResult'
+    )
+  if not callable(source_continuation_at):
+    raise TypeError('source_continuation_at must be callable')
+  if not callable(start_point_at):
+    raise TypeError('start_point_at must be callable')
+  if end_x_at is not None and not callable(end_x_at):
+    raise TypeError('end_x_at must be callable when supplied')
+  if (downstream_flow_angle_at is None) == (downstream_flow_angle_rad is None):
+    raise ValueError('supply exactly one downstream flow-angle provider')
+  if not isfinite(float(start_x_m)) or not isfinite(float(end_x_m)):
+    raise ValueError('start_x_m and end_x_m must be finite')
+  if end_x_m <= start_x_m:
+    raise ValueError('end_x_m must be strictly downstream of start_x_m')
+  cell_axial_length_m = float(end_x_m) - float(start_x_m)
+
+  source_history: list[MocSourceStripContinuationResult] = [
+    source_continuation,
+  ]
+  used_continuation_ids = {id(source_continuation)}
+  used_strip_ids = (
+    {id(source_continuation.strip)}
+    if source_continuation.strip is not None
+    else set()
+  )
+  initial_strip_fingerprint = _source_strip_fingerprint(source_continuation)
+  used_strip_fingerprints = (
+    {initial_strip_fingerprint}
+    if initial_strip_fingerprint is not None
+    else set()
+  )
+  source_attempts: list[dict[str, Any]] = [{
+    'current_cell_index': 1,
+    'next_cell_index': 2,
+    'role': 'initial-source-continuation',
+    'continuation': source_continuation.as_report(),
+    'fresh_continuation': True,
+    'fresh_strip': source_continuation.strip is not None,
+    'source_strip_fingerprint': initial_strip_fingerprint,
+  }]
+
+  def continuation_stop(
+    continuation: MocSourceStripContinuationResult,
+    next_cell_index: int,
+    *,
+    message: str | None = None,
+    policy_label: str = 'fresh-bounded-source-strip-required-per-cell',
+    allow_remesh_decision: bool = True,
+  ) -> MocChainTerminationDecision:
+    if (
+      allow_remesh_decision
+      and
+      continuation.remesh is not None
+      and continuation.remesh.chain_termination_available
+    ):
+      remesh_decision = continuation.remesh.as_chain_termination_decision()
+      diagnostics = dict(remesh_decision.diagnostics)
+      diagnostics.update({
+        'source_continuation_status': continuation.status.value,
+        'source_continuation_message': continuation.message,
+        'next_cell_index': next_cell_index,
+        'source_strip_reuse_policy': policy_label,
+      })
+      return replace(remesh_decision, diagnostics=diagnostics)
+    stop_message = message if message is not None else continuation.message
+    if not stop_message:
+      stop_message = (
+        'source-strip continuation did not provide a converged bounded '
+        'upstream field for the next shock-cell attempt'
+      )
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
+      message=stop_message,
+      diagnostics={
+        'termination_model': 'bounded-source-characteristic-strip-sequence',
+        'upstream_field_model': 'bounded-source-characteristic-strip',
+        'source_continuation_status': continuation.status.value,
+        'source_continuation_message': continuation.message,
+        'last_converged_strip': (
+          None
+          if continuation.last_converged_strip is None
+          else continuation.last_converged_strip.as_report()
+        ),
+        'next_cell_index': next_cell_index,
+        'source_strip_reuse_policy': policy_label,
+      },
+    )
+
+  def solve_next(
+    current: MocChainCell,
+    next_cell_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+  ) -> MocPostShockChainCellSolve | MocChainTerminationDecision:
+    if next_cell_index == 2:
+      next_source: (
+        MocSourceStripContinuationResult
+        | MocChainTerminationDecision
+        | None
+      ) = source_continuation
+    else:
+      next_source = source_continuation_at(
+        current,
+        next_cell_index,
+        incoming_handoff,
+      )
+      if next_source is None:
+        source_attempts.append({
+          'current_cell_index': current.cell_index,
+          'next_cell_index': next_cell_index,
+          'role': 'source-continuation-provider',
+          'provider_result': None,
+          'fresh_continuation': False,
+          'fresh_strip': False,
+        })
+        return MocChainTerminationDecision(
+          physical_termination=False,
+          reason=MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
+          message=(
+            'source-continuation provider returned no bounded upstream field '
+            'for the next shock-cell attempt'
+          ),
+          diagnostics={
+            'termination_model': 'bounded-source-characteristic-strip-sequence',
+            'upstream_field_model': 'bounded-source-characteristic-strip',
+            'next_cell_index': next_cell_index,
+            'source_strip_reuse_policy': (
+              'fresh-bounded-source-strip-required-per-cell'
+            ),
+          },
+        )
+      if isinstance(next_source, MocChainTerminationDecision):
+        source_attempts.append({
+          'current_cell_index': current.cell_index,
+          'next_cell_index': next_cell_index,
+          'role': 'source-continuation-provider',
+          'provider_decision': next_source.as_report(),
+          'fresh_continuation': False,
+          'fresh_strip': False,
+        })
+        if next_source.physical_termination:
+          return MocChainTerminationDecision(
+            physical_termination=False,
+            reason=MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
+            message=(
+              'source-continuation provider cannot declare physical plume '
+              'termination from an upstream domain boundary'
+            ),
+            diagnostics={
+              'termination_model': 'source-provider-physical-stop-rejected',
+              'upstream_field_model': 'bounded-source-characteristic-strip',
+              'next_cell_index': next_cell_index,
+              'source_provider_decision': next_source.as_report(),
+            },
+          )
+        return next_source
+      if not isinstance(next_source, MocSourceStripContinuationResult):
+        raise TypeError(
+          'source_continuation_at must return a '
+          'MocSourceStripContinuationResult, MocChainTerminationDecision, or None'
+      )
+      fresh_continuation = id(next_source) not in used_continuation_ids
+      next_strip_fingerprint = _source_strip_fingerprint(next_source)
+      source_strip_reused = (
+        next_source.strip is not None
+        and (
+          id(next_source.strip) in used_strip_ids
+          or next_strip_fingerprint is None
+          or next_strip_fingerprint in used_strip_fingerprints
+        )
+      )
+      strip_is_fresh = next_source.strip is not None and not source_strip_reused
+      fresh_strip = strip_is_fresh
+      source_attempts.append({
+        'current_cell_index': current.cell_index,
+        'next_cell_index': next_cell_index,
+        'role': 'source-continuation-provider',
+        'continuation': next_source.as_report(),
+        'fresh_continuation': fresh_continuation,
+        'fresh_strip': fresh_strip,
+        'source_strip_fingerprint': next_strip_fingerprint,
+      })
+      if not fresh_continuation or (
+        next_source.strip is not None and source_strip_reused
+      ):
+        return continuation_stop(
+          next_source,
+          next_cell_index,
+          message=(
+            'source-continuation provider reused a prior continuation or '
+            'source strip; a new bounded upstream field is required for each '
+            'continued shock cell'
+          ),
+          policy_label='reject-reused-source-continuation-or-strip',
+          allow_remesh_decision=False,
+        )
+      source_history.append(next_source)
+      used_continuation_ids.add(id(next_source))
+      if next_source.strip is not None:
+        used_strip_ids.add(id(next_source.strip))
+        if next_strip_fingerprint is not None:
+          used_strip_fingerprints.add(next_strip_fingerprint)
+
+    if not isinstance(next_source, MocSourceStripContinuationResult):
+      raise TypeError('source-continuation sequence selected an invalid source result')
+    if (
+      not next_source.converged
+      or next_source.strip is None
+      or not next_source.strip.converged
+    ):
+      return continuation_stop(next_source, next_cell_index)
+    source_strip = next_source.strip
+    start_point = start_point_at(current, next_cell_index, next_source)
+    next_end_x = (
+      end_x_at(current, next_cell_index, next_source)
+      if end_x_at is not None
+      else current.end_x_m + cell_axial_length_m
+    )
+    return solve_marched_attached_shock_chain_cell_from_source_strip_or_termination(
+      current,
+      next_cell_index,
+      incoming_handoff,
+      source_strip,
+      start_point_m=start_point,
+      end_x_m=next_end_x,
+      target_centerline_y_m=target_centerline_y_m,
+      downstream_flow_angle_at=downstream_flow_angle_at,
+      downstream_flow_angle_rad=downstream_flow_angle_rad,
+      sample_count=sample_count,
+      branch=branch,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+      shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+      maximum_segment_iterations=maximum_segment_iterations,
+    )
+
+  planner = plan_post_shock_characteristic_chain(
+    seed,
+    solve_next,
+    start_x_m=start_x_m,
+    end_x_m=end_x_m,
+    policy=policy,
+    require_upstream_shock_coupling=True,
+    planner_kind=MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH,
+    claim_status=(
+      'solver-generated-source-strip-shock-chain-sequence; '
+      'fresh-bounded-upstream-domain-per-cell; physical-closure-pending'
+    ),
+  )
+  diagnostics = dict(planner.diagnostics)
+  diagnostics.update({
+    'source_strip_chain_model': 'bounded-source-strip-fresh-domain-sequence',
+    'one_step_domain': False,
+    'source_strip_reuse_policy': (
+      'fresh-bounded-source-strip-required-per-cell'
+    ),
+    'source_domain_count': len(source_history),
+    'source_domain_attempt_count': len(source_attempts),
+    'source_domain_attempts': source_attempts,
   })
   return replace(planner, diagnostics=diagnostics)
 ####

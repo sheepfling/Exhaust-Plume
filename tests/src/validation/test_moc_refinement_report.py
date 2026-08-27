@@ -91,6 +91,9 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   source_strip_chain_planner = report['geometry_cases'][
     'solver_generated_source_strip_chain_planner'
   ]
+  source_strip_chain_sequence_planner = report['geometry_cases'][
+    'solver_generated_source_strip_chain_sequence_planner'
+  ]
   downstream_condition = mixed_regime_boundary['downstream_condition_contract']
   positive_wall_condition = mixed_regime_boundary[
     'downstream_condition_positive_wall_fixture'
@@ -140,6 +143,23 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert source_strip_chain_planner['planner']['diagnostics']['one_step_domain'] is True
   assert source_strip_chain_planner['planner']['diagnostics']['source_strip_reuse_policy'] == (
     'never-reuse-after-one-next-cell-attempt'
+  )
+  assert source_strip_chain_sequence_planner['accepted'] is True
+  assert source_strip_chain_sequence_planner['planner']['planner_kind'] == (
+    'upstream-coupled-research'
+  )
+  assert source_strip_chain_sequence_planner['planner']['planning_only'] is True
+  assert source_strip_chain_sequence_planner['planner']['production_claim_allowed'] is False
+  assert source_strip_chain_sequence_planner['planner']['chain']['termination_reason'] == (
+    'characteristic-caustic'
+  )
+  assert source_strip_chain_sequence_planner['planner']['chain']['physical_termination'] is False
+  assert source_strip_chain_sequence_planner['planner']['step_count'] == 1
+  assert source_strip_chain_sequence_planner['planner']['diagnostics']['one_step_domain'] is False
+  assert source_strip_chain_sequence_planner['planner']['diagnostics']['source_domain_count'] == 1
+  assert source_strip_chain_sequence_planner['planner']['diagnostics']['source_domain_attempt_count'] == 1
+  assert source_strip_chain_sequence_planner['planner']['diagnostics']['source_strip_reuse_policy'] == (
+    'fresh-bounded-source-strip-required-per-cell'
   )
   assert all(
     step['incoming_handoff_link_verified'] is True
