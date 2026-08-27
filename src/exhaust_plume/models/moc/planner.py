@@ -37,6 +37,9 @@ from exhaust_plume.models.moc.caustic_remesh import (
   solve_caustic_shock_remesh,
   solve_caustic_shock_remesh_from_upstream_bridge,
 )
+from exhaust_plume.models.moc.caustic_terminal import (
+  solve_caustic_simple_wave_terminal_remesh,
+)
 from exhaust_plume.models.moc.post_shock import (
   MocPostShockChainCellSolve,
   MocPostShockCharacteristicFieldResult,
@@ -102,6 +105,7 @@ __all__ = (
   'plan_caustic_upstream_bridge_invariant_chain',
   'plan_caustic_shock_remesh_chain',
   'plan_caustic_shock_remesh_chain_from_upstream_bridge',
+  'plan_caustic_simple_wave_terminal_chain',
   'plan_caustic_remesh_downstream_field_chain',
   'plan_caustic_remesh_downstream_field_invariant_chain',
   'plan_ambient_pressure_field_chain',
@@ -2433,6 +2437,146 @@ def plan_caustic_shock_remesh_chain(
         if _upstream_bridge is not None
         else 'callback-owned-upstream-field'
       ),
+    },
+  )
+
+
+def plan_caustic_simple_wave_terminal_chain(
+  seed: MocChainCell,
+  request: MocCausticShockRemeshRequest,
+  *,
+  upstream_invariant_family: CharacteristicFamily = CharacteristicFamily.MINUS,
+  target_centerline_y_m: float = 0.0,
+  upstream_centerline_flow_angle_rad: float = 0.0,
+  downstream_centerline_flow_angle_rad: float = 0.0,
+  downstream_flow_angle_at: Callable[[int, tuple[float, float]], float] | None = None,
+  maximum_x_m: float | None = None,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  shock_angle_tolerance_rad: float = 0.2,
+  maximum_segment_iterations: int = 24,
+  policy: MocChainContinuationPolicy | None = None,
+) -> MocChainPlannerResult:
+  """Plan one solver-owned simple-wave caustic terminal attempt.
+
+  The simple-wave lane is intentionally one-step.  It gives the planner a
+  real attached-shock prefix, open post-shock characteristic zone, and typed
+  normal-shock terminal to audit, but it never appends the open result as a
+  resolved chain cell.  A later supersonic cell needs a physically closed
+  mixed-regime handoff and a newly solved upstream field.
+  """
+
+  if not isinstance(request, MocCausticShockRemeshRequest):
+    raise TypeError('request must be a MocCausticShockRemeshRequest')
+  if downstream_flow_angle_at is not None and not callable(downstream_flow_angle_at):
+    raise TypeError('downstream_flow_angle_at must be callable when supplied')
+  if not isinstance(branch, ShockBranch):
+    raise TypeError('branch must be a ShockBranch')
+  for name, value in (
+    ('position_tolerance_m', position_tolerance_m),
+    ('invariant_tolerance', invariant_tolerance),
+    ('shock_angle_tolerance_rad', shock_angle_tolerance_rad),
+  ):
+    if not isfinite(float(value)) or float(value) <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+  if isinstance(sample_count, bool) or not isinstance(sample_count, int) or sample_count < 5:
+    raise ValueError('sample_count must be an integer of at least five')
+
+  attempted = False
+
+  def solve_next(
+    current: MocChainCell,
+    next_cell_index: int,
+  ) -> MocChainTerminationDecision:
+    nonlocal attempted
+    if attempted:
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
+        message=(
+          'simple-wave caustic terminal planner completed its one-step '
+          'domain; a later cell requires a new solved upstream field'
+        ),
+        diagnostics={
+          'termination_model': 'caustic-simple-wave-one-step-domain',
+          'next_cell_index': next_cell_index,
+        },
+      )
+    attempted = True
+    event_x = request.event_point_m[0]
+    if event_x < current.end_x_m - float(position_tolerance_m):
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
+        message=(
+          'simple-wave caustic event lies upstream of the current chain cell '
+          'boundary; the planner will not back-extrapolate the handoff'
+        ),
+        diagnostics={
+          'termination_model': 'caustic-simple-wave-one-step-domain',
+          'event_point_m': request.event_point_m,
+          'current_end_x_m': current.end_x_m,
+          'next_cell_index': next_cell_index,
+        },
+      )
+    result = solve_caustic_simple_wave_terminal_remesh(
+      request,
+      current.continuation_boundary,
+      upstream_invariant_family=upstream_invariant_family,
+      target_centerline_y_m=target_centerline_y_m,
+      upstream_centerline_flow_angle_rad=upstream_centerline_flow_angle_rad,
+      downstream_centerline_flow_angle_rad=downstream_centerline_flow_angle_rad,
+      downstream_flow_angle_at=downstream_flow_angle_at,
+      maximum_x_m=maximum_x_m,
+      sample_count=sample_count,
+      branch=branch,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+      shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+      maximum_segment_iterations=maximum_segment_iterations,
+    )
+    decision = result.as_chain_termination_decision()
+    diagnostics = dict(decision.diagnostics)
+    diagnostics.update({
+      'planner_model': 'caustic-simple-wave-terminal-one-step-domain',
+      'next_cell_index': next_cell_index,
+      'simple_wave_terminal_report': result.as_report(),
+      'upstream_field_model': 'solver-owned-constant-invariant-simple-wave-trace',
+      'physical_closure_pending': True,
+    })
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=decision.reason,
+      message=decision.message,
+      diagnostics=diagnostics,
+    )
+
+  effective_policy = policy
+  if effective_policy is None:
+    effective_policy = MocChainContinuationPolicy(require_state_carry=True)
+  elif not effective_policy.require_state_carry:
+    effective_policy = replace(effective_policy, require_state_carry=True)
+  planner = plan_moc_chain(
+    seed,
+    solve_next,
+    policy=effective_policy,
+    planner_kind=MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH,
+    claim_status=(
+      'caustic-simple-wave-terminal planner; solver-owned simple-wave trace '
+      'with open mixed-regime closure and physical-remesh validation pending'
+    ),
+  )
+  return replace(
+    planner,
+    diagnostics={
+      'caustic_shock_remesh_request': request.as_report(),
+      'one_step_domain': True,
+      'physical_closure_pending': True,
+      'upstream_field_model': 'solver-owned-constant-invariant-simple-wave-trace',
+      'simple_wave_invariant_family': upstream_invariant_family.value,
+      'simple_wave_target_centerline_y_m': target_centerline_y_m,
     },
   )
 

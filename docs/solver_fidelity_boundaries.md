@@ -217,6 +217,17 @@ supersonic MOC validity lane. The existing
 basic and reduced-order visual lanes remain unchanged until a separate MOC
 assembler passes free-boundary/compression closure, refinement, and external
 measurement gates.
+The separate solver-owned simple-wave terminal lane now makes one explicit
+constant-invariant upstream trace from the exact caustic request, marches a
+shock against a linear downstream turn profile, and retains the valid
+supersonic prefix plus open post-shock characteristic zone when the axis
+requires a normal-shock terminal. Its bounded ordinate/optional downstream-x
+domain and event/bridge/pressure gates are independently reported; the
+subsonic terminal is never coerced into a characteristic state. The matching
+`plan_caustic_simple_wave_terminal_chain` wrapper records the exact prior
+perimeter and returns an `OPEN_PHYSICAL_CLOSURE` one-step research stop. This
+is solver-owned continuation evidence, not a physical caustic remesh, mixed-
+regime perimeter, or production chain cell.
 
 ## What is done for the basic solver
 

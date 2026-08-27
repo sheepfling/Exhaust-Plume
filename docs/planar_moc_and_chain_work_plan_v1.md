@@ -1059,6 +1059,16 @@ Only after MOC-1 through MOC-5 pass:
   caustic corridor a real solver input boundary rather than a callback-owned
   assumption; it still does not solve the missing physical downstream
   closure.
+- Added a separate solver-owned simple-wave terminal lane. It builds a
+  constant-invariant upstream trace from the exact selected caustic state,
+  marches an attached shock against an explicit turn profile, fits the
+  retained supersonic prefix, assembles its open post-shock characteristic
+  zone, and records the typed normal-shock endpoint. The lane reports exact
+  event/bridge/pressure gates and never inserts the subsonic endpoint into the
+  characteristic network. Its one-step planner records the incoming perimeter
+  and returns ``OPEN_PHYSICAL_CLOSURE`` without appending a chain cell; the
+  simple-wave trace is a solver boundary condition, not the physical caustic
+  remesh or mixed-regime closure still required for promotion.
 - Added an independent ``op.moc.caustic-remesh`` measurement operator. It
   re-fits the carried shock boundary, recomputes total-pressure loss, checks
   the returned characteristic mesh/topology and state-carry residuals,
