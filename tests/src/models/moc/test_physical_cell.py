@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from math import pi, tan
+from math import atan2, pi, tan
 
 import pytest
 
@@ -12,12 +12,15 @@ from exhaust_plume.models.moc import (
   MocChainTerminationDecision,
   MocChainTerminationReason,
   MocCharacteristicCell,
+  MocCharacteristicNode,
   MocPhysicalPostShockFieldResult,
   MocPhysicalPostShockFieldStatus,
   MocPhysicalPostShockFieldContinuationSolve,
   MocPostShockBoundaryState,
+  MocPrimitiveStatus,
   MocShockBoundaryFitResult,
   MocShockBoundaryFitStatus,
+  CharacteristicPointResult,
   assemble_ambient_boundary_post_shock_field,
   continue_ambient_closed_post_shock_chain,
   march_post_shock_ambient_boundary,
@@ -217,7 +220,7 @@ def _manufactured_closed_physical_field(
   total_pressure = ambient_pressure * (
     1.0 + 0.5 * (gamma - 1.0) * mach * mach
   ) ** (gamma / (gamma - 1.0))
-  centerline_points = ((0.0, 0.0), (0.5, 0.0), (1.0, 0.0))
+  centerline_points = ((1.0, 0.0), (1.5, 0.0), (2.0, 0.0))
   centerline_states = tuple(
     CharacteristicState(
       x_m=point[0],
@@ -228,7 +231,7 @@ def _manufactured_closed_physical_field(
     )
     for point in centerline_points
   )
-  shock_points = ((0.0, 0.8), (0.5, 0.4), (1.0, 0.0))
+  shock_points = ((0.0, 1.0), (0.5, 0.5), (1.0, 0.0))
   upstream_states = tuple(
     CharacteristicState(
       x_m=point[0],
@@ -239,43 +242,95 @@ def _manufactured_closed_physical_field(
     )
     for point in shock_points
   )
+  ambient_points = ((0.0, 1.0), (1.0, 0.5), (2.0, 0.0))
+  ambient_angle = atan2(-0.5, 1.0)
   ambient_samples = tuple(
     MocAmbientBoundarySample(
-      point_m=(float(index), 1.0),
+      point_m=point,
       state=CharacteristicState(
-        x_m=float(index),
-        y_m=1.0,
-        theta_rad=0.0,
+        x_m=point[0],
+        y_m=point[1],
+        theta_rad=ambient_angle,
         mach=mach,
         gamma=gamma,
       ),
       total_pressure_Pa=total_pressure,
     )
-    for index in range(3)
+    for point in ambient_points
   )
   ambient_boundary = validate_ambient_pressure_boundary(
     ambient_samples,
     ambient_pressure,
   )
   assert ambient_boundary.converged
-  cell = MocCharacteristicCell(
-    cell_index=0,
-    cell_kind='manufactured-physical-chain-test-cell',
-    vertices_xr_m=((0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)),
-    centerline_indices=(0, 1),
-    boundary_indices=(0, 1),
+  cells = (
+    MocCharacteristicCell(
+      cell_index=0,
+      cell_kind='manufactured-physical-chain-test-cell',
+      vertices_xr_m=(shock_points[0], shock_points[1], ambient_points[1]),
+      centerline_indices=(0,),
+      boundary_indices=(0, 1),
+    ),
+    MocCharacteristicCell(
+      cell_index=1,
+      cell_kind='manufactured-physical-chain-test-cell',
+      vertices_xr_m=(shock_points[1], shock_points[2], ambient_points[1]),
+      centerline_indices=(0,),
+      boundary_indices=(0, 1),
+    ),
+    MocCharacteristicCell(
+      cell_index=2,
+      cell_kind='manufactured-physical-chain-test-cell',
+      vertices_xr_m=(shock_points[2], centerline_points[1], ambient_points[1]),
+      centerline_indices=(1, 2),
+      boundary_indices=(1, 2),
+    ),
+    MocCharacteristicCell(
+      cell_index=3,
+      cell_kind='manufactured-physical-chain-test-cell',
+      vertices_xr_m=(centerline_points[1], centerline_points[2], ambient_points[1]),
+      centerline_indices=(1, 2),
+      boundary_indices=(1, 2),
+    ),
+  )
+  node_point = ambient_points[1]
+  node_state = CharacteristicState(
+    x_m=node_point[0],
+    y_m=node_point[1],
+    theta_rad=ambient_angle,
+    mach=mach,
+    gamma=gamma,
+  )
+  node_result = CharacteristicPointResult(
+    status=MocPrimitiveStatus.CONVERGED,
+    state=node_state,
+    point_m=node_point,
+    invariant_residual_plus=0.0,
+    invariant_residual_minus=0.0,
+    geometry_residual=0.0,
+    iterations=0,
+  )
+  nodes = (
+    MocCharacteristicNode(
+      centerline_index=1,
+      boundary_index=1,
+      point_m=node_point,
+      state=node_state,
+      point_result=node_result,
+      total_pressure_Pa=total_pressure,
+    ),
   )
   return MocPhysicalPostShockFieldResult(
     status=MocPhysicalPostShockFieldStatus.CONVERGED_AMBIENT_CLOSED,
     characteristic_layer_count=2,
-    nodes=(),
-    cells=(cell,),
-    topology=validate_moc_mesh((cell,)),
+    nodes=nodes,
+    cells=cells,
+    topology=validate_moc_mesh(cells),
     shock_boundary_points_m=shock_points,
     ambient_boundary_points_m=tuple(sample.point_m for sample in ambient_samples),
     centerline_boundary_points_m=centerline_points,
     centerline_boundary_states=centerline_states,
-    centerline_boundary_total_pressure_Pa=(180000.0, 175000.0, 170000.0),
+    centerline_boundary_total_pressure_Pa=(total_pressure, total_pressure, total_pressure),
     ambient_boundary=ambient_boundary,
     maximum_geometry_residual_m=0.0,
     maximum_absolute_invariant_residual=0.0,
@@ -316,6 +371,21 @@ def test_ambient_closed_physical_chain_requires_exact_incoming_handoff() -> None
   assert result.termination_reason is MocChainTerminationReason.SOLVER_ERROR
   assert result.cell_count == 1
   assert 'changed consumed total pressure sample' in result.message
+
+
+def test_physical_field_promotion_rechecks_mesh_and_declared_boundary_paths() -> None:
+  seed = _manufactured_closed_physical_field()
+  tampered = replace(
+    seed,
+    ambient_boundary_points_m=((0.0, 1.0), (1.0, 0.75), (2.0, 0.0)),
+  )
+
+  assert seed.physical_closure_verified
+  assert all(seed.physical_closure_gates.values())
+  assert tampered.physical_closure_verified is False
+  assert tampered.physical_closure_gates['physical_boundary_paths_verified'] is False
+  with pytest.raises(ValueError, match='ambient-closed post-shock field'):
+    tampered.as_chain_cell(start_x_m=0.0, end_x_m=1.0)
 
 
 def test_ambient_closed_physical_chain_and_planner_carry_multiple_cells() -> None:

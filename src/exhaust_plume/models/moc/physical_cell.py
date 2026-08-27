@@ -151,7 +151,171 @@ class MocPhysicalPostShockFieldResult:
 
   @property
   def physical_closure_verified(self) -> bool:
-    return self.converged and self.characteristic_family_orientation_verified
+    return all(self._physical_closure_gates().values())
+  ####
+
+  def _physical_closure_gates(self) -> dict[str, bool]:
+    """Return independently checkable gates for physical-field promotion.
+
+    ``MocPhysicalPostShockFieldResult`` is a frozen result object, so callers
+    can construct one directly for diagnostics.  Promotion must not therefore
+    rely on the status enum and one producer-supplied boolean alone.  These
+    checks revalidate the evidence that the chain adapter consumes: a bounded
+    mesh, the three declared physical paths, centerline state data, compatible
+    characteristic nodes, an accepted ambient boundary, and strict shock
+    total-pressure loss.
+
+    The assembler remains responsible for the full numerical solve.  This
+    method is the final immutable-result guard against a malformed or stale
+    result being relabeled as a closed physical cell.
+    """
+
+    tolerance_m = 1.0e-8
+    residual_tolerance = 1.0e-8
+    topology_verified = bool(
+      self.converged
+      and self.cells
+      and self.topology.connected
+      and self.topology.forms_closed_zone
+      and self.topology.nonmanifold_edge_count == 0
+    )
+    ambient_boundary_verified = bool(
+      self.ambient_boundary.converged
+      and self.ambient_boundary.physical_closure_verified
+      and len(self.ambient_boundary_points_m) == self.ambient_boundary.sample_count
+      and all(
+        abs(first[0] - second[0]) <= tolerance_m
+        and abs(first[1] - second[1]) <= tolerance_m
+        for first, second in zip(
+          self.ambient_boundary_points_m,
+          self.ambient_boundary.points_m,
+          strict=True,
+        )
+      )
+    )
+    paths_verified = False
+    if (
+      len(self.shock_boundary_points_m) >= 3
+      and len(self.ambient_boundary_points_m) >= 2
+      and len(self.centerline_boundary_points_m) >= 2
+    ):
+      try:
+        edge_counts = _edge_counts(self.cells, tolerance_m)
+        paths_verified = all(
+          _path_edges_present(path, edge_counts, tolerance_m)
+          for path in (
+            self.shock_boundary_points_m,
+            self.ambient_boundary_points_m,
+            self.centerline_boundary_points_m,
+          )
+        )
+      except (TypeError, ValueError):
+        paths_verified = False
+    shock_geometry_verified = bool(
+      len(self.shock_boundary_points_m) >= 3
+      and all(
+        len(point) == 2 and all(isfinite(float(value)) for value in point)
+        for point in self.shock_boundary_points_m
+      )
+      and all(
+        second[0] > first[0] + tolerance_m
+        and second[1] <= first[1] + tolerance_m
+        for first, second in zip(
+          self.shock_boundary_points_m,
+          self.shock_boundary_points_m[1:],
+        )
+      )
+    )
+    centerline_state_verified = bool(
+      len(self.centerline_boundary_points_m) >= 2
+      and len(self.centerline_boundary_states) == len(self.centerline_boundary_points_m)
+      and len(self.centerline_boundary_total_pressure_Pa) == len(self.centerline_boundary_points_m)
+      and all(
+        isinstance(state, CharacteristicState)
+        and abs(state.x_m - point[0]) <= tolerance_m
+        and abs(state.y_m - point[1]) <= tolerance_m
+        and abs(point[1]) <= tolerance_m
+        and abs(state.theta_rad) <= residual_tolerance
+        and isfinite(float(pressure))
+        and float(pressure) > 0.0
+        for point, state, pressure in zip(
+          self.centerline_boundary_points_m,
+          self.centerline_boundary_states,
+          self.centerline_boundary_total_pressure_Pa,
+          strict=True,
+        )
+      )
+      and all(
+        second[0] > first[0] + tolerance_m
+        for first, second in zip(
+          self.centerline_boundary_points_m,
+          self.centerline_boundary_points_m[1:],
+        )
+      )
+    )
+    characteristic_nodes_verified = bool(self.nodes)
+    if characteristic_nodes_verified:
+      for node in self.nodes:
+        point_result = getattr(node, 'point_result', None)
+        state = getattr(node, 'state', None)
+        point = getattr(node, 'point_m', None)
+        pressure = getattr(node, 'total_pressure_Pa', None)
+        invariant_residuals = (
+          getattr(point_result, 'invariant_residual_plus', None),
+          getattr(point_result, 'invariant_residual_minus', None),
+        )
+        characteristic_nodes_verified = characteristic_nodes_verified and bool(
+          isinstance(node, MocCharacteristicNode)
+          and isinstance(state, CharacteristicState)
+          and isinstance(point, tuple)
+          and len(point) == 2
+          and all(isfinite(float(value)) for value in point)
+          and abs(state.x_m - point[0]) <= tolerance_m
+          and abs(state.y_m - point[1]) <= tolerance_m
+          and isinstance(point_result, CharacteristicPointResult)
+          and point_result.converged
+          and point_result.geometry_residual is not None
+          and isfinite(float(point_result.geometry_residual))
+          and abs(float(point_result.geometry_residual)) <= residual_tolerance
+          and all(
+            value is not None
+            and isfinite(float(value))
+            and abs(float(value)) <= residual_tolerance
+            for value in invariant_residuals
+          )
+          and pressure is not None
+          and isfinite(float(pressure))
+          and float(pressure) > 0.0
+        )
+    residuals_verified = bool(
+      self.maximum_geometry_residual_m is not None
+      and self.maximum_absolute_invariant_residual is not None
+      and isfinite(float(self.maximum_geometry_residual_m))
+      and isfinite(float(self.maximum_absolute_invariant_residual))
+      and self.maximum_geometry_residual_m >= 0.0
+      and self.maximum_absolute_invariant_residual >= 0.0
+      and self.maximum_geometry_residual_m <= residual_tolerance
+      and self.maximum_absolute_invariant_residual <= residual_tolerance
+    )
+    return {
+      'status_converged': self.converged,
+      'topology_verified': topology_verified,
+      'shock_geometry_verified': shock_geometry_verified,
+      'ambient_boundary_verified': ambient_boundary_verified,
+      'physical_boundary_paths_verified': paths_verified,
+      'centerline_state_verified': centerline_state_verified,
+      'characteristic_nodes_verified': characteristic_nodes_verified,
+      'characteristic_residuals_verified': residuals_verified,
+      'shock_pressure_loss_verified': self.pressure_loss_verified,
+      'family_orientation_verified': self.characteristic_family_orientation_verified,
+    }
+  ####
+
+  @property
+  def physical_closure_gates(self) -> dict[str, bool]:
+    """Return the immutable promotion gates used by the chain adapter."""
+
+    return self._physical_closure_gates()
   ####
 
   @property
@@ -219,6 +383,7 @@ class MocPhysicalPostShockFieldResult:
       'status': self.status.value,
       'converged': self.converged,
       'physical_closure_verified': self.physical_closure_verified,
+      'physical_closure_gates': self.physical_closure_gates,
       'characteristic_family_orientation_verified': (
         self.characteristic_family_orientation_verified
       ),

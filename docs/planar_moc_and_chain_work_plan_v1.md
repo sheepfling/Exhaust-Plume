@@ -203,6 +203,13 @@ not wait on this research closure.
   records physical-field results separately from the prescribed mock and keeps
   the research-only claim ceiling; no reduced-order or open field can cross
   this seam.
+- Hardened physical-field promotion with an immutable evidence audit. A field
+  now has to retain a connected bounded mesh, matching shock/ambient/
+  centerline boundary paths, centerline state/pressure samples, converged
+  characteristic-node residuals, an accepted ambient condition, and strict
+  shock total-pressure loss in addition to its solver status. Tampering with
+  the declared paths therefore cannot turn a planner fixture into a resolved
+  chain cell.
 - Added typed downstream characteristic-state/total-pressure handoff samples
   and a state-carrying chain adapter. The shock-seeded field labels its
   composite carried edge as a post-shock field perimeter, not a single
@@ -746,10 +753,11 @@ The ambient-closed physical-field planner is the stricter continuation lane
 for the eventual production solver. Its callback receives the prior closed
 cell's centerline trace and must return a newly assembled physical field that
 records the exact incoming state/total-pressure samples. The adapter promotes
-that field only after ambient perimeter, characteristic topology, and
-upstream shock-coupling checks pass. The current tests use a clearly marked
-manufactured field only to audit the handoff and multi-cell planner contract;
-the canonical reflected field still has not passed the physical closure gate.
+that field only after the immutable field-evidence audit, ambient perimeter,
+characteristic topology, and optional upstream shock-coupling checks pass. The
+current tests use a clearly marked manufactured field only to audit the
+handoff and multi-cell planner contract; the canonical reflected field still
+has not passed the physical closure gate.
 
 The caustic-family-band planner is a separate one-step research path for the
 new-family branch. It carries the current cell's exact post-shock perimeter,
