@@ -59,6 +59,12 @@ not wait on this research closure.
   231-node/230-cell open topology, and advances a domain-bounded shock probe
   before stopping at the next missing upstream field sample. This is a
   diagnostic continuation law, not physical shock closure.
+- Extended source-strip continuation failures now retain the longest converged
+  prefix and probe the first unassembled source row. A requested long
+  simple-wave continuation therefore exposes its finite prefix, frontier,
+  and caustic/remesh handoff even when the full triangular strip fails; the
+  retained prefix remains an open research field and is never relabeled as a
+  completed upstream solve.
 - Added explicit source-window metadata and a terminal-window continuation
   result. When the full triangular continuation reaches a characteristic
   caustic, a converged terminal patch can be consumed without hiding the

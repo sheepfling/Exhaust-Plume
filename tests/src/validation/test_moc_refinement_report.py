@@ -853,6 +853,15 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert invariant_closure['source_extension']['status'] == 'converged_terminal_source_window'
   assert invariant_closure['source_extension']['strip']['source_window_kind'] == 'terminal-source-window'
   assert invariant_closure['source_extension']['full_strip']['status'] == 'geometry_failure'
+  assert invariant_closure['source_extension']['last_converged_strip']['converged'] is True
+  assert invariant_closure['source_extension']['last_converged_strip']['source_window_count'] == 191
+  assert invariant_closure['source_extension']['frontier']['status'] == (
+    'converged_source_frontier_probe'
+  )
+  assert invariant_closure['source_extension']['remesh']['status'] == (
+    'caustic_requires_new_characteristic_family'
+  )
+  assert invariant_closure['source_extension']['remesh']['chain_termination_decision']['physical_termination'] is False
   assert invariant_closure['claim_status'].startswith('domain-bounded-invariant-shooting-attempt')
   assert report['failures'] == []
   ####

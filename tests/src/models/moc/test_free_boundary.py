@@ -20,6 +20,7 @@ from exhaust_plume.models.moc import (
   MocPostShockFieldStatus,
   MocShockCellTransitionStatus,
   MocSourceStripContinuationStatus,
+  MocSourceStripRemeshStatus,
   assemble_reflected_characteristic_zone,
   solve_reflected_boundary_trace_extension,
   solve_marched_attached_shock_chain_cell_from_reflected_zone,
@@ -942,6 +943,36 @@ def test_source_continuation_can_select_an_explicit_terminal_window() -> None:
   assert result.strip.source_window_start_index == 2
   assert result.strip.source_window_total_count == 21
   assert result.strip.node_count < result.full_strip.node_count
+
+
+def test_source_continuation_retains_caustic_bounded_prefix_on_full_strip_failure() -> None:
+  reflected_boundary, ambient = _reflected_boundary_reference()
+
+  result = extend_source_characteristic_strip_constant_k_plus(
+    reflected_boundary.centerline_states,
+    reflected_boundary.boundary_states,
+    2.0e6,
+    ambient.pressure_Pa,
+    additional_sample_count=25,
+    axis_step_m=0.03,
+  )
+
+  assert result.status is MocSourceStripContinuationStatus.STRIP_FAILURE
+  assert not result.converged
+  assert result.added_sample_count == 25
+  assert result.last_converged_strip is not None
+  assert result.last_converged_strip.converged
+  assert result.last_converged_strip.source_window_count == 23
+  assert result.frontier is not None
+  assert result.frontier.source_index == 23
+  assert result.frontier.valid_index_ranges == ((0, 23),)
+  assert result.remesh is not None
+  assert result.remesh.status is MocSourceStripRemeshStatus.CAUSTIC_REQUIRES_NEW_FAMILY
+  assert result.remesh.failed_boundary_index == 0
+  assert result.remesh.caustic_event is not None
+  assert result.remesh.caustic_event.detected
+  assert result.remesh.chain_termination_available
+  assert result.remesh.as_chain_termination_decision().physical_termination is False
 
 
 def test_invariant_closure_rejects_a_non_bracket_before_marching() -> None:

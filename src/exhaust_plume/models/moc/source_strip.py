@@ -757,6 +757,7 @@ class MocSourceStripContinuationResult:
   continuation_law: str = 'constant-k-plus-simple-wave'
   frontier: MocSourceStripFrontierResult | None = None
   remesh: MocSourceStripRemeshResult | None = None
+  last_converged_strip: MocSourceCharacteristicStripResult | None = None
 
   @property
   def converged(self) -> bool:
@@ -782,6 +783,11 @@ class MocSourceStripContinuationResult:
       'full_strip': None if self.full_strip is None else self.full_strip.as_report(),
       'frontier': None if self.frontier is None else self.frontier.as_report(),
       'remesh': None if self.remesh is None else self.remesh.as_report(),
+      'last_converged_strip': (
+        None
+        if self.last_converged_strip is None
+        else self.last_converged_strip.as_report()
+      ),
       'message': self.message,
     }
 ####
@@ -1734,6 +1740,92 @@ def remesh_source_strip_frontier(
   )
 
 
+def _latest_converged_source_strip(
+  initial_strip: MocSourceCharacteristicStripResult,
+  plus_source_states: Sequence[CharacteristicState],
+  minus_source_states: Sequence[CharacteristicState],
+  *,
+  position_tolerance_m: float,
+  invariant_tolerance: float,
+) -> MocSourceCharacteristicStripResult:
+  """Retain the longest valid prefix before a source-row failure.
+
+  A source-row geometry failure is persistent for every larger triangular
+  prefix because the already assembled characteristic cells are retained;
+  adding later rows cannot repair the failed cell.  The bounded binary search
+  therefore finds the last complete prefix without repeatedly assembling every
+  intermediate row.  The returned strip is still open and is never presented
+  as a full continuation.
+  """
+
+  plus = tuple(plus_source_states)
+  minus = tuple(minus_source_states)
+  lower = len(initial_strip.plus_source_states)
+  upper = min(len(plus), len(minus))
+  if upper <= lower:
+    return initial_strip
+  candidate = assemble_source_characteristic_strip(
+    plus[:upper],
+    minus[:upper],
+    initial_strip.total_pressure_Pa,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+  )
+  if candidate.converged:
+    return candidate
+  last = initial_strip
+  failing_count = upper
+  while failing_count - lower > 1:
+    midpoint = (lower + failing_count) // 2
+    candidate = assemble_source_characteristic_strip(
+      plus[:midpoint],
+      minus[:midpoint],
+      initial_strip.total_pressure_Pa,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+    )
+    if candidate.converged:
+      last = candidate
+      lower = midpoint
+    else:
+      failing_count = midpoint
+  return last
+####
+
+
+def _source_strip_continuation_frontier(
+  last_converged_strip: MocSourceCharacteristicStripResult,
+  plus_source_states: Sequence[CharacteristicState],
+  minus_source_states: Sequence[CharacteristicState],
+  *,
+  position_tolerance_m: float,
+  invariant_tolerance: float,
+) -> tuple[MocSourceStripFrontierResult | None, MocSourceStripRemeshResult | None]:
+  """Probe the first source row after a retained converged prefix."""
+
+  source_index = len(last_converged_strip.plus_source_states)
+  plus = tuple(plus_source_states)
+  minus = tuple(minus_source_states)
+  if source_index >= len(plus) or source_index >= len(minus):
+    return None, None
+  frontier = probe_source_strip_frontier(
+    plus[source_index],
+    minus[:source_index + 1],
+    source_index=source_index,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+  )
+  remesh = remesh_source_strip_frontier(
+    last_converged_strip,
+    plus[source_index],
+    minus[:source_index + 1],
+    frontier,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+  )
+  return frontier, remesh
+
+
 def _failure(
   status: MocSourceStripStatus,
   plus_sources: tuple[CharacteristicState, ...],
@@ -2216,6 +2308,36 @@ def extend_source_characteristic_strip_constant_k_plus(
 
   extended_plus = list(plus)
   extended_minus = list(minus)
+
+  def continuation_failure(message: str) -> MocSourceStripContinuationResult:
+    last_converged_strip = _latest_converged_source_strip(
+      initial_strip,
+      extended_plus,
+      extended_minus,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+    )
+    frontier, remesh = _source_strip_continuation_frontier(
+      last_converged_strip,
+      extended_plus,
+      extended_minus,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+    )
+    return MocSourceStripContinuationResult(
+      status=MocSourceStripContinuationStatus.BOUNDARY_FAILURE,
+      strip=initial_strip,
+      plus_source_states=tuple(extended_plus),
+      minus_source_states=tuple(extended_minus),
+      added_sample_count=len(extended_minus) - len(minus),
+      axis_step_m=axis_step,
+      continuation_k_plus=continuation_k_plus,
+      frontier=frontier,
+      remesh=remesh,
+      last_converged_strip=last_converged_strip,
+      message=message,
+    )
+
   for _ in range(additional_sample_count):
     previous_plus = extended_plus[-1]
     previous_minus = extended_minus[-1]
@@ -2241,30 +2363,14 @@ def extend_source_characteristic_strip_constant_k_plus(
       or boundary_result.state is None
       or boundary_result.point_m is None
     ):
-      return MocSourceStripContinuationResult(
-        status=MocSourceStripContinuationStatus.BOUNDARY_FAILURE,
-        strip=initial_strip,
-        plus_source_states=tuple(extended_plus),
-        minus_source_states=tuple(extended_minus),
-        added_sample_count=len(extended_minus) - len(minus),
-        axis_step_m=axis_step,
-        continuation_k_plus=continuation_k_plus,
-        message=(
-          'constant-K+ ambient boundary continuation failed after '
-          f'{len(extended_minus) - len(minus)} added samples: '
-          f'{boundary_result.message}'
-        ),
+      return continuation_failure(
+        'constant-K+ ambient boundary continuation failed after '
+        f'{len(extended_minus) - len(minus)} added samples: '
+        f'{boundary_result.message}'
       )
     if boundary_result.state.x_m <= previous_minus.x_m + position_tolerance_m:
-      return MocSourceStripContinuationResult(
-        status=MocSourceStripContinuationStatus.BOUNDARY_FAILURE,
-        strip=initial_strip,
-        plus_source_states=tuple(extended_plus),
-        minus_source_states=tuple(extended_minus),
-        added_sample_count=len(extended_minus) - len(minus),
-        axis_step_m=axis_step,
-        continuation_k_plus=continuation_k_plus,
-        message='constant-K+ ambient boundary continuation stopped without downstream progress',
+      return continuation_failure(
+        'constant-K+ ambient boundary continuation stopped without downstream progress'
       )
     extended_plus.append(incoming)
     extended_minus.append(boundary_result.state)
@@ -2276,6 +2382,27 @@ def extend_source_characteristic_strip_constant_k_plus(
     position_tolerance_m=position_tolerance_m,
     invariant_tolerance=invariant_tolerance,
   )
+  last_converged_strip = (
+    full_strip
+    if full_strip.converged
+    else _latest_converged_source_strip(
+      initial_strip,
+      extended_plus,
+      extended_minus,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+    )
+  )
+  frontier = None
+  remesh = None
+  if not full_strip.converged:
+    frontier, remesh = _source_strip_continuation_frontier(
+      last_converged_strip,
+      extended_plus,
+      extended_minus,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+    )
   if source_window_start_index == 0 and full_strip.converged:
     return MocSourceStripContinuationResult(
       status=MocSourceStripContinuationStatus.CONVERGED_EXTENDED,
@@ -2288,6 +2415,7 @@ def extend_source_characteristic_strip_constant_k_plus(
       full_strip=full_strip,
       source_window_start_index=0,
       source_window_total_count=len(extended_plus),
+      last_converged_strip=last_converged_strip,
       message=(
         'constant-K+ simple-wave source continuation converged as an open '
         'upstream strip; physical shock fitting and downstream closure remain pending'
@@ -2306,6 +2434,9 @@ def extend_source_characteristic_strip_constant_k_plus(
       full_strip=full_strip,
       source_window_start_index=source_window_start_index,
       source_window_total_count=len(extended_plus),
+      frontier=frontier,
+      remesh=remesh,
+      last_converged_strip=last_converged_strip,
       message=(
         'constant-K+ source continuation reached its requested samples, but '
         'the requested terminal source window has fewer than three samples'
@@ -2338,6 +2469,11 @@ def extend_source_characteristic_strip_constant_k_plus(
       full_strip=full_strip,
       source_window_start_index=source_window_start_index,
       source_window_total_count=len(extended_plus),
+      frontier=frontier,
+      remesh=remesh,
+      last_converged_strip=(
+        selected_strip if selected_strip.converged else last_converged_strip
+      ),
       message=(
         'constant-K+ source continuation exposes a converged terminal source '
         'window; the full continuation reached a characteristic caustic and '
@@ -2363,6 +2499,9 @@ def extend_source_characteristic_strip_constant_k_plus(
       full_strip=full_strip,
       source_window_start_index=source_window_start_index,
       source_window_total_count=len(extended_plus),
+      frontier=frontier,
+      remesh=remesh,
+      last_converged_strip=last_converged_strip,
       message=(
         'constant-K+ source continuation reached its requested samples, but '
         f'the extended strip failed: {full_strip.message}; '
@@ -2380,6 +2519,9 @@ def extend_source_characteristic_strip_constant_k_plus(
     full_strip=full_strip,
     source_window_start_index=source_window_start_index,
     source_window_total_count=len(extended_plus),
+    frontier=frontier,
+    remesh=remesh,
+    last_converged_strip=last_converged_strip,
     message=(
       'constant-K+ source continuation reached its requested samples, but '
       f'the selected terminal window failed: {selected_strip.message}'
@@ -2399,6 +2541,7 @@ def _finish_centerline_reflection_continuation(
   frontier: MocSourceStripFrontierResult | None,
   remesh: MocSourceStripRemeshResult | None,
   message: str,
+  last_converged_strip: MocSourceCharacteristicStripResult | None = None,
 ) -> MocSourceStripContinuationResult:
   """Attach source-window semantics to a completed reflection march."""
 
@@ -2416,6 +2559,11 @@ def _finish_centerline_reflection_continuation(
     'continuation_law': 'centerline-c-minus-reflection-plus-ambient-pressure',
     'frontier': frontier,
     'remesh': remesh,
+    'last_converged_strip': (
+      full_strip if full_strip.converged
+      else initial_strip if last_converged_strip is None
+      else last_converged_strip
+    ),
   }
   if source_window_start_index == 0:
     if full_strip.converged:
@@ -2613,6 +2761,7 @@ def extend_source_characteristic_strip_centerline_reflection(
           f'{axis_result.message}'
         ),
         continuation_law=law,
+        last_converged_strip=initial_strip,
       )
     axis_state = axis_result.state
     if axis_state.x_m <= previous_plus.x_m + position_tolerance_m:
@@ -2629,6 +2778,7 @@ def extend_source_characteristic_strip_centerline_reflection(
           'progress'
         ),
         continuation_law=law,
+        last_converged_strip=initial_strip,
       )
     boundary_result = solve_ambient_pressure_free_boundary_point(
       axis_state,
@@ -2658,6 +2808,7 @@ def extend_source_characteristic_strip_centerline_reflection(
           f'{step}: {boundary_result.message}'
         ),
         continuation_law=law,
+        last_converged_strip=initial_strip,
       )
     if boundary_result.point_m[0] <= previous_minus.x_m + position_tolerance_m:
       return MocSourceStripContinuationResult(
@@ -2673,6 +2824,7 @@ def extend_source_characteristic_strip_centerline_reflection(
           'has no downstream progress'
         ),
         continuation_law=law,
+        last_converged_strip=initial_strip,
       )
     if abs(boundary_result.state.k_plus - axis_state.k_plus) > invariant_tolerance:
       return MocSourceStripContinuationResult(
@@ -2688,6 +2840,7 @@ def extend_source_characteristic_strip_centerline_reflection(
           'did not preserve the reflected C+ invariant'
         ),
         continuation_law=law,
+        last_converged_strip=initial_strip,
       )
     extended_plus.append(axis_state)
     extended_minus.append(boundary_result.state)
@@ -2698,28 +2851,23 @@ def extend_source_characteristic_strip_centerline_reflection(
     position_tolerance_m=position_tolerance_m,
     invariant_tolerance=invariant_tolerance,
   )
-  frontier = (
-    None
+  last_converged_strip = (
+    full_strip
     if full_strip.converged
-    else probe_source_strip_frontier(
-      extended_plus[-1],
+    else _latest_converged_source_strip(
+      initial_strip,
+      extended_plus,
       extended_minus,
-      source_index=len(extended_plus) - 1,
       position_tolerance_m=position_tolerance_m,
       invariant_tolerance=invariant_tolerance,
     )
   )
-  remesh = (
-    None
-    if frontier is None
-    else remesh_source_strip_frontier(
-      initial_strip,
-      extended_plus[-1],
-      extended_minus,
-      frontier,
-      position_tolerance_m=position_tolerance_m,
-      invariant_tolerance=invariant_tolerance,
-    )
+  frontier, remesh = _source_strip_continuation_frontier(
+    last_converged_strip,
+    extended_plus,
+    extended_minus,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
   )
   return _finish_centerline_reflection_continuation(
     initial_strip,
@@ -2735,6 +2883,7 @@ def extend_source_characteristic_strip_centerline_reflection(
       'converged as an open upstream source strip; shock fitting and '
       'downstream closure remain pending'
     ),
+    last_converged_strip=last_converged_strip,
   )
 ####
 
