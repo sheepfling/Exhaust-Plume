@@ -225,7 +225,17 @@ def test_first_cell_terminal_closure_attaches_a_separate_mixed_regime_field() ->
   )
   assert condition.status is MocMixedRegimeDownstreamConditionStatus.TANGENCY_FAILURE
   assert condition.chain_promotion_blocked
-  field = solve_mixed_regime_subsonic_field(boundary, radial_divisions=2)
+  outflow_condition = result.terminal_field.validate_mixed_regime_downstream_condition(
+    samples,
+    MocMixedRegimeDownstreamConditionKind.PRESSURE_OUTFLOW_SECTION,
+    ambient_pressure_Pa=request.terminal_downstream_pressure_Pa,
+  )
+  assert outflow_condition.converged
+  field = solve_mixed_regime_subsonic_field(
+    boundary,
+    radial_divisions=2,
+    downstream_condition=outflow_condition,
+  )
   assert field.converged
   assert field.physical_closure_verified
 

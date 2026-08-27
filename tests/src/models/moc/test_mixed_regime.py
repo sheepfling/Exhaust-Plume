@@ -119,6 +119,38 @@ def _slip_wall_samples(terminal):
   )
 
 
+def _slip_wall_boundary_and_condition(terminal):
+  boundary = validate_mixed_regime_boundary(
+    terminal,
+    _supersonic_patch(),
+    supersonic_patch_converged=True,
+    subsonic_samples=_slip_wall_samples(terminal),
+  )
+  condition = validate_mixed_regime_downstream_condition(
+    boundary,
+    MocMixedRegimeDownstreamConditionKind.SLIP_WALL,
+  )
+  assert condition.converged
+  return boundary, condition
+
+
+def _pressure_outflow_boundary_and_condition(terminal):
+  assert terminal.downstream_pressure_Pa is not None
+  boundary = validate_mixed_regime_boundary(
+    terminal,
+    _supersonic_patch(),
+    supersonic_patch_converged=True,
+    subsonic_samples=_samples(terminal),
+  )
+  condition = validate_mixed_regime_downstream_condition(
+    boundary,
+    MocMixedRegimeDownstreamConditionKind.PRESSURE_OUTFLOW_SECTION,
+    ambient_pressure_Pa=terminal.downstream_pressure_Pa,
+  )
+  assert condition.converged
+  return boundary, condition
+
+
 def test_scalar_mixed_regime_boundary_handoff_is_valid_but_not_field_closure() -> None:
   terminal = _terminal()
   result = validate_mixed_regime_boundary(
@@ -273,8 +305,10 @@ def test_elliptic_subsonic_reference_field_closes_only_its_declared_mesh_model()
   assert field.cell_count == 4
   assert field.topology.forms_closed_zone
   assert field.topology.nonmanifold_edge_count == 0
-  assert field.physical_closure_verified
-  assert field.mixed_regime_field_complete
+  assert field.model_closure_verified
+  assert field.downstream_condition_verified is False
+  assert field.physical_closure_verified is False
+  assert field.mixed_regime_field_complete is False
   assert field.chain_promotion_blocked
   assert field.model == 'elliptic-isentropic-subsonic-reference'
 
@@ -309,8 +343,10 @@ def test_radial_elliptic_reference_field_refines_without_promoting_the_chain(
   assert field.cell_count == expected_cell_count
   assert field.topology.forms_closed_zone
   assert field.topology.nonmanifold_edge_count == 0
-  assert field.physical_closure_verified
-  assert field.mixed_regime_field_complete
+  assert field.model_closure_verified
+  assert field.downstream_condition_verified is False
+  assert field.physical_closure_verified is False
+  assert field.mixed_regime_field_complete is False
   assert field.chain_promotion_blocked
   assert field.maximum_thermodynamic_residual is not None
   assert field.maximum_thermodynamic_residual <= 1.0e-8
@@ -318,6 +354,46 @@ def test_radial_elliptic_reference_field_refines_without_promoting_the_chain(
   assert field.maximum_harmonic_residual <= 1.0e-12
   assert field.maximum_velocity_divergence_residual is not None
   assert field.maximum_velocity_divergence_residual <= 1.0e-12
+
+
+def test_condition_qualified_elliptic_reference_field_can_be_attached() -> None:
+  terminal = _terminal()
+  boundary, condition = _pressure_outflow_boundary_and_condition(terminal)
+
+  field = solve_mixed_regime_subsonic_field(
+    boundary,
+    downstream_condition=condition,
+  )
+
+  assert field.converged
+  assert field.model_closure_verified
+  assert field.downstream_condition is condition
+  assert field.downstream_condition_verified
+  assert field.physical_closure_verified
+  assert field.mixed_regime_field_complete
+  assert condition.tangency_condition_applicable is False
+  assert condition.tangent_residuals_rad == ()
+
+
+def test_field_solver_rejects_a_condition_from_a_different_scalar_boundary() -> None:
+  terminal = _terminal()
+  boundary, condition = _slip_wall_boundary_and_condition(terminal)
+  other_boundary = validate_mixed_regime_boundary(
+    terminal,
+    _supersonic_patch(),
+    supersonic_patch_converged=True,
+    subsonic_samples=_samples(terminal),
+  )
+
+  result = solve_mixed_regime_subsonic_field(
+    other_boundary,
+    downstream_condition=condition,
+  )
+
+  assert result.status is MocMixedRegimeFieldStatus.BOUNDARY_FAILURE
+  assert not result.converged
+  assert result.downstream_condition is None
+  assert 'exact scalar boundary' in result.message
 
 
 def test_mixed_regime_reference_rejects_nonpositive_radial_divisions() -> None:
@@ -338,13 +414,12 @@ def test_mixed_regime_reference_rejects_nonpositive_radial_divisions() -> None:
 
 def test_mixed_regime_closure_callback_requires_the_exact_terminal_seam() -> None:
   terminal = _terminal()
-  boundary = validate_mixed_regime_boundary(
-    terminal,
-    _supersonic_patch(),
-    supersonic_patch_converged=True,
-    subsonic_samples=_samples(terminal),
+  boundary, condition = _pressure_outflow_boundary_and_condition(terminal)
+  unqualified_field = solve_mixed_regime_subsonic_field(boundary)
+  field = solve_mixed_regime_subsonic_field(
+    boundary,
+    downstream_condition=condition,
   )
-  field = solve_mixed_regime_subsonic_field(boundary)
   assert terminal.shock_point_m is not None
   assert terminal.downstream_mach is not None
   assert terminal.downstream_flow_angle_rad is not None
@@ -361,6 +436,14 @@ def test_mixed_regime_closure_callback_requires_the_exact_terminal_seam() -> Non
     supersonic_patch=_supersonic_patch(),
   )
   seen: list[MocMixedRegimePerimeterRequest] = []
+
+  unqualified_result = run_mixed_regime_closure_solver(
+    request,
+    lambda _request: unqualified_field,
+  )
+  assert unqualified_result.status is MocMixedRegimeClosureStatus.FIELD_FAILURE
+  assert not unqualified_result.converged
+  assert unqualified_result.physical_closure_verified is False
 
   result = run_mixed_regime_closure_solver(
     request,
@@ -382,7 +465,7 @@ def test_mixed_regime_closure_callback_requires_the_exact_terminal_seam() -> Non
     supersonic_patch_converged=True,
     subsonic_samples=_samples(other_terminal),
   )
-  mismatched = replace(field, boundary=other_boundary)
+  mismatched = solve_mixed_regime_subsonic_field(other_boundary)
   mismatch_result = run_mixed_regime_closure_solver(request, lambda _request: mismatched)
   assert mismatch_result.status is MocMixedRegimeClosureStatus.SEAM_FAILURE
   assert not mismatch_result.converged

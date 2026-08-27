@@ -86,6 +86,9 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   positive_wall_condition = mixed_regime_boundary[
     'downstream_condition_positive_wall_fixture'
   ]
+  positive_outflow_condition = mixed_regime_boundary[
+    'downstream_condition_positive_outflow_fixture'
+  ]
 
   assert generated['status'] == 'converged_free_boundary_field'
   assert generated['field_status'] == 'converged_closed'
@@ -277,6 +280,12 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert positive_wall_condition['status'] == 'converged-downstream-condition'
   assert positive_wall_condition['physical_condition_verified'] is True
   assert positive_wall_condition['chain_promotion_blocked'] is True
+  assert positive_outflow_condition['status'] == 'converged-downstream-condition'
+  assert positive_outflow_condition['physical_condition_verified'] is True
+  assert positive_outflow_condition['tangency_condition_applicable'] is False
+  assert positive_outflow_condition['tangent_sample_count'] == 0
+  assert positive_outflow_condition['pressure_condition_verified'] is True
+  assert positive_outflow_condition['chain_promotion_blocked'] is True
   assert mixed_regime_boundary['physical_closure_verified'] is False
   assert mixed_regime_boundary['chain_promotion_blocked'] is True
   assert mixed_regime_boundary['missing_scalar_field']['status'] == 'subsonic_field_failure'
@@ -289,8 +298,10 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert mixed_regime_boundary['scalar_perimeter_contract_fixture']['mixed_regime_field_complete'] is False
   elliptic_field = mixed_regime_boundary['elliptic_subsonic_field_contract_fixture']
   assert elliptic_field['status'] == 'converged_elliptic_subsonic_field'
-  assert elliptic_field['physical_closure_verified'] is True
-  assert elliptic_field['mixed_regime_field_complete'] is True
+  assert elliptic_field['model_closure_verified'] is True
+  assert elliptic_field['downstream_condition_verified'] is False
+  assert elliptic_field['physical_closure_verified'] is False
+  assert elliptic_field['mixed_regime_field_complete'] is False
   assert elliptic_field['topology_forms_closed_zone'] is True
   assert elliptic_field['topology_nonmanifold_edge_count'] == 0
   assert elliptic_field['maximum_thermodynamic_residual'] <= 1.0e-8
@@ -303,9 +314,27 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert all(
     case['status'] == 'converged_elliptic_subsonic_field'
     and case['model'] == 'elliptic-isentropic-radial-reference'
-    and case['physical_closure_verified'] is True
+    and case['model_closure_verified'] is True
+    and case['downstream_condition_verified'] is False
+    and case['physical_closure_verified'] is False
     and case['chain_promotion_blocked'] is True
     for case in elliptic_refinement
+  )
+  conditioned_field = mixed_regime_boundary[
+    'elliptic_subsonic_field_conditioned_fixture'
+  ]
+  assert conditioned_field['physical_closure_verified'] is True
+  assert conditioned_field['mixed_regime_field_complete'] is True
+  assert conditioned_field['downstream_condition_verified'] is True
+  conditioned_refinement = mixed_regime_boundary[
+    'elliptic_subsonic_field_conditioned_refinement'
+  ]
+  assert [case['radial_divisions'] for case in conditioned_refinement] == [2, 3, 4]
+  assert all(
+    case['physical_closure_verified'] is True
+    and case['downstream_condition_verified'] is True
+    and case['chain_promotion_blocked'] is True
+    for case in conditioned_refinement
   )
   terminal_attachment_refinement = mixed_regime_boundary['terminal_attachment_refinement']
   assert [case['radial_divisions'] for case in terminal_attachment_refinement] == [2, 3, 4]

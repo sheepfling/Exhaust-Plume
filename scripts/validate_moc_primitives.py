@@ -1319,6 +1319,11 @@ def _mixed_regime_boundary_probe(
     wall_fixture,
     MocMixedRegimeDownstreamConditionKind.SLIP_WALL,
   )
+  outflow_condition = validate_mixed_regime_downstream_condition(
+    contract_fixture,
+    MocMixedRegimeDownstreamConditionKind.PRESSURE_OUTFLOW_SECTION,
+    ambient_pressure_Pa=terminal.downstream_pressure_Pa,
+  )
   contract_field = solve_mixed_regime_subsonic_field(contract_fixture)
   contract_field_refinement = tuple(
     solve_mixed_regime_subsonic_field(
@@ -1327,12 +1332,24 @@ def _mixed_regime_boundary_probe(
     )
     for radial_divisions in (2, 3, 4)
   )
+  conditioned_field = solve_mixed_regime_subsonic_field(
+    contract_fixture,
+    downstream_condition=outflow_condition,
+  )
+  conditioned_field_refinement = tuple(
+    solve_mixed_regime_subsonic_field(
+      contract_fixture,
+      radial_divisions=radial_divisions,
+      downstream_condition=outflow_condition,
+    )
+    for radial_divisions in (2, 3, 4)
+  )
   terminal_attachment_refinement: tuple[dict[str, Any], ...] = ()
   if field is not None and all(
-    result.physical_closure_verified for result in contract_field_refinement
+    result.physical_closure_verified for result in conditioned_field_refinement
   ):
     attachment_cases: list[dict[str, Any]] = []
-    for result in contract_field_refinement:
+    for result in conditioned_field_refinement:
       attached = field.with_mixed_regime_field(result)
       attachment_cases.append({
         'radial_divisions': result.radial_divisions,
@@ -1347,9 +1364,9 @@ def _mixed_regime_boundary_probe(
   terminal_attachment_fixture = None
   terminal_attachment_termination_decision = None
   terminal_attachment_closure = None
-  if field is not None and contract_field.physical_closure_verified:
+  if field is not None and conditioned_field.physical_closure_verified:
     terminal_attachment_closure = field.solve_mixed_regime_closure(
-      lambda _request: contract_field,
+      lambda _request: conditioned_field,
     )
     if terminal_attachment_closure.field is None:
       raise ValueError(
@@ -1365,9 +1382,15 @@ def _mixed_regime_boundary_probe(
     'accepted': (
       missing_field.status is MocMixedRegimeBoundaryStatus.SUBSONIC_FIELD_FAILURE
       and contract_fixture.converged
-      and contract_field.physical_closure_verified
-      and all(result.physical_closure_verified for result in contract_field_refinement)
-      and len(terminal_attachment_refinement) == len(contract_field_refinement)
+      and contract_field.model_closure_verified
+      and contract_field.physical_closure_verified is False
+      and outflow_condition.converged
+      and conditioned_field.physical_closure_verified
+      and all(
+        result.physical_closure_verified
+        for result in conditioned_field_refinement
+      )
+      and len(terminal_attachment_refinement) == len(conditioned_field_refinement)
       and all(
         case['physical_termination_verified'] is True
         and case['chain_promotion_blocked'] is True
@@ -1387,9 +1410,14 @@ def _mixed_regime_boundary_probe(
     'scalar_perimeter_contract_fixture': contract_fixture.as_report(),
     'downstream_condition_contract': contract_condition.as_report(),
     'downstream_condition_positive_wall_fixture': wall_condition.as_report(),
+    'downstream_condition_positive_outflow_fixture': outflow_condition.as_report(),
     'elliptic_subsonic_field_contract_fixture': contract_field.as_report(),
     'elliptic_subsonic_field_refinement': [
       result.as_report() for result in contract_field_refinement
+    ],
+    'elliptic_subsonic_field_conditioned_fixture': conditioned_field.as_report(),
+    'elliptic_subsonic_field_conditioned_refinement': [
+      result.as_report() for result in conditioned_field_refinement
     ],
     'terminal_attachment_refinement': list(terminal_attachment_refinement),
     'terminal_attachment_closure_result': (
@@ -1401,7 +1429,8 @@ def _mixed_regime_boundary_probe(
     'terminal_attachment_termination_decision': terminal_attachment_termination_decision,
     'claim_status': (
       'typed-scalar-subsonic-boundary-handoff-only; '
-      'subsonic-field-mesh-and-chain-promotion-pending'
+      'condition-qualified-elliptic-reference-is-synthetic; '
+      'canonical-subsonic-field-and-chain-promotion-pending'
     ),
     'message': contract_fixture.message,
   }

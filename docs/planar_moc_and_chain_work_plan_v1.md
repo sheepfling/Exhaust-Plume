@@ -399,11 +399,18 @@ not wait on this research closure.
   interior control point, checks connected topology, isentropic total-pressure
   consistency, harmonic extension, and per-cell velocity-divergence residuals,
   and can attach to a terminal composite as a typed physical termination
-  fixture. Its model lineage is
+  fixture once its downstream condition is also accepted. Its model lineage is
   ``elliptic-isentropic-subsonic-reference``: it is not a supersonic MOC field,
   does not promote a chain cell, and the positive validation case remains a
   synthetic contract fixture until the canonical plume supplies a real
   subsonic perimeter.
+- Added a condition-qualified mixed-regime field gate. An elliptic mesh may be
+  inspected as ``model_closure_verified`` while remaining physically
+  incomplete; terminal attachment and the callback closure adapter now require
+  the exact same validated downstream condition. The condition lane includes
+  the existing strict slip-wall/free-boundary checks and an explicit
+  prescribed-pressure outflow-section condition for pressure-outlet reference
+  fixtures, with tangency applicability recorded separately.
 - Extended the mixed-regime reference with an explicit radial refinement
   control. ``radial_divisions > 1`` solves a deterministic concentric-ring
   Dirichlet Laplace reference in scalar/log-total-pressure space, checks every
@@ -899,8 +906,10 @@ Only after MOC-1 through MOC-5 pass:
   still consumes a caller-supplied closed perimeter and uses a declared
   harmonic scalar reference rather than a coupled nonlinear subsonic flow
   solve. Its passing refinement sweep is therefore contract evidence only;
-  the canonical terminal still has no physical downstream perimeter and no
-  chain-promotion path.
+  an unqualified field remains model-only, and a terminal can attach only a
+  field carrying the exact validated downstream condition. The canonical
+  terminal still has no physical downstream perimeter and no chain-promotion
+  path.
 - The terminal-boundary graph audit confirms that the canonical terminal's
   four solver-owned supersonic paths join with zero reported residual, while
   no downstream path or physical downstream condition is supplied. A future

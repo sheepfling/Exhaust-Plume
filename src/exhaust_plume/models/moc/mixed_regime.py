@@ -9,9 +9,10 @@ lineage, and perimeter geometry.
 
 This is a boundary handoff, not a subsonic characteristic solver.  A passing
 handoff still reports ``physical_closure_verified=False`` and cannot seed a
-continued shock-cell chain.  A future mixed-regime solver can consume this
-contract and add a real subsonic mesh/field acceptance gate without changing
-the supersonic ``CharacteristicState`` type.
+continued shock-cell chain.  The reference mesh solver can be used to inspect
+the declared scalar field, but terminal attachment additionally requires the
+exact validated downstream condition without changing the supersonic
+``CharacteristicState`` type.
 """
 
 from __future__ import annotations
@@ -80,6 +81,7 @@ class MocMixedRegimeDownstreamConditionKind(str, Enum):
 
   SLIP_WALL = 'slip-wall'
   AMBIENT_PRESSURE_FREE_BOUNDARY = 'ambient-pressure-free-boundary'
+  PRESSURE_OUTFLOW_SECTION = 'prescribed-pressure-outflow-section'
 ####
 
 
@@ -437,8 +439,10 @@ class MocMixedRegimeDownstreamConditionResult:
   The scalar perimeter validator checks the shock seam and pressure lineage.
   This narrower result adds the downstream kinematic/pressure condition that
   the perimeter itself must satisfy before a mixed-regime field can be called
-  physically bounded.  It remains separate from the harmonic reference-field
-  solve and never creates a subsonic ``CharacteristicState``.
+  physically bounded.  A prescribed-pressure outflow section intentionally
+  checks pressure without claiming a slip-wall/free-boundary tangency.  The
+  result remains separate from the harmonic reference-field solve and never
+  creates a subsonic ``CharacteristicState``.
   """
 
   status: MocMixedRegimeDownstreamConditionStatus
@@ -461,6 +465,15 @@ class MocMixedRegimeDownstreamConditionResult:
     return self.converged
 
   @property
+  def tangency_condition_applicable(self) -> bool:
+    """Whether the declared condition requires flow tangency."""
+
+    return self.condition_kind in (
+      MocMixedRegimeDownstreamConditionKind.SLIP_WALL,
+      MocMixedRegimeDownstreamConditionKind.AMBIENT_PRESSURE_FREE_BOUNDARY,
+    )
+
+  @property
   def chain_promotion_blocked(self) -> bool:
     """A boundary condition is not a resolved supersonic chain handoff."""
 
@@ -479,6 +492,7 @@ class MocMixedRegimeDownstreamConditionResult:
       'pressure_sample_count': len(self.pressure_residuals_Pa),
       'maximum_tangent_residual_rad': self.maximum_tangent_residual_rad,
       'maximum_pressure_residual_Pa': self.maximum_pressure_residual_Pa,
+      'tangency_condition_applicable': self.tangency_condition_applicable,
       'tangency_condition_verified': self.tangency_condition_verified,
       'pressure_condition_verified': self.pressure_condition_verified,
       'boundary': None if self.boundary is None else self.boundary.as_report(),
@@ -497,10 +511,13 @@ class MocMixedRegimeFieldResult:
   control volume.  This is intentionally a separate elliptic lane, not a
   supersonic MOC field; its model name and residuals remain in every report.
 
-  ``physical_closure_verified`` means that this explicitly declared
+  ``model_closure_verified`` means that this explicitly declared
   elliptic/isentrope model closed its supplied boundary and passed its local
-  conservation and thermodynamic gates.  It is not external validation of the
-  plume or permission to expose a public product provider.
+  conservation and thermodynamic gates.  ``physical_closure_verified`` is
+  stricter: the model must also carry the exact downstream condition result
+  that passed the perimeter's physical tangency/pressure gate.  Neither is
+  external validation of the plume or permission to expose a public product
+  provider.
   """
 
   status: MocMixedRegimeFieldStatus
@@ -517,6 +534,7 @@ class MocMixedRegimeFieldResult:
   model: str = 'elliptic-isentropic-subsonic-reference'
   radial_divisions: int = 1
   message: str = ''
+  downstream_condition: MocMixedRegimeDownstreamConditionResult | None = None
 
   def __post_init__(self) -> None:
     if (
@@ -525,6 +543,19 @@ class MocMixedRegimeFieldResult:
       or self.radial_divisions < 1
     ):
       raise ValueError('radial_divisions must be a positive integer')
+    if self.downstream_condition is not None:
+      if not isinstance(
+        self.downstream_condition,
+        MocMixedRegimeDownstreamConditionResult,
+      ):
+        raise TypeError(
+          'downstream_condition must be a '
+          'MocMixedRegimeDownstreamConditionResult or None'
+        )
+      if self.downstream_condition.boundary != self.boundary:
+        raise ValueError(
+          'downstream_condition must retain the exact scalar boundary'
+        )
 
   @property
   def converged(self) -> bool:
@@ -543,7 +574,9 @@ class MocMixedRegimeFieldResult:
     return self.converged and self.physical_closure_verified
 
   @property
-  def physical_closure_verified(self) -> bool:
+  def model_closure_verified(self) -> bool:
+    """Whether the declared mesh/reference model passed its local gates."""
+
     return bool(
       self.converged
       and self.boundary.converged
@@ -559,6 +592,22 @@ class MocMixedRegimeFieldResult:
     )
 
   @property
+  def downstream_condition_verified(self) -> bool:
+    """Whether the exact supplied perimeter passed its physical condition."""
+
+    return bool(
+      self.downstream_condition is not None
+      and self.downstream_condition.converged
+      and self.downstream_condition.boundary == self.boundary
+    )
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    """Whether the model and its downstream physical condition both passed."""
+
+    return self.model_closure_verified and self.downstream_condition_verified
+
+  @property
   def chain_promotion_blocked(self) -> bool:
     """A terminal subsonic field is a closure/stop, not a supersonic handoff."""
 
@@ -568,6 +617,8 @@ class MocMixedRegimeFieldResult:
     return {
       'status': self.status.value,
       'converged': self.converged,
+      'model_closure_verified': self.model_closure_verified,
+      'downstream_condition_verified': self.downstream_condition_verified,
       'physical_closure_verified': self.physical_closure_verified,
       'mixed_regime_field_complete': self.mixed_regime_field_complete,
       'chain_promotion_blocked': self.chain_promotion_blocked,
@@ -586,6 +637,11 @@ class MocMixedRegimeFieldResult:
       'minimum_mach': self.minimum_mach,
       'maximum_mach': self.maximum_mach,
       'boundary': self.boundary.as_report(),
+      'downstream_condition': (
+        None
+        if self.downstream_condition is None
+        else self.downstream_condition.as_report()
+      ),
       'message': self.message,
     }
 
@@ -607,6 +663,7 @@ def _field_failure(
   maximum_velocity_divergence_residual: float | None = None,
   model: str = 'elliptic-isentropic-subsonic-reference',
   radial_divisions: int = 1,
+  downstream_condition: MocMixedRegimeDownstreamConditionResult | None = None,
   message: str,
 ) -> MocMixedRegimeFieldResult:
   return MocMixedRegimeFieldResult(
@@ -623,6 +680,7 @@ def _field_failure(
     maximum_mach=max((sample.mach for sample in nodes), default=None),
     model=model,
     radial_divisions=radial_divisions,
+    downstream_condition=downstream_condition,
     message=message,
   )
 
@@ -828,6 +886,7 @@ def _solve_mixed_regime_radial_reference_field(
   position_tolerance_m: float,
   thermodynamic_tolerance: float,
   residual_tolerance: float,
+  downstream_condition: MocMixedRegimeDownstreamConditionResult | None,
 ) -> MocMixedRegimeFieldResult:
   """Build the explicit higher-resolution scalar mixed-regime reference."""
 
@@ -1042,6 +1101,7 @@ def _solve_mixed_regime_radial_reference_field(
     maximum_mach=max(sample.mach for sample in nodes),
     model=model,
     radial_divisions=radial_divisions,
+    downstream_condition=downstream_condition,
     message=(
       'harmonic radial elliptic/isentrope reference field converged on the '
       'supplied closed perimeter; this model remains separate from the '
@@ -1057,6 +1117,7 @@ def solve_mixed_regime_subsonic_field(
   thermodynamic_tolerance: float = 1.0e-8,
   residual_tolerance: float = 1.0e-12,
   radial_divisions: int = 1,
+  downstream_condition: MocMixedRegimeDownstreamConditionResult | None = None,
 ) -> MocMixedRegimeFieldResult:
   """Solve the declared elliptic/isentrope subsonic reference field.
 
@@ -1070,9 +1131,13 @@ def solve_mixed_regime_subsonic_field(
   dimensionless-velocity divergence on every triangle.
 
   This intentionally does not accept an open perimeter, infer missing points,
-  or extrapolate a subsonic state from the supersonic MOC field.  The one-cell
-  fan is a separate reference model with an explicit model label; a future
-  higher-order elliptic solver can replace it behind this result contract.
+  or extrapolate a subsonic state from the supersonic MOC field.  The optional
+  ``downstream_condition`` must be the exact validated condition for the same
+  scalar boundary before the returned field can be attached to a terminal.
+  Omitting it leaves a converged model mesh that is explicitly incomplete for
+  physical closure.  The one-cell fan is a separate reference model with an
+  explicit model label; a future higher-order elliptic solver can replace it
+  behind this result contract.
   """
 
   if not isinstance(boundary, MocMixedRegimeBoundaryResult):
@@ -1090,6 +1155,34 @@ def solve_mixed_regime_subsonic_field(
     or radial_divisions < 1
   ):
     raise ValueError('radial_divisions must be a positive integer')
+  if downstream_condition is not None:
+    if not isinstance(
+      downstream_condition,
+      MocMixedRegimeDownstreamConditionResult,
+    ):
+      raise TypeError(
+        'downstream_condition must be a '
+        'MocMixedRegimeDownstreamConditionResult or None'
+      )
+    if downstream_condition.boundary != boundary:
+      return _field_failure(
+        MocMixedRegimeFieldStatus.BOUNDARY_FAILURE,
+        boundary,
+        message=(
+          'mixed-regime downstream condition must retain the exact scalar '
+          'boundary supplied to the field solver'
+        ),
+      )
+    if not downstream_condition.converged:
+      return _field_failure(
+        MocMixedRegimeFieldStatus.BOUNDARY_FAILURE,
+        boundary,
+        downstream_condition=downstream_condition,
+        message=(
+          'mixed-regime field requires a converged downstream physical '
+          f'condition: {downstream_condition.message}'
+        ),
+      )
   if not boundary.converged:
     return _field_failure(
       MocMixedRegimeFieldStatus.BOUNDARY_FAILURE,
@@ -1154,6 +1247,7 @@ def solve_mixed_regime_subsonic_field(
       position_tolerance_m=position_tolerance_m,
       thermodynamic_tolerance=thermodynamic_tolerance,
       residual_tolerance=residual_tolerance,
+      downstream_condition=downstream_condition,
     )
   center_sample = MocMixedRegimeFieldSample(
     point_m=center_point,
@@ -1264,9 +1358,16 @@ def solve_mixed_regime_subsonic_field(
     maximum_velocity_divergence_residual=divergence_residual,
     minimum_mach=min(sample.mach for sample in nodes),
     maximum_mach=max(sample.mach for sample in nodes),
+    downstream_condition=downstream_condition,
     message=(
       'elliptic/isentrope subsonic reference field converged on the supplied '
-      'closed perimeter; this model remains separate from the supersonic MOC lane'
+      'closed perimeter; '
+      + (
+        'the exact downstream physical condition is attached; '
+        if downstream_condition is not None
+        else 'the downstream physical condition is still pending; '
+      )
+      + 'this model remains separate from the supersonic MOC lane'
     ),
   )
 
@@ -1352,7 +1453,10 @@ def run_mixed_regime_closure_solver(
       status=MocMixedRegimeClosureStatus.FIELD_FAILURE,
       request=request,
       field=field,
-      message='mixed-regime field residual or topology gates are not complete',
+      message=(
+        'mixed-regime field model, topology, residual, or downstream physical '
+        'condition gates are not complete'
+      ),
     )
   return MocMixedRegimeClosureResult(
     status=MocMixedRegimeClosureStatus.CONVERGED,
@@ -1787,9 +1891,10 @@ def validate_mixed_regime_downstream_condition(
   The perimeter and scalar seam are validated first by
   :func:`validate_mixed_regime_boundary`.  This function then checks the
   condition that makes the perimeter physical: a slip wall requires the
-  subsonic flow to be tangent to every boundary segment, while an ambient
-  free boundary requires both tangency and static-pressure matching.  The
-  open supersonic patch is never used as a replacement for this path.
+  subsonic flow to be tangent to every boundary segment, an ambient free
+  boundary requires both tangency and static-pressure matching, and a
+  prescribed-pressure outflow section requires its declared static pressure.
+  The open supersonic patch is never used as a replacement for this path.
   """
 
   if not isinstance(condition_kind, MocMixedRegimeDownstreamConditionKind):
@@ -1819,6 +1924,10 @@ def validate_mixed_regime_downstream_condition(
       condition_kind=condition_kind,
       message='boundary must be a MocMixedRegimeBoundaryResult',
     )
+  tangency_required = condition_kind in (
+    MocMixedRegimeDownstreamConditionKind.SLIP_WALL,
+    MocMixedRegimeDownstreamConditionKind.AMBIENT_PRESSURE_FREE_BOUNDARY,
+  )
   if condition_kind is MocMixedRegimeDownstreamConditionKind.SLIP_WALL:
     if ambient_pressure_Pa is not None:
       return _downstream_condition_failure(
@@ -1834,7 +1943,10 @@ def validate_mixed_regime_downstream_condition(
         MocMixedRegimeDownstreamConditionStatus.INVALID_INPUT,
         condition_kind=condition_kind,
         boundary=boundary,
-        message='ambient_pressure_Pa is required for an ambient free boundary',
+        message=(
+          'ambient_pressure_Pa is required for an ambient free boundary or '
+          'prescribed-pressure outflow section'
+        ),
       )
     try:
       ambient_pressure = float(ambient_pressure_Pa)
@@ -1845,7 +1957,10 @@ def validate_mixed_regime_downstream_condition(
         MocMixedRegimeDownstreamConditionStatus.INVALID_INPUT,
         condition_kind=condition_kind,
         boundary=boundary,
-        message='ambient_pressure_Pa must be finite and positive',
+        message=(
+          'ambient_pressure_Pa must be finite and positive for the declared '
+          'pressure condition'
+        ),
       )
     pressure_verified = False
 
@@ -1872,51 +1987,58 @@ def validate_mixed_regime_downstream_condition(
     )
 
   tangent_residuals: list[float] = []
-  for first_point, second_point, first_sample, second_sample in zip(
-    points[:-1],
-    points[1:],
-    samples[:-1],
-    samples[1:],
-    strict=True,
-  ):
-    displacement = (
-      second_point[0] - first_point[0],
-      second_point[1] - first_point[1],
-    )
-    if hypot(*displacement) <= float(position_tolerance_m):
+  if tangency_required:
+    for first_point, second_point, first_sample, second_sample in zip(
+      points[:-1],
+      points[1:],
+      samples[:-1],
+      samples[1:],
+      strict=True,
+    ):
+      displacement = (
+        second_point[0] - first_point[0],
+        second_point[1] - first_point[1],
+      )
+      if hypot(*displacement) <= float(position_tolerance_m):
+        return _downstream_condition_failure(
+          MocMixedRegimeDownstreamConditionStatus.BOUNDARY_FAILURE,
+          condition_kind=condition_kind,
+          boundary=boundary,
+          tangent_residuals_rad=tangent_residuals,
+          pressure_condition_verified=pressure_verified,
+          message='downstream physical condition encountered a zero-length perimeter segment',
+        )
+      tangent_angle = atan2(displacement[1], displacement[0])
+      flow_angle = _segment_flow_angle(
+        first_sample.flow_angle_rad,
+        second_sample.flow_angle_rad,
+      )
+      tangent_residuals.append(
+        _line_angle_residual(flow_angle, tangent_angle)
+      )
+    maximum_tangent_residual = max(tangent_residuals, default=float('inf'))
+    tangency_verified = maximum_tangent_residual <= float(tangent_tolerance_rad)
+    if not tangency_verified:
       return _downstream_condition_failure(
-        MocMixedRegimeDownstreamConditionStatus.BOUNDARY_FAILURE,
+        MocMixedRegimeDownstreamConditionStatus.TANGENCY_FAILURE,
         condition_kind=condition_kind,
         boundary=boundary,
         tangent_residuals_rad=tangent_residuals,
         pressure_condition_verified=pressure_verified,
-        message='downstream physical condition encountered a zero-length perimeter segment',
+        message=(
+          'subsonic flow is not tangent to the proposed downstream perimeter: '
+          f'maximum residual={maximum_tangent_residual}'
+        ),
       )
-    tangent_angle = atan2(displacement[1], displacement[0])
-    flow_angle = _segment_flow_angle(
-      first_sample.flow_angle_rad,
-      second_sample.flow_angle_rad,
-    )
-    tangent_residuals.append(
-      _line_angle_residual(flow_angle, tangent_angle)
-    )
-  maximum_tangent_residual = max(tangent_residuals, default=float('inf'))
-  tangency_verified = maximum_tangent_residual <= float(tangent_tolerance_rad)
-  if not tangency_verified:
-    return _downstream_condition_failure(
-      MocMixedRegimeDownstreamConditionStatus.TANGENCY_FAILURE,
-      condition_kind=condition_kind,
-      boundary=boundary,
-      tangent_residuals_rad=tangent_residuals,
-      pressure_condition_verified=pressure_verified,
-      message=(
-        'subsonic flow is not tangent to the proposed downstream perimeter: '
-        f'maximum residual={maximum_tangent_residual}'
-      ),
-    )
+  else:
+    maximum_tangent_residual = None
+    tangency_verified = True
 
   pressure_residuals: tuple[float, ...] = ()
-  if condition_kind is MocMixedRegimeDownstreamConditionKind.AMBIENT_PRESSURE_FREE_BOUNDARY:
+  if condition_kind in (
+    MocMixedRegimeDownstreamConditionKind.AMBIENT_PRESSURE_FREE_BOUNDARY,
+    MocMixedRegimeDownstreamConditionKind.PRESSURE_OUTFLOW_SECTION,
+  ):
     assert ambient_pressure_Pa is not None
     ambient_pressure = float(ambient_pressure_Pa)
     pressure_residuals = tuple(
@@ -1961,8 +2083,12 @@ def validate_mixed_regime_downstream_condition(
     tangency_condition_verified=True,
     pressure_condition_verified=pressure_verified,
     message=(
-      'subsonic downstream perimeter passed scalar seam, kinematic tangency, '
-      'and its declared physical pressure condition'
+      'subsonic downstream perimeter passed scalar seam and its declared '
+      + (
+        'kinematic tangency and physical pressure condition'
+        if tangency_required
+        else 'pressure-outflow condition without a tangency claim'
+      )
     ),
   )
 
