@@ -524,6 +524,16 @@ def test_shock_seeded_post_shock_field_closes_a_characteristic_fan() -> None:
   assert result.minimum_forward_margin_m > 0.0
   assert result.pressure_loss_verified
   assert not result.upstream_shock_coupling_verified
+  assert result.state_sampling_available
+  assert result.domain_x_extent_m is not None
+  assert result.domain_x_extent_m[1] > result.domain_x_extent_m[0]
+  assert result.domain_y_extent_m == pytest.approx((0.0, 0.165), abs=1.0e-10)
+  report = result.as_report()
+  assert report['topology_forms_closed_zone'] is True
+  assert report['domain_x_extent_m'] == pytest.approx(result.domain_x_extent_m)
+  assert report['continuation_boundary_sample_count'] == len(
+    result.continuation_boundary_states
+  )
   assert all(node.total_pressure_Pa is not None for node in result.nodes)
   assert result.terminal_centerline_state is not None
   chain_cell = result.as_chain_cell(start_x_m=samples[0].point_m[0], end_x_m=1.5)

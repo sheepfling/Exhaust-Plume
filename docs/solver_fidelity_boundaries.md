@@ -304,6 +304,11 @@ freshness rule to planner traces and emits `domain_failure` plus
 `domain_freshness_verified=false` when a returned cell reuses or fails to
 advance beyond its shared interface. A passing handoff audit therefore does
 not, by itself, certify that the downstream field was re-solved.
+Shock-seeded post-shock fields now expose a bounded `as_report()` contract
+with mesh extents, explicit boundary paths, topology/residual summaries,
+pressure-loss lineage, and incoming-handoff counts. The report is intended
+for planner and visualization inspection; it does not convert the finite
+shock-seeded field into canonical reflected-plume closure.
 The separate solver-owned simple-wave terminal lane now makes one explicit
 constant-invariant upstream trace from the exact caustic request, marches a
 shock against a linear downstream turn profile, and retains the valid

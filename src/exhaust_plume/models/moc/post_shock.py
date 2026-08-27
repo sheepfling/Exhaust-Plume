@@ -977,6 +977,112 @@ class MocPostShockCharacteristicFieldResult:
   ####
 
   @property
+  def domain_x_extent_m(self) -> tuple[float, float] | None:
+    """Return the finite axial extent of the assembled field geometry."""
+
+    points: list[tuple[float, float]] = []
+    for cell in self.cells:
+      points.extend(cell.vertices_xr_m)
+    points.extend(self.shock_boundary_points_m)
+    points.extend(self.centerline_boundary_points_m)
+    points.extend(
+      (state.x_m, state.y_m) for state in self.continuation_boundary_states
+    )
+    if not points or any(
+      len(point) != 2
+      or not all(isfinite(float(value)) for value in point)
+      for point in points
+    ):
+      return None
+    return min(float(point[0]) for point in points), max(
+      float(point[0]) for point in points
+    )
+  ####
+
+  @property
+  def domain_y_extent_m(self) -> tuple[float, float] | None:
+    """Return the finite transverse extent of the assembled field geometry."""
+
+    points: list[tuple[float, float]] = []
+    for cell in self.cells:
+      points.extend(cell.vertices_xr_m)
+    points.extend(self.shock_boundary_points_m)
+    points.extend(self.centerline_boundary_points_m)
+    points.extend(
+      (state.x_m, state.y_m) for state in self.continuation_boundary_states
+    )
+    if not points or any(
+      len(point) != 2
+      or not all(isfinite(float(value)) for value in point)
+      for point in points
+    ):
+      return None
+    return min(float(point[1]) for point in points), max(
+      float(point[1]) for point in points
+    )
+  ####
+
+  @property
+  def state_sampling_available(self) -> bool:
+    """Whether the field carries enough data for bounded state sampling."""
+
+    return bool(
+      self.converged
+      and self.cells
+      and self.shock_boundary_states
+      and len(self.shock_boundary_states) == len(self.shock_boundary_points_m)
+      and len(self.shock_boundary_total_pressure_Pa)
+      == len(self.shock_boundary_points_m)
+      and all(node.total_pressure_Pa is not None for node in self.nodes)
+    )
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    """Serialize field geometry and continuation provenance for inspection."""
+
+    return {
+      'status': self.status.value,
+      'converged': self.converged,
+      'physical_closure_verified': self.physical_closure_verified,
+      'pressure_loss_verified': self.pressure_loss_verified,
+      'upstream_shock_coupling_verified': self.upstream_shock_coupling_verified,
+      'state_sampling_available': self.state_sampling_available,
+      'characteristic_layer_count': self.characteristic_layer_count,
+      'node_count': self.node_count,
+      'cell_count': self.cell_count,
+      'topology_status': self.topology.status.value,
+      'topology_connected': self.topology.connected,
+      'topology_forms_closed_zone': self.topology.forms_closed_zone,
+      'topology_nonmanifold_edge_count': self.topology.nonmanifold_edge_count,
+      'domain_x_extent_m': self.domain_x_extent_m,
+      'domain_y_extent_m': self.domain_y_extent_m,
+      'shock_boundary_sample_count': len(self.shock_boundary_points_m),
+      'centerline_boundary_sample_count': len(self.centerline_boundary_points_m),
+      'continuation_boundary_sample_count': len(self.continuation_boundary_states),
+      'incoming_handoff_sample_count': len(self.incoming_handoff_states),
+      'shock_boundary_points_m': [list(point) for point in self.shock_boundary_points_m],
+      'centerline_boundary_points_m': [
+        list(point) for point in self.centerline_boundary_points_m
+      ],
+      'continuation_boundary_points_m': [
+        [state.x_m, state.y_m]
+        for state in self.continuation_boundary_states
+      ],
+      'maximum_geometry_residual_m': self.maximum_geometry_residual_m,
+      'maximum_absolute_invariant_residual': self.maximum_absolute_invariant_residual,
+      'maximum_shock_angle_residual_rad': self.maximum_shock_angle_residual_rad,
+      'minimum_forward_margin_m': self.minimum_forward_margin_m,
+      'upstream_total_pressure_range_Pa': self.upstream_total_pressure_range_Pa,
+      'downstream_total_pressure_range_Pa': self.downstream_total_pressure_range_Pa,
+      'minimum_post_shock_total_pressure_ratio': self.minimum_post_shock_total_pressure_ratio,
+      'maximum_post_shock_total_pressure_ratio': self.maximum_post_shock_total_pressure_ratio,
+      'physical_closure_status': self.physical_closure_status,
+      'shock_closure_status': self.shock_closure_status,
+      'message': self.message,
+    }
+  ####
+
+  @property
   def carries_incoming_handoff(self) -> bool:
     """Whether a downstream solver recorded consumption of a prior cell trace."""
 

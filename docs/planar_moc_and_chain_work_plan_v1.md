@@ -1302,6 +1302,12 @@ Only after MOC-1 through MOC-5 pass:
   Chain reports now expose each cell's bookkeeping interval alongside the
   measured mesh and carried-boundary axial extents so a continued-cell trace
   can be audited without reconstructing geometry from the solver objects.
+- Added a standard bounded report to the shock-seeded post-shock field. It
+  exposes mesh axial/transverse extents, shock/centerline/continuation
+  boundaries, topology and residual summaries, pressure-loss lineage, and
+  incoming-handoff counts. This replaces ad hoc field serialization in
+  planner/validation consumers while keeping the field's finite-domain and
+  research-only closure boundary explicit.
 - The recovered validation archive is not a substitute for the missing
   provider-bound measurement/operator bindings.
 
