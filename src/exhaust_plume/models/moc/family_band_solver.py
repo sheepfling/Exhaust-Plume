@@ -19,7 +19,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from enum import Enum
-from math import isfinite
+from math import asin, isfinite, tan
 from typing import cast
 
 from exhaust_plume.models.moc.caustic_restart import MocCausticFamilyBandResult
@@ -56,6 +56,9 @@ from exhaust_plume.models.moc.primitives import CharacteristicFamily, Characteri
 from exhaust_plume.util.aero.shock_validity import ShockBranch
 
 __all__ = (
+  'MocCausticFamilyBandEnvelopeStatus',
+  'MocCausticFamilyBandEnvelopeResult',
+  'trace_caustic_family_band_forward_envelope',
   'MocCausticFamilyBandShockStatus',
   'MocCausticFamilyBandShockResult',
   'MocCausticFamilyBandInvariantShockStatus',
@@ -91,6 +94,468 @@ class MocCausticFamilyBandInvariantShockStatus(str, Enum):
   UPSTREAM_DOMAIN_FAILURE = 'invariant_caustic_band_upstream_domain_failure'
   INVARIANT_FAILURE = 'invariant_caustic_band_invariant_failure'
   SHOCK_FAILURE = 'invariant_caustic_band_shock_failure'
+
+
+class MocCausticFamilyBandEnvelopeStatus(str, Enum):
+  """Outcome of the weak attached-branch reachability envelope."""
+
+  CONVERGED_CENTERLINE_REACHED = (
+    'converged_caustic_forward_envelope_to_centerline'
+  )
+  INVALID_INPUT = 'invalid_input'
+  UPSTREAM_DOMAIN_FAILURE = 'caustic_forward_envelope_upstream_domain_failure'
+  MACH_ANGLE_FAILURE = 'caustic_forward_envelope_mach_angle_failure'
+  GEOMETRY_FAILURE = 'caustic_forward_envelope_geometry_failure'
+  CENTERLINE_UNREACHABLE = 'caustic_forward_envelope_centerline_unreachable'
+
+
+@dataclass(frozen=True, slots=True)
+class MocCausticFamilyBandEnvelopeResult:
+  """A bounded weak-branch forward envelope from a caustic anchor.
+
+  The envelope follows the zero-turn weak attached-shock limit
+  ``alpha = theta - mu`` through the supplied family band.  It is the local
+  maximum-forward reachability envelope for an attached compression under
+  the band data; it is not a shock curve, a downstream field, or a physical
+  closure result.  A domain miss retains the valid prefix so a remesher can
+  use the measured seam rather than treating it as extrapolatable data.
+  """
+
+  status: MocCausticFamilyBandEnvelopeStatus
+  band: MocCausticFamilyBandResult | None
+  anchor_point_m: tuple[float, float] | None
+  target_centerline_y_m: float | None
+  envelope_points_m: tuple[tuple[float, float], ...]
+  upstream_states: tuple[CharacteristicState, ...]
+  zero_turn_tangent_angles_rad: tuple[float, ...]
+  minimum_lower_boundary_margin_m: float | None
+  first_missing_sample_index: int | None
+  first_missing_point_m: tuple[float, float] | None
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if len(self.envelope_points_m) != len(self.upstream_states):
+      raise ValueError(
+        'envelope points and upstream states must have equal lengths'
+      )
+    if len(self.envelope_points_m) != len(self.zero_turn_tangent_angles_rad):
+      raise ValueError(
+        'envelope points and tangent angles must have equal lengths'
+      )
+    if any(
+      len(point) != 2 or any(not isfinite(float(value)) for value in point)
+      for point in self.envelope_points_m
+    ):
+      raise ValueError('envelope points must contain finite two-coordinate points')
+    if any(
+      not isinstance(state, CharacteristicState)
+      for state in self.upstream_states
+    ):
+      raise TypeError('envelope upstream states must be CharacteristicState values')
+    if any(
+      not isfinite(float(angle))
+      for angle in self.zero_turn_tangent_angles_rad
+    ):
+      raise ValueError('envelope tangent angles must be finite')
+    if self.anchor_point_m is not None and (
+      len(self.anchor_point_m) != 2
+      or any(not isfinite(float(value)) for value in self.anchor_point_m)
+    ):
+      raise ValueError('envelope anchor point must be finite')
+    if self.target_centerline_y_m is not None and not isfinite(
+      float(self.target_centerline_y_m)
+    ):
+      raise ValueError('envelope target ordinate must be finite')
+    if self.minimum_lower_boundary_margin_m is not None and not isfinite(
+      float(self.minimum_lower_boundary_margin_m)
+    ):
+      raise ValueError('envelope lower-boundary margin must be finite')
+    if self.first_missing_sample_index is not None and (
+      isinstance(self.first_missing_sample_index, bool)
+      or self.first_missing_sample_index < 0
+    ):
+      raise ValueError('first missing envelope sample index must be nonnegative')
+    if self.first_missing_point_m is not None and (
+      len(self.first_missing_point_m) != 2
+      or any(not isfinite(float(value)) for value in self.first_missing_point_m)
+    ):
+      raise ValueError('first missing envelope point must be finite')
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocCausticFamilyBandEnvelopeStatus.CONVERGED_CENTERLINE_REACHED
+
+  @property
+  def centerline_reached(self) -> bool:
+    return self.converged
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    """The envelope carries no shock entropy or mixed-regime closure."""
+
+    return False
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    return True
+
+  @property
+  def sample_count(self) -> int:
+    return len(self.envelope_points_m)
+
+  @property
+  def last_valid_point_m(self) -> tuple[float, float] | None:
+    return self.envelope_points_m[-1] if self.envelope_points_m else None
+
+  def as_chain_termination_decision(self) -> MocChainTerminationDecision:
+    """Expose a measured pre-shock remeshing stop when the band ends."""
+
+    if self.status is not MocCausticFamilyBandEnvelopeStatus.CENTERLINE_UNREACHABLE:
+      raise ValueError(
+        'a caustic-envelope chain stop requires a centerline-unreachable result'
+      )
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=MocChainTerminationReason.CHARACTERISTIC_CAUSTIC,
+      message=(
+        'weak attached forward envelope left the finite restarted-family band '
+        'before the centerline; physical remeshing remains required'
+      ),
+      diagnostics={
+        'termination_model': 'caustic-forward-envelope-domain-boundary',
+        'first_missing_sample_index': self.first_missing_sample_index,
+        'first_missing_point_m': self.first_missing_point_m,
+        'last_valid_point_m': self.last_valid_point_m,
+        'minimum_lower_boundary_margin_m': self.minimum_lower_boundary_margin_m,
+        'envelope_sample_count': self.sample_count,
+      },
+    )
+
+  def as_report(self) -> dict[str, object]:
+    return {
+      'status': self.status.value,
+      'converged': self.converged,
+      'centerline_reached': self.centerline_reached,
+      'research_boundary_condition': (
+        'weak-attached-zero-turn-forward-envelope'
+      ),
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'anchor_point_m': self.anchor_point_m,
+      'target_centerline_y_m': self.target_centerline_y_m,
+      'sample_count': self.sample_count,
+      'envelope_points_m': [list(point) for point in self.envelope_points_m],
+      'upstream_state_count': len(self.upstream_states),
+      'zero_turn_tangent_angles_rad': list(self.zero_turn_tangent_angles_rad),
+      'minimum_lower_boundary_margin_m': self.minimum_lower_boundary_margin_m,
+      'first_missing_sample_index': self.first_missing_sample_index,
+      'first_missing_point_m': self.first_missing_point_m,
+      'last_valid_point_m': self.last_valid_point_m,
+      'chain_termination_decision': (
+        None
+        if self.status is not MocCausticFamilyBandEnvelopeStatus.CENTERLINE_UNREACHABLE
+        else self.as_chain_termination_decision().as_report()
+      ),
+      'message': self.message,
+    }
+
+
+def trace_caustic_family_band_forward_envelope(
+  band: MocCausticFamilyBandResult,
+  *,
+  target_centerline_y_m: float = 0.0,
+  sample_count: int = 17,
+  position_tolerance_m: float = 1.0e-10,
+  maximum_segment_iterations: int = 24,
+) -> MocCausticFamilyBandEnvelopeResult:
+  """Trace the bounded weak attached-branch envelope from the anchor.
+
+  At each ordinate the zero-turn weak limit has tangent
+  ``theta_upstream - asin(1/M_upstream)``.  A positive compression turn makes
+  the attached shock tangent more negative and therefore cannot be used to
+  repair a forward-domain miss in this local envelope probe.  This function
+  only reports reachability under the current bounded band; it does not
+  synthesize a shock or imply physical closure.
+  """
+
+  def failure(
+    status: MocCausticFamilyBandEnvelopeStatus,
+    message: str,
+    *,
+    band_value: MocCausticFamilyBandResult | None = None,
+    anchor_value: tuple[float, float] | None = None,
+    target_value: float | None = None,
+    points: tuple[tuple[float, float], ...] = (),
+    states: tuple[CharacteristicState, ...] = (),
+    tangents: tuple[float, ...] = (),
+    margin: float | None = None,
+    missing_index: int | None = None,
+    missing_point: tuple[float, float] | None = None,
+  ) -> MocCausticFamilyBandEnvelopeResult:
+    return MocCausticFamilyBandEnvelopeResult(
+      status=status,
+      band=band_value,
+      anchor_point_m=anchor_value,
+      target_centerline_y_m=target_value,
+      envelope_points_m=points,
+      upstream_states=states,
+      zero_turn_tangent_angles_rad=tangents,
+      minimum_lower_boundary_margin_m=margin,
+      first_missing_sample_index=missing_index,
+      first_missing_point_m=missing_point,
+      message=message,
+    )
+
+  if not isinstance(band, MocCausticFamilyBandResult):
+    return failure(
+      MocCausticFamilyBandEnvelopeStatus.INVALID_INPUT,
+      'band must be a MocCausticFamilyBandResult',
+    )
+  if not band.converged:
+    return failure(
+      MocCausticFamilyBandEnvelopeStatus.INVALID_INPUT,
+      f'caustic family band is not converged: {band.message}',
+      band_value=band,
+    )
+  if (
+    band.anchor_point_m is None
+    or band.anchor_state is None
+    or not band.anchor_wedge_verified
+  ):
+    return failure(
+      MocCausticFamilyBandEnvelopeStatus.INVALID_INPUT,
+      'caustic family band must carry a verified anchor wedge',
+      band_value=band,
+    )
+  try:
+    target_y = float(target_centerline_y_m)
+  except (TypeError, ValueError):
+    target_y = float('nan')
+  anchor = band.anchor_point_m
+  if not isfinite(target_y) or target_y >= anchor[1]:
+    return failure(
+      MocCausticFamilyBandEnvelopeStatus.INVALID_INPUT,
+      'target centerline ordinate must be finite and below the caustic anchor',
+      band_value=band,
+      anchor_value=anchor,
+      target_value=target_y,
+    )
+  if target_y < -float(position_tolerance_m):
+    return failure(
+      MocCausticFamilyBandEnvelopeStatus.INVALID_INPUT,
+      'target centerline ordinate must remain inside the upper-half-plane band',
+      band_value=band,
+      anchor_value=anchor,
+      target_value=target_y,
+    )
+  if isinstance(sample_count, bool) or not isinstance(sample_count, int) or sample_count < 3:
+    raise ValueError('sample_count must be an integer of at least three')
+  if (
+    isinstance(maximum_segment_iterations, bool)
+    or not isinstance(maximum_segment_iterations, int)
+    or maximum_segment_iterations < 1
+  ):
+    raise ValueError('maximum_segment_iterations must be a positive integer')
+  for name, value in (
+    ('position_tolerance_m', position_tolerance_m),
+  ):
+    if not isfinite(float(value)) or value <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+
+  def sample(
+    point: tuple[float, float],
+  ) -> tuple[CharacteristicState, float] | None:
+    try:
+      state = band.state_at(point, position_tolerance_m=position_tolerance_m)
+      pressure = band.static_pressure_at(
+        point,
+        position_tolerance_m=position_tolerance_m,
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+      return None
+    if (
+      state is None
+      or pressure is None
+      or not isfinite(float(pressure))
+      or pressure <= 0.0
+      or not isfinite(float(state.mach))
+      or state.mach <= 1.0
+    ):
+      return None
+    try:
+      mach_angle = asin(1.0 / state.mach)
+      tangent_angle = state.theta_rad - mach_angle
+      tangent_slope = tan(tangent_angle)
+    except (ArithmeticError, ValueError):
+      return None
+    if not isfinite(tangent_slope) or tangent_slope >= 0.0:
+      return None
+    return state, tangent_angle
+
+  first = sample(anchor)
+  if first is None:
+    return failure(
+      MocCausticFamilyBandEnvelopeStatus.UPSTREAM_DOMAIN_FAILURE,
+      'caustic family band has no valid supersonic state at its anchor',
+      band_value=band,
+      anchor_value=anchor,
+      target_value=target_y,
+    )
+
+  lower_axis = band.centerline_states[0]
+  dy = (target_y - anchor[1]) / (sample_count - 1)
+  points: list[tuple[float, float]] = [anchor]
+  states: list[CharacteristicState] = [first[0]]
+  tangents: list[float] = [first[1]]
+  margins: list[float] = []
+
+  def lower_boundary_x(y_value: float) -> float:
+    fraction = (anchor[1] - y_value) / (anchor[1] - target_y)
+    return anchor[0] + fraction * (lower_axis.x_m - anchor[0])
+
+  margins.append(anchor[0] - lower_boundary_x(anchor[1]))
+  for index in range(1, sample_count):
+    current_point = points[-1]
+    current_tangent = tangents[-1]
+    next_y = anchor[1] + index * dy
+    try:
+      next_x = current_point[0] + dy / tan(current_tangent)
+    except (ArithmeticError, ValueError, ZeroDivisionError):
+      return failure(
+        MocCausticFamilyBandEnvelopeStatus.GEOMETRY_FAILURE,
+        f'weak attached forward envelope has no finite tangent at sample {index - 1}',
+        band_value=band,
+        anchor_value=anchor,
+        target_value=target_y,
+        points=tuple(points),
+        states=tuple(states),
+        tangents=tuple(tangents),
+        margin=min(margins, default=None),
+        missing_index=index,
+      )
+    next_state_data: tuple[CharacteristicState, float] | None = None
+    converged_segment = False
+    for _iteration in range(maximum_segment_iterations):
+      candidate = (float(next_x), float(next_y))
+      candidate_data = sample(candidate)
+      if candidate_data is None:
+        return failure(
+          MocCausticFamilyBandEnvelopeStatus.CENTERLINE_UNREACHABLE,
+          (
+            'weak attached forward envelope left the bounded restarted-family '
+            f'band before sample {index}; physical remeshing remains required'
+          ),
+          band_value=band,
+          anchor_value=anchor,
+          target_value=target_y,
+          points=tuple(points),
+          states=tuple(states),
+          tangents=tuple(tangents),
+          margin=min(
+            (*margins, candidate[0] - lower_boundary_x(candidate[1])),
+            default=None,
+          ),
+          missing_index=index,
+          missing_point=candidate,
+        )
+      candidate_tangent = candidate_data[1]
+      try:
+        updated_x = current_point[0] + dy * 0.5 * (
+          1.0 / tan(current_tangent) + 1.0 / tan(candidate_tangent)
+        )
+      except (ArithmeticError, ValueError, ZeroDivisionError):
+        return failure(
+          MocCausticFamilyBandEnvelopeStatus.GEOMETRY_FAILURE,
+          f'weak attached forward envelope has no finite corrected tangent at sample {index}',
+          band_value=band,
+          anchor_value=anchor,
+          target_value=target_y,
+          points=tuple(points),
+          states=tuple(states),
+          tangents=tuple(tangents),
+          margin=min(margins, default=None),
+          missing_index=index,
+          missing_point=candidate,
+        )
+      if abs(updated_x - next_x) <= position_tolerance_m:
+        next_x = float(updated_x)
+        final_point = (next_x, float(next_y))
+        final_data = sample(final_point)
+        if final_data is None:
+          return failure(
+            MocCausticFamilyBandEnvelopeStatus.CENTERLINE_UNREACHABLE,
+            (
+              'weak attached forward envelope left the bounded restarted-family '
+              f'band at corrected sample {index}; physical remeshing remains required'
+            ),
+            band_value=band,
+            anchor_value=anchor,
+            target_value=target_y,
+            points=tuple(points),
+            states=tuple(states),
+            tangents=tuple(tangents),
+            margin=min(
+              (*margins, final_point[0] - lower_boundary_x(final_point[1])),
+              default=None,
+            ),
+            missing_index=index,
+            missing_point=final_point,
+          )
+        next_state_data = final_data
+        converged_segment = True
+        break
+      next_x = float(updated_x)
+    if not converged_segment or next_state_data is None:
+      return failure(
+        MocCausticFamilyBandEnvelopeStatus.GEOMETRY_FAILURE,
+        f'weak attached forward envelope segment {index - 1} did not converge',
+        band_value=band,
+        anchor_value=anchor,
+        target_value=target_y,
+        points=tuple(points),
+        states=tuple(states),
+        tangents=tuple(tangents),
+        margin=min(margins, default=None),
+        missing_index=index,
+        missing_point=(float(next_x), float(next_y)),
+      )
+    if next_x <= current_point[0] + position_tolerance_m:
+      return failure(
+        MocCausticFamilyBandEnvelopeStatus.GEOMETRY_FAILURE,
+        f'weak attached forward envelope sample {index} is not downstream',
+        band_value=band,
+        anchor_value=anchor,
+        target_value=target_y,
+        points=tuple(points),
+        states=tuple(states),
+        tangents=tuple(tangents),
+        margin=min(margins, default=None),
+        missing_index=index,
+        missing_point=(float(next_x), float(next_y)),
+      )
+    point = (float(next_x), float(next_y))
+    points.append(point)
+    states.append(next_state_data[0])
+    tangents.append(next_state_data[1])
+    margins.append(point[0] - lower_boundary_x(point[1]))
+
+  return MocCausticFamilyBandEnvelopeResult(
+    status=MocCausticFamilyBandEnvelopeStatus.CONVERGED_CENTERLINE_REACHED,
+    band=band,
+    anchor_point_m=anchor,
+    target_centerline_y_m=target_y,
+    envelope_points_m=tuple(points),
+    upstream_states=tuple(states),
+    zero_turn_tangent_angles_rad=tuple(tangents),
+    minimum_lower_boundary_margin_m=min(margins, default=None),
+    first_missing_sample_index=None,
+    first_missing_point_m=None,
+    message=(
+      'weak attached zero-turn forward envelope reached the requested '
+      'centerline; this remains a reachability diagnostic, not a shock curve '
+      'or physical first-cell closure'
+    ),
+  )
 
 
 @dataclass(frozen=True, slots=True)

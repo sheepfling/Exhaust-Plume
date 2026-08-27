@@ -1545,6 +1545,269 @@
         ],
         "claim_status": "band-state-sampler-fed-shock-march-reaches-typed-subsonic-terminal; shock-field-and-chain-closure-pending"
       },
+      "caustic_family_band_origin_envelope": {
+        "status": "diagnostic-caustic-origin-forward-envelope",
+        "accepted": true,
+        "cases": [
+          {
+            "anchor_edge_index": 0,
+            "accepted": true,
+            "envelope": {
+              "status": "caustic_forward_envelope_centerline_unreachable",
+              "converged": false,
+              "centerline_reached": false,
+              "research_boundary_condition": "weak-attached-zero-turn-forward-envelope",
+              "physical_closure_verified": false,
+              "chain_promotion_blocked": true,
+              "anchor_point_m": [
+                0.6584201957653014,
+                0.056970655192732075
+              ],
+              "target_centerline_y_m": 0.0,
+              "sample_count": 15,
+              "envelope_points_m": [
+                [
+                  0.6584201957653014,
+                  0.056970655192732075
+                ],
+                [
+                  0.6705860420783977,
+                  0.05340998924318632
+                ],
+                [
+                  0.6826019553679551,
+                  0.049849323293640564
+                ],
+                [
+                  0.6944783686811954,
+                  0.04628865734409481
+                ],
+                [
+                  0.70622465625116,
+                  0.04272799139454905
+                ],
+                [
+                  0.7178492752536064,
+                  0.0391673254450033
+                ],
+                [
+                  0.7293598841287418,
+                  0.03560665949545755
+                ],
+                [
+                  0.740763442034494,
+                  0.0320459935459118
+                ],
+                [
+                  0.7520662929817298,
+                  0.028485327596366038
+                ],
+                [
+                  0.7632742374385191,
+                  0.024924661646820286
+                ],
+                [
+                  0.7743925936105217,
+                  0.021363995697274527
+                ],
+                [
+                  0.7854262501592736,
+                  0.017803329747728774
+                ],
+                [
+                  0.7963797117757937,
+                  0.014242663798183022
+                ],
+                [
+                  0.8072571387570754,
+                  0.010681997848637263
+                ],
+                [
+                  0.8180623815224541,
+                  0.007121331899091511
+                ]
+              ],
+              "upstream_state_count": 15,
+              "zero_turn_tangent_angles_rad": [
+                -0.2830131109749707,
+                -0.2864575005412464,
+                -0.28973197696280906,
+                -0.2928489363225686,
+                -0.2958195195717588,
+                -0.29865377938348525,
+                -0.30136081954090965,
+                -0.30394891222888887,
+                -0.30642559735520497,
+                -0.3087977671634998,
+                -0.3110717387206059,
+                -0.31325331633260445,
+                -0.31534784556959394,
+                -0.31736026021275715,
+                -0.31929512324769316
+              ],
+              "minimum_lower_boundary_margin_m": -0.00014139985852157366,
+              "first_missing_sample_index": 15,
+              "first_missing_point_m": [
+                0.8288324580624264,
+                0.003560665949545752
+              ],
+              "last_valid_point_m": [
+                0.8180623815224541,
+                0.007121331899091511
+              ],
+              "chain_termination_decision": {
+                "physical_termination": false,
+                "reason": "characteristic-caustic",
+                "message": "weak attached forward envelope left the finite restarted-family band before the centerline; physical remeshing remains required",
+                "diagnostics": {
+                  "termination_model": "caustic-forward-envelope-domain-boundary",
+                  "first_missing_sample_index": 15,
+                  "first_missing_point_m": [
+                    0.8288324580624264,
+                    0.003560665949545752
+                  ],
+                  "last_valid_point_m": [
+                    0.8180623815224541,
+                    0.007121331899091511
+                  ],
+                  "minimum_lower_boundary_margin_m": -0.00014139985852157366,
+                  "envelope_sample_count": 15
+                }
+              },
+              "message": "weak attached forward envelope left the bounded restarted-family band before sample 15; physical remeshing remains required"
+            }
+          },
+          {
+            "anchor_edge_index": 1,
+            "accepted": true,
+            "envelope": {
+              "status": "caustic_forward_envelope_centerline_unreachable",
+              "converged": false,
+              "centerline_reached": false,
+              "research_boundary_condition": "weak-attached-zero-turn-forward-envelope",
+              "physical_closure_verified": false,
+              "chain_promotion_blocked": true,
+              "anchor_point_m": [
+                0.6584201957653014,
+                0.056970655192732075
+              ],
+              "target_centerline_y_m": 0.0,
+              "sample_count": 15,
+              "envelope_points_m": [
+                [
+                  0.6584201957653014,
+                  0.056970655192732075
+                ],
+                [
+                  0.6730636242518535,
+                  0.05340998924318632
+                ],
+                [
+                  0.6872995714564544,
+                  0.049849323293640564
+                ],
+                [
+                  0.7011831150722317,
+                  0.04628865734409481
+                ],
+                [
+                  0.7147586654975325,
+                  0.04272799139454905
+                ],
+                [
+                  0.728062621683801,
+                  0.0391673254450033
+                ],
+                [
+                  0.7411252335787055,
+                  0.03560665949545755
+                ],
+                [
+                  0.753971943074592,
+                  0.0320459935459118
+                ],
+                [
+                  0.76662437159572,
+                  0.028485327596366038
+                ],
+                [
+                  0.7791010618907233,
+                  0.024924661646820286
+                ],
+                [
+                  0.791418044901709,
+                  0.021363995697274527
+                ],
+                [
+                  0.8035892796208158,
+                  0.017803329747728774
+                ],
+                [
+                  0.8156269990622936,
+                  0.014242663798183022
+                ],
+                [
+                  0.8275419857420946,
+                  0.010681997848637263
+                ],
+                [
+                  0.8393437934244674,
+                  0.007121331899091511
+                ]
+              ],
+              "upstream_state_count": 15,
+              "zero_turn_tangent_angles_rad": [
+                -0.2351424634497284,
+                -0.24201212885129297,
+                -0.24824486226110717,
+                -0.2539293317265786,
+                -0.2591370963869678,
+                -0.263926844328105,
+                -0.2683473685102763,
+                -0.2724397124171215,
+                -0.27623875252220365,
+                -0.27977438859982556,
+                -0.2830724546513555,
+                -0.2861554267233017,
+                -0.289042980449803,
+                -0.2917524356006035,
+                -0.29429911442304435
+              ],
+              "minimum_lower_boundary_margin_m": -0.0010916536110964215,
+              "first_missing_sample_index": 15,
+              "first_missing_point_m": [
+                0.8510912588597551,
+                0.003560665949545752
+              ],
+              "last_valid_point_m": [
+                0.8393437934244674,
+                0.007121331899091511
+              ],
+              "chain_termination_decision": {
+                "physical_termination": false,
+                "reason": "characteristic-caustic",
+                "message": "weak attached forward envelope left the finite restarted-family band before the centerline; physical remeshing remains required",
+                "diagnostics": {
+                  "termination_model": "caustic-forward-envelope-domain-boundary",
+                  "first_missing_sample_index": 15,
+                  "first_missing_point_m": [
+                    0.8510912588597551,
+                    0.003560665949545752
+                  ],
+                  "last_valid_point_m": [
+                    0.8393437934244674,
+                    0.007121331899091511
+                  ],
+                  "minimum_lower_boundary_margin_m": -0.0010916536110964215,
+                  "envelope_sample_count": 15
+                }
+              },
+              "message": "weak attached forward envelope left the bounded restarted-family band before sample 15; physical remeshing remains required"
+            }
+          }
+        ],
+        "claim_status": "weak-attached-forward-envelope-measures-bounded-origin-seam; physical-caustic-remesh-and-shock-closure-pending"
+      },
       "caustic_family_band_terminal_field": {
         "status": "diagnostic-open-band-terminal-field",
         "accepted": true,

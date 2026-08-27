@@ -7,6 +7,7 @@ from exhaust_plume.models.moc import (
   CharacteristicFamily,
   CharacteristicState,
   MocCausticFamilyBandInvariantShockStatus,
+  MocCausticFamilyBandEnvelopeStatus,
   MocCausticFamilyBandShockStatus,
   MocChainTerminationReason,
   build_caustic_shock_seed,
@@ -19,6 +20,7 @@ from exhaust_plume.models.moc import (
   solve_marched_attached_shock_chain_cell_from_caustic_family_band_with_invariant_boundary_or_termination,
   solve_marched_attached_shock_from_caustic_family_band,
   solve_marched_attached_shock_from_caustic_family_band_with_invariant_boundary,
+  trace_caustic_family_band_forward_envelope,
   solve_reflected_free_boundary,
   solve_underexpanded_expansion_fan,
   solve_uniform_attached_shock_field,
@@ -125,6 +127,41 @@ def test_caustic_band_grows_open_post_shock_zone_to_typed_terminal() -> None:
     assert mixed_boundary.supersonic_patch_verified
     assert mixed_boundary.physical_closure_verified is False
     assert mixed_boundary.chain_promotion_blocked
+
+
+def test_caustic_origin_envelope_retains_the_bounded_remesh_seam() -> None:
+  exit_state, ambient, seed = _caustic_band_fixtures()
+
+  for anchor_edge_index in (0, 1):
+    restart = restart_characteristic_family_from_caustic(
+      seed,
+      exit_state.total_pressure_Pa,
+      ambient.pressure_Pa,
+      anchor_edge_index=anchor_edge_index,
+      sample_count=6,
+    )
+    assert restart.family_band is not None
+    result = trace_caustic_family_band_forward_envelope(
+      restart.family_band,
+      sample_count=17,
+    )
+
+    assert result.status is MocCausticFamilyBandEnvelopeStatus.CENTERLINE_UNREACHABLE
+    assert result.converged is False
+    assert result.centerline_reached is False
+    assert result.physical_closure_verified is False
+    assert result.chain_promotion_blocked is True
+    assert result.first_missing_sample_index == result.sample_count
+    assert result.first_missing_point_m is not None
+    assert result.last_valid_point_m is not None
+    assert result.minimum_lower_boundary_margin_m is not None
+    assert result.minimum_lower_boundary_margin_m < 0.0
+    assert result.as_chain_termination_decision().reason is MocChainTerminationReason.CHARACTERISTIC_CAUSTIC
+    report = result.as_report()
+    assert report['research_boundary_condition'] == (
+      'weak-attached-zero-turn-forward-envelope'
+    )
+    assert report['chain_termination_decision']['reason'] == 'characteristic-caustic'
 
 
 def test_caustic_band_shock_solver_does_not_extrapolate_outside_input_domain() -> None:

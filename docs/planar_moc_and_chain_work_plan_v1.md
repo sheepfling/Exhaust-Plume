@@ -128,6 +128,13 @@ not wait on this research closure.
   typed ``OPEN_PHYSICAL_CLOSURE`` decision after one attempted next cell. Both
   canonical restart orientations pass this audit; neither is promoted as a
   resolved chain cell.
+- Added a weak-branch caustic-origin forward-envelope reachability gate. It
+  follows the local zero-turn attached limit through the bounded restarted
+  family band, retains the valid prefix and first missing point, and returns a
+  typed ``CHARACTERISTIC_CAUSTIC`` remesh stop when the finite band ends before
+  the centerline. The canonical two restart orientations both exercise this
+  measured boundary; the envelope is a reachability diagnostic, not a shock
+  curve or a physical closure claim.
 - Added caustic-band terminal refinement and independent measurement gates.
   Five, seven, nine, and eleven shock-march samples converge in both
   orientations with open-zone cell counts 5, 14, 27, and 44 and decreasing
@@ -780,7 +787,11 @@ Only after MOC-1 through MOC-5 pass:
   ten-step two-triangle-per-step open band. Its original triangular cross-ray assembly
   still fails at the first non-forward node, and the band has no shock or
   entropy closure; a physically fitted shock must still bridge the caustic
-  before upstream coupling is complete. The bounded band shock seam now
+  before upstream coupling is complete. The weak-branch forward-envelope gate
+  now measures that finite-band reachability seam explicitly: both canonical
+  anchor orientations leave the restarted band before reaching the centerline,
+  so it remains a remeshing diagnostic rather than a physical shock result. The
+  bounded band shock seam now
   consumes the band samples through a solver-generated open post-shock zone
   and typed subsonic terminal, and the one-step chain planner carries the exact
   prior perimeter into that solve. It still returns a non-physical

@@ -513,6 +513,29 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert caustic_shock_bridge['bridge']['shock_curve_verified'] is False
   assert caustic_shock_bridge['bridge']['physical_closure_verified'] is False
   assert caustic_shock_bridge['bridge']['chain_promotion_blocked'] is True
+  origin_envelope = centerline_reflection_extension[
+    'caustic_family_band_origin_envelope'
+  ]
+  assert origin_envelope['status'] == (
+    'diagnostic-caustic-origin-forward-envelope'
+  )
+  assert origin_envelope['accepted'] is True
+  assert len(origin_envelope['cases']) == 2
+  assert all(
+    case['accepted'] is True
+    and case['envelope']['status'] == (
+      'caustic_forward_envelope_centerline_unreachable'
+    )
+    and case['envelope']['converged'] is False
+    and case['envelope']['physical_closure_verified'] is False
+    and case['envelope']['chain_promotion_blocked'] is True
+    and case['envelope']['first_missing_sample_index'] == case['envelope']['sample_count']
+    and case['envelope']['minimum_lower_boundary_margin_m'] < 0.0
+    and case['envelope']['chain_termination_decision']['reason'] == (
+      'characteristic-caustic'
+    )
+    for case in origin_envelope['cases']
+  )
   caustic_restart = centerline_reflection_extension['caustic_family_restart']
   assert caustic_restart['status'] == 'diagnostic-open-new-family-boundary-restarts'
   assert caustic_restart['accepted'] is True

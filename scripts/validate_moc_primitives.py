@@ -34,6 +34,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocChainTerminationReason,
   MocChainStatus,
   MocChainPlannerKind,
+  MocCausticFamilyBandEnvelopeStatus,
   MocCausticShockBridgeStatus,
   MocCausticBridgeSide,
   MocCausticBridgeStatus,
@@ -101,6 +102,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   resolve_caustic_shock_seed,
   solve_caustic_shock_bridge,
   restart_characteristic_family_from_caustic,
+  trace_caustic_family_band_forward_envelope,
   extend_source_characteristic_strip_centerline_reflection,
   extend_source_characteristic_strip_constant_k_plus,
   march_post_shock_ambient_boundary,
@@ -1968,6 +1970,81 @@ def _caustic_family_band_shock_probe(
   }
 
 
+def _caustic_family_band_origin_envelope_probe(
+  seed: Any,
+  total_pressure_Pa: float,
+  ambient_pressure_Pa: float,
+) -> dict[str, Any]:
+  """Measure whether the restarted band can carry an attached path to y=0."""
+
+  if seed is None:
+    return {
+      'status': 'missing_seed',
+      'accepted': False,
+      'cases': [],
+      'claim_status': 'caustic-origin-envelope-pending',
+    }
+  cases: list[dict[str, Any]] = []
+  for anchor_edge_index in (0, 1):
+    restart = restart_characteristic_family_from_caustic(
+      seed,
+      total_pressure_Pa,
+      ambient_pressure_Pa,
+      anchor_edge_index=anchor_edge_index,
+      sample_count=6,
+    )
+    band = restart.family_band
+    if band is None or not band.converged:
+      cases.append({
+        'anchor_edge_index': anchor_edge_index,
+        'accepted': False,
+        'status': 'missing_open_family_band',
+        'envelope': None,
+      })
+      continue
+    try:
+      envelope = trace_caustic_family_band_forward_envelope(
+        band,
+        sample_count=17,
+      )
+      report = envelope.as_report()
+      termination = envelope.as_chain_termination_decision()
+      accepted = (
+        envelope.status is MocCausticFamilyBandEnvelopeStatus.CENTERLINE_UNREACHABLE
+        and not envelope.converged
+        and envelope.physical_closure_verified is False
+        and envelope.chain_promotion_blocked
+        and envelope.first_missing_sample_index == envelope.sample_count
+        and envelope.first_missing_point_m is not None
+        and envelope.last_valid_point_m is not None
+        and envelope.minimum_lower_boundary_margin_m is not None
+        and envelope.minimum_lower_boundary_margin_m < 0.0
+        and termination.reason is MocChainTerminationReason.CHARACTERISTIC_CAUSTIC
+        and termination.physical_termination is False
+      )
+      cases.append({
+        'anchor_edge_index': anchor_edge_index,
+        'accepted': accepted,
+        'envelope': report,
+      })
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      cases.append({
+        'anchor_edge_index': anchor_edge_index,
+        'accepted': False,
+        'envelope': None,
+        'message': f'caustic-origin envelope probe raised: {error}',
+      })
+  return {
+    'status': 'diagnostic-caustic-origin-forward-envelope',
+    'accepted': all(case['accepted'] is True for case in cases),
+    'cases': cases,
+    'claim_status': (
+      'weak-attached-forward-envelope-measures-bounded-origin-seam; '
+      'physical-caustic-remesh-and-shock-closure-pending'
+    ),
+  }
+
+
 def _caustic_family_band_terminal_field_probe(
   seed: Any,
   total_pressure_Pa: float,
@@ -3029,6 +3106,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
     fan_exit.total_pressure_Pa,
     fan_ambient.pressure_Pa,
   )
+  caustic_family_band_origin_envelope = (
+    _caustic_family_band_origin_envelope_probe(
+      caustic_shock_seed,
+      fan_exit.total_pressure_Pa,
+      fan_ambient.pressure_Pa,
+    )
+  )
   caustic_family_band_terminal_field = _caustic_family_band_terminal_field_probe(
     caustic_shock_seed,
     fan_exit.total_pressure_Pa,
@@ -3824,6 +3908,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'caustic_shock_bridge': caustic_shock_bridge,
       'caustic_family_restart': caustic_family_restart,
       'caustic_family_band_shock': caustic_family_band_shock,
+      'caustic_family_band_origin_envelope': caustic_family_band_origin_envelope,
       'caustic_family_band_terminal_field': caustic_family_band_terminal_field,
       'caustic_family_band_chain_planner': caustic_family_band_chain_planner,
       'caustic_family_band_invariant_chain': caustic_family_band_invariant_chain,
