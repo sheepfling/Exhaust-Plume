@@ -5960,6 +5960,111 @@
       "message": "candidate field is missing explicit shock boundary edge(s): [0, 1, 2]",
       "claim_status": "open-zone-rejection-exercised; canonical-full-field-pending"
     },
+    "post_shock_zone_chain_planner": {
+      "status": "diagnostic-bounded-open-post-shock-zone-chain",
+      "accepted": true,
+      "physical_termination": true,
+      "open_zone": {
+        "status": "converged_open",
+        "converged": true,
+        "characteristic_count": 2,
+        "node_count": 6,
+        "cell_count": 5,
+        "maximum_geometry_residual_m": 2.0816681711721685e-16,
+        "maximum_absolute_invariant_residual": 2.0800028366352308e-13,
+        "minimum_forward_margin_m": 0.0384001986494108,
+        "upstream_total_pressure_range_Pa": [
+          782444.9066867264,
+          782444.9066867264
+        ],
+        "downstream_total_pressure_range_Pa": [
+          764819.179280032,
+          764819.179280032
+        ],
+        "minimum_post_shock_total_pressure_ratio": 0.977473522728481,
+        "maximum_post_shock_total_pressure_ratio": 0.977473522728481,
+        "pressure_loss_verified": true,
+        "physical_closure_status": "open",
+        "shock_closure_status": "prescribed-boundary-first-layer",
+        "state_sampling_available": true,
+        "shock_boundary_sample_count": 4,
+        "axis_boundary_sample_count": 3,
+        "message": "post-shock characteristic zone assembled through the first downstream layer; fitted shock closure and physical first-cell closure remain pending"
+      },
+      "planner": {
+        "planner_kind": "upstream-coupled-research",
+        "planning_only": true,
+        "production_claim_allowed": false,
+        "claim_status": "bounded-open-post-shock-zone-next-shock-planner; one-step-domain-and-physical-downstream-closure-pending",
+        "step_count": 1,
+        "handoff_links_verified": null,
+        "steps": [
+          {
+            "current_cell_index": 1,
+            "next_cell_index": 2,
+            "current_end_x_m": 0.85,
+            "boundary_kind": "post-shock-field-perimeter",
+            "incoming_handoff_sample_count": 5,
+            "incoming_total_pressure_range_Pa": [
+              1800000.0,
+              1800000.0
+            ],
+            "incoming_handoff_fingerprint": "14f557246fbe1ac86023c0ef3b6345c61b4a2bc8d6c2f45b6543df2591e6a3e6",
+            "incoming_handoff_link_verified": null,
+            "result_kind": "termination-returned",
+            "result_status": "physical-termination",
+            "result_end_x_m": null,
+            "result_geometry_fidelity": null,
+            "result_physical_closure": null,
+            "result_termination_reason": "physical-termination",
+            "result_physical_termination": true,
+            "result_boundary_kind": null,
+            "result_handoff_sample_count": null,
+            "result_total_pressure_range_Pa": null,
+            "result_handoff_fingerprint": null
+          }
+        ],
+        "chain": {
+          "status": "physically-terminated",
+          "termination_reason": "physical-termination",
+          "physical_termination": true,
+          "cell_count": 1,
+          "end_x_m": 0.85,
+          "resolved": true,
+          "state_carry_count": 1,
+          "continuation_boundary_kinds": [
+            "post-shock-field-perimeter"
+          ],
+          "continuation_total_pressure_ranges_Pa": [
+            {
+              "cell_index": 1,
+              "minimum_Pa": 1800000.0,
+              "maximum_Pa": 1800000.0
+            }
+          ],
+          "continuation_boundary_maxima_nonincreasing": null,
+          "geometry_fidelity_counts": {
+            "resolved-planar-moc": 1
+          },
+          "diagnostics": {
+            "termination_model": "normal-shock-terminal",
+            "upstream_field_model": "bounded-open-post-shock-zone",
+            "shock_point_m": [
+              0.9118084176416699,
+              0.0
+            ],
+            "downstream_mach": 0.6727614331496858,
+            "downstream_pressure_Pa": 508504.5886188513,
+            "total_pressure_ratio": 0.9004426207322098,
+            "upstream_sample_count": 4,
+            "next_cell_index": 2
+          },
+          "message": "post-shock-zone shock reached a verified subsonic normal shock; the mixed-regime downstream field remains outside the supersonic MOC chain"
+        },
+        "diagnostics": {}
+      },
+      "claim_status": "bounded-open-post-shock-zone-next-shock; mixed-regime-downstream-closure-pending"
+    },
     "solver_generated_attached_shock_field": {
       "status": "converged_free_boundary_field",
       "accepted": true,

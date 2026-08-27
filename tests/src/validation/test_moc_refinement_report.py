@@ -82,6 +82,7 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   ambient_closure = report['geometry_cases']['ambient_pressure_closure_probe']
   strong_subsonic_boundary = report['geometry_cases']['marched_strong_subsonic_boundary']
   mixed_regime_boundary = report['geometry_cases']['mixed_regime_boundary_contract']
+  post_shock_zone_planner = report['geometry_cases']['post_shock_zone_chain_planner']
   downstream_condition = mixed_regime_boundary['downstream_condition_contract']
   positive_wall_condition = mixed_regime_boundary[
     'downstream_condition_positive_wall_fixture'
@@ -181,6 +182,32 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert field_coupled_chain_planner['chain_diagnostics']['upstream_field_model'] == (
     'bounded-post-shock-characteristic-field'
   )
+  assert post_shock_zone_planner['accepted'] is True
+  assert post_shock_zone_planner['physical_termination'] is True
+  assert post_shock_zone_planner['claim_status'] == (
+    'bounded-open-post-shock-zone-next-shock; '
+    'mixed-regime-downstream-closure-pending'
+  )
+  assert post_shock_zone_planner['open_zone']['state_sampling_available'] is True
+  zone_planner = post_shock_zone_planner['planner']
+  assert zone_planner['planner_kind'] == 'upstream-coupled-research'
+  assert zone_planner['planning_only'] is True
+  assert zone_planner['production_claim_allowed'] is False
+  assert zone_planner['step_count'] == 1
+  assert zone_planner['chain']['status'] == 'physically-terminated'
+  assert zone_planner['chain']['termination_reason'] == 'physical-termination'
+  assert zone_planner['chain']['physical_termination'] is True
+  assert zone_planner['chain']['diagnostics']['termination_model'] == (
+    'normal-shock-terminal'
+  )
+  assert zone_planner['chain']['diagnostics']['upstream_field_model'] == (
+    'bounded-open-post-shock-zone'
+  )
+  assert zone_planner['chain']['diagnostics']['upstream_sample_count'] == 4
+  assert zone_planner['steps'][0]['boundary_kind'] == 'post-shock-field-perimeter'
+  assert zone_planner['steps'][0]['result_kind'] == 'termination-returned'
+  assert zone_planner['steps'][0]['result_status'] == 'physical-termination'
+  assert zone_planner['steps'][0]['result_physical_termination'] is True
   assert reflected_chain_boundary['accepted'] is True
   assert reflected_chain_boundary['physical_termination'] is False
   assert reflected_chain_boundary['status'] == 'solver-terminated'

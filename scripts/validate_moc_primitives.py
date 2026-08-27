@@ -55,6 +55,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   plan_post_shock_characteristic_chain,
   plan_field_coupled_post_shock_chain_reference,
   plan_post_shock_field_invariant_chain,
+  plan_post_shock_zone_chain,
   plan_terminal_reflection_patch_chain,
   MocShockBoundaryFitResult,
   MocShockBoundaryFitStatus,
@@ -1913,6 +1914,89 @@ def _reflected_zone_chain_boundary_probe(
   }
 
 
+def _post_shock_zone_chain_planner_probe(
+  post_shock_zone: Any,
+  seed_field: MocPostShockCharacteristicFieldResult,
+) -> dict[str, Any]:
+  """Exercise one bounded open-zone planner step with a typed terminal."""
+
+  if (
+    not getattr(post_shock_zone, 'converged', False)
+    or not getattr(post_shock_zone, 'state_sampling_available', False)
+    or not seed_field.converged
+  ):
+    return {
+      'status': 'invalid_input',
+      'accepted': False,
+      'physical_termination': False,
+      'message': (
+        'bounded open-zone planner probe requires a converged, state-sampling '
+        'post-shock zone and a converged seed field'
+      ),
+      'claim_status': 'bounded-open-post-shock-zone-chain-pending',
+    }
+  try:
+    seed = seed_field.as_chain_cell(start_x_m=0.5, end_x_m=0.85)
+  except (TypeError, ValueError) as error:
+    return {
+      'status': 'invalid_seed',
+      'accepted': False,
+      'physical_termination': False,
+      'message': f'bounded open-zone planner seed rejected: {error}',
+      'claim_status': 'bounded-open-post-shock-zone-chain-pending',
+    }
+
+  def downstream_angle(
+    _sample_index: int,
+    point: tuple[float, float],
+  ) -> float:
+    return 0.02 * max(-1.0, min(1.0, point[1] / 0.001))
+
+  planner = plan_post_shock_zone_chain(
+    seed,
+    post_shock_zone,
+    start_point_m=(0.9, 0.01),
+    end_x_m=1.35,
+    downstream_flow_angle_at=downstream_angle,
+    sample_count=5,
+    position_tolerance_m=1.0e-8,
+  )
+  report = planner.as_report()
+  chain = report['chain']
+  steps = report['steps']
+  diagnostics = chain['diagnostics']
+  accepted = (
+    report['planner_kind'] == MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH.value
+    and report['planning_only'] is True
+    and report['production_claim_allowed'] is False
+    and report['step_count'] == 1
+    and chain['status'] == MocChainStatus.PHYSICALLY_TERMINATED.value
+    and chain['termination_reason'] == MocChainTerminationReason.PHYSICAL_TERMINATION.value
+    and chain['physical_termination'] is True
+    and chain['cell_count'] == 1
+    and len(steps) == 1
+    and steps[0]['boundary_kind'] == MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER.value
+    and steps[0]['result_kind'] == 'termination-returned'
+    and steps[0]['result_status'] == MocChainTerminationReason.PHYSICAL_TERMINATION.value
+    and steps[0]['result_termination_reason'] == MocChainTerminationReason.PHYSICAL_TERMINATION.value
+    and steps[0]['result_physical_termination'] is True
+    and diagnostics['termination_model'] == 'normal-shock-terminal'
+    and diagnostics['upstream_field_model'] == 'bounded-open-post-shock-zone'
+    and diagnostics['upstream_sample_count'] == 4
+  )
+  return {
+    'status': 'diagnostic-bounded-open-post-shock-zone-chain',
+    'accepted': accepted,
+    'physical_termination': chain['physical_termination'],
+    'open_zone': post_shock_zone.as_report(),
+    'planner': report,
+    'claim_status': (
+      'bounded-open-post-shock-zone-next-shock; '
+      'mixed-regime-downstream-closure-pending'
+    ),
+  }
+
+
 def _caustic_family_restart_probe(
   seed: Any,
   total_pressure_Pa: float,
@@ -3723,6 +3807,15 @@ def build_moc_primitive_report() -> dict[str, Any]:
     ))
   sampled_shock_fit, sampled_continuation, sampled_closed_gate = _sampled_attached_shock_gate()
   shock_seeded_field = _shock_seeded_field_fixture()
+  sampled_post_shock_zone = assemble_post_shock_characteristic_zone(
+    sampled_continuation,
+    assemble_post_shock_first_layer(sampled_continuation),
+    sampled_shock_fit.boundary_states,
+  )
+  post_shock_zone_chain_planner = _post_shock_zone_chain_planner_probe(
+    sampled_post_shock_zone,
+    shock_seeded_field,
+  )
   shock_seeded_ambient_boundary = validate_post_shock_ambient_boundary(
     shock_seeded_field,
     _shock_seeded_field_fit(),
@@ -4006,6 +4099,9 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or reflected_zone_chain_boundary_probe.get('physical_termination') is not False
     or reflected_zone_chain_boundary_probe.get('status') != 'solver-terminated'
     or reflected_zone_chain_boundary_probe.get('termination_reason') != 'upstream-field-boundary'
+  )
+  post_shock_zone_chain_planner_failure = (
+    post_shock_zone_chain_planner.get('accepted') is not True
   )
   terminal_patch_chain_probe = ambient_shock_strip_probe.get(
     'terminal_reflection_patch_chain_probe',
@@ -4527,6 +4623,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'message': sampled_closed_gate.message,
       'claim_status': 'open-zone-rejection-exercised; canonical-full-field-pending',
     },
+    'post_shock_zone_chain_planner': post_shock_zone_chain_planner,
     'solver_generated_attached_shock_field': {
       'status': solver_generated_shock.status.value,
       'accepted': solver_generated_shock.converged,
@@ -5089,6 +5186,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'message': sampled_closed_gate.message,
       }
     ] if sampled_closed_gate.status is not MocPostShockClosureStatus.GEOMETRY_FAILURE else []),
+    *([
+      {
+        'case': 'post_shock_zone_chain_planner',
+        'status': str(post_shock_zone_chain_planner.get('status', 'missing')),
+        'message': str(post_shock_zone_chain_planner.get('message', '')),
+      }
+    ] if post_shock_zone_chain_planner_failure else []),
     *([
       {
         'case': 'shock_seeded_post_shock_field',
