@@ -105,6 +105,7 @@ class MocChainPlannerStep:
   incoming_handoff_sample_count: int
   incoming_total_pressure_range_Pa: tuple[float, float] | None
   incoming_handoff_fingerprint: str | None = None
+  incoming_handoff_link_verified: bool | None = None
   result_kind: str = 'not-recorded'
   result_status: str | None = None
   result_end_x_m: float | None = None
@@ -112,6 +113,10 @@ class MocChainPlannerStep:
   result_physical_closure: MocCellClosureStatus | None = None
   result_termination_reason: MocChainTerminationReason | None = None
   result_physical_termination: bool | None = None
+  result_boundary_kind: MocChainBoundaryKind | None = None
+  result_handoff_sample_count: int | None = None
+  result_total_pressure_range_Pa: tuple[float, float] | None = None
+  result_handoff_fingerprint: str | None = None
 
   def __post_init__(self) -> None:
     if isinstance(self.current_cell_index, bool) or self.current_cell_index < 1:
@@ -172,6 +177,40 @@ class MocChainPlannerStep:
         bool,
     ):
       raise TypeError('result_physical_termination must be a bool or None')
+    if self.incoming_handoff_link_verified is not None and not isinstance(
+        self.incoming_handoff_link_verified,
+        bool,
+    ):
+      raise TypeError('incoming_handoff_link_verified must be a bool or None')
+    if self.result_boundary_kind is not None and not isinstance(
+        self.result_boundary_kind,
+        MocChainBoundaryKind,
+    ):
+      raise TypeError('result_boundary_kind must be a MocChainBoundaryKind or None')
+    if self.result_handoff_sample_count is not None:
+      if (
+        isinstance(self.result_handoff_sample_count, bool)
+        or self.result_handoff_sample_count < 0
+      ):
+        raise ValueError('result_handoff_sample_count must be nonnegative when supplied')
+    result_pressure_range = self.result_total_pressure_range_Pa
+    if result_pressure_range is not None:
+      if len(result_pressure_range) != 2:
+        raise ValueError('result_total_pressure_range_Pa must contain two values')
+      minimum, maximum = (float(value) for value in result_pressure_range)
+      if (
+        not isfinite(minimum)
+        or not isfinite(maximum)
+        or minimum <= 0.0
+        or maximum < minimum
+      ):
+        raise ValueError('result total-pressure range must be finite and ordered')
+      object.__setattr__(self, 'result_total_pressure_range_Pa', (minimum, maximum))
+    if self.result_handoff_fingerprint is not None and not isinstance(
+        self.result_handoff_fingerprint,
+        str,
+    ):
+      raise TypeError('result_handoff_fingerprint must be a string or None')
   ####
 
   @classmethod
@@ -180,11 +219,14 @@ class MocChainPlannerStep:
     current: MocChainCell,
     next_cell_index: int,
     boundary: tuple[MocChainBoundarySample, ...],
+    *,
+    previous_result_handoff_fingerprint: str | None = None,
   ) -> 'MocChainPlannerStep':
     pressure_range = None
     if boundary:
       pressures = tuple(sample.total_pressure_Pa for sample in boundary)
       pressure_range = (min(pressures), max(pressures))
+    incoming_fingerprint = _handoff_fingerprint(boundary)
     return cls(
       current_cell_index=current.cell_index,
       next_cell_index=next_cell_index,
@@ -194,7 +236,13 @@ class MocChainPlannerStep:
       ),
       incoming_handoff_sample_count=len(boundary),
       incoming_total_pressure_range_Pa=pressure_range,
-      incoming_handoff_fingerprint=_handoff_fingerprint(boundary),
+      incoming_handoff_fingerprint=incoming_fingerprint,
+      incoming_handoff_link_verified=(
+        None
+        if previous_result_handoff_fingerprint is None
+        else incoming_fingerprint is not None
+        and incoming_fingerprint == previous_result_handoff_fingerprint
+      ),
     )
   ####
 
@@ -207,6 +255,7 @@ class MocChainPlannerStep:
       'incoming_handoff_sample_count': self.incoming_handoff_sample_count,
       'incoming_total_pressure_range_Pa': self.incoming_total_pressure_range_Pa,
       'incoming_handoff_fingerprint': self.incoming_handoff_fingerprint,
+      'incoming_handoff_link_verified': self.incoming_handoff_link_verified,
       'result_kind': self.result_kind,
       'result_status': self.result_status,
       'result_end_x_m': self.result_end_x_m,
@@ -226,6 +275,14 @@ class MocChainPlannerStep:
         else self.result_termination_reason.value
       ),
       'result_physical_termination': self.result_physical_termination,
+      'result_boundary_kind': (
+        None
+        if self.result_boundary_kind is None
+        else self.result_boundary_kind.value
+      ),
+      'result_handoff_sample_count': self.result_handoff_sample_count,
+      'result_total_pressure_range_Pa': self.result_total_pressure_range_Pa,
+      'result_handoff_fingerprint': self.result_handoff_fingerprint,
     }
   ####
 
@@ -242,6 +299,14 @@ class MocChainPlannerStep:
       )
     if isinstance(result, MocPostShockChainCellSolve):
       field = result.field
+      boundary = tuple(
+        MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
+        for state, pressure in zip(
+          field.continuation_boundary_states,
+          field.continuation_boundary_total_pressure_Pa,
+          strict=True,
+        )
+      )
       return replace(
         self,
         result_kind='field-solve-returned',
@@ -257,6 +322,10 @@ class MocChainPlannerStep:
           if field.physical_closure_verified
           else MocCellClosureStatus.OPEN
         ),
+        **_result_handoff_fields(
+          boundary,
+          MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER,
+        ),
       )
     if isinstance(result, MocChainCell):
       return replace(
@@ -266,6 +335,10 @@ class MocChainPlannerStep:
         result_end_x_m=result.end_x_m,
         result_geometry_fidelity=result.geometry_fidelity,
         result_physical_closure=result.physical_closure,
+        **_result_handoff_fields(
+          result.continuation_boundary,
+          result.continuation_boundary_kind,
+        ),
       )
     if result is None:
       return replace(
@@ -324,6 +397,24 @@ def _handoff_fingerprint(
   return sha256(payload.encode('ascii')).hexdigest()
 
 
+def _result_handoff_fields(
+  boundary: tuple[MocChainBoundarySample, ...],
+  boundary_kind: MocChainBoundaryKind | None,
+) -> dict[str, Any]:
+  """Return the outgoing handoff audit fields for a returned cell/field."""
+
+  pressure_range = None
+  if boundary:
+    pressures = tuple(sample.total_pressure_Pa for sample in boundary)
+    pressure_range = (min(pressures), max(pressures))
+  return {
+    'result_boundary_kind': boundary_kind if boundary else None,
+    'result_handoff_sample_count': len(boundary),
+    'result_total_pressure_range_Pa': pressure_range,
+    'result_handoff_fingerprint': _handoff_fingerprint(boundary),
+  }
+
+
 @dataclass(frozen=True, slots=True)
 class MocChainPlannerResult:
   """A chain result plus planner provenance and callback audit steps."""
@@ -364,6 +455,14 @@ class MocChainPlannerResult:
     return False
   ####
 
+  @property
+  def handoff_links_verified(self) -> bool | None:
+    """Whether every continued callback consumed the prior result handoff."""
+
+    if len(self.steps) < 2:
+      return None
+    return all(step.incoming_handoff_link_verified is True for step in self.steps[1:])
+
   def as_report(self) -> dict[str, Any]:
     return {
       'planner_kind': self.planner_kind.value,
@@ -371,6 +470,7 @@ class MocChainPlannerResult:
       'production_claim_allowed': self.production_claim_allowed,
       'claim_status': self.claim_status,
       'step_count': len(self.steps),
+      'handoff_links_verified': self.handoff_links_verified,
       'steps': [step.as_report() for step in self.steps],
       'chain': self.chain.as_report(),
       'diagnostics': dict(self.diagnostics),
@@ -697,6 +797,9 @@ def plan_moc_chain(
       current,
       next_cell_index,
       current.continuation_boundary,
+      previous_result_handoff_fingerprint=(
+        steps[-1].result_handoff_fingerprint if steps else None
+      ),
     )
     steps.append(step)
     try:
@@ -1628,6 +1731,9 @@ def plan_post_shock_characteristic_chain(
       current,
       next_cell_index,
       incoming_handoff,
+      previous_result_handoff_fingerprint=(
+        steps[-1].result_handoff_fingerprint if steps else None
+      ),
     )
     steps.append(step)
     try:

@@ -634,6 +634,15 @@ def test_post_shock_planner_records_exact_handoff_steps_without_promotion_claim(
     step.boundary_kind is MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER
     for step in planner.steps
   )
+  assert planner.handoff_links_verified is True
+  assert all(
+    step.result_handoff_fingerprint
+    for step in planner.steps[:1]
+  )
+  assert all(
+    step.incoming_handoff_link_verified is True
+    for step in planner.steps[1:]
+  )
   assert [step.result_kind for step in planner.steps] == [
     'field-solve-returned',
     'no-cell-returned',
@@ -672,6 +681,7 @@ def test_prescribed_post_shock_chain_mock_is_reusable_and_nonproduction() -> Non
   assert planner.production_claim_allowed is False
   assert planner.diagnostics['prescribed_chain_mock']['planning_only'] is True
   assert planner.diagnostics['prescribed_chain_mock']['production_claim_allowed'] is False
+  assert planner.handoff_links_verified is True
   assert [step.result_kind for step in planner.steps] == [
     'field-solve-returned',
     'field-solve-returned',
@@ -684,6 +694,18 @@ def test_prescribed_post_shock_chain_mock_is_reusable_and_nonproduction() -> Non
   ]
   assert planner.steps[-1].result_termination_reason is MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL
   assert planner.steps[-1].result_physical_termination is False
+  assert all(
+    step.result_boundary_kind is MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER
+    and step.result_handoff_sample_count is not None
+    and step.result_handoff_sample_count >= 3
+    and step.result_total_pressure_range_Pa is not None
+    and step.result_handoff_fingerprint
+    for step in planner.steps[:2]
+  )
+  assert all(
+    step.incoming_handoff_link_verified is True
+    for step in planner.steps[1:]
+  )
 
 
 def test_prescribed_chain_mock_uses_a_solver_backed_attached_shock_fit() -> None:

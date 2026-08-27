@@ -1520,6 +1520,7 @@
           "production_claim_allowed": false,
           "claim_status": "caustic-shock-remesh-planner; solver-backed shock/new-family field with physical-first-cell-closure-pending",
           "step_count": 1,
+          "handoff_links_verified": null,
           "steps": [
             {
               "current_cell_index": 1,
@@ -1532,13 +1533,18 @@
                 764819.179280032
               ],
               "incoming_handoff_fingerprint": "129cb1e9aa2ee841c82b4b46485cff034d5b0da77328cf330abb62ff35301af5",
+              "incoming_handoff_link_verified": null,
               "result_kind": "termination-returned",
               "result_status": "open-physical-closure",
               "result_end_x_m": null,
               "result_geometry_fidelity": null,
               "result_physical_closure": null,
               "result_termination_reason": "open-physical-closure",
-              "result_physical_termination": false
+              "result_physical_termination": false,
+              "result_boundary_kind": null,
+              "result_handoff_sample_count": null,
+              "result_total_pressure_range_Pa": null,
+              "result_handoff_fingerprint": null
             }
           ],
           "chain": {
@@ -2827,6 +2833,7 @@
               "production_claim_allowed": false,
               "claim_status": "caustic-family-band-next-shock-planner; open-mixed-regime-closure-and-external-validation-pending",
               "step_count": 1,
+              "handoff_links_verified": null,
               "steps": [
                 {
                   "current_cell_index": 1,
@@ -2839,13 +2846,18 @@
                     764819.179280032
                   ],
                   "incoming_handoff_fingerprint": "d0c3cfd5c26535d39ff1ee5d6c0ce16797ff445aaf2d3130e41244d662347b9b",
+                  "incoming_handoff_link_verified": null,
                   "result_kind": "termination-returned",
                   "result_status": "open-physical-closure",
                   "result_end_x_m": null,
                   "result_geometry_fidelity": null,
                   "result_physical_closure": null,
                   "result_termination_reason": "open-physical-closure",
-                  "result_physical_termination": false
+                  "result_physical_termination": false,
+                  "result_boundary_kind": null,
+                  "result_handoff_sample_count": null,
+                  "result_total_pressure_range_Pa": null,
+                  "result_handoff_fingerprint": null
                 }
               ],
               "chain": {
@@ -2905,6 +2917,7 @@
               "production_claim_allowed": false,
               "claim_status": "caustic-family-band-next-shock-planner; open-mixed-regime-closure-and-external-validation-pending",
               "step_count": 1,
+              "handoff_links_verified": null,
               "steps": [
                 {
                   "current_cell_index": 1,
@@ -2917,13 +2930,18 @@
                     764819.179280032
                   ],
                   "incoming_handoff_fingerprint": "d0c3cfd5c26535d39ff1ee5d6c0ce16797ff445aaf2d3130e41244d662347b9b",
+                  "incoming_handoff_link_verified": null,
                   "result_kind": "termination-returned",
                   "result_status": "open-physical-closure",
                   "result_end_x_m": null,
                   "result_geometry_fidelity": null,
                   "result_physical_closure": null,
                   "result_termination_reason": "open-physical-closure",
-                  "result_physical_termination": false
+                  "result_physical_termination": false,
+                  "result_boundary_kind": null,
+                  "result_handoff_sample_count": null,
+                  "result_total_pressure_range_Pa": null,
+                  "result_handoff_fingerprint": null
                 }
               ],
               "chain": {
@@ -3022,6 +3040,7 @@
           "production_claim_allowed": false,
           "claim_status": "invariant-conditioned-caustic-band-shock-planner; one-sided-upstream-domain-and-physical-remesh-pending",
           "step_count": 1,
+          "handoff_links_verified": null,
           "steps": [
             {
               "current_cell_index": 1,
@@ -3034,13 +3053,18 @@
                 764819.179280032
               ],
               "incoming_handoff_fingerprint": "d0c3cfd5c26535d39ff1ee5d6c0ce16797ff445aaf2d3130e41244d662347b9b",
+              "incoming_handoff_link_verified": null,
               "result_kind": "termination-returned",
               "result_status": "upstream-field-boundary",
               "result_end_x_m": null,
               "result_geometry_fidelity": null,
               "result_physical_closure": null,
               "result_termination_reason": "upstream-field-boundary",
-              "result_physical_termination": false
+              "result_physical_termination": false,
+              "result_boundary_kind": null,
+              "result_handoff_sample_count": null,
+              "result_total_pressure_range_Pa": null,
+              "result_handoff_fingerprint": null
             }
           ],
           "chain": {
@@ -3608,6 +3632,7 @@
           "production_claim_allowed": false,
           "claim_status": "caustic-upstream-bridge-planner; physical-remesh-and-downstream-closure-pending",
           "step_count": 1,
+          "handoff_links_verified": null,
           "steps": [
             {
               "current_cell_index": 1,
@@ -3620,13 +3645,18 @@
                 764819.179280032
               ],
               "incoming_handoff_fingerprint": "d0c3cfd5c26535d39ff1ee5d6c0ce16797ff445aaf2d3130e41244d662347b9b",
+              "incoming_handoff_link_verified": null,
               "result_kind": "termination-returned",
               "result_status": "open-physical-closure",
               "result_end_x_m": null,
               "result_geometry_fidelity": null,
               "result_physical_closure": null,
               "result_termination_reason": "open-physical-closure",
-              "result_physical_termination": false
+              "result_physical_termination": false,
+              "result_boundary_kind": null,
+              "result_handoff_sample_count": null,
+              "result_total_pressure_range_Pa": null,
+              "result_handoff_fingerprint": null
             }
           ],
           "chain": {
@@ -3788,6 +3818,7 @@
           "production_claim_allowed": false,
           "claim_status": "caustic-upstream-bridge-planner; physical-remesh-and-downstream-closure-pending",
           "step_count": 1,
+          "handoff_links_verified": null,
           "steps": [
             {
               "current_cell_index": 1,
@@ -3800,13 +3831,18 @@
                 764819.179280032
               ],
               "incoming_handoff_fingerprint": "d0c3cfd5c26535d39ff1ee5d6c0ce16797ff445aaf2d3130e41244d662347b9b",
+              "incoming_handoff_link_verified": null,
               "result_kind": "termination-returned",
               "result_status": "upstream-field-boundary",
               "result_end_x_m": null,
               "result_geometry_fidelity": null,
               "result_physical_closure": null,
               "result_termination_reason": "upstream-field-boundary",
-              "result_physical_termination": false
+              "result_physical_termination": false,
+              "result_boundary_kind": null,
+              "result_handoff_sample_count": null,
+              "result_total_pressure_range_Pa": null,
+              "result_handoff_fingerprint": null
             }
           ],
           "chain": {
@@ -3904,6 +3940,7 @@
           "production_claim_allowed": false,
           "claim_status": "invariant-caustic-upstream-bridge-planner; physical-remesh-and-downstream-closure-pending",
           "step_count": 1,
+          "handoff_links_verified": null,
           "steps": [
             {
               "current_cell_index": 1,
@@ -3916,13 +3953,18 @@
                 764819.179280032
               ],
               "incoming_handoff_fingerprint": "d0c3cfd5c26535d39ff1ee5d6c0ce16797ff445aaf2d3130e41244d662347b9b",
+              "incoming_handoff_link_verified": null,
               "result_kind": "termination-returned",
               "result_status": "upstream-field-boundary",
               "result_end_x_m": null,
               "result_geometry_fidelity": null,
               "result_physical_closure": null,
               "result_termination_reason": "upstream-field-boundary",
-              "result_physical_termination": false
+              "result_physical_termination": false,
+              "result_boundary_kind": null,
+              "result_handoff_sample_count": null,
+              "result_total_pressure_range_Pa": null,
+              "result_handoff_fingerprint": null
             }
           ],
           "chain": {
@@ -5006,6 +5048,7 @@
           "production_claim_allowed": false,
           "claim_status": "terminal-reflection-patch-planner-handoff; one-step-domain; mixed-regime-or-new-field-continuation-pending",
           "step_count": 1,
+          "handoff_links_verified": null,
           "steps": [
             {
               "current_cell_index": 1,
@@ -5018,13 +5061,18 @@
                 764819.179280032
               ],
               "incoming_handoff_fingerprint": "3f7439763432257c65bb5ca7eb5905ea00252259c3c1b0f4c745743cfb07adf1",
+              "incoming_handoff_link_verified": null,
               "result_kind": "termination-returned",
               "result_status": "physical-termination",
               "result_end_x_m": null,
               "result_geometry_fidelity": null,
               "result_physical_closure": null,
               "result_termination_reason": "physical-termination",
-              "result_physical_termination": true
+              "result_physical_termination": true,
+              "result_boundary_kind": null,
+              "result_handoff_sample_count": null,
+              "result_total_pressure_range_Pa": null,
+              "result_handoff_fingerprint": null
             }
           ],
           "chain": {
@@ -5640,6 +5688,7 @@
         "production_claim_allowed": false,
         "claim_status": "terminal-reflection-patch-planner-handoff; one-step-domain; mixed-regime-or-new-field-continuation-pending",
         "step_count": 1,
+        "handoff_links_verified": null,
         "steps": [
           {
             "current_cell_index": 1,
@@ -5652,13 +5701,18 @@
               764819.179280032
             ],
             "incoming_handoff_fingerprint": "3f7439763432257c65bb5ca7eb5905ea00252259c3c1b0f4c745743cfb07adf1",
+            "incoming_handoff_link_verified": null,
             "result_kind": "termination-returned",
             "result_status": "physical-termination",
             "result_end_x_m": null,
             "result_geometry_fidelity": null,
             "result_physical_closure": null,
             "result_termination_reason": "physical-termination",
-            "result_physical_termination": true
+            "result_physical_termination": true,
+            "result_boundary_kind": null,
+            "result_handoff_sample_count": null,
+            "result_total_pressure_range_Pa": null,
+            "result_handoff_fingerprint": null
           }
         ],
         "chain": {
@@ -8976,6 +9030,7 @@
       "planning_only": true,
       "production_claim_allowed": false,
       "planner_step_count": 3,
+      "handoff_links_verified": true,
       "planner_steps": [
         {
           "current_cell_index": 1,
@@ -8988,13 +9043,21 @@
             764819.179280032
           ],
           "incoming_handoff_fingerprint": "d0c3cfd5c26535d39ff1ee5d6c0ce16797ff445aaf2d3130e41244d662347b9b",
+          "incoming_handoff_link_verified": null,
           "result_kind": "field-solve-returned",
           "result_status": "converged_closed",
           "result_end_x_m": 1.8,
           "result_geometry_fidelity": "resolved-planar-moc",
           "result_physical_closure": "closed",
           "result_termination_reason": null,
-          "result_physical_termination": null
+          "result_physical_termination": null,
+          "result_boundary_kind": "post-shock-field-perimeter",
+          "result_handoff_sample_count": 10,
+          "result_total_pressure_range_Pa": [
+            732748.4959008459,
+            747590.4974211584
+          ],
+          "result_handoff_fingerprint": "80f6a9223d574b2a389ac63fa037d891f982e5af452c4f37b08152d8aa8e4ae7"
         },
         {
           "current_cell_index": 2,
@@ -9007,13 +9070,21 @@
             747590.4974211584
           ],
           "incoming_handoff_fingerprint": "80f6a9223d574b2a389ac63fa037d891f982e5af452c4f37b08152d8aa8e4ae7",
+          "incoming_handoff_link_verified": true,
           "result_kind": "field-solve-returned",
           "result_status": "converged_closed",
           "result_end_x_m": 2.6,
           "result_geometry_fidelity": "resolved-planar-moc",
           "result_physical_closure": "closed",
           "result_termination_reason": null,
-          "result_physical_termination": null
+          "result_physical_termination": null,
+          "result_boundary_kind": "post-shock-field-perimeter",
+          "result_handoff_sample_count": 10,
+          "result_total_pressure_range_Pa": [
+            716242.2535621956,
+            730749.917072597
+          ],
+          "result_handoff_fingerprint": "bc179fcf4b61d827b3f93eb86e6378a227e5cbdb4ebaa0f77bc15152bb754b11"
         },
         {
           "current_cell_index": 3,
@@ -9026,13 +9097,18 @@
             730749.917072597
           ],
           "incoming_handoff_fingerprint": "bc179fcf4b61d827b3f93eb86e6378a227e5cbdb4ebaa0f77bc15152bb754b11",
+          "incoming_handoff_link_verified": true,
           "result_kind": "termination-returned",
           "result_status": "solver-returned-no-next-cell",
           "result_end_x_m": null,
           "result_geometry_fidelity": null,
           "result_physical_closure": null,
           "result_termination_reason": "solver-returned-no-next-cell",
-          "result_physical_termination": false
+          "result_physical_termination": false,
+          "result_boundary_kind": null,
+          "result_handoff_sample_count": null,
+          "result_total_pressure_range_Pa": null,
+          "result_handoff_fingerprint": null
         }
       ],
       "claim_status": "solver-generated-chain-reference; physical-free-boundary-validation-pending"
@@ -9089,13 +9165,18 @@
               764819.179280032
             ],
             "incoming_handoff_fingerprint": "d0c3cfd5c26535d39ff1ee5d6c0ce16797ff445aaf2d3130e41244d662347b9b",
+            "incoming_handoff_link_verified": null,
             "result_kind": "termination-returned",
             "result_status": "physical-termination",
             "result_end_x_m": null,
             "result_geometry_fidelity": null,
             "result_physical_closure": null,
             "result_termination_reason": "physical-termination",
-            "result_physical_termination": true
+            "result_physical_termination": true,
+            "result_boundary_kind": null,
+            "result_handoff_sample_count": null,
+            "result_total_pressure_range_Pa": null,
+            "result_handoff_fingerprint": null
           }
         ],
         "claim_status": "solver-generated-chain-reference; physical-free-boundary-validation-pending"
@@ -9121,13 +9202,18 @@
             764819.179280032
           ],
           "incoming_handoff_fingerprint": "d0c3cfd5c26535d39ff1ee5d6c0ce16797ff445aaf2d3130e41244d662347b9b",
+          "incoming_handoff_link_verified": null,
           "result_kind": "termination-returned",
           "result_status": "physical-termination",
           "result_end_x_m": null,
           "result_geometry_fidelity": null,
           "result_physical_closure": null,
           "result_termination_reason": "physical-termination",
-          "result_physical_termination": true
+          "result_physical_termination": true,
+          "result_boundary_kind": null,
+          "result_handoff_sample_count": null,
+          "result_total_pressure_range_Pa": null,
+          "result_handoff_fingerprint": null
         }
       ],
       "status": "physically-terminated",
@@ -9160,6 +9246,7 @@
         "production_claim_allowed": false,
         "claim_status": "ambient-pressure-field-coupled-planner; exact-handoff-and-external-validation-pending",
         "step_count": 1,
+        "handoff_links_verified": null,
         "steps": [
           {
             "current_cell_index": 1,
@@ -9172,13 +9259,18 @@
               764819.179280032
             ],
             "incoming_handoff_fingerprint": "d0c3cfd5c26535d39ff1ee5d6c0ce16797ff445aaf2d3130e41244d662347b9b",
+            "incoming_handoff_link_verified": null,
             "result_kind": "termination-returned",
             "result_status": "upstream-field-boundary",
             "result_end_x_m": null,
             "result_geometry_fidelity": null,
             "result_physical_closure": null,
             "result_termination_reason": "upstream-field-boundary",
-            "result_physical_termination": false
+            "result_physical_termination": false,
+            "result_boundary_kind": null,
+            "result_handoff_sample_count": null,
+            "result_total_pressure_range_Pa": null,
+            "result_handoff_fingerprint": null
           }
         ],
         "chain": {
@@ -9403,6 +9495,7 @@
       "planning_only": true,
       "production_claim_allowed": false,
       "planner_step_count": 3,
+      "handoff_links_verified": true,
       "planner_steps": [
         {
           "current_cell_index": 1,
@@ -9415,13 +9508,21 @@
             1800000.0
           ],
           "incoming_handoff_fingerprint": "14f557246fbe1ac86023c0ef3b6345c61b4a2bc8d6c2f45b6543df2591e6a3e6",
+          "incoming_handoff_link_verified": null,
           "result_kind": "field-solve-returned",
           "result_status": "converged_closed",
           "result_end_x_m": 1.5,
           "result_geometry_fidelity": "resolved-planar-moc",
           "result_physical_closure": "closed",
           "result_termination_reason": null,
-          "result_physical_termination": null
+          "result_physical_termination": null,
+          "result_boundary_kind": "post-shock-field-perimeter",
+          "result_handoff_sample_count": 6,
+          "result_total_pressure_range_Pa": [
+            1783660.2368026406,
+            1798533.534834715
+          ],
+          "result_handoff_fingerprint": "50e32a9413aca7e166adac7d293f0e07cc92182de0c960b8e1c9455e429fb98f"
         },
         {
           "current_cell_index": 2,
@@ -9434,13 +9535,21 @@
             1798533.534834715
           ],
           "incoming_handoff_fingerprint": "50e32a9413aca7e166adac7d293f0e07cc92182de0c960b8e1c9455e429fb98f",
+          "incoming_handoff_link_verified": true,
           "result_kind": "field-solve-returned",
           "result_status": "converged_closed",
           "result_end_x_m": 2.0,
           "result_geometry_fidelity": "resolved-planar-moc",
           "result_physical_closure": "closed",
           "result_termination_reason": null,
-          "result_physical_termination": null
+          "result_physical_termination": null,
+          "result_boundary_kind": "post-shock-field-perimeter",
+          "result_handoff_sample_count": 6,
+          "result_total_pressure_range_Pa": [
+            1782207.0836893215,
+            1797068.2644028089
+          ],
+          "result_handoff_fingerprint": "c3434b59951df76ce34ed08b05930b2816676d3fcb4a76f1676c05886498d2d9"
         },
         {
           "current_cell_index": 3,
@@ -9453,13 +9562,18 @@
             1797068.2644028089
           ],
           "incoming_handoff_fingerprint": "c3434b59951df76ce34ed08b05930b2816676d3fcb4a76f1676c05886498d2d9",
+          "incoming_handoff_link_verified": true,
           "result_kind": "termination-returned",
           "result_status": "solver-returned-no-next-cell",
           "result_end_x_m": null,
           "result_geometry_fidelity": null,
           "result_physical_closure": null,
           "result_termination_reason": "solver-returned-no-next-cell",
-          "result_physical_termination": false
+          "result_physical_termination": false,
+          "result_boundary_kind": null,
+          "result_handoff_sample_count": null,
+          "result_total_pressure_range_Pa": null,
+          "result_handoff_fingerprint": null
         }
       ],
       "status": "solver-terminated",

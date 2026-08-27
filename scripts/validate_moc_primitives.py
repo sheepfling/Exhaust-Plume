@@ -3685,6 +3685,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or not solver_generated_chain_planner.as_report()['planning_only']
     or solver_generated_chain_planner.production_claim_allowed
     or len(solver_generated_chain_planner.steps) != 3
+    or solver_generated_chain_planner.handoff_links_verified is not True
   )
   solver_generated_chain_terminal_failure = (
     solver_generated_chain_terminal_probe.get('expected_physical_termination') is not True
@@ -4384,6 +4385,11 @@ def build_moc_primitive_report() -> dict[str, Any]:
         if solver_generated_chain_planner is None
         else len(solver_generated_chain_planner.steps)
       ),
+      'handoff_links_verified': (
+        None
+        if solver_generated_chain_planner is None
+        else solver_generated_chain_planner.handoff_links_verified
+      ),
       'planner_steps': (
         []
         if solver_generated_chain_planner is None
@@ -4521,6 +4527,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'planning_only': shock_cell_chain_planner.as_report()['planning_only'],
       'production_claim_allowed': shock_cell_chain_planner.production_claim_allowed,
       'planner_step_count': len(shock_cell_chain_planner.steps),
+      'handoff_links_verified': shock_cell_chain_planner.handoff_links_verified,
       'planner_steps': [
         step.as_report() for step in shock_cell_chain_planner.steps
       ],
@@ -5017,6 +5024,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
     ] if (
       not shock_cell_chain_mock.resolved
       or shock_cell_chain_mock_report['continuation_boundary_maxima_nonincreasing'] is not True
+      or shock_cell_chain_planner.handoff_links_verified is not True
     ) else []),
     *([
       {

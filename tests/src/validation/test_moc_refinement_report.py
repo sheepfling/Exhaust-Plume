@@ -98,11 +98,17 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert generated_chain_planner['planning_only'] is True
   assert generated_chain_planner['production_claim_allowed'] is False
   assert generated_chain_planner['planner_step_count'] == 3
+  assert generated_chain_planner['handoff_links_verified'] is True
   assert [step['next_cell_index'] for step in generated_chain_planner['planner_steps']] == [2, 3, 4]
   assert all(
     step['boundary_kind'] == 'post-shock-field-perimeter'
     and step['incoming_handoff_sample_count'] >= 3
+    and step['incoming_handoff_fingerprint']
     for step in generated_chain_planner['planner_steps']
+  )
+  assert all(
+    step['incoming_handoff_link_verified'] is True
+    for step in generated_chain_planner['planner_steps'][1:]
   )
   assert [step['result_kind'] for step in generated_chain_planner['planner_steps']] == [
     'field-solve-returned',
@@ -754,6 +760,7 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert planner['planning_only'] is True
   assert planner['production_claim_allowed'] is False
   assert planner['planner_step_count'] == 3
+  assert planner['handoff_links_verified'] is True
   assert [step['next_cell_index'] for step in planner['planner_steps']] == [2, 3, 4]
   assert all(
     step['boundary_kind'] == 'post-shock-field-perimeter'
@@ -771,6 +778,15 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
     'converged_closed',
     'solver-returned-no-next-cell',
   ]
+  assert all(
+    step['result_handoff_sample_count'] >= 3
+    and step['result_handoff_fingerprint']
+    for step in planner['planner_steps'][:2]
+  )
+  assert all(
+    step['incoming_handoff_link_verified'] is True
+    for step in planner['planner_steps'][1:]
+  )
   assert planner['cell_count'] == 3
   assert planner['state_carry_count'] == 3
   assert planner['continuation_boundary_kinds'] == ['post-shock-field-perimeter']

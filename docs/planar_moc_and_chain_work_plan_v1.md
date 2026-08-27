@@ -909,6 +909,11 @@ Only after MOC-1 through MOC-5 pass:
   remains one-step/non-physical by policy. The canonical first-cell
   downstream perimeter is still missing, so this remesh result cannot yet
   promote a continued cell.
+- Planner steps now record both sides of each continued-cell handoff: the
+  incoming fingerprint, the returned cell/field boundary kind and pressure
+  range, and the outgoing fingerprint. Multi-step mock and solver-generated
+  references must prove every later callback consumed the exact prior result
+  handoff; this is chain bookkeeping evidence, not free-boundary validation.
 - The independent shock-cell measurement operators now pass local geometry,
   topology, and supplied shock-loss extraction for the current fixtures, but
   they do not provide external observations, uncertainty, or a provider-bound
