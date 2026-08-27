@@ -277,6 +277,9 @@ not wait on this research closure.
   non-production claim ceiling. It is executable planner evidence for the
   mixed-regime handoff, not a canonical free-boundary perimeter or a
   continued supersonic chain cell.
+- Marked every mixed-regime closure result as `chain_promotion_blocked`.
+  Condition-qualified reference fields may produce a typed terminal stop, but
+  they cannot be reused as a supersonic next-cell seed.
 - Added an MOC chain continuation contract. It accepts only connected,
   topologically bounded meshes with explicit physical closure and resolved
   planar-MOC fidelity.

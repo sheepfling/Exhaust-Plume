@@ -416,6 +416,7 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert terminal_attachment_closure['status'] == 'converged_mixed_regime_closure'
   assert terminal_attachment_closure['converged'] is True
   assert terminal_attachment_closure['physical_closure_verified'] is True
+  assert terminal_attachment_closure['chain_promotion_blocked'] is True
   assert terminal_attachment_closure['perimeter_spec']['model'] == (
     'prescribed-pressure-outflow-mixed-regime-closure-mock'
   )

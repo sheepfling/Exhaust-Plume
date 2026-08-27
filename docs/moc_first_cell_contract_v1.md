@@ -254,6 +254,9 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   downstream-perimeter adapter, and remains hard-coded as planning-only and
   non-production. It does not infer the canonical perimeter or create a
   supersonic next-cell handoff;
+- every mixed-regime closure result exposes ``chain_promotion_blocked=true``;
+  even a condition-qualified reference field is a typed terminal closure and
+  cannot seed another supersonic MOC cell;
 - a typed downstream-perimeter adapter for that reference lane. It accepts an
   explicitly closed perimeter specification plus a caller-owned scalar sample
   provider, validates the exact terminal/supersonic seam and named downstream

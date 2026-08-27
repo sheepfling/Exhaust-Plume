@@ -427,11 +427,19 @@ class MocMixedRegimeClosureResult:
     return bool(self.converged and self.field is not None and self.field.physical_closure_verified)
   ####
 
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    """A mixed-regime closure is a terminal stop, not a supersonic seed."""
+
+    return True
+  ####
+
   def as_report(self) -> dict[str, object]:
     return {
       'status': self.status.value,
       'converged': self.converged,
       'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
       'field': None if self.field is None else self.field.as_report(),
       'request': self.request.as_report(),
       'downstream_condition': (

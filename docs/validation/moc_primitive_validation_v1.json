@@ -10756,6 +10756,7 @@
         "status": "converged_mixed_regime_closure",
         "converged": true,
         "physical_closure_verified": true,
+        "chain_promotion_blocked": true,
         "field": {
           "status": "converged_elliptic_subsonic_field",
           "converged": true,
@@ -13251,6 +13252,7 @@
         "status": "converged_mixed_regime_closure",
         "converged": true,
         "physical_closure_verified": true,
+        "chain_promotion_blocked": true,
         "field": {
           "status": "converged_elliptic_subsonic_field",
           "converged": true,

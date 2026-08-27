@@ -431,6 +431,7 @@ def test_prescribed_mixed_regime_closure_mock_is_explicit_reference_only() -> No
   assert result.status is MocMixedRegimeClosureStatus.CONVERGED
   assert result.converged
   assert result.physical_closure_verified
+  assert result.chain_promotion_blocked
   assert result.request is request
   assert result.field is not None
   assert result.field.radial_divisions == mock.radial_divisions

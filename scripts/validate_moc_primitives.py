@@ -1476,6 +1476,7 @@ def _mixed_regime_boundary_probe(
       and contract_field.physical_closure_verified is False
       and explicit_perimeter_closure.converged
       and explicit_perimeter_closure.physical_closure_verified
+      and explicit_perimeter_closure.chain_promotion_blocked
       and explicit_perimeter_closure.perimeter_spec == perimeter_specification
       and explicit_perimeter_closure.downstream_condition is not None
       and explicit_perimeter_closure.downstream_condition.converged
