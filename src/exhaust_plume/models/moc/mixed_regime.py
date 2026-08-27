@@ -17,7 +17,7 @@ exact validated downstream condition without changing the supersonic
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from math import atan2, cos, exp, hypot, isfinite, log, pi, sin
 from typing import Callable, Sequence
@@ -36,6 +36,7 @@ __all__ = (
   'MocMixedRegimeBoundaryStatus',
   'MocMixedRegimeFieldSample',
   'MocMixedRegimePerimeterRequest',
+  'MocMixedRegimeDownstreamPerimeterSpec',
   'MocMixedRegimeDownstreamConditionKind',
   'MocMixedRegimeDownstreamConditionStatus',
   'MocMixedRegimeDownstreamConditionResult',
@@ -49,6 +50,7 @@ __all__ = (
   'solve_mixed_regime_downstream_condition',
   'run_mixed_regime_closure_solver',
   'solve_mixed_regime_subsonic_field',
+  'solve_mixed_regime_downstream_perimeter',
 )
 
 
@@ -317,6 +319,94 @@ class MocMixedRegimePerimeterRequest:
 
 
 @dataclass(frozen=True, slots=True)
+class MocMixedRegimeDownstreamPerimeterSpec:
+  """An explicit scalar perimeter and its declared downstream condition.
+
+  The terminal solver owns the shock seam, but it does not own the remaining
+  subsonic geometry.  This value object lets a downstream solver make that
+  geometry and condition reproducible without putting it back into
+  :class:`MocMixedRegimePerimeterRequest` or inferring it from an open
+  supersonic patch.  The resulting field is still the separately named
+  elliptic/isentrope reference model; this specification is not a canonical
+  free-boundary closure.
+  """
+
+  perimeter_points_m: tuple[tuple[float, float], ...]
+  condition_kind: MocMixedRegimeDownstreamConditionKind
+  ambient_pressure_Pa: float | None = None
+  model: str = 'explicit-downstream-perimeter-reference'
+
+  def __post_init__(self) -> None:
+    try:
+      points = tuple(
+        (float(point[0]), float(point[1]))
+        for point in self.perimeter_points_m
+      )
+    except (IndexError, TypeError, ValueError) as error:
+      raise ValueError(
+        'perimeter_points_m must contain two-coordinate numeric points'
+      ) from error
+    if len(points) < 4:
+      raise ValueError('perimeter_points_m must contain at least four points')
+    if any(not all(isfinite(value) for value in point) for point in points):
+      raise ValueError('perimeter_points_m must contain finite points')
+    if hypot(
+      points[-1][0] - points[0][0],
+      points[-1][1] - points[0][1],
+    ) > 1.0e-10:
+      raise ValueError('perimeter_points_m must be explicitly closed')
+    if any(
+      hypot(second[0] - first[0], second[1] - first[1]) <= 1.0e-10
+      for first, second in zip(points[:-1], points[1:], strict=True)
+    ):
+      raise ValueError('perimeter_points_m must not contain zero-length segments')
+    if not isinstance(
+      self.condition_kind,
+      MocMixedRegimeDownstreamConditionKind,
+    ):
+      raise TypeError(
+        'condition_kind must be a MocMixedRegimeDownstreamConditionKind'
+      )
+    ambient_pressure = self.ambient_pressure_Pa
+    if ambient_pressure is not None:
+      ambient_pressure = float(ambient_pressure)
+      if not isfinite(ambient_pressure) or ambient_pressure <= 0.0:
+        raise ValueError(
+          'ambient_pressure_Pa must be finite and positive when supplied'
+        )
+    model = str(self.model)
+    if not model:
+      raise ValueError('model must be a non-empty string')
+    object.__setattr__(self, 'perimeter_points_m', points)
+    object.__setattr__(self, 'ambient_pressure_Pa', ambient_pressure)
+    object.__setattr__(self, 'model', model)
+  ####
+
+  @property
+  def sample_count(self) -> int:
+    """Number of scalar boundary samples requested from the solver."""
+
+    return len(self.perimeter_points_m)
+  ####
+
+  def as_report(self) -> dict[str, object]:
+    """Return geometry, condition, and reference-model provenance."""
+
+    return {
+      'model': self.model,
+      'perimeter_points_m': self.perimeter_points_m,
+      'sample_count': self.sample_count,
+      'condition_kind': self.condition_kind.value,
+      'ambient_pressure_Pa': self.ambient_pressure_Pa,
+      'claim_status': (
+        'explicit-downstream-perimeter-reference; canonical-free-boundary-'
+        'perimeter-not-inferred'
+      ),
+    }
+  ####
+
+
+@dataclass(frozen=True, slots=True)
 class MocMixedRegimeClosureResult:
   """Acceptance result for a callback-supplied subsonic terminal field."""
 
@@ -324,6 +414,8 @@ class MocMixedRegimeClosureResult:
   request: MocMixedRegimePerimeterRequest
   field: 'MocMixedRegimeFieldResult | None' = None
   message: str = ''
+  downstream_condition: 'MocMixedRegimeDownstreamConditionResult | None' = None
+  perimeter_spec: MocMixedRegimeDownstreamPerimeterSpec | None = None
 
   @property
   def converged(self) -> bool:
@@ -342,6 +434,16 @@ class MocMixedRegimeClosureResult:
       'physical_closure_verified': self.physical_closure_verified,
       'field': None if self.field is None else self.field.as_report(),
       'request': self.request.as_report(),
+      'downstream_condition': (
+        None
+        if self.downstream_condition is None
+        else self.downstream_condition.as_report()
+      ),
+      'perimeter_spec': (
+        None
+        if self.perimeter_spec is None
+        else self.perimeter_spec.as_report()
+      ),
       'message': self.message,
     }
   ####
@@ -2195,4 +2297,160 @@ def solve_mixed_regime_downstream_condition(
     position_tolerance_m=position_tolerance_m,
     tangent_tolerance_rad=tangent_tolerance_rad,
     pressure_tolerance=pressure_tolerance,
+  )
+
+
+def solve_mixed_regime_downstream_perimeter(
+  request: MocMixedRegimePerimeterRequest,
+  specification: MocMixedRegimeDownstreamPerimeterSpec,
+  sample_at: Callable[
+    [MocMixedRegimePerimeterRequest, int, tuple[float, float]],
+    MocMixedRegimeFieldSample | None,
+  ],
+  *,
+  radial_divisions: int = 1,
+  position_tolerance_m: float = 1.0e-10,
+  state_tolerance: float = 1.0e-10,
+  pressure_tolerance: float = 1.0e-8,
+  tangent_tolerance_rad: float = 1.0e-8,
+  thermodynamic_tolerance: float = 1.0e-8,
+  residual_tolerance: float = 1.0e-12,
+) -> MocMixedRegimeClosureResult:
+  """Solve a declared downstream perimeter through the reference field lane.
+
+  ``specification`` owns the ordered closed geometry and the named boundary
+  condition.  ``sample_at`` owns the scalar subsonic state model; this adapter
+  never fills a missing sample from the terminal or the open supersonic patch.
+  The returned closure is accepted only after the scalar seam, downstream
+  condition, elliptic reference-field, and exact terminal-patch handoff gates
+  all pass.  The model remains a finite-domain reference and does not infer a
+  canonical plume perimeter or create a supersonic chain cell.
+  """
+
+  if not isinstance(request, MocMixedRegimePerimeterRequest):
+    raise TypeError('request must be a MocMixedRegimePerimeterRequest')
+  if not isinstance(
+    specification,
+    MocMixedRegimeDownstreamPerimeterSpec,
+  ):
+    raise TypeError(
+      'specification must be a MocMixedRegimeDownstreamPerimeterSpec'
+    )
+  if not callable(sample_at):
+    raise TypeError('sample_at must be callable')
+  for name, value in (
+    ('position_tolerance_m', position_tolerance_m),
+    ('state_tolerance', state_tolerance),
+    ('pressure_tolerance', pressure_tolerance),
+    ('tangent_tolerance_rad', tangent_tolerance_rad),
+    ('thermodynamic_tolerance', thermodynamic_tolerance),
+    ('residual_tolerance', residual_tolerance),
+  ):
+    if not isfinite(float(value)) or float(value) <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+  if (
+    isinstance(radial_divisions, bool)
+    or not isinstance(radial_divisions, int)
+    or radial_divisions < 1
+  ):
+    raise ValueError('radial_divisions must be a positive integer')
+
+  samples: list[MocMixedRegimeFieldSample] = []
+  for index, point in enumerate(specification.perimeter_points_m):
+    try:
+      sample = sample_at(request, index, point)
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      return MocMixedRegimeClosureResult(
+        status=MocMixedRegimeClosureStatus.SOLVER_FAILURE,
+        request=request,
+        perimeter_spec=specification,
+        message=(
+          f'mixed-regime scalar perimeter sampler failed at sample {index}: '
+          f'{error}'
+        ),
+      )
+    if not isinstance(sample, MocMixedRegimeFieldSample):
+      return MocMixedRegimeClosureResult(
+        status=MocMixedRegimeClosureStatus.INVALID_INPUT,
+        request=request,
+        perimeter_spec=specification,
+        message=(
+          'mixed-regime scalar perimeter sampler must return '
+          'MocMixedRegimeFieldSample values'
+        ),
+      )
+    if hypot(
+      sample.point_m[0] - point[0],
+      sample.point_m[1] - point[1],
+    ) > float(position_tolerance_m):
+      return MocMixedRegimeClosureResult(
+        status=MocMixedRegimeClosureStatus.SEAM_FAILURE,
+        request=request,
+        perimeter_spec=specification,
+        message=(
+          f'mixed-regime scalar sample {index} changed the explicit perimeter '
+          'coordinate'
+        ),
+      )
+    samples.append(sample)
+
+  boundary = validate_mixed_regime_boundary(
+    request.terminal,
+    request.supersonic_patch,
+    supersonic_patch_converged=True,
+    subsonic_samples=tuple(samples),
+    perimeter_points_m=specification.perimeter_points_m,
+    position_tolerance_m=position_tolerance_m,
+    state_tolerance=state_tolerance,
+    pressure_tolerance=pressure_tolerance,
+  )
+  if not boundary.converged:
+    return MocMixedRegimeClosureResult(
+      status=MocMixedRegimeClosureStatus.SEAM_FAILURE,
+      request=request,
+      perimeter_spec=specification,
+      message=(
+        'explicit downstream perimeter failed the scalar seam/geometry '
+        f'gate: {boundary.message}'
+      ),
+    )
+  condition = validate_mixed_regime_downstream_condition(
+    boundary,
+    specification.condition_kind,
+    ambient_pressure_Pa=specification.ambient_pressure_Pa,
+    position_tolerance_m=position_tolerance_m,
+    tangent_tolerance_rad=tangent_tolerance_rad,
+    pressure_tolerance=pressure_tolerance,
+  )
+  if not condition.converged:
+    return MocMixedRegimeClosureResult(
+      status=MocMixedRegimeClosureStatus.FIELD_FAILURE,
+      request=request,
+      downstream_condition=condition,
+      perimeter_spec=specification,
+      message=(
+        'explicit downstream perimeter failed its declared physical '
+        f'condition: {condition.message}'
+      ),
+    )
+  field = solve_mixed_regime_subsonic_field(
+    boundary,
+    radial_divisions=radial_divisions,
+    thermodynamic_tolerance=thermodynamic_tolerance,
+    residual_tolerance=residual_tolerance,
+    downstream_condition=condition,
+  )
+  result = run_mixed_regime_closure_solver(
+    request,
+    lambda _request: field,
+  )
+  return replace(
+    result,
+    downstream_condition=condition,
+    perimeter_spec=specification,
+    message=(
+      result.message
+      if result.message
+      else 'explicit downstream perimeter reference solve completed'
+    ),
   )

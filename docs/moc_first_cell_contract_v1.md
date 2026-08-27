@@ -236,6 +236,13 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   the exact terminal and supersonic patch are retained; this can produce a
   typed physical termination fixture, but the canonical plume perimeter is
   still not inferred from the open supersonic zone;
+- a typed downstream-perimeter adapter for that reference lane. It accepts an
+  explicitly closed perimeter specification plus a caller-owned scalar sample
+  provider, validates the exact terminal/supersonic seam and named downstream
+  condition, and then runs the elliptic reference-field gate. It never fills
+  missing samples or geometry from the open supersonic zone. Its accepted
+  result is a reproducible finite-domain reference/termination fixture, not a
+  canonical free-boundary perimeter or a new supersonic chain cell;
 - mesh connectivity diagnostics that distinguish a topologically bounded
   polygon from an unresolved physical boundary;
 - a shared averaged-characteristic fan/reflected interface whose combined

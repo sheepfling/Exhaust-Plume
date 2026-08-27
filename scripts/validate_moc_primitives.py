@@ -20,6 +20,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocAmbientClosureStatus,
   MocAmbientShockStripStatus,
   MocMixedRegimeBoundaryStatus,
+  MocMixedRegimeDownstreamPerimeterSpec,
   MocMixedRegimeDownstreamConditionKind,
   MocMixedRegimeFieldSample,
   MocInvariantClosureFamily,
@@ -88,6 +89,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_marched_ambient_attachment_shock_cell_transition,
   solve_marched_attached_shock_with_constant_invariant_closure,
   solve_mixed_regime_subsonic_field,
+  solve_mixed_regime_downstream_perimeter,
   solve_reflected_boundary_trace_extension,
   solve_uniform_attached_shock_field,
   assemble_post_shock_characteristic_zone,
@@ -1284,6 +1286,34 @@ def _mixed_regime_boundary_probe(
     supersonic_patch_converged=field.terminal_supersonic_downstream_patch_converged,
     subsonic_samples=contract_samples,
   )
+  perimeter_request = field.mixed_regime_perimeter_request()
+  perimeter_specification = MocMixedRegimeDownstreamPerimeterSpec(
+    perimeter_points_m=contract_points,
+    condition_kind=MocMixedRegimeDownstreamConditionKind.PRESSURE_OUTFLOW_SECTION,
+    ambient_pressure_Pa=terminal.downstream_pressure_Pa,
+    model='synthetic-terminal-pressure-outflow-perimeter',
+  )
+
+  def perimeter_sample_at(
+    request: Any,
+    _index: int,
+    point: tuple[float, float],
+  ) -> MocMixedRegimeFieldSample:
+    return MocMixedRegimeFieldSample(
+      point_m=point,
+      mach=request.terminal_downstream_mach,
+      flow_angle_rad=request.terminal_downstream_flow_angle_rad,
+      static_pressure_Pa=request.terminal_downstream_pressure_Pa,
+      total_pressure_Pa=request.terminal_downstream_total_pressure_Pa,
+      gamma=request.terminal.upstream_state.gamma,
+    )
+
+  explicit_perimeter_closure = solve_mixed_regime_downstream_perimeter(
+    perimeter_request,
+    perimeter_specification,
+    perimeter_sample_at,
+    radial_divisions=2,
+  )
   contract_condition = validate_mixed_regime_downstream_condition(
     contract_fixture,
     MocMixedRegimeDownstreamConditionKind.SLIP_WALL,
@@ -1385,6 +1415,11 @@ def _mixed_regime_boundary_probe(
       and contract_fixture.converged
       and contract_field.model_closure_verified
       and contract_field.physical_closure_verified is False
+      and explicit_perimeter_closure.converged
+      and explicit_perimeter_closure.physical_closure_verified
+      and explicit_perimeter_closure.perimeter_spec is perimeter_specification
+      and explicit_perimeter_closure.downstream_condition is not None
+      and explicit_perimeter_closure.downstream_condition.converged
       and outflow_condition.converged
       and conditioned_field.physical_closure_verified
       and all(
@@ -1409,6 +1444,7 @@ def _mixed_regime_boundary_probe(
     'chain_promotion_blocked': contract_fixture.chain_promotion_blocked,
     'missing_scalar_field': missing_field.as_report(),
     'scalar_perimeter_contract_fixture': contract_fixture.as_report(),
+    'explicit_downstream_perimeter_solver': explicit_perimeter_closure.as_report(),
     'downstream_condition_contract': contract_condition.as_report(),
     'downstream_condition_positive_wall_fixture': wall_condition.as_report(),
     'downstream_condition_positive_outflow_fixture': outflow_condition.as_report(),

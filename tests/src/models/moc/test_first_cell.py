@@ -6,6 +6,7 @@ from exhaust_plume.models.moc import (
   CharacteristicState,
   MocFirstCellCompositeStatus,
   MocFirstCellTerminalClosureStatus,
+  MocMixedRegimeDownstreamPerimeterSpec,
   MocMixedRegimeDownstreamConditionKind,
   MocMixedRegimeDownstreamConditionStatus,
   MocMixedRegimeFieldSample,
@@ -246,6 +247,54 @@ def test_first_cell_terminal_closure_attaches_a_separate_mixed_regime_field() ->
   decision = attached.as_chain_termination_decision()
   assert decision.physical_termination
   assert decision.reason is MocChainTerminationReason.PHYSICAL_TERMINATION
+
+
+def test_first_cell_terminal_closure_uses_the_explicit_perimeter_solver_seam() -> None:
+  shock_fit, strip, patch = _first_cell_inputs()
+  composite = assemble_first_cell_composite(
+    shock_fit,
+    strip,
+    patch,
+    position_tolerance_m=1.0e-3,
+  )
+  result = solve_marched_first_cell_terminal_closure(
+    composite,
+    downstream_flow_angle_rad=0.0,
+    sample_count=17,
+    shock_position_tolerance_m=2.0e-4,
+  )
+  request = result.mixed_regime_perimeter_request()
+  point = request.terminal_point_m
+  specification = MocMixedRegimeDownstreamPerimeterSpec(
+    perimeter_points_m=(
+      point,
+      (point[0] + 0.05, point[1] + 0.05),
+      (point[0] + 0.1, point[1] + 0.05),
+      (point[0] + 0.1, point[1]),
+      point,
+    ),
+    condition_kind=MocMixedRegimeDownstreamConditionKind.PRESSURE_OUTFLOW_SECTION,
+    ambient_pressure_Pa=request.terminal_downstream_pressure_Pa,
+  )
+
+  closure = result.solve_mixed_regime_downstream_perimeter(
+    specification,
+    lambda received, _index, sample_point: MocMixedRegimeFieldSample(
+      point_m=sample_point,
+      mach=received.terminal_downstream_mach,
+      flow_angle_rad=received.terminal_downstream_flow_angle_rad,
+      static_pressure_Pa=received.terminal_downstream_pressure_Pa,
+      total_pressure_Pa=received.terminal_downstream_total_pressure_Pa,
+      gamma=received.terminal.upstream_state.gamma,
+    ),
+    radial_divisions=2,
+  )
+
+  assert closure.converged
+  assert closure.physical_closure_verified
+  assert closure.perimeter_spec is specification
+  assert closure.downstream_condition is not None
+  assert closure.downstream_condition.converged
 
 
 def test_first_cell_terminal_closure_rejects_a_changed_outgoing_handoff() -> None:

@@ -432,6 +432,13 @@ not wait on this research closure.
   scalar reference model: it does not provide the missing canonical
   subsonic boundary condition, a nonlinear compressible potential solve, or a
   continued supersonic chain handoff.
+- Added a typed downstream-perimeter adapter for the reference lane. It binds
+  an explicit closed perimeter specification and caller-owned scalar samples
+  to the exact terminal/supersonic seam, applies the named downstream
+  pressure/tangency condition, and runs the radial reference-field gates in
+  one reproducible operation. It rejects changed sample coordinates and never
+  repairs missing geometry from the open supersonic zone; accepted results
+  remain finite-domain reference/termination fixtures only.
 - Exercised the refined reference through the terminal composite's exact seam
   validator at 2/3/4 radial divisions. Each case retains the same normal-shock
   terminal and supersonic patch, produces an explicit physical-stop decision,
@@ -932,6 +939,9 @@ Only after MOC-1 through MOC-5 pass:
   field carrying the exact validated downstream condition. The canonical
   terminal still has no physical downstream perimeter and no chain-promotion
   path.
+  The typed downstream-perimeter adapter now makes that caller-owned boundary
+  and sample model explicit and reproducible, but it does not change the
+  canonical status or promote the reference field into the supersonic chain.
 - The terminal-boundary graph audit confirms that the canonical terminal's
   four solver-owned supersonic paths join with zero reported residual, while
   no downstream path or physical downstream condition is supplied. A future

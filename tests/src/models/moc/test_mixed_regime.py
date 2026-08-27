@@ -7,6 +7,7 @@ from exhaust_plume.models.moc import (
   CharacteristicState,
   MocMixedRegimeBoundaryStatus,
   MocMixedRegimeClosureStatus,
+  MocMixedRegimeDownstreamPerimeterSpec,
   MocMixedRegimeDownstreamConditionKind,
   MocMixedRegimeDownstreamConditionStatus,
   MocMixedRegimeFieldStatus,
@@ -16,6 +17,7 @@ from exhaust_plume.models.moc import (
   run_mixed_regime_closure_solver,
   solve_normal_shock_terminal,
   solve_mixed_regime_downstream_condition,
+  solve_mixed_regime_downstream_perimeter,
   solve_mixed_regime_subsonic_field,
   validate_mixed_regime_boundary,
   validate_mixed_regime_downstream_condition,
@@ -286,6 +288,121 @@ def test_downstream_condition_callback_preserves_exact_terminal_and_patch_seams(
   assert mismatch_result.status is MocMixedRegimeDownstreamConditionStatus.BOUNDARY_FAILURE
   assert not mismatch_result.converged
   assert 'supersonic patch' in mismatch_result.message
+
+
+def test_explicit_downstream_perimeter_solver_returns_conditioned_reference_field() -> None:
+  terminal = _terminal()
+  patch = _supersonic_patch()
+  assert terminal.shock_point_m is not None
+  assert terminal.downstream_mach is not None
+  assert terminal.downstream_flow_angle_rad is not None
+  assert terminal.downstream_pressure_Pa is not None
+  assert terminal.downstream_total_pressure_Pa is not None
+  assert terminal.total_pressure_ratio is not None
+  request = MocMixedRegimePerimeterRequest(
+    terminal=terminal,
+    terminal_point_m=terminal.shock_point_m,
+    terminal_downstream_mach=terminal.downstream_mach,
+    terminal_downstream_flow_angle_rad=terminal.downstream_flow_angle_rad,
+    terminal_downstream_pressure_Pa=terminal.downstream_pressure_Pa,
+    terminal_downstream_total_pressure_Pa=terminal.downstream_total_pressure_Pa,
+    terminal_total_pressure_ratio=terminal.total_pressure_ratio,
+    supersonic_patch=patch,
+  )
+  points = (
+    terminal.shock_point_m,
+    (terminal.shock_point_m[0] + 0.1, terminal.shock_point_m[1] + 0.1),
+    (terminal.shock_point_m[0] + 0.2, terminal.shock_point_m[1] + 0.1),
+    (terminal.shock_point_m[0] + 0.2, terminal.shock_point_m[1]),
+    terminal.shock_point_m,
+  )
+  specification = MocMixedRegimeDownstreamPerimeterSpec(
+    perimeter_points_m=points,
+    condition_kind=MocMixedRegimeDownstreamConditionKind.PRESSURE_OUTFLOW_SECTION,
+    ambient_pressure_Pa=terminal.downstream_pressure_Pa,
+  )
+
+  def sample_at(
+    received: MocMixedRegimePerimeterRequest,
+    _index: int,
+    point: tuple[float, float],
+  ) -> MocMixedRegimeFieldSample:
+    return MocMixedRegimeFieldSample(
+      point_m=point,
+      mach=received.terminal_downstream_mach,
+      flow_angle_rad=received.terminal_downstream_flow_angle_rad,
+      static_pressure_Pa=received.terminal_downstream_pressure_Pa,
+      total_pressure_Pa=received.terminal_downstream_total_pressure_Pa,
+      gamma=received.terminal.upstream_state.gamma,
+    )
+
+  result = solve_mixed_regime_downstream_perimeter(
+    request,
+    specification,
+    sample_at,
+    radial_divisions=2,
+  )
+
+  assert result.status is MocMixedRegimeClosureStatus.CONVERGED
+  assert result.converged
+  assert result.physical_closure_verified
+  assert result.perimeter_spec is specification
+  assert result.downstream_condition is not None
+  assert result.downstream_condition.converged
+  assert result.field is not None
+  assert result.field.radial_divisions == 2
+  assert result.field.downstream_condition is result.downstream_condition
+
+
+def test_explicit_downstream_perimeter_solver_never_repairs_a_changed_sample_point() -> None:
+  terminal = _terminal()
+  assert terminal.shock_point_m is not None
+  assert terminal.downstream_pressure_Pa is not None
+  assert terminal.downstream_mach is not None
+  assert terminal.downstream_flow_angle_rad is not None
+  assert terminal.downstream_total_pressure_Pa is not None
+  assert terminal.total_pressure_ratio is not None
+  patch = _supersonic_patch()
+  request = MocMixedRegimePerimeterRequest(
+    terminal=terminal,
+    terminal_point_m=terminal.shock_point_m,
+    terminal_downstream_mach=terminal.downstream_mach,
+    terminal_downstream_flow_angle_rad=terminal.downstream_flow_angle_rad,
+    terminal_downstream_pressure_Pa=terminal.downstream_pressure_Pa,
+    terminal_downstream_total_pressure_Pa=terminal.downstream_total_pressure_Pa,
+    terminal_total_pressure_ratio=terminal.total_pressure_ratio,
+    supersonic_patch=patch,
+  )
+  point = terminal.shock_point_m
+  specification = MocMixedRegimeDownstreamPerimeterSpec(
+    perimeter_points_m=(
+      point,
+      (point[0] + 0.1, point[1] + 0.1),
+      (point[0] + 0.2, point[1] + 0.1),
+      (point[0] + 0.2, point[1]),
+      point,
+    ),
+    condition_kind=MocMixedRegimeDownstreamConditionKind.PRESSURE_OUTFLOW_SECTION,
+    ambient_pressure_Pa=terminal.downstream_pressure_Pa,
+  )
+
+  result = solve_mixed_regime_downstream_perimeter(
+    request,
+    specification,
+    lambda _request, _index, sample_point: MocMixedRegimeFieldSample(
+      point_m=(sample_point[0] + 0.01, sample_point[1]),
+      mach=terminal.downstream_mach,
+      flow_angle_rad=terminal.downstream_flow_angle_rad,
+      static_pressure_Pa=terminal.downstream_pressure_Pa,
+      total_pressure_Pa=terminal.downstream_total_pressure_Pa,
+      gamma=terminal.upstream_state.gamma,
+    ),
+  )
+
+  assert result.status is MocMixedRegimeClosureStatus.SEAM_FAILURE
+  assert not result.converged
+  assert result.field is None
+  assert 'changed the explicit perimeter coordinate' in result.message
 
 
 def test_elliptic_subsonic_reference_field_closes_only_its_declared_mesh_model() -> None:

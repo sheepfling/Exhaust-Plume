@@ -107,6 +107,12 @@ subsonic states into ``CharacteristicState`` and not permission to promote a
 continued MOC cell. The passing perimeter and terminal attachment in the
 validation artifact are synthetic contract fixtures; the canonical plume still
 needs its own physical downstream perimeter.
+The reference lane also exposes a typed downstream-perimeter adapter that
+binds explicit closed geometry and caller-owned scalar samples to the exact
+terminal seam before applying the named downstream condition and radial
+reference-field gates. This improves reproducibility for finite-domain
+planner fixtures without inferring the canonical perimeter or promoting the
+reference model to a production MOC provider.
 The terminal probe now keeps the shock branch explicit as well. The weak
 branch may reach the scalar normal-shock endpoint; a strong attached branch
 that becomes subsonic earlier is retained as a typed scalar boundary with its

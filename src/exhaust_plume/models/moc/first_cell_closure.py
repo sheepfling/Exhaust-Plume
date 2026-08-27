@@ -22,9 +22,12 @@ from exhaust_plume.models.moc.first_cell import (
 )
 from exhaust_plume.models.moc.mixed_regime import (
   MocMixedRegimeClosureResult,
+  MocMixedRegimeDownstreamPerimeterSpec,
+  MocMixedRegimeFieldSample,
   MocMixedRegimeFieldResult,
   MocMixedRegimePerimeterRequest,
   run_mixed_regime_closure_solver,
+  solve_mixed_regime_downstream_perimeter,
 )
 from exhaust_plume.models.moc.shock_chain import (
   MocTerminalShockCellFieldResult,
@@ -141,6 +144,44 @@ class MocFirstCellTerminalClosureResult:
     return run_mixed_regime_closure_solver(
       self.mixed_regime_perimeter_request(),
       solve_field,
+    )
+  ####
+
+  def solve_mixed_regime_downstream_perimeter(
+    self,
+    specification: MocMixedRegimeDownstreamPerimeterSpec,
+    sample_at: Callable[
+      [MocMixedRegimePerimeterRequest, int, tuple[float, float]],
+      MocMixedRegimeFieldSample | None,
+    ],
+    *,
+    radial_divisions: int = 1,
+    position_tolerance_m: float = 1.0e-10,
+    state_tolerance: float = 1.0e-10,
+    pressure_tolerance: float = 1.0e-8,
+    tangent_tolerance_rad: float = 1.0e-8,
+    thermodynamic_tolerance: float = 1.0e-8,
+    residual_tolerance: float = 1.0e-12,
+  ) -> MocMixedRegimeClosureResult:
+    """Solve a declared downstream perimeter at this exact terminal seam.
+
+    This is the ergonomic first-cell entry point for the separate
+    elliptic/isentrope reference lane.  The specification and scalar sampler
+    remain caller-owned, so the method does not infer a canonical plume
+    perimeter or turn a finite-domain reference into a production cell.
+    """
+
+    return solve_mixed_regime_downstream_perimeter(
+      self.mixed_regime_perimeter_request(),
+      specification,
+      sample_at,
+      radial_divisions=radial_divisions,
+      position_tolerance_m=position_tolerance_m,
+      state_tolerance=state_tolerance,
+      pressure_tolerance=pressure_tolerance,
+      tangent_tolerance_rad=tangent_tolerance_rad,
+      thermodynamic_tolerance=thermodynamic_tolerance,
+      residual_tolerance=residual_tolerance,
     )
   ####
 
