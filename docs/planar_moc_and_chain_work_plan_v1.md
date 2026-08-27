@@ -759,6 +759,14 @@ current tests use a clearly marked manufactured field only to audit the
 handoff and multi-cell planner contract; the canonical reflected field still
 has not passed the physical closure gate.
 
+The first-cell terminal now has a matching planner/audit wrapper. It can submit
+the exact normal-shock scalar seam to the prescribed mixed-regime closure mock
+and retain the resulting typed physical-stop decision, while keeping terminal
+closure separate from supersonic next-cell promotion. With no downstream
+solver, the same wrapper preserves the open-physical-closure decision. The
+mock's local closure is useful for planner and report plumbing only; it does
+not close the canonical free boundary or authorize a product claim.
+
 The caustic-family-band planner is a separate one-step research path for the
 new-family branch. It carries the current cell's exact post-shock perimeter,
 solves the next attached shock from the bounded band state/pressure field,

@@ -45,6 +45,9 @@ from exhaust_plume.models.moc.physical_cell import (
   MocPhysicalPostShockFieldResult,
   continue_ambient_closed_post_shock_chain,
 )
+from exhaust_plume.models.moc.first_cell_closure import (
+  MocFirstCellTerminalClosureResult,
+)
 from exhaust_plume.models.moc.post_shock import (
   MocPostShockChainCellSolve,
   MocPostShockCharacteristicFieldResult,
@@ -58,6 +61,7 @@ from exhaust_plume.models.moc.mixed_regime import (
   MocMixedRegimeClosureResult,
   MocMixedRegimeDownstreamConditionKind,
   MocMixedRegimeDownstreamPerimeterSpec,
+  MocMixedRegimeFieldResult,
   MocMixedRegimeFieldSample,
   MocMixedRegimePerimeterRequest,
   solve_mixed_regime_downstream_perimeter,
@@ -90,6 +94,7 @@ __all__ = (
   'MocChainPlannerKind',
   'MocChainPlannerStep',
   'MocChainPlannerResult',
+  'MocFirstCellTerminalClosurePlannerResult',
   'MocPrescribedMixedRegimeClosureMock',
   'MocPrescribedPostShockChainMock',
   'MocSolverGeneratedPostShockChainReference',
@@ -115,6 +120,8 @@ __all__ = (
   'plan_caustic_remesh_downstream_field_invariant_chain',
   'plan_ambient_pressure_field_chain',
   'plan_ambient_closed_post_shock_chain',
+  'plan_first_cell_terminal_closure',
+  'plan_prescribed_first_cell_terminal_closure_mock',
 )
 
 
@@ -701,6 +708,241 @@ class MocPrescribedMixedRegimeClosureMock:
       self.sample_at,
       radial_divisions=self.radial_divisions,
     )
+  ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocFirstCellTerminalClosurePlannerResult:
+  """Planner/audit result for one first-cell terminal closure attempt.
+
+  This result deliberately is not a ``MocChainPlannerResult``: a terminal
+  mixed-regime region is a chain stop, not a supersonic cell that can seed the
+  next shock.  The optional closure is retained beside the terminal result so
+  reports can distinguish an open physical boundary from a prescribed fixture
+  that passed the local scalar/reference gates.
+  """
+
+  terminal: MocFirstCellTerminalClosureResult
+  mixed_regime_closure: MocMixedRegimeClosureResult | None
+  termination: MocChainTerminationDecision | None
+  planner_kind: MocChainPlannerKind
+  claim_status: str
+  diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.terminal, MocFirstCellTerminalClosureResult):
+      raise TypeError(
+        'terminal must be a MocFirstCellTerminalClosureResult'
+      )
+    if self.mixed_regime_closure is not None and not isinstance(
+      self.mixed_regime_closure,
+      MocMixedRegimeClosureResult,
+    ):
+      raise TypeError(
+        'mixed_regime_closure must be a MocMixedRegimeClosureResult or None'
+      )
+    if self.termination is not None and not isinstance(
+      self.termination,
+      MocChainTerminationDecision,
+    ):
+      raise TypeError(
+        'termination must be a MocChainTerminationDecision or None'
+      )
+    if not isinstance(self.planner_kind, MocChainPlannerKind):
+      raise TypeError('planner_kind must be a MocChainPlannerKind')
+    object.__setattr__(self, 'claim_status', str(self.claim_status))
+    object.__setattr__(self, 'diagnostics', MappingProxyType(dict(self.diagnostics)))
+
+  @property
+  def resolved(self) -> bool:
+    """Whether the supersonic terminal region itself converged."""
+
+    return self.terminal.converged
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    """Whether the terminal and its attached mixed-regime field passed."""
+
+    return self.terminal.physical_closure_verified
+
+  @property
+  def physical_termination(self) -> bool:
+    """Whether the retained decision is a verified physical chain stop."""
+
+    return bool(
+      self.termination is not None
+      and self.termination.physical_termination
+    )
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    """A terminal mixed-regime result never becomes a supersonic next cell."""
+
+    return self.terminal.chain_promotion_blocked
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    """Planner and prescribed-fixture results cannot support product claims."""
+
+    return False
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'planner_kind': self.planner_kind.value,
+      'planning_only': True,
+      'production_claim_allowed': self.production_claim_allowed,
+      'claim_status': self.claim_status,
+      'resolved': self.resolved,
+      'physical_closure_verified': self.physical_closure_verified,
+      'physical_termination': self.physical_termination,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'termination': (
+        None if self.termination is None else self.termination.as_report()
+      ),
+      'terminal': self.terminal.as_report(),
+      'mixed_regime_closure': (
+        None
+        if self.mixed_regime_closure is None
+        else self.mixed_regime_closure.as_report()
+      ),
+      'diagnostics': dict(self.diagnostics),
+    }
+  ####
+
+
+def plan_first_cell_terminal_closure(
+  terminal: MocFirstCellTerminalClosureResult,
+  *,
+  mock: MocPrescribedMixedRegimeClosureMock | None = None,
+  solve_field: Callable[
+    [MocMixedRegimePerimeterRequest],
+    MocMixedRegimeFieldResult | None,
+  ] | None = None,
+  claim_status: str | None = None,
+) -> MocFirstCellTerminalClosurePlannerResult:
+  """Audit a first-cell terminal and optionally submit its exact scalar seam.
+
+  ``mock`` is the reusable rectangular pressure-outflow fixture.  A future
+  downstream solver can instead be supplied as ``solve_field``; in either
+  case the terminal object owns the request and the real mixed-regime adapter
+  owns seam acceptance.  Omitting both only audits the already-solved
+  supersonic terminal and preserves its open/physical decision.
+  """
+
+  if not isinstance(terminal, MocFirstCellTerminalClosureResult):
+    raise TypeError(
+      'terminal must be a MocFirstCellTerminalClosureResult'
+    )
+  if mock is not None and not isinstance(
+    mock,
+    MocPrescribedMixedRegimeClosureMock,
+  ):
+    raise TypeError(
+      'mock must be a MocPrescribedMixedRegimeClosureMock or None'
+    )
+  if mock is not None and solve_field is not None:
+    raise ValueError('supply either mock or solve_field, not both')
+  if solve_field is not None and not callable(solve_field):
+    raise TypeError('solve_field must be callable when supplied')
+
+  planner_kind = (
+    MocChainPlannerKind.PRESCRIBED_BOUNDARY_MOCK
+    if mock is not None
+    else MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
+  )
+  diagnostics: dict[str, Any] = {
+    'planner_model': 'first-cell-terminal-closure-planner',
+    'mixed_regime_solver_supplied': mock is not None or solve_field is not None,
+    'mixed_regime_closure_attached': False,
+    'chain_promotion_blocked': terminal.chain_promotion_blocked,
+    'terminal_physical_closure_verified': terminal.physical_closure_verified,
+  }
+  if mock is not None:
+    diagnostics['prescribed_mixed_regime_closure_mock'] = mock.as_report()
+  elif solve_field is not None:
+    diagnostics['downstream_solver_model'] = 'caller-supplied-mixed-regime-solver'
+
+  mixed_regime_closure: MocMixedRegimeClosureResult | None = None
+  attached_terminal = terminal
+  if mock is not None or solve_field is not None:
+    if terminal.terminal_field is None or not terminal.converged:
+      diagnostics['mixed_regime_solver_skipped'] = (
+        'terminal does not expose a converged supersonic field and exact seam'
+      )
+    else:
+      try:
+        if mock is not None:
+          mixed_regime_closure = mock.solve(
+            terminal.mixed_regime_perimeter_request()
+          )
+        else:
+          assert solve_field is not None
+          mixed_regime_closure = terminal.solve_mixed_regime_closure(solve_field)
+      except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+        diagnostics['mixed_regime_solver_error'] = str(error)
+      else:
+        diagnostics['mixed_regime_closure_status'] = (
+          mixed_regime_closure.status.value
+        )
+        if mixed_regime_closure.converged:
+          try:
+            attached_terminal = terminal.attach_mixed_regime_closure(
+              mixed_regime_closure
+            )
+          except (TypeError, ValueError) as error:
+            diagnostics['mixed_regime_closure_attachment_error'] = str(error)
+          else:
+            diagnostics['mixed_regime_closure_attached'] = True
+        else:
+          diagnostics['mixed_regime_closure_message'] = (
+            mixed_regime_closure.message
+          )
+
+  try:
+    termination = attached_terminal.as_chain_termination_decision()
+  except ValueError as error:
+    termination = None
+    diagnostics['termination_decision_error'] = str(error)
+
+  diagnostics.update({
+    'terminal_physical_closure_verified': attached_terminal.physical_closure_verified,
+    'physical_termination': bool(
+      termination is not None and termination.physical_termination
+    ),
+  })
+  return MocFirstCellTerminalClosurePlannerResult(
+    terminal=attached_terminal,
+    mixed_regime_closure=mixed_regime_closure,
+    termination=termination,
+    planner_kind=planner_kind,
+    claim_status=(
+      (
+        'prescribed-mixed-regime-terminal-planner-mock; '
+        'canonical-downstream-free-boundary-pending'
+      )
+      if mock is not None
+      else (
+        'first-cell-terminal-closure-planner; '
+        'canonical-downstream-free-boundary-and-external-validation-pending'
+      )
+      if claim_status is None
+      else claim_status
+    ),
+    diagnostics=diagnostics,
+  )
+
+
+def plan_prescribed_first_cell_terminal_closure_mock(
+  terminal: MocFirstCellTerminalClosureResult,
+  *,
+  mock: MocPrescribedMixedRegimeClosureMock | None = None,
+) -> MocFirstCellTerminalClosurePlannerResult:
+  """Run the explicit prescribed mixed-regime terminal planner fixture."""
+
+  fixture = (
+    MocPrescribedMixedRegimeClosureMock() if mock is None else mock
+  )
+  return plan_first_cell_terminal_closure(terminal, mock=fixture)
   ####
 
 

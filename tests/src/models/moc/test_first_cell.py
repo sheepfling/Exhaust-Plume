@@ -5,11 +5,13 @@ from dataclasses import replace
 from exhaust_plume.models.moc import (
   CharacteristicState,
   MocFirstCellCompositeStatus,
+  MocFirstCellTerminalClosurePlannerResult,
   MocFirstCellTerminalClosureStatus,
   MocMixedRegimeDownstreamPerimeterSpec,
   MocMixedRegimeDownstreamConditionKind,
   MocMixedRegimeDownstreamConditionStatus,
   MocMixedRegimeFieldSample,
+  MocPrescribedMixedRegimeClosureMock,
   MocTerminalBoundaryGraphStatus,
   MocChainTerminationReason,
   assemble_ambient_shock_characteristic_strip,
@@ -17,6 +19,8 @@ from exhaust_plume.models.moc import (
   assemble_first_cell_composite,
   assemble_terminal_trace_centerline_patch,
   march_post_shock_ambient_boundary,
+  plan_first_cell_terminal_closure,
+  plan_prescribed_first_cell_terminal_closure_mock,
   solve_mixed_regime_subsonic_field,
   solve_marched_first_cell_terminal_closure,
   solve_marched_attached_shock_field,
@@ -250,6 +254,75 @@ def test_first_cell_terminal_closure_attaches_a_separate_mixed_regime_field() ->
   decision = attached.as_chain_termination_decision()
   assert decision.physical_termination
   assert decision.reason is MocChainTerminationReason.PHYSICAL_TERMINATION
+
+
+def test_first_cell_terminal_planner_mock_attaches_exact_seam_and_typed_stop() -> None:
+  shock_fit, strip, patch = _first_cell_inputs()
+  composite = assemble_first_cell_composite(
+    shock_fit,
+    strip,
+    patch,
+    position_tolerance_m=1.0e-3,
+  )
+  terminal = solve_marched_first_cell_terminal_closure(
+    composite,
+    downstream_flow_angle_rad=0.0,
+    sample_count=17,
+    shock_position_tolerance_m=2.0e-4,
+  )
+
+  planner = plan_prescribed_first_cell_terminal_closure_mock(
+    terminal,
+    mock=MocPrescribedMixedRegimeClosureMock(radial_divisions=2),
+  )
+
+  assert isinstance(planner, MocFirstCellTerminalClosurePlannerResult)
+  assert planner.planner_kind.value == 'prescribed-boundary-mock'
+  assert planner.production_claim_allowed is False
+  assert planner.resolved
+  assert planner.physical_closure_verified
+  assert planner.physical_termination
+  assert planner.chain_promotion_blocked
+  assert planner.termination is not None
+  assert planner.termination.reason is MocChainTerminationReason.PHYSICAL_TERMINATION
+  assert planner.mixed_regime_closure is not None
+  assert planner.mixed_regime_closure.converged
+  assert planner.terminal.mixed_regime_field is planner.mixed_regime_closure.field
+  assert planner.diagnostics['mixed_regime_closure_attached'] is True
+  assert planner.diagnostics['prescribed_mixed_regime_closure_mock']['planning_only'] is True
+  assert planner.diagnostics['prescribed_mixed_regime_closure_mock']['production_claim_allowed'] is False
+  report = planner.as_report()
+  assert report['planning_only'] is True
+  assert report['production_claim_allowed'] is False
+  assert report['termination']['physical_termination'] is True
+  assert report['chain_promotion_blocked'] is True
+
+
+def test_first_cell_terminal_planner_preserves_open_boundary_without_solver() -> None:
+  shock_fit, strip, patch = _first_cell_inputs()
+  composite = assemble_first_cell_composite(
+    shock_fit,
+    strip,
+    patch,
+    position_tolerance_m=1.0e-3,
+  )
+  terminal = solve_marched_first_cell_terminal_closure(
+    composite,
+    downstream_flow_angle_rad=0.0,
+    sample_count=17,
+    shock_position_tolerance_m=2.0e-4,
+  )
+
+  planner = plan_first_cell_terminal_closure(terminal)
+
+  assert planner.planner_kind.value == 'upstream-coupled-research'
+  assert planner.resolved
+  assert planner.physical_closure_verified is False
+  assert planner.physical_termination is False
+  assert planner.mixed_regime_closure is None
+  assert planner.termination is not None
+  assert planner.termination.reason is MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+  assert planner.diagnostics['mixed_regime_solver_supplied'] is False
 
 
 def test_first_cell_terminal_closure_uses_the_explicit_perimeter_solver_seam() -> None:

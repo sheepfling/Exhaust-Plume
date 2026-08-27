@@ -683,6 +683,17 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   )
   assert first_cell_terminal_closure['terminal_field']['terminal_shock_boundary_coverage_verified'] is True
   assert first_cell_terminal_closure['terminal_field']['terminal_shock_boundary_sample_count'] == 18
+  first_cell_terminal_planner = ambient_strip['first_cell_terminal_closure_planner']
+  assert first_cell_terminal_planner['planner_kind'] == 'prescribed-boundary-mock'
+  assert first_cell_terminal_planner['planning_only'] is True
+  assert first_cell_terminal_planner['production_claim_allowed'] is False
+  assert first_cell_terminal_planner['resolved'] is True
+  assert first_cell_terminal_planner['physical_closure_verified'] is True
+  assert first_cell_terminal_planner['physical_termination'] is True
+  assert first_cell_terminal_planner['chain_promotion_blocked'] is True
+  assert first_cell_terminal_planner['termination']['physical_termination'] is True
+  assert first_cell_terminal_planner['diagnostics']['mixed_regime_closure_attached'] is True
+  assert first_cell_terminal_planner['diagnostics']['prescribed_mixed_regime_closure_mock']['production_claim_allowed'] is False
   terminal_patch_refinement = report['geometry_cases']['terminal_reflection_patch_refinement']
   assert terminal_patch_refinement['status'] == (
     'diagnostic-terminal-patch-resolutions-reach-mixed-regime-gate'

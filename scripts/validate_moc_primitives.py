@@ -123,6 +123,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   plan_caustic_simple_wave_terminal_chain,
   plan_caustic_remesh_downstream_field_chain,
   plan_caustic_remesh_downstream_field_invariant_chain,
+  plan_prescribed_first_cell_terminal_closure_mock,
   restart_characteristic_family_from_caustic,
   trace_caustic_family_band_forward_envelope,
   extend_source_characteristic_strip_centerline_reflection,
@@ -520,6 +521,7 @@ def _ambient_shock_strip_probe(
   first_cell_composite = None
   first_cell_composite_measurement = None
   first_cell_terminal_closure = None
+  first_cell_terminal_closure_planner = None
   if terminal_patch.converged:
     terminal_patch_shock_probe = solve_marched_attached_shock_from_terminal_reflection_patch(
       terminal_patch,
@@ -645,6 +647,11 @@ def _ambient_shock_strip_probe(
             position_tolerance_m=1.0e-10,
             mesh_vertex_tolerance_m=1.0e-9,
           )
+          first_cell_terminal_closure_planner = (
+            plan_prescribed_first_cell_terminal_closure_mock(
+              first_cell_terminal_closure,
+            )
+          )
   accepted = (
     strip.status is MocAmbientShockStripStatus.CONVERGED_OPEN
     and strip.topology.forms_closed_zone
@@ -700,6 +707,11 @@ def _ambient_shock_strip_probe(
       None
       if first_cell_terminal_closure is None
       else first_cell_terminal_closure.as_report()
+    ),
+    'first_cell_terminal_closure_planner': (
+      None
+      if first_cell_terminal_closure_planner is None
+      else first_cell_terminal_closure_planner.as_report()
     ),
     'terminal_trace_acceptance_tolerance_m': 2.0e-4,
     'message': strip.message,

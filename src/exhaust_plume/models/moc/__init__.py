@@ -311,6 +311,7 @@ from exhaust_plume.models.moc.planner import (
   MocChainPlannerKind,
   MocChainPlannerResult,
   MocChainPlannerStep,
+  MocFirstCellTerminalClosurePlannerResult,
   MocPrescribedMixedRegimeClosureMock,
   MocPrescribedPostShockChainMock,
   MocSolverGeneratedPostShockChainReference,
@@ -336,6 +337,8 @@ from exhaust_plume.models.moc.planner import (
   plan_caustic_remesh_downstream_field_invariant_chain,
   plan_ambient_pressure_field_chain,
   plan_ambient_closed_post_shock_chain,
+  plan_first_cell_terminal_closure,
+  plan_prescribed_first_cell_terminal_closure_mock,
 )
 from exhaust_plume.models.moc.chain import (
   MocCellClosureStatus,
@@ -382,6 +385,7 @@ __all__ = (
   'MocChainPlannerKind',
   'MocChainPlannerResult',
   'MocChainPlannerStep',
+  'MocFirstCellTerminalClosurePlannerResult',
   'MocPrescribedMixedRegimeClosureMock',
   'MocPrescribedPostShockChainMock',
   'MocSolverGeneratedPostShockChainReference',
@@ -619,6 +623,8 @@ __all__ = (
   'solve_marched_attached_shock_chain_cell_with_ambient_pressure_closure_or_termination',
   'plan_ambient_pressure_field_chain',
   'plan_ambient_closed_post_shock_chain',
+  'plan_first_cell_terminal_closure',
+  'plan_prescribed_first_cell_terminal_closure_mock',
   'assemble_ambient_boundary_post_shock_field',
   'continue_ambient_closed_post_shock_chain',
   'march_post_shock_ambient_boundary',
