@@ -21,6 +21,8 @@ from exhaust_plume.models.moc import (
   solve_marched_attached_shock_chain_cell_from_reflected_zone_or_termination,
   solve_marched_attached_shock_chain_cell_from_post_shock_field,
   solve_marched_attached_shock_chain_cell_from_post_shock_field_or_termination,
+  solve_marched_attached_shock_chain_cell_with_ambient_pressure_closure,
+  solve_marched_attached_shock_chain_cell_with_ambient_pressure_closure_or_termination,
   solve_marched_attached_shock_chain_cell,
   solve_marched_attached_shock_chain_cell_or_termination,
   solve_marched_attached_shock_field,
@@ -32,6 +34,7 @@ from exhaust_plume.models.moc import (
   solve_marched_ambient_attachment_shock_cell_transition,
   solve_marched_attached_shock_with_ambient_pressure_closure_from_reflected_zone,
   continue_post_shock_characteristic_chain,
+  plan_ambient_pressure_field_chain,
   plan_post_shock_field_chain,
   solve_reflected_free_boundary,
   assemble_source_characteristic_strip,
@@ -186,6 +189,94 @@ def test_field_coupled_planner_audits_the_resolved_field_handoff() -> None:
   assert planner.steps[0].result_status == 'physical-termination'
   assert planner.steps[0].result_termination_reason is MocChainTerminationReason.PHYSICAL_TERMINATION
   assert planner.steps[0].result_physical_termination is True
+  assert seen == [(True, 1, 2)]
+
+
+def test_ambient_pressure_field_chain_adapter_reports_bounded_upstream_stop() -> None:
+  result = _uniform_reference(17)
+  assert result.field is not None
+  current = result.field.as_coupled_chain_cell(start_x_m=0.5, end_x_m=0.9)
+
+  decision = solve_marched_attached_shock_chain_cell_with_ambient_pressure_closure_or_termination(
+    current,
+    2,
+    current.continuation_boundary,
+    result.field.state_at,
+    result.field.static_pressure_at,
+    (1.2, 0.1),
+    1.4,
+    100000.0,
+    0.0,
+    0.1,
+    sample_count=9,
+    position_tolerance_m=1.0e-8,
+  )
+
+  assert decision.physical_termination is False
+  assert decision.reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+  assert decision.diagnostics['termination_model'] == (
+    'ambient-pressure-field-coupled-chain'
+  )
+  assert decision.diagnostics['upstream_field_model'] == (
+    'caller-bounded-state-pressure-field'
+  )
+  assert decision.diagnostics['ambient_closure_status'] == (
+    'ambient_closure_field_failure'
+  )
+  assert decision.diagnostics['sampled_count'] == 0
+  assert decision.diagnostics['first_missing_sample_index'] == 0
+  assert decision.diagnostics['last_valid_point_m'] is None
+
+  with pytest.raises(ValueError, match='left the bounded upstream field'):
+    solve_marched_attached_shock_chain_cell_with_ambient_pressure_closure(
+      current,
+      2,
+      current.continuation_boundary,
+      result.field.state_at,
+      result.field.static_pressure_at,
+      (1.2, 0.1),
+      1.4,
+      100000.0,
+      0.0,
+      0.1,
+      sample_count=9,
+      position_tolerance_m=1.0e-8,
+    )
+
+
+def test_ambient_pressure_field_chain_planner_preserves_field_on_typed_stop() -> None:
+  result = _uniform_reference(17)
+  assert result.field is not None
+  seen: list[tuple[bool, int, int]] = []
+
+  def start_point_at(field, current, cell_index):
+    seen.append((field is result.field, current.cell_index, cell_index))
+    return (1.2, 0.1)
+
+  planner = plan_ambient_pressure_field_chain(
+    result.field,
+    start_x_m=0.5,
+    end_x_m=0.9,
+    start_point_at=start_point_at,
+    ambient_pressure_Pa=100000.0,
+    outer_downstream_flow_angle_lower_rad=0.0,
+    outer_downstream_flow_angle_upper_rad=0.1,
+    sample_count=9,
+    position_tolerance_m=1.0e-8,
+  )
+
+  assert planner.planner_kind.value == 'upstream-coupled-research'
+  assert planner.production_claim_allowed is False
+  assert planner.chain.cell_count == 1
+  assert planner.chain.physical_termination is False
+  assert planner.chain.termination_reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+  assert len(planner.steps) == 1
+  assert planner.steps[0].boundary_kind.value == 'post-shock-field-perimeter'
+  assert planner.steps[0].incoming_handoff_sample_count == len(
+    result.field.continuation_boundary_states
+  )
+  assert planner.steps[0].result_kind == 'termination-returned'
+  assert planner.steps[0].result_termination_reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
   assert seen == [(True, 1, 2)]
 
 

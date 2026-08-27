@@ -7951,6 +7951,104 @@
       "accepted": true,
       "claim_status": "bounded-post-shock-field-coupled-planner; production-shock-boundary-and-external-validation-pending"
     },
+    "ambient_pressure_field_coupled_chain_planner": {
+      "status": "diagnostic-ambient-pressure-field-chain-boundary",
+      "accepted": true,
+      "planner": {
+        "planner_kind": "upstream-coupled-research",
+        "planning_only": true,
+        "production_claim_allowed": false,
+        "claim_status": "ambient-pressure-field-coupled-planner; exact-handoff-and-external-validation-pending",
+        "step_count": 1,
+        "steps": [
+          {
+            "current_cell_index": 1,
+            "next_cell_index": 2,
+            "current_end_x_m": 0.9,
+            "boundary_kind": "post-shock-field-perimeter",
+            "incoming_handoff_sample_count": 18,
+            "incoming_total_pressure_range_Pa": [
+              749635.1347251647,
+              764819.179280032
+            ],
+            "incoming_handoff_fingerprint": "d0c3cfd5c26535d39ff1ee5d6c0ce16797ff445aaf2d3130e41244d662347b9b",
+            "result_kind": "termination-returned",
+            "result_status": "upstream-field-boundary",
+            "result_end_x_m": null,
+            "result_geometry_fidelity": null,
+            "result_physical_closure": null,
+            "result_termination_reason": "upstream-field-boundary",
+            "result_physical_termination": false
+          }
+        ],
+        "chain": {
+          "status": "solver-terminated",
+          "termination_reason": "upstream-field-boundary",
+          "physical_termination": false,
+          "cell_count": 1,
+          "end_x_m": 0.9,
+          "resolved": true,
+          "state_carry_count": 1,
+          "continuation_boundary_kinds": [
+            "post-shock-field-perimeter"
+          ],
+          "continuation_total_pressure_ranges_Pa": [
+            {
+              "cell_index": 1,
+              "minimum_Pa": 749635.1347251647,
+              "maximum_Pa": 764819.179280032
+            }
+          ],
+          "continuation_boundary_maxima_nonincreasing": null,
+          "geometry_fidelity_counts": {
+            "resolved-planar-moc": 1
+          },
+          "diagnostics": {
+            "termination_model": "ambient-pressure-field-coupled-chain",
+            "upstream_field_model": "caller-bounded-state-pressure-field",
+            "ambient_closure_status": "ambient_closure_field_failure",
+            "ambient_closure_report": {
+              "status": "ambient_closure_field_failure",
+              "converged": false,
+              "physical_closure_verified": false,
+              "upstream_coupling_verified": false,
+              "ambient_pressure_Pa": 100000.0,
+              "outer_downstream_flow_angle_rad": 0.0,
+              "outer_flow_angle_bracket": [
+                0.0,
+                0.1
+              ],
+              "closure_residual": null,
+              "shooting_iterations": 0,
+              "shock": {
+                "status": "upstream_field_failure",
+                "converged": false,
+                "physical_closure_verified": false,
+                "subsonic_terminal_required": false,
+                "sample_count": 0,
+                "endpoint_m": null,
+                "maximum_shock_angle_residual_rad": null,
+                "field_status": null,
+                "subsonic_boundary_verified": false,
+                "subsonic_shock_boundary": null,
+                "normal_shock_terminal": null,
+                "message": "upstream field callback returned no CharacteristicState at sample 0"
+              },
+              "ambient_boundary": null,
+              "message": "ambient-pressure shooting requires both bracket endpoints to produce a complete post-shock outer perimeter; lower=generated shock/field did not converge: upstream field callback returned no CharacteristicState at sample 0; upper=generated shock/field did not converge: upstream field callback returned no CharacteristicState at sample 0"
+            },
+            "next_cell_index": 2,
+            "incoming_handoff_sample_count": 18,
+            "sampled_count": 0,
+            "first_missing_sample_index": 0,
+            "last_valid_point_m": null
+          },
+          "message": "ambient-pressure field-coupled shock left the bounded upstream field; no extrapolation or physical endpoint was inferred"
+        },
+        "diagnostics": {}
+      },
+      "claim_status": "ambient-pressure-field-coupled-chain-handoff; canonical-upstream-domain-extension-pending"
+    },
     "shock_seeded_post_shock_field": {
       "status": "converged_closed",
       "accepted": true,

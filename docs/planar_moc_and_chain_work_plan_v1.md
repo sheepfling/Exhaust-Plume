@@ -222,6 +222,13 @@ not wait on this research closure.
   records the first missing reflected-zone sample; only a fully ambient-closed
   result with complete upstream coverage can become a continued MOC chain
   cell.
+- Added an ambient-pressure field-coupled continued-cell adapter and planner.
+  Each candidate next shock consumes the prior post-shock perimeter exactly,
+  re-solves against the currently accepted bounded state/pressure field, and
+  replaces that field only after the ambient pressure/tangency, shock-fit,
+  upstream-coupling, and handoff gates pass. Bounded-domain, bracket, and
+  closure failures become typed non-physical planner stops; the lane remains
+  research-only and cannot alter the fast visual or reduced-order providers.
 - Added a typed normal-shock terminal primitive. It reconstructs the
   subsonic Mach number, static-pressure rise, and total-pressure loss without
   fabricating a subsonic `CharacteristicState`; the marched-shock result
@@ -570,7 +577,9 @@ characteristic domain and replace the caller-supplied downstream turn law.
 The new ambient-pressure adapter uses the same domain-bounded callbacks and
 adds a strict outer-perimeter pressure/tangency gate; its canonical result is
 therefore a bounded field/coupling failure and cannot be promoted into the
-continued chain.
+continued chain. The ambient-pressure field planner now repeats that contract
+for later cells: only an accepted field replaces the current upstream field,
+and every failed attempt leaves the prior cell and handoff unchanged.
 
 The caustic-family-band planner is a separate one-step research path for the
 new-family branch. It carries the current cell's exact post-shock perimeter,
@@ -785,6 +794,9 @@ Only after MOC-1 through MOC-5 pass:
   separate gate. The research adapter can retain a locally ambient-closed
   field, but its strict coupled chain adapter refuses promotion until the
   upstream states are carried through the accepted shock path as well.
+  The repeated ambient-pressure field planner enforces the same rule between
+  cells; the canonical bounded post-shock seed still stops at its finite field
+  boundary before a second cell can be accepted.
 - The trace-extension reference uses a constant terminal boundary trace; it is
   useful for deterministic plumbing and refinement, but it is not the physical
   upstream characteristic strip.

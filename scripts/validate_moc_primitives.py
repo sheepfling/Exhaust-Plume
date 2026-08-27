@@ -43,6 +43,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   plan_caustic_family_band_invariant_chain,
   plan_caustic_upstream_bridge_chain,
   plan_caustic_upstream_bridge_invariant_chain,
+  plan_ambient_pressure_field_chain,
   plan_post_shock_characteristic_chain,
   plan_post_shock_field_chain,
   plan_terminal_reflection_patch_chain,
@@ -1581,6 +1582,63 @@ def _solver_generated_field_coupled_chain_planner(
   )
 
 
+def _ambient_pressure_field_coupled_chain_planner(
+  seed_field: MocPostShockCharacteristicFieldResult,
+) -> dict[str, Any]:
+  """Audit the repeated ambient-pressure planner at its bounded-domain seam."""
+
+  if not seed_field.converged or not seed_field.upstream_shock_coupling_verified:
+    return {
+      'status': 'invalid_seed',
+      'accepted': False,
+      'planner': None,
+      'claim_status': 'ambient-pressure-field-chain-pending',
+    }
+  planner = plan_ambient_pressure_field_chain(
+    seed_field,
+    start_x_m=0.5,
+    end_x_m=0.9,
+    start_point_at=lambda _field, _current, _cell_index: (1.2, 0.1),
+    ambient_pressure_Pa=100000.0,
+    outer_downstream_flow_angle_lower_rad=0.0,
+    outer_downstream_flow_angle_upper_rad=0.1,
+    sample_count=9,
+    position_tolerance_m=1.0e-8,
+  )
+  report = planner.as_report()
+  chain = report['chain']
+  steps = report['steps']
+  diagnostics = chain['diagnostics']
+  accepted = (
+    report['planner_kind'] == MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH.value
+    and report['planning_only'] is True
+    and report['production_claim_allowed'] is False
+    and report['step_count'] == 1
+    and chain['status'] == MocChainStatus.SOLVER_TERMINATED.value
+    and chain['termination_reason'] == MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY.value
+    and chain['physical_termination'] is False
+    and chain['cell_count'] == 1
+    and len(steps) == 1
+    and steps[0]['boundary_kind'] == MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER.value
+    and steps[0]['result_kind'] == 'termination-returned'
+    and steps[0]['result_termination_reason'] == MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY.value
+    and diagnostics['termination_model'] == 'ambient-pressure-field-coupled-chain'
+    and diagnostics['upstream_field_model'] == 'caller-bounded-state-pressure-field'
+    and diagnostics['ambient_closure_status'] == 'ambient_closure_field_failure'
+    and diagnostics['sampled_count'] == 0
+    and diagnostics['first_missing_sample_index'] == 0
+  )
+  return {
+    'status': 'diagnostic-ambient-pressure-field-chain-boundary',
+    'accepted': accepted,
+    'planner': report,
+    'claim_status': (
+      'ambient-pressure-field-coupled-chain-handoff; '
+      'canonical-upstream-domain-extension-pending'
+    ),
+  }
+
+
 def _solver_generated_chain_terminal_probe(
   seed_field: MocPostShockCharacteristicFieldResult,
 ) -> dict[str, Any]:
@@ -3116,6 +3174,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
   solver_generated_chain_observations: list[dict[str, Any]] = []
   solver_generated_chain_planner = None
   solver_generated_field_coupled_chain_planner = None
+  ambient_pressure_field_coupled_chain_planner = None
   if solver_generated_shock.field is not None and solver_generated_shock.field.converged:
     (
       solver_generated_chain_reference,
@@ -3126,6 +3185,9 @@ def build_moc_primitive_report() -> dict[str, Any]:
     )
     solver_generated_field_coupled_chain_planner = (
       _solver_generated_field_coupled_chain_planner(solver_generated_shock.field)
+    )
+    ambient_pressure_field_coupled_chain_planner = (
+      _ambient_pressure_field_coupled_chain_planner(solver_generated_shock.field)
     )
   solver_generated_chain_terminal_probe = _solver_generated_chain_terminal_probe(
     solver_generated_shock.field
@@ -3303,6 +3365,10 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or solver_generated_field_coupled_chain_planner.steps[0].boundary_kind is not MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER
     or solver_generated_field_coupled_chain_planner.chain.diagnostics.get('termination_model') != 'normal-shock-terminal'
     or solver_generated_field_coupled_chain_planner.chain.diagnostics.get('upstream_field_model') != 'bounded-post-shock-characteristic-field'
+  )
+  ambient_pressure_field_coupled_chain_failure = (
+    ambient_pressure_field_coupled_chain_planner is None
+    or ambient_pressure_field_coupled_chain_planner.get('accepted') is not True
   )
   mixed_regime_boundary_failure = (
     mixed_regime_boundary_probe.get('accepted') is not True
@@ -4057,6 +4123,15 @@ def build_moc_primitive_report() -> dict[str, Any]:
         else solver_generated_field_coupled_chain_planner.claim_status
       ),
     },
+    'ambient_pressure_field_coupled_chain_planner': (
+      {
+        'status': 'missing',
+        'accepted': False,
+        'planner': None,
+      }
+      if ambient_pressure_field_coupled_chain_planner is None
+      else ambient_pressure_field_coupled_chain_planner
+    ),
     'shock_seeded_post_shock_field': {
       'status': shock_seeded_field.status.value,
       'accepted': shock_seeded_field.converged,
@@ -4566,6 +4641,20 @@ def build_moc_primitive_report() -> dict[str, Any]:
         ),
       }
     ] if solver_generated_field_coupled_chain_failure else []),
+    *([
+      {
+        'case': 'ambient_pressure_field_coupled_chain_planner',
+        'status': (
+          'missing'
+          if ambient_pressure_field_coupled_chain_planner is None
+          else str(ambient_pressure_field_coupled_chain_planner.get('status', 'missing'))
+        ),
+        'message': (
+          'ambient-pressure field planner did not preserve the bounded '
+          'upstream-field stop contract'
+        ),
+      }
+    ] if ambient_pressure_field_coupled_chain_failure else []),
     *([
       {
         'case': 'shock_cell_chain_planner_mock',

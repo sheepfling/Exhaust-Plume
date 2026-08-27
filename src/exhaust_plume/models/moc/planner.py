@@ -44,6 +44,9 @@ from exhaust_plume.models.moc.terminal_patch import MocTerminalReflectionPatchRe
 from exhaust_plume.models.moc.terminal_patch_solver import (
   solve_marched_attached_shock_chain_cell_from_terminal_reflection_patch_or_termination,
 )
+from exhaust_plume.models.moc.coupled import (
+  solve_marched_attached_shock_chain_cell_with_ambient_pressure_closure_or_termination,
+)
 from exhaust_plume.models.moc.free_boundary import (
   solve_marched_attached_shock_from_caustic_upstream_bridge,
   solve_marched_attached_shock_from_caustic_upstream_bridge_with_invariant_boundary,
@@ -69,6 +72,7 @@ __all__ = (
   'plan_caustic_family_band_invariant_chain',
   'plan_caustic_upstream_bridge_chain',
   'plan_caustic_upstream_bridge_invariant_chain',
+  'plan_ambient_pressure_field_chain',
 )
 
 
@@ -1475,6 +1479,121 @@ def plan_post_shock_field_chain(
     claim_status=(
       'bounded-post-shock-field-coupled-planner; '
       'production-shock-boundary-and-external-validation-pending'
+    ),
+  )
+####
+
+
+def plan_ambient_pressure_field_chain(
+  seed: MocPostShockCharacteristicFieldResult,
+  *,
+  start_x_m: float,
+  end_x_m: float,
+  start_point_at: Callable[
+    [MocPostShockCharacteristicFieldResult, MocChainCell, int],
+    tuple[float, float],
+  ],
+  ambient_pressure_Pa: float,
+  outer_downstream_flow_angle_lower_rad: float,
+  outer_downstream_flow_angle_upper_rad: float,
+  end_x_at: Callable[
+    [MocPostShockCharacteristicFieldResult, MocChainCell, int],
+    float,
+  ] | None = None,
+  target_centerline_y_m: float = 0.0,
+  target_centerline_flow_angle_rad: float = 0.0,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  closure_tolerance: float = 1.0e-8,
+  pressure_tolerance: float = 1.0e-8,
+  tangent_tolerance: float = 1.0e-8,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  maximum_shooting_iterations: int = 40,
+  policy: MocChainContinuationPolicy | None = None,
+) -> MocChainPlannerResult:
+  """Plan repeated ambient-pressure-conditioned field re-solves.
+
+  Each candidate next shock samples only the currently accepted post-shock
+  field.  The field is replaced after, and only after, the ambient perimeter,
+  shock fit, exact incoming handoff, and upstream coupling gates pass.  A
+  bracket or bounded-domain failure becomes a typed planner stop; the planner
+  remains a research lane and never changes the fast or reduced-order
+  provider claims.
+  """
+
+  if not isinstance(seed, MocPostShockCharacteristicFieldResult):
+    raise TypeError('seed must be a MocPostShockCharacteristicFieldResult')
+  if not callable(start_point_at):
+    raise TypeError('start_point_at must be callable')
+  if end_x_at is not None and not callable(end_x_at):
+    raise TypeError('end_x_at must be callable when supplied')
+  if not isfinite(float(start_x_m)) or not isfinite(float(end_x_m)):
+    raise ValueError('start_x_m and end_x_m must be finite')
+  if end_x_m <= start_x_m:
+    raise ValueError('end_x_m must be strictly downstream of start_x_m')
+  cell_axial_length_m = float(end_x_m) - float(start_x_m)
+  current_field = seed
+
+  def solve_next(
+    current: MocChainCell,
+    next_cell_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+  ) -> MocPostShockChainCellSolve | MocChainTerminationDecision:
+    nonlocal current_field
+    start_point = start_point_at(current_field, current, next_cell_index)
+    next_end_x = (
+      end_x_at(current_field, current, next_cell_index)
+      if end_x_at is not None
+      else current.end_x_m + cell_axial_length_m
+    )
+    solved = solve_marched_attached_shock_chain_cell_with_ambient_pressure_closure_or_termination(
+      current,
+      next_cell_index,
+      incoming_handoff,
+      lambda point: current_field.state_at(
+        point,
+        position_tolerance_m=position_tolerance_m,
+      ),
+      lambda point: current_field.static_pressure_at(
+        point,
+        position_tolerance_m=position_tolerance_m,
+      ),
+      start_point,
+      next_end_x,
+      ambient_pressure_Pa,
+      outer_downstream_flow_angle_lower_rad,
+      outer_downstream_flow_angle_upper_rad,
+      target_centerline_y_m=target_centerline_y_m,
+      target_centerline_flow_angle_rad=target_centerline_flow_angle_rad,
+      sample_count=sample_count,
+      branch=branch,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+      closure_tolerance=closure_tolerance,
+      pressure_tolerance=pressure_tolerance,
+      tangent_tolerance=tangent_tolerance,
+      shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+      maximum_segment_iterations=maximum_segment_iterations,
+      maximum_shooting_iterations=maximum_shooting_iterations,
+    )
+    if isinstance(solved, MocPostShockChainCellSolve):
+      current_field = solved.field
+    return solved
+
+  return plan_post_shock_characteristic_chain(
+    seed,
+    solve_next,
+    start_x_m=start_x_m,
+    end_x_m=end_x_m,
+    policy=policy,
+    require_upstream_shock_coupling=True,
+    planner_kind=MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH,
+    claim_status=(
+      'ambient-pressure-field-coupled-planner; exact-handoff-and-'
+      'external-validation-pending'
     ),
   )
 ####

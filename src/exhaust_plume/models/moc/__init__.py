@@ -182,6 +182,8 @@ from exhaust_plume.models.moc.coupled import (
   solve_marched_attached_shock_with_ambient_pressure_closure,
   solve_marched_attached_shock_with_constant_invariant_closure,
   solve_marched_attached_shock_chain_cell_with_constant_invariant_closure,
+  solve_marched_attached_shock_chain_cell_with_ambient_pressure_closure,
+  solve_marched_attached_shock_chain_cell_with_ambient_pressure_closure_or_termination,
 )
 from exhaust_plume.models.moc.physical_cell import (
   MocPhysicalPostShockFieldResult,
@@ -280,6 +282,7 @@ from exhaust_plume.models.moc.planner import (
   plan_caustic_family_band_invariant_chain,
   plan_caustic_upstream_bridge_chain,
   plan_caustic_upstream_bridge_invariant_chain,
+  plan_ambient_pressure_field_chain,
 )
 from exhaust_plume.models.moc.chain import (
   MocCellClosureStatus,
@@ -513,6 +516,9 @@ __all__ = (
   'solve_marched_attached_shock_with_ambient_attachment_closure',
   'solve_marched_attached_shock_with_constant_invariant_closure',
   'solve_marched_attached_shock_chain_cell_with_constant_invariant_closure',
+  'solve_marched_attached_shock_chain_cell_with_ambient_pressure_closure',
+  'solve_marched_attached_shock_chain_cell_with_ambient_pressure_closure_or_termination',
+  'plan_ambient_pressure_field_chain',
   'assemble_ambient_boundary_post_shock_field',
   'march_post_shock_ambient_boundary',
   'assemble_ambient_shock_characteristic_strip',

@@ -17,7 +17,7 @@ research seams in a planner or continued-cell experiment.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from math import isfinite
 from typing import Callable, Sequence
@@ -32,7 +32,13 @@ from exhaust_plume.models.moc.ambient_shock_strip import (
   march_post_shock_ambient_boundary,
   assemble_ambient_shock_characteristic_strip,
 )
-from exhaust_plume.models.moc.chain import MocChainBoundarySample, MocChainCell
+from exhaust_plume.models.moc.chain import (
+  MocChainBoundaryKind,
+  MocChainBoundarySample,
+  MocChainCell,
+  MocChainTerminationDecision,
+  MocChainTerminationReason,
+)
 from exhaust_plume.models.moc.compression import solve_attached_compression_to_turn
 from exhaust_plume.models.moc.free_boundary import (
   MocFreeBoundaryShockResult,
@@ -60,6 +66,8 @@ __all__ = (
   'MocInvariantClosureResult',
   'solve_marched_attached_shock_with_constant_invariant_closure',
   'solve_marched_attached_shock_chain_cell_with_constant_invariant_closure',
+  'solve_marched_attached_shock_chain_cell_with_ambient_pressure_closure',
+  'solve_marched_attached_shock_chain_cell_with_ambient_pressure_closure_or_termination',
 )
 
 
@@ -1777,4 +1785,272 @@ def solve_marched_attached_shock_chain_cell_with_constant_invariant_closure(
       'continued invariant-conditioned field did not retain the exact incoming handoff'
     )
   return MocPostShockChainCellSolve(field=field, end_x_m=end_x)
+####
+
+
+def solve_marched_attached_shock_chain_cell_with_ambient_pressure_closure_or_termination(
+  current_cell: MocChainCell,
+  next_cell_index: int,
+  incoming_handoff: Sequence[MocChainBoundarySample],
+  upstream_state_at: Callable[[tuple[float, float]], CharacteristicState | None],
+  upstream_pressure_at: Callable[[tuple[float, float]], float | None],
+  start_point_m: tuple[float, float],
+  end_x_m: float,
+  ambient_pressure_Pa: float,
+  outer_downstream_flow_angle_lower_rad: float,
+  outer_downstream_flow_angle_upper_rad: float,
+  *,
+  target_centerline_y_m: float = 0.0,
+  target_centerline_flow_angle_rad: float = 0.0,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  closure_tolerance: float = 1.0e-8,
+  pressure_tolerance: float = 1.0e-8,
+  tangent_tolerance: float = 1.0e-8,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  maximum_shooting_iterations: int = 40,
+) -> MocPostShockChainCellSolve | MocChainTerminationDecision:
+  """Solve one ambient-pressure-conditioned continued cell or stop explicitly.
+
+  The prior post-shock perimeter is consumed as an exact handoff, while the
+  caller-supplied state and pressure callbacks remain the only upstream field
+  source.  A fully accepted ambient closure may replace that upstream field
+  for a later research-cell attempt.  Bracket, tangent, and domain failures
+  are typed stops; this adapter never extrapolates a missing upstream state or
+  relabels a failed candidate as a chain cell.
+  """
+
+  if not isinstance(current_cell, MocChainCell):
+    raise TypeError('current_cell must be a MocChainCell')
+  if (
+    isinstance(next_cell_index, bool)
+    or not isinstance(next_cell_index, int)
+    or next_cell_index != current_cell.cell_index + 1
+  ):
+    raise ValueError('next_cell_index must immediately follow current_cell.cell_index')
+  if not callable(upstream_state_at) or not callable(upstream_pressure_at):
+    raise TypeError('upstream state and pressure providers must be callable')
+  if current_cell.continuation_boundary_kind is not MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER:
+    raise ValueError(
+      'ambient-pressure field-coupled continuation requires a post-shock '
+      'field perimeter handoff'
+    )
+  try:
+    handoff = tuple(incoming_handoff)
+  except TypeError as error:
+    raise ValueError(
+      'incoming_handoff must be an iterable of MocChainBoundarySample values'
+    ) from error
+  if any(not isinstance(sample, MocChainBoundarySample) for sample in handoff):
+    raise ValueError('incoming_handoff must contain MocChainBoundarySample values')
+  if handoff != current_cell.continuation_boundary:
+    raise ValueError('incoming_handoff must exactly match the current cell boundary')
+  if len(handoff) < 3:
+    raise ValueError(
+      'ambient-pressure field-coupled continuation requires at least three '
+      'handoff samples'
+    )
+  try:
+    start = (float(start_point_m[0]), float(start_point_m[1]))
+    end_x = float(end_x_m)
+    tolerance = float(position_tolerance_m)
+  except (IndexError, TypeError, ValueError) as error:
+    raise ValueError(
+      'continued ambient-pressure cell geometry and tolerance must be numeric'
+    ) from error
+  if not all(isfinite(value) for value in (*start, end_x, tolerance)):
+    raise ValueError('continued ambient-pressure cell geometry must be finite')
+  if tolerance <= 0.0:
+    raise ValueError('position_tolerance_m must be finite and positive')
+  if start[0] <= current_cell.end_x_m + tolerance:
+    raise ValueError(
+      'continued ambient-pressure shock must start downstream of the current cell'
+    )
+  if end_x <= current_cell.end_x_m:
+    raise ValueError(
+      'continued ambient-pressure cell end_x_m must be downstream of the current cell'
+    )
+
+  result = solve_marched_attached_shock_with_ambient_pressure_closure(
+    upstream_state_at,
+    upstream_pressure_at,
+    start,
+    ambient_pressure_Pa,
+    outer_downstream_flow_angle_lower_rad,
+    outer_downstream_flow_angle_upper_rad,
+    target_centerline_y_m=target_centerline_y_m,
+    target_centerline_flow_angle_rad=target_centerline_flow_angle_rad,
+    incoming_handoff=handoff,
+    sample_count=sample_count,
+    branch=branch,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+    closure_tolerance=closure_tolerance,
+    pressure_tolerance=pressure_tolerance,
+    tangent_tolerance=tangent_tolerance,
+    shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+    maximum_segment_iterations=maximum_segment_iterations,
+    maximum_shooting_iterations=maximum_shooting_iterations,
+  )
+  shock = result.shock
+  field = None if shock is None else shock.field
+  diagnostics: dict[str, object] = {
+    'termination_model': 'ambient-pressure-field-coupled-chain',
+    'upstream_field_model': 'caller-bounded-state-pressure-field',
+    'ambient_closure_status': result.status.value,
+    'ambient_closure_report': result.as_report(),
+    'next_cell_index': next_cell_index,
+    'incoming_handoff_sample_count': len(handoff),
+  }
+
+  if (
+    result.converged
+    and result.physical_closure_verified
+    and result.upstream_coupling_verified
+    and shock is not None
+    and field is not None
+    and field.converged
+    and field.upstream_shock_coupling_verified
+  ):
+    expected_states = tuple(sample.state for sample in handoff)
+    expected_pressures = tuple(sample.total_pressure_Pa for sample in handoff)
+    if (
+      field.incoming_handoff_states != expected_states
+      or field.incoming_handoff_total_pressure_Pa != expected_pressures
+    ):
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.STATE_NOT_CARRIED,
+        message=(
+          'ambient-pressure closure produced a field but did not retain the '
+          'exact incoming chain handoff'
+        ),
+        diagnostics=diagnostics,
+      )
+    diagnostics['accepted_field_status'] = field.status.value
+    diagnostics['physical_closure_verified'] = True
+    # Preserve the field's numerical evidence while keeping the research
+    # closure provenance visible to downstream reports.
+    return MocPostShockChainCellSolve(
+      field=replace(
+        field,
+        shock_closure_status='ambient-pressure-closed-research',
+      ),
+      end_x_m=end_x,
+    )
+
+  if shock is not None and shock.status is MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE:
+    diagnostics['sampled_count'] = len(shock.upstream_states)
+    diagnostics['first_missing_sample_index'] = len(shock.upstream_states)
+    last_valid = shock.upstream_states[-1] if shock.upstream_states else None
+    diagnostics['last_valid_point_m'] = (
+      None if last_valid is None else (last_valid.x_m, last_valid.y_m)
+    )
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
+      message=(
+        'ambient-pressure field-coupled shock left the bounded upstream field; '
+        'no extrapolation or physical endpoint was inferred'
+      ),
+      diagnostics=diagnostics,
+    )
+
+  if result.status in (
+    MocAmbientClosureStatus.BOUNDARY_BRACKET_FAILURE,
+    MocAmbientClosureStatus.AMBIENT_BOUNDARY_FAILURE,
+    MocAmbientClosureStatus.SHOOTING_FAILURE,
+  ):
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
+      message=(
+        'ambient-pressure shooting did not close the next cell boundary; '
+        'the candidate remains a research stop'
+      ),
+      diagnostics=diagnostics,
+    )
+  if (
+    result.converged
+    and result.physical_closure_verified
+    and result.upstream_coupling_verified
+  ):
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=MocChainTerminationReason.STATE_NOT_CARRIED,
+      message=(
+        'ambient-pressure closure reported acceptance but its field could not '
+        'be used as an exact state-carrying next cell'
+      ),
+      diagnostics=diagnostics,
+    )
+  return MocChainTerminationDecision(
+    physical_termination=False,
+    reason=MocChainTerminationReason.SOLVER_ERROR,
+    message=(
+      'ambient-pressure field-coupled shock solver did not produce a complete '
+      'next cell; no physical endpoint was inferred'
+    ),
+    diagnostics=diagnostics,
+  )
+####
+
+
+def solve_marched_attached_shock_chain_cell_with_ambient_pressure_closure(
+  current_cell: MocChainCell,
+  next_cell_index: int,
+  incoming_handoff: Sequence[MocChainBoundarySample],
+  upstream_state_at: Callable[[tuple[float, float]], CharacteristicState | None],
+  upstream_pressure_at: Callable[[tuple[float, float]], float | None],
+  start_point_m: tuple[float, float],
+  end_x_m: float,
+  ambient_pressure_Pa: float,
+  outer_downstream_flow_angle_lower_rad: float,
+  outer_downstream_flow_angle_upper_rad: float,
+  *,
+  target_centerline_y_m: float = 0.0,
+  target_centerline_flow_angle_rad: float = 0.0,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  closure_tolerance: float = 1.0e-8,
+  pressure_tolerance: float = 1.0e-8,
+  tangent_tolerance: float = 1.0e-8,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  maximum_shooting_iterations: int = 40,
+) -> MocPostShockChainCellSolve:
+  """Strictly return an accepted ambient-pressure-conditioned chain cell."""
+
+  solved = solve_marched_attached_shock_chain_cell_with_ambient_pressure_closure_or_termination(
+    current_cell,
+    next_cell_index,
+    incoming_handoff,
+    upstream_state_at,
+    upstream_pressure_at,
+    start_point_m,
+    end_x_m,
+    ambient_pressure_Pa,
+    outer_downstream_flow_angle_lower_rad,
+    outer_downstream_flow_angle_upper_rad,
+    target_centerline_y_m=target_centerline_y_m,
+    target_centerline_flow_angle_rad=target_centerline_flow_angle_rad,
+    sample_count=sample_count,
+    branch=branch,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+    closure_tolerance=closure_tolerance,
+    pressure_tolerance=pressure_tolerance,
+    tangent_tolerance=tangent_tolerance,
+    shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+    maximum_segment_iterations=maximum_segment_iterations,
+    maximum_shooting_iterations=maximum_shooting_iterations,
+  )
+  if isinstance(solved, MocChainTerminationDecision):
+    raise ValueError(solved.message)
+  return solved
 ####
