@@ -53,8 +53,10 @@ from exhaust_plume.models.moc.free_boundary import (
   solve_marched_attached_shock_chain_cell_from_post_shock_field_or_termination,
 )
 from exhaust_plume.models.moc.family_band_solver import (
+  MocCausticFamilyBandEnvelopeStatus,
   solve_marched_attached_shock_chain_cell_from_caustic_family_band_or_termination,
   solve_marched_attached_shock_chain_cell_from_caustic_family_band_with_invariant_boundary_or_termination,
+  trace_caustic_family_band_forward_envelope,
 )
 from exhaust_plume.util.aero.shock_validity import ShockBranch
 
@@ -70,6 +72,7 @@ __all__ = (
   'plan_terminal_reflection_patch_chain',
   'plan_caustic_family_band_chain',
   'plan_caustic_family_band_invariant_chain',
+  'plan_caustic_origin_envelope_chain',
   'plan_caustic_upstream_bridge_chain',
   'plan_caustic_upstream_bridge_invariant_chain',
   'plan_ambient_pressure_field_chain',
@@ -869,6 +872,112 @@ def plan_caustic_family_band_chain(
     claim_status=(
       'caustic-family-band-next-shock-planner; '
       'open-mixed-regime-closure-and-external-validation-pending'
+    ),
+  )
+####
+
+
+def plan_caustic_origin_envelope_chain(
+  seed: MocChainCell,
+  band: MocCausticFamilyBandResult,
+  *,
+  target_centerline_y_m: float = 0.0,
+  sample_count: int = 17,
+  position_tolerance_m: float = 1.0e-10,
+  maximum_segment_iterations: int = 24,
+  policy: MocChainContinuationPolicy | None = None,
+) -> MocChainPlannerResult:
+  """Audit a caustic-origin reachability attempt at a chain boundary.
+
+  The weak attached forward envelope is a pre-shock remeshing diagnostic.  It
+  can return a typed ``CHARACTERISTIC_CAUSTIC`` stop when the finite family
+  band ends before the centerline, but it can never append an envelope as a
+  resolved chain cell.  The planner permits one finite-domain attempt and
+  records the exact prior handoff before invoking the probe.
+  """
+
+  if not isinstance(band, MocCausticFamilyBandResult):
+    raise TypeError('band must be a MocCausticFamilyBandResult')
+  attempted = False
+
+  def solve_next(
+    current: MocChainCell,
+    next_cell_index: int,
+  ) -> MocChainCell | MocChainTerminationDecision:
+    nonlocal attempted
+    if attempted:
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
+        message=(
+          'caustic-origin envelope planner completed its one-step remesh '
+          'diagnostic; a later cell requires a physically solved upstream field'
+        ),
+        diagnostics={
+          'termination_model': 'caustic-origin-envelope-one-step-domain',
+          'next_cell_index': next_cell_index,
+        },
+      )
+    attempted = True
+    envelope = trace_caustic_family_band_forward_envelope(
+      band,
+      target_centerline_y_m=target_centerline_y_m,
+      sample_count=sample_count,
+      position_tolerance_m=position_tolerance_m,
+      maximum_segment_iterations=maximum_segment_iterations,
+    )
+    if (
+      envelope.status
+      is MocCausticFamilyBandEnvelopeStatus.CENTERLINE_UNREACHABLE
+    ):
+      return envelope.as_chain_termination_decision()
+    if envelope.status is MocCausticFamilyBandEnvelopeStatus.INVALID_INPUT:
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.INVALID_INPUT,
+        message=envelope.message,
+        diagnostics={
+          'termination_model': 'caustic-origin-envelope-invalid-input',
+          'envelope_status': envelope.status.value,
+        },
+      )
+    if envelope.converged:
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
+        message=(
+          'caustic-origin forward envelope reached the centerline, but no '
+          'shock curve, downstream field, or mixed-regime closure was solved'
+        ),
+        diagnostics={
+          'termination_model': 'caustic-origin-envelope-reachability-only',
+          'envelope_status': envelope.status.value,
+          'envelope_sample_count': envelope.sample_count,
+        },
+      )
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=MocChainTerminationReason.SOLVER_ERROR,
+      message=envelope.message,
+      diagnostics={
+        'termination_model': 'caustic-origin-envelope-probe-failure',
+        'envelope_status': envelope.status.value,
+      },
+    )
+
+  effective_policy = policy
+  if effective_policy is None:
+    effective_policy = MocChainContinuationPolicy(require_state_carry=True)
+  elif not effective_policy.require_state_carry:
+    effective_policy = replace(effective_policy, require_state_carry=True)
+  return plan_moc_chain(
+    seed,
+    solve_next,
+    policy=effective_policy,
+    planner_kind=MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH,
+    claim_status=(
+      'caustic-origin-forward-envelope-planner; physical-remesh-and-'
+      'shock-closure-pending'
     ),
   )
 ####

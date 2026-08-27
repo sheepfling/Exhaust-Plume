@@ -14,6 +14,7 @@ from exhaust_plume.models.moc import (
   extend_source_characteristic_strip_centerline_reflection,
   plan_caustic_family_band_chain,
   plan_caustic_family_band_invariant_chain,
+  plan_caustic_origin_envelope_chain,
   restart_characteristic_family_from_caustic,
   solve_marched_attached_shock_chain_cell_from_caustic_family_band,
   solve_marched_attached_shock_chain_cell_from_caustic_family_band_or_termination,
@@ -162,6 +163,50 @@ def test_caustic_origin_envelope_retains_the_bounded_remesh_seam() -> None:
       'weak-attached-zero-turn-forward-envelope'
     )
     assert report['chain_termination_decision']['reason'] == 'characteristic-caustic'
+
+
+def test_caustic_origin_envelope_planner_carries_the_prior_perimeter() -> None:
+  exit_state, ambient, seed = _caustic_band_fixtures()
+  restart = restart_characteristic_family_from_caustic(
+    seed,
+    exit_state.total_pressure_Pa,
+    ambient.pressure_Pa,
+    sample_count=6,
+  )
+  assert restart.family_band is not None
+  reference = solve_uniform_attached_shock_field(
+    CharacteristicState(.5, .5, -.2, 2.0, 1.4),
+    100000.0,
+    (.5, .5),
+    outer_downstream_flow_angle_rad=.05,
+    sample_count=17,
+  )
+  assert reference.field is not None
+  current = reference.field.as_coupled_chain_cell(
+    start_x_m=.2,
+    end_x_m=.8,
+  )
+
+  planner = plan_caustic_origin_envelope_chain(
+    current,
+    restart.family_band,
+    sample_count=17,
+  )
+
+  assert planner.planner_kind.value == 'upstream-coupled-research'
+  assert planner.production_claim_allowed is False
+  assert planner.chain.status.value == 'solver-terminated'
+  assert planner.chain.termination_reason is MocChainTerminationReason.CHARACTERISTIC_CAUSTIC
+  assert planner.chain.physical_termination is False
+  assert planner.chain.cell_count == 1
+  assert len(planner.steps) == 1
+  assert planner.steps[0].incoming_handoff_sample_count == len(
+    current.continuation_boundary
+  )
+  assert planner.steps[0].incoming_handoff_fingerprint is not None
+  assert planner.chain.diagnostics['termination_model'] == (
+    'caustic-forward-envelope-domain-boundary'
+  )
 
 
 def test_caustic_band_shock_solver_does_not_extrapolate_outside_input_domain() -> None:

@@ -135,6 +135,10 @@ not wait on this research closure.
   the centerline. The canonical two restart orientations both exercise this
   measured boundary; the envelope is a reachability diagnostic, not a shock
   curve or a physical closure claim.
+- Added a one-step caustic-origin envelope planner wrapper. It records the
+  exact incoming post-shock perimeter before the bounded reachability probe
+  and preserves the typed ``CHARACTERISTIC_CAUSTIC`` stop; it cannot append
+  the envelope as a continued cell.
 - Added caustic-band terminal refinement and independent measurement gates.
   Five, seven, nine, and eleven shock-march samples converge in both
   orientations with open-zone cell counts 5, 14, 27, and 44 and decreasing
