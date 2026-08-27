@@ -225,6 +225,17 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   post-shock perimeter into a solver-generated open next-shock field in both
   restart orientations, then returns a typed ``OPEN_PHYSICAL_CLOSURE`` stop
   without appending that open result as a chain cell;
+- an executable caustic shock-remesh planner seam that consumes the exact
+  event state, incoming perimeter, and bounded upstream callbacks, verifies a
+  solver-generated local shock/new-family field when the invariant law closes,
+  and still returns a one-step non-physical stop while physical first-cell
+  closure remains pending;
+- a separate mixed-regime reference-field attachment gate for the terminal
+  first-cell closure. A validated explicit scalar perimeter can be solved by
+  the ``elliptic-isentropic-subsonic-reference`` model and attached only when
+  the exact terminal and supersonic patch are retained; this can produce a
+  typed physical termination fixture, but the canonical plume perimeter is
+  still not inferred from the open supersonic zone;
 - mesh connectivity diagnostics that distinguish a topologically bounded
   polygon from an unresolved physical boundary;
 - a shared averaged-characteristic fan/reflected interface whose combined
@@ -460,11 +471,20 @@ regime validator, and an empty/open perimeter returns a typed
 ``subsonic_field_failure``. A terminal composite without an attached mixed-
 regime field also returns a non-physical ``OPEN_PHYSICAL_CLOSURE`` chain stop,
 so the planner can preserve the boundary without promoting the open zone.
-The earlier boundary-conditioned triangular assembler is also no longer
-promotion-eligible by default: it does not carry verified shock-``C+`` /
-ambient-``C-`` family-orientation evidence. This guard prevents a numerically
-converged but incorrectly oriented legacy net from becoming a resolved chain
-seed while the replacement closure solver is developed.
+The boundary-conditioned triangular assembler now uses the same physical
+orientation—shock-sourced ``C+`` and ambient-sourced ``C-``—and records
+per-node compatibility evidence before its centerline closure gate. It accepts
+an explicit downstream axis corner when the ambient trace has one more sample
+than the shock trace, but it still refuses chain promotion unless the complete
+centerline perimeter and orientation evidence pass. The canonical marched
+ambient trace currently reaches the explicit centerline-closure failure at
+this seam; the terminal composite/terminal-shock path remains the accepted
+route for the separately solved mixed-regime gate.
+The executable caustic remesh seam consumes the prepared event through a
+bounded attached-shock/new-family solve and preserves the exact incoming
+perimeter in its planner report. Its result is deliberately hard-false for
+physical closure and chain promotion until a physical first-cell boundary is
+attached, even when all local remesh and downstream-field checks converge.
 No public provider is wired to these primitives yet. The module does not claim
 axisymmetric, reacting, viscous, or experimentally validated plume physics.
 

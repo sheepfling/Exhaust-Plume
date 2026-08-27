@@ -3,7 +3,8 @@
 This module is the next seam after the diagnostic shrinking-front field.  It
 does not choose a shock or invent an outer boundary.  Instead, it consumes a
 branch-checked shock boundary and an independently sampled ambient-pressure
-outer boundary, couples them through a triangular ``C+``/``C-`` net, and
+outer boundary, couples shock-sourced ``C+`` and ambient-sourced ``C-`` rays
+through a triangular net, and
 requires the remaining perimeter to reproduce the centerline.  That contract
 is suitable for a future free-boundary shooter and cannot silently promote the
 existing topological fan.
@@ -289,22 +290,22 @@ def _path_edges_present(
 
 def _shock_endpoint_characteristic_point(
   plus_source: CharacteristicState,
-  shock_state: CharacteristicState,
-  shock_point: tuple[float, float],
+  minus_endpoint: CharacteristicState,
+  endpoint: tuple[float, float],
   *,
   position_tolerance_m: float,
   invariant_tolerance: float,
 ) -> CharacteristicPointResult:
-  """Validate a ``C+`` arriving at a known shock endpoint.
+  """Validate a shock-sourced ``C+`` arriving at an ambient endpoint.
 
-  The shock sample is itself the ``C-`` source, so a generic two-ray
+  The ambient sample is itself the ``C-`` source, so a generic two-ray
   intersection sees a zero-length second ray and correctly rejects it as an
-  interior point.  A physical shock boundary needs the one-sided endpoint
-  contract instead: compatibility must match the shock state and the plus
-  characteristic from the outer boundary must arrive at that point.
+  interior point.  A physical shock/ambient boundary needs the one-sided
+  endpoint contract instead: the ambient endpoint must preserve the shock
+  ``K+`` invariant and lie forward on the shock-sourced ``C+`` ray.
   """
 
-  if abs(plus_source.gamma - shock_state.gamma) > invariant_tolerance:
+  if abs(plus_source.gamma - minus_endpoint.gamma) > invariant_tolerance:
     return CharacteristicPointResult(
       status=MocPrimitiveStatus.INVALID_INPUT,
       state=None,
@@ -313,28 +314,51 @@ def _shock_endpoint_characteristic_point(
       invariant_residual_minus=None,
       geometry_residual=None,
       iterations=0,
-      message='ambient and shock endpoint states use different gamma values',
+      message='shock and ambient endpoint states use different gamma values',
     )
-  plus_residual = shock_state.k_plus - plus_source.k_plus
+  plus_residual = minus_endpoint.k_plus - plus_source.k_plus
+  displacement = (
+    endpoint[0] - plus_source.x_m,
+    endpoint[1] - plus_source.y_m,
+  )
+  if sqrt(displacement[0] ** 2 + displacement[1] ** 2) <= position_tolerance_m:
+    if abs(plus_residual) > invariant_tolerance:
+      return CharacteristicPointResult(
+        status=MocPrimitiveStatus.INVARIANT_FAILURE,
+        state=minus_endpoint,
+        point_m=endpoint,
+        invariant_residual_plus=plus_residual,
+        invariant_residual_minus=0.0,
+        geometry_residual=0.0,
+        iterations=0,
+        intersection_status='shared-attachment',
+        message='shared shock/ambient attachment does not preserve C+ compatibility',
+      )
+    return CharacteristicPointResult(
+      status=MocPrimitiveStatus.CONVERGED,
+      state=minus_endpoint,
+      point_m=endpoint,
+      invariant_residual_plus=plus_residual,
+      invariant_residual_minus=0.0,
+      geometry_residual=0.0,
+      iterations=0,
+      intersection_status='shared-attachment',
+    )
   if abs(plus_residual) > invariant_tolerance:
     return CharacteristicPointResult(
       status=MocPrimitiveStatus.INVARIANT_FAILURE,
-      state=shock_state,
-      point_m=shock_point,
+      state=minus_endpoint,
+      point_m=endpoint,
       invariant_residual_plus=plus_residual,
       invariant_residual_minus=0.0,
       geometry_residual=None,
       iterations=0,
-      message='ambient-to-shock endpoint does not preserve the C+ invariant',
+      message='ambient endpoint does not preserve the shock C+ invariant',
     )
   start_angle = plus_source.theta_rad + plus_source.mu_rad
-  end_angle = shock_state.theta_rad + shock_state.mu_rad
+  end_angle = minus_endpoint.theta_rad + minus_endpoint.mu_rad
   direction_angle = 0.5 * (start_angle + end_angle)
   direction = (cos(direction_angle), sin(direction_angle))
-  displacement = (
-    shock_point[0] - plus_source.x_m,
-    shock_point[1] - plus_source.y_m,
-  )
   forward_parameter = displacement[0] * direction[0] + displacement[1] * direction[1]
   geometry_residual = abs(
     displacement[0] * direction[1] - displacement[1] * direction[0]
@@ -343,28 +367,28 @@ def _shock_endpoint_characteristic_point(
     return CharacteristicPointResult(
       status=MocPrimitiveStatus.GEOMETRY_FAILURE,
       state=None,
-      point_m=None,
+      point_m=endpoint,
       invariant_residual_plus=plus_residual,
       invariant_residual_minus=0.0,
       geometry_residual=geometry_residual,
       iterations=0,
-      message='ambient-to-shock C+ endpoint has no forward margin',
+      message='shock-to-ambient C+ endpoint has no forward margin',
     )
   if geometry_residual > position_tolerance_m:
     return CharacteristicPointResult(
       status=MocPrimitiveStatus.GEOMETRY_FAILURE,
       state=None,
-      point_m=None,
+      point_m=endpoint,
       invariant_residual_plus=plus_residual,
       invariant_residual_minus=0.0,
       geometry_residual=geometry_residual,
       iterations=0,
-      message='ambient-to-shock C+ endpoint is not on its averaged characteristic',
+      message='shock-to-ambient C+ endpoint is not on its averaged characteristic',
     )
   return CharacteristicPointResult(
     status=MocPrimitiveStatus.CONVERGED,
-    state=shock_state,
-    point_m=shock_point,
+    state=minus_endpoint,
+    point_m=endpoint,
     invariant_residual_plus=plus_residual,
     invariant_residual_minus=0.0,
     geometry_residual=geometry_residual,
@@ -386,11 +410,14 @@ def assemble_ambient_boundary_post_shock_field(
   """Assemble a shock/ambient/centerline triangular characteristic field.
 
   The ambient samples are the physical outer boundary and are ordered from
-  the shock attachment toward the downstream axis.  ``C+`` sources are taken
-  from that boundary and ``C-`` sources from the downstream shock states.  A
-  diagonal intersection must reproduce each shock point; the unlabelled
-  closing perimeter must then lie on ``y=0`` with ``theta=0``.  This is a
-  coupled boundary acceptance primitive, not an automatic boundary shooter.
+  the shock attachment toward the downstream axis.  Shock states supply the
+  ``C+`` sources and ambient states supply the ``C-`` sources.  A diagonal
+  intersection must reproduce each ambient boundary point; the closing
+  perimeter must then lie on ``y=0`` with ``theta=0``.  The ambient trace may
+  contain one explicit downstream axis corner in addition to the ``N`` shock
+  samples; that corner closes the centerline seam and is not used as an
+  unpaired characteristic source.  This is a coupled boundary acceptance
+  primitive, not an automatic boundary shooter.
   """
 
   if not isinstance(shock_fit, MocShockBoundaryFitResult):
@@ -426,12 +453,19 @@ def assemble_ambient_boundary_post_shock_field(
       message='ambient_boundary must contain MocAmbientBoundarySample values',
     )
   shock_samples = tuple(shock_fit.boundary_states)
-  if len(shock_samples) < 3 or len(samples) != len(shock_samples):
+  if len(shock_samples) < 3 or len(samples) not in (
+    len(shock_samples),
+    len(shock_samples) + 1,
+  ):
     ambient_result = _empty_ambient_boundary(float(ambient_pressure_Pa))
     return _failure(
       MocPhysicalPostShockFieldStatus.INVALID_INPUT,
       ambient_boundary=ambient_result,
-      message='shock and ambient boundaries must contain the same three-or-more sample count',
+      message=(
+        'shock and ambient boundaries must contain at least three samples, '
+        'with either equal counts or one explicit ambient downstream axis '
+        'corner'
+      ),
     )
   ambient_result = validate_ambient_pressure_boundary(
     samples,
@@ -528,69 +562,38 @@ def assemble_ambient_boundary_post_shock_field(
     )
   ####
 
-  expected_count = len(samples)
+  expected_count = len(shock_samples)
   nodes_by_index: dict[tuple[int, int], MocCharacteristicNode] = {}
   for plus_index in range(expected_count):
-    plus_source = samples[plus_index].state
+    plus_source = shock_samples[plus_index].state
     for minus_index in range(plus_index + 1):
-      minus_source = shock_samples[minus_index].state
+      minus_source = samples[minus_index].state
       if plus_index == minus_index:
-        if plus_index == 0:
-          point_result = CharacteristicPointResult(
-            status=MocPrimitiveStatus.CONVERGED,
-            state=minus_source,
-            point_m=shock_points[0],
-            invariant_residual_plus=0.0,
-            invariant_residual_minus=0.0,
-            geometry_residual=0.0,
-            iterations=0,
-            intersection_status='shared-boundary-attachment',
+        point_result = _shock_endpoint_characteristic_point(
+          plus_source,
+          minus_source,
+          ambient_points[plus_index],
+          position_tolerance_m=position_tolerance_m,
+          invariant_tolerance=invariant_tolerance,
+        )
+        if not point_result.converged or point_result.point_m is None or point_result.state is None:
+          status = (
+            MocPhysicalPostShockFieldStatus.INVARIANT_FAILURE
+            if point_result.status.value == 'invariant_failure'
+            else MocPhysicalPostShockFieldStatus.GEOMETRY_FAILURE
           )
-          point = shock_points[0]
-          state = minus_source
-        elif (
-          plus_index == expected_count - 1
-          and abs(ambient_points[-1][1]) <= position_tolerance_m
-          and abs(shock_points[-1][1]) <= position_tolerance_m
-        ):
-          point_result = CharacteristicPointResult(
-            status=MocPrimitiveStatus.CONVERGED,
-            state=minus_source,
-            point_m=shock_points[plus_index],
-            invariant_residual_plus=0.0,
-            invariant_residual_minus=0.0,
-            geometry_residual=0.0,
-            iterations=0,
-            intersection_status='shared-centerline-corner',
+          return _failure(
+            status,
+            ambient_boundary=ambient_result,
+            characteristic_layer_count=expected_count - 1,
+            nodes=tuple(nodes_by_index.values()),
+            shock_points=shock_points,
+            ambient_points=ambient_points,
+            pressure_ratios=pressure_ratios,
+            message=f'diagonal shock coupling {plus_index} failed: {point_result.message}',
           )
-          point = shock_points[plus_index]
-          state = minus_source
-        else:
-          point_result = _shock_endpoint_characteristic_point(
-            plus_source,
-            minus_source,
-            shock_points[plus_index],
-            position_tolerance_m=position_tolerance_m,
-            invariant_tolerance=invariant_tolerance,
-          )
-          if not point_result.converged or point_result.point_m is None or point_result.state is None:
-            status = (
-              MocPhysicalPostShockFieldStatus.INVARIANT_FAILURE
-              if point_result.status.value == 'invariant_failure'
-              else MocPhysicalPostShockFieldStatus.GEOMETRY_FAILURE
-            )
-            return _failure(
-              status,
-              ambient_boundary=ambient_result,
-              characteristic_layer_count=expected_count - 1,
-              nodes=tuple(nodes_by_index.values()),
-              shock_points=shock_points,
-              ambient_points=ambient_points,
-              pressure_ratios=pressure_ratios,
-              message=f'diagonal shock coupling {plus_index} failed: {point_result.message}',
-            )
-          point = point_result.point_m
-          state = point_result.state
+        point = point_result.point_m
+        state = point_result.state
       else:
         point_result = interior_characteristic_point(
           plus_source,
@@ -622,7 +625,7 @@ def assemble_ambient_boundary_post_shock_field(
         point_m=(float(point[0]), float(point[1])),
         state=state,
         point_result=point_result,
-        total_pressure_Pa=shock_samples[minus_index].downstream_total_pressure_Pa,
+        total_pressure_Pa=samples[minus_index].total_pressure_Pa,
       )
   ####
 
@@ -635,27 +638,54 @@ def assemble_ambient_boundary_post_shock_field(
   cells_list: list[MocCharacteristicCell] = []
   try:
     for index in range(expected_count - 1):
-      outer_vertices = (
-        (
-          ambient_points[index],
-          ambient_points[index + 1],
+      if index == 0:
+        shock_vertices = (
+          shock_points[index],
+          shock_points[index + 1],
           node_point(index + 1, 0),
         )
-        if index == 0
-        else (
-          ambient_points[index],
-          ambient_points[index + 1],
+      else:
+        shock_vertices = (
+          shock_points[index],
+          shock_points[index + 1],
           node_point(index + 1, 0),
           node_point(index, 0),
         )
+      cells_list.append(
+        MocCharacteristicCell(
+          cell_index=len(cells_list),
+          cell_kind='post-shock-shock-strip',
+          vertices_xr_m=shock_vertices,
+          centerline_indices=(index, index + 1),
+          boundary_indices=(0,),
+        )
       )
+    for index in range(expected_count - 1):
       cells_list.append(
         MocCharacteristicCell(
           cell_index=len(cells_list),
           cell_kind='post-shock-ambient-outer-strip',
-          vertices_xr_m=outer_vertices,
-          centerline_indices=(index, index + 1),
-          boundary_indices=(0,),
+          vertices_xr_m=(
+            node_point(index, index),
+            node_point(index + 1, index),
+            ambient_points[index + 1],
+          ),
+          centerline_indices=(index + 1,),
+          boundary_indices=(index, index + 1),
+        )
+      )
+    if len(ambient_points) == expected_count + 1:
+      cells_list.append(
+        MocCharacteristicCell(
+          cell_index=len(cells_list),
+          cell_kind='post-shock-ambient-axis-corner',
+          vertices_xr_m=(
+            node_point(expected_count - 1, expected_count - 2),
+            ambient_points[expected_count - 1],
+            ambient_points[expected_count],
+          ),
+          centerline_indices=(expected_count - 1,),
+          boundary_indices=(expected_count - 1, expected_count),
         )
       )
     for row in range(1, expected_count - 1):
@@ -674,20 +704,6 @@ def assemble_ambient_boundary_post_shock_field(
             boundary_indices=(column, column + 1),
           )
         )
-    for index in range(expected_count - 1):
-      cells_list.append(
-        MocCharacteristicCell(
-          cell_index=len(cells_list),
-          cell_kind='post-shock-ambient-shock-strip',
-          vertices_xr_m=(
-            node_point(index, index),
-            node_point(index + 1, index),
-            node_point(index + 1, index + 1),
-          ),
-          centerline_indices=(index + 1,),
-          boundary_indices=(index, index + 1),
-        )
-      )
   except (KeyError, ValueError) as error:
     return _failure(
       MocPhysicalPostShockFieldStatus.GEOMETRY_FAILURE,
@@ -840,6 +856,34 @@ def assemble_ambient_boundary_post_shock_field(
     ),
     default=None,
   )
+  characteristic_family_orientation_verified = all(
+    node.point_result.converged
+    and node.point_result.invariant_residual_plus is not None
+    and node.point_result.invariant_residual_minus is not None
+    and node.point_result.geometry_residual is not None
+    for node in nodes_by_index.values()
+  )
+  if not characteristic_family_orientation_verified:
+    return _failure(
+      MocPhysicalPostShockFieldStatus.INVARIANT_FAILURE,
+      ambient_boundary=ambient_result,
+      characteristic_layer_count=expected_count - 1,
+      nodes=tuple(nodes_by_index.values()),
+      cells=cells,
+      topology=topology,
+      shock_points=shock_points,
+      ambient_points=ambient_points,
+      axis_points=axis_points,
+      axis_states=axis_states,
+      axis_pressures=axis_pressures,
+      pressure_ratios=pressure_ratios,
+      maximum_geometry_residual_m=maximum_geometry_residual,
+      maximum_absolute_invariant_residual=maximum_invariant_residual,
+      message=(
+        'coupled field did not retain complete C+/C- compatibility evidence '
+        'for every characteristic node'
+      ),
+    )
   return MocPhysicalPostShockFieldResult(
     status=MocPhysicalPostShockFieldStatus.CONVERGED_AMBIENT_CLOSED,
     characteristic_layer_count=expected_count - 1,
@@ -858,6 +902,8 @@ def assemble_ambient_boundary_post_shock_field(
     maximum_post_shock_total_pressure_ratio=max(pressure_ratios),
     message=(
       'ambient-pressure outer boundary, fitted shock, and centerline closing '
-      'perimeter converged through a coupled triangular characteristic field'
+      'perimeter converged through a coupled triangular characteristic field '
+      'with verified shock-C+/ambient-C- family orientation'
     ),
+    characteristic_family_orientation_verified=characteristic_family_orientation_verified,
   )

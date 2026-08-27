@@ -31,6 +31,11 @@ from exhaust_plume.models.moc.chain import (
 )
 from exhaust_plume.models.moc.caustic_restart import MocCausticFamilyBandResult
 from exhaust_plume.models.moc.caustic_bridge import MocCausticBridgeStatus, MocCausticUpstreamBridge
+from exhaust_plume.models.moc.caustic_remesh import (
+  MocCausticShockRemeshRequest,
+  MocCausticShockRemeshResult,
+  solve_caustic_shock_remesh,
+)
 from exhaust_plume.models.moc.post_shock import (
   MocPostShockChainCellSolve,
   MocPostShockCharacteristicFieldResult,
@@ -75,6 +80,7 @@ __all__ = (
   'plan_caustic_origin_envelope_chain',
   'plan_caustic_upstream_bridge_chain',
   'plan_caustic_upstream_bridge_invariant_chain',
+  'plan_caustic_shock_remesh_chain',
   'plan_ambient_pressure_field_chain',
 )
 
@@ -235,11 +241,22 @@ class MocChainPlannerStep:
         result_physical_termination=result.physical_termination,
       )
     if isinstance(result, MocPostShockChainCellSolve):
+      field = result.field
       return replace(
         self,
         result_kind='field-solve-returned',
-        result_status=result.field.status.value,
+        result_status=field.status.value,
         result_end_x_m=result.end_x_m,
+        result_geometry_fidelity=(
+          MocChainGeometryFidelity.RESOLVED_PLANAR_MOC
+          if field.converged
+          else None
+        ),
+        result_physical_closure=(
+          MocCellClosureStatus.CLOSED
+          if field.physical_closure_verified
+          else MocCellClosureStatus.OPEN
+        ),
       )
     if isinstance(result, MocChainCell):
       return replace(
@@ -1428,6 +1445,155 @@ def plan_caustic_upstream_bridge_invariant_chain(
       'invariant-caustic-upstream-bridge-planner; physical-remesh-and-'
       'downstream-closure-pending'
     ),
+  )
+
+
+def plan_caustic_shock_remesh_chain(
+  seed: MocChainCell,
+  request: MocCausticShockRemeshRequest,
+  upstream_state_at: Callable[[tuple[float, float]], CharacteristicState | None],
+  upstream_pressure_at: Callable[[tuple[float, float]], float | None],
+  *,
+  downstream_invariant_at: Callable[[int, tuple[float, float]], float] | None = None,
+  target_centerline_y_m: float = 0.0,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  pressure_tolerance: float = 1.0e-8,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  maximum_downstream_angle_rad: float = 0.9,
+  maximum_invariant_scan_samples: int = 64,
+  maximum_invariant_iterations: int = 80,
+  policy: MocChainContinuationPolicy | None = None,
+) -> MocChainPlannerResult:
+  """Plan one solver-backed caustic shock/new-family remesh attempt.
+
+  The request identifies the exact one-sided caustic event and local shock
+  compatibility state.  The current chain cell supplies the exact carried
+  perimeter to the remesher.  A converged remesh is intentionally returned as
+  an ``OPEN_PHYSICAL_CLOSURE`` stop: it produces a bounded shock and new
+  characteristic field, but ambient/terminal closure for the new physical
+  cell remains a separate first-cell gate.  The planner therefore never
+  appends a remesh result as a chain cell.
+  """
+
+  if not isinstance(request, MocCausticShockRemeshRequest):
+    raise TypeError('request must be a MocCausticShockRemeshRequest')
+  if not callable(upstream_state_at):
+    raise TypeError('upstream_state_at must be callable')
+  if not callable(upstream_pressure_at):
+    raise TypeError('upstream_pressure_at must be callable')
+  if downstream_invariant_at is not None and not callable(downstream_invariant_at):
+    raise TypeError('downstream_invariant_at must be callable when supplied')
+  for name, value in (
+    ('position_tolerance_m', position_tolerance_m),
+    ('invariant_tolerance', invariant_tolerance),
+    ('pressure_tolerance', pressure_tolerance),
+  ):
+    if not isfinite(float(value)) or float(value) <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+  if isinstance(sample_count, bool) or not isinstance(sample_count, int) or sample_count < 3:
+    raise ValueError('sample_count must be an integer of at least three')
+
+  attempted = False
+
+  def remesh_decision(
+    result: MocCausticShockRemeshResult,
+    next_cell_index: int,
+  ) -> MocChainTerminationDecision:
+    decision = result.as_chain_termination_decision()
+    diagnostics = dict(decision.diagnostics)
+    diagnostics.update({
+      'planner_model': 'caustic-shock-remesh-one-step-domain',
+      'next_cell_index': next_cell_index,
+      'remesh_report': result.as_report(),
+    })
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=decision.reason,
+      message=decision.message,
+      diagnostics=diagnostics,
+    )
+
+  def solve_next(
+    current: MocChainCell,
+    next_cell_index: int,
+  ) -> MocChainCell | MocChainTerminationDecision:
+    nonlocal attempted
+    if attempted:
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
+        message=(
+          'caustic shock remesh planner completed its one-step domain; a '
+          'later cell requires a newly closed physical upstream field'
+        ),
+        diagnostics={
+          'termination_model': 'caustic-shock-remesh-one-step-domain',
+          'next_cell_index': next_cell_index,
+        },
+      )
+    attempted = True
+    event_x = request.event_point_m[0]
+    if event_x < current.end_x_m - float(position_tolerance_m):
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
+        message=(
+          'caustic remesh event lies upstream of the current chain cell '
+          'boundary; the planner will not back-extrapolate the handoff'
+        ),
+        diagnostics={
+          'termination_model': 'caustic-shock-remesh-one-step-domain',
+          'event_point_m': request.event_point_m,
+          'current_end_x_m': current.end_x_m,
+          'next_cell_index': next_cell_index,
+        },
+      )
+    result = solve_caustic_shock_remesh(
+      request,
+      upstream_state_at,
+      upstream_pressure_at,
+      current.continuation_boundary,
+      downstream_invariant_at=downstream_invariant_at,
+      target_centerline_y_m=target_centerline_y_m,
+      sample_count=sample_count,
+      branch=branch,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+      pressure_tolerance=pressure_tolerance,
+      shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+      maximum_segment_iterations=maximum_segment_iterations,
+      maximum_downstream_angle_rad=maximum_downstream_angle_rad,
+      maximum_invariant_scan_samples=maximum_invariant_scan_samples,
+      maximum_invariant_iterations=maximum_invariant_iterations,
+    )
+    return remesh_decision(result, next_cell_index)
+
+  effective_policy = policy
+  if effective_policy is None:
+    effective_policy = MocChainContinuationPolicy(require_state_carry=True)
+  elif not effective_policy.require_state_carry:
+    effective_policy = replace(effective_policy, require_state_carry=True)
+  planner = plan_moc_chain(
+    seed,
+    solve_next,
+    policy=effective_policy,
+    planner_kind=MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH,
+    claim_status=(
+      'caustic-shock-remesh-planner; solver-backed shock/new-family field '
+      'with physical-first-cell-closure-pending'
+    ),
+  )
+  return replace(
+    planner,
+    diagnostics={
+      'caustic_shock_remesh_request': request.as_report(),
+      'one_step_domain': True,
+      'physical_closure_pending': True,
+    },
   )
 
 

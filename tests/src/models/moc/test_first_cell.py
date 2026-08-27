@@ -6,6 +6,7 @@ from exhaust_plume.models.moc import (
   CharacteristicState,
   MocFirstCellCompositeStatus,
   MocFirstCellTerminalClosureStatus,
+  MocMixedRegimeFieldSample,
   MocTerminalBoundaryGraphStatus,
   MocChainTerminationReason,
   assemble_ambient_shock_characteristic_strip,
@@ -13,6 +14,7 @@ from exhaust_plume.models.moc import (
   assemble_first_cell_composite,
   assemble_terminal_trace_centerline_patch,
   march_post_shock_ambient_boundary,
+  solve_mixed_regime_subsonic_field,
   solve_marched_first_cell_terminal_closure,
   solve_marched_attached_shock_field,
 )
@@ -174,6 +176,58 @@ def test_first_cell_terminal_closure_fits_a_shock_from_the_exact_outgoing_trace(
   request = result.mixed_regime_perimeter_request()
   assert request.perimeter_supplied is False
   assert request.open_supersonic_zone_is_a_perimeter is False
+
+
+def test_first_cell_terminal_closure_attaches_a_separate_mixed_regime_field() -> None:
+  shock_fit, strip, patch = _first_cell_inputs()
+  composite = assemble_first_cell_composite(
+    shock_fit,
+    strip,
+    patch,
+    position_tolerance_m=1.0e-3,
+  )
+  result = solve_marched_first_cell_terminal_closure(
+    composite,
+    downstream_flow_angle_rad=0.0,
+    sample_count=17,
+    shock_position_tolerance_m=2.0e-4,
+  )
+  assert result.terminal_field is not None
+  request = result.mixed_regime_perimeter_request()
+  terminal = request.terminal
+  point = request.terminal_point_m
+  points = (
+    point,
+    (point[0] + 0.1, point[1] + 0.1),
+    (point[0] + 0.2, point[1] + 0.1),
+    (point[0] + 0.2, point[1]),
+    point,
+  )
+  samples = tuple(
+    MocMixedRegimeFieldSample(
+      point_m=sample_point,
+      mach=request.terminal_downstream_mach,
+      flow_angle_rad=request.terminal_downstream_flow_angle_rad,
+      static_pressure_Pa=request.terminal_downstream_pressure_Pa,
+      total_pressure_Pa=request.terminal_downstream_total_pressure_Pa,
+      gamma=terminal.upstream_state.gamma,
+    )
+    for sample_point in points
+  )
+
+  boundary = result.terminal_field.validate_mixed_regime_boundary(samples)
+  assert boundary.converged
+  field = solve_mixed_regime_subsonic_field(boundary, radial_divisions=2)
+  assert field.converged
+  assert field.physical_closure_verified
+
+  attached = result.with_mixed_regime_field(field)
+  assert attached.mixed_regime_field is field
+  assert attached.physical_closure_verified
+  assert attached.physical_termination_verified
+  decision = attached.as_chain_termination_decision()
+  assert decision.physical_termination
+  assert decision.reason is MocChainTerminationReason.PHYSICAL_TERMINATION
 
 
 def test_first_cell_terminal_closure_rejects_a_changed_outgoing_handoff() -> None:

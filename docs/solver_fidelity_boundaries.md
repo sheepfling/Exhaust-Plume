@@ -152,6 +152,16 @@ shock bridge, and the required future shock-curve/new-family outputs. A ready
 request is still a non-physical ``characteristic-caustic`` stop: it supplies
 the next solver's exact inputs without treating a local shock state as a
 remeshed field or a chain cell.
+The executable ``solve_caustic_shock_remesh`` seam now consumes that request,
+the exact incoming perimeter, and bounded upstream state/pressure callbacks.
+It validates the event seam, solves a marched attached shock, and verifies the
+solver-carried downstream characteristic field when the local invariant law
+supports it. Even a converged result remains a research-only remesh report:
+the physical first-cell ambient/terminal closure gate is hard-false, so the
+corresponding ``plan_caustic_shock_remesh_chain`` wrapper records one exact
+planner step and returns a typed non-physical stop rather than appending a
+chain cell. Event, upstream-field, and shock-solve failures retain their
+specific typed termination reasons.
 The converged post-shock field now exposes bounded state, static-pressure, and
 total-pressure samplers backed by its solver-carried cell vertices and shock
 boundary. A separate field-coupled continued-cell adapter and planner uses
