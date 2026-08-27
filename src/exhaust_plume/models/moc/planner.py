@@ -40,6 +40,11 @@ from exhaust_plume.models.moc.caustic_remesh import (
 from exhaust_plume.models.moc.caustic_terminal import (
   solve_caustic_simple_wave_terminal_remesh,
 )
+from exhaust_plume.models.moc.physical_cell import (
+  MocPhysicalPostShockFieldContinuationSolve,
+  MocPhysicalPostShockFieldResult,
+  continue_ambient_closed_post_shock_chain,
+)
 from exhaust_plume.models.moc.post_shock import (
   MocPostShockChainCellSolve,
   MocPostShockCharacteristicFieldResult,
@@ -109,6 +114,7 @@ __all__ = (
   'plan_caustic_remesh_downstream_field_chain',
   'plan_caustic_remesh_downstream_field_invariant_chain',
   'plan_ambient_pressure_field_chain',
+  'plan_ambient_closed_post_shock_chain',
 )
 
 
@@ -352,6 +358,36 @@ class MocChainPlannerStep:
         **_result_handoff_fields(
           boundary,
           MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER,
+        ),
+      )
+    if isinstance(result, MocPhysicalPostShockFieldContinuationSolve):
+      field = result.field
+      boundary = tuple(
+        MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
+        for state, pressure in zip(
+          field.centerline_boundary_states,
+          field.centerline_boundary_total_pressure_Pa,
+          strict=True,
+        )
+      )
+      return replace(
+        self,
+        result_kind='physical-field-solve-returned',
+        result_status=field.status.value,
+        result_end_x_m=result.end_x_m,
+        result_geometry_fidelity=(
+          MocChainGeometryFidelity.RESOLVED_PLANAR_MOC
+          if field.physical_closure_verified
+          else None
+        ),
+        result_physical_closure=(
+          MocCellClosureStatus.CLOSED
+          if field.physical_closure_verified
+          else MocCellClosureStatus.OPEN
+        ),
+        **_result_handoff_fields(
+          boundary,
+          MocChainBoundaryKind.CENTERLINE_TRACE,
         ),
       )
     if isinstance(result, MocChainCell):
@@ -3218,6 +3254,84 @@ def plan_ambient_pressure_field_chain(
     claim_status=(
       'ambient-pressure-field-coupled-planner; exact-handoff-and-'
       'external-validation-pending'
+    ),
+  )
+####
+
+
+def plan_ambient_closed_post_shock_chain(
+  seed: MocPhysicalPostShockFieldResult,
+  solve_next: Callable[
+    [MocChainCell, int, tuple[MocChainBoundarySample, ...]],
+    MocPhysicalPostShockFieldContinuationSolve
+    | MocChainTerminationDecision
+    | None,
+  ],
+  *,
+  start_x_m: float,
+  end_x_m: float,
+  policy: MocChainContinuationPolicy | None = None,
+  require_upstream_shock_coupling: bool = True,
+  claim_status: str | None = None,
+) -> MocChainPlannerResult:
+  """Audit continuation of solver-owned ambient-closed physical cells.
+
+  This planner is the physical-field counterpart to the prescribed chain
+  mock.  Every callback receives the prior closed cell's centerline trace and
+  must return a newly assembled ambient-closed field that records the exact
+  incoming handoff.  It remains a research planner until the canonical
+  reflected upstream domain and independent validation gates pass.
+  """
+
+  if not isinstance(seed, MocPhysicalPostShockFieldResult):
+    raise TypeError('seed must be a MocPhysicalPostShockFieldResult')
+  if not callable(solve_next):
+    raise TypeError('solve_next must be callable')
+  steps: list[MocChainPlannerStep] = []
+
+  def wrapped(
+    current: MocChainCell,
+    next_cell_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+  ) -> MocPhysicalPostShockFieldContinuationSolve | MocChainTerminationDecision | None:
+    if incoming_handoff != current.continuation_boundary:
+      raise ValueError(
+        'planner callback received a handoff different from the current physical cell'
+      )
+    step = MocChainPlannerStep.from_boundary(
+      current,
+      next_cell_index,
+      incoming_handoff,
+      previous_result_handoff_fingerprint=(
+        steps[-1].result_handoff_fingerprint if steps else None
+      ),
+    )
+    steps.append(step)
+    try:
+      result = solve_next(current, next_cell_index, incoming_handoff)
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      steps[-1] = step.with_solver_error(error)
+      raise
+    steps[-1] = step.with_solver_result(result)
+    return result
+
+  chain = continue_ambient_closed_post_shock_chain(
+    seed,
+    wrapped,
+    start_x_m=start_x_m,
+    end_x_m=end_x_m,
+    policy=policy,
+    require_upstream_shock_coupling=require_upstream_shock_coupling,
+  )
+  return MocChainPlannerResult(
+    chain=chain,
+    planner_kind=MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH,
+    steps=tuple(steps),
+    claim_status=(
+      'ambient-closed-physical-field-chain; canonical-reflected-domain-and-'
+      'external-validation-pending'
+      if claim_status is None
+      else claim_status
     ),
   )
 ####

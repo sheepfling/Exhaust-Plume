@@ -15,7 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 from math import cos, isfinite, sin, sqrt
-from typing import Any, Sequence
+from typing import Any, Callable, Sequence
 
 from exhaust_plume.models.moc.ambient_boundary import (
   MocAmbientBoundarySample,
@@ -28,7 +28,13 @@ from exhaust_plume.models.moc.chain import (
   MocChainBoundaryKind,
   MocChainBoundarySample,
   MocChainCell,
+  MocChainContinuationPolicy,
   MocChainGeometryFidelity,
+  MocChainResult,
+  MocChainStatus,
+  MocChainTerminationDecision,
+  MocChainTerminationReason,
+  continue_moc_cell_chain,
 )
 from exhaust_plume.models.moc.post_shock import MocShockBoundaryFitResult
 from exhaust_plume.models.moc.primitives import (
@@ -43,7 +49,9 @@ from exhaust_plume.models.moc.zone import MocCharacteristicCell, MocCharacterist
 __all__ = (
   'MocPhysicalPostShockFieldStatus',
   'MocPhysicalPostShockFieldResult',
+  'MocPhysicalPostShockFieldContinuationSolve',
   'assemble_ambient_boundary_post_shock_field',
+  'continue_ambient_closed_post_shock_chain',
 )
 
 
@@ -82,6 +90,59 @@ class MocPhysicalPostShockFieldResult:
   maximum_post_shock_total_pressure_ratio: float | None
   message: str = ''
   characteristic_family_orientation_verified: bool = False
+  incoming_handoff_states: tuple[CharacteristicState, ...] = ()
+  incoming_handoff_total_pressure_Pa: tuple[float, ...] = ()
+  upstream_shock_boundary_states: tuple[CharacteristicState, ...] = ()
+  upstream_shock_boundary_total_pressure_Pa: tuple[float, ...] = ()
+
+  def __post_init__(self) -> None:
+    if len(self.incoming_handoff_states) != len(
+      self.incoming_handoff_total_pressure_Pa
+    ):
+      raise ValueError(
+        'incoming handoff states and total-pressure samples must have equal lengths'
+      )
+    if len(self.upstream_shock_boundary_states) != len(
+      self.upstream_shock_boundary_total_pressure_Pa
+    ):
+      raise ValueError(
+        'upstream shock states and total-pressure samples must have equal lengths'
+      )
+    if any(
+      not isinstance(state, CharacteristicState)
+      for state in (
+        *self.incoming_handoff_states,
+        *self.upstream_shock_boundary_states,
+      )
+    ):
+      raise TypeError(
+        'physical post-shock handoff states must be CharacteristicState values'
+      )
+    for name, pressures in (
+      ('incoming_handoff_total_pressure_Pa', self.incoming_handoff_total_pressure_Pa),
+      (
+        'upstream_shock_boundary_total_pressure_Pa',
+        self.upstream_shock_boundary_total_pressure_Pa,
+      ),
+    ):
+      if any(not isfinite(float(value)) or value <= 0.0 for value in pressures):
+        raise ValueError(f'{name} must contain finite positive values')
+    object.__setattr__(self, 'incoming_handoff_states', tuple(self.incoming_handoff_states))
+    object.__setattr__(
+      self,
+      'incoming_handoff_total_pressure_Pa',
+      tuple(float(value) for value in self.incoming_handoff_total_pressure_Pa),
+    )
+    object.__setattr__(
+      self,
+      'upstream_shock_boundary_states',
+      tuple(self.upstream_shock_boundary_states),
+    )
+    object.__setattr__(
+      self,
+      'upstream_shock_boundary_total_pressure_Pa',
+      tuple(float(value) for value in self.upstream_shock_boundary_total_pressure_Pa),
+    )
 
   @property
   def converged(self) -> bool:
@@ -91,6 +152,46 @@ class MocPhysicalPostShockFieldResult:
   @property
   def physical_closure_verified(self) -> bool:
     return self.converged and self.characteristic_family_orientation_verified
+  ####
+
+  @property
+  def incoming_handoff(self) -> tuple[MocChainBoundarySample, ...]:
+    """Return the exact prior-cell handoff consumed by this field solve."""
+
+    return tuple(
+      MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
+      for state, pressure in zip(
+        self.incoming_handoff_states,
+        self.incoming_handoff_total_pressure_Pa,
+        strict=True,
+      )
+    )
+  ####
+
+  @property
+  def carries_incoming_handoff(self) -> bool:
+    return bool(self.incoming_handoff_states)
+  ####
+
+  @property
+  def upstream_shock_coupling_verified(self) -> bool:
+    """Whether the accepted field retained a fitted upstream shock domain."""
+
+    return bool(
+      self.converged
+      and len(self.shock_boundary_points_m) >= 3
+      and len(self.upstream_shock_boundary_states) == len(self.shock_boundary_points_m)
+      and len(self.upstream_shock_boundary_total_pressure_Pa) == len(self.shock_boundary_points_m)
+      and all(
+        abs(state.x_m - point[0]) <= 1.0e-10
+        and abs(state.y_m - point[1]) <= 1.0e-10
+        for state, point in zip(
+          self.upstream_shock_boundary_states,
+          self.shock_boundary_points_m,
+          strict=True,
+        )
+      )
+    )
   ####
 
   @property
@@ -121,6 +222,8 @@ class MocPhysicalPostShockFieldResult:
       'characteristic_family_orientation_verified': (
         self.characteristic_family_orientation_verified
       ),
+      'upstream_shock_coupling_verified': self.upstream_shock_coupling_verified,
+      'incoming_handoff_sample_count': len(self.incoming_handoff_states),
       'characteristic_layer_count': self.characteristic_layer_count,
       'node_count': self.node_count,
       'cell_count': self.cell_count,
@@ -153,6 +256,7 @@ class MocPhysicalPostShockFieldResult:
     chain_diagnostics: dict[str, Any] = {
       'source': 'ambient-pressure-coupled-post-shock-field',
       'physical_closure_verified': True,
+      'upstream_shock_coupling_verified': self.upstream_shock_coupling_verified,
       'characteristic_layer_count': self.characteristic_layer_count,
       'node_count': self.node_count,
       'cell_count': self.cell_count,
@@ -190,6 +294,51 @@ class MocPhysicalPostShockFieldResult:
       ),
       continuation_boundary_kind=MocChainBoundaryKind.CENTERLINE_TRACE,
     )
+  ####
+
+  def as_coupled_chain_cell(
+    self,
+    *,
+    start_x_m: float,
+    end_x_m: float,
+    cell_index: int = 1,
+    diagnostics: dict[str, Any] | None = None,
+  ) -> MocChainCell:
+    """Promote only a field with explicit upstream shock coupling."""
+
+    if not self.upstream_shock_coupling_verified:
+      raise ValueError(
+        'coupled physical-field chain promotion requires a converged field '
+        'with upstream shock states and total-pressure samples'
+      )
+    coupled_diagnostics = {
+      'upstream_coupling_promotion_gate': 'passed',
+    }
+    if diagnostics is not None:
+      if 'upstream_shock_coupling_verified' in diagnostics:
+        raise ValueError('reserved coupling diagnostics cannot be overridden')
+      coupled_diagnostics.update(diagnostics)
+    return self.as_chain_cell(
+      start_x_m=start_x_m,
+      end_x_m=end_x_m,
+      cell_index=cell_index,
+      diagnostics=coupled_diagnostics,
+    )
+  ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocPhysicalPostShockFieldContinuationSolve:
+  """One ambient-closed physical field returned for a continued cell."""
+
+  field: MocPhysicalPostShockFieldResult
+  end_x_m: float
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.field, MocPhysicalPostShockFieldResult):
+      raise TypeError('field must be a MocPhysicalPostShockFieldResult')
+    if not isfinite(float(self.end_x_m)) or self.end_x_m <= 0.0:
+      raise ValueError('end_x_m must be finite and positive')
   ####
 
 
@@ -402,6 +551,7 @@ def assemble_ambient_boundary_post_shock_field(
   ambient_boundary: Sequence[MocAmbientBoundarySample],
   ambient_pressure_Pa: float,
   *,
+  incoming_handoff: Sequence[MocChainBoundarySample] | None = None,
   position_tolerance_m: float = 1.0e-10,
   invariant_tolerance: float = 1.0e-10,
   pressure_tolerance: float = 1.0e-8,
@@ -437,6 +587,32 @@ def assemble_ambient_boundary_post_shock_field(
   ):
     if not isfinite(float(value)) or value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+  try:
+    incoming_samples = () if incoming_handoff is None else tuple(incoming_handoff)
+  except TypeError:
+    incoming_samples = ()
+    ambient_result = _empty_ambient_boundary(float(ambient_pressure_Pa))
+    return _failure(
+      MocPhysicalPostShockFieldStatus.INVALID_INPUT,
+      ambient_boundary=ambient_result,
+      message='incoming_handoff must be an iterable of MocChainBoundarySample values',
+    )
+  if any(not isinstance(sample, MocChainBoundarySample) for sample in incoming_samples):
+    ambient_result = _empty_ambient_boundary(float(ambient_pressure_Pa))
+    return _failure(
+      MocPhysicalPostShockFieldStatus.INVALID_INPUT,
+      ambient_boundary=ambient_result,
+      message='incoming_handoff must contain MocChainBoundarySample values',
+    )
+  if incoming_handoff is not None and len(incoming_samples) < 3:
+    ambient_result = _empty_ambient_boundary(float(ambient_pressure_Pa))
+    return _failure(
+      MocPhysicalPostShockFieldStatus.INVALID_INPUT,
+      ambient_boundary=ambient_result,
+      message='incoming_handoff requires at least three state samples',
+    )
+  incoming_states = tuple(sample.state for sample in incoming_samples)
+  incoming_pressures = tuple(sample.total_pressure_Pa for sample in incoming_samples)
   if not shock_fit.converged:
     ambient_result = _empty_ambient_boundary(float(ambient_pressure_Pa))
     return _failure(
@@ -466,6 +642,49 @@ def assemble_ambient_boundary_post_shock_field(
         'with either equal counts or one explicit ambient downstream axis '
         'corner'
       ),
+    )
+  upstream_shock_states = tuple(shock_fit.upstream_states)
+  upstream_shock_pressures = tuple(shock_fit.upstream_total_pressure_Pa)
+  if bool(upstream_shock_states) != bool(upstream_shock_pressures):
+    ambient_result = _empty_ambient_boundary(float(ambient_pressure_Pa))
+    return _failure(
+      MocPhysicalPostShockFieldStatus.INVALID_INPUT,
+      ambient_boundary=ambient_result,
+      shock_points=tuple(sample.point_m for sample in shock_samples),
+      message=(
+        'shock-fit upstream coupling must provide both upstream states and '
+        'upstream total-pressure samples'
+      ),
+    )
+  if upstream_shock_states and (
+    len(upstream_shock_states) != len(shock_samples)
+    or len(upstream_shock_pressures) != len(shock_samples)
+  ):
+    ambient_result = _empty_ambient_boundary(float(ambient_pressure_Pa))
+    return _failure(
+      MocPhysicalPostShockFieldStatus.INVALID_INPUT,
+      ambient_boundary=ambient_result,
+      shock_points=tuple(sample.point_m for sample in shock_samples),
+      message='shock-fit upstream coupling samples must match the shock boundary count',
+    )
+  if upstream_shock_states and any(
+    abs(state.x_m - sample.point_m[0]) > position_tolerance_m
+    or abs(state.y_m - sample.point_m[1]) > position_tolerance_m
+    or abs(pressure - sample.upstream_total_pressure_Pa)
+      > pressure_tolerance * max(1.0, abs(pressure), abs(sample.upstream_total_pressure_Pa))
+    for state, pressure, sample in zip(
+      upstream_shock_states,
+      upstream_shock_pressures,
+      shock_samples,
+      strict=True,
+    )
+  ):
+    ambient_result = _empty_ambient_boundary(float(ambient_pressure_Pa))
+    return _failure(
+      MocPhysicalPostShockFieldStatus.INVALID_INPUT,
+      ambient_boundary=ambient_result,
+      shock_points=tuple(sample.point_m for sample in shock_samples),
+      message='shock-fit upstream coupling does not match the fitted shock samples',
     )
   ambient_result = validate_ambient_pressure_boundary(
     samples,
@@ -906,4 +1125,218 @@ def assemble_ambient_boundary_post_shock_field(
       'with verified shock-C+/ambient-C- family orientation'
     ),
     characteristic_family_orientation_verified=characteristic_family_orientation_verified,
+    incoming_handoff_states=incoming_states,
+    incoming_handoff_total_pressure_Pa=incoming_pressures,
+    upstream_shock_boundary_states=upstream_shock_states,
+    upstream_shock_boundary_total_pressure_Pa=upstream_shock_pressures,
   )
+
+
+def _physical_chain_failure(
+  status: MocChainStatus,
+  reason: MocChainTerminationReason,
+  *,
+  message: str,
+) -> MocChainResult:
+  return MocChainResult(
+    cells=(),
+    status=status,
+    termination_reason=reason,
+    physical_termination=False,
+    message=message,
+  )
+
+
+def _validate_physical_field_handoff(
+  current: MocChainCell,
+  next_field: MocPhysicalPostShockFieldResult,
+  *,
+  position_tolerance_m: float,
+  state_tolerance: float,
+) -> str | None:
+  expected = current.continuation_boundary
+  consumed = next_field.incoming_handoff
+  if not consumed:
+    return (
+      'next ambient-closed physical field does not record the prior '
+      'centerline handoff'
+    )
+  if len(consumed) != len(expected):
+    return 'next physical field incoming handoff length does not match the current boundary'
+  for index, (expected_sample, consumed_sample) in enumerate(
+    zip(expected, consumed, strict=True)
+  ):
+    expected_state = expected_sample.state
+    consumed_state = consumed_sample.state
+    if (
+      abs(expected_state.x_m - consumed_state.x_m) > position_tolerance_m
+      or abs(expected_state.y_m - consumed_state.y_m) > position_tolerance_m
+      or abs(expected_state.theta_rad - consumed_state.theta_rad) > state_tolerance
+      or abs(expected_state.mach - consumed_state.mach) > state_tolerance
+      or abs(expected_state.gamma - consumed_state.gamma) > state_tolerance
+    ):
+      return f'next physical field changed consumed state sample {index}'
+    if abs(expected_sample.total_pressure_Pa - consumed_sample.total_pressure_Pa) > (
+      state_tolerance
+      * max(
+        1.0,
+        abs(expected_sample.total_pressure_Pa),
+        abs(consumed_sample.total_pressure_Pa),
+      )
+    ):
+      return f'next physical field changed consumed total pressure sample {index}'
+  return None
+
+
+def continue_ambient_closed_post_shock_chain(
+  seed: MocPhysicalPostShockFieldResult,
+  solve_next: Callable[
+    [MocChainCell, int, tuple[MocChainBoundarySample, ...]],
+    MocPhysicalPostShockFieldContinuationSolve
+    | MocChainTerminationDecision
+    | None,
+  ],
+  *,
+  start_x_m: float,
+  end_x_m: float,
+  policy: MocChainContinuationPolicy | None = None,
+  require_upstream_shock_coupling: bool = True,
+) -> MocChainResult:
+  """Continue only fully ambient-closed physical fields.
+
+  The callback must return a new physical field whose assembler recorded the
+  exact incoming centerline handoff.  The new field is promoted only after
+  its ambient perimeter, characteristic topology, and optional upstream
+  shock-coupling gate have passed.  This adapter is deliberately separate from
+  the generic post-shock chain reference and cannot consume a reduced-order
+  or prescribed-boundary cell.
+  """
+
+  if not isinstance(seed, MocPhysicalPostShockFieldResult):
+    return _physical_chain_failure(
+      MocChainStatus.INVALID_INPUT,
+      MocChainTerminationReason.INVALID_INPUT,
+      message='seed must be a MocPhysicalPostShockFieldResult',
+    )
+  if not seed.converged or not seed.physical_closure_verified:
+    return _physical_chain_failure(
+      MocChainStatus.OPEN_CELL,
+      MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
+      message=(
+        'ambient-closed physical-field continuation requires a converged '
+        f'physically closed seed: {seed.message}'
+      ),
+    )
+  if not callable(solve_next):
+    return _physical_chain_failure(
+      MocChainStatus.INVALID_INPUT,
+      MocChainTerminationReason.INVALID_INPUT,
+      message='solve_next must be callable',
+    )
+  if not isinstance(require_upstream_shock_coupling, bool):
+    return _physical_chain_failure(
+      MocChainStatus.INVALID_INPUT,
+      MocChainTerminationReason.INVALID_INPUT,
+      message='require_upstream_shock_coupling must be a bool',
+    )
+  try:
+    start = float(start_x_m)
+    end = float(end_x_m)
+  except (TypeError, ValueError):
+    return _physical_chain_failure(
+      MocChainStatus.INVALID_INPUT,
+      MocChainTerminationReason.INVALID_INPUT,
+      message='start_x_m and end_x_m must be numeric',
+    )
+  if not isfinite(start) or start < 0.0 or not isfinite(end) or end <= start:
+    return _physical_chain_failure(
+      MocChainStatus.INVALID_INPUT,
+      MocChainTerminationReason.INVALID_INPUT,
+      message='end_x_m must be finite and strictly downstream of start_x_m',
+    )
+  if policy is None:
+    policy = MocChainContinuationPolicy(require_state_carry=True)
+  elif not policy.require_state_carry:
+    policy = MocChainContinuationPolicy(
+      max_cells=policy.max_cells,
+      max_axial_distance_m=policy.max_axial_distance_m,
+      position_tolerance_m=policy.position_tolerance_m,
+      state_tolerance=policy.state_tolerance,
+      allowed_fidelities=policy.allowed_fidelities,
+      require_state_carry=True,
+    )
+  try:
+    seed_cell = (
+      seed.as_coupled_chain_cell(
+        start_x_m=start,
+        end_x_m=end,
+        cell_index=1,
+      )
+      if require_upstream_shock_coupling
+      else seed.as_chain_cell(
+        start_x_m=start,
+        end_x_m=end,
+        cell_index=1,
+      )
+    )
+  except (TypeError, ValueError) as error:
+    return _physical_chain_failure(
+      MocChainStatus.STATE_BOUNDARY,
+      MocChainTerminationReason.STATE_NOT_CARRIED,
+      message=f'physical-field chain seed has no usable state carry: {error}',
+    )
+
+  def solve_cell(
+    current: MocChainCell,
+    cell_index: int,
+  ) -> MocChainCell | MocChainTerminationDecision | None:
+    try:
+      solved = solve_next(current, cell_index, current.continuation_boundary)
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      raise ValueError(f'ambient-closed physical-field solve failed: {error}') from error
+    if solved is None or isinstance(solved, MocChainTerminationDecision):
+      return solved
+    if not isinstance(solved, MocPhysicalPostShockFieldContinuationSolve):
+      raise ValueError(
+        'solve_next must return MocPhysicalPostShockFieldContinuationSolve, '
+        'MocChainTerminationDecision, or None'
+      )
+    field = solved.field
+    if not field.converged or not field.physical_closure_verified:
+      raise ValueError(
+        'next ambient-closed physical field is not physically closed: '
+        f'{field.message}'
+      )
+    handoff_error = _validate_physical_field_handoff(
+      current,
+      field,
+      position_tolerance_m=policy.position_tolerance_m,
+      state_tolerance=policy.state_tolerance,
+    )
+    if handoff_error is not None:
+      raise ValueError(handoff_error)
+    if solved.end_x_m <= current.end_x_m + policy.position_tolerance_m:
+      raise ValueError(
+        'continued ambient-closed physical field must end strictly downstream '
+        'of the current cell'
+      )
+    try:
+      return (
+        field.as_coupled_chain_cell(
+          start_x_m=current.end_x_m,
+          end_x_m=solved.end_x_m,
+          cell_index=cell_index,
+        )
+        if require_upstream_shock_coupling
+        else field.as_chain_cell(
+          start_x_m=current.end_x_m,
+          end_x_m=solved.end_x_m,
+          cell_index=cell_index,
+        )
+      )
+    except (TypeError, ValueError) as error:
+      raise ValueError(
+        f'next ambient-closed physical field could not become a chain cell: {error}'
+      ) from error
+
+  return continue_moc_cell_chain(seed_cell, solve_cell, policy)

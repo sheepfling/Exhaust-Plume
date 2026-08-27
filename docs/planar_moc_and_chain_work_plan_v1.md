@@ -196,6 +196,13 @@ not wait on this research closure.
 - Added the only permitted promotion path from a verified closed post-shock
   field into a `RESOLVED_PLANAR_MOC` chain seed, retaining closure and residual
   diagnostics.
+- Added an ambient-closed physical-field continuation adapter and planner.
+  A new cell must be returned as a separately assembled ambient-closed field,
+  retain the exact prior centerline handoff, and pass the optional upstream
+  shock-coupling gate before it can enter the resolved chain. The planner
+  records physical-field results separately from the prescribed mock and keeps
+  the research-only claim ceiling; no reduced-order or open field can cross
+  this seam.
 - Added typed downstream characteristic-state/total-pressure handoff samples
   and a state-carrying chain adapter. The shock-seeded field labels its
   composite carried edge as a post-shock field perimeter, not a single
@@ -734,6 +741,15 @@ therefore a bounded field/coupling failure and cannot be promoted into the
 continued chain. The ambient-pressure field planner now repeats that contract
 for later cells: only an accepted field replaces the current upstream field,
 and every failed attempt leaves the prior cell and handoff unchanged.
+
+The ambient-closed physical-field planner is the stricter continuation lane
+for the eventual production solver. Its callback receives the prior closed
+cell's centerline trace and must return a newly assembled physical field that
+records the exact incoming state/total-pressure samples. The adapter promotes
+that field only after ambient perimeter, characteristic topology, and
+upstream shock-coupling checks pass. The current tests use a clearly marked
+manufactured field only to audit the handoff and multi-cell planner contract;
+the canonical reflected field still has not passed the physical closure gate.
 
 The caustic-family-band planner is a separate one-step research path for the
 new-family branch. It carries the current cell's exact post-shock perimeter,
