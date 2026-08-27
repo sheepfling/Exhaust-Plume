@@ -784,6 +784,11 @@ def test_prescribed_post_shock_chain_mock_is_reusable_and_nonproduction() -> Non
   assert planner.production_claim_allowed is False
   assert planner.diagnostics['prescribed_chain_mock']['planning_only'] is True
   assert planner.diagnostics['prescribed_chain_mock']['production_claim_allowed'] is False
+  assert planner.diagnostics['prescribed_chain_mock']['claim_fidelity_ceiling'] == (
+    MocChainGeometryFidelity.PRESCRIBED_BOUNDARY_DIAGNOSTIC.value
+  )
+  assert planner.diagnostics['prescribed_chain_mock']['free_boundary_verified'] is False
+  assert planner.diagnostics['prescribed_chain_mock']['physical_chain_promotion_allowed'] is False
   assert planner.handoff_links_verified is True
   assert [step.result_kind for step in planner.steps] == [
     'field-solve-returned',
@@ -809,6 +814,44 @@ def test_prescribed_post_shock_chain_mock_is_reusable_and_nonproduction() -> Non
     step.incoming_handoff_link_verified is True
     for step in planner.steps[1:]
   )
+
+
+def test_prescribed_post_shock_chain_mock_scales_without_changing_its_claim_ceiling() -> None:
+  seed_fit = MocShockBoundaryFitResult(
+    status=MocShockBoundaryFitStatus.CONVERGED_FITTED,
+    boundary_states=_prescribed_boundary(),
+    shock_angle_residuals_rad=(0.0,) * 4,
+    maximum_shock_angle_residual_rad=0.0,
+  )
+  seed_field = assemble_post_shock_characteristic_field(seed_fit)
+  mock = MocPrescribedPostShockChainMock(total_cell_count=5)
+
+  planner = plan_prescribed_post_shock_chain_mock(
+    seed_field,
+    start_x_m=0.7,
+    end_x_m=1.0,
+    mock=mock,
+  )
+
+  assert planner.resolved
+  assert planner.chain.cell_count == 5
+  assert [step.next_cell_index for step in planner.steps] == [2, 3, 4, 5, 6]
+  assert [step.result_kind for step in planner.steps] == [
+    'field-solve-returned',
+    'field-solve-returned',
+    'field-solve-returned',
+    'field-solve-returned',
+    'termination-returned',
+  ]
+  assert planner.handoff_links_verified is True
+  fixture_report = planner.diagnostics['prescribed_chain_mock']
+  assert fixture_report['total_cell_count_including_seed'] == 5
+  assert fixture_report['claim_fidelity_ceiling'] == (
+    MocChainGeometryFidelity.PRESCRIBED_BOUNDARY_DIAGNOSTIC.value
+  )
+  assert fixture_report['free_boundary_verified'] is False
+  assert fixture_report['physical_chain_promotion_allowed'] is False
+  assert planner.production_claim_allowed is False
 
 
 def test_solver_generated_post_shock_reference_re_solves_multiple_cells() -> None:

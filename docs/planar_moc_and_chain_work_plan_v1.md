@@ -1253,6 +1253,12 @@ Only after MOC-1 through MOC-5 pass:
   range, and the outgoing fingerprint. Multi-step mock and solver-generated
   references must prove every later callback consumed the exact prior result
   handoff; this is chain bookkeeping evidence, not free-boundary validation.
+- The prescribed post-shock planner mock now reports a separate claim-fidelity
+  ceiling: its local shock fit and post-shock characteristic field are
+  solver-backed, but the shock ordinates and downstream angles remain
+  prescribed. Increasing the fixture length therefore exercises arbitrary
+  handoff depth without changing ``free_boundary_verified=false`` or allowing
+  physical chain promotion.
 - Added an independent ``op.moc.chain-planner`` audit for continued-cell
   traces. It reconstructs each cell's topology, sequence position, exact
   state/total-pressure handoff, returned-cell correspondence, typed terminal

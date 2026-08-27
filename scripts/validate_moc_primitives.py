@@ -42,6 +42,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocChainBoundaryKind,
   MocChainBoundarySample,
   MocChainContinuationPolicy,
+  MocChainGeometryFidelity,
   MocChainTerminationDecision,
   MocChainTerminationReason,
   MocChainStatus,
@@ -1882,6 +1883,12 @@ def _shock_cell_chain_planner_mock(
     start_x_m=0.7,
     end_x_m=1.0,
     planner_kind=MocChainPlannerKind.PRESCRIBED_BOUNDARY_MOCK,
+  )
+  planner = replace(
+    planner,
+    diagnostics={
+      'prescribed_chain_mock': mock.as_report(),
+    },
   )
   return (
     planner.chain,
@@ -4789,6 +4796,10 @@ def build_moc_primitive_report() -> dict[str, Any]:
     else solver_generated_invariant_field_coupled_chain_planner.as_report()
   )
   shock_cell_chain_mock_report = shock_cell_chain_mock.as_report()
+  shock_cell_chain_planner_report = shock_cell_chain_planner.as_report()
+  shock_cell_chain_fixture_report = shock_cell_chain_planner_report[
+    'diagnostics'
+  ]['prescribed_chain_mock']
   solver_generated_chain_pressure_lineage_ok = (
     solver_generated_chain_report is not None
     and solver_generated_chain_report['continuation_boundary_maxima_nonincreasing'] is True
@@ -5961,8 +5972,23 @@ def build_moc_primitive_report() -> dict[str, Any]:
     },
     'shock_cell_chain_planner_mock': {
       'planner_kind': shock_cell_chain_planner.planner_kind.value,
-      'planning_only': shock_cell_chain_planner.as_report()['planning_only'],
+      'planning_only': shock_cell_chain_planner_report['planning_only'],
       'production_claim_allowed': shock_cell_chain_planner.production_claim_allowed,
+      'claim_fidelity_ceiling': shock_cell_chain_fixture_report[
+        'claim_fidelity_ceiling'
+      ],
+      'boundary_provenance': shock_cell_chain_fixture_report[
+        'boundary_provenance'
+      ],
+      'local_field_assembly': shock_cell_chain_fixture_report[
+        'local_field_assembly'
+      ],
+      'free_boundary_verified': shock_cell_chain_fixture_report[
+        'free_boundary_verified'
+      ],
+      'physical_chain_promotion_allowed': shock_cell_chain_fixture_report[
+        'physical_chain_promotion_allowed'
+      ],
       'planner_step_count': len(shock_cell_chain_planner.steps),
       'handoff_links_verified': shock_cell_chain_planner.handoff_links_verified,
       'planner_steps': [
@@ -6609,6 +6635,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
       or not shock_cell_chain_planner_measurement.fidelity_isolation_verified
       or shock_cell_chain_planner_measurement.physical_termination is not False
       or shock_cell_chain_planner_measurement.production_claim_allowed
+      or shock_cell_chain_fixture_report['claim_fidelity_ceiling'] != (
+        MocChainGeometryFidelity.PRESCRIBED_BOUNDARY_DIAGNOSTIC.value
+      )
+      or shock_cell_chain_fixture_report['free_boundary_verified'] is not False
+      or shock_cell_chain_fixture_report[
+        'physical_chain_promotion_allowed'
+      ] is not False
     ) else []),
     *([
       {

@@ -303,7 +303,13 @@ The independent `op.moc.chain-planner` measurement applies the same domain
 freshness rule to planner traces and emits `domain_failure` plus
 `domain_freshness_verified=false` when a returned cell reuses or fails to
 advance beyond its shared interface. A passing handoff audit therefore does
-not, by itself, certify that the downstream field was re-solved.
+not, by itself, certify that the downstream field was re-solved. The
+prescribed post-shock planner mock now reports
+`claim_fidelity_ceiling=prescribed-boundary-diagnostic` and the separate
+`boundary_provenance` and `local_field_assembly` values: longer mock chains
+exercise exact handoff bookkeeping, but they retain
+`free_boundary_verified=false` and
+`physical_chain_promotion_allowed=false`.
 Shock-seeded post-shock fields now expose a bounded `as_report()` contract
 with mesh extents, explicit boundary paths, topology/residual summaries,
 pressure-loss lineage, and incoming-handoff counts. The report is intended
