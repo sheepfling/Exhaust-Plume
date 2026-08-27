@@ -99,6 +99,10 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert generated_chain_planner['production_claim_allowed'] is False
   assert generated_chain_planner['planner_step_count'] == 3
   assert generated_chain_planner['handoff_links_verified'] is True
+  assert generated_chain_planner['diagnostics']['solver_generated_chain_reference']['model'] == (
+    'solver-generated-post-shock-chain-reference'
+  )
+  assert generated_chain_planner['diagnostics']['solver_generated_chain_reference']['production_claim_allowed'] is False
   assert [step['next_cell_index'] for step in generated_chain_planner['planner_steps']] == [2, 3, 4]
   assert all(
     step['boundary_kind'] == 'post-shock-field-perimeter'

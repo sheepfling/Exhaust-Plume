@@ -28,6 +28,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocPostShockChainCellSolve,
   MocPostShockCharacteristicFieldResult,
   MocPrescribedPostShockChainMock,
+  MocSolverGeneratedPostShockChainReference,
   MocReflectedCharacteristicZoneResult,
   MocChainBoundaryKind,
   MocChainTerminationDecision,
@@ -72,7 +73,6 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_marched_attached_shock_from_caustic_upstream_bridge,
   solve_marched_attached_shock_from_caustic_upstream_bridge_with_invariant_boundary,
   solve_normal_shock_terminal,
-  solve_marched_attached_shock_chain_cell,
   solve_marched_attached_shock_chain_cell_or_termination,
   solve_marched_attached_shock_chain_cell_from_reflected_zone_or_termination,
   solve_marched_attached_shock_chain_cell_from_terminal_reflection_patch_or_termination,
@@ -1495,15 +1495,15 @@ def _planner_boundary_validation(cell: Any) -> dict[str, Any]:
 def _solver_generated_chain_reference(
   seed_field: MocPostShockCharacteristicFieldResult,
 ) -> tuple[Any, list[dict[str, Any]], Any]:
-  """Exercise generated shock cells with an explicit carried-state callback.
+  """Exercise the reusable generated reference with report observations.
 
-  The upstream state and pressure callbacks deliberately derive their
-  thermodynamic level from the incoming boundary so the chain can verify
-  monotonic total-pressure carry. They are still a reference field, not the
-  reflected-zone solution required for production promotion.
+  The fixture owns the solver-backed local solve and its research-only claim
+  ceiling.  This wrapper adds validation observations without changing the
+  production boundary or moving the reference into a provider.
   """
 
   observations: list[dict[str, Any]] = []
+  reference = MocSolverGeneratedPostShockChainReference()
 
   def solve_next(current, cell_index, handoff):
     observations.append({
@@ -1515,40 +1515,7 @@ def _solver_generated_chain_reference(
       ),
       'current_end_x_m': current.end_x_m,
     })
-    if cell_index >= 4:
-      return MocChainTerminationDecision(
-        physical_termination=False,
-        reason=MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
-        message=(
-          'solver-generated reference stopped after its three-cell fixture; '
-          'no physical endpoint was inferred'
-        ),
-      )
-    incoming_max = max(sample.total_pressure_Pa for sample in handoff)
-    upstream_mach = 2.0
-    upstream_gamma = 1.4
-    pressure_ratio = (1.0 + 0.2 * upstream_mach * upstream_mach) ** (
-      upstream_gamma / (upstream_gamma - 1.0)
-    )
-    upstream_pressure = incoming_max / pressure_ratio
-
-    return solve_marched_attached_shock_chain_cell(
-      current,
-      cell_index,
-      handoff,
-      start_point_m=(current.end_x_m + 0.2, 0.5),
-      end_x_m=current.end_x_m + 0.8,
-      upstream_state_at=lambda point: CharacteristicState(
-        x_m=point[0],
-        y_m=point[1],
-        theta_rad=-0.2,
-        mach=upstream_mach,
-        gamma=upstream_gamma,
-      ),
-      upstream_pressure_at=lambda _point: upstream_pressure,
-      downstream_flow_angle_at=lambda _index, point: 0.05 * point[1] / 0.5,
-      sample_count=9,
-    )
+    return reference.solve_next(current, cell_index, handoff)
 
   planner = plan_post_shock_characteristic_chain(
     seed_field,
@@ -1557,6 +1524,12 @@ def _solver_generated_chain_reference(
     end_x_m=1.0,
     require_upstream_shock_coupling=True,
     planner_kind=MocChainPlannerKind.SOLVER_GENERATED_REFERENCE,
+  )
+  planner = replace(
+    planner,
+    diagnostics={
+      'solver_generated_chain_reference': reference.as_report(),
+    },
   )
   return planner.chain, observations, planner
 
@@ -4394,6 +4367,11 @@ def build_moc_primitive_report() -> dict[str, Any]:
         []
         if solver_generated_chain_planner is None
         else [step.as_report() for step in solver_generated_chain_planner.steps]
+      ),
+      'diagnostics': (
+        {}
+        if solver_generated_chain_planner_report is None
+        else solver_generated_chain_planner_report['diagnostics']
       ),
       'claim_status': (
         None

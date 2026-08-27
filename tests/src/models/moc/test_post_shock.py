@@ -32,6 +32,7 @@ from exhaust_plume.models.moc import (
   MocShockBoundaryFitStatus,
   MocShockBoundaryFitResult,
   MocPrescribedPostShockChainMock,
+  MocSolverGeneratedPostShockChainReference,
   MocPrimitiveStatus,
   assemble_post_shock_characteristic_zone,
   assemble_post_shock_characteristic_field,
@@ -40,11 +41,13 @@ from exhaust_plume.models.moc import (
   continue_post_shock_characteristics_to_centerline_open,
   continue_post_shock_characteristic_chain,
   plan_post_shock_characteristic_chain,
+  plan_solver_generated_post_shock_chain_reference,
   plan_prescribed_post_shock_chain_mock,
   fit_attached_shock_boundary,
   sample_post_shock_zone_along_shock_path,
   solve_marched_attached_shock_from_post_shock_zone,
   solve_marched_attached_shock_chain_cell_from_post_shock_zone_or_termination,
+  solve_uniform_attached_shock_field,
   solve_attached_compression_to_turn,
   validate_closed_post_shock_field,
   validate_post_shock_ambient_boundary,
@@ -706,6 +709,50 @@ def test_prescribed_post_shock_chain_mock_is_reusable_and_nonproduction() -> Non
     step.incoming_handoff_link_verified is True
     for step in planner.steps[1:]
   )
+
+
+def test_solver_generated_post_shock_reference_re_solves_multiple_cells() -> None:
+  generated = solve_uniform_attached_shock_field(
+    CharacteristicState(
+      x_m=0.5,
+      y_m=0.5,
+      theta_rad=-0.2,
+      mach=2.0,
+      gamma=1.4,
+    ),
+    100000.0,
+    (0.5, 0.5),
+    outer_downstream_flow_angle_rad=0.05,
+    sample_count=9,
+  )
+  seed_field = generated.field
+  assert seed_field is not None
+  assert seed_field.upstream_shock_coupling_verified
+
+  reference = MocSolverGeneratedPostShockChainReference()
+  planner = plan_solver_generated_post_shock_chain_reference(
+    seed_field,
+    start_x_m=0.5,
+    end_x_m=1.0,
+    reference=reference,
+  )
+
+  assert planner.resolved
+  assert planner.chain.status is MocChainStatus.SOLVER_TERMINATED
+  assert planner.chain.termination_reason is MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL
+  assert planner.chain.cell_count == reference.total_cell_count
+  assert all(cell.resolved for cell in planner.chain.cells)
+  assert planner.planner_kind is MocChainPlannerKind.SOLVER_GENERATED_REFERENCE
+  assert planner.production_claim_allowed is False
+  assert planner.handoff_links_verified is True
+  assert [step.next_cell_index for step in planner.steps] == [2, 3, 4]
+  assert [step.result_kind for step in planner.steps] == [
+    'field-solve-returned',
+    'field-solve-returned',
+    'termination-returned',
+  ]
+  assert planner.diagnostics['solver_generated_chain_reference']['planning_only'] is True
+  assert planner.diagnostics['solver_generated_chain_reference']['production_claim_allowed'] is False
 
 
 def test_prescribed_chain_mock_uses_a_solver_backed_attached_shock_fit() -> None:

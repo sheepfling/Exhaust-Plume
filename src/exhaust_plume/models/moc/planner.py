@@ -53,6 +53,7 @@ from exhaust_plume.models.moc.coupled import (
   solve_marched_attached_shock_chain_cell_with_ambient_pressure_closure_or_termination,
 )
 from exhaust_plume.models.moc.free_boundary import (
+  solve_marched_attached_shock_chain_cell,
   solve_marched_attached_shock_from_caustic_upstream_bridge,
   solve_marched_attached_shock_from_caustic_upstream_bridge_with_invariant_boundary,
   solve_marched_attached_shock_chain_cell_from_post_shock_field_or_termination,
@@ -70,10 +71,12 @@ __all__ = (
   'MocChainPlannerStep',
   'MocChainPlannerResult',
   'MocPrescribedPostShockChainMock',
+  'MocSolverGeneratedPostShockChainReference',
   'plan_moc_chain',
   'plan_post_shock_characteristic_chain',
   'plan_post_shock_field_chain',
   'plan_prescribed_post_shock_chain_mock',
+  'plan_solver_generated_post_shock_chain_reference',
   'plan_terminal_reflection_patch_chain',
   'plan_caustic_family_band_chain',
   'plan_caustic_family_band_invariant_chain',
@@ -735,6 +738,165 @@ class MocPrescribedPostShockChainMock:
     )
 
 
+@dataclass(frozen=True, slots=True)
+class MocSolverGeneratedPostShockChainReference:
+  """Deterministic solver-generated reference for a continued MOC chain.
+
+  Each step uses the real marched attached-shock solver and the real closed
+  post-shock characteristic-field assembler.  The upstream state and the
+  downstream turn law are deliberately simple, explicit reference inputs;
+  they are not a reflected-plume free-boundary solution.  Keeping this
+  reference beside the prescribed mock makes the distinction executable:
+  both can exercise the chain handoff, but neither may raise a production
+  provider claim.
+  """
+
+  total_cell_count: int = 3
+  cell_axial_length_m: float = 0.80
+  shock_start_offset_m: float = 0.20
+  shock_start_y_m: float = 0.50
+  sample_count: int = 9
+  mach: float = 2.0
+  gamma: float = 1.4
+  upstream_flow_angle_rad: float = -0.20
+  downstream_flow_angle_scale_rad_per_m: float = 0.10
+  branch: ShockBranch = ShockBranch.WEAK
+
+  def __post_init__(self) -> None:
+    if (
+      isinstance(self.total_cell_count, bool)
+      or not isinstance(self.total_cell_count, int)
+      or self.total_cell_count < 1
+    ):
+      raise ValueError('total_cell_count must be a positive integer')
+    if (
+      isinstance(self.sample_count, bool)
+      or not isinstance(self.sample_count, int)
+      or self.sample_count < 3
+    ):
+      raise ValueError('sample_count must be an integer of at least three')
+    for name, value in (
+      ('cell_axial_length_m', self.cell_axial_length_m),
+      ('shock_start_offset_m', self.shock_start_offset_m),
+      ('shock_start_y_m', self.shock_start_y_m),
+      ('mach', self.mach),
+      ('gamma', self.gamma),
+      ('upstream_flow_angle_rad', self.upstream_flow_angle_rad),
+      (
+        'downstream_flow_angle_scale_rad_per_m',
+        self.downstream_flow_angle_scale_rad_per_m,
+      ),
+    ):
+      if not isfinite(float(value)):
+        raise ValueError(f'{name} must be finite')
+    if self.cell_axial_length_m <= 0.0:
+      raise ValueError('cell_axial_length_m must be finite and positive')
+    if self.shock_start_offset_m <= 0.0:
+      raise ValueError('shock_start_offset_m must be finite and positive')
+    if self.shock_start_y_m <= 0.0:
+      raise ValueError('shock_start_y_m must be finite and positive')
+    if self.mach <= 1.0:
+      raise ValueError('mach must be finite and greater than one')
+    if self.gamma <= 1.0:
+      raise ValueError('gamma must be finite and greater than one')
+    if not isinstance(self.branch, ShockBranch):
+      raise ValueError('branch must be a ShockBranch')
+
+  def as_report(self) -> dict[str, Any]:
+    """Return configuration and the explicit research-only claim ceiling."""
+
+    return {
+      'model': 'solver-generated-post-shock-chain-reference',
+      'planning_only': True,
+      'production_claim_allowed': False,
+      'total_cell_count_including_seed': self.total_cell_count,
+      'cell_axial_length_m': self.cell_axial_length_m,
+      'shock_start_offset_m': self.shock_start_offset_m,
+      'shock_start_y_m': self.shock_start_y_m,
+      'sample_count': self.sample_count,
+      'mach': self.mach,
+      'gamma': self.gamma,
+      'upstream_flow_angle_rad': self.upstream_flow_angle_rad,
+      'downstream_flow_angle_scale_rad_per_m': (
+        self.downstream_flow_angle_scale_rad_per_m
+      ),
+      'branch': self.branch.value,
+      'upstream_state_model': 'uniform-explicit-reference-state',
+      'downstream_condition_model': 'linear-explicit-reference-turn-law',
+      'claim_status': (
+        'solver-generated-shock-and-closed-post-shock-field-reference; '
+        'reflected-upstream-coupling-and-physical-boundary-pending'
+      ),
+    }
+
+  def solve_next(
+    self,
+    current: MocChainCell,
+    next_cell_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+  ) -> MocPostShockChainCellSolve | MocChainTerminationDecision:
+    """Solve one reference cell from the exact prior state/pressure handoff."""
+
+    if not isinstance(current, MocChainCell):
+      raise TypeError('current must be a MocChainCell')
+    if (
+      isinstance(next_cell_index, bool)
+      or next_cell_index != current.cell_index + 1
+    ):
+      raise ValueError('next_cell_index must immediately follow current.cell_index')
+    handoff = tuple(incoming_handoff)
+    if any(not isinstance(sample, MocChainBoundarySample) for sample in handoff):
+      raise TypeError('incoming_handoff must contain MocChainBoundarySample values')
+    if len(handoff) < 3:
+      raise ValueError('incoming_handoff requires at least three state samples')
+    if handoff != current.continuation_boundary:
+      raise ValueError('incoming_handoff must exactly match current.continuation_boundary')
+    if next_cell_index > self.total_cell_count:
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
+        message=(
+          'solver-generated post-shock reference exhausted its configured '
+          f'{self.total_cell_count}-cell fixture'
+        ),
+      )
+
+    incoming_total_pressure = max(
+      sample.total_pressure_Pa for sample in handoff
+    )
+    isentropic_factor = (
+      1.0 + 0.5 * (self.gamma - 1.0) * self.mach * self.mach
+    ) ** (self.gamma / (self.gamma - 1.0))
+    upstream_pressure = incoming_total_pressure / isentropic_factor
+    shock_start = (
+      current.end_x_m + self.shock_start_offset_m,
+      self.shock_start_y_m,
+    )
+    result = solve_marched_attached_shock_chain_cell(
+      current,
+      next_cell_index,
+      handoff,
+      start_point_m=shock_start,
+      end_x_m=current.end_x_m + self.cell_axial_length_m,
+      upstream_state_at=lambda point: CharacteristicState(
+        x_m=point[0],
+        y_m=point[1],
+        theta_rad=self.upstream_flow_angle_rad,
+        mach=self.mach,
+        gamma=self.gamma,
+      ),
+      upstream_pressure_at=lambda _point: upstream_pressure,
+      downstream_flow_angle_at=(
+        lambda _index, point: (
+          self.downstream_flow_angle_scale_rad_per_m * point[1]
+        )
+      ),
+      sample_count=self.sample_count,
+      branch=self.branch,
+    )
+    return result
+
+
 def plan_prescribed_post_shock_chain_mock(
   seed: MocPostShockCharacteristicFieldResult,
   *,
@@ -760,6 +922,42 @@ def plan_prescribed_post_shock_chain_mock(
     planner,
     diagnostics={
       'prescribed_chain_mock': fixture.as_report(),
+    },
+  )
+
+
+def plan_solver_generated_post_shock_chain_reference(
+  seed: MocPostShockCharacteristicFieldResult,
+  *,
+  start_x_m: float,
+  end_x_m: float,
+  reference: MocSolverGeneratedPostShockChainReference | None = None,
+  policy: MocChainContinuationPolicy | None = None,
+) -> MocChainPlannerResult:
+  """Run the reusable solver-generated, research-only chain reference."""
+
+  fixture = (
+    MocSolverGeneratedPostShockChainReference()
+    if reference is None
+    else reference
+  )
+  if not isinstance(fixture, MocSolverGeneratedPostShockChainReference):
+    raise TypeError(
+      'reference must be a MocSolverGeneratedPostShockChainReference'
+    )
+  planner = plan_post_shock_characteristic_chain(
+    seed,
+    fixture.solve_next,
+    start_x_m=start_x_m,
+    end_x_m=end_x_m,
+    policy=policy,
+    require_upstream_shock_coupling=True,
+    planner_kind=MocChainPlannerKind.SOLVER_GENERATED_REFERENCE,
+  )
+  return replace(
+    planner,
+    diagnostics={
+      'solver_generated_chain_reference': fixture.as_report(),
     },
   )
 ####

@@ -189,6 +189,16 @@ not wait on this research closure.
   validation script now only adds observations around that reusable fixture;
   its prescribed shock geometry remains planning evidence and cannot satisfy
   the free-boundary or product-promotion gates.
+- Promoted the three-cell solver-generated continuation reference into the
+  public isolated planner module as
+  `MocSolverGeneratedPostShockChainReference` with a
+  `plan_solver_generated_post_shock_chain_reference` convenience entry point.
+  Each step now re-solves the attached shock and closed post-shock field
+  through the real solver, while the explicit uniform upstream state and
+  linear downstream-turn law remain named reference conditions. The fixture
+  exercises state/total-pressure handoff and is still research-only; it does
+  not stand in for the reflected upstream field or a physical downstream
+  boundary.
 - Hardened the prescribed planner mock so every continued cell passes its
   prescribed curve through the real branch-checked attached-shock fitter. The
   default fixture is a nondegenerate varying-state shock line, the returned
