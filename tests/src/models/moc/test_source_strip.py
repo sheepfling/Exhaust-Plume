@@ -241,6 +241,11 @@ def test_centerline_reflection_extension_carries_a_physical_boundary_law() -> No
   assert restart.family_band.anchor_state == restart.anchor_state
   assert restart.family_band.anchor_to_input_min_forward_progress_m is not None
   assert restart.family_band.anchor_to_input_min_forward_progress_m > 0.0
+  assert restart.family_band.state_sampling_available is True
+  assert restart.family_band.domain_x_extent_m is not None
+  assert restart.family_band.domain_y_extent_m is not None
+  assert restart.family_band.domain_x_extent_m[1] > restart.family_band.domain_x_extent_m[0]
+  assert restart.family_band.domain_y_extent_m[1] > restart.family_band.domain_y_extent_m[0]
   assert restart.family_band.physical_closure_verified is False
   assert restart.family_band.chain_promotion_blocked is True
   band_termination = restart.family_band.as_chain_termination_decision()
@@ -281,3 +286,10 @@ def test_centerline_reflection_extension_carries_a_physical_boundary_law() -> No
   assert without_anchor_wedge.anchor_wedge_verified is False
   assert without_anchor_wedge.caustic_handoff_verified is False
   assert restart.family_band.state_at((2.0, 0.2)) is None
+  report = restart.family_band.as_report()
+  assert report['state_sampling_available'] is True
+  assert report['state_sampling_model'] == (
+    'bounded-triangle-barycentric-no-extrapolation'
+  )
+  assert report['domain_x_extent_m'] == restart.family_band.domain_x_extent_m
+  assert report['domain_y_extent_m'] == restart.family_band.domain_y_extent_m

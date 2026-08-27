@@ -2030,7 +2030,10 @@ def _solver_generated_chain_reference(
   measurement_observations = [
     _post_shock_field_measurement_observation(seed_field, cell_index=1)
   ]
-  reference = MocSolverGeneratedPostShockChainReference()
+  # Match the standalone prescribed mock's longer chain depth.  This tests
+  # repeated solver-backed shock/field re-solves, while the explicit upstream
+  # and downstream reference laws remain below the canonical claim boundary.
+  reference = MocSolverGeneratedPostShockChainReference(total_cell_count=5)
 
   def solve_next(current, cell_index, handoff):
     observations.append({
@@ -4787,6 +4790,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
     if solver_generated_chain_planner is None
     else solver_generated_chain_planner.as_report()
   )
+  solver_generated_chain_fixture_report = (
+    None
+    if solver_generated_chain_planner_report is None
+    else solver_generated_chain_planner_report.get('diagnostics', {}).get(
+      'solver_generated_chain_reference'
+    )
+  )
   solver_generated_field_coupled_chain_planner_report = (
     None
     if solver_generated_field_coupled_chain_planner is None
@@ -4846,8 +4856,17 @@ def build_moc_primitive_report() -> dict[str, Any]:
     solver_generated_chain_reference is None
     or solver_generated_chain_planner is None
     or not solver_generated_chain_reference.resolved
-    or solver_generated_chain_reference.cell_count != 3
+    or solver_generated_chain_reference.cell_count != 5
     or solver_generated_chain_reference.physical_termination
+    or solver_generated_chain_report is None
+    or solver_generated_chain_fixture_report is None
+    or solver_generated_chain_fixture_report.get('claim_fidelity_ceiling') != (
+      MocChainGeometryFidelity.RESOLVED_PLANAR_MOC.value
+    )
+    or solver_generated_chain_fixture_report.get('free_boundary_verified') is not False
+    or solver_generated_chain_fixture_report.get(
+      'physical_chain_promotion_allowed'
+    ) is not False
     or any(
       not cell.carries_state
       for cell in solver_generated_chain_reference.cells
@@ -4856,7 +4875,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or solver_generated_chain_planner.planner_kind is not MocChainPlannerKind.SOLVER_GENERATED_REFERENCE
     or not solver_generated_chain_planner.as_report()['planning_only']
     or solver_generated_chain_planner.production_claim_allowed
-    or len(solver_generated_chain_planner.steps) != 3
+    or len(solver_generated_chain_planner.steps) != 5
     or solver_generated_chain_planner.handoff_links_verified is not True
     or solver_generated_chain_planner_measurement is None
     or not solver_generated_chain_planner_measurement.converged
@@ -5744,6 +5763,23 @@ def build_moc_primitive_report() -> dict[str, Any]:
         if solver_generated_chain_reference is None
         else solver_generated_chain_reference.as_report()['state_carry_count']
       ),
+      'claim_fidelity_ceiling': (
+        None
+        if solver_generated_chain_fixture_report is None
+        else solver_generated_chain_fixture_report.get('claim_fidelity_ceiling')
+      ),
+      'free_boundary_verified': (
+        None
+        if solver_generated_chain_fixture_report is None
+        else solver_generated_chain_fixture_report.get('free_boundary_verified')
+      ),
+      'physical_chain_promotion_allowed': (
+        None
+        if solver_generated_chain_fixture_report is None
+        else solver_generated_chain_fixture_report.get(
+          'physical_chain_promotion_allowed'
+        )
+      ),
       'continuation_total_pressure_ranges_Pa': (
         None
         if solver_generated_chain_report is None
@@ -6545,7 +6581,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
           else solver_generated_chain_reference.status.value
         ),
         'message': (
-          'solver-generated chain reference did not produce three resolved '
+          'solver-generated chain reference did not produce five resolved '
           'state-carrying cells'
           if solver_generated_chain_reference is not None
           else 'solver-generated chain reference could not be constructed'

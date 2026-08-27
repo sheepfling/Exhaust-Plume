@@ -872,7 +872,7 @@ def test_solver_generated_post_shock_reference_re_solves_multiple_cells() -> Non
   assert seed_field is not None
   assert seed_field.upstream_shock_coupling_verified
 
-  reference = MocSolverGeneratedPostShockChainReference()
+  reference = MocSolverGeneratedPostShockChainReference(total_cell_count=5)
   planner = plan_solver_generated_post_shock_chain_reference(
     seed_field,
     start_x_m=0.5,
@@ -888,14 +888,21 @@ def test_solver_generated_post_shock_reference_re_solves_multiple_cells() -> Non
   assert planner.planner_kind is MocChainPlannerKind.SOLVER_GENERATED_REFERENCE
   assert planner.production_claim_allowed is False
   assert planner.handoff_links_verified is True
-  assert [step.next_cell_index for step in planner.steps] == [2, 3, 4]
+  assert [step.next_cell_index for step in planner.steps] == [2, 3, 4, 5, 6]
   assert [step.result_kind for step in planner.steps] == [
+    'field-solve-returned',
+    'field-solve-returned',
     'field-solve-returned',
     'field-solve-returned',
     'termination-returned',
   ]
   assert planner.diagnostics['solver_generated_chain_reference']['planning_only'] is True
   assert planner.diagnostics['solver_generated_chain_reference']['production_claim_allowed'] is False
+  assert planner.diagnostics['solver_generated_chain_reference']['claim_fidelity_ceiling'] == (
+    MocChainGeometryFidelity.RESOLVED_PLANAR_MOC.value
+  )
+  assert planner.diagnostics['solver_generated_chain_reference']['free_boundary_verified'] is False
+  assert planner.diagnostics['solver_generated_chain_reference']['physical_chain_promotion_allowed'] is False
 
 
 def test_field_coupled_post_shock_reference_uses_the_bounded_prior_field() -> None:

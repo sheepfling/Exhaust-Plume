@@ -925,6 +925,16 @@ def solve_marched_attached_shock_from_caustic_family_band(
       start_point_m=None,
       message=f'caustic family band is not converged: {band.message}',
     )
+  if not band.state_sampling_available:
+    return _failure(
+      MocCausticFamilyBandShockStatus.UPSTREAM_DOMAIN_FAILURE,
+      band=band,
+      start_point_m=None,
+      message=(
+        'caustic family band does not expose a bounded state/pressure '
+        'sampling domain for shock coupling'
+      ),
+    )
   try:
     if len(start_point_m) != 2:
       raise ValueError
@@ -1252,6 +1262,12 @@ def solve_marched_attached_shock_from_caustic_family_band_with_invariant_boundar
       f'caustic family band is not converged: {band.message}',
       band_value=band,
     )
+  if not band.state_sampling_available:
+    return failure(
+      MocCausticFamilyBandInvariantShockStatus.UPSTREAM_DOMAIN_FAILURE,
+      'caustic family band does not expose a bounded state/pressure sampling domain for invariant shock coupling',
+      band_value=band,
+    )
   if not isinstance(downstream_invariant_family, CharacteristicFamily):
     return failure(
       MocCausticFamilyBandInvariantShockStatus.INVALID_INPUT,
@@ -1427,6 +1443,10 @@ def _validate_caustic_band_chain_inputs(
     raise TypeError('band must be a MocCausticFamilyBandResult')
   if not band.converged:
     raise ValueError(f'caustic family band is not converged: {band.message}')
+  if not band.state_sampling_available:
+    raise ValueError(
+      'caustic family band does not expose a bounded state/pressure sampling domain'
+    )
   try:
     handoff = tuple(incoming_handoff)
   except TypeError as error:

@@ -129,13 +129,16 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert len(refinement['cases']) == 3
   assert generated_chain['accepted'] is True
   assert generated_chain['resolved'] is True
-  assert generated_chain['cell_count'] == 3
-  assert generated_chain['state_carry_count'] == 3
+  assert generated_chain['cell_count'] == 5
+  assert generated_chain['state_carry_count'] == 5
   assert generated_chain['physical_termination'] is False
+  assert generated_chain['claim_fidelity_ceiling'] == 'resolved-planar-moc'
+  assert generated_chain['free_boundary_verified'] is False
+  assert generated_chain['physical_chain_promotion_allowed'] is False
   assert generated_chain_planner['planner_kind'] == 'solver-generated-reference'
   assert generated_chain_planner['planning_only'] is True
   assert generated_chain_planner['production_claim_allowed'] is False
-  assert generated_chain_planner['planner_step_count'] == 3
+  assert generated_chain_planner['planner_step_count'] == 5
   assert generated_chain_planner['handoff_links_verified'] is True
   assert generated_chain_planner['diagnostics']['solver_generated_chain_reference']['model'] == (
     'solver-generated-post-shock-chain-reference'
@@ -145,14 +148,14 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert generated_chain_planner_measurement['status'] == 'converged'
   assert generated_chain_planner_measurement['planner_kind'] == 'solver-generated-reference'
   assert generated_chain_planner_measurement['counts'] == {
-    'steps': 3,
-    'chain_cells': 3,
-    'handoff_links': 2,
+    'steps': 5,
+    'chain_cells': 5,
+    'handoff_links': 4,
   }
   assert all(generated_chain_planner_measurement['checks'].values())
   assert generated_chain_planner_measurement['physical_termination'] is False
   assert generated_chain_planner_measurement['production_claim_allowed'] is False
-  assert [step['next_cell_index'] for step in generated_chain_planner['planner_steps']] == [2, 3, 4]
+  assert [step['next_cell_index'] for step in generated_chain_planner['planner_steps']] == [2, 3, 4, 5, 6]
   assert all(
     step['boundary_kind'] == 'post-shock-field-perimeter'
     and step['incoming_handoff_sample_count'] >= 3
@@ -206,9 +209,13 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert [step['result_kind'] for step in generated_chain_planner['planner_steps']] == [
     'field-solve-returned',
     'field-solve-returned',
+    'field-solve-returned',
+    'field-solve-returned',
     'termination-returned',
   ]
   assert [step['result_status'] for step in generated_chain_planner['planner_steps']] == [
+    'converged_closed',
+    'converged_closed',
     'converged_closed',
     'converged_closed',
     'solver-returned-no-next-cell',
@@ -238,8 +245,8 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   )
   generated_chain_measurement = generated_chain['chain_measurement_operator']
   assert generated_chain_measurement['status'] == 'converged'
-  assert generated_chain_measurement['cell_count'] == 3
-  assert generated_chain_measurement['handoff']['link_count'] == 2
+  assert generated_chain_measurement['cell_count'] == 5
+  assert generated_chain_measurement['handoff']['link_count'] == 4
   assert generated_chain_measurement['handoff']['links_verified'] is True
   assert field_coupled_chain_planner['accepted'] is True
   assert field_coupled_chain_planner['planner_kind'] == 'upstream-coupled-research'
@@ -1222,9 +1229,9 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert planner['planner_kind'] == 'prescribed-boundary-mock'
   assert planner['planning_only'] is True
   assert planner['production_claim_allowed'] is False
-  assert planner['planner_step_count'] == 3
+  assert planner['planner_step_count'] == 5
   assert planner['handoff_links_verified'] is True
-  assert [step['next_cell_index'] for step in planner['planner_steps']] == [2, 3, 4]
+  assert [step['next_cell_index'] for step in planner['planner_steps']] == [2, 3, 4, 5, 6]
   assert all(
     step['boundary_kind'] == 'post-shock-field-perimeter'
     and step['incoming_handoff_sample_count'] >= 3
@@ -1234,9 +1241,13 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert [step['result_kind'] for step in planner['planner_steps']] == [
     'field-solve-returned',
     'field-solve-returned',
+    'field-solve-returned',
+    'field-solve-returned',
     'termination-returned',
   ]
   assert [step['result_status'] for step in planner['planner_steps']] == [
+    'converged_closed',
+    'converged_closed',
     'converged_closed',
     'converged_closed',
     'solver-returned-no-next-cell',
@@ -1244,24 +1255,24 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert all(
     step['result_handoff_sample_count'] >= 3
     and step['result_handoff_fingerprint']
-    for step in planner['planner_steps'][:2]
+    for step in planner['planner_steps'][:4]
   )
   assert all(
     step['incoming_handoff_link_verified'] is True
     for step in planner['planner_steps'][1:]
   )
-  assert planner['cell_count'] == 3
-  assert planner['state_carry_count'] == 3
+  assert planner['cell_count'] == 5
+  assert planner['state_carry_count'] == 5
   assert planner['continuation_boundary_kinds'] == ['post-shock-field-perimeter']
-  assert planner['measurement_operator']['handoff']['link_count'] == 2
+  assert planner['measurement_operator']['handoff']['link_count'] == 4
   assert planner['measurement_operator']['handoff']['links_verified'] is True
   planner_measurement = planner['planner_measurement']
   assert planner_measurement['status'] == 'converged'
   assert planner_measurement['operator_id'] == 'op.moc.chain-planner'
   assert planner_measurement['counts'] == {
-    'steps': 3,
-    'chain_cells': 3,
-    'handoff_links': 2,
+    'steps': 5,
+    'chain_cells': 5,
+    'handoff_links': 4,
   }
   assert all(planner_measurement['checks'].values())
   assert planner_measurement['physical_termination'] is False
@@ -1269,7 +1280,7 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert planner_measurement['claim_status'] == (
     'independent-planner-trace-audit; not-accepted'
   )
-  assert len(planner['terminal_trace_validation']) == 3
+  assert len(planner['terminal_trace_validation']) == 5
   assert all(
     entry['boundary_kind'] == 'post-shock-field-perimeter'
     and entry['trace']['status'] == 'not_applicable'

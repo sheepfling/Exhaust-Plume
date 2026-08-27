@@ -1639,6 +1639,11 @@ class MocSolverGeneratedPostShockChainReference:
       'model': 'solver-generated-post-shock-chain-reference',
       'planning_only': True,
       'production_claim_allowed': False,
+      'claim_fidelity_ceiling': (
+        MocChainGeometryFidelity.RESOLVED_PLANAR_MOC.value
+      ),
+      'free_boundary_verified': False,
+      'physical_chain_promotion_allowed': False,
       'total_cell_count_including_seed': self.total_cell_count,
       'cell_axial_length_m': self.cell_axial_length_m,
       'shock_start_offset_m': self.shock_start_offset_m,

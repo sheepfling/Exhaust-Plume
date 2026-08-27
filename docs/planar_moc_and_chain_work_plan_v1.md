@@ -159,6 +159,10 @@ not wait on this research closure.
   returns no extrapolated value outside the assembled cells. This makes the
   open downstream domain usable as a typed solver interface while keeping
   physical closure and chain promotion blocked.
+- Extended the caustic-family band with bounded axial/transverse extents and
+  an explicit no-extrapolation state-sampling capability report. Shock-coupling
+  adapters now require that capability before sampling the restarted field,
+  keeping a converged status from standing in for an actual usable domain.
 - Added a bounded next-shock coupling adapter for that open zone. It
   independently resamples the generated shock path, preserves the exact
   first missing sample and last valid upstream state, and returns a typed
@@ -1260,7 +1264,9 @@ Only after MOC-1 through MOC-5 pass:
   handoff depth without changing ``free_boundary_verified=false`` or allowing
   physical chain promotion. The standalone primitive artifact exercises a
   five-cell instance; the default three-cell fixture remains the compact unit
-  test case.
+  test case. The solver-generated reference now exercises the same five-cell
+  depth, with its local resolved-planar-MOC geometry ceiling reported
+  separately from its explicit-reference/free-boundary boundary.
 - Added an independent ``op.moc.chain-planner`` audit for continued-cell
   traces. It reconstructs each cell's topology, sequence position, exact
   state/total-pressure handoff, returned-cell correspondence, typed terminal

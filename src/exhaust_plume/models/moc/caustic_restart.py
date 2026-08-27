@@ -250,6 +250,50 @@ class MocCausticFamilyBandResult:
   def step_count(self) -> int:
     return max(0, min(len(self.centerline_states), len(self.boundary_states)) - 1)
 
+  def _domain_points(self) -> tuple[tuple[float, float], ...]:
+    """Return the mesh vertices that bound the sampled family band."""
+
+    return tuple(
+      (float(point[0]), float(point[1]))
+      for cell in self.cells
+      for point in cell.vertices_xr_m
+    )
+
+  @property
+  def domain_x_extent_m(self) -> tuple[float, float] | None:
+    """Return the bounded axial extent available to state sampling."""
+
+    points = self._domain_points()
+    if not points:
+      return None
+    x_values = tuple(point[0] for point in points)
+    return min(x_values), max(x_values)
+
+  @property
+  def domain_y_extent_m(self) -> tuple[float, float] | None:
+    """Return the bounded transverse extent available to state sampling."""
+
+    points = self._domain_points()
+    if not points:
+      return None
+    y_values = tuple(point[1] for point in points)
+    return min(y_values), max(y_values)
+
+  @property
+  def state_sampling_available(self) -> bool:
+    """Whether bounded barycentric state/pressure sampling is available."""
+
+    return bool(
+      self.converged
+      and self.cells
+      and len(self.centerline_states) == len(self.boundary_states)
+      and len(self.centerline_states) >= 2
+      and isfinite(self.total_pressure_Pa)
+      and self.total_pressure_Pa > 0.0
+      and self.domain_x_extent_m is not None
+      and self.domain_y_extent_m is not None
+    )
+
   def state_at(
     self,
     point_m: tuple[float, float],
@@ -351,6 +395,10 @@ class MocCausticFamilyBandResult:
       'total_pressure_Pa': self.total_pressure_Pa,
       'step_count': self.step_count,
       'cell_count': self.cell_count,
+      'state_sampling_available': self.state_sampling_available,
+      'state_sampling_model': 'bounded-triangle-barycentric-no-extrapolation',
+      'domain_x_extent_m': self.domain_x_extent_m,
+      'domain_y_extent_m': self.domain_y_extent_m,
       'input_edge_points_m': [list(point) for point in self.input_edge_points_m],
       'output_edge_points_m': [list(point) for point in self.output_edge_points_m],
       'anchor_point_m': self.anchor_point_m,
