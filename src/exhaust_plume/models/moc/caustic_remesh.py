@@ -422,12 +422,16 @@ class MocCausticShockRemeshResult:
     characteristic field can be useful to a later research shock solve.
     """
 
+    field = None if self.shock is None else self.shock.field
     return bool(
       self.converged
       and self.remesh_seam_verified
       and self.shock is not None
-      and self.shock.field is not None
-      and self.shock.field.converged
+      and field is not None
+      and field.converged
+      and field.state_sampling_available
+      and field.domain_x_extent_m is not None
+      and field.domain_y_extent_m is not None
     )
 
   def as_bounded_downstream_field(self) -> MocPostShockCharacteristicFieldResult:
@@ -523,6 +527,21 @@ class MocCausticShockRemeshResult:
       'downstream_field_verified': self.downstream_field_verified,
       'remesh_seam_verified': self.remesh_seam_verified,
       'bounded_downstream_field_available': self.bounded_downstream_field_available,
+      'downstream_field_state_sampling_available': (
+        False
+        if self.shock is None or self.shock.field is None
+        else self.shock.field.state_sampling_available
+      ),
+      'downstream_field_domain_x_extent_m': (
+        None
+        if self.shock is None or self.shock.field is None
+        else self.shock.field.domain_x_extent_m
+      ),
+      'downstream_field_domain_y_extent_m': (
+        None
+        if self.shock is None or self.shock.field is None
+        else self.shock.field.domain_y_extent_m
+      ),
       'upstream_bridge_verified': self.upstream_bridge_verified,
       'upstream_bridge_audit': (
         None

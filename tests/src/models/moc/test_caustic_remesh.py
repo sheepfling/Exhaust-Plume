@@ -218,12 +218,29 @@ def test_caustic_remesh_generates_a_bounded_new_family_field() -> None:
   assert result.shock.field is not None
   assert result.bounded_downstream_field_available
   assert result.as_bounded_downstream_field() is result.shock.field
+  assert result.as_report()['downstream_field_state_sampling_available'] is True
+  assert result.as_report()['downstream_field_domain_x_extent_m'] == pytest.approx(
+    result.shock.field.domain_x_extent_m
+  )
   assert result.shock.field.incoming_handoff_states == tuple(
     sample.state for sample in current.continuation_boundary
   )
   decision = result.as_chain_termination_decision()
   assert decision.reason is MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
   assert decision.physical_termination is False
+
+  unsampleable_field = replace(
+    result.shock.field,
+    shock_boundary_states=(),
+    shock_boundary_total_pressure_Pa=(),
+  )
+  unsampleable_result = replace(
+    result,
+    shock=replace(result.shock, field=unsampleable_field),
+  )
+  assert unsampleable_result.bounded_downstream_field_available is False
+  with pytest.raises(ValueError, match='bounded downstream continuation field'):
+    unsampleable_result.as_bounded_downstream_field()
 
   planner = plan_caustic_shock_remesh_chain(
     current,

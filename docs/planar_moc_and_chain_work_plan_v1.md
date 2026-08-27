@@ -1312,6 +1312,10 @@ Only after MOC-1 through MOC-5 pass:
   result, so a higher-level shock/remesh report carries the same geometry and
   handoff data instead of exposing only `field_status`. This is an inspection
   API improvement; it does not change the solver's closure or promotion gates.
+- Tightened the caustic-remesh research handoff so its bounded downstream field
+  is exposed only when the returned field has state samples and finite axial
+  and transverse extents. A converged status alone can no longer make an
+  unsampleable field available to continued-cell probes.
 - The recovered validation archive is not a substitute for the missing
   provider-bound measurement/operator bindings.
 
