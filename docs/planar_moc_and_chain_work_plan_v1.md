@@ -540,6 +540,22 @@ not wait on this research closure.
   terminal and supersonic patch, produces an explicit physical-stop decision,
   and keeps chain promotion blocked; this is attachment/refinement evidence,
   not canonical mixed-regime acceptance.
+- Added a separate solver-owned
+  ``solver-owned-quasi-1d-ambient-free-boundary-reference`` planner lane. It
+  shoots an effective outlet height from the terminal subsonic total state and
+  an explicit ambient-pressure target, generates a finite
+  centerline/outlet/free-boundary perimeter, and attaches a scalar radial
+  field through the exact terminal-seam closure adapter. Its effective inlet
+  height, axial envelope, terminal regularization, and quasi-one-dimensional
+  model remain explicit assumptions; the result is a research reference for
+  planner/visualization work, not the canonical reflected-MOC free boundary
+  and not a next-cell seed.
+- Added an independent
+  ``op.moc.mixed-regime-free-boundary-reference`` measurement. It recomputes
+  the scalar height root, generated perimeter geometry, selected pressure and
+  tangency condition, radial field layout, and mass-flow residual. It records
+  the large two-dimensional velocity-divergence value as a diagnostic rather
+  than using it as a gate, making the reference's fidelity boundary explicit.
 - Added an independent MOC shock-cell measurement operator. It extracts
   shock/centerline boundaries, axial extent, boundary lengths, radius, mesh
   area, perimeter-area closure, and optional shock total-pressure loss only
@@ -1104,14 +1120,15 @@ Only after MOC-1 through MOC-5 pass:
   elliptic reference field validate the seam, mesh, and residual bookkeeping,
   but the canonical case still lacks a physically solved subsonic perimeter;
   the fixture attachment therefore cannot be used as canonical closure.
-- The mixed-regime reference now has a multi-ring mesh/refinement path, but it
-  still consumes a caller-supplied closed perimeter and uses a declared
-  harmonic scalar reference rather than a coupled nonlinear subsonic flow
-  solve. Its passing refinement sweep is therefore contract evidence only;
-  an unqualified field remains model-only, and a terminal can attach only a
-  field carrying the exact validated downstream condition. The canonical
-  terminal still has no physical downstream perimeter and no chain-promotion
-  path.
+- The mixed-regime reference now has a multi-ring mesh/refinement path, but its
+  general perimeter adapter still consumes a caller-supplied closed perimeter
+  and uses a declared harmonic scalar reference rather than a coupled
+  nonlinear subsonic flow solve. A separate solver-owned quasi-1D reference
+  can generate a finite ambient envelope for planner/visualization testing,
+  but its explicit effective area model is not the canonical plume boundary.
+  Both lanes remain contract evidence only; an unqualified field remains
+  model-only, and the canonical terminal still has no physical downstream
+  perimeter or chain-promotion path.
   The typed downstream-perimeter adapter now makes that caller-owned boundary
   and sample model explicit and reproducible, but it does not change the
   canonical status or promote the reference field into the supersonic chain.
@@ -1127,6 +1144,14 @@ Only after MOC-1 through MOC-5 pass:
   continuation. The canonical terminal therefore remains physically open and
   chain promotion remains blocked until a coupled downstream perimeter and
   compatible MOC/field handoff are solved.
+- The solver-owned quasi-1D free-boundary reference now supplies a generated
+  finite perimeter and an independently measured scalar radial field. Its
+  returned physical-closure flag is local to that declared model; it remains
+  ``production_claim_allowed=false`` and ``chain_promotion_blocked=true``.
+  The canonical reflected-MOC downstream field still needs a genuine
+  coupled free-boundary solve, with the reference's effective inlet height and
+  terminal regularization replaced by geometry and flux obtained from the
+  upstream solution.
 - The terminal-boundary graph audit confirms that the canonical terminal's
   four solver-owned supersonic paths join with zero reported residual, while
   no downstream path or physical downstream condition is supplied. A future

@@ -32,6 +32,20 @@ shock/ambient/centerline assembler attempt a state-carrying field. The bridge
 remains research-only and cannot change the basic visual, signature, ray, or
 focal-plane-array providers.
 
+The terminal mixed-regime lane also has a separate solver-owned
+``solver-owned-quasi-1d-ambient-free-boundary-reference``. It shoots a finite
+outlet height from the terminal subsonic total state and an explicit ambient
+pressure, then generates a scalar radial field with a typed physical-condition
+result. Its effective inlet height and downstream envelope are explicit model
+assumptions, so even a passing result is planner/visualization research
+evidence only: ``production_claim_allowed=false`` and
+``chain_promotion_blocked=true`` remain mandatory. The canonical reflected-MOC
+free boundary still requires a coupled downstream geometry/flux solve and
+external validation. An independent
+``op.moc.mixed-regime-free-boundary-reference`` measurement rechecks that
+reference and reports its large embedded 2-D divergence diagnostic without
+using it as a full-flow acceptance gate.
+
 ## Planar MOC foundation
 
 The first high-fidelity tranche is isolated in

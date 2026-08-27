@@ -12,6 +12,7 @@ from exhaust_plume.models.moc import (
   MocMixedRegimeDownstreamConditionStatus,
   MocMixedRegimeFieldSample,
   MocPrescribedMixedRegimeClosureMock,
+  MocSolverGeneratedMixedRegimeClosureReference,
   MocTerminalBoundaryGraphStatus,
   MocChainTerminationReason,
   assemble_ambient_shock_characteristic_strip,
@@ -21,6 +22,7 @@ from exhaust_plume.models.moc import (
   march_post_shock_ambient_boundary,
   plan_first_cell_terminal_closure,
   plan_prescribed_first_cell_terminal_closure_mock,
+  plan_solver_generated_first_cell_terminal_closure_reference,
   solve_mixed_regime_subsonic_field,
   solve_marched_first_cell_terminal_closure,
   solve_marched_attached_shock_field,
@@ -323,6 +325,46 @@ def test_first_cell_terminal_planner_preserves_open_boundary_without_solver() ->
   assert planner.termination is not None
   assert planner.termination.reason is MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
   assert planner.diagnostics['mixed_regime_solver_supplied'] is False
+
+
+def test_first_cell_terminal_planner_keeps_solver_generated_free_boundary_separate_from_mock() -> None:
+  shock_fit, strip, patch = _first_cell_inputs()
+  composite = assemble_first_cell_composite(
+    shock_fit,
+    strip,
+    patch,
+    position_tolerance_m=1.0e-3,
+  )
+  terminal = solve_marched_first_cell_terminal_closure(
+    composite,
+    downstream_flow_angle_rad=0.0,
+    sample_count=17,
+    shock_position_tolerance_m=2.0e-4,
+  )
+  assert terminal.terminal_field is not None
+  assert terminal.terminal_field.terminal_normal_shock is not None
+
+  planner = plan_solver_generated_first_cell_terminal_closure_reference(
+    terminal,
+    solver=MocSolverGeneratedMixedRegimeClosureReference(
+      ambient_pressure_Pa=(
+        0.8 * terminal.terminal_field.terminal_normal_shock.downstream_pressure_Pa
+      ),
+    ),
+  )
+
+  assert planner.planner_kind.value == 'upstream-coupled-research'
+  assert planner.production_claim_allowed is False
+  assert planner.resolved
+  assert planner.physical_closure_verified
+  assert planner.physical_termination
+  assert planner.chain_promotion_blocked
+  assert planner.mixed_regime_closure is not None
+  assert planner.mixed_regime_closure.converged
+  assert planner.diagnostics['solver_generated_mixed_regime_reference']['planning_only'] is True
+  free_boundary = planner.diagnostics['solver_generated_mixed_regime_result']
+  assert free_boundary['converged'] is True
+  assert free_boundary['production_claim_allowed'] is False
 
 
 def test_first_cell_terminal_closure_uses_the_explicit_perimeter_solver_seam() -> None:

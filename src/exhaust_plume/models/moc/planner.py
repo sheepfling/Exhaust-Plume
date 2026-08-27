@@ -61,10 +61,12 @@ from exhaust_plume.models.moc.mixed_regime import (
   MocMixedRegimeClosureResult,
   MocMixedRegimeDownstreamConditionKind,
   MocMixedRegimeDownstreamPerimeterSpec,
+  MocMixedRegimeFreeBoundaryResult,
   MocMixedRegimeFieldResult,
   MocMixedRegimeFieldSample,
   MocMixedRegimePerimeterRequest,
   solve_mixed_regime_downstream_perimeter,
+  solve_mixed_regime_downstream_free_boundary,
 )
 from exhaust_plume.models.moc.primitives import CharacteristicFamily, CharacteristicState
 from exhaust_plume.models.moc.source_strip import MocSourceStripContinuationResult
@@ -98,6 +100,7 @@ __all__ = (
   'MocChainPlannerResult',
   'MocFirstCellTerminalClosurePlannerResult',
   'MocPrescribedMixedRegimeClosureMock',
+  'MocSolverGeneratedMixedRegimeClosureReference',
   'MocPrescribedPostShockChainMock',
   'MocSolverGeneratedPostShockChainReference',
   'MocFieldCoupledPostShockChainReference',
@@ -126,6 +129,7 @@ __all__ = (
   'plan_ambient_closed_post_shock_chain',
   'plan_first_cell_terminal_closure',
   'plan_prescribed_first_cell_terminal_closure_mock',
+  'plan_solver_generated_first_cell_terminal_closure_reference',
 )
 
 
@@ -751,6 +755,120 @@ class MocPrescribedMixedRegimeClosureMock:
 
 
 @dataclass(frozen=True, slots=True)
+class MocSolverGeneratedMixedRegimeClosureReference:
+  """Planner fixture for the solver-owned downstream free-boundary lane.
+
+  Unlike :class:`MocPrescribedMixedRegimeClosureMock`, this reference does
+  not prescribe a rectangle or a constant state.  It shoots an effective
+  outlet height from the terminal subsonic total state and an explicit
+  ambient-pressure target, then submits the generated perimeter through the
+  real mixed-boundary and scalar-field gates.  The effective inlet height is
+  intentionally an input because a terminal point has no area information.
+  """
+
+  effective_inlet_height_m: float = 0.01
+  downstream_length_m: float = 0.05
+  ambient_pressure_Pa: float | None = None
+  ambient_pressure_ratio: float = 0.8
+  free_boundary_sample_count: int = 7
+  radial_divisions: int = 2
+  terminal_regularization_fraction: float = 0.05
+  maximum_iterations: int = 40
+  model: str = 'solver-owned-quasi-1d-ambient-free-boundary-reference'
+
+  def __post_init__(self) -> None:
+    for name, value in (
+      ('effective_inlet_height_m', self.effective_inlet_height_m),
+      ('downstream_length_m', self.downstream_length_m),
+      ('ambient_pressure_ratio', self.ambient_pressure_ratio),
+      ('terminal_regularization_fraction', self.terminal_regularization_fraction),
+    ):
+      if not isfinite(float(value)) or float(value) <= 0.0:
+        raise ValueError(f'{name} must be finite and positive')
+    if self.ambient_pressure_ratio >= 1.0:
+      raise ValueError('ambient_pressure_ratio must be less than one')
+    if self.ambient_pressure_Pa is not None and (
+      not isfinite(float(self.ambient_pressure_Pa))
+      or self.ambient_pressure_Pa <= 0.0
+    ):
+      raise ValueError('ambient_pressure_Pa must be finite and positive when supplied')
+    for name, value, minimum in (
+      ('free_boundary_sample_count', self.free_boundary_sample_count, 3),
+      ('radial_divisions', self.radial_divisions, 1),
+      ('maximum_iterations', self.maximum_iterations, 1),
+    ):
+      if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
+        raise ValueError(
+          f'{name} must be an integer greater than or equal to {minimum}'
+        )
+    if not 0.0 < self.terminal_regularization_fraction < 1.0:
+      raise ValueError(
+        'terminal_regularization_fraction must lie strictly between zero and one'
+      )
+    model = str(self.model)
+    if not model:
+      raise ValueError('model must be a non-empty string')
+    object.__setattr__(self, 'effective_inlet_height_m', float(self.effective_inlet_height_m))
+    object.__setattr__(self, 'downstream_length_m', float(self.downstream_length_m))
+    object.__setattr__(self, 'ambient_pressure_Pa', (
+      None
+      if self.ambient_pressure_Pa is None
+      else float(self.ambient_pressure_Pa)
+    ))
+    object.__setattr__(self, 'ambient_pressure_ratio', float(self.ambient_pressure_ratio))
+    object.__setattr__(self, 'terminal_regularization_fraction', float(self.terminal_regularization_fraction))
+    object.__setattr__(self, 'model', model)
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    return False
+
+  def _ambient_pressure(self, request: MocMixedRegimePerimeterRequest) -> float:
+    if self.ambient_pressure_Pa is not None:
+      return self.ambient_pressure_Pa
+    return self.ambient_pressure_ratio * request.terminal_downstream_pressure_Pa
+
+  def solve(
+    self,
+    request: MocMixedRegimePerimeterRequest,
+  ) -> MocMixedRegimeFreeBoundaryResult:
+    """Run the solver-owned reference against one exact terminal seam."""
+
+    if not isinstance(request, MocMixedRegimePerimeterRequest):
+      raise TypeError('request must be a MocMixedRegimePerimeterRequest')
+    return solve_mixed_regime_downstream_free_boundary(
+      request,
+      ambient_pressure_Pa=self._ambient_pressure(request),
+      effective_inlet_height_m=self.effective_inlet_height_m,
+      downstream_length_m=self.downstream_length_m,
+      free_boundary_sample_count=self.free_boundary_sample_count,
+      radial_divisions=self.radial_divisions,
+      terminal_regularization_fraction=self.terminal_regularization_fraction,
+      maximum_iterations=self.maximum_iterations,
+    )
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'model': self.model,
+      'planning_only': True,
+      'production_claim_allowed': self.production_claim_allowed,
+      'effective_inlet_height_m': self.effective_inlet_height_m,
+      'downstream_length_m': self.downstream_length_m,
+      'ambient_pressure_Pa': self.ambient_pressure_Pa,
+      'ambient_pressure_ratio': self.ambient_pressure_ratio,
+      'free_boundary_sample_count': self.free_boundary_sample_count,
+      'radial_divisions': self.radial_divisions,
+      'terminal_regularization_fraction': self.terminal_regularization_fraction,
+      'maximum_iterations': self.maximum_iterations,
+      'claim_status': (
+        'solver-owned-quasi-1d-free-boundary-reference; '
+        'canonical-reflected-moc-and-external-validation-pending'
+      ),
+    }
+  ####
+
+
+@dataclass(frozen=True, slots=True)
 class MocFirstCellTerminalClosurePlannerResult:
   """Planner/audit result for one first-cell terminal closure attempt.
 
@@ -853,6 +971,7 @@ def plan_first_cell_terminal_closure(
   terminal: MocFirstCellTerminalClosureResult,
   *,
   mock: MocPrescribedMixedRegimeClosureMock | None = None,
+  solver: MocSolverGeneratedMixedRegimeClosureReference | None = None,
   solve_field: Callable[
     [MocMixedRegimePerimeterRequest],
     MocMixedRegimeFieldResult | None,
@@ -861,11 +980,13 @@ def plan_first_cell_terminal_closure(
 ) -> MocFirstCellTerminalClosurePlannerResult:
   """Audit a first-cell terminal and optionally submit its exact scalar seam.
 
-  ``mock`` is the reusable rectangular pressure-outflow fixture.  A future
-  downstream solver can instead be supplied as ``solve_field``; in either
-  case the terminal object owns the request and the real mixed-regime adapter
-  owns seam acceptance.  Omitting both only audits the already-solved
-  supersonic terminal and preserves its open/physical decision.
+  ``mock`` is the reusable rectangular pressure-outflow fixture.  ``solver``
+  is the separate solver-owned quasi-one-dimensional free-boundary reference;
+  a future higher-fidelity downstream solver can instead be supplied as
+  ``solve_field``.  In every case the terminal object owns the request and the
+  real mixed-regime adapter owns seam acceptance.  Omitting all three only
+  audits the already-solved supersonic terminal and preserves its open/
+  physical decision.
   """
 
   if not isinstance(terminal, MocFirstCellTerminalClosureResult):
@@ -879,8 +1000,18 @@ def plan_first_cell_terminal_closure(
     raise TypeError(
       'mock must be a MocPrescribedMixedRegimeClosureMock or None'
     )
-  if mock is not None and solve_field is not None:
-    raise ValueError('supply either mock or solve_field, not both')
+  if solver is not None and not isinstance(
+    solver,
+    MocSolverGeneratedMixedRegimeClosureReference,
+  ):
+    raise TypeError(
+      'solver must be a MocSolverGeneratedMixedRegimeClosureReference or None'
+    )
+  supplied_solvers = sum(
+    value is not None for value in (mock, solver, solve_field)
+  )
+  if supplied_solvers > 1:
+    raise ValueError('supply only one of mock, solver, or solve_field')
   if solve_field is not None and not callable(solve_field):
     raise TypeError('solve_field must be callable when supplied')
 
@@ -891,19 +1022,22 @@ def plan_first_cell_terminal_closure(
   )
   diagnostics: dict[str, Any] = {
     'planner_model': 'first-cell-terminal-closure-planner',
-    'mixed_regime_solver_supplied': mock is not None or solve_field is not None,
+    'mixed_regime_solver_supplied': supplied_solvers == 1,
     'mixed_regime_closure_attached': False,
     'chain_promotion_blocked': terminal.chain_promotion_blocked,
     'terminal_physical_closure_verified': terminal.physical_closure_verified,
   }
   if mock is not None:
     diagnostics['prescribed_mixed_regime_closure_mock'] = mock.as_report()
+  elif solver is not None:
+    diagnostics['downstream_solver_model'] = solver.model
+    diagnostics['solver_generated_mixed_regime_reference'] = solver.as_report()
   elif solve_field is not None:
     diagnostics['downstream_solver_model'] = 'caller-supplied-mixed-regime-solver'
 
   mixed_regime_closure: MocMixedRegimeClosureResult | None = None
   attached_terminal = terminal
-  if mock is not None or solve_field is not None:
+  if supplied_solvers == 1:
     if terminal.terminal_field is None or not terminal.converged:
       diagnostics['mixed_regime_solver_skipped'] = (
         'terminal does not expose a converged supersonic field and exact seam'
@@ -914,6 +1048,16 @@ def plan_first_cell_terminal_closure(
           mixed_regime_closure = mock.solve(
             terminal.mixed_regime_perimeter_request()
           )
+        elif solver is not None:
+          free_boundary = solver.solve(
+            terminal.mixed_regime_perimeter_request()
+          )
+          diagnostics['solver_generated_mixed_regime_result'] = (
+            free_boundary.as_report()
+          )
+          mixed_regime_closure = free_boundary.closure
+          if mixed_regime_closure is None:
+            diagnostics['mixed_regime_closure_message'] = free_boundary.message
         else:
           assert solve_field is not None
           mixed_regime_closure = terminal.solve_mixed_regime_closure(solve_field)
@@ -922,8 +1066,10 @@ def plan_first_cell_terminal_closure(
       else:
         diagnostics['mixed_regime_closure_status'] = (
           mixed_regime_closure.status.value
+          if mixed_regime_closure is not None
+          else 'solver-owned-free-boundary-no-closure'
         )
-        if mixed_regime_closure.converged:
+        if mixed_regime_closure is not None and mixed_regime_closure.converged:
           try:
             attached_terminal = terminal.attach_mixed_regime_closure(
               mixed_regime_closure
@@ -932,7 +1078,7 @@ def plan_first_cell_terminal_closure(
             diagnostics['mixed_regime_closure_attachment_error'] = str(error)
           else:
             diagnostics['mixed_regime_closure_attached'] = True
-        else:
+        elif mixed_regime_closure is not None:
           diagnostics['mixed_regime_closure_message'] = (
             mixed_regime_closure.message
           )
@@ -961,6 +1107,11 @@ def plan_first_cell_terminal_closure(
       )
       if mock is not None
       else (
+        'solver-generated-mixed-regime-free-boundary-reference; '
+        'canonical-reflected-moc-and-external-validation-pending'
+      )
+      if solver is not None
+      else (
         'first-cell-terminal-closure-planner; '
         'canonical-downstream-free-boundary-and-external-validation-pending'
       )
@@ -982,6 +1133,22 @@ def plan_prescribed_first_cell_terminal_closure_mock(
     MocPrescribedMixedRegimeClosureMock() if mock is None else mock
   )
   return plan_first_cell_terminal_closure(terminal, mock=fixture)
+  ####
+
+
+def plan_solver_generated_first_cell_terminal_closure_reference(
+  terminal: MocFirstCellTerminalClosureResult,
+  *,
+  solver: MocSolverGeneratedMixedRegimeClosureReference | None = None,
+) -> MocFirstCellTerminalClosurePlannerResult:
+  """Run the solver-owned finite free-boundary planner reference."""
+
+  reference = (
+    MocSolverGeneratedMixedRegimeClosureReference()
+    if solver is None
+    else solver
+  )
+  return plan_first_cell_terminal_closure(terminal, solver=reference)
   ####
 
 

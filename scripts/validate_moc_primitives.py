@@ -25,6 +25,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocMixedRegimeBoundaryStatus,
   MocMixedRegimeDownstreamConditionKind,
   MocMixedRegimeFieldSample,
+  MocSolverGeneratedMixedRegimeClosureReference,
   MocInvariantClosureFamily,
   MocFreeBoundaryShockResult,
   MocPostShockClosureStatus,
@@ -128,6 +129,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   plan_caustic_remesh_downstream_field_chain,
   plan_caustic_remesh_downstream_field_invariant_chain,
   plan_prescribed_first_cell_terminal_closure_mock,
+  plan_solver_generated_first_cell_terminal_closure_reference,
   restart_characteristic_family_from_caustic,
   trace_caustic_family_band_forward_envelope,
   extend_source_characteristic_strip_centerline_reflection,
@@ -148,10 +150,12 @@ from exhaust_plume.models.moc import (  # noqa: E402
 from exhaust_plume.validation.moc_measurements import (  # noqa: E402
   MocCausticRemeshMeasurementStatus,
   MocCausticRemeshObservation,
+  MocMixedRegimeFreeBoundaryMeasurementStatus,
   MocTerminalClosureObservation,
   MocShockCellObservation,
   measure_moc_caustic_remesh,
   measure_moc_chain_planner,
+  measure_mixed_regime_free_boundary_reference,
   measure_mixed_regime_compressible_potential_field,
   measure_moc_terminal_closure,
   measure_moc_shock_cell,
@@ -586,6 +590,9 @@ def _ambient_shock_strip_probe(
   first_cell_composite_measurement = None
   first_cell_terminal_closure = None
   first_cell_terminal_closure_planner = None
+  first_cell_terminal_closure_free_boundary_planner = None
+  first_cell_terminal_closure_free_boundary_result = None
+  first_cell_terminal_closure_free_boundary_measurement = None
   if terminal_patch.converged:
     terminal_patch_shock_probe = solve_marched_attached_shock_from_terminal_reflection_patch(
       terminal_patch,
@@ -727,6 +734,33 @@ def _ambient_shock_strip_probe(
               first_cell_terminal_closure,
             )
           )
+          if (
+            first_cell_terminal_closure.terminal_field is not None
+            and first_cell_terminal_closure.terminal_field.terminal_normal_shock is not None
+            and first_cell_terminal_closure.terminal_field.terminal_normal_shock.downstream_pressure_Pa is not None
+          ):
+            free_boundary_solver = MocSolverGeneratedMixedRegimeClosureReference(
+              ambient_pressure_Pa=(
+                0.95
+                * first_cell_terminal_closure.terminal_field.terminal_normal_shock.downstream_pressure_Pa
+              ),
+            )
+            first_cell_terminal_closure_free_boundary_result = (
+              free_boundary_solver.solve(
+                first_cell_terminal_closure.mixed_regime_perimeter_request()
+              )
+            )
+            first_cell_terminal_closure_free_boundary_measurement = (
+              measure_mixed_regime_free_boundary_reference(
+                first_cell_terminal_closure_free_boundary_result,
+              )
+            )
+            first_cell_terminal_closure_free_boundary_planner = (
+              plan_solver_generated_first_cell_terminal_closure_reference(
+                first_cell_terminal_closure,
+                solver=free_boundary_solver,
+              )
+            )
   accepted = (
     strip.status is MocAmbientShockStripStatus.CONVERGED_OPEN
     and strip.topology.forms_closed_zone
@@ -795,6 +829,16 @@ def _ambient_shock_strip_probe(
       None
       if first_cell_terminal_closure_planner is None
       else first_cell_terminal_closure_planner.as_report()
+    ),
+    'first_cell_terminal_closure_free_boundary_planner': (
+      None
+      if first_cell_terminal_closure_free_boundary_planner is None
+      else first_cell_terminal_closure_free_boundary_planner.as_report()
+    ),
+    'first_cell_terminal_closure_free_boundary_measurement': (
+      None
+      if first_cell_terminal_closure_free_boundary_measurement is None
+      else first_cell_terminal_closure_free_boundary_measurement.as_report()
     ),
     'terminal_trace_acceptance_tolerance_m': 2.0e-4,
     'message': strip.message,
@@ -4902,6 +4946,72 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'status'
     ) != 'converged_mixed_regime_closure'
   )
+  first_cell_terminal_closure_free_boundary_planner_probe = (
+    ambient_shock_strip_probe.get(
+      'first_cell_terminal_closure_free_boundary_planner',
+    )
+  )
+  first_cell_terminal_closure_free_boundary_measurement_probe = (
+    ambient_shock_strip_probe.get(
+      'first_cell_terminal_closure_free_boundary_measurement',
+    )
+  )
+  first_cell_terminal_closure_free_boundary_planner_failure = (
+    not isinstance(first_cell_terminal_closure_free_boundary_planner_probe, dict)
+    or first_cell_terminal_closure_free_boundary_planner_probe.get('planner_kind')
+    != MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH.value
+    or first_cell_terminal_closure_free_boundary_planner_probe.get('planning_only')
+    is not True
+    or first_cell_terminal_closure_free_boundary_planner_probe.get(
+      'production_claim_allowed'
+    ) is not False
+    or first_cell_terminal_closure_free_boundary_planner_probe.get('resolved')
+    is not True
+    or first_cell_terminal_closure_free_boundary_planner_probe.get(
+      'physical_closure_verified'
+    ) is not True
+    or first_cell_terminal_closure_free_boundary_planner_probe.get(
+      'physical_termination'
+    ) is not True
+    or first_cell_terminal_closure_free_boundary_planner_probe.get(
+      'chain_promotion_blocked'
+    ) is not True
+    or not isinstance(
+      first_cell_terminal_closure_free_boundary_planner_probe.get(
+        'mixed_regime_closure'
+      ),
+      dict,
+    )
+    or first_cell_terminal_closure_free_boundary_planner_probe[
+      'mixed_regime_closure'
+    ].get('status') != 'converged_mixed_regime_closure'
+    or not isinstance(
+      first_cell_terminal_closure_free_boundary_planner_probe.get('diagnostics'),
+      dict,
+    )
+    or first_cell_terminal_closure_free_boundary_planner_probe['diagnostics'].get(
+      'solver_generated_mixed_regime_result',
+      {},
+    ).get('converged') is not True
+    or not isinstance(
+      first_cell_terminal_closure_free_boundary_measurement_probe,
+      dict,
+    )
+    or first_cell_terminal_closure_free_boundary_measurement_probe.get('status')
+    != MocMixedRegimeFreeBoundaryMeasurementStatus.CONVERGED.value
+    or first_cell_terminal_closure_free_boundary_measurement_probe.get(
+      'converged'
+    ) is not True
+    or first_cell_terminal_closure_free_boundary_measurement_probe.get(
+      'physical_closure_verified'
+    ) is not True
+    or first_cell_terminal_closure_free_boundary_measurement_probe.get(
+      'chain_promotion_blocked'
+    ) is not True
+    or first_cell_terminal_closure_free_boundary_measurement_probe.get(
+      'production_claim_allowed'
+    ) is not False
+  )
   caustic_family_restart_failure = (
     caustic_family_restart.get('accepted') is not True
   )
@@ -5435,6 +5545,45 @@ def build_moc_primitive_report() -> dict[str, Any]:
         ),
         'accepted': not first_cell_terminal_closure_planner_failure,
         'planner': first_cell_terminal_closure_planner_probe,
+      }
+    ),
+    'solver_generated_first_cell_terminal_closure_free_boundary_planner': (
+      {
+        'status': 'missing',
+        'accepted': False,
+        'planner': None,
+      }
+      if not isinstance(first_cell_terminal_closure_free_boundary_planner_probe, dict)
+      else {
+        'status': first_cell_terminal_closure_free_boundary_planner_probe.get(
+          'planner_kind',
+          'missing',
+        ),
+        'accepted': not first_cell_terminal_closure_free_boundary_planner_failure,
+        'planner': first_cell_terminal_closure_free_boundary_planner_probe,
+      }
+    ),
+    'solver_generated_first_cell_terminal_closure_free_boundary_measurement': (
+      {
+        'status': 'missing',
+        'accepted': False,
+        'measurement': None,
+      }
+      if not isinstance(
+        first_cell_terminal_closure_free_boundary_measurement_probe,
+        dict,
+      )
+      else {
+        'status': first_cell_terminal_closure_free_boundary_measurement_probe.get(
+          'status',
+          'missing',
+        ),
+        'accepted': (
+          first_cell_terminal_closure_free_boundary_measurement_probe.get(
+            'status'
+          ) == MocMixedRegimeFreeBoundaryMeasurementStatus.CONVERGED.value
+        ),
+        'measurement': first_cell_terminal_closure_free_boundary_measurement_probe,
       }
     ),
     'ambient_attachment_closure_probe': ambient_attachment_closure_probe,
@@ -6153,6 +6302,22 @@ def build_moc_primitive_report() -> dict[str, Any]:
         ),
       }
     ] if first_cell_terminal_closure_failure else []),
+    *([
+      {
+        'case': 'solver_generated_first_cell_terminal_closure_free_boundary_planner',
+        'status': (
+          'missing'
+          if not isinstance(first_cell_terminal_closure_free_boundary_planner_probe, dict)
+          else str(first_cell_terminal_closure_free_boundary_planner_probe.get('planner_kind', 'missing'))
+        ),
+        'message': (
+          'solver-owned downstream free-boundary reference did not pass its '
+          'height, condition, field, and exact-seam planner gates'
+          if not isinstance(first_cell_terminal_closure_free_boundary_planner_probe, dict)
+          else str(first_cell_terminal_closure_free_boundary_planner_probe.get('claim_status', ''))
+        ),
+      }
+    ] if first_cell_terminal_closure_free_boundary_planner_failure else []),
     *([
       {
         'case': 'ambient_attachment_closure_probe',

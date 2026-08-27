@@ -12,6 +12,7 @@ from exhaust_plume.models.moc import (
   MocMixedRegimeDownstreamConditionStatus,
   MocMixedRegimeFieldStatus,
   MocMixedRegimeFieldSample,
+  MocMixedRegimeFreeBoundaryStatus,
   MocMixedRegimePerimeterRequest,
   MocPrescribedMixedRegimeClosureMock,
   MocPostShockBoundaryState,
@@ -20,12 +21,15 @@ from exhaust_plume.models.moc import (
   solve_mixed_regime_compressible_potential_field,
   solve_mixed_regime_downstream_condition,
   solve_mixed_regime_downstream_perimeter,
+  solve_mixed_regime_downstream_free_boundary,
   solve_mixed_regime_subsonic_field,
   validate_mixed_regime_boundary,
   validate_mixed_regime_downstream_condition,
 )
 from exhaust_plume.validation.moc_measurements import (
+  MocMixedRegimeFreeBoundaryMeasurementStatus,
   MocMixedRegimePotentialMeasurementStatus,
+  measure_mixed_regime_free_boundary_reference,
   measure_mixed_regime_compressible_potential_field,
 )
 
@@ -895,3 +899,119 @@ def test_mixed_regime_boundary_rejects_total_pressure_gain() -> None:
   assert not result.converged
   assert result.terminal_continuity_verified
   assert not result.total_pressure_lineage_verified
+
+
+def test_downstream_condition_can_select_only_the_declared_boundary_edges() -> None:
+  terminal = _terminal()
+  boundary = validate_mixed_regime_boundary(
+    terminal,
+    _supersonic_patch(),
+    supersonic_patch_converged=True,
+    subsonic_samples=_samples(terminal),
+  )
+
+  result = validate_mixed_regime_downstream_condition(
+    boundary,
+    MocMixedRegimeDownstreamConditionKind.PRESSURE_OUTFLOW_SECTION,
+    ambient_pressure_Pa=terminal.downstream_pressure_Pa,
+    condition_edge_indices=(0,),
+    condition_sample_indices=(0, 1),
+  )
+
+  assert result.converged
+  assert result.condition_edge_indices == (0,)
+  assert result.condition_sample_indices == (0, 1)
+  assert result.pressure_residuals_Pa == (0.0, 0.0)
+
+
+def test_solver_owned_free_boundary_reference_shoots_height_and_closes_scalar_field() -> None:
+  terminal = _terminal()
+  request = MocMixedRegimePerimeterRequest(
+    terminal=terminal,
+    terminal_point_m=terminal.shock_point_m,
+    terminal_downstream_mach=terminal.downstream_mach,
+    terminal_downstream_flow_angle_rad=terminal.downstream_flow_angle_rad,
+    terminal_downstream_pressure_Pa=terminal.downstream_pressure_Pa,
+    terminal_downstream_total_pressure_Pa=terminal.downstream_total_pressure_Pa,
+    terminal_total_pressure_ratio=terminal.total_pressure_ratio,
+    supersonic_patch=_supersonic_patch(),
+  )
+
+  result = solve_mixed_regime_downstream_free_boundary(
+    request,
+    ambient_pressure_Pa=0.8 * terminal.downstream_pressure_Pa,
+    effective_inlet_height_m=0.01,
+    downstream_length_m=0.05,
+    free_boundary_sample_count=7,
+    radial_divisions=2,
+  )
+
+  assert result.status is MocMixedRegimeFreeBoundaryStatus.CONVERGED_REFERENCE
+  assert result.converged
+  assert result.physical_closure_verified
+  assert result.field is not None
+  assert result.field.model == 'solver-owned-subsonic-free-boundary-reference'
+  assert result.field.mixed_regime_field_complete
+  assert result.field.chain_promotion_blocked
+  assert result.field.maximum_mass_conservation_residual is not None
+  assert result.field.maximum_mass_conservation_residual <= 1.0e-8
+  assert result.downstream_condition is not None
+  assert result.downstream_condition.condition_edge_indices
+  assert result.downstream_condition.condition_sample_indices
+  assert result.iteration_count > 0
+  assert result.pressure_residual_Pa is not None
+  assert result.pressure_residual_Pa <= 1.0e-8 * terminal.downstream_pressure_Pa
+  assert result.production_claim_allowed is False
+  assert result.chain_promotion_blocked
+
+
+def test_independent_free_boundary_measurement_rechecks_the_reference_lane() -> None:
+  terminal = _terminal()
+  request = MocMixedRegimePerimeterRequest(
+    terminal=terminal,
+    terminal_point_m=terminal.shock_point_m,
+    terminal_downstream_mach=terminal.downstream_mach,
+    terminal_downstream_flow_angle_rad=terminal.downstream_flow_angle_rad,
+    terminal_downstream_pressure_Pa=terminal.downstream_pressure_Pa,
+    terminal_downstream_total_pressure_Pa=terminal.downstream_total_pressure_Pa,
+    terminal_total_pressure_ratio=terminal.total_pressure_ratio,
+    supersonic_patch=_supersonic_patch(),
+  )
+  result = solve_mixed_regime_downstream_free_boundary(
+    request,
+    ambient_pressure_Pa=0.8 * terminal.downstream_pressure_Pa,
+    effective_inlet_height_m=0.01,
+    downstream_length_m=0.05,
+    free_boundary_sample_count=7,
+    radial_divisions=2,
+  )
+
+  measurement = measure_mixed_regime_free_boundary_reference(result)
+
+  assert measurement.status is MocMixedRegimeFreeBoundaryMeasurementStatus.CONVERGED
+  assert measurement.converged
+  assert measurement.request_verified
+  assert measurement.perimeter_spec_verified
+  assert measurement.boundary_verified
+  assert measurement.downstream_condition_verified
+  assert measurement.closure_verified
+  assert measurement.field_model_verified
+  assert measurement.field_layout_verified
+  assert measurement.scalar_root_verified
+  assert measurement.mass_flow_verified
+  assert measurement.physical_closure_verified
+  assert measurement.chain_promotion_blocked
+  assert measurement.production_claim_allowed is False
+  assert measurement.maximum_velocity_divergence_residual is not None
+  assert measurement.maximum_velocity_divergence_residual > 1.0
+
+  assert result.outlet_height_m is not None
+  tampered = replace(
+    result,
+    outlet_height_m=result.outlet_height_m * 1.1,
+  )
+  tampered_measurement = measure_mixed_regime_free_boundary_reference(tampered)
+
+  assert tampered_measurement.status is not MocMixedRegimeFreeBoundaryMeasurementStatus.CONVERGED
+  assert not tampered_measurement.converged
+  assert not tampered_measurement.scalar_root_verified
