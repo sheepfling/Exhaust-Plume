@@ -6189,6 +6189,1420 @@
         "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=0.15275948233295278"
       },
       "ambient_axis_closure_probe_accepted": true,
+      "ambient_axis_closure_shoot": {
+        "status": "ambient_axis_bracket_failure",
+        "converged": false,
+        "axis_pressure_closure_verified": false,
+        "physical_closure_verified": false,
+        "chain_promotion_blocked": true,
+        "selected_parameter": 0.8,
+        "selected_start_point_m": [
+          0.8,
+          0.5
+        ],
+        "parameter_bracket": [
+          0.7,
+          0.8
+        ],
+        "outer_flow_angle_bracket": [
+          0.02,
+          0.12
+        ],
+        "ambient_pressure_Pa": 212165.99747295334,
+        "attachment": {
+          "status": "converged_ambient_attachment_open_strip",
+          "converged": true,
+          "physical_closure_verified": false,
+          "chain_promotion_blocked": true,
+          "ambient_pressure_Pa": 212165.99747295334,
+          "outer_downstream_flow_angle_rad": 0.05000000119209288,
+          "outer_flow_angle_bracket": [
+            0.02,
+            0.12
+          ],
+          "attachment_pressure_residual": 3.4163352213004437e-09,
+          "shooting_iterations": 24,
+          "shock": {
+            "status": "converged_free_boundary_field",
+            "converged": true,
+            "physical_closure_verified": true,
+            "subsonic_terminal_required": false,
+            "sample_count": 9,
+            "endpoint_m": [
+              1.1618464888339088,
+              0.0
+            ],
+            "maximum_shock_angle_residual_rad": 0.004048117003168539,
+            "field_status": "converged_closed",
+            "subsonic_boundary_verified": false,
+            "subsonic_shock_boundary": null,
+            "normal_shock_terminal": null,
+            "failed_sample_index": null,
+            "failed_point_m": null,
+            "message": "solver-generated attached-shock boundary reached the symmetry line and closed the post-shock characteristic field"
+          },
+          "ambient_march": {
+            "status": "converged_post_shock_ambient_boundary",
+            "converged": true,
+            "sample_count": 9,
+            "ambient_boundary": {
+              "status": "converged_ambient_pressure_boundary",
+              "converged": true,
+              "physical_closure_verified": true,
+              "sample_count": 9,
+              "ambient_pressure_Pa": 212165.99747295334,
+              "maximum_absolute_pressure_residual": 3.4163352213004437e-09,
+              "maximum_absolute_tangent_residual": 8.118505867571457e-16,
+              "message": ""
+            },
+            "maximum_geometry_residual_m": 1.2939470693841678e-16,
+            "maximum_absolute_pressure_residual": 3.4163352213004437e-09,
+            "maximum_absolute_invariant_residual": 0.0,
+            "message": "shock-sourced C+ characteristics generated an ambient-pressure, streamline-tangent C- boundary; downstream axis closure remains pending"
+          },
+          "strip": {
+            "status": "converged_open_shock_ambient_strip",
+            "converged": true,
+            "physical_closure_verified": false,
+            "chain_promotion_blocked": true,
+            "characteristic_layer_count": 8,
+            "node_count": 45,
+            "cell_count": 44,
+            "topology_forms_closed_zone": true,
+            "topology_status": "open",
+            "ambient_boundary": {
+              "status": "converged_ambient_pressure_boundary",
+              "converged": true,
+              "physical_closure_verified": true,
+              "sample_count": 9,
+              "ambient_pressure_Pa": 212165.99747295334,
+              "maximum_absolute_pressure_residual": 3.4163352213004437e-09,
+              "maximum_absolute_tangent_residual": 8.118505867571457e-16,
+              "message": ""
+            },
+            "shock_boundary_sample_count": 9,
+            "terminal_trace_sample_count": 10,
+            "terminal_trace_kind": "terminal-characteristic-trace",
+            "terminal_trace_family": "C+",
+            "terminal_trace_validation": {
+              "status": "geometry_failure",
+              "converged": false,
+              "family": "C+",
+              "sample_count": 10,
+              "maximum_absolute_invariant_residual": 1.01108010852613e-12,
+              "maximum_geometry_residual_m": 6.8249150040472495e-06,
+              "minimum_forward_margin_m": 0.06923175390828844,
+              "message": "trace segment 1 is not a forward C+ characteristic"
+            },
+            "source_families": {
+              "shock": "C+",
+              "ambient": "C-"
+            },
+            "maximum_geometry_residual_m": 1.6816877795508299e-16,
+            "maximum_absolute_invariant_residual": 1.1936840405013527e-12,
+            "minimum_post_shock_total_pressure_ratio": 0.9580676260850612,
+            "maximum_post_shock_total_pressure_ratio": 0.977473522728481,
+            "message": "shock-sourced C+ and ambient-sourced C- characteristics formed a connected physical-boundary strip; terminal centerline closure remains pending"
+          },
+          "downstream_condition_status": "linear-centerline-reference",
+          "message": "ambient shock attachment converged and produced a physical open shock/ambient strip; terminal centerline closure remains pending"
+        },
+        "axis_closure": {
+          "status": "ambient_axis_pressure_failure",
+          "converged": false,
+          "axis_candidate_verified": true,
+          "ambient_pressure_verified": false,
+          "physical_closure_verified": false,
+          "chain_promotion_blocked": true,
+          "source_boundary_point_m": [
+            1.772094211207191,
+            0.4980117767683771
+          ],
+          "axis_point_m": [
+            2.259252925032549,
+            0.0
+          ],
+          "axis_state": {
+            "x_m": 2.259252925032549,
+            "y_m": 0.0,
+            "theta_rad": 0.0,
+            "mach": 1.3875587424772675,
+            "gamma": 1.4
+          },
+          "axis_total_pressure_Pa": 764819.179280032,
+          "axis_static_pressure_Pa": 244576.36541557626,
+          "ambient_pressure_Pa": 212165.99747295334,
+          "pressure_residual_Pa": 32410.36794262292,
+          "relative_pressure_residual": 0.15275948233295278,
+          "axis_geometry_residual_m": 0.0,
+          "axis_invariant_residual": 5.67323965583455e-14,
+          "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=0.15275948233295278"
+        },
+        "closure_residual": 0.15275948233295278,
+        "shooting_iterations": 0,
+        "trial_count": 2,
+        "trials": [
+          {
+            "parameter": 0.7,
+            "start_point_m": [
+              0.7,
+              0.5
+            ],
+            "attachment_status": "converged_ambient_attachment_open_strip",
+            "attachment_converged": true,
+            "outer_downstream_flow_angle_rad": 0.05000000119209288,
+            "axis_closure": {
+              "status": "ambient_axis_pressure_failure",
+              "converged": false,
+              "axis_candidate_verified": true,
+              "ambient_pressure_verified": false,
+              "physical_closure_verified": false,
+              "chain_promotion_blocked": true,
+              "source_boundary_point_m": [
+                1.672094211207191,
+                0.49801177676837693
+              ],
+              "axis_point_m": [
+                2.1592529250325487,
+                0.0
+              ],
+              "axis_state": {
+                "x_m": 2.1592529250325487,
+                "y_m": 0.0,
+                "theta_rad": 0.0,
+                "mach": 1.3875587424772675,
+                "gamma": 1.4
+              },
+              "axis_total_pressure_Pa": 764819.179280032,
+              "axis_static_pressure_Pa": 244576.36541557626,
+              "ambient_pressure_Pa": 212165.99747295334,
+              "pressure_residual_Pa": 32410.36794262292,
+              "relative_pressure_residual": 0.15275948233295278,
+              "axis_geometry_residual_m": 3.1817348830337695e-17,
+              "axis_invariant_residual": 5.67323965583455e-14,
+              "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=0.15275948233295278"
+            },
+            "residual": 0.15275948233295278,
+            "converged": false,
+            "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=0.15275948233295278"
+          },
+          {
+            "parameter": 0.8,
+            "start_point_m": [
+              0.8,
+              0.5
+            ],
+            "attachment_status": "converged_ambient_attachment_open_strip",
+            "attachment_converged": true,
+            "outer_downstream_flow_angle_rad": 0.05000000119209288,
+            "axis_closure": {
+              "status": "ambient_axis_pressure_failure",
+              "converged": false,
+              "axis_candidate_verified": true,
+              "ambient_pressure_verified": false,
+              "physical_closure_verified": false,
+              "chain_promotion_blocked": true,
+              "source_boundary_point_m": [
+                1.772094211207191,
+                0.4980117767683771
+              ],
+              "axis_point_m": [
+                2.259252925032549,
+                0.0
+              ],
+              "axis_state": {
+                "x_m": 2.259252925032549,
+                "y_m": 0.0,
+                "theta_rad": 0.0,
+                "mach": 1.3875587424772675,
+                "gamma": 1.4
+              },
+              "axis_total_pressure_Pa": 764819.179280032,
+              "axis_static_pressure_Pa": 244576.36541557626,
+              "ambient_pressure_Pa": 212165.99747295334,
+              "pressure_residual_Pa": 32410.36794262292,
+              "relative_pressure_residual": 0.15275948233295278,
+              "axis_geometry_residual_m": 0.0,
+              "axis_invariant_residual": 5.67323965583455e-14,
+              "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=0.15275948233295278"
+            },
+            "residual": 0.15275948233295278,
+            "converged": false,
+            "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=0.15275948233295278"
+          }
+        ],
+        "message": "attachment-coordinate bracket does not straddle the signed axis-pressure residual: lower=0.15275948233295278, upper=0.15275948233295278"
+      },
+      "ambient_axis_closure_shoot_probe_accepted": true,
+      "ambient_axis_closure_shoot_reference": {
+        "status": "converged_ambient_axis_pressure",
+        "converged": true,
+        "axis_pressure_closure_verified": true,
+        "physical_closure_verified": false,
+        "chain_promotion_blocked": true,
+        "selected_parameter": 0.7325092792510988,
+        "selected_start_point_m": [
+          0.7325092792510988,
+          0.5
+        ],
+        "parameter_bracket": [
+          0.7325092315673829,
+          0.7325093269348145
+        ],
+        "outer_flow_angle_bracket": [
+          0.02,
+          0.12
+        ],
+        "ambient_pressure_Pa": 212165.99747295334,
+        "attachment": {
+          "status": "converged_ambient_attachment_open_strip",
+          "converged": true,
+          "physical_closure_verified": false,
+          "chain_promotion_blocked": true,
+          "ambient_pressure_Pa": 212165.99747295334,
+          "outer_downstream_flow_angle_rad": 0.03343925595283508,
+          "outer_flow_angle_bracket": [
+            0.02,
+            0.12
+          ],
+          "attachment_pressure_residual": -5.477961234253517e-09,
+          "shooting_iterations": 24,
+          "shock": {
+            "status": "converged_free_boundary_field",
+            "converged": true,
+            "physical_closure_verified": true,
+            "subsonic_terminal_required": false,
+            "sample_count": 9,
+            "endpoint_m": [
+              1.2121283016489806,
+              0.0
+            ],
+            "maximum_shock_angle_residual_rad": 0.009471911384933196,
+            "field_status": "converged_closed",
+            "subsonic_boundary_verified": false,
+            "subsonic_shock_boundary": null,
+            "normal_shock_terminal": null,
+            "failed_sample_index": null,
+            "failed_point_m": null,
+            "message": "solver-generated attached-shock boundary reached the symmetry line and closed the post-shock characteristic field"
+          },
+          "ambient_march": {
+            "status": "converged_post_shock_ambient_boundary",
+            "converged": true,
+            "sample_count": 9,
+            "ambient_boundary": {
+              "status": "converged_ambient_pressure_boundary",
+              "converged": true,
+              "physical_closure_verified": true,
+              "sample_count": 9,
+              "ambient_pressure_Pa": 212165.99747295334,
+              "maximum_absolute_pressure_residual": 5.4779613714283276e-09,
+              "maximum_absolute_tangent_residual": 4.124305064134859e-16,
+              "message": ""
+            },
+            "maximum_geometry_residual_m": 6.685127294089555e-17,
+            "maximum_absolute_pressure_residual": 5.4779613714283276e-09,
+            "maximum_absolute_invariant_residual": 0.0,
+            "message": "shock-sourced C+ characteristics generated an ambient-pressure, streamline-tangent C- boundary; downstream axis closure remains pending"
+          },
+          "strip": {
+            "status": "converged_open_shock_ambient_strip",
+            "converged": true,
+            "physical_closure_verified": false,
+            "chain_promotion_blocked": true,
+            "characteristic_layer_count": 8,
+            "node_count": 45,
+            "cell_count": 44,
+            "topology_forms_closed_zone": true,
+            "topology_status": "open",
+            "ambient_boundary": {
+              "status": "converged_ambient_pressure_boundary",
+              "converged": true,
+              "physical_closure_verified": true,
+              "sample_count": 9,
+              "ambient_pressure_Pa": 212165.99747295334,
+              "maximum_absolute_pressure_residual": 5.4779613714283276e-09,
+              "maximum_absolute_tangent_residual": 4.124305064134859e-16,
+              "message": ""
+            },
+            "shock_boundary_sample_count": 9,
+            "terminal_trace_sample_count": 10,
+            "terminal_trace_kind": "terminal-characteristic-trace",
+            "terminal_trace_family": "C+",
+            "terminal_trace_validation": {
+              "status": "geometry_failure",
+              "converged": false,
+              "family": "C+",
+              "sample_count": 10,
+              "maximum_absolute_invariant_residual": 1.1382006448457105e-12,
+              "maximum_geometry_residual_m": 0.0028852398057616357,
+              "minimum_forward_margin_m": 0.11344931802712332,
+              "message": "trace segment 1 is not a forward C+ characteristic"
+            },
+            "source_families": {
+              "shock": "C+",
+              "ambient": "C-"
+            },
+            "maximum_geometry_residual_m": 1.5031003952361722e-16,
+            "maximum_absolute_invariant_residual": 1.4180878693537124e-12,
+            "minimum_post_shock_total_pressure_ratio": 0.9580676264098396,
+            "maximum_post_shock_total_pressure_ratio": 0.9583047811807367,
+            "message": "shock-sourced C+ and ambient-sourced C- characteristics formed a connected physical-boundary strip; terminal centerline closure remains pending"
+          },
+          "downstream_condition_status": "linear-centerline-reference",
+          "message": "ambient shock attachment converged and produced a physical open shock/ambient strip; terminal centerline closure remains pending"
+        },
+        "axis_closure": {
+          "status": "converged_ambient_axis_candidate",
+          "converged": true,
+          "axis_candidate_verified": true,
+          "ambient_pressure_verified": true,
+          "physical_closure_verified": false,
+          "chain_promotion_blocked": true,
+          "source_boundary_point_m": [
+            2.2367087209949084,
+            0.5225167057894669
+          ],
+          "axis_point_m": [
+            3.261289141905369,
+            0.0
+          ],
+          "axis_state": {
+            "x_m": 3.261289141905369,
+            "y_m": 0.0,
+            "theta_rad": 0.0,
+            "mach": 2.2011268199512415,
+            "gamma": 1.4
+          },
+          "axis_total_pressure_Pa": 2272634.011598529,
+          "axis_static_pressure_Pa": 212165.99717244186,
+          "ambient_pressure_Pa": 212165.99747295334,
+          "pressure_residual_Pa": -0.00030051148496568203,
+          "relative_pressure_residual": -1.416397955115267e-09,
+          "axis_geometry_residual_m": 0.0,
+          "axis_invariant_residual": 9.050538096744276e-13,
+          "message": "final ambient C- sample reaches a centerline candidate and its carried static pressure matches ambient within tolerance; full physical downstream closure remains pending"
+        },
+        "closure_residual": -1.416397955115267e-09,
+        "shooting_iterations": 21,
+        "trial_count": 23,
+        "trials": [
+          {
+            "parameter": 0.7,
+            "start_point_m": [
+              0.7,
+              0.5
+            ],
+            "attachment_status": "converged_ambient_attachment_open_strip",
+            "attachment_converged": true,
+            "outer_downstream_flow_angle_rad": 0.03584371924400331,
+            "axis_closure": {
+              "status": "ambient_axis_pressure_failure",
+              "converged": false,
+              "axis_candidate_verified": true,
+              "ambient_pressure_verified": false,
+              "physical_closure_verified": false,
+              "chain_promotion_blocked": true,
+              "source_boundary_point_m": [
+                2.1749274985358995,
+                0.5213993150971576
+              ],
+              "axis_point_m": [
+                3.1692124471216916,
+                0.0
+              ],
+              "axis_state": {
+                "x_m": 3.1692124471216916,
+                "y_m": 0.0,
+                "theta_rad": 0.0,
+                "mach": 2.1557963945524534,
+                "gamma": 1.4
+              },
+              "axis_total_pressure_Pa": 2136065.1694847,
+              "axis_static_pressure_Pa": 214074.21531760163,
+              "ambient_pressure_Pa": 212165.99747295334,
+              "pressure_residual_Pa": 1908.2178446482867,
+              "relative_pressure_residual": 0.008993985216182174,
+              "axis_geometry_residual_m": 0.0,
+              "axis_invariant_residual": -9.965361869035405e-13,
+              "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=0.008993985216182174"
+            },
+            "residual": 0.008993985216182174,
+            "converged": false,
+            "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=0.008993985216182174"
+          },
+          {
+            "parameter": 0.8,
+            "start_point_m": [
+              0.8,
+              0.5
+            ],
+            "attachment_status": "converged_ambient_attachment_open_strip",
+            "attachment_converged": true,
+            "outer_downstream_flow_angle_rad": 0.028452802896499638,
+            "axis_closure": {
+              "status": "ambient_axis_pressure_failure",
+              "converged": false,
+              "axis_candidate_verified": true,
+              "ambient_pressure_verified": false,
+              "physical_closure_verified": false,
+              "chain_promotion_blocked": true,
+              "source_boundary_point_m": [
+                2.3629052048504833,
+                0.5246207461679734
+              ],
+              "axis_point_m": [
+                3.4499062500923228,
+                0.0
+              ],
+              "axis_state": {
+                "x_m": 3.4499062500923228,
+                "y_m": 0.0,
+                "theta_rad": 0.0,
+                "mach": 2.294233889435418,
+                "gamma": 1.4
+              },
+              "axis_total_pressure_Pa": 2580525.444347821,
+              "axis_static_pressure_Pa": 208241.6537078226,
+              "ambient_pressure_Pa": 212165.99747295334,
+              "pressure_residual_Pa": -3924.343765130732,
+              "relative_pressure_residual": -0.018496572551079976,
+              "axis_geometry_residual_m": 0.0,
+              "axis_invariant_residual": -1.433297924791077e-12,
+              "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=-0.018496572551079976"
+            },
+            "residual": -0.018496572551079976,
+            "converged": false,
+            "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=-0.018496572551079976"
+          },
+          {
+            "parameter": 0.75,
+            "start_point_m": [
+              0.75,
+              0.5
+            ],
+            "attachment_status": "converged_ambient_attachment_open_strip",
+            "attachment_converged": true,
+            "outer_downstream_flow_angle_rad": 0.03214488744735719,
+            "axis_closure": {
+              "status": "ambient_axis_pressure_failure",
+              "converged": false,
+              "axis_candidate_verified": true,
+              "ambient_pressure_verified": false,
+              "physical_closure_verified": false,
+              "chain_promotion_blocked": true,
+              "source_boundary_point_m": [
+                2.269674750435353,
+                0.5230891879825081
+              ],
+              "axis_point_m": [
+                3.3104897746266326,
+                0.0
+              ],
+              "axis_state": {
+                "x_m": 3.3104897746266326,
+                "y_m": 0.0,
+                "theta_rad": 0.0,
+                "mach": 2.2253813665629423,
+                "gamma": 1.4
+              },
+              "axis_total_pressure_Pa": 2349196.3464484313,
+              "axis_static_pressure_Pa": 211144.0420903342,
+              "ambient_pressure_Pa": 212165.99747295334,
+              "pressure_residual_Pa": -1021.9553826191404,
+              "relative_pressure_residual": -0.004816772691153859,
+              "axis_geometry_residual_m": 0.0,
+              "axis_invariant_residual": 7.593925488436071e-13,
+              "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=-0.004816772691153859"
+            },
+            "residual": -0.004816772691153859,
+            "converged": false,
+            "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=-0.004816772691153859"
+          },
+          {
+            "parameter": 0.725,
+            "start_point_m": [
+              0.725,
+              0.5
+            ],
+            "attachment_status": "converged_ambient_attachment_open_strip",
+            "attachment_converged": true,
+            "outer_downstream_flow_angle_rad": 0.03399497985839844,
+            "axis_closure": {
+              "status": "ambient_axis_pressure_failure",
+              "converged": false,
+              "axis_candidate_verified": true,
+              "ambient_pressure_verified": false,
+              "physical_closure_verified": false,
+              "chain_promotion_blocked": true,
+              "source_boundary_point_m": [
+                2.2224973898304548,
+                0.5222648433781281
+              ],
+              "axis_point_m": [
+                3.2400942661034033,
+                0.0
+              ],
+              "axis_state": {
+                "x_m": 3.2400942661034033,
+                "y_m": 0.0,
+                "theta_rad": 0.0,
+                "mach": 2.1906853312975727,
+                "gamma": 1.4
+              },
+              "axis_total_pressure_Pa": 2240433.4721881617,
+              "axis_static_pressure_Pa": 212605.77607405497,
+              "ambient_pressure_Pa": 212165.99747295334,
+              "pressure_residual_Pa": 439.77860110162874,
+              "relative_pressure_residual": 0.0020728043434843565,
+              "axis_geometry_residual_m": 0.0,
+              "axis_invariant_residual": 1.2223555501122974e-12,
+              "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=0.0020728043434843565"
+            },
+            "residual": 0.0020728043434843565,
+            "converged": false,
+            "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=0.0020728043434843565"
+          },
+          {
+            "parameter": 0.7375,
+            "start_point_m": [
+              0.7375,
+              0.5
+            ],
+            "attachment_status": "converged_ambient_attachment_open_strip",
+            "attachment_converged": true,
+            "outer_downstream_flow_angle_rad": 0.03306989789009093,
+            "axis_closure": {
+              "status": "ambient_axis_pressure_failure",
+              "converged": false,
+              "axis_candidate_verified": true,
+              "ambient_pressure_verified": false,
+              "physical_closure_verified": false,
+              "chain_promotion_blocked": true,
+              "source_boundary_point_m": [
+                2.2461342740563843,
+                0.5226820640982595
+              ],
+              "axis_point_m": [
+                3.2753514427664085,
+                0.0
+              ],
+              "axis_state": {
+                "x_m": 3.2753514427664085,
+                "y_m": 0.0,
+                "theta_rad": 0.0,
+                "mach": 2.208056819394187,
+                "gamma": 1.4
+              },
+              "axis_total_pressure_Pa": 2294256.053880315,
+              "axis_static_pressure_Pa": 211874.05511066102,
+              "ambient_pressure_Pa": 212165.99747295334,
+              "pressure_residual_Pa": -291.94236229232047,
+              "relative_pressure_residual": -0.0013760091898304154,
+              "axis_geometry_residual_m": 0.0,
+              "axis_invariant_residual": -3.3373304120232206e-13,
+              "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=-0.0013760091898304154"
+            },
+            "residual": -0.0013760091898304154,
+            "converged": false,
+            "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=-0.0013760091898304154"
+          },
+          {
+            "parameter": 0.73125,
+            "start_point_m": [
+              0.73125,
+              0.5
+            ],
+            "attachment_status": "converged_ambient_attachment_open_strip",
+            "attachment_converged": true,
+            "outer_downstream_flow_angle_rad": 0.033532453775405875,
+            "axis_closure": {
+              "status": "ambient_axis_pressure_failure",
+              "converged": false,
+              "axis_candidate_verified": true,
+              "ambient_pressure_verified": false,
+              "physical_closure_verified": false,
+              "chain_promotion_blocked": true,
+              "source_boundary_point_m": [
+                2.2343279874741193,
+                0.5224747273662184
+              ],
+              "axis_point_m": [
+                3.2577378746847083,
+                0.0
+              ],
+              "axis_state": {
+                "x_m": 3.2577378746847083,
+                "y_m": 0.0,
+                "theta_rad": 0.0,
+                "mach": 2.1993770216922712,
+                "gamma": 1.4
+              },
+              "axis_total_pressure_Pa": 2267206.25152428,
+              "axis_static_pressure_Pa": 212239.70400873024,
+              "ambient_pressure_Pa": 212165.99747295334,
+              "pressure_residual_Pa": 73.70653577690246,
+              "relative_pressure_residual": 0.00034740032170469954,
+              "axis_geometry_residual_m": 0.0,
+              "axis_invariant_residual": 5.018208071305708e-13,
+              "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=0.00034740032170469954"
+            },
+            "residual": 0.00034740032170469954,
+            "converged": false,
+            "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=0.00034740032170469954"
+          },
+          {
+            "parameter": 0.734375,
+            "start_point_m": [
+              0.734375,
+              0.5
+            ],
+            "attachment_status": "converged_ambient_attachment_open_strip",
+            "attachment_converged": true,
+            "outer_downstream_flow_angle_rad": 0.03330117583274841,
+            "axis_closure": {
+              "status": "ambient_axis_pressure_failure",
+              "converged": false,
+              "axis_candidate_verified": true,
+              "ambient_pressure_verified": false,
+              "physical_closure_verified": false,
+              "chain_promotion_blocked": true,
+              "source_boundary_point_m": [
+                2.2402341552856297,
+                0.5225787118270224
+              ],
+              "axis_point_m": [
+                3.266548390373344,
+                0.0
+              ],
+              "axis_state": {
+                "x_m": 3.266548390373344,
+                "y_m": 0.0,
+                "theta_rad": 0.0,
+                "mach": 2.203718397580815,
+                "gamma": 1.4
+              },
+              "axis_total_pressure_Pa": 2280696.3764020326,
+              "axis_static_pressure_Pa": 212056.8264046558,
+              "ambient_pressure_Pa": 212165.99747295334,
+              "pressure_residual_Pa": -109.17106829755357,
+              "relative_pressure_residual": -0.0005145549692121169,
+              "axis_geometry_residual_m": 0.0,
+              "axis_invariant_residual": 1.4765966227514582e-13,
+              "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=-0.0005145549692121169"
+            },
+            "residual": -0.0005145549692121169,
+            "converged": false,
+            "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=-0.0005145549692121169"
+          },
+          {
+            "parameter": 0.7328125,
+            "start_point_m": [
+              0.7328125,
+              0.5
+            ],
+            "attachment_status": "converged_ambient_attachment_open_strip",
+            "attachment_converged": true,
+            "outer_downstream_flow_angle_rad": 0.03341681480407714,
+            "axis_closure": {
+              "status": "ambient_axis_pressure_failure",
+              "converged": false,
+              "axis_candidate_verified": true,
+              "ambient_pressure_verified": false,
+              "physical_closure_verified": false,
+              "chain_promotion_blocked": true,
+              "source_boundary_point_m": [
+                2.237281828512254,
+                0.5225267983216578
+              ],
+              "axis_point_m": [
+                3.262144066590925,
+                0.0
+              ],
+              "axis_state": {
+                "x_m": 3.262144066590925,
+                "y_m": 0.0,
+                "theta_rad": 0.0,
+                "mach": 2.201548080358407,
+                "gamma": 1.4
+              },
+              "axis_total_pressure_Pa": 2273942.6393421413,
+              "axis_static_pressure_Pa": 212148.25193922818,
+              "ambient_pressure_Pa": 212165.99747295334,
+              "pressure_residual_Pa": -17.745533725159476,
+              "relative_pressure_residual": -8.36398571709006e-05,
+              "axis_geometry_residual_m": 0.0,
+              "axis_invariant_residual": -8.222311720373909e-13,
+              "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=-8.36398571709006e-05"
+            },
+            "residual": -8.36398571709006e-05,
+            "converged": false,
+            "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=-8.36398571709006e-05"
+          },
+          {
+            "parameter": 0.7320312499999999,
+            "start_point_m": [
+              0.7320312499999999,
+              0.5
+            ],
+            "attachment_status": "converged_ambient_attachment_open_strip",
+            "attachment_converged": true,
+            "outer_downstream_flow_angle_rad": 0.03347463726997375,
+            "axis_closure": {
+              "status": "ambient_axis_pressure_failure",
+              "converged": false,
+              "axis_candidate_verified": true,
+              "ambient_pressure_verified": false,
+              "physical_closure_verified": false,
+              "chain_promotion_blocked": true,
+              "source_boundary_point_m": [
+                2.235805102476147,
+                0.5225007862828408
+              ],
+              "axis_point_m": [
+                3.259941215691687,
+                0.0
+              ],
+              "axis_state": {
+                "x_m": 3.259941215691687,
+                "y_m": 0.0,
+                "theta_rad": 0.0,
+                "mach": 2.2004626420912246,
+                "gamma": 1.4
+              },
+              "axis_total_pressure_Pa": 2270572.273616826,
+              "axis_static_pressure_Pa": 212193.97473461862,
+              "ambient_pressure_Pa": 212165.99747295334,
+              "pressure_residual_Pa": 27.977261665277183,
+              "relative_pressure_residual": 0.00013186496421908366,
+              "axis_geometry_residual_m": 0.0,
+              "axis_invariant_residual": 8.286704655802168e-13,
+              "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=0.00013186496421908366"
+            },
+            "residual": 0.00013186496421908366,
+            "converged": false,
+            "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=0.00013186496421908366"
+          },
+          {
+            "parameter": 0.732421875,
+            "start_point_m": [
+              0.732421875,
+              0.5
+            ],
+            "attachment_status": "converged_ambient_attachment_open_strip",
+            "attachment_converged": true,
+            "outer_downstream_flow_angle_rad": 0.03344572901725769,
+            "axis_closure": {
+              "status": "ambient_axis_pressure_failure",
+              "converged": false,
+              "axis_candidate_verified": true,
+              "ambient_pressure_verified": false,
+              "physical_closure_verified": false,
+              "chain_promotion_blocked": true,
+              "source_boundary_point_m": [
+                2.236543517910164,
+                0.5225138010147472
+              ],
+              "axis_point_m": [
+                3.2610427109429514,
+                0.0
+              ],
+              "axis_state": {
+                "x_m": 3.2610427109429514,
+                "y_m": 0.0,
+                "theta_rad": 0.0,
+                "mach": 2.201005382616131,
+                "gamma": 1.4
+              },
+              "axis_total_pressure_Pa": 2272256.909023963,
+              "axis_static_pressure_Pa": 212171.11258404047,
+              "ambient_pressure_Pa": 212165.99747295334,
+              "pressure_residual_Pa": 5.115111087128753,
+              "relative_pressure_residual": 2.41090049680596e-05,
+              "axis_geometry_residual_m": 0.0,
+              "axis_invariant_residual": -2.3647750424515834e-13,
+              "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=2.41090049680596e-05"
+            },
+            "residual": 2.41090049680596e-05,
+            "converged": false,
+            "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=2.41090049680596e-05"
+          },
+          {
+            "parameter": 0.7326171875,
+            "start_point_m": [
+              0.7326171875,
+              0.5
+            ],
+            "attachment_status": "converged_ambient_attachment_open_strip",
+            "attachment_converged": true,
+            "outer_downstream_flow_angle_rad": 0.03343127489089966,
+            "axis_closure": {
+              "status": "ambient_axis_pressure_failure",
+              "converged": false,
+              "axis_candidate_verified": true,
+              "ambient_pressure_verified": false,
+              "physical_closure_verified": false,
+              "chain_promotion_blocked": true,
+              "source_boundary_point_m": [
+                2.2369126901241208,
+                0.5225203046949807
+              ],
+              "axis_point_m": [
+                3.2615934147710295,
+                0.0
+              ],
+              "axis_state": {
+                "x_m": 3.2615934147710295,
+                "y_m": 0.0,
+                "theta_rad": 0.0,
+                "mach": 2.2012767354790412,
+                "gamma": 1.4
+              },
+              "axis_total_pressure_Pa": 2273099.6330826264,
+              "axis_static_pressure_Pa": 212159.68213095158,
+              "ambient_pressure_Pa": 212165.99747295334,
+              "pressure_residual_Pa": -6.315342001762474,
+              "relative_pressure_residual": -2.9766042047183107e-05,
+              "axis_geometry_residual_m": 4.833087657686053e-17,
+              "axis_invariant_residual": -1.5085710458606627e-12,
+              "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=-2.9766042047183107e-05"
+            },
+            "residual": -2.9766042047183107e-05,
+            "converged": false,
+            "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=-2.9766042047183107e-05"
+          },
+          {
+            "parameter": 0.73251953125,
+            "start_point_m": [
+              0.73251953125,
+              0.5
+            ],
+            "attachment_status": "converged_ambient_attachment_open_strip",
+            "attachment_converged": true,
+            "outer_downstream_flow_angle_rad": 0.033438498973846445,
+            "axis_closure": {
+              "status": "ambient_axis_pressure_failure",
+              "converged": false,
+              "axis_candidate_verified": true,
+              "ambient_pressure_verified": false,
+              "physical_closure_verified": false,
+              "chain_promotion_blocked": true,
+              "source_boundary_point_m": [
+                2.236728101896932,
+                0.5225170493655503
+              ],
+              "axis_point_m": [
+                3.261318055104245,
+                0.0
+              ],
+              "axis_state": {
+                "x_m": 3.261318055104245,
+                "y_m": 0.0,
+                "theta_rad": 0.0,
+                "mach": 2.201141062299939,
+                "gamma": 1.4
+              },
+              "axis_total_pressure_Pa": 2272678.2427772456,
+              "axis_static_pressure_Pa": 212165.39722925363,
+              "ambient_pressure_Pa": 212165.99747295334,
+              "pressure_residual_Pa": -0.6002436997077893,
+              "relative_pressure_residual": -2.829122983216515e-06,
+              "axis_geometry_residual_m": 4.833467431772243e-17,
+              "axis_invariant_residual": -1.1901590823981678e-13,
+              "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=-2.829122983216515e-06"
+            },
+            "residual": -2.829122983216515e-06,
+            "converged": false,
+            "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=-2.829122983216515e-06"
+          },
+          {
+            "parameter": 0.732470703125,
+            "start_point_m": [
+              0.732470703125,
+              0.5
+            ],
+            "attachment_status": "converged_ambient_attachment_open_strip",
+            "attachment_converged": true,
+            "outer_downstream_flow_angle_rad": 0.033442111015319825,
+            "axis_closure": {
+              "status": "ambient_axis_pressure_failure",
+              "converged": false,
+              "axis_candidate_verified": true,
+              "ambient_pressure_verified": false,
+              "physical_closure_verified": false,
+              "chain_promotion_blocked": true,
+              "source_boundary_point_m": [
+                2.2366358055653386,
+                0.522515421470588
+              ],
+              "axis_point_m": [
+                3.2611803725348536,
+                0.0
+              ],
+              "axis_state": {
+                "x_m": 3.2611803725348536,
+                "y_m": 0.0,
+                "theta_rad": 0.0,
+                "mach": 2.201073224621723,
+                "gamma": 1.4
+              },
+              "axis_total_pressure_Pa": 2272467.5730270245,
+              "axis_static_pressure_Pa": 212168.25481781492,
+              "ambient_pressure_Pa": 212165.99747295334,
+              "pressure_residual_Pa": 2.257344861573074,
+              "relative_pressure_residual": 1.0639522300743961e-05,
+              "axis_geometry_residual_m": 4.8336573453353966e-17,
+              "axis_invariant_residual": -1.936228954946273e-13,
+              "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=1.0639522300743961e-05"
+            },
+            "residual": 1.0639522300743961e-05,
+            "converged": false,
+            "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=1.0639522300743961e-05"
+          },
+          {
+            "parameter": 0.7324951171875,
+            "start_point_m": [
+              0.7324951171875,
+              0.5
+            ],
+            "attachment_status": "converged_ambient_attachment_open_strip",
+            "attachment_converged": true,
+            "outer_downstream_flow_angle_rad": 0.033440304994583135,
+            "axis_closure": {
+              "status": "ambient_axis_pressure_failure",
+              "converged": false,
+              "axis_candidate_verified": true,
+              "ambient_pressure_verified": false,
+              "physical_closure_verified": false,
+              "chain_promotion_blocked": true,
+              "source_boundary_point_m": [
+                2.236681953915997,
+                0.5225162354372529
+              ],
+              "axis_point_m": [
+                3.261249214048176,
+                0.0
+              ],
+              "axis_state": {
+                "x_m": 3.261249214048176,
+                "y_m": 0.0,
+                "theta_rad": 0.0,
+                "mach": 2.2011071435535996,
+                "gamma": 1.4
+              },
+              "axis_total_pressure_Pa": 2272572.9057854777,
+              "axis_static_pressure_Pa": 212166.82601958234,
+              "ambient_pressure_Pa": 212165.99747295334,
+              "pressure_residual_Pa": 0.8285466289962642,
+              "relative_pressure_residual": 3.9051810321391685e-06,
+              "axis_geometry_residual_m": 4.833562386343513e-17,
+              "axis_invariant_residual": 8.206768598029157e-13,
+              "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=3.9051810321391685e-06"
+            },
+            "residual": 3.9051810321391685e-06,
+            "converged": false,
+            "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=3.9051810321391685e-06"
+          },
+          {
+            "parameter": 0.7325073242187501,
+            "start_point_m": [
+              0.7325073242187501,
+              0.5
+            ],
+            "attachment_status": "converged_ambient_attachment_open_strip",
+            "attachment_converged": true,
+            "outer_downstream_flow_angle_rad": 0.03343940496444703,
+            "axis_closure": {
+              "status": "ambient_axis_pressure_failure",
+              "converged": false,
+              "axis_candidate_verified": true,
+              "ambient_pressure_verified": false,
+              "physical_closure_verified": false,
+              "chain_promotion_blocked": true,
+              "source_boundary_point_m": [
+                2.23670503303096,
+                0.5225166462027446
+              ],
+              "axis_point_m": [
+                3.261283646035433,
+                0.0
+              ],
+              "axis_state": {
+                "x_m": 3.261283646035433,
+                "y_m": 0.0,
+                "theta_rad": 0.0,
+                "mach": 2.2011241011477978,
+                "gamma": 1.4
+              },
+              "axis_total_pressure_Pa": 2272625.568157579,
+              "axis_static_pressure_Pa": 212166.11169954317,
+              "ambient_pressure_Pa": 212165.99747295334,
+              "pressure_residual_Pa": 0.11422658982337452,
+              "relative_pressure_residual": 5.383831112614357e-07,
+              "axis_geometry_residual_m": 4.833514896281644e-17,
+              "axis_invariant_residual": 2.7466917629226373e-13,
+              "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=5.383831112614357e-07"
+            },
+            "residual": 5.383831112614357e-07,
+            "converged": false,
+            "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=5.383831112614357e-07"
+          },
+          {
+            "parameter": 0.732513427734375,
+            "start_point_m": [
+              0.732513427734375,
+              0.5
+            ],
+            "attachment_status": "converged_ambient_attachment_open_strip",
+            "attachment_converged": true,
+            "outer_downstream_flow_angle_rad": 0.03343895196914673,
+            "axis_closure": {
+              "status": "ambient_axis_pressure_failure",
+              "converged": false,
+              "axis_candidate_verified": true,
+              "ambient_pressure_verified": false,
+              "physical_closure_verified": false,
+              "chain_promotion_blocked": true,
+              "source_boundary_point_m": [
+                2.2367165674754443,
+                0.5225168477853561
+              ],
+              "axis_point_m": [
+                3.261300850584,
+                0.0
+              ],
+              "axis_state": {
+                "x_m": 3.261300850584,
+                "y_m": 0.0,
+                "theta_rad": 0.0,
+                "mach": 2.2011325817293255,
+                "gamma": 1.4
+              },
+              "axis_total_pressure_Pa": 2272651.9053347344,
+              "axis_static_pressure_Pa": 212165.75446423172,
+              "ambient_pressure_Pa": 212165.99747295334,
+              "pressure_residual_Pa": -0.24300872161984444,
+              "relative_pressure_residual": -1.1453707215776782e-06,
+              "axis_geometry_residual_m": 0.0,
+              "axis_invariant_residual": 1.4654943925052066e-14,
+              "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=-1.1453707215776782e-06"
+            },
+            "residual": -1.1453707215776782e-06,
+            "converged": false,
+            "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=-1.1453707215776782e-06"
+          },
+          {
+            "parameter": 0.7325103759765625,
+            "start_point_m": [
+              0.7325103759765625,
+              0.5
+            ],
+            "attachment_status": "converged_ambient_attachment_open_strip",
+            "attachment_converged": true,
+            "outer_downstream_flow_angle_rad": 0.03343917846679688,
+            "axis_closure": {
+              "status": "ambient_axis_pressure_failure",
+              "converged": false,
+              "axis_candidate_verified": true,
+              "ambient_pressure_verified": false,
+              "physical_closure_verified": false,
+              "chain_promotion_blocked": true,
+              "source_boundary_point_m": [
+                2.2367108002561347,
+                0.5225167469943526
+              ],
+              "axis_point_m": [
+                3.2612922483137208,
+                0.0
+              ],
+              "axis_state": {
+                "x_m": 3.2612922483137208,
+                "y_m": 0.0,
+                "theta_rad": 0.0,
+                "mach": 2.20112834144129,
+                "gamma": 1.4
+              },
+              "axis_total_pressure_Pa": 2272638.7367132274,
+              "axis_static_pressure_Pa": 212165.9330814152,
+              "ambient_pressure_Pa": 212165.99747295334,
+              "pressure_residual_Pa": -0.06439153815153986,
+              "relative_pressure_residual": -3.0349603102518074e-07,
+              "axis_geometry_residual_m": 0.0,
+              "axis_invariant_residual": 7.265299473147024e-13,
+              "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=-3.0349603102518074e-07"
+            },
+            "residual": -3.0349603102518074e-07,
+            "converged": false,
+            "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=-3.0349603102518074e-07"
+          },
+          {
+            "parameter": 0.7325088500976563,
+            "start_point_m": [
+              0.7325088500976563,
+              0.5
+            ],
+            "attachment_status": "converged_ambient_attachment_open_strip",
+            "attachment_converged": true,
+            "outer_downstream_flow_angle_rad": 0.033439291715621954,
+            "axis_closure": {
+              "status": "ambient_axis_pressure_failure",
+              "converged": false,
+              "axis_candidate_verified": true,
+              "ambient_pressure_verified": false,
+              "physical_closure_verified": false,
+              "chain_promotion_blocked": true,
+              "source_boundary_point_m": [
+                2.2367079166442503,
+                0.5225166965986201
+              ],
+              "axis_point_m": [
+                3.261287947175338,
+                0.0
+              ],
+              "axis_state": {
+                "x_m": 3.261287947175338,
+                "y_m": 0.0,
+                "theta_rad": 0.0,
+                "mach": 2.201126221294544,
+                "gamma": 1.4
+              },
+              "axis_total_pressure_Pa": 2272632.1524270773,
+              "axis_static_pressure_Pa": 212166.02239057887,
+              "ambient_pressure_Pa": 212165.99747295334,
+              "pressure_residual_Pa": 0.02491762553108856,
+              "relative_pressure_residual": 1.174440100104402e-07,
+              "axis_geometry_residual_m": 4.833508963157583e-17,
+              "axis_invariant_residual": 3.446132268436486e-13,
+              "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=1.174440100104402e-07"
+            },
+            "residual": 1.174440100104402e-07,
+            "converged": false,
+            "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=1.174440100104402e-07"
+          },
+          {
+            "parameter": 0.7325096130371094,
+            "start_point_m": [
+              0.7325096130371094,
+              0.5
+            ],
+            "attachment_status": "converged_ambient_attachment_open_strip",
+            "attachment_converged": true,
+            "outer_downstream_flow_angle_rad": 0.03343923211097718,
+            "axis_closure": {
+              "status": "ambient_axis_pressure_failure",
+              "converged": false,
+              "axis_candidate_verified": true,
+              "ambient_pressure_verified": false,
+              "physical_closure_verified": false,
+              "chain_promotion_blocked": true,
+              "source_boundary_point_m": [
+                2.2367093533720244,
+                0.5225167179999524
+              ],
+              "axis_point_m": [
+                3.261290086341362,
+                0.0
+              ],
+              "axis_state": {
+                "x_m": 3.261290086341362,
+                "y_m": 0.0,
+                "theta_rad": 0.0,
+                "mach": 2.201127283165988,
+                "gamma": 1.4
+              },
+              "axis_total_pressure_Pa": 2272635.4501625285,
+              "axis_static_pressure_Pa": 212165.9776612512,
+              "ambient_pressure_Pa": 212165.99747295334,
+              "pressure_residual_Pa": -0.019811702135484666,
+              "relative_pressure_residual": -9.33783093024142e-08,
+              "axis_geometry_residual_m": 4.8335060088257557e-17,
+              "axis_invariant_residual": -1.0196288258157438e-12,
+              "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=-9.33783093024142e-08"
+            },
+            "residual": -9.33783093024142e-08,
+            "converged": false,
+            "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=-9.33783093024142e-08"
+          },
+          {
+            "parameter": 0.7325092315673829,
+            "start_point_m": [
+              0.7325092315673829,
+              0.5
+            ],
+            "attachment_status": "converged_ambient_attachment_open_strip",
+            "attachment_converged": true,
+            "outer_downstream_flow_angle_rad": 0.03343926191329956,
+            "axis_closure": {
+              "status": "ambient_axis_pressure_failure",
+              "converged": false,
+              "axis_candidate_verified": true,
+              "ambient_pressure_verified": false,
+              "physical_closure_verified": false,
+              "chain_promotion_blocked": true,
+              "source_boundary_point_m": [
+                2.236708635008225,
+                0.5225167072992944
+              ],
+              "axis_point_m": [
+                3.261289016758453,
+                0.0
+              ],
+              "axis_state": {
+                "x_m": 3.261289016758453,
+                "y_m": 0.0,
+                "theta_rad": 0.0,
+                "mach": 2.201126752230266,
+                "gamma": 1.4
+              },
+              "axis_total_pressure_Pa": 2272633.8012944213,
+              "axis_static_pressure_Pa": 212166.00002593442,
+              "ambient_pressure_Pa": 212165.99747295334,
+              "pressure_residual_Pa": 0.0025529810809530318,
+              "relative_pressure_residual": 1.2032941712436663e-08,
+              "axis_geometry_residual_m": 0.0,
+              "axis_invariant_residual": -3.581579477440755e-13,
+              "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=1.2032941712436663e-08"
+            },
+            "residual": 1.2032941712436663e-08,
+            "converged": false,
+            "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=1.2032941712436663e-08"
+          },
+          {
+            "parameter": 0.7325094223022461,
+            "start_point_m": [
+              0.7325094223022461,
+              0.5
+            ],
+            "attachment_status": "converged_ambient_attachment_open_strip",
+            "attachment_converged": true,
+            "outer_downstream_flow_angle_rad": 0.03343924999237061,
+            "axis_closure": {
+              "status": "ambient_axis_pressure_failure",
+              "converged": false,
+              "axis_candidate_verified": true,
+              "ambient_pressure_verified": false,
+              "physical_closure_verified": false,
+              "chain_promotion_blocked": true,
+              "source_boundary_point_m": [
+                2.23670899926847,
+                0.5225167164461765
+              ],
+              "axis_point_m": [
+                3.261289562953266,
+                0.0
+              ],
+              "axis_state": {
+                "x_m": 3.261289562953266,
+                "y_m": 0.0,
+                "theta_rad": 0.0,
+                "mach": 2.201127015900056,
+                "gamma": 1.4
+              },
+              "axis_total_pressure_Pa": 2272634.6201338554,
+              "axis_static_pressure_Pa": 212165.98891836204,
+              "ambient_pressure_Pa": 212165.99747295334,
+              "pressure_residual_Pa": -0.008554591302527115,
+              "relative_pressure_residual": -4.032027471139735e-08,
+              "axis_geometry_residual_m": 0.0,
+              "axis_invariant_residual": 8.275602425555917e-13,
+              "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=-4.032027471139735e-08"
+            },
+            "residual": -4.032027471139735e-08,
+            "converged": false,
+            "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=-4.032027471139735e-08"
+          },
+          {
+            "parameter": 0.7325093269348145,
+            "start_point_m": [
+              0.7325093269348145,
+              0.5
+            ],
+            "attachment_status": "converged_ambient_attachment_open_strip",
+            "attachment_converged": true,
+            "outer_downstream_flow_angle_rad": 0.03343925595283508,
+            "axis_closure": {
+              "status": "ambient_axis_pressure_failure",
+              "converged": false,
+              "axis_candidate_verified": true,
+              "ambient_pressure_verified": false,
+              "physical_closure_verified": false,
+              "chain_promotion_blocked": true,
+              "source_boundary_point_m": [
+                2.2367088171383545,
+                0.5225167118727316
+              ],
+              "axis_point_m": [
+                3.2612892898558608,
+                0.0
+              ],
+              "axis_state": {
+                "x_m": 3.2612892898558608,
+                "y_m": 0.0,
+                "theta_rad": 0.0,
+                "mach": 2.201126884065161,
+                "gamma": 1.4
+              },
+              "axis_total_pressure_Pa": 2272634.210714155,
+              "axis_static_pressure_Pa": 212165.99447215316,
+              "ambient_pressure_Pa": 212165.99747295334,
+              "pressure_residual_Pa": -0.003000800177687779,
+              "relative_pressure_residual": -1.4143643248349997e-08,
+              "axis_geometry_residual_m": 4.833507110587743e-17,
+              "axis_invariant_residual": 2.2937207688755734e-13,
+              "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=-1.4143643248349997e-08"
+            },
+            "residual": -1.4143643248349997e-08,
+            "converged": false,
+            "message": "final ambient C- sample reaches a geometric centerline candidate, but its carried static pressure does not match ambient: relative residual=-1.4143643248349997e-08"
+          },
+          {
+            "parameter": 0.7325092792510988,
+            "start_point_m": [
+              0.7325092792510988,
+              0.5
+            ],
+            "attachment_status": "converged_ambient_attachment_open_strip",
+            "attachment_converged": true,
+            "outer_downstream_flow_angle_rad": 0.03343925595283508,
+            "axis_closure": {
+              "status": "converged_ambient_axis_candidate",
+              "converged": true,
+              "axis_candidate_verified": true,
+              "ambient_pressure_verified": true,
+              "physical_closure_verified": false,
+              "chain_promotion_blocked": true,
+              "source_boundary_point_m": [
+                2.2367087209949084,
+                0.5225167057894669
+              ],
+              "axis_point_m": [
+                3.261289141905369,
+                0.0
+              ],
+              "axis_state": {
+                "x_m": 3.261289141905369,
+                "y_m": 0.0,
+                "theta_rad": 0.0,
+                "mach": 2.2011268199512415,
+                "gamma": 1.4
+              },
+              "axis_total_pressure_Pa": 2272634.011598529,
+              "axis_static_pressure_Pa": 212165.99717244186,
+              "ambient_pressure_Pa": 212165.99747295334,
+              "pressure_residual_Pa": -0.00030051148496568203,
+              "relative_pressure_residual": -1.416397955115267e-09,
+              "axis_geometry_residual_m": 0.0,
+              "axis_invariant_residual": 9.050538096744276e-13,
+              "message": "final ambient C- sample reaches a centerline candidate and its carried static pressure matches ambient within tolerance; full physical downstream closure remains pending"
+            },
+            "residual": -1.416397955115267e-09,
+            "converged": true,
+            "message": "final ambient C- sample reaches a centerline candidate and its carried static pressure matches ambient within tolerance; full physical downstream closure remains pending"
+          }
+        ],
+        "message": "ambient attachment and axis-pressure closure converged in the bounded parameter shoot; downstream physical closure remains pending"
+      },
+      "ambient_axis_closure_shoot_reference_accepted": true,
       "strip": {
         "status": "converged_open_shock_ambient_strip",
         "converged": true,

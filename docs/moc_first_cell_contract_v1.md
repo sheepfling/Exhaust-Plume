@@ -128,6 +128,11 @@ The implementation in `exhaust_plume.models.moc` currently provides:
   with a pressure mismatch is retained as a typed residual for the future
   global boundary/shock solve and remains hard-false for physical closure and
   chain promotion;
+- a bounded global ambient-axis shoot that treats a caller-supplied upstream
+  attachment coordinate as the second boundary-value unknown, nests the local
+  ambient-attachment solve, and bisects only a validated axis-pressure
+  residual. A converged scalar root still exposes no downstream field and
+  cannot promote a chain cell;
 - a correctly oriented shock/ambient strip assembler in which shock-sourced
   ``C+`` characteristics and ambient-sourced ``C-`` characteristics form a
   connected physical-boundary net, plus a shock-to-ambient boundary marcher

@@ -27,9 +27,11 @@ from exhaust_plume.models.moc.ambient_boundary import (
   validate_post_shock_ambient_boundary,
 )
 from exhaust_plume.models.moc.ambient_shock_strip import (
+  MocAmbientAxisClosureResult,
   MocAmbientShockBoundaryMarchResult,
   MocAmbientShockStripResult,
   march_post_shock_ambient_boundary,
+  probe_post_shock_ambient_axis_closure,
   assemble_ambient_shock_characteristic_strip,
 )
 from exhaust_plume.models.moc.chain import (
@@ -61,6 +63,10 @@ __all__ = (
   'MocAmbientAttachmentStatus',
   'MocAmbientAttachmentResult',
   'solve_marched_attached_shock_with_ambient_attachment_closure',
+  'MocAmbientAxisClosureShootStatus',
+  'MocAmbientAxisClosureShootTrial',
+  'MocAmbientAxisClosureShootResult',
+  'solve_marched_attached_shock_with_ambient_axis_closure',
   'MocInvariantClosureFamily',
   'MocInvariantClosureStatus',
   'MocInvariantClosureResult',
@@ -295,6 +301,234 @@ class MocAmbientAttachmentResult:
       ),
       'strip': None if self.strip is None else self.strip.as_report(),
       'downstream_condition_status': 'linear-centerline-reference',
+      'message': self.message,
+    }
+  ####
+
+
+class MocAmbientAxisClosureShootStatus(str, Enum):
+  """Structured outcomes for the two-boundary ambient-axis shoot."""
+
+  CONVERGED_AXIS_PRESSURE = 'converged_ambient_axis_pressure'
+  INVALID_INPUT = 'invalid_input'
+  ATTACHMENT_FAILURE = 'ambient_axis_attachment_failure'
+  AXIS_CANDIDATE_FAILURE = 'ambient_axis_candidate_failure'
+  BRACKET_FAILURE = 'ambient_axis_bracket_failure'
+  SHOOTING_FAILURE = 'ambient_axis_shooting_failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocAmbientAxisClosureShootTrial:
+  """One bounded attachment-coordinate trial in the global axis shoot."""
+
+  parameter: float
+  start_point_m: tuple[float, float] | None
+  attachment: MocAmbientAttachmentResult | None
+  axis_closure: MocAmbientAxisClosureResult | None
+  residual: float | None
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isfinite(float(self.parameter)):
+      raise ValueError('parameter must be finite')
+    if self.start_point_m is not None:
+      if len(self.start_point_m) != 2 or not all(
+        isfinite(float(value)) for value in self.start_point_m
+      ):
+        raise ValueError('start_point_m must contain two finite coordinates')
+      object.__setattr__(
+        self,
+        'start_point_m',
+        (float(self.start_point_m[0]), float(self.start_point_m[1])),
+      )
+    if self.attachment is not None and not isinstance(
+        self.attachment,
+        MocAmbientAttachmentResult,
+    ):
+      raise TypeError('attachment must be a MocAmbientAttachmentResult or None')
+    if self.axis_closure is not None and not isinstance(
+        self.axis_closure,
+        MocAmbientAxisClosureResult,
+    ):
+      raise TypeError(
+        'axis_closure must be a MocAmbientAxisClosureResult or None'
+      )
+    if self.residual is not None and not isfinite(float(self.residual)):
+      raise ValueError('residual must be finite when supplied')
+  ####
+
+  @property
+  def converged(self) -> bool:
+    """Whether this trial passed the local axis pressure gate."""
+
+    return self.axis_closure is not None and self.axis_closure.converged
+  ####
+
+  def as_report(self) -> dict[str, object]:
+    """Serialize only bounded trial diagnostics, not an inferred field."""
+
+    return {
+      'parameter': self.parameter,
+      'start_point_m': self.start_point_m,
+      'attachment_status': (
+        None if self.attachment is None else self.attachment.status.value
+      ),
+      'attachment_converged': (
+        None if self.attachment is None else self.attachment.converged
+      ),
+      'outer_downstream_flow_angle_rad': (
+        None
+        if self.attachment is None
+        else self.attachment.outer_downstream_flow_angle_rad
+      ),
+      'axis_closure': (
+        None if self.axis_closure is None else self.axis_closure.as_report()
+      ),
+      'residual': self.residual,
+      'converged': self.converged,
+      'message': self.message,
+    }
+  ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocAmbientAxisClosureShootResult:
+  """A bounded global ambient/axis boundary-value shoot.
+
+  The caller supplies a physical attachment coordinate and a mapping from
+  that coordinate to a point in the already-solved upstream field.  For each
+  coordinate, the local attachment angle is solved against ambient pressure;
+  the resulting shock/ambient strip is then continued to a centerline
+  candidate and its carried pressure is used as the outer shooting residual.
+
+  A converged result therefore closes only these two scalar boundary gates.
+  It does not claim a downstream characteristic field, mixed-regime field, or
+  chain cell.  In particular, the attachment-coordinate law remains an
+  explicit research callback until independently accepted for a plume model.
+  """
+
+  status: MocAmbientAxisClosureShootStatus
+  selected_parameter: float | None
+  selected_start_point_m: tuple[float, float] | None
+  parameter_bracket: tuple[float, float] | None
+  outer_flow_angle_bracket: tuple[float, float] | None
+  ambient_pressure_Pa: float | None
+  attachment: MocAmbientAttachmentResult | None
+  axis_closure: MocAmbientAxisClosureResult | None
+  closure_residual: float | None
+  shooting_iterations: int
+  trials: tuple[MocAmbientAxisClosureShootTrial, ...]
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.status, MocAmbientAxisClosureShootStatus):
+      raise TypeError(
+        'status must be a MocAmbientAxisClosureShootStatus'
+      )
+    for name, value in (
+      ('selected_parameter', self.selected_parameter),
+      ('ambient_pressure_Pa', self.ambient_pressure_Pa),
+      ('closure_residual', self.closure_residual),
+    ):
+      if value is not None and not isfinite(float(value)):
+        raise ValueError(f'{name} must be finite when supplied')
+    for name, point in (
+      ('selected_start_point_m', self.selected_start_point_m),
+    ):
+      if point is not None:
+        if len(point) != 2 or not all(isfinite(float(value)) for value in point):
+          raise ValueError(f'{name} must contain two finite coordinates')
+    for name, bracket in (
+      ('parameter_bracket', self.parameter_bracket),
+      ('outer_flow_angle_bracket', self.outer_flow_angle_bracket),
+    ):
+      if bracket is not None:
+        if len(bracket) != 2 or not all(isfinite(float(value)) for value in bracket):
+          raise ValueError(f'{name} must contain two finite values')
+    if isinstance(self.shooting_iterations, bool) or (
+      not isinstance(self.shooting_iterations, int)
+      or self.shooting_iterations < 0
+    ):
+      raise ValueError('shooting_iterations must be a nonnegative integer')
+    if self.attachment is not None and not isinstance(
+        self.attachment,
+        MocAmbientAttachmentResult,
+    ):
+      raise TypeError('attachment must be a MocAmbientAttachmentResult or None')
+    if self.axis_closure is not None and not isinstance(
+        self.axis_closure,
+        MocAmbientAxisClosureResult,
+    ):
+      raise TypeError(
+        'axis_closure must be a MocAmbientAxisClosureResult or None'
+      )
+    if not all(
+      isinstance(trial, MocAmbientAxisClosureShootTrial)
+      for trial in self.trials
+    ):
+      raise TypeError(
+        'trials must contain only MocAmbientAxisClosureShootTrial values'
+      )
+  ####
+
+  @property
+  def converged(self) -> bool:
+    """Whether the bounded axis-pressure shoot found its coordinate root."""
+
+    return self.status is MocAmbientAxisClosureShootStatus.CONVERGED_AXIS_PRESSURE
+  ####
+
+  @property
+  def axis_pressure_closure_verified(self) -> bool:
+    """Whether the selected local axis candidate matches ambient pressure."""
+
+    return bool(self.converged and self.axis_closure is not None and self.axis_closure.converged)
+  ####
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    """Whether a full downstream physical first-cell field is present."""
+
+    return False
+  ####
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    """Whether the global scalar shoot may enter the continued chain."""
+
+    return True
+  ####
+
+  @property
+  def trial_count(self) -> int:
+    """Number of bounded attachment-coordinate evaluations retained."""
+
+    return len(self.trials)
+  ####
+
+  def as_report(self) -> dict[str, object]:
+    return {
+      'status': self.status.value,
+      'converged': self.converged,
+      'axis_pressure_closure_verified': self.axis_pressure_closure_verified,
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'selected_parameter': self.selected_parameter,
+      'selected_start_point_m': self.selected_start_point_m,
+      'parameter_bracket': self.parameter_bracket,
+      'outer_flow_angle_bracket': self.outer_flow_angle_bracket,
+      'ambient_pressure_Pa': self.ambient_pressure_Pa,
+      'attachment': (
+        None if self.attachment is None else self.attachment.as_report()
+      ),
+      'axis_closure': (
+        None if self.axis_closure is None else self.axis_closure.as_report()
+      ),
+      'closure_residual': self.closure_residual,
+      'shooting_iterations': self.shooting_iterations,
+      'trial_count': self.trial_count,
+      'trials': tuple(trial.as_report() for trial in self.trials),
       'message': self.message,
     }
   ####
@@ -713,6 +947,383 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
       'ambient shock attachment converged and produced a physical open '
       'shock/ambient strip; terminal centerline closure remains pending'
     ),
+  )
+####
+
+
+def _ambient_axis_shoot_failure(
+  status: MocAmbientAxisClosureShootStatus,
+  *,
+  ambient_pressure_Pa: float | None = None,
+  parameter_bracket: tuple[float, float] | None = None,
+  outer_flow_angle_bracket: tuple[float, float] | None = None,
+  selected_trial: MocAmbientAxisClosureShootTrial | None = None,
+  shooting_iterations: int = 0,
+  trials: Sequence[MocAmbientAxisClosureShootTrial] = (),
+  message: str,
+) -> MocAmbientAxisClosureShootResult:
+  return MocAmbientAxisClosureShootResult(
+    status=status,
+    selected_parameter=(
+      None if selected_trial is None else selected_trial.parameter
+    ),
+    selected_start_point_m=(
+      None if selected_trial is None else selected_trial.start_point_m
+    ),
+    parameter_bracket=parameter_bracket,
+    outer_flow_angle_bracket=outer_flow_angle_bracket,
+    ambient_pressure_Pa=ambient_pressure_Pa,
+    attachment=(None if selected_trial is None else selected_trial.attachment),
+    axis_closure=(
+      None if selected_trial is None else selected_trial.axis_closure
+    ),
+    closure_residual=(
+      None if selected_trial is None else selected_trial.residual
+    ),
+    shooting_iterations=shooting_iterations,
+    trials=tuple(trials),
+    message=message,
+  )
+####
+
+
+def solve_marched_attached_shock_with_ambient_axis_closure(
+  upstream_state_at: Callable[[tuple[float, float]], CharacteristicState | None],
+  upstream_pressure_at: Callable[[tuple[float, float]], float | None],
+  shock_start_point_at: Callable[[float], tuple[float, float]],
+  start_parameter_lower: float,
+  start_parameter_upper: float,
+  ambient_pressure_Pa: float,
+  outer_downstream_flow_angle_lower_rad: float,
+  outer_downstream_flow_angle_upper_rad: float,
+  *,
+  target_centerline_y_m: float = 0.0,
+  target_centerline_flow_angle_rad: float = 0.0,
+  incoming_handoff: Sequence[MocChainBoundarySample] | None = None,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  attachment_pressure_tolerance: float = 1.0e-8,
+  pressure_tolerance: float = 1.0e-8,
+  tangent_tolerance: float = 1.0e-8,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  parameter_tolerance: float = 1.0e-10,
+  maximum_segment_iterations: int = 24,
+  maximum_boundary_iterations: int = 16,
+  maximum_attachment_shooting_iterations: int = 40,
+  maximum_shooting_iterations: int = 40,
+) -> MocAmbientAxisClosureShootResult:
+  """Shoot an explicit attachment coordinate against the axis pressure.
+
+  The caller owns the physical coordinate and its mapping to an upstream
+  boundary point.  At each coordinate, the local downstream attachment angle
+  is first solved against ambient pressure.  The resulting shock/ambient
+  strip is then continued to a geometric centerline candidate, and the
+  carried static-pressure mismatch at that candidate is the global residual.
+
+  This is a bounded two-boundary research solve, not an inferred nozzle law.
+  A converged scalar root proves only the attachment and axis-pressure gates;
+  the downstream characteristic field, mixed-regime field, and chain-cell
+  promotion remain explicitly blocked.
+  """
+
+  if not callable(upstream_state_at) or not callable(upstream_pressure_at):
+    return _ambient_axis_shoot_failure(
+      MocAmbientAxisClosureShootStatus.INVALID_INPUT,
+      message='upstream state and pressure providers must be callable',
+    )
+  if not callable(shock_start_point_at):
+    return _ambient_axis_shoot_failure(
+      MocAmbientAxisClosureShootStatus.INVALID_INPUT,
+      message='shock_start_point_at must be callable',
+    )
+  try:
+    lower_parameter = float(start_parameter_lower)
+    upper_parameter = float(start_parameter_upper)
+    ambient_pressure = float(ambient_pressure_Pa)
+    lower_angle = float(outer_downstream_flow_angle_lower_rad)
+    upper_angle = float(outer_downstream_flow_angle_upper_rad)
+  except (TypeError, ValueError):
+    return _ambient_axis_shoot_failure(
+      MocAmbientAxisClosureShootStatus.INVALID_INPUT,
+      message='axis-closure parameters, pressure, and angle bracket must be numeric',
+    )
+  parameter_bracket = (lower_parameter, upper_parameter)
+  outer_bracket = (lower_angle, upper_angle)
+  if not all(
+    isfinite(value)
+    for value in (*parameter_bracket, *outer_bracket, ambient_pressure)
+  ):
+    return _ambient_axis_shoot_failure(
+      MocAmbientAxisClosureShootStatus.INVALID_INPUT,
+      ambient_pressure_Pa=ambient_pressure,
+      parameter_bracket=parameter_bracket,
+      outer_flow_angle_bracket=outer_bracket,
+      message='axis-closure inputs must be finite',
+    )
+  if ambient_pressure <= 0.0:
+    return _ambient_axis_shoot_failure(
+      MocAmbientAxisClosureShootStatus.INVALID_INPUT,
+      ambient_pressure_Pa=ambient_pressure,
+      parameter_bracket=parameter_bracket,
+      outer_flow_angle_bracket=outer_bracket,
+      message='ambient_pressure_Pa must be finite and positive',
+    )
+  if lower_parameter >= upper_parameter:
+    return _ambient_axis_shoot_failure(
+      MocAmbientAxisClosureShootStatus.INVALID_INPUT,
+      ambient_pressure_Pa=ambient_pressure,
+      parameter_bracket=parameter_bracket,
+      outer_flow_angle_bracket=outer_bracket,
+      message='start-parameter lower bound must be below its upper bound',
+    )
+  if lower_angle >= upper_angle:
+    return _ambient_axis_shoot_failure(
+      MocAmbientAxisClosureShootStatus.INVALID_INPUT,
+      ambient_pressure_Pa=ambient_pressure,
+      parameter_bracket=parameter_bracket,
+      outer_flow_angle_bracket=outer_bracket,
+      message='outer downstream flow-angle lower bound must be below its upper bound',
+    )
+  if not isinstance(branch, ShockBranch):
+    return _ambient_axis_shoot_failure(
+      MocAmbientAxisClosureShootStatus.INVALID_INPUT,
+      ambient_pressure_Pa=ambient_pressure,
+      parameter_bracket=parameter_bracket,
+      outer_flow_angle_bracket=outer_bracket,
+      message='branch must be a ShockBranch',
+    )
+  if isinstance(sample_count, bool) or not isinstance(sample_count, int) or sample_count < 3:
+    raise ValueError('sample_count must be an integer of at least three')
+  for name, value in (
+    ('position_tolerance_m', position_tolerance_m),
+    ('invariant_tolerance', invariant_tolerance),
+    ('attachment_pressure_tolerance', attachment_pressure_tolerance),
+    ('pressure_tolerance', pressure_tolerance),
+    ('tangent_tolerance', tangent_tolerance),
+    ('shock_angle_tolerance_rad', shock_angle_tolerance_rad),
+    ('parameter_tolerance', parameter_tolerance),
+  ):
+    if not isfinite(float(value)) or value <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+  for name, value in (
+    ('maximum_segment_iterations', maximum_segment_iterations),
+    ('maximum_boundary_iterations', maximum_boundary_iterations),
+    ('maximum_attachment_shooting_iterations', maximum_attachment_shooting_iterations),
+    ('maximum_shooting_iterations', maximum_shooting_iterations),
+  ):
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+      raise ValueError(f'{name} must be a positive integer')
+
+  trials: list[MocAmbientAxisClosureShootTrial] = []
+
+  def evaluate(parameter: float) -> MocAmbientAxisClosureShootTrial:
+    try:
+      raw_point = shock_start_point_at(parameter)
+      start_point = (float(raw_point[0]), float(raw_point[1]))
+    except (IndexError, TypeError, ValueError) as error:
+      return MocAmbientAxisClosureShootTrial(
+        parameter=parameter,
+        start_point_m=None,
+        attachment=None,
+        axis_closure=None,
+        residual=None,
+        message=f'shock start point callback failed: {error}',
+      )
+    if not all(isfinite(value) for value in start_point):
+      return MocAmbientAxisClosureShootTrial(
+        parameter=parameter,
+        start_point_m=start_point,
+        attachment=None,
+        axis_closure=None,
+        residual=None,
+        message='shock start point callback returned non-finite coordinates',
+      )
+    try:
+      attachment = solve_marched_attached_shock_with_ambient_attachment_closure(
+        upstream_state_at,
+        upstream_pressure_at,
+        start_point,
+        ambient_pressure,
+        lower_angle,
+        upper_angle,
+        target_centerline_y_m=target_centerline_y_m,
+        target_centerline_flow_angle_rad=target_centerline_flow_angle_rad,
+        incoming_handoff=incoming_handoff,
+        sample_count=sample_count,
+        branch=branch,
+        position_tolerance_m=position_tolerance_m,
+        invariant_tolerance=invariant_tolerance,
+        attachment_pressure_tolerance=attachment_pressure_tolerance,
+        pressure_tolerance=pressure_tolerance,
+        tangent_tolerance=tangent_tolerance,
+        shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+        maximum_segment_iterations=maximum_segment_iterations,
+        maximum_boundary_iterations=maximum_boundary_iterations,
+        maximum_shooting_iterations=maximum_attachment_shooting_iterations,
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      return MocAmbientAxisClosureShootTrial(
+        parameter=parameter,
+        start_point_m=start_point,
+        attachment=None,
+        axis_closure=None,
+        residual=None,
+        message=f'ambient attachment trial raised: {error}',
+      )
+    if not attachment.converged or attachment.ambient_march is None:
+      return MocAmbientAxisClosureShootTrial(
+        parameter=parameter,
+        start_point_m=start_point,
+        attachment=attachment,
+        axis_closure=None,
+        residual=None,
+        message=f'ambient attachment trial did not converge: {attachment.message}',
+      )
+    try:
+      axis_closure = probe_post_shock_ambient_axis_closure(
+        attachment.ambient_march,
+        ambient_pressure,
+        position_tolerance_m=position_tolerance_m,
+        invariant_tolerance=invariant_tolerance,
+        pressure_tolerance=pressure_tolerance,
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      return MocAmbientAxisClosureShootTrial(
+        parameter=parameter,
+        start_point_m=start_point,
+        attachment=attachment,
+        axis_closure=None,
+        residual=None,
+        message=f'ambient axis trial raised: {error}',
+      )
+    residual = (
+      axis_closure.relative_pressure_residual
+      if axis_closure.axis_candidate_verified
+      else None
+    )
+    if residual is None:
+      message = f'ambient axis candidate did not converge: {axis_closure.message}'
+    else:
+      message = axis_closure.message
+    return MocAmbientAxisClosureShootTrial(
+      parameter=parameter,
+      start_point_m=start_point,
+      attachment=attachment,
+      axis_closure=axis_closure,
+      residual=residual,
+      message=message,
+    )
+
+  def result_for(
+    status: MocAmbientAxisClosureShootStatus,
+    trial: MocAmbientAxisClosureShootTrial | None,
+    current_bracket: tuple[float, float] | None,
+    iterations: int,
+    message: str,
+  ) -> MocAmbientAxisClosureShootResult:
+    return _ambient_axis_shoot_failure(
+      status,
+      ambient_pressure_Pa=ambient_pressure,
+      parameter_bracket=current_bracket,
+      outer_flow_angle_bracket=outer_bracket,
+      selected_trial=trial,
+      shooting_iterations=iterations,
+      trials=trials,
+      message=message,
+    )
+
+  lower_trial = evaluate(lower_parameter)
+  trials.append(lower_trial)
+  if lower_trial.converged:
+    return result_for(
+      MocAmbientAxisClosureShootStatus.CONVERGED_AXIS_PRESSURE,
+      lower_trial,
+      parameter_bracket,
+      0,
+      'ambient attachment and axis-pressure closure converged at the lower parameter bound; downstream physical closure remains pending',
+    )
+  upper_trial = evaluate(upper_parameter)
+  trials.append(upper_trial)
+  if upper_trial.converged:
+    return result_for(
+      MocAmbientAxisClosureShootStatus.CONVERGED_AXIS_PRESSURE,
+      upper_trial,
+      parameter_bracket,
+      0,
+      'ambient attachment and axis-pressure closure converged at the upper parameter bound; downstream physical closure remains pending',
+    )
+  if lower_trial.residual is None or upper_trial.residual is None:
+    missing = lower_trial if lower_trial.residual is None else upper_trial
+    preferred = upper_trial if upper_trial.residual is not None else lower_trial
+    status = (
+      MocAmbientAxisClosureShootStatus.ATTACHMENT_FAILURE
+      if missing.attachment is None or not missing.attachment.converged
+      else MocAmbientAxisClosureShootStatus.AXIS_CANDIDATE_FAILURE
+    )
+    return result_for(
+      status,
+      preferred,
+      parameter_bracket,
+      0,
+      'both attachment-coordinate bracket endpoints must produce a valid '
+      f'axis candidate: lower={lower_trial.message}; upper={upper_trial.message}',
+    )
+  if lower_trial.residual * upper_trial.residual > 0.0:
+    return result_for(
+      MocAmbientAxisClosureShootStatus.BRACKET_FAILURE,
+      upper_trial,
+      parameter_bracket,
+      0,
+      'attachment-coordinate bracket does not straddle the signed axis-pressure residual: '
+      f'lower={lower_trial.residual}, upper={upper_trial.residual}',
+    )
+
+  current_lower = lower_trial
+  current_upper = upper_trial
+  last_trial = upper_trial
+  completed_iterations = 0
+  for iteration in range(1, maximum_shooting_iterations + 1):
+    if abs(current_upper.parameter - current_lower.parameter) <= parameter_tolerance:
+      break
+    midpoint_parameter = 0.5 * (
+      current_lower.parameter + current_upper.parameter
+    )
+    midpoint_trial = evaluate(midpoint_parameter)
+    trials.append(midpoint_trial)
+    completed_iterations = iteration
+    last_trial = midpoint_trial
+    if midpoint_trial.converged:
+      return result_for(
+        MocAmbientAxisClosureShootStatus.CONVERGED_AXIS_PRESSURE,
+        midpoint_trial,
+        (current_lower.parameter, current_upper.parameter),
+        iteration,
+        'ambient attachment and axis-pressure closure converged in the bounded parameter shoot; downstream physical closure remains pending',
+      )
+    if midpoint_trial.residual is None:
+      return result_for(
+        MocAmbientAxisClosureShootStatus.SHOOTING_FAILURE,
+        midpoint_trial,
+        (current_lower.parameter, current_upper.parameter),
+        iteration,
+        'axis-pressure shooting encountered a trial without a valid residual and stopped without extrapolating the upstream field: '
+        f'{midpoint_trial.message}',
+      )
+    lower_residual = current_lower.residual
+    assert lower_residual is not None
+    if lower_residual * midpoint_trial.residual <= 0.0:
+      current_upper = midpoint_trial
+    else:
+      current_lower = midpoint_trial
+  return result_for(
+    MocAmbientAxisClosureShootStatus.SHOOTING_FAILURE,
+    last_trial,
+    (current_lower.parameter, current_upper.parameter),
+    completed_iterations,
+    'axis-pressure shooting reached its iteration or parameter-width limit '
+    f'before the ambient axis gate passed: residual={last_trial.residual}',
   )
 ####
 

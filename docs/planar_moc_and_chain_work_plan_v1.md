@@ -626,6 +626,13 @@ not wait on this research closure.
   pressure residual. The canonical candidate reaches ``y=0`` but misses
   ambient pressure by about 15 percent, so the result is a solver-owned
   boundary residual—not a physical closure or a chain-promotion input.
+  The next bounded global shoot now makes the missing degree of freedom
+  explicit: it varies a caller-owned upstream attachment coordinate, solves
+  the local ambient attachment at each trial, and bisects the resulting axis
+  pressure residual. The canonical uniform field correctly returns a typed
+  no-bracket result; a nonuniform research fixture exercises the converged
+  scalar path, while both paths remain outside physical closure and chain
+  promotion until a downstream characteristic/mixed-regime field is solved.
 
 ### MOC-3 — Re-solved continued cells
 

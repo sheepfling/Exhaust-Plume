@@ -13,6 +13,7 @@ from exhaust_plume.models.moc import (
   MocChainTerminationReason,
   MocAmbientShockBoundaryMarchStatus,
   MocAmbientAxisClosureStatus,
+  MocAmbientAxisClosureShootStatus,
   MocAmbientShockStripStatus,
   MocFreeBoundaryShockStatus,
   MocTerminalPatchShockCouplingStatus,
@@ -22,12 +23,14 @@ from exhaust_plume.models.moc import (
   assemble_terminal_trace_centerline_patch,
   march_post_shock_ambient_boundary,
   probe_post_shock_ambient_axis_closure,
+  solve_marched_attached_shock_with_ambient_axis_closure,
   plan_terminal_reflection_patch_chain,
   solve_terminal_compression_candidate,
   solve_marched_attached_shock_chain_cell_from_terminal_reflection_patch,
   solve_marched_attached_shock_chain_cell_from_terminal_reflection_patch_or_termination,
   solve_marched_attached_shock_from_terminal_reflection_patch,
   solve_marched_attached_shock_field,
+  solve_uniform_attached_shock_field,
 )
 from exhaust_plume.util.aero.shock_validity import ShockBranch
 
@@ -57,6 +60,24 @@ def _ambient_pressure(shock_fit) -> float:
   return sample.downstream_total_pressure_Pa / (
     1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
   ) ** (state.gamma / (state.gamma - 1.0))
+
+
+def _axis_shoot_ambient_pressure() -> float:
+  result = solve_uniform_attached_shock_field(
+    CharacteristicState(
+      x_m=0.5,
+      y_m=0.5,
+      theta_rad=-0.2,
+      mach=2.0,
+      gamma=1.4,
+    ),
+    100000.0,
+    (0.5, 0.5),
+    outer_downstream_flow_angle_rad=0.05,
+    sample_count=17,
+  )
+  assert result.shock_fit is not None
+  return _ambient_pressure(result.shock_fit)
 
 
 def test_shock_sourced_ambient_march_closes_the_boundary_conditions() -> None:
@@ -103,6 +124,79 @@ def test_ambient_axis_probe_retains_the_centerline_pressure_gap() -> None:
   assert result.physical_closure_verified is False
   assert result.chain_promotion_blocked is True
   assert result.as_report()['axis_candidate_verified'] is True
+
+
+def test_global_axis_shoot_solves_an_explicit_nonuniform_attachment_coordinate() -> None:
+  ambient_pressure = _axis_shoot_ambient_pressure()
+
+  def upstream_state_at(point: tuple[float, float]) -> CharacteristicState:
+    return CharacteristicState(
+      x_m=point[0],
+      y_m=point[1],
+      theta_rad=-0.2,
+      mach=2.0 + (point[0] - 0.5),
+      gamma=1.4,
+    )
+
+  result = solve_marched_attached_shock_with_ambient_axis_closure(
+    upstream_state_at,
+    lambda _point: 100000.0,
+    lambda parameter: (parameter, 0.5),
+    0.7,
+    0.8,
+    ambient_pressure,
+    0.02,
+    0.12,
+    sample_count=9,
+    maximum_attachment_shooting_iterations=30,
+  )
+
+  assert result.status is MocAmbientAxisClosureShootStatus.CONVERGED_AXIS_PRESSURE
+  assert result.converged
+  assert result.axis_pressure_closure_verified
+  assert result.axis_closure is not None
+  assert result.axis_closure.converged
+  assert result.selected_parameter == pytest.approx(0.7325093, abs=2.0e-6)
+  assert result.closure_residual is not None
+  assert abs(result.closure_residual) <= 1.0e-8
+  assert len(result.trials) >= 3
+  assert result.physical_closure_verified is False
+  assert result.chain_promotion_blocked is True
+  report = result.as_report()
+  assert report['axis_pressure_closure_verified'] is True
+  assert report['physical_closure_verified'] is False
+  assert report['chain_promotion_blocked'] is True
+
+
+def test_global_axis_shoot_keeps_uniform_no_bracket_as_a_typed_failure() -> None:
+  ambient_pressure = _axis_shoot_ambient_pressure()
+  result = solve_marched_attached_shock_with_ambient_axis_closure(
+    lambda point: CharacteristicState(
+      x_m=point[0],
+      y_m=point[1],
+      theta_rad=-0.2,
+      mach=2.0,
+      gamma=1.4,
+    ),
+    lambda _point: 100000.0,
+    lambda parameter: (parameter, 0.5),
+    0.7,
+    0.8,
+    ambient_pressure,
+    0.02,
+    0.12,
+    sample_count=9,
+  )
+
+  assert result.status is MocAmbientAxisClosureShootStatus.BRACKET_FAILURE
+  assert not result.converged
+  assert len(result.trials) == 2
+  assert result.trials[0].residual == pytest.approx(
+    result.trials[1].residual,
+  )
+  assert result.axis_pressure_closure_verified is False
+  assert result.physical_closure_verified is False
+  assert result.chain_promotion_blocked is True
 
 
 def test_shock_and_ambient_characteristic_strip_keeps_terminal_trace_open() -> None:

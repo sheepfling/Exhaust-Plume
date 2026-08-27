@@ -437,6 +437,31 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert ambient_axis_closure['physical_closure_verified'] is False
   assert ambient_axis_closure['chain_promotion_blocked'] is True
   assert ambient_axis_closure['relative_pressure_residual'] > 0.0
+  ambient_axis_shoot = ambient_strip['ambient_axis_closure_shoot']
+  assert ambient_strip['ambient_axis_closure_shoot_probe_accepted'] is True
+  assert ambient_axis_shoot['status'] == 'ambient_axis_bracket_failure'
+  assert ambient_axis_shoot['converged'] is False
+  assert ambient_axis_shoot['trial_count'] == 2
+  assert ambient_axis_shoot['physical_closure_verified'] is False
+  assert ambient_axis_shoot['chain_promotion_blocked'] is True
+  assert all(
+    trial['axis_closure']['axis_candidate_verified'] is True
+    and trial['axis_closure']['ambient_pressure_verified'] is False
+    for trial in ambient_axis_shoot['trials']
+  )
+  ambient_axis_shoot_reference = ambient_strip[
+    'ambient_axis_closure_shoot_reference'
+  ]
+  assert ambient_strip['ambient_axis_closure_shoot_reference_accepted'] is True
+  assert ambient_axis_shoot_reference['status'] == (
+    'converged_ambient_axis_pressure'
+  )
+  assert ambient_axis_shoot_reference['converged'] is True
+  assert ambient_axis_shoot_reference['axis_pressure_closure_verified'] is True
+  assert ambient_axis_shoot_reference['physical_closure_verified'] is False
+  assert ambient_axis_shoot_reference['chain_promotion_blocked'] is True
+  assert ambient_axis_shoot_reference['trial_count'] >= 3
+  assert abs(ambient_axis_shoot_reference['closure_residual']) <= 1.0e-8
   terminal_graph = first_cell_terminal['terminal_field']['terminal_boundary_graph']
   assert terminal_graph['status'] == 'converged_upstream_terminal_boundary_graph'
   assert terminal_graph['upstream_graph_closed'] is True
