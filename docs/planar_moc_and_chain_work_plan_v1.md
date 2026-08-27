@@ -128,6 +128,13 @@ not wait on this research closure.
   typed ``OPEN_PHYSICAL_CLOSURE`` decision after one attempted next cell. Both
   canonical restart orientations pass this audit; neither is promoted as a
   resolved chain cell.
+- Added an executable caustic shock-remesh executor and planner seam. It
+  consumes the exact one-sided event state, incoming perimeter, and bounded
+  upstream callbacks, verifies the generated shock/new-family field when a
+  local invariant law closes, and exposes a combined remesh-seam verdict.
+  Even a locally converged remesh remains a one-step research stop until the
+  physical first-cell ambient/terminal boundary is solved; no remesh result is
+  appended as a chain cell.
 - Added a weak-branch caustic-origin forward-envelope reachability gate. It
   follows the local zero-turn attached limit through the bounded restarted
   family band, retains the valid prefix and first missing point, and returns a
@@ -199,6 +206,12 @@ not wait on this research closure.
   retain the exact terminal object and patch sample count and pass its closed
   perimeter/topology/residual checks before the terminal composite can attach
   it or issue a physical stop.
+- Added a validated reference attachment test for the terminal mixed-regime
+  lane. It solves an explicitly supplied scalar perimeter with the separate
+  elliptic/isentrope reference field and verifies the resulting physical
+  terminal decision. The perimeter is deliberately a contract fixture; the
+  canonical downstream boundary is still not inferred from the open
+  supersonic field.
 - Added an MOC chain continuation contract. It accepts only connected,
   topologically bounded meshes with explicit physical closure and resolved
   planar-MOC fidelity.
@@ -885,6 +898,12 @@ Only after MOC-1 through MOC-5 pass:
   non-physical ``characteristic-caustic`` stop; it is an auditable input to a
   future coupled remesher, not evidence that the remesher or a continued cell
   already exists.
+- The coupled caustic remesher now executes the bounded shock/new-family solve
+  and verifies its event, local bridge, upstream carry, shock curve, and
+  downstream-field gates. Its planner records the exact prior perimeter and
+  remains one-step/non-physical by policy. The canonical first-cell
+  downstream perimeter is still missing, so this remesh result cannot yet
+  promote a continued cell.
 - The independent shock-cell measurement operators now pass local geometry,
   topology, and supplied shock-loss extraction for the current fixtures, but
   they do not provide external observations, uncertainty, or a provider-bound

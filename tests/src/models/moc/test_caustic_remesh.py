@@ -161,6 +161,7 @@ def test_caustic_remesh_generates_a_bounded_new_family_field() -> None:
   assert result.upstream_coupling_verified
   assert result.shock_curve_verified
   assert result.downstream_field_verified
+  assert result.remesh_seam_verified
   assert result.physical_closure_verified is False
   assert result.chain_promotion_blocked
   assert result.shock is not None
@@ -224,6 +225,7 @@ def test_caustic_remesh_rejects_a_changed_event_state() -> None:
   )
 
   assert result.status is MocCausticShockRemeshStatus.EVENT_SEAM_FAILURE
+  assert result.remesh_seam_verified is False
   assert result.as_chain_termination_decision().reason is MocChainTerminationReason.CHARACTERISTIC_CAUSTIC
 
 

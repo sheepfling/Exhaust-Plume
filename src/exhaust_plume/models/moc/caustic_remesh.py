@@ -385,6 +385,19 @@ class MocCausticShockRemeshResult:
     return True
   ####
 
+  @property
+  def remesh_seam_verified(self) -> bool:
+    """Whether every local event, shock, and field seam gate passed."""
+
+    return bool(
+      self.event_seam_verified
+      and self.local_bridge_state_verified
+      and self.upstream_coupling_verified
+      and self.shock_curve_verified
+      and self.downstream_field_verified
+    )
+  ####
+
   def as_chain_termination_decision(self) -> MocChainTerminationDecision:
     """Map the remesh gate to a non-physical, typed chain stop."""
 
@@ -422,6 +435,7 @@ class MocCausticShockRemeshResult:
         'upstream_coupling_verified': self.upstream_coupling_verified,
         'shock_curve_verified': self.shock_curve_verified,
         'downstream_field_verified': self.downstream_field_verified,
+        'remesh_seam_verified': self.remesh_seam_verified,
         'physical_closure_verified': self.physical_closure_verified,
         'chain_promotion_blocked': self.chain_promotion_blocked,
       },
@@ -438,6 +452,7 @@ class MocCausticShockRemeshResult:
       'upstream_coupling_verified': self.upstream_coupling_verified,
       'shock_curve_verified': self.shock_curve_verified,
       'downstream_field_verified': self.downstream_field_verified,
+      'remesh_seam_verified': self.remesh_seam_verified,
       'physical_closure_verified': self.physical_closure_verified,
       'chain_promotion_blocked': self.chain_promotion_blocked,
       'shock': None if self.shock is None else self.shock.as_report(),
