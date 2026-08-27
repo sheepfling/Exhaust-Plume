@@ -69,6 +69,7 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
     'reflected_source_strip_centerline_reflection_extension'
   ]
   caustic_upstream_bridge = centerline_reflection_extension['caustic_upstream_bridge']
+  caustic_remesh = centerline_reflection_extension['caustic_shock_remesh_execution']
   reflected_probe = report['geometry_cases']['reflected_zone_shock_coupling']
   reflected_chain_boundary = report['geometry_cases']['reflected_zone_chain_boundary_probe']
   trace_extension = report['geometry_cases']['reflected_boundary_trace_extension']
@@ -221,6 +222,24 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert caustic_upstream_bridge['invariant_planner']['production_claim_allowed'] is False
   assert caustic_upstream_bridge['invariant_planner']['chain']['termination_reason'] == (
     'upstream-field-boundary'
+  )
+  assert caustic_remesh['accepted'] is True
+  assert caustic_remesh['status'] == 'diagnostic-coupled-caustic-remesh-execution'
+  assert caustic_remesh['direct']['status'] == (
+    'converged_coupled_caustic_shock_remesh'
+  )
+  assert caustic_remesh['direct']['remesh_seam_verified'] is True
+  assert caustic_remesh['direct']['physical_closure_verified'] is False
+  assert caustic_remesh['direct']['chain_promotion_blocked'] is True
+  assert caustic_remesh['planner']['planner_kind'] == 'upstream-coupled-research'
+  assert caustic_remesh['planner']['planning_only'] is True
+  assert caustic_remesh['planner']['production_claim_allowed'] is False
+  assert caustic_remesh['planner']['step_count'] == 1
+  assert caustic_remesh['planner']['steps'][0]['result_kind'] == 'termination-returned'
+  assert caustic_remesh['planner']['chain']['cell_count'] == 1
+  assert caustic_remesh['planner']['chain']['physical_termination'] is False
+  assert caustic_remesh['planner']['chain']['termination_reason'] == (
+    'open-physical-closure'
   )
   assert strong_subsonic_boundary['status'] == 'subsonic_terminal_required'
   assert strong_subsonic_boundary['subsonic_boundary_verified'] is True

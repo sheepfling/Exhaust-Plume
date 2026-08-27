@@ -135,6 +135,11 @@ not wait on this research closure.
   Even a locally converged remesh remains a one-step research stop until the
   physical first-cell ambient/terminal boundary is solved; no remesh result is
   appended as a chain cell.
+- Added the executable remesh and one-step planner probe to the standalone
+  MOC validation report. It records the exact incoming perimeter, all local
+  remesh seam gates, the solver-backed open-closure stop, and the explicit
+  non-production claim ceiling alongside the existing three-cell planner
+  mock.
 - Added a weak-branch caustic-origin forward-envelope reachability gate. It
   follows the local zero-turn attached limit through the bounded restarted
   family band, retains the valid prefix and first missing point, and returns a

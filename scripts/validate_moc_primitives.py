@@ -36,6 +36,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocChainPlannerKind,
   MocCausticFamilyBandEnvelopeStatus,
   MocCausticShockBridgeStatus,
+  MocCausticShockRemeshStatus,
   MocCausticShockRemeshPreparationStatus,
   MocCausticBridgeSide,
   MocCausticBridgeStatus,
@@ -103,6 +104,8 @@ from exhaust_plume.models.moc import (  # noqa: E402
   resolve_caustic_shock_seed,
   solve_caustic_shock_bridge,
   prepare_caustic_shock_remesh,
+  solve_caustic_shock_remesh,
+  plan_caustic_shock_remesh_chain,
   restart_characteristic_family_from_caustic,
   trace_caustic_family_band_forward_envelope,
   extend_source_characteristic_strip_centerline_reflection,
@@ -1910,6 +1913,173 @@ def _caustic_shock_bridge_probe(seed: Any) -> dict[str, Any]:
   }
 
 
+def _caustic_shock_remesh_execution_probe(seed: Any) -> dict[str, Any]:
+  """Exercise the bounded caustic remesh executor and one-step planner.
+
+  The canonical reflected seed has a positive event-side turn, so it is not a
+  suitable local compression fixture for a forward shock ending on the axis.
+  The probe changes only the selected one-sided state angle, keeps the event
+  and local invariant seam solver-owned, and labels the resulting field as a
+  research contract fixture.  It deliberately stops at open physical
+  closure; no remesh result is appended to the chain.
+  """
+
+  if (
+    seed is None
+    or len(getattr(seed, 'edge_states', ())) != 2
+    or seed.edge_states[0].state is None
+    or seed.edge_states[1].state is None
+  ):
+    return {
+      'status': 'missing_seed_or_edge_state',
+      'accepted': False,
+      'direct': None,
+      'planner': None,
+      'claim_status': 'caustic-remesh-execution-pending',
+    }
+
+  negative_state = replace(seed.edge_states[0].state, theta_rad=-0.2)
+  fixture_seed = replace(
+    seed,
+    edge_states=(
+      replace(seed.edge_states[0], state=negative_state),
+      *seed.edge_states[1:],
+    ),
+  )
+  target_invariant = fixture_seed.edge_states[1].state.k_plus
+  prepared = prepare_caustic_shock_remesh(
+    fixture_seed,
+    CharacteristicFamily.PLUS,
+    target_invariant,
+    upstream_edge_index=0,
+  )
+  if prepared.request is None:
+    return {
+      'status': 'preparation_failure',
+      'accepted': False,
+      'direct': None,
+      'planner': None,
+      'preparation': prepared.as_report(),
+      'claim_status': 'caustic-remesh-execution-pending',
+    }
+  request = prepared.request
+  bridge_state = request.local_bridge.downstream_state
+  if bridge_state is None or abs(request.event_point_m[1]) <= 1.0e-12:
+    return {
+      'status': 'invalid_fixture_bridge',
+      'accepted': False,
+      'direct': None,
+      'planner': None,
+      'preparation': prepared.as_report(),
+      'claim_status': 'caustic-remesh-execution-pending',
+    }
+
+  reference = solve_uniform_attached_shock_field(
+    CharacteristicState(0.5, 0.5, -0.2, 2.0, 1.4),
+    100000.0,
+    (0.5, 0.5),
+    outer_downstream_flow_angle_rad=0.05,
+    sample_count=9,
+  )
+  if reference.field is None:
+    return {
+      'status': 'reference_field_failure',
+      'accepted': False,
+      'direct': None,
+      'planner': None,
+      'preparation': prepared.as_report(),
+      'claim_status': 'caustic-remesh-execution-pending',
+    }
+  current = reference.field.as_coupled_chain_cell(start_x_m=0.2, end_x_m=0.5)
+
+  def upstream_state_at(point_m: tuple[float, float]) -> CharacteristicState:
+    if point_m == request.event_point_m:
+      return request.upstream_state
+    return CharacteristicState(
+      x_m=point_m[0],
+      y_m=point_m[1],
+      theta_rad=request.upstream_state.theta_rad,
+      mach=request.upstream_state.mach,
+      gamma=request.upstream_state.gamma,
+    )
+
+  def invariant_law(_index: int, point_m: tuple[float, float]) -> float:
+    desired_angle = bridge_state.theta_rad * max(
+      0.0,
+      min(1.0, point_m[1] / request.event_point_m[1]),
+    )
+    compression = solve_attached_compression_to_turn(
+      upstream_mach=request.upstream_state.mach,
+      gamma=request.upstream_state.gamma,
+      upstream_pressure_Pa=request.upstream_static_pressure_Pa,
+      target_turn_rad=desired_angle - request.upstream_state.theta_rad,
+    )
+    if compression.downstream_mach is None:
+      raise ValueError('remesh validation invariant law produced no downstream Mach')
+    return desired_angle - prandtl_meyer_angle_rad(
+      compression.downstream_mach,
+      request.upstream_state.gamma,
+    )
+
+  direct = solve_caustic_shock_remesh(
+    request,
+    upstream_state_at,
+    lambda _point: request.upstream_static_pressure_Pa,
+    current.continuation_boundary,
+    downstream_invariant_at=invariant_law,
+    target_centerline_y_m=0.0,
+    sample_count=9,
+    shock_angle_tolerance_rad=0.2,
+  )
+  planner = plan_caustic_shock_remesh_chain(
+    current,
+    request,
+    upstream_state_at,
+    lambda _point: request.upstream_static_pressure_Pa,
+    downstream_invariant_at=invariant_law,
+    target_centerline_y_m=0.0,
+    sample_count=9,
+    shock_angle_tolerance_rad=0.2,
+  )
+  direct_report = direct.as_report()
+  planner_report = planner.as_report()
+  accepted = (
+    prepared.converged
+    and direct.status is MocCausticShockRemeshStatus.CONVERGED_COUPLED_REMESH
+    and direct.converged
+    and direct.remesh_seam_verified
+    and direct.event_seam_verified
+    and direct.local_bridge_state_verified
+    and direct.upstream_coupling_verified
+    and direct.shock_curve_verified
+    and direct.downstream_field_verified
+    and direct.physical_closure_verified is False
+    and direct.chain_promotion_blocked
+    and planner.planner_kind is MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
+    and planner.production_claim_allowed is False
+    and planner.chain.cell_count == 1
+    and planner.chain.physical_termination is False
+    and planner.chain.termination_reason is MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+    and len(planner.steps) == 1
+    and planner.steps[0].result_kind == 'termination-returned'
+    and planner.steps[0].incoming_handoff_sample_count == len(
+      current.continuation_boundary
+    )
+  )
+  return {
+    'status': 'diagnostic-coupled-caustic-remesh-execution',
+    'accepted': accepted,
+    'preparation': prepared.as_report(),
+    'direct': direct_report,
+    'planner': planner_report,
+    'incoming_handoff_sample_count': len(current.continuation_boundary),
+    'claim_status': (
+      'solver-backed-local-caustic-remesh-and-one-step-planner; '
+      'open-physical-closure-and-external-validation-pending'
+    ),
+  }
+
+
 def _caustic_family_band_shock_probe(
   seed: Any,
   total_pressure_Pa: float,
@@ -3176,6 +3346,9 @@ def build_moc_primitive_report() -> dict[str, Any]:
     else resolve_caustic_shock_seed(caustic_shock_seed)
   )
   caustic_shock_bridge = _caustic_shock_bridge_probe(caustic_shock_seed)
+  caustic_shock_remesh_execution = _caustic_shock_remesh_execution_probe(
+    caustic_shock_seed,
+  )
   caustic_family_restart = _caustic_family_restart_probe(
     caustic_shock_seed,
     fan_exit.total_pressure_Pa,
@@ -3599,6 +3772,9 @@ def build_moc_primitive_report() -> dict[str, Any]:
   caustic_shock_bridge_failure = (
     caustic_shock_bridge.get('accepted') is not True
   )
+  caustic_shock_remesh_execution_failure = (
+    caustic_shock_remesh_execution.get('accepted') is not True
+  )
   caustic_family_band_shock_failure = (
     caustic_family_band_shock.get('accepted') is not True
   )
@@ -3986,6 +4162,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
         else caustic_shock_resolution.as_report()
       ),
       'caustic_shock_bridge': caustic_shock_bridge,
+      'caustic_shock_remesh_execution': caustic_shock_remesh_execution,
       'caustic_family_restart': caustic_family_restart,
       'caustic_family_band_shock': caustic_family_band_shock,
       'caustic_family_band_origin_envelope': caustic_family_band_origin_envelope,
@@ -4732,6 +4909,17 @@ def build_moc_primitive_report() -> dict[str, Any]:
         ),
       }
     ] if caustic_shock_bridge_failure else []),
+    *([
+      {
+        'case': 'caustic_shock_remesh_execution',
+        'status': str(caustic_shock_remesh_execution.get('status', 'missing')),
+        'message': str(
+          caustic_shock_remesh_execution.get('direct', {}).get('message', '')
+          if isinstance(caustic_shock_remesh_execution.get('direct'), dict)
+          else caustic_shock_remesh_execution.get('claim_status', '')
+        ),
+      }
+    ] if caustic_shock_remesh_execution_failure else []),
     *([
       {
         'case': 'caustic_family_restart',
