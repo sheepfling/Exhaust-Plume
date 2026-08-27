@@ -30,6 +30,12 @@ from exhaust_plume.models.moc.compression import (
   solve_attached_subsonic_compression_to_turn,
   solve_normal_shock_terminal,
 )
+from exhaust_plume.models.moc.caustic_bridge import (
+  MocCausticBridgeResult,
+  MocCausticBridgeStatus,
+  MocCausticUpstreamBridge,
+  sample_caustic_upstream_bridge,
+)
 from exhaust_plume.models.moc.boundary import MocReflectedBoundaryResult
 from exhaust_plume.models.moc.chain import (
   MocChainBoundarySample,
@@ -70,10 +76,13 @@ __all__ = (
   'MocFreeBoundaryShockStatus',
   'MocReflectedZoneShockSolveResult',
   'MocPostShockZoneShockSolveResult',
+  'MocCausticBridgeShockSolveResult',
   'MocReflectedZoneAmbientClosureResult',
   'solve_marched_attached_shock_field',
   'solve_marched_attached_shock_with_invariant_boundary',
   'solve_marched_attached_shock_from_source_strip',
+  'solve_marched_attached_shock_from_caustic_upstream_bridge',
+  'solve_marched_attached_shock_from_caustic_upstream_bridge_with_invariant_boundary',
   'solve_marched_attached_shock_from_reflected_zone',
   'solve_marched_attached_shock_from_post_shock_zone',
   'solve_marched_attached_shock_with_ambient_pressure_closure_from_reflected_zone',
@@ -305,6 +314,66 @@ class MocPostShockZoneShockSolveResult:
       'coupling': self.coupling.as_report(),
       'downstream_condition_status': 'caller-supplied',
       'upstream_zone_closure_status': 'open',
+      'message': self.message,
+    }
+  ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocCausticBridgeShockSolveResult:
+  """A shock march audited against a two-sided caustic upstream bridge.
+
+  The bridge is intentionally a narrower claim than the shock result.  Even
+  if the generated shock and post-shock field close, the old-family to
+  restarted-family seam has not been solved as a physical remesh.  This
+  wrapper therefore keeps ``physical_closure_verified`` false and blocks
+  chain promotion until that separate seam is accepted.
+  """
+
+  shock: MocFreeBoundaryShockResult
+  coupling: MocCausticBridgeResult
+  message: str = ''
+
+  @property
+  def converged(self) -> bool:
+    """Whether the shock and every requested bridge sample converged."""
+
+    return self.shock.converged and self.coupling.converged
+  ####
+
+  @property
+  def upstream_coupling_verified(self) -> bool:
+    """Whether the generated shock path stayed inside the selected bridge."""
+
+    return self.coupling.converged and (
+      len(self.shock.shock_points_m) == len(self.coupling.requested_points_m)
+      and len(self.shock.upstream_states) == len(self.coupling.samples)
+      and len(self.shock.upstream_pressure_Pa) == len(self.coupling.samples)
+    )
+  ####
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    """The unresolved caustic seam prevents physical promotion."""
+
+    return False
+  ####
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    return True
+  ####
+
+  def as_report(self) -> dict[str, object]:
+    return {
+      'status': self.shock.status.value,
+      'converged': self.converged,
+      'upstream_coupling_verified': self.upstream_coupling_verified,
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'shock': self.shock.as_report(),
+      'coupling': self.coupling.as_report(),
+      'downstream_condition_status': 'caller-supplied',
       'message': self.message,
     }
   ####
@@ -1114,6 +1183,213 @@ def solve_marched_attached_shock_from_source_strip(
     invariant_tolerance=invariant_tolerance,
     shock_angle_tolerance_rad=shock_angle_tolerance_rad,
     maximum_segment_iterations=maximum_segment_iterations,
+  )
+####
+
+
+def _caustic_bridge_coupling_for_shock_path(
+  bridge: MocCausticUpstreamBridge,
+  shock: MocFreeBoundaryShockResult,
+  *,
+  position_tolerance_m: float,
+) -> MocCausticBridgeResult:
+  """Audit retained shock samples and preserve an upstream miss as a gap."""
+
+  coupling = sample_caustic_upstream_bridge(
+    bridge,
+    shock.shock_points_m,
+    position_tolerance_m=position_tolerance_m,
+  )
+  if (
+    shock.status is MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE
+    and coupling.converged
+  ):
+    return replace(
+      coupling,
+      status=MocCausticBridgeStatus.DOMAIN_GAP,
+      first_missing_sample_index=shock.sample_count,
+      message=(
+        'shock march stopped before the next candidate point could be '
+        'sampled from the bounded caustic bridge; no extrapolation was used'
+      ),
+    )
+  return coupling
+
+
+def _caustic_bridge_shock_result(
+  bridge: MocCausticUpstreamBridge,
+  shock: MocFreeBoundaryShockResult,
+  *,
+  position_tolerance_m: float,
+) -> MocCausticBridgeShockSolveResult:
+  """Combine a bridge-fed shock result with its independent path audit."""
+
+  coupling = _caustic_bridge_coupling_for_shock_path(
+    bridge,
+    shock,
+    position_tolerance_m=position_tolerance_m,
+  )
+  if shock.converged and coupling.converged:
+    message = (
+      'attached shock and post-shock field converged with complete bounded '
+      'caustic-bridge coverage; physical branch closure remains pending'
+    )
+  elif not coupling.converged:
+    message = f'caustic upstream bridge did not cover the shock path: {coupling.message}'
+  else:
+    message = shock.message
+  return MocCausticBridgeShockSolveResult(
+    shock=shock,
+    coupling=coupling,
+    message=message,
+  )
+
+
+def solve_marched_attached_shock_from_caustic_upstream_bridge(
+  bridge: MocCausticUpstreamBridge,
+  start_point_m: tuple[float, float],
+  *,
+  target_centerline_y_m: float = 0.0,
+  downstream_flow_angle_at: Callable[[int, tuple[float, float]], float] | None = None,
+  downstream_flow_angle_rad: float | None = None,
+  incoming_handoff: Sequence[MocChainBoundarySample] | None = None,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+) -> MocCausticBridgeShockSolveResult:
+  """March a shock using a strict old-family/restarted-family bridge.
+
+  The two one-sided fields remain domain-bounded.  If the generated path
+  enters a gap, the retained prefix and its first missing index are reported;
+  the bridge never switches sides implicitly or extrapolates a last state.
+  ``downstream_flow_angle_at``/``downstream_flow_angle_rad`` remain explicit
+  research boundary conditions.
+  """
+
+  if not isinstance(bridge, MocCausticUpstreamBridge):
+    shock = _failure(
+      MocFreeBoundaryShockStatus.INVALID_INPUT,
+      message='bridge must be a MocCausticUpstreamBridge',
+    )
+    coupling = sample_caustic_upstream_bridge(bridge, ())
+    return MocCausticBridgeShockSolveResult(
+      shock=shock,
+      coupling=coupling,
+      message='caustic bridge shock solve rejected an invalid bridge',
+    )
+  if not bridge.fields_converged:
+    shock = _failure(
+      MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE,
+      message=(
+        'caustic bridge requires converged old-family and restarted-family '
+        'fields before shock marching'
+      ),
+    )
+    coupling = sample_caustic_upstream_bridge(bridge, ())
+    return MocCausticBridgeShockSolveResult(
+      shock=shock,
+      coupling=coupling,
+      message='caustic bridge shock solve stopped at its field-input boundary',
+    )
+
+  shock = solve_marched_attached_shock_field(
+    bridge.state_at,
+    bridge.static_pressure_at,
+    start_point_m,
+    target_centerline_y_m=target_centerline_y_m,
+    downstream_flow_angle_at=downstream_flow_angle_at,
+    downstream_flow_angle_rad=downstream_flow_angle_rad,
+    incoming_handoff=incoming_handoff,
+    sample_count=sample_count,
+    branch=branch,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+    shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+    maximum_segment_iterations=maximum_segment_iterations,
+  )
+  return _caustic_bridge_shock_result(
+    bridge,
+    shock,
+    position_tolerance_m=position_tolerance_m,
+  )
+####
+
+
+def solve_marched_attached_shock_from_caustic_upstream_bridge_with_invariant_boundary(
+  bridge: MocCausticUpstreamBridge,
+  start_point_m: tuple[float, float],
+  downstream_invariant_family: CharacteristicFamily,
+  downstream_invariant_at: Callable[[int, tuple[float, float]], float],
+  *,
+  target_centerline_y_m: float = 0.0,
+  incoming_handoff: Sequence[MocChainBoundarySample] | None = None,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  maximum_downstream_angle_rad: float = 0.9,
+  maximum_invariant_scan_samples: int = 64,
+  maximum_invariant_iterations: int = 80,
+) -> MocCausticBridgeShockSolveResult:
+  """Use an explicit downstream invariant law with a caustic bridge.
+
+  The invariant is a caller-supplied research boundary condition.  This
+  convenience entry point keeps it paired with the same independent bridge
+  coverage audit used by the ordinary downstream-angle marcher.
+  """
+
+  if not isinstance(bridge, MocCausticUpstreamBridge):
+    shock = _failure(
+      MocFreeBoundaryShockStatus.INVALID_INPUT,
+      message='bridge must be a MocCausticUpstreamBridge',
+    )
+    coupling = sample_caustic_upstream_bridge(bridge, ())
+    return MocCausticBridgeShockSolveResult(
+      shock=shock,
+      coupling=coupling,
+      message='caustic bridge invariant shock solve rejected an invalid bridge',
+    )
+  if not bridge.fields_converged:
+    shock = _failure(
+      MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE,
+      message=(
+        'caustic bridge requires converged old-family and restarted-family '
+        'fields before invariant shock marching'
+      ),
+    )
+    coupling = sample_caustic_upstream_bridge(bridge, ())
+    return MocCausticBridgeShockSolveResult(
+      shock=shock,
+      coupling=coupling,
+      message='caustic bridge invariant shock solve stopped at its field-input boundary',
+    )
+  shock = solve_marched_attached_shock_with_invariant_boundary(
+    bridge.state_at,
+    bridge.static_pressure_at,
+    start_point_m,
+    downstream_invariant_family,
+    downstream_invariant_at,
+    target_centerline_y_m=target_centerline_y_m,
+    incoming_handoff=incoming_handoff,
+    sample_count=sample_count,
+    branch=branch,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+    shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+    maximum_segment_iterations=maximum_segment_iterations,
+    maximum_downstream_angle_rad=maximum_downstream_angle_rad,
+    maximum_invariant_scan_samples=maximum_invariant_scan_samples,
+    maximum_invariant_iterations=maximum_invariant_iterations,
+  )
+  return _caustic_bridge_shock_result(
+    bridge,
+    shock,
+    position_tolerance_m=position_tolerance_m,
   )
 ####
 

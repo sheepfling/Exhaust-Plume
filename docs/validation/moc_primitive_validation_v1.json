@@ -1011,6 +1011,58 @@
         "selected_candidate": null,
         "message": "neither one-sided orientation supplies an entropy-admissible matched shock state; a new-family/remesh solve is required"
       },
+      "caustic_shock_bridge": {
+        "status": "diagnostic-invariant-conditioned-caustic-shock-bridge",
+        "accepted": true,
+        "bridge": {
+          "status": "converged_local_caustic_shock_compatibility",
+          "converged": true,
+          "entropy_admissible": true,
+          "shock_curve_verified": false,
+          "physical_closure_verified": false,
+          "chain_promotion_blocked": true,
+          "upstream_edge_index": 0,
+          "downstream_invariant_family": "C+",
+          "downstream_invariant_target": -0.7773765674048146,
+          "upstream_state": {
+            "x_m": 0.6584201957653014,
+            "y_m": 0.056970655192732075,
+            "theta_rad": 0.06251802535060723,
+            "mach": 2.9524960898197605,
+            "gamma": 1.4
+          },
+          "downstream_state": {
+            "x_m": 0.6584201957653014,
+            "y_m": 0.056970655192732075,
+            "theta_rad": 0.06871363426217914,
+            "mach": 2.9344925126658867,
+            "gamma": 1.4
+          },
+          "compression": {
+            "status": "converged",
+            "shock_status": "attached",
+            "converged": true,
+            "target_turn_rad": 0.0061956089115719,
+            "beta_rad": 0.34975487984367093,
+            "downstream_mach": 2.9344925126658867,
+            "downstream_pressure_Pa": 60087.13526679321,
+            "downstream_total_pressure_Pa": 1999995.9176687687,
+            "total_pressure_ratio": 0.9999979588343844,
+            "message": ""
+          },
+          "shock_angle_rad": -0.2872368544930637,
+          "flow_turn_rad": 0.0061956089115719,
+          "invariant_residual": -9.419931501497558e-11,
+          "turn_bracket_rad": [
+            0.006195608492476746,
+            0.006195609330667054
+          ],
+          "iterations": 25,
+          "message": "explicit downstream characteristic invariant produced an entropy-admissible local shock state; shock curve, downstream field, and physical closure remain pending",
+          "accepted": true
+        },
+        "claim_status": "local-invariant-conditioned-shock-state-only; shock-curve-and-downstream-field-pending"
+      },
       "caustic_family_restart": {
         "status": "diagnostic-open-new-family-boundary-restarts",
         "accepted": true,
@@ -1641,6 +1693,7 @@
               "maximum_terminal_static_pressure_residual_Pa": null,
               "maximum_terminal_total_pressure_residual_Pa": null,
               "maximum_total_pressure_gain_Pa": null,
+              "supersonic_patch_points_m": [],
               "terminal": {
                 "status": "converged",
                 "converged": true,
@@ -1804,6 +1857,7 @@
               "maximum_terminal_static_pressure_residual_Pa": null,
               "maximum_terminal_total_pressure_residual_Pa": null,
               "maximum_total_pressure_gain_Pa": null,
+              "supersonic_patch_points_m": [],
               "terminal": {
                 "status": "converged",
                 "converged": true,
@@ -1854,7 +1908,14 @@
                     749635.1347251647,
                     764819.179280032
                   ],
-                  "incoming_handoff_fingerprint": "d0c3cfd5c26535d39ff1ee5d6c0ce16797ff445aaf2d3130e41244d662347b9b"
+                  "incoming_handoff_fingerprint": "d0c3cfd5c26535d39ff1ee5d6c0ce16797ff445aaf2d3130e41244d662347b9b",
+                  "result_kind": "termination-returned",
+                  "result_status": "open-physical-closure",
+                  "result_end_x_m": null,
+                  "result_geometry_fidelity": null,
+                  "result_physical_closure": null,
+                  "result_termination_reason": "open-physical-closure",
+                  "result_physical_termination": false
                 }
               ],
               "chain": {
@@ -1925,7 +1986,14 @@
                     749635.1347251647,
                     764819.179280032
                   ],
-                  "incoming_handoff_fingerprint": "d0c3cfd5c26535d39ff1ee5d6c0ce16797ff445aaf2d3130e41244d662347b9b"
+                  "incoming_handoff_fingerprint": "d0c3cfd5c26535d39ff1ee5d6c0ce16797ff445aaf2d3130e41244d662347b9b",
+                  "result_kind": "termination-returned",
+                  "result_status": "open-physical-closure",
+                  "result_end_x_m": null,
+                  "result_geometry_fidelity": null,
+                  "result_physical_closure": null,
+                  "result_termination_reason": "open-physical-closure",
+                  "result_physical_termination": false
                 }
               ],
               "chain": {
@@ -1974,6 +2042,848 @@
           }
         ],
         "claim_status": "solver-generated-caustic-band-next-shock-handoff; open-mixed-regime-closure-and-chain-promotion-pending"
+      },
+      "caustic_family_band_invariant_chain": {
+        "status": "diagnostic-invariant-caustic-band-chain",
+        "accepted": true,
+        "target_invariant": -0.7773765674048146,
+        "direct": {
+          "status": "invariant_caustic_band_upstream_domain_failure",
+          "converged": false,
+          "research_boundary_condition": "explicit-downstream-characteristic-invariant",
+          "shock_curve_verified": false,
+          "upstream_coupling_verified": false,
+          "physical_closure_verified": false,
+          "chain_promotion_blocked": true,
+          "band_kind": "centerline-ambient-two-triangle-characteristic-band",
+          "start_point_m": [
+            0.6584201957653014,
+            0.056970655192732075
+          ],
+          "invariant_family": "C+",
+          "first_missing_sample_index": 4,
+          "shock": {
+            "status": "upstream_field_failure",
+            "converged": false,
+            "physical_closure_verified": false,
+            "subsonic_terminal_required": false,
+            "sample_count": 4,
+            "endpoint_m": [
+              0.7266742126554121,
+              0.03560665949545755
+            ],
+            "maximum_shock_angle_residual_rad": null,
+            "field_status": null,
+            "subsonic_boundary_verified": false,
+            "subsonic_shock_boundary": null,
+            "normal_shock_terminal": null,
+            "message": "upstream field callback returned no CharacteristicState at sample 4"
+          },
+          "message": "invariant-conditioned caustic-band shock march stopped: upstream field callback returned no CharacteristicState at sample 4"
+        },
+        "planner": {
+          "planner_kind": "upstream-coupled-research",
+          "planning_only": true,
+          "production_claim_allowed": false,
+          "claim_status": "invariant-conditioned-caustic-band-shock-planner; one-sided-upstream-domain-and-physical-remesh-pending",
+          "step_count": 1,
+          "steps": [
+            {
+              "current_cell_index": 1,
+              "next_cell_index": 2,
+              "current_end_x_m": 0.5,
+              "boundary_kind": "post-shock-field-perimeter",
+              "incoming_handoff_sample_count": 18,
+              "incoming_total_pressure_range_Pa": [
+                749635.1347251647,
+                764819.179280032
+              ],
+              "incoming_handoff_fingerprint": "d0c3cfd5c26535d39ff1ee5d6c0ce16797ff445aaf2d3130e41244d662347b9b",
+              "result_kind": "termination-returned",
+              "result_status": "upstream-field-boundary",
+              "result_end_x_m": null,
+              "result_geometry_fidelity": null,
+              "result_physical_closure": null,
+              "result_termination_reason": "upstream-field-boundary",
+              "result_physical_termination": false
+            }
+          ],
+          "chain": {
+            "status": "solver-terminated",
+            "termination_reason": "upstream-field-boundary",
+            "physical_termination": false,
+            "cell_count": 1,
+            "end_x_m": 0.5,
+            "resolved": true,
+            "state_carry_count": 1,
+            "continuation_boundary_kinds": [
+              "post-shock-field-perimeter"
+            ],
+            "continuation_total_pressure_ranges_Pa": [
+              {
+                "cell_index": 1,
+                "minimum_Pa": 749635.1347251647,
+                "maximum_Pa": 764819.179280032
+              }
+            ],
+            "continuation_boundary_maxima_nonincreasing": null,
+            "geometry_fidelity_counts": {
+              "resolved-planar-moc": 1
+            },
+            "diagnostics": {
+              "termination_model": "invariant-caustic-band-upstream-field-boundary",
+              "upstream_field_model": "bounded-caustic-family-band",
+              "invariant_family": "C+",
+              "next_cell_index": 2,
+              "sampled_count": 4,
+              "first_missing_sample_index": 4,
+              "last_valid_point_m": [
+                0.7266742126554121,
+                0.03560665949545755
+              ],
+              "shock_status": "upstream_field_failure",
+              "message": "invariant-conditioned caustic-band shock march stopped: upstream field callback returned no CharacteristicState at sample 4"
+            },
+            "message": "invariant-conditioned shock path left the bounded caustic-family band; no extrapolation or physical endpoint was inferred"
+          },
+          "diagnostics": {}
+        },
+        "claim_status": "invariant-conditioned-shock-march-and-typed-upstream-boundary-stop; physical-caustic-remesh-pending"
+      },
+      "caustic_upstream_bridge": {
+        "status": "diagnostic-bounded-caustic-upstream-bridge",
+        "accepted": true,
+        "bridge": {
+          "old_family_status": "converged_open_source_strip",
+          "old_family_converged": true,
+          "restarted_family_status": "converged_open_caustic_family_band",
+          "restarted_family_converged": true,
+          "fields_converged": true,
+          "side_selection": "unique-domain-coverage-only",
+          "physical_closure_verified": false,
+          "chain_promotion_blocked": true
+        },
+        "covered_path_audit": {
+          "status": "converged_bounded_caustic_bridge_path",
+          "converged": true,
+          "requested_sample_count": 4,
+          "sampled_count": 4,
+          "first_missing_sample_index": null,
+          "first_ambiguous_sample_index": null,
+          "last_valid_point_m": [
+            1.4839257747916486,
+            0.036046619000942026
+          ],
+          "side_counts": {
+            "old-family": 0,
+            "restarted-family": 4
+          },
+          "side_transition_indices": [],
+          "physical_closure_verified": false,
+          "chain_promotion_blocked": true,
+          "bridge": {
+            "old_family_status": "converged_open_source_strip",
+            "old_family_converged": true,
+            "restarted_family_status": "converged_open_caustic_family_band",
+            "restarted_family_converged": true,
+            "fields_converged": true,
+            "side_selection": "unique-domain-coverage-only",
+            "physical_closure_verified": false,
+            "chain_promotion_blocked": true
+          },
+          "samples": [
+            {
+              "point_m": [
+                0.9744603781350654,
+                0.036046619001158374
+              ],
+              "side": "restarted-family",
+              "static_pressure_Pa": 101325.0000001052,
+              "old_family_available": false,
+              "restarted_family_available": true
+            },
+            {
+              "point_m": [
+                1.095076800393742,
+                0.03604661900110716
+              ],
+              "side": "restarted-family",
+              "static_pressure_Pa": 101325.0000001052,
+              "old_family_available": false,
+              "restarted_family_available": true
+            },
+            {
+              "point_m": [
+                1.363309352533525,
+                0.03604661900099325
+              ],
+              "side": "restarted-family",
+              "static_pressure_Pa": 101325.0000001052,
+              "old_family_available": false,
+              "restarted_family_available": true
+            },
+            {
+              "point_m": [
+                1.4839257747916486,
+                0.036046619000942026
+              ],
+              "side": "restarted-family",
+              "static_pressure_Pa": 101325.0000001052,
+              "old_family_available": false,
+              "restarted_family_available": true
+            }
+          ],
+          "message": "every requested shock-path sample is covered by exactly one selected one-sided caustic field; branch and downstream closure remain pending"
+        },
+        "gap_audit": {
+          "status": "caustic_bridge_domain_gap",
+          "converged": false,
+          "requested_sample_count": 3,
+          "sampled_count": 2,
+          "first_missing_sample_index": 2,
+          "first_ambiguous_sample_index": null,
+          "last_valid_point_m": [
+            0.675,
+            0.052
+          ],
+          "side_counts": {
+            "old-family": 0,
+            "restarted-family": 2
+          },
+          "side_transition_indices": [],
+          "physical_closure_verified": false,
+          "chain_promotion_blocked": true,
+          "bridge": {
+            "old_family_status": "converged_open_source_strip",
+            "old_family_converged": true,
+            "restarted_family_status": "converged_open_caustic_family_band",
+            "restarted_family_converged": true,
+            "fields_converged": true,
+            "side_selection": "unique-domain-coverage-only",
+            "physical_closure_verified": false,
+            "chain_promotion_blocked": true
+          },
+          "samples": [
+            {
+              "point_m": [
+                0.6584201957653014,
+                0.056970655192732075
+              ],
+              "side": "restarted-family",
+              "static_pressure_Pa": 58477.95657993019,
+              "old_family_available": false,
+              "restarted_family_available": true
+            },
+            {
+              "point_m": [
+                0.675,
+                0.052
+              ],
+              "side": "restarted-family",
+              "static_pressure_Pa": 57201.10797933804,
+              "old_family_available": false,
+              "restarted_family_available": true
+            }
+          ],
+          "message": "neither one-sided caustic field covers the requested point; bridge interpolation or extrapolation is not permitted"
+        },
+        "explicit_old_side_no_fallback_audit": {
+          "status": "caustic_bridge_selected_side_domain_gap",
+          "converged": false,
+          "requested_sample_count": 1,
+          "sampled_count": 0,
+          "first_missing_sample_index": 0,
+          "first_ambiguous_sample_index": null,
+          "last_valid_point_m": null,
+          "side_counts": {
+            "old-family": 0,
+            "restarted-family": 0
+          },
+          "side_transition_indices": [],
+          "physical_closure_verified": false,
+          "chain_promotion_blocked": true,
+          "bridge": {
+            "old_family_status": "converged_open_source_strip",
+            "old_family_converged": true,
+            "restarted_family_status": "converged_open_caustic_family_band",
+            "restarted_family_converged": true,
+            "fields_converged": true,
+            "side_selection": "explicit-caller-selector",
+            "physical_closure_verified": false,
+            "chain_promotion_blocked": true
+          },
+          "samples": [],
+          "message": "the selected old-family does not cover the requested point; the other side is not used as a fallback"
+        },
+        "shock": {
+          "status": "subsonic_terminal_required",
+          "converged": false,
+          "upstream_coupling_verified": true,
+          "physical_closure_verified": false,
+          "chain_promotion_blocked": true,
+          "shock": {
+            "status": "subsonic_terminal_required",
+            "converged": false,
+            "physical_closure_verified": false,
+            "subsonic_terminal_required": true,
+            "sample_count": 8,
+            "endpoint_m": [
+              0.9370732127669145,
+              0.002252913687572397
+            ],
+            "maximum_shock_angle_residual_rad": null,
+            "field_status": null,
+            "subsonic_boundary_verified": false,
+            "subsonic_shock_boundary": null,
+            "normal_shock_terminal": {
+              "status": "converged",
+              "converged": true,
+              "subsonic": true,
+              "shock_point_m": [
+                0.9421320150284584,
+                0.0
+              ],
+              "shock_normal_angle_rad": 1.5707963267948966,
+              "downstream_flow_angle_rad": 0.0,
+              "downstream_mach": 0.5065272697270421,
+              "downstream_pressure_Pa": 791708.8965435338,
+              "static_pressure_ratio": 7.537791425487928,
+              "total_pressure_ratio": 0.47162743526095374,
+              "message": ""
+            },
+            "message": "sample 8 reaches the symmetry line with zero flow turn; the typed subsonic terminal model is outside the supersonic MOC lane"
+          },
+          "coupling": {
+            "status": "converged_bounded_caustic_bridge_path",
+            "converged": true,
+            "requested_sample_count": 8,
+            "sampled_count": 8,
+            "first_missing_sample_index": null,
+            "first_ambiguous_sample_index": null,
+            "last_valid_point_m": [
+              0.9370732127669145,
+              0.002252913687572397
+            ],
+            "side_counts": {
+              "old-family": 0,
+              "restarted-family": 8
+            },
+            "side_transition_indices": [],
+            "physical_closure_verified": false,
+            "chain_promotion_blocked": true,
+            "bridge": {
+              "old_family_status": "converged_open_source_strip",
+              "old_family_converged": true,
+              "restarted_family_status": "converged_open_caustic_family_band",
+              "restarted_family_converged": true,
+              "fields_converged": true,
+              "side_selection": "unique-domain-coverage-only",
+              "physical_closure_verified": false,
+              "chain_promotion_blocked": true
+            },
+            "samples": [
+              {
+                "point_m": [
+                  0.9074022400998616,
+                  0.018023309500579187
+                ],
+                "side": "restarted-family",
+                "static_pressure_Pa": 67999.38828321394,
+                "old_family_available": false,
+                "restarted_family_available": true
+              },
+              {
+                "point_m": [
+                  0.9110076689914324,
+                  0.01577039581300679
+                ],
+                "side": "restarted-family",
+                "static_pressure_Pa": 71503.88504497593,
+                "old_family_available": false,
+                "restarted_family_available": true
+              },
+              {
+                "point_m": [
+                  0.9148062787078299,
+                  0.01351748212543439
+                ],
+                "side": "restarted-family",
+                "static_pressure_Pa": 75273.20674913008,
+                "old_family_available": false,
+                "restarted_family_available": true
+              },
+              {
+                "point_m": [
+                  0.9188080290816978,
+                  0.011264568437861992
+                ],
+                "side": "restarted-family",
+                "static_pressure_Pa": 79333.22067370311,
+                "old_family_available": false,
+                "restarted_family_available": true
+              },
+              {
+                "point_m": [
+                  0.9230236367765432,
+                  0.009011654750289593
+                ],
+                "side": "restarted-family",
+                "static_pressure_Pa": 83712.9181094425,
+                "old_family_available": false,
+                "restarted_family_available": true
+              },
+              {
+                "point_m": [
+                  0.9274646270238063,
+                  0.006758741062717195
+                ],
+                "side": "restarted-family",
+                "static_pressure_Pa": 88444.85009993066,
+                "old_family_available": false,
+                "restarted_family_available": true
+              },
+              {
+                "point_m": [
+                  0.9321433861261058,
+                  0.004505827375144798
+                ],
+                "side": "restarted-family",
+                "static_pressure_Pa": 93565.62927047852,
+                "old_family_available": false,
+                "restarted_family_available": true
+              },
+              {
+                "point_m": [
+                  0.9370732127669145,
+                  0.002252913687572397
+                ],
+                "side": "restarted-family",
+                "static_pressure_Pa": 99116.50715868665,
+                "old_family_available": false,
+                "restarted_family_available": true
+              }
+            ],
+            "message": "every requested shock-path sample is covered by exactly one selected one-sided caustic field; branch and downstream closure remain pending"
+          },
+          "downstream_condition_status": "caller-supplied",
+          "message": "sample 8 reaches the symmetry line with zero flow turn; the typed subsonic terminal model is outside the supersonic MOC lane"
+        },
+        "invariant_shock": {
+          "status": "upstream_field_failure",
+          "converged": false,
+          "upstream_coupling_verified": false,
+          "physical_closure_verified": false,
+          "chain_promotion_blocked": true,
+          "shock": {
+            "status": "upstream_field_failure",
+            "converged": false,
+            "physical_closure_verified": false,
+            "subsonic_terminal_required": false,
+            "sample_count": 4,
+            "endpoint_m": [
+              0.7266742126554121,
+              0.03560665949545755
+            ],
+            "maximum_shock_angle_residual_rad": null,
+            "field_status": null,
+            "subsonic_boundary_verified": false,
+            "subsonic_shock_boundary": null,
+            "normal_shock_terminal": null,
+            "message": "upstream field callback returned no CharacteristicState at sample 4"
+          },
+          "coupling": {
+            "status": "caustic_bridge_domain_gap",
+            "converged": false,
+            "requested_sample_count": 4,
+            "sampled_count": 4,
+            "first_missing_sample_index": 4,
+            "first_ambiguous_sample_index": null,
+            "last_valid_point_m": [
+              0.7266742126554121,
+              0.03560665949545755
+            ],
+            "side_counts": {
+              "old-family": 0,
+              "restarted-family": 4
+            },
+            "side_transition_indices": [],
+            "physical_closure_verified": false,
+            "chain_promotion_blocked": true,
+            "bridge": {
+              "old_family_status": "converged_open_source_strip",
+              "old_family_converged": true,
+              "restarted_family_status": "converged_open_caustic_family_band",
+              "restarted_family_converged": true,
+              "fields_converged": true,
+              "side_selection": "unique-domain-coverage-only",
+              "physical_closure_verified": false,
+              "chain_promotion_blocked": true
+            },
+            "samples": [
+              {
+                "point_m": [
+                  0.6584201957653014,
+                  0.056970655192732075
+                ],
+                "side": "restarted-family",
+                "static_pressure_Pa": 58477.95657993019,
+                "old_family_available": false,
+                "restarted_family_available": true
+              },
+              {
+                "point_m": [
+                  0.6820345374678553,
+                  0.049849323293640564
+                ],
+                "side": "restarted-family",
+                "static_pressure_Pa": 56633.95673337673,
+                "old_family_available": false,
+                "restarted_family_available": true
+              },
+              {
+                "point_m": [
+                  0.7047405567334287,
+                  0.04272799139454905
+                ],
+                "side": "restarted-family",
+                "static_pressure_Pa": 54699.21739918422,
+                "old_family_available": false,
+                "restarted_family_available": true
+              },
+              {
+                "point_m": [
+                  0.7266742126554121,
+                  0.03560665949545755
+                ],
+                "side": "restarted-family",
+                "static_pressure_Pa": 52704.34537601114,
+                "old_family_available": false,
+                "restarted_family_available": true
+              }
+            ],
+            "message": "shock march stopped before the next candidate point could be sampled from the bounded caustic bridge; no extrapolation was used"
+          },
+          "downstream_condition_status": "caller-supplied",
+          "message": "caustic upstream bridge did not cover the shock path: shock march stopped before the next candidate point could be sampled from the bounded caustic bridge; no extrapolation was used"
+        },
+        "planner": {
+          "planner_kind": "upstream-coupled-research",
+          "planning_only": true,
+          "production_claim_allowed": false,
+          "claim_status": "caustic-upstream-bridge-planner; physical-remesh-and-downstream-closure-pending",
+          "step_count": 1,
+          "steps": [
+            {
+              "current_cell_index": 1,
+              "next_cell_index": 2,
+              "current_end_x_m": 0.8,
+              "boundary_kind": "post-shock-field-perimeter",
+              "incoming_handoff_sample_count": 18,
+              "incoming_total_pressure_range_Pa": [
+                749635.1347251647,
+                764819.179280032
+              ],
+              "incoming_handoff_fingerprint": "d0c3cfd5c26535d39ff1ee5d6c0ce16797ff445aaf2d3130e41244d662347b9b",
+              "result_kind": "termination-returned",
+              "result_status": "open-physical-closure",
+              "result_end_x_m": null,
+              "result_geometry_fidelity": null,
+              "result_physical_closure": null,
+              "result_termination_reason": "open-physical-closure",
+              "result_physical_termination": false
+            }
+          ],
+          "chain": {
+            "status": "solver-terminated",
+            "termination_reason": "open-physical-closure",
+            "physical_termination": false,
+            "cell_count": 1,
+            "end_x_m": 0.8,
+            "resolved": true,
+            "state_carry_count": 1,
+            "continuation_boundary_kinds": [
+              "post-shock-field-perimeter"
+            ],
+            "continuation_total_pressure_ranges_Pa": [
+              {
+                "cell_index": 1,
+                "minimum_Pa": 749635.1347251647,
+                "maximum_Pa": 764819.179280032
+              }
+            ],
+            "continuation_boundary_maxima_nonincreasing": null,
+            "geometry_fidelity_counts": {
+              "resolved-planar-moc": 1
+            },
+            "diagnostics": {
+              "termination_model": "caustic-upstream-bridge",
+              "upstream_field_model": "bounded-old-family-restarted-family-bridge",
+              "next_cell_index": 2,
+              "requested_end_x_m": 1.4,
+              "bridge_status": "converged_bounded_caustic_bridge_path",
+              "bridge_sampled_count": 8,
+              "bridge_first_missing_sample_index": null,
+              "bridge_first_ambiguous_sample_index": null,
+              "upstream_coupling_verified": true,
+              "physical_closure_verified": false,
+              "bridge_report": {
+                "status": "converged_bounded_caustic_bridge_path",
+                "converged": true,
+                "requested_sample_count": 8,
+                "sampled_count": 8,
+                "first_missing_sample_index": null,
+                "first_ambiguous_sample_index": null,
+                "last_valid_point_m": [
+                  0.9370732127669145,
+                  0.002252913687572397
+                ],
+                "side_counts": {
+                  "old-family": 0,
+                  "restarted-family": 8
+                },
+                "side_transition_indices": [],
+                "physical_closure_verified": false,
+                "chain_promotion_blocked": true,
+                "bridge": {
+                  "old_family_status": "converged_open_source_strip",
+                  "old_family_converged": true,
+                  "restarted_family_status": "converged_open_caustic_family_band",
+                  "restarted_family_converged": true,
+                  "fields_converged": true,
+                  "side_selection": "unique-domain-coverage-only",
+                  "physical_closure_verified": false,
+                  "chain_promotion_blocked": true
+                },
+                "samples": [
+                  {
+                    "point_m": [
+                      0.9074022400998616,
+                      0.018023309500579187
+                    ],
+                    "side": "restarted-family",
+                    "static_pressure_Pa": 67999.38828321394,
+                    "old_family_available": false,
+                    "restarted_family_available": true
+                  },
+                  {
+                    "point_m": [
+                      0.9110076689914324,
+                      0.01577039581300679
+                    ],
+                    "side": "restarted-family",
+                    "static_pressure_Pa": 71503.88504497593,
+                    "old_family_available": false,
+                    "restarted_family_available": true
+                  },
+                  {
+                    "point_m": [
+                      0.9148062787078299,
+                      0.01351748212543439
+                    ],
+                    "side": "restarted-family",
+                    "static_pressure_Pa": 75273.20674913008,
+                    "old_family_available": false,
+                    "restarted_family_available": true
+                  },
+                  {
+                    "point_m": [
+                      0.9188080290816978,
+                      0.011264568437861992
+                    ],
+                    "side": "restarted-family",
+                    "static_pressure_Pa": 79333.22067370311,
+                    "old_family_available": false,
+                    "restarted_family_available": true
+                  },
+                  {
+                    "point_m": [
+                      0.9230236367765432,
+                      0.009011654750289593
+                    ],
+                    "side": "restarted-family",
+                    "static_pressure_Pa": 83712.9181094425,
+                    "old_family_available": false,
+                    "restarted_family_available": true
+                  },
+                  {
+                    "point_m": [
+                      0.9274646270238063,
+                      0.006758741062717195
+                    ],
+                    "side": "restarted-family",
+                    "static_pressure_Pa": 88444.85009993066,
+                    "old_family_available": false,
+                    "restarted_family_available": true
+                  },
+                  {
+                    "point_m": [
+                      0.9321433861261058,
+                      0.004505827375144798
+                    ],
+                    "side": "restarted-family",
+                    "static_pressure_Pa": 93565.62927047852,
+                    "old_family_available": false,
+                    "restarted_family_available": true
+                  },
+                  {
+                    "point_m": [
+                      0.9370732127669145,
+                      0.002252913687572397
+                    ],
+                    "side": "restarted-family",
+                    "static_pressure_Pa": 99116.50715868665,
+                    "old_family_available": false,
+                    "restarted_family_available": true
+                  }
+                ],
+                "message": "every requested shock-path sample is covered by exactly one selected one-sided caustic field; branch and downstream closure remain pending"
+              },
+              "shock_status": "subsonic_terminal_required"
+            },
+            "message": "caustic bridge supplied a bounded shock attempt, but the physical old-family/new-family seam and downstream cell closure remain unresolved; no cell was promoted"
+          },
+          "diagnostics": {}
+        },
+        "invariant_planner": {
+          "planner_kind": "upstream-coupled-research",
+          "planning_only": true,
+          "production_claim_allowed": false,
+          "claim_status": "invariant-caustic-upstream-bridge-planner; physical-remesh-and-downstream-closure-pending",
+          "step_count": 1,
+          "steps": [
+            {
+              "current_cell_index": 1,
+              "next_cell_index": 2,
+              "current_end_x_m": 0.5,
+              "boundary_kind": "post-shock-field-perimeter",
+              "incoming_handoff_sample_count": 18,
+              "incoming_total_pressure_range_Pa": [
+                749635.1347251647,
+                764819.179280032
+              ],
+              "incoming_handoff_fingerprint": "d0c3cfd5c26535d39ff1ee5d6c0ce16797ff445aaf2d3130e41244d662347b9b",
+              "result_kind": "termination-returned",
+              "result_status": "upstream-field-boundary",
+              "result_end_x_m": null,
+              "result_geometry_fidelity": null,
+              "result_physical_closure": null,
+              "result_termination_reason": "upstream-field-boundary",
+              "result_physical_termination": false
+            }
+          ],
+          "chain": {
+            "status": "solver-terminated",
+            "termination_reason": "upstream-field-boundary",
+            "physical_termination": false,
+            "cell_count": 1,
+            "end_x_m": 0.5,
+            "resolved": true,
+            "state_carry_count": 1,
+            "continuation_boundary_kinds": [
+              "post-shock-field-perimeter"
+            ],
+            "continuation_total_pressure_ranges_Pa": [
+              {
+                "cell_index": 1,
+                "minimum_Pa": 749635.1347251647,
+                "maximum_Pa": 764819.179280032
+              }
+            ],
+            "continuation_boundary_maxima_nonincreasing": null,
+            "geometry_fidelity_counts": {
+              "resolved-planar-moc": 1
+            },
+            "diagnostics": {
+              "termination_model": "invariant-caustic-upstream-bridge",
+              "upstream_field_model": "bounded-old-family-restarted-family-bridge",
+              "next_cell_index": 2,
+              "requested_end_x_m": 1.4,
+              "invariant_family": "C+",
+              "bridge_status": "caustic_bridge_domain_gap",
+              "bridge_sampled_count": 4,
+              "bridge_first_missing_sample_index": 4,
+              "bridge_first_ambiguous_sample_index": null,
+              "upstream_coupling_verified": false,
+              "physical_closure_verified": false,
+              "bridge_report": {
+                "status": "caustic_bridge_domain_gap",
+                "converged": false,
+                "requested_sample_count": 4,
+                "sampled_count": 4,
+                "first_missing_sample_index": 4,
+                "first_ambiguous_sample_index": null,
+                "last_valid_point_m": [
+                  0.7266742126554121,
+                  0.03560665949545755
+                ],
+                "side_counts": {
+                  "old-family": 0,
+                  "restarted-family": 4
+                },
+                "side_transition_indices": [],
+                "physical_closure_verified": false,
+                "chain_promotion_blocked": true,
+                "bridge": {
+                  "old_family_status": "converged_open_source_strip",
+                  "old_family_converged": true,
+                  "restarted_family_status": "converged_open_caustic_family_band",
+                  "restarted_family_converged": true,
+                  "fields_converged": true,
+                  "side_selection": "unique-domain-coverage-only",
+                  "physical_closure_verified": false,
+                  "chain_promotion_blocked": true
+                },
+                "samples": [
+                  {
+                    "point_m": [
+                      0.6584201957653014,
+                      0.056970655192732075
+                    ],
+                    "side": "restarted-family",
+                    "static_pressure_Pa": 58477.95657993019,
+                    "old_family_available": false,
+                    "restarted_family_available": true
+                  },
+                  {
+                    "point_m": [
+                      0.6820345374678553,
+                      0.049849323293640564
+                    ],
+                    "side": "restarted-family",
+                    "static_pressure_Pa": 56633.95673337673,
+                    "old_family_available": false,
+                    "restarted_family_available": true
+                  },
+                  {
+                    "point_m": [
+                      0.7047405567334287,
+                      0.04272799139454905
+                    ],
+                    "side": "restarted-family",
+                    "static_pressure_Pa": 54699.21739918422,
+                    "old_family_available": false,
+                    "restarted_family_available": true
+                  },
+                  {
+                    "point_m": [
+                      0.7266742126554121,
+                      0.03560665949545755
+                    ],
+                    "side": "restarted-family",
+                    "static_pressure_Pa": 52704.34537601114,
+                    "old_family_available": false,
+                    "restarted_family_available": true
+                  }
+                ],
+                "message": "shock march stopped before the next candidate point could be sampled from the bounded caustic bridge; no extrapolation was used"
+              },
+              "shock_status": "upstream_field_failure"
+            },
+            "message": "invariant caustic bridge did not cover the next-shock path; no extrapolation or physical endpoint was inferred"
+          },
+          "diagnostics": {}
+        },
+        "claim_status": "bounded-old-family-restarted-family-bridge-and-planner-audit; physical-caustic-remesh-and-downstream-closure-pending"
       },
       "caustic_family_band_terminal_refinement": {
         "status": "diagnostic-caustic-band-terminal-refinement",
@@ -2926,7 +3836,14 @@
                 764819.179280032,
                 764819.179280032
               ],
-              "incoming_handoff_fingerprint": "3f7439763432257c65bb5ca7eb5905ea00252259c3c1b0f4c745743cfb07adf1"
+              "incoming_handoff_fingerprint": "3f7439763432257c65bb5ca7eb5905ea00252259c3c1b0f4c745743cfb07adf1",
+              "result_kind": "termination-returned",
+              "result_status": "physical-termination",
+              "result_end_x_m": null,
+              "result_geometry_fidelity": null,
+              "result_physical_closure": null,
+              "result_termination_reason": "physical-termination",
+              "result_physical_termination": true
             }
           ],
           "chain": {
@@ -3371,7 +4288,71 @@
             ],
             "message": "the mixed-regime solver must provide the closed downstream perimeter; no geometry was inferred from the open supersonic zone"
           },
-          "node_count": null,
+          "terminal_boundary_graph": {
+            "status": "converged_upstream_terminal_boundary_graph",
+            "converged": true,
+            "upstream_graph_closed": true,
+            "downstream_boundary_geometry_supplied": false,
+            "downstream_boundary_geometry_verified": false,
+            "physical_downstream_condition_supplied": false,
+            "physical_closure_verified": false,
+            "chain_promotion_blocked": true,
+            "path_sample_counts": {
+              "initial_shock": 17,
+              "ambient_streamline": 17,
+              "centerline": 18,
+              "terminal_shock": 18,
+              "downstream_boundary": 0
+            },
+            "path_start_m": {
+              "initial_shock": [
+                0.5,
+                0.5
+              ],
+              "ambient_streamline": [
+                0.5,
+                0.5
+              ],
+              "centerline": [
+                0.8618481573724419,
+                0.0
+              ],
+              "terminal_shock": [
+                1.4720719054145763,
+                0.4979922117641763
+              ],
+              "downstream_boundary": null
+            },
+            "path_end_m": {
+              "initial_shock": [
+                0.8618481573724419,
+                0.0
+              ],
+              "ambient_streamline": [
+                1.4720719054145763,
+                0.4979922117641763
+              ],
+              "centerline": [
+                1.932444024737439,
+                0.0
+              ],
+              "terminal_shock": [
+                1.932444024737439,
+                0.0
+              ],
+              "downstream_boundary": null
+            },
+            "upstream_join_residuals_m": {
+              "initial_shock_to_ambient_streamline": 0.0,
+              "initial_shock_to_centerline": 0.0,
+              "centerline_to_terminal_shock": 0.0,
+              "terminal_shock_to_ambient_streamline": 0.0,
+              "terminal_shock_to_normal_terminal": 0.0
+            },
+            "maximum_upstream_join_residual_m": 0.0,
+            "message": "supersonic terminal boundary graph is closed; downstream subsonic geometry and its physical boundary condition remain unsupplied"
+          },
+          "node_count": 290,
           "cell_count": 335,
           "topology_status": "open",
           "topology_connected": true,
@@ -3484,7 +4465,14 @@
               764819.179280032,
               764819.179280032
             ],
-            "incoming_handoff_fingerprint": "3f7439763432257c65bb5ca7eb5905ea00252259c3c1b0f4c745743cfb07adf1"
+            "incoming_handoff_fingerprint": "3f7439763432257c65bb5ca7eb5905ea00252259c3c1b0f4c745743cfb07adf1",
+            "result_kind": "termination-returned",
+            "result_status": "physical-termination",
+            "result_end_x_m": null,
+            "result_geometry_fidelity": null,
+            "result_physical_closure": null,
+            "result_termination_reason": "physical-termination",
+            "result_physical_termination": true
           }
         ],
         "chain": {
@@ -3929,7 +4917,71 @@
           ],
           "message": "the mixed-regime solver must provide the closed downstream perimeter; no geometry was inferred from the open supersonic zone"
         },
-        "node_count": null,
+        "terminal_boundary_graph": {
+          "status": "converged_upstream_terminal_boundary_graph",
+          "converged": true,
+          "upstream_graph_closed": true,
+          "downstream_boundary_geometry_supplied": false,
+          "downstream_boundary_geometry_verified": false,
+          "physical_downstream_condition_supplied": false,
+          "physical_closure_verified": false,
+          "chain_promotion_blocked": true,
+          "path_sample_counts": {
+            "initial_shock": 17,
+            "ambient_streamline": 17,
+            "centerline": 18,
+            "terminal_shock": 18,
+            "downstream_boundary": 0
+          },
+          "path_start_m": {
+            "initial_shock": [
+              0.5,
+              0.5
+            ],
+            "ambient_streamline": [
+              0.5,
+              0.5
+            ],
+            "centerline": [
+              0.8618481573724419,
+              0.0
+            ],
+            "terminal_shock": [
+              1.4720719054145763,
+              0.4979922117641763
+            ],
+            "downstream_boundary": null
+          },
+          "path_end_m": {
+            "initial_shock": [
+              0.8618481573724419,
+              0.0
+            ],
+            "ambient_streamline": [
+              1.4720719054145763,
+              0.4979922117641763
+            ],
+            "centerline": [
+              1.932444024737439,
+              0.0
+            ],
+            "terminal_shock": [
+              1.932444024737439,
+              0.0
+            ],
+            "downstream_boundary": null
+          },
+          "upstream_join_residuals_m": {
+            "initial_shock_to_ambient_streamline": 0.0,
+            "initial_shock_to_centerline": 0.0,
+            "centerline_to_terminal_shock": 0.0,
+            "terminal_shock_to_ambient_streamline": 0.0,
+            "terminal_shock_to_normal_terminal": 0.0
+          },
+          "maximum_upstream_join_residual_m": 0.0,
+          "message": "supersonic terminal boundary graph is closed; downstream subsonic geometry and its physical boundary condition remain unsupplied"
+        },
+        "node_count": 290,
         "cell_count": 335,
         "topology_status": "open",
         "topology_connected": true,
@@ -4520,7 +5572,71 @@
           ],
           "message": "the mixed-regime solver must provide the closed downstream perimeter; no geometry was inferred from the open supersonic zone"
         },
-        "node_count": null,
+        "terminal_boundary_graph": {
+          "status": "converged_upstream_terminal_boundary_graph",
+          "converged": true,
+          "upstream_graph_closed": true,
+          "downstream_boundary_geometry_supplied": false,
+          "downstream_boundary_geometry_verified": false,
+          "physical_downstream_condition_supplied": false,
+          "physical_closure_verified": false,
+          "chain_promotion_blocked": true,
+          "path_sample_counts": {
+            "initial_shock": 17,
+            "ambient_streamline": 17,
+            "centerline": 18,
+            "terminal_shock": 17,
+            "downstream_boundary": 0
+          },
+          "path_start_m": {
+            "initial_shock": [
+              0.5,
+              0.5
+            ],
+            "ambient_streamline": [
+              0.5,
+              0.5
+            ],
+            "centerline": [
+              0.8618481573724419,
+              0.0
+            ],
+            "terminal_shock": [
+              1.4720719054145763,
+              0.4979922117641763
+            ],
+            "downstream_boundary": null
+          },
+          "path_end_m": {
+            "initial_shock": [
+              0.8618481573724419,
+              0.0
+            ],
+            "ambient_streamline": [
+              1.4720719054145763,
+              0.4979922117641763
+            ],
+            "centerline": [
+              1.932441612053076,
+              0.0
+            ],
+            "terminal_shock": [
+              1.932441612053076,
+              0.0
+            ],
+            "downstream_boundary": null
+          },
+          "upstream_join_residuals_m": {
+            "initial_shock_to_ambient_streamline": 0.0,
+            "initial_shock_to_centerline": 0.0,
+            "centerline_to_terminal_shock": 0.0,
+            "terminal_shock_to_ambient_streamline": 0.0,
+            "terminal_shock_to_normal_terminal": 0.0
+          },
+          "maximum_upstream_join_residual_m": 0.0,
+          "message": "supersonic terminal boundary graph is closed; downstream subsonic geometry and its physical boundary condition remain unsupplied"
+        },
+        "node_count": 290,
         "cell_count": 333,
         "topology_status": "open",
         "topology_connected": true,
@@ -4974,6 +6090,8 @@
           "terminal_field_status": "converged_closed_supersonic_terminal_region",
           "terminal_field_converged": true,
           "supersonic_region_closed": true,
+          "terminal_field_characteristic_field_evidence_verified": true,
+          "terminal_field_node_count": 82,
           "terminal_field_cell_count": 103,
           "topology_forms_closed_zone": true,
           "topology_nonmanifold_edge_count": 0,
@@ -5011,6 +6129,8 @@
           "terminal_field_status": "converged_closed_supersonic_terminal_region",
           "terminal_field_converged": true,
           "supersonic_region_closed": true,
+          "terminal_field_characteristic_field_evidence_verified": true,
+          "terminal_field_node_count": 290,
           "terminal_field_cell_count": 333,
           "topology_forms_closed_zone": true,
           "topology_nonmanifold_edge_count": 0,
@@ -5048,6 +6168,8 @@
           "terminal_field_status": "converged_closed_supersonic_terminal_region",
           "terminal_field_converged": true,
           "supersonic_region_closed": true,
+          "terminal_field_characteristic_field_evidence_verified": true,
+          "terminal_field_node_count": 1090,
           "terminal_field_cell_count": 1177,
           "topology_forms_closed_zone": true,
           "topology_nonmanifold_edge_count": 0,
@@ -5100,6 +6222,7 @@
         "maximum_terminal_static_pressure_residual_Pa": null,
         "maximum_terminal_total_pressure_residual_Pa": null,
         "maximum_total_pressure_gain_Pa": null,
+        "supersonic_patch_points_m": [],
         "terminal": {
           "status": "converged",
           "converged": true,
@@ -5137,6 +6260,72 @@
         "maximum_terminal_static_pressure_residual_Pa": 0.0,
         "maximum_terminal_total_pressure_residual_Pa": 0.0,
         "maximum_total_pressure_gain_Pa": 0.0,
+        "supersonic_patch_points_m": [
+          [
+            1.4720719054145763,
+            0.4979922117641763
+          ],
+          [
+            1.4996068085862775,
+            0.4668676985289153
+          ],
+          [
+            1.5272295918096628,
+            0.43574318529365424
+          ],
+          [
+            1.5549396105016047,
+            0.40461867205839325
+          ],
+          [
+            1.582772502676111,
+            0.3734941588231322
+          ],
+          [
+            1.610802196382813,
+            0.3423696455878712
+          ],
+          [
+            1.6390615894207616,
+            0.3112451323526102
+          ],
+          [
+            1.6675417948509283,
+            0.2801206191173492
+          ],
+          [
+            1.6962349706311752,
+            0.24899610588208815
+          ],
+          [
+            1.7251328199038731,
+            0.21787159264682715
+          ],
+          [
+            1.75422722428391,
+            0.1867470794115661
+          ],
+          [
+            1.7835111080485049,
+            0.1556225661763051
+          ],
+          [
+            1.8129774887248693,
+            0.1244980529410441
+          ],
+          [
+            1.8426186835645062,
+            0.09337353970578305
+          ],
+          [
+            1.8724270249165245,
+            0.06224902647052205
+          ],
+          [
+            1.9023953791872266,
+            0.031124513235260998
+          ]
+        ],
         "terminal": {
           "status": "converged",
           "converged": true,
@@ -5162,6 +6351,7 @@
         "mixed_regime_field_complete": true,
         "chain_promotion_blocked": true,
         "model": "elliptic-isentropic-subsonic-reference",
+        "radial_divisions": 1,
         "node_count": 5,
         "cell_count": 4,
         "topology_status": "open",
@@ -5196,6 +6386,72 @@
           "maximum_terminal_static_pressure_residual_Pa": 0.0,
           "maximum_terminal_total_pressure_residual_Pa": 0.0,
           "maximum_total_pressure_gain_Pa": 0.0,
+          "supersonic_patch_points_m": [
+            [
+              1.4720719054145763,
+              0.4979922117641763
+            ],
+            [
+              1.4996068085862775,
+              0.4668676985289153
+            ],
+            [
+              1.5272295918096628,
+              0.43574318529365424
+            ],
+            [
+              1.5549396105016047,
+              0.40461867205839325
+            ],
+            [
+              1.582772502676111,
+              0.3734941588231322
+            ],
+            [
+              1.610802196382813,
+              0.3423696455878712
+            ],
+            [
+              1.6390615894207616,
+              0.3112451323526102
+            ],
+            [
+              1.6675417948509283,
+              0.2801206191173492
+            ],
+            [
+              1.6962349706311752,
+              0.24899610588208815
+            ],
+            [
+              1.7251328199038731,
+              0.21787159264682715
+            ],
+            [
+              1.75422722428391,
+              0.1867470794115661
+            ],
+            [
+              1.7835111080485049,
+              0.1556225661763051
+            ],
+            [
+              1.8129774887248693,
+              0.1244980529410441
+            ],
+            [
+              1.8426186835645062,
+              0.09337353970578305
+            ],
+            [
+              1.8724270249165245,
+              0.06224902647052205
+            ],
+            [
+              1.9023953791872266,
+              0.031124513235260998
+            ]
+          ],
           "terminal": {
             "status": "converged",
             "converged": true,
@@ -5216,6 +6472,472 @@
         },
         "message": "elliptic/isentrope subsonic reference field converged on the supplied closed perimeter; this model remains separate from the supersonic MOC lane"
       },
+      "elliptic_subsonic_field_refinement": [
+        {
+          "status": "converged_elliptic_subsonic_field",
+          "converged": true,
+          "physical_closure_verified": true,
+          "mixed_regime_field_complete": true,
+          "chain_promotion_blocked": true,
+          "model": "elliptic-isentropic-radial-reference",
+          "radial_divisions": 2,
+          "node_count": 9,
+          "cell_count": 12,
+          "topology_status": "open",
+          "topology_connected": true,
+          "topology_forms_closed_zone": true,
+          "topology_nonmanifold_edge_count": 0,
+          "interior_point_m": [
+            1.944941612053076,
+            0.005
+          ],
+          "maximum_thermodynamic_residual": 0.0,
+          "maximum_harmonic_residual": 7.105427357601002e-15,
+          "maximum_velocity_divergence_residual": 2.3129646346357924e-14,
+          "minimum_mach": 0.7425533106434077,
+          "maximum_mach": 0.7425533106434078,
+          "boundary": {
+            "status": "converged_subsonic_boundary_handoff",
+            "converged": true,
+            "physical_closure_verified": false,
+            "mixed_regime_field_complete": false,
+            "chain_promotion_blocked": true,
+            "supersonic_patch_sample_count": 16,
+            "subsonic_sample_count": 5,
+            "perimeter_sample_count": 5,
+            "supersonic_patch_verified": true,
+            "subsonic_state_samples_verified": true,
+            "terminal_continuity_verified": true,
+            "perimeter_geometry_verified": true,
+            "total_pressure_lineage_verified": true,
+            "maximum_terminal_mach_residual": 0.0,
+            "maximum_terminal_flow_angle_residual_rad": 0.0,
+            "maximum_terminal_static_pressure_residual_Pa": 0.0,
+            "maximum_terminal_total_pressure_residual_Pa": 0.0,
+            "maximum_total_pressure_gain_Pa": 0.0,
+            "supersonic_patch_points_m": [
+              [
+                1.4720719054145763,
+                0.4979922117641763
+              ],
+              [
+                1.4996068085862775,
+                0.4668676985289153
+              ],
+              [
+                1.5272295918096628,
+                0.43574318529365424
+              ],
+              [
+                1.5549396105016047,
+                0.40461867205839325
+              ],
+              [
+                1.582772502676111,
+                0.3734941588231322
+              ],
+              [
+                1.610802196382813,
+                0.3423696455878712
+              ],
+              [
+                1.6390615894207616,
+                0.3112451323526102
+              ],
+              [
+                1.6675417948509283,
+                0.2801206191173492
+              ],
+              [
+                1.6962349706311752,
+                0.24899610588208815
+              ],
+              [
+                1.7251328199038731,
+                0.21787159264682715
+              ],
+              [
+                1.75422722428391,
+                0.1867470794115661
+              ],
+              [
+                1.7835111080485049,
+                0.1556225661763051
+              ],
+              [
+                1.8129774887248693,
+                0.1244980529410441
+              ],
+              [
+                1.8426186835645062,
+                0.09337353970578305
+              ],
+              [
+                1.8724270249165245,
+                0.06224902647052205
+              ],
+              [
+                1.9023953791872266,
+                0.031124513235260998
+              ]
+            ],
+            "terminal": {
+              "status": "converged",
+              "converged": true,
+              "subsonic": true,
+              "shock_point_m": [
+                1.932441612053076,
+                0.0
+              ],
+              "shock_normal_angle_rad": 1.5707963267948966,
+              "downstream_flow_angle_rad": 0.0,
+              "downstream_mach": 0.7425533106434078,
+              "downstream_pressure_Pa": 508788.91048239,
+              "static_pressure_ratio": 2.0981236964211574,
+              "total_pressure_ratio": 0.9598519734029278,
+              "message": ""
+            },
+            "message": "scalar subsonic perimeter handoff passed shock-seam, open-supersonic-patch, geometry, and total-pressure lineage checks; a subsonic field mesh is still pending"
+          },
+          "message": "harmonic radial elliptic/isentrope reference field converged on the supplied closed perimeter; this model remains separate from the supersonic MOC lane"
+        },
+        {
+          "status": "converged_elliptic_subsonic_field",
+          "converged": true,
+          "physical_closure_verified": true,
+          "mixed_regime_field_complete": true,
+          "chain_promotion_blocked": true,
+          "model": "elliptic-isentropic-radial-reference",
+          "radial_divisions": 3,
+          "node_count": 13,
+          "cell_count": 20,
+          "topology_status": "open",
+          "topology_connected": true,
+          "topology_forms_closed_zone": true,
+          "topology_nonmanifold_edge_count": 0,
+          "interior_point_m": [
+            1.944941612053076,
+            0.005
+          ],
+          "maximum_thermodynamic_residual": 0.0,
+          "maximum_harmonic_residual": 7.105427357601002e-15,
+          "maximum_velocity_divergence_residual": 1.0408340855861065e-13,
+          "minimum_mach": 0.7425533106434075,
+          "maximum_mach": 0.7425533106434078,
+          "boundary": {
+            "status": "converged_subsonic_boundary_handoff",
+            "converged": true,
+            "physical_closure_verified": false,
+            "mixed_regime_field_complete": false,
+            "chain_promotion_blocked": true,
+            "supersonic_patch_sample_count": 16,
+            "subsonic_sample_count": 5,
+            "perimeter_sample_count": 5,
+            "supersonic_patch_verified": true,
+            "subsonic_state_samples_verified": true,
+            "terminal_continuity_verified": true,
+            "perimeter_geometry_verified": true,
+            "total_pressure_lineage_verified": true,
+            "maximum_terminal_mach_residual": 0.0,
+            "maximum_terminal_flow_angle_residual_rad": 0.0,
+            "maximum_terminal_static_pressure_residual_Pa": 0.0,
+            "maximum_terminal_total_pressure_residual_Pa": 0.0,
+            "maximum_total_pressure_gain_Pa": 0.0,
+            "supersonic_patch_points_m": [
+              [
+                1.4720719054145763,
+                0.4979922117641763
+              ],
+              [
+                1.4996068085862775,
+                0.4668676985289153
+              ],
+              [
+                1.5272295918096628,
+                0.43574318529365424
+              ],
+              [
+                1.5549396105016047,
+                0.40461867205839325
+              ],
+              [
+                1.582772502676111,
+                0.3734941588231322
+              ],
+              [
+                1.610802196382813,
+                0.3423696455878712
+              ],
+              [
+                1.6390615894207616,
+                0.3112451323526102
+              ],
+              [
+                1.6675417948509283,
+                0.2801206191173492
+              ],
+              [
+                1.6962349706311752,
+                0.24899610588208815
+              ],
+              [
+                1.7251328199038731,
+                0.21787159264682715
+              ],
+              [
+                1.75422722428391,
+                0.1867470794115661
+              ],
+              [
+                1.7835111080485049,
+                0.1556225661763051
+              ],
+              [
+                1.8129774887248693,
+                0.1244980529410441
+              ],
+              [
+                1.8426186835645062,
+                0.09337353970578305
+              ],
+              [
+                1.8724270249165245,
+                0.06224902647052205
+              ],
+              [
+                1.9023953791872266,
+                0.031124513235260998
+              ]
+            ],
+            "terminal": {
+              "status": "converged",
+              "converged": true,
+              "subsonic": true,
+              "shock_point_m": [
+                1.932441612053076,
+                0.0
+              ],
+              "shock_normal_angle_rad": 1.5707963267948966,
+              "downstream_flow_angle_rad": 0.0,
+              "downstream_mach": 0.7425533106434078,
+              "downstream_pressure_Pa": 508788.91048239,
+              "static_pressure_ratio": 2.0981236964211574,
+              "total_pressure_ratio": 0.9598519734029278,
+              "message": ""
+            },
+            "message": "scalar subsonic perimeter handoff passed shock-seam, open-supersonic-patch, geometry, and total-pressure lineage checks; a subsonic field mesh is still pending"
+          },
+          "message": "harmonic radial elliptic/isentrope reference field converged on the supplied closed perimeter; this model remains separate from the supersonic MOC lane"
+        },
+        {
+          "status": "converged_elliptic_subsonic_field",
+          "converged": true,
+          "physical_closure_verified": true,
+          "mixed_regime_field_complete": true,
+          "chain_promotion_blocked": true,
+          "model": "elliptic-isentropic-radial-reference",
+          "radial_divisions": 4,
+          "node_count": 17,
+          "cell_count": 28,
+          "topology_status": "open",
+          "topology_connected": true,
+          "topology_forms_closed_zone": true,
+          "topology_nonmanifold_edge_count": 0,
+          "interior_point_m": [
+            1.944941612053076,
+            0.005
+          ],
+          "maximum_thermodynamic_residual": 0.0,
+          "maximum_harmonic_residual": 1.0658141036401503e-14,
+          "maximum_velocity_divergence_residual": 1.3877787807815575e-13,
+          "minimum_mach": 0.7425533106434073,
+          "maximum_mach": 0.7425533106434078,
+          "boundary": {
+            "status": "converged_subsonic_boundary_handoff",
+            "converged": true,
+            "physical_closure_verified": false,
+            "mixed_regime_field_complete": false,
+            "chain_promotion_blocked": true,
+            "supersonic_patch_sample_count": 16,
+            "subsonic_sample_count": 5,
+            "perimeter_sample_count": 5,
+            "supersonic_patch_verified": true,
+            "subsonic_state_samples_verified": true,
+            "terminal_continuity_verified": true,
+            "perimeter_geometry_verified": true,
+            "total_pressure_lineage_verified": true,
+            "maximum_terminal_mach_residual": 0.0,
+            "maximum_terminal_flow_angle_residual_rad": 0.0,
+            "maximum_terminal_static_pressure_residual_Pa": 0.0,
+            "maximum_terminal_total_pressure_residual_Pa": 0.0,
+            "maximum_total_pressure_gain_Pa": 0.0,
+            "supersonic_patch_points_m": [
+              [
+                1.4720719054145763,
+                0.4979922117641763
+              ],
+              [
+                1.4996068085862775,
+                0.4668676985289153
+              ],
+              [
+                1.5272295918096628,
+                0.43574318529365424
+              ],
+              [
+                1.5549396105016047,
+                0.40461867205839325
+              ],
+              [
+                1.582772502676111,
+                0.3734941588231322
+              ],
+              [
+                1.610802196382813,
+                0.3423696455878712
+              ],
+              [
+                1.6390615894207616,
+                0.3112451323526102
+              ],
+              [
+                1.6675417948509283,
+                0.2801206191173492
+              ],
+              [
+                1.6962349706311752,
+                0.24899610588208815
+              ],
+              [
+                1.7251328199038731,
+                0.21787159264682715
+              ],
+              [
+                1.75422722428391,
+                0.1867470794115661
+              ],
+              [
+                1.7835111080485049,
+                0.1556225661763051
+              ],
+              [
+                1.8129774887248693,
+                0.1244980529410441
+              ],
+              [
+                1.8426186835645062,
+                0.09337353970578305
+              ],
+              [
+                1.8724270249165245,
+                0.06224902647052205
+              ],
+              [
+                1.9023953791872266,
+                0.031124513235260998
+              ]
+            ],
+            "terminal": {
+              "status": "converged",
+              "converged": true,
+              "subsonic": true,
+              "shock_point_m": [
+                1.932441612053076,
+                0.0
+              ],
+              "shock_normal_angle_rad": 1.5707963267948966,
+              "downstream_flow_angle_rad": 0.0,
+              "downstream_mach": 0.7425533106434078,
+              "downstream_pressure_Pa": 508788.91048239,
+              "static_pressure_ratio": 2.0981236964211574,
+              "total_pressure_ratio": 0.9598519734029278,
+              "message": ""
+            },
+            "message": "scalar subsonic perimeter handoff passed shock-seam, open-supersonic-patch, geometry, and total-pressure lineage checks; a subsonic field mesh is still pending"
+          },
+          "message": "harmonic radial elliptic/isentrope reference field converged on the supplied closed perimeter; this model remains separate from the supersonic MOC lane"
+        }
+      ],
+      "terminal_attachment_refinement": [
+        {
+          "radial_divisions": 2,
+          "model": "elliptic-isentropic-radial-reference",
+          "mixed_regime_field_complete": true,
+          "physical_closure_verified": true,
+          "physical_termination_verified": true,
+          "chain_promotion_blocked": true,
+          "termination_decision": {
+            "physical_termination": true,
+            "reason": "physical-termination",
+            "message": "terminal supersonic MOC region and the declared elliptic subsonic field both converged; the supersonic chain stops at the mixed-regime cell",
+            "diagnostics": {
+              "termination_model": "normal-shock-plus-elliptic-subsonic-field",
+              "shock_point_m": [
+                1.932441612053076,
+                0.0
+              ],
+              "downstream_mach": 0.7425533106434078,
+              "downstream_pressure_Pa": 508788.91048239,
+              "total_pressure_ratio": 0.9598519734029278,
+              "mixed_regime_model": "elliptic-isentropic-radial-reference",
+              "mixed_regime_node_count": 9,
+              "mixed_regime_cell_count": 12
+            }
+          }
+        },
+        {
+          "radial_divisions": 3,
+          "model": "elliptic-isentropic-radial-reference",
+          "mixed_regime_field_complete": true,
+          "physical_closure_verified": true,
+          "physical_termination_verified": true,
+          "chain_promotion_blocked": true,
+          "termination_decision": {
+            "physical_termination": true,
+            "reason": "physical-termination",
+            "message": "terminal supersonic MOC region and the declared elliptic subsonic field both converged; the supersonic chain stops at the mixed-regime cell",
+            "diagnostics": {
+              "termination_model": "normal-shock-plus-elliptic-subsonic-field",
+              "shock_point_m": [
+                1.932441612053076,
+                0.0
+              ],
+              "downstream_mach": 0.7425533106434078,
+              "downstream_pressure_Pa": 508788.91048239,
+              "total_pressure_ratio": 0.9598519734029278,
+              "mixed_regime_model": "elliptic-isentropic-radial-reference",
+              "mixed_regime_node_count": 13,
+              "mixed_regime_cell_count": 20
+            }
+          }
+        },
+        {
+          "radial_divisions": 4,
+          "model": "elliptic-isentropic-radial-reference",
+          "mixed_regime_field_complete": true,
+          "physical_closure_verified": true,
+          "physical_termination_verified": true,
+          "chain_promotion_blocked": true,
+          "termination_decision": {
+            "physical_termination": true,
+            "reason": "physical-termination",
+            "message": "terminal supersonic MOC region and the declared elliptic subsonic field both converged; the supersonic chain stops at the mixed-regime cell",
+            "diagnostics": {
+              "termination_model": "normal-shock-plus-elliptic-subsonic-field",
+              "shock_point_m": [
+                1.932441612053076,
+                0.0
+              ],
+              "downstream_mach": 0.7425533106434078,
+              "downstream_pressure_Pa": 508788.91048239,
+              "total_pressure_ratio": 0.9598519734029278,
+              "mixed_regime_model": "elliptic-isentropic-radial-reference",
+              "mixed_regime_node_count": 17,
+              "mixed_regime_cell_count": 28
+            }
+          }
+        }
+      ],
       "terminal_attachment_closure_result": {
         "status": "converged_mixed_regime_closure",
         "converged": true,
@@ -5227,6 +6949,7 @@
           "mixed_regime_field_complete": true,
           "chain_promotion_blocked": true,
           "model": "elliptic-isentropic-subsonic-reference",
+          "radial_divisions": 1,
           "node_count": 5,
           "cell_count": 4,
           "topology_status": "open",
@@ -5261,6 +6984,72 @@
             "maximum_terminal_static_pressure_residual_Pa": 0.0,
             "maximum_terminal_total_pressure_residual_Pa": 0.0,
             "maximum_total_pressure_gain_Pa": 0.0,
+            "supersonic_patch_points_m": [
+              [
+                1.4720719054145763,
+                0.4979922117641763
+              ],
+              [
+                1.4996068085862775,
+                0.4668676985289153
+              ],
+              [
+                1.5272295918096628,
+                0.43574318529365424
+              ],
+              [
+                1.5549396105016047,
+                0.40461867205839325
+              ],
+              [
+                1.582772502676111,
+                0.3734941588231322
+              ],
+              [
+                1.610802196382813,
+                0.3423696455878712
+              ],
+              [
+                1.6390615894207616,
+                0.3112451323526102
+              ],
+              [
+                1.6675417948509283,
+                0.2801206191173492
+              ],
+              [
+                1.6962349706311752,
+                0.24899610588208815
+              ],
+              [
+                1.7251328199038731,
+                0.21787159264682715
+              ],
+              [
+                1.75422722428391,
+                0.1867470794115661
+              ],
+              [
+                1.7835111080485049,
+                0.1556225661763051
+              ],
+              [
+                1.8129774887248693,
+                0.1244980529410441
+              ],
+              [
+                1.8426186835645062,
+                0.09337353970578305
+              ],
+              [
+                1.8724270249165245,
+                0.06224902647052205
+              ],
+              [
+                1.9023953791872266,
+                0.031124513235260998
+              ]
+            ],
             "terminal": {
               "status": "converged",
               "converged": true,
@@ -5591,7 +7380,71 @@
           ],
           "message": "the mixed-regime solver must provide the closed downstream perimeter; no geometry was inferred from the open supersonic zone"
         },
-        "node_count": null,
+        "terminal_boundary_graph": {
+          "status": "converged_upstream_terminal_boundary_graph",
+          "converged": true,
+          "upstream_graph_closed": true,
+          "downstream_boundary_geometry_supplied": false,
+          "downstream_boundary_geometry_verified": false,
+          "physical_downstream_condition_supplied": false,
+          "physical_closure_verified": false,
+          "chain_promotion_blocked": true,
+          "path_sample_counts": {
+            "initial_shock": 17,
+            "ambient_streamline": 17,
+            "centerline": 18,
+            "terminal_shock": 17,
+            "downstream_boundary": 0
+          },
+          "path_start_m": {
+            "initial_shock": [
+              0.5,
+              0.5
+            ],
+            "ambient_streamline": [
+              0.5,
+              0.5
+            ],
+            "centerline": [
+              0.8618481573724419,
+              0.0
+            ],
+            "terminal_shock": [
+              1.4720719054145763,
+              0.4979922117641763
+            ],
+            "downstream_boundary": null
+          },
+          "path_end_m": {
+            "initial_shock": [
+              0.8618481573724419,
+              0.0
+            ],
+            "ambient_streamline": [
+              1.4720719054145763,
+              0.4979922117641763
+            ],
+            "centerline": [
+              1.932441612053076,
+              0.0
+            ],
+            "terminal_shock": [
+              1.932441612053076,
+              0.0
+            ],
+            "downstream_boundary": null
+          },
+          "upstream_join_residuals_m": {
+            "initial_shock_to_ambient_streamline": 0.0,
+            "initial_shock_to_centerline": 0.0,
+            "centerline_to_terminal_shock": 0.0,
+            "terminal_shock_to_ambient_streamline": 0.0,
+            "terminal_shock_to_normal_terminal": 0.0
+          },
+          "maximum_upstream_join_residual_m": 0.0,
+          "message": "supersonic terminal boundary graph is closed; downstream subsonic geometry and its physical boundary condition remain unsupplied"
+        },
+        "node_count": 290,
         "cell_count": 333,
         "topology_status": "open",
         "topology_connected": true,
@@ -5645,6 +7498,7 @@
           "mixed_regime_field_complete": true,
           "chain_promotion_blocked": true,
           "model": "elliptic-isentropic-subsonic-reference",
+          "radial_divisions": 1,
           "node_count": 5,
           "cell_count": 4,
           "topology_status": "open",
@@ -5679,6 +7533,72 @@
             "maximum_terminal_static_pressure_residual_Pa": 0.0,
             "maximum_terminal_total_pressure_residual_Pa": 0.0,
             "maximum_total_pressure_gain_Pa": 0.0,
+            "supersonic_patch_points_m": [
+              [
+                1.4720719054145763,
+                0.4979922117641763
+              ],
+              [
+                1.4996068085862775,
+                0.4668676985289153
+              ],
+              [
+                1.5272295918096628,
+                0.43574318529365424
+              ],
+              [
+                1.5549396105016047,
+                0.40461867205839325
+              ],
+              [
+                1.582772502676111,
+                0.3734941588231322
+              ],
+              [
+                1.610802196382813,
+                0.3423696455878712
+              ],
+              [
+                1.6390615894207616,
+                0.3112451323526102
+              ],
+              [
+                1.6675417948509283,
+                0.2801206191173492
+              ],
+              [
+                1.6962349706311752,
+                0.24899610588208815
+              ],
+              [
+                1.7251328199038731,
+                0.21787159264682715
+              ],
+              [
+                1.75422722428391,
+                0.1867470794115661
+              ],
+              [
+                1.7835111080485049,
+                0.1556225661763051
+              ],
+              [
+                1.8129774887248693,
+                0.1244980529410441
+              ],
+              [
+                1.8426186835645062,
+                0.09337353970578305
+              ],
+              [
+                1.8724270249165245,
+                0.06224902647052205
+              ],
+              [
+                1.9023953791872266,
+                0.031124513235260998
+              ]
+            ],
             "terminal": {
               "status": "converged",
               "converged": true,
@@ -5867,7 +7787,14 @@
             749635.1347251647,
             764819.179280032
           ],
-          "incoming_handoff_fingerprint": "d0c3cfd5c26535d39ff1ee5d6c0ce16797ff445aaf2d3130e41244d662347b9b"
+          "incoming_handoff_fingerprint": "d0c3cfd5c26535d39ff1ee5d6c0ce16797ff445aaf2d3130e41244d662347b9b",
+          "result_kind": "field-solve-returned",
+          "result_status": "converged_closed",
+          "result_end_x_m": 1.8,
+          "result_geometry_fidelity": null,
+          "result_physical_closure": null,
+          "result_termination_reason": null,
+          "result_physical_termination": null
         },
         {
           "current_cell_index": 2,
@@ -5879,7 +7806,14 @@
             732748.4959008459,
             747590.4974211584
           ],
-          "incoming_handoff_fingerprint": "80f6a9223d574b2a389ac63fa037d891f982e5af452c4f37b08152d8aa8e4ae7"
+          "incoming_handoff_fingerprint": "80f6a9223d574b2a389ac63fa037d891f982e5af452c4f37b08152d8aa8e4ae7",
+          "result_kind": "field-solve-returned",
+          "result_status": "converged_closed",
+          "result_end_x_m": 2.6,
+          "result_geometry_fidelity": null,
+          "result_physical_closure": null,
+          "result_termination_reason": null,
+          "result_physical_termination": null
         },
         {
           "current_cell_index": 3,
@@ -5891,7 +7825,14 @@
             716242.2535621956,
             730749.917072597
           ],
-          "incoming_handoff_fingerprint": "bc179fcf4b61d827b3f93eb86e6378a227e5cbdb4ebaa0f77bc15152bb754b11"
+          "incoming_handoff_fingerprint": "bc179fcf4b61d827b3f93eb86e6378a227e5cbdb4ebaa0f77bc15152bb754b11",
+          "result_kind": "termination-returned",
+          "result_status": "solver-returned-no-next-cell",
+          "result_end_x_m": null,
+          "result_geometry_fidelity": null,
+          "result_physical_closure": null,
+          "result_termination_reason": "solver-returned-no-next-cell",
+          "result_physical_termination": false
         }
       ],
       "claim_status": "solver-generated-chain-reference; physical-free-boundary-validation-pending"
@@ -5947,7 +7888,14 @@
               749635.1347251647,
               764819.179280032
             ],
-            "incoming_handoff_fingerprint": "d0c3cfd5c26535d39ff1ee5d6c0ce16797ff445aaf2d3130e41244d662347b9b"
+            "incoming_handoff_fingerprint": "d0c3cfd5c26535d39ff1ee5d6c0ce16797ff445aaf2d3130e41244d662347b9b",
+            "result_kind": "termination-returned",
+            "result_status": "physical-termination",
+            "result_end_x_m": null,
+            "result_geometry_fidelity": null,
+            "result_physical_closure": null,
+            "result_termination_reason": "physical-termination",
+            "result_physical_termination": true
           }
         ],
         "claim_status": "solver-generated-chain-reference; physical-free-boundary-validation-pending"
@@ -5972,7 +7920,14 @@
             749635.1347251647,
             764819.179280032
           ],
-          "incoming_handoff_fingerprint": "d0c3cfd5c26535d39ff1ee5d6c0ce16797ff445aaf2d3130e41244d662347b9b"
+          "incoming_handoff_fingerprint": "d0c3cfd5c26535d39ff1ee5d6c0ce16797ff445aaf2d3130e41244d662347b9b",
+          "result_kind": "termination-returned",
+          "result_status": "physical-termination",
+          "result_end_x_m": null,
+          "result_geometry_fidelity": null,
+          "result_physical_closure": null,
+          "result_termination_reason": "physical-termination",
+          "result_physical_termination": true
         }
       ],
       "status": "physically-terminated",
@@ -6156,7 +8111,14 @@
             1800000.0,
             1800000.0
           ],
-          "incoming_handoff_fingerprint": "14f557246fbe1ac86023c0ef3b6345c61b4a2bc8d6c2f45b6543df2591e6a3e6"
+          "incoming_handoff_fingerprint": "14f557246fbe1ac86023c0ef3b6345c61b4a2bc8d6c2f45b6543df2591e6a3e6",
+          "result_kind": "field-solve-returned",
+          "result_status": "converged_closed",
+          "result_end_x_m": 1.5,
+          "result_geometry_fidelity": null,
+          "result_physical_closure": null,
+          "result_termination_reason": null,
+          "result_physical_termination": null
         },
         {
           "current_cell_index": 2,
@@ -6165,10 +8127,17 @@
           "boundary_kind": "post-shock-field-perimeter",
           "incoming_handoff_sample_count": 6,
           "incoming_total_pressure_range_Pa": [
-            1600000.0,
-            1600000.0
+            1783660.2368026406,
+            1798533.534834715
           ],
-          "incoming_handoff_fingerprint": "a1ca1ce06b42c9ffff82bf162af39d8b6e459cc24775dd4b59bd29d9c8854b13"
+          "incoming_handoff_fingerprint": "50e32a9413aca7e166adac7d293f0e07cc92182de0c960b8e1c9455e429fb98f",
+          "result_kind": "field-solve-returned",
+          "result_status": "converged_closed",
+          "result_end_x_m": 2.0,
+          "result_geometry_fidelity": null,
+          "result_physical_closure": null,
+          "result_termination_reason": null,
+          "result_physical_termination": null
         },
         {
           "current_cell_index": 3,
@@ -6177,10 +8146,17 @@
           "boundary_kind": "post-shock-field-perimeter",
           "incoming_handoff_sample_count": 6,
           "incoming_total_pressure_range_Pa": [
-            1422222.2222222222,
-            1422222.2222222222
+            1782207.0836893215,
+            1797068.2644028089
           ],
-          "incoming_handoff_fingerprint": "a56b93514a106491ecd20ce664f0ac01421d79c0e540b31551e136d7e38833fb"
+          "incoming_handoff_fingerprint": "c3434b59951df76ce34ed08b05930b2816676d3fcb4a76f1676c05886498d2d9",
+          "result_kind": "termination-returned",
+          "result_status": "solver-returned-no-next-cell",
+          "result_end_x_m": null,
+          "result_geometry_fidelity": null,
+          "result_physical_closure": null,
+          "result_termination_reason": "solver-returned-no-next-cell",
+          "result_physical_termination": false
         }
       ],
       "status": "solver-terminated",
@@ -6200,13 +8176,13 @@
         },
         {
           "cell_index": 2,
-          "minimum_Pa": 1600000.0,
-          "maximum_Pa": 1600000.0
+          "minimum_Pa": 1783660.2368026406,
+          "maximum_Pa": 1798533.534834715
         },
         {
           "cell_index": 3,
-          "minimum_Pa": 1422222.2222222222,
-          "maximum_Pa": 1422222.2222222222
+          "minimum_Pa": 1782207.0836893215,
+          "maximum_Pa": 1797068.2644028089
         }
       ],
       "continuation_boundary_maxima_nonincreasing": true,
@@ -6224,8 +8200,8 @@
           "cell_index": 3,
           "incoming_handoff_sample_count": 6,
           "incoming_total_pressure_range_Pa": [
-            1600000.0,
-            1600000.0
+            1783660.2368026406,
+            1798533.534834715
           ],
           "current_end_x_m": 1.5
         },
@@ -6233,8 +8209,8 @@
           "cell_index": 4,
           "incoming_handoff_sample_count": 6,
           "incoming_total_pressure_range_Pa": [
-            1422222.2222222222,
-            1422222.2222222222
+            1782207.0836893215,
+            1797068.2644028089
           ],
           "current_end_x_m": 2.0
         }
@@ -6284,14 +8260,14 @@
             "forward_x": true,
             "nonnegative_y": true,
             "distinct_segments": true,
-            "minimum_segment_length_m": 0.013117005831993343,
-            "path_length_m": 0.1439890994470261,
+            "minimum_segment_length_m": 0.0008347744066191209,
+            "path_length_m": 0.020524250396150627,
             "start_m": [
               1.28,
               0.0
             ],
             "end_m": [
-              1.396202665531304,
+              1.2962001844904913,
               0.0
             ]
           }
@@ -6312,14 +8288,14 @@
             "forward_x": true,
             "nonnegative_y": true,
             "distinct_segments": true,
-            "minimum_segment_length_m": 0.013117005831993343,
-            "path_length_m": 0.1439890994470261,
+            "minimum_segment_length_m": 0.0008347744066191209,
+            "path_length_m": 0.020524250396150627,
             "start_m": [
               1.78,
               0.0
             ],
             "end_m": [
-              1.896202665531304,
+              1.7962001844904913,
               0.0
             ]
           }
@@ -6398,31 +8374,31 @@
             },
             "shock_start_m": [
               1.2,
-              0.2
+              0.08237108456402913
             ],
             "shock_end_m": [
               1.28,
               0.0
             ],
             "centerline_end_m": [
-              1.396202665531304,
+              1.2962001844904913,
               0.0
             ],
             "axial_extent_m": [
               1.2,
-              1.396202665531304
+              1.2962001844904913
             ],
-            "axial_length_m": 0.19620266553130405,
-            "shock_boundary_length_m": 0.2159338255067268,
-            "centerline_boundary_length_m": 0.11620266553130398,
-            "maximum_radius_m": 0.2,
-            "mesh_area_m2": 0.012165689337440576,
-            "perimeter_area_m2": 0.012165689337440576,
+            "axial_length_m": 0.09620018449049139,
+            "shock_boundary_length_m": 0.11482593597377924,
+            "centerline_boundary_length_m": 0.01620018449049132,
+            "maximum_radius_m": 0.08237108456402913,
+            "mesh_area_m2": 0.0006331717578858245,
+            "perimeter_area_m2": 0.0006331717578858245,
             "area_closure_residual_m2": 0.0,
             "pressure": {
               "sample_count": 5,
-              "minimum_total_pressure_ratio": 0.8888888888888888,
-              "maximum_total_pressure_ratio": 0.8888888888888888,
+              "minimum_total_pressure_ratio": 0.9909223537792448,
+              "maximum_total_pressure_ratio": 0.9909223537792448,
               "pressure_loss_verified": true
             },
             "claim_status": "not_accepted",
@@ -6447,31 +8423,31 @@
             },
             "shock_start_m": [
               1.7,
-              0.2
+              0.08237108456402913
             ],
             "shock_end_m": [
               1.78,
               0.0
             ],
             "centerline_end_m": [
-              1.896202665531304,
+              1.7962001844904913,
               0.0
             ],
             "axial_extent_m": [
               1.7,
-              1.896202665531304
+              1.7962001844904913
             ],
-            "axial_length_m": 0.19620266553130405,
-            "shock_boundary_length_m": 0.2159338255067268,
-            "centerline_boundary_length_m": 0.11620266553130398,
-            "maximum_radius_m": 0.2,
-            "mesh_area_m2": 0.012165689337440583,
-            "perimeter_area_m2": 0.012165689337440583,
+            "axial_length_m": 0.09620018449049139,
+            "shock_boundary_length_m": 0.11482593597377924,
+            "centerline_boundary_length_m": 0.01620018449049132,
+            "maximum_radius_m": 0.08237108456402913,
+            "mesh_area_m2": 0.0006331717578858245,
+            "perimeter_area_m2": 0.0006331717578858245,
             "area_closure_residual_m2": 0.0,
             "pressure": {
               "sample_count": 5,
-              "minimum_total_pressure_ratio": 0.888888888888889,
-              "maximum_total_pressure_ratio": 0.888888888888889,
+              "minimum_total_pressure_ratio": 0.990922353779245,
+              "maximum_total_pressure_ratio": 0.990922353779245,
               "pressure_loss_verified": true
             },
             "claim_status": "not_accepted",
@@ -6480,13 +8456,13 @@
         ],
         "axial_extent_m": [
           0.76,
-          1.896202665531304
+          1.7962001844904913
         ],
         "shock_start_spacing_m": [
           0.43999999999999995,
           0.5
         ],
-        "total_mesh_area_m2": 0.03252399096815811,
+        "total_mesh_area_m2": 0.009458955809048602,
         "claim_status": "not_accepted",
         "message": "continued shock-cell geometry measured with independent per-cell topology checks; this does not establish physical chain closure"
       },

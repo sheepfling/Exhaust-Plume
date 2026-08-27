@@ -423,6 +423,14 @@ not wait on this research closure.
   characteristic zone, and records the typed subsonic centerline terminal.
   The zone is still an open mixed-regime handoff, so physical first-cell
   closure and chain promotion remain pending.
+- Added a strict two-sided caustic upstream bridge. It composes the converged
+  old-family strip and restarted-family band only where one selected field
+  covers the point, rejects ambiguous overlap, preserves explicit side
+  selection, and records gaps without averaging or extrapolation.
+- Added ordinary and invariant-conditioned bridge shock/planner adapters.
+  Both preserve the exact prior chain handoff and report bounded upstream
+  coverage, but remain one-step research diagnostics with physical closure
+  and production chain promotion disabled.
 - Hardened the caustic restart handoff for continued-chain planning. The
   selected one-sided seed edge is now retained as an exact anchor and an
   anchor wedge is included in the family-band mesh. The band proves that its
@@ -822,6 +830,14 @@ Only after MOC-1 through MOC-5 pass:
   an automatic next-cell shock fit. The state-carrying chain adapters therefore
   require a converged explicit research solve and do not use the reduced-order
   chain.
+- A bounded caustic upstream bridge now composes the converged old-family strip
+  and one-sided restarted-family band without averaging or extrapolation. It
+  accepts unique domain coverage, rejects overlaps unless a caller explicitly
+  selects a side, and records the canonical gap as a typed upstream boundary.
+  The bridge-backed shock/planner seam carries the exact prior handoff but
+  remains a one-step research diagnostic: it does not solve the missing
+  caustic remesh, entropy branch, or downstream mixed-regime closure, and it
+  cannot promote a chain cell.
 - The independent shock-cell measurement operators now pass local geometry,
   topology, and supplied shock-loss extraction for the current fixtures, but
   they do not provide external observations, uncertainty, or a provider-bound

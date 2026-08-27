@@ -68,6 +68,7 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   centerline_reflection_extension = report['geometry_cases'][
     'reflected_source_strip_centerline_reflection_extension'
   ]
+  caustic_upstream_bridge = centerline_reflection_extension['caustic_upstream_bridge']
   reflected_probe = report['geometry_cases']['reflected_zone_shock_coupling']
   reflected_chain_boundary = report['geometry_cases']['reflected_zone_chain_boundary_probe']
   trace_extension = report['geometry_cases']['reflected_boundary_trace_extension']
@@ -165,6 +166,37 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   )
   assert reflected_chain_boundary['diagnostics']['coupling_sampled_count'] == 1
   assert reflected_chain_boundary['diagnostics']['first_missing_sample_index'] == 1
+  assert caustic_upstream_bridge['accepted'] is True
+  assert caustic_upstream_bridge['status'] == 'diagnostic-bounded-caustic-upstream-bridge'
+  assert caustic_upstream_bridge['bridge']['fields_converged'] is True
+  assert caustic_upstream_bridge['covered_path_audit']['status'] == (
+    'converged_bounded_caustic_bridge_path'
+  )
+  assert caustic_upstream_bridge['gap_audit']['status'] == 'caustic_bridge_domain_gap'
+  assert caustic_upstream_bridge['gap_audit']['first_missing_sample_index'] == 2
+  assert caustic_upstream_bridge['explicit_old_side_no_fallback_audit']['status'] == (
+    'caustic_bridge_selected_side_domain_gap'
+  )
+  assert caustic_upstream_bridge['shock']['upstream_coupling_verified'] is True
+  assert caustic_upstream_bridge['shock']['physical_closure_verified'] is False
+  assert caustic_upstream_bridge['invariant_shock']['shock']['status'] == (
+    'upstream_field_failure'
+  )
+  assert caustic_upstream_bridge['invariant_shock']['coupling']['status'] == (
+    'caustic_bridge_domain_gap'
+  )
+  assert caustic_upstream_bridge['invariant_shock']['coupling'][
+    'first_missing_sample_index'
+  ] == 4
+  assert caustic_upstream_bridge['invariant_shock']['physical_closure_verified'] is False
+  assert caustic_upstream_bridge['planner']['production_claim_allowed'] is False
+  assert caustic_upstream_bridge['planner']['chain']['termination_reason'] == (
+    'open-physical-closure'
+  )
+  assert caustic_upstream_bridge['invariant_planner']['production_claim_allowed'] is False
+  assert caustic_upstream_bridge['invariant_planner']['chain']['termination_reason'] == (
+    'upstream-field-boundary'
+  )
   assert strong_subsonic_boundary['status'] == 'subsonic_terminal_required'
   assert strong_subsonic_boundary['subsonic_boundary_verified'] is True
   assert strong_subsonic_boundary['terminal_model_verified'] is False

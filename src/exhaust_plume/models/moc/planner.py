@@ -30,6 +30,7 @@ from exhaust_plume.models.moc.chain import (
   continue_moc_cell_chain,
 )
 from exhaust_plume.models.moc.caustic_restart import MocCausticFamilyBandResult
+from exhaust_plume.models.moc.caustic_bridge import MocCausticBridgeStatus, MocCausticUpstreamBridge
 from exhaust_plume.models.moc.post_shock import (
   MocPostShockChainCellSolve,
   MocPostShockCharacteristicFieldResult,
@@ -44,6 +45,8 @@ from exhaust_plume.models.moc.terminal_patch_solver import (
   solve_marched_attached_shock_chain_cell_from_terminal_reflection_patch_or_termination,
 )
 from exhaust_plume.models.moc.free_boundary import (
+  solve_marched_attached_shock_from_caustic_upstream_bridge,
+  solve_marched_attached_shock_from_caustic_upstream_bridge_with_invariant_boundary,
   solve_marched_attached_shock_chain_cell_from_post_shock_field_or_termination,
 )
 from exhaust_plume.models.moc.family_band_solver import (
@@ -64,6 +67,8 @@ __all__ = (
   'plan_terminal_reflection_patch_chain',
   'plan_caustic_family_band_chain',
   'plan_caustic_family_band_invariant_chain',
+  'plan_caustic_upstream_bridge_chain',
+  'plan_caustic_upstream_bridge_invariant_chain',
 )
 
 
@@ -957,6 +962,356 @@ def plan_caustic_family_band_invariant_chain(
     claim_status=(
       'invariant-conditioned-caustic-band-shock-planner; '
       'one-sided-upstream-domain-and-physical-remesh-pending'
+    ),
+  )
+
+
+def plan_caustic_upstream_bridge_chain(
+  seed: MocChainCell,
+  bridge: MocCausticUpstreamBridge,
+  *,
+  start_point_m: tuple[float, float],
+  end_x_m: float,
+  target_centerline_y_m: float = 0.0,
+  downstream_flow_angle_at: Callable[[int, tuple[float, float]], float] | None = None,
+  downstream_flow_angle_rad: float | None = None,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  policy: MocChainContinuationPolicy | None = None,
+) -> MocChainPlannerResult:
+  """Plan a one-step shock attempt across an explicit caustic bridge.
+
+  The bridge is a finite upstream sampling domain, not a reusable chain
+  field.  This planner records the exact incoming handoff, maps a bounded
+  domain gap or ambiguous overlap to a typed non-physical stop, and never
+  promotes the bridge's open physical seam into a resolved cell.
+  """
+
+  if not isinstance(bridge, MocCausticUpstreamBridge):
+    raise TypeError('bridge must be a MocCausticUpstreamBridge')
+  try:
+    requested_end_x = float(end_x_m)
+  except (TypeError, ValueError) as error:
+    raise ValueError('end_x_m must be finite and numeric') from error
+  if not isfinite(requested_end_x):
+    raise ValueError('end_x_m must be finite')
+  attempted = False
+
+  def solve_next(
+    current: MocChainCell,
+    next_cell_index: int,
+  ) -> MocChainCell | MocChainTerminationDecision:
+    nonlocal attempted
+    if attempted:
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
+        message=(
+          'caustic upstream bridge planner consumed its one-step bounded '
+          'domain; a later cell requires a new solved upstream field'
+        ),
+        diagnostics={
+          'termination_model': 'caustic-upstream-bridge-one-step-domain',
+          'next_cell_index': next_cell_index,
+        },
+      )
+    attempted = True
+    solved = solve_marched_attached_shock_from_caustic_upstream_bridge(
+      bridge,
+      start_point_m,
+      target_centerline_y_m=target_centerline_y_m,
+      downstream_flow_angle_at=downstream_flow_angle_at,
+      downstream_flow_angle_rad=downstream_flow_angle_rad,
+      incoming_handoff=current.continuation_boundary,
+      sample_count=sample_count,
+      branch=branch,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+      shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+      maximum_segment_iterations=maximum_segment_iterations,
+    )
+    diagnostics = {
+      'termination_model': 'caustic-upstream-bridge',
+      'upstream_field_model': 'bounded-old-family-restarted-family-bridge',
+      'next_cell_index': next_cell_index,
+      'requested_end_x_m': requested_end_x,
+      'bridge_status': solved.coupling.status.value,
+      'bridge_sampled_count': solved.coupling.sampled_count,
+      'bridge_first_missing_sample_index': solved.coupling.first_missing_sample_index,
+      'bridge_first_ambiguous_sample_index': solved.coupling.first_ambiguous_sample_index,
+      'upstream_coupling_verified': solved.upstream_coupling_verified,
+      'physical_closure_verified': solved.physical_closure_verified,
+      'bridge_report': solved.coupling.as_report(),
+      'shock_status': solved.shock.status.value,
+    }
+    if solved.coupling.status is MocCausticBridgeStatus.AMBIGUOUS_OVERLAP:
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.CHARACTERISTIC_CAUSTIC,
+        message=(
+          'caustic bridge encountered overlapping one-sided fields without '
+          'an explicit branch selection; no state was averaged'
+        ),
+        diagnostics=diagnostics,
+      )
+    if solved.coupling.status in (
+      MocCausticBridgeStatus.DOMAIN_GAP,
+      MocCausticBridgeStatus.SELECTED_SIDE_DOMAIN_GAP,
+      MocCausticBridgeStatus.FIELD_INPUT_FAILURE,
+    ):
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
+        message=(
+          'caustic upstream bridge did not cover the next-shock path; no '
+          'extrapolation or physical endpoint was inferred'
+        ),
+        diagnostics=diagnostics,
+      )
+    if not solved.upstream_coupling_verified:
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_ERROR,
+        message=(
+          'caustic bridge shock solve did not retain a complete bounded '
+          'upstream handoff; no next cell was promoted'
+        ),
+        diagnostics=diagnostics,
+      )
+    if solved.shock.field is not None:
+      expected_states = tuple(sample.state for sample in current.continuation_boundary)
+      expected_pressures = tuple(
+        sample.total_pressure_Pa for sample in current.continuation_boundary
+      )
+      if (
+        solved.shock.field.incoming_handoff_states != expected_states
+        or solved.shock.field.incoming_handoff_total_pressure_Pa != expected_pressures
+      ):
+        diagnostics['upstream_coupling_verified'] = False
+        return MocChainTerminationDecision(
+          physical_termination=False,
+          reason=MocChainTerminationReason.STATE_NOT_CARRIED,
+          message=(
+            'caustic bridge shock field did not retain the exact incoming '
+            'chain handoff'
+          ),
+          diagnostics=diagnostics,
+        )
+    if solved.shock.converged or solved.shock.terminal_model_verified:
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
+        message=(
+          'caustic bridge supplied a bounded shock attempt, but the physical '
+          'old-family/new-family seam and downstream cell closure remain '
+          'unresolved; no cell was promoted'
+        ),
+        diagnostics=diagnostics,
+      )
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=MocChainTerminationReason.SOLVER_ERROR,
+      message=(
+        'caustic bridge shock solve did not produce a complete next cell; no '
+        'physical endpoint was inferred'
+      ),
+      diagnostics=diagnostics,
+    )
+
+  effective_policy = policy
+  if effective_policy is None:
+    effective_policy = MocChainContinuationPolicy(require_state_carry=True)
+  elif not effective_policy.require_state_carry:
+    effective_policy = replace(effective_policy, require_state_carry=True)
+  return plan_moc_chain(
+    seed,
+    solve_next,
+    policy=effective_policy,
+    planner_kind=MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH,
+    claim_status=(
+      'caustic-upstream-bridge-planner; physical-remesh-and-downstream-'
+      'closure-pending'
+    ),
+  )
+
+
+def plan_caustic_upstream_bridge_invariant_chain(
+  seed: MocChainCell,
+  bridge: MocCausticUpstreamBridge,
+  *,
+  start_point_m: tuple[float, float],
+  end_x_m: float,
+  downstream_invariant_family: CharacteristicFamily,
+  downstream_invariant_at: Callable[[int, tuple[float, float]], float],
+  target_centerline_y_m: float = 0.0,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  maximum_downstream_angle_rad: float = 0.9,
+  maximum_invariant_scan_samples: int = 64,
+  maximum_invariant_iterations: int = 80,
+  policy: MocChainContinuationPolicy | None = None,
+) -> MocChainPlannerResult:
+  """Plan an invariant-conditioned one-step caustic bridge shock attempt."""
+
+  if not isinstance(bridge, MocCausticUpstreamBridge):
+    raise TypeError('bridge must be a MocCausticUpstreamBridge')
+  try:
+    requested_end_x = float(end_x_m)
+  except (TypeError, ValueError) as error:
+    raise ValueError('end_x_m must be finite and numeric') from error
+  if not isfinite(requested_end_x):
+    raise ValueError('end_x_m must be finite')
+  attempted = False
+
+  def solve_next(
+    current: MocChainCell,
+    next_cell_index: int,
+  ) -> MocChainCell | MocChainTerminationDecision:
+    nonlocal attempted
+    if attempted:
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
+        message=(
+          'invariant caustic bridge planner consumed its one-step bounded '
+          'domain; a later cell requires a new solved upstream field'
+        ),
+        diagnostics={
+          'termination_model': 'invariant-caustic-upstream-bridge-one-step-domain',
+          'next_cell_index': next_cell_index,
+        },
+      )
+    attempted = True
+    solved = solve_marched_attached_shock_from_caustic_upstream_bridge_with_invariant_boundary(
+      bridge,
+      start_point_m,
+      downstream_invariant_family,
+      downstream_invariant_at,
+      target_centerline_y_m=target_centerline_y_m,
+      incoming_handoff=current.continuation_boundary,
+      sample_count=sample_count,
+      branch=branch,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+      shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+      maximum_segment_iterations=maximum_segment_iterations,
+      maximum_downstream_angle_rad=maximum_downstream_angle_rad,
+      maximum_invariant_scan_samples=maximum_invariant_scan_samples,
+      maximum_invariant_iterations=maximum_invariant_iterations,
+    )
+    diagnostics = {
+      'termination_model': 'invariant-caustic-upstream-bridge',
+      'upstream_field_model': 'bounded-old-family-restarted-family-bridge',
+      'next_cell_index': next_cell_index,
+      'requested_end_x_m': requested_end_x,
+      'invariant_family': downstream_invariant_family.value,
+      'bridge_status': solved.coupling.status.value,
+      'bridge_sampled_count': solved.coupling.sampled_count,
+      'bridge_first_missing_sample_index': solved.coupling.first_missing_sample_index,
+      'bridge_first_ambiguous_sample_index': solved.coupling.first_ambiguous_sample_index,
+      'upstream_coupling_verified': solved.upstream_coupling_verified,
+      'physical_closure_verified': solved.physical_closure_verified,
+      'bridge_report': solved.coupling.as_report(),
+      'shock_status': solved.shock.status.value,
+    }
+    if solved.coupling.status is MocCausticBridgeStatus.AMBIGUOUS_OVERLAP:
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.CHARACTERISTIC_CAUSTIC,
+        message=(
+          'invariant caustic bridge encountered overlapping one-sided fields '
+          'without explicit branch selection; no state was averaged'
+        ),
+        diagnostics=diagnostics,
+      )
+    if solved.coupling.status in (
+      MocCausticBridgeStatus.DOMAIN_GAP,
+      MocCausticBridgeStatus.SELECTED_SIDE_DOMAIN_GAP,
+      MocCausticBridgeStatus.FIELD_INPUT_FAILURE,
+    ):
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
+        message=(
+          'invariant caustic bridge did not cover the next-shock path; no '
+          'extrapolation or physical endpoint was inferred'
+        ),
+        diagnostics=diagnostics,
+      )
+    if solved.coupling.status is MocCausticBridgeStatus.PATH_GEOMETRY_FAILURE:
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_ERROR,
+        message='invariant caustic bridge rejected the shock-path geometry',
+        diagnostics=diagnostics,
+      )
+    if not solved.upstream_coupling_verified:
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_ERROR,
+        message=(
+          'invariant caustic bridge shock solve did not retain a complete '
+          'upstream handoff; no next cell was promoted'
+        ),
+        diagnostics=diagnostics,
+      )
+    if solved.shock.field is not None:
+      expected_states = tuple(sample.state for sample in current.continuation_boundary)
+      expected_pressures = tuple(
+        sample.total_pressure_Pa for sample in current.continuation_boundary
+      )
+      if (
+        solved.shock.field.incoming_handoff_states != expected_states
+        or solved.shock.field.incoming_handoff_total_pressure_Pa != expected_pressures
+      ):
+        diagnostics['upstream_coupling_verified'] = False
+        return MocChainTerminationDecision(
+          physical_termination=False,
+          reason=MocChainTerminationReason.STATE_NOT_CARRIED,
+          message='invariant caustic bridge shock field did not retain the exact incoming handoff',
+          diagnostics=diagnostics,
+        )
+    if solved.shock.converged or solved.shock.terminal_model_verified:
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
+        message=(
+          'invariant caustic bridge supplied a bounded shock attempt, but the '
+          'physical branch seam and downstream cell closure remain unresolved'
+        ),
+        diagnostics=diagnostics,
+      )
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=MocChainTerminationReason.SOLVER_ERROR,
+      message=(
+        'invariant caustic bridge shock solve did not produce a complete next '
+        'cell; no physical endpoint was inferred'
+      ),
+      diagnostics=diagnostics,
+    )
+
+  effective_policy = policy
+  if effective_policy is None:
+    effective_policy = MocChainContinuationPolicy(require_state_carry=True)
+  elif not effective_policy.require_state_carry:
+    effective_policy = replace(effective_policy, require_state_carry=True)
+  return plan_moc_chain(
+    seed,
+    solve_next,
+    policy=effective_policy,
+    planner_kind=MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH,
+    claim_status=(
+      'invariant-caustic-upstream-bridge-planner; physical-remesh-and-'
+      'downstream-closure-pending'
     ),
   )
 

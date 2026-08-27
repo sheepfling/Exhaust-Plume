@@ -35,8 +35,14 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocChainStatus,
   MocChainPlannerKind,
   MocCausticShockBridgeStatus,
+  MocCausticBridgeSide,
+  MocCausticBridgeStatus,
+  build_caustic_upstream_bridge,
+  sample_caustic_upstream_bridge,
   plan_caustic_family_band_chain,
   plan_caustic_family_band_invariant_chain,
+  plan_caustic_upstream_bridge_chain,
+  plan_caustic_upstream_bridge_invariant_chain,
   plan_post_shock_characteristic_chain,
   plan_post_shock_field_chain,
   plan_terminal_reflection_patch_chain,
@@ -59,6 +65,8 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_marched_attached_shock_from_terminal_reflection_patch,
   solve_marched_attached_shock_from_caustic_family_band,
   solve_marched_attached_shock_from_caustic_family_band_with_invariant_boundary,
+  solve_marched_attached_shock_from_caustic_upstream_bridge,
+  solve_marched_attached_shock_from_caustic_upstream_bridge_with_invariant_boundary,
   solve_normal_shock_terminal,
   solve_marched_attached_shock_chain_cell,
   solve_marched_attached_shock_chain_cell_or_termination,
@@ -2238,6 +2246,195 @@ def _caustic_family_band_invariant_chain_probe(
   }
 
 
+def _caustic_upstream_bridge_probe(
+  seed: Any,
+  total_pressure_Pa: float,
+  ambient_pressure_Pa: float,
+  old_family: Any,
+  current_field: MocPostShockCharacteristicFieldResult | None,
+) -> dict[str, Any]:
+  """Audit the explicit old-family/restarted-family upstream seam."""
+
+  if seed is None or old_family is None:
+    return {
+      'status': 'missing_seed_or_old_family',
+      'accepted': False,
+      'bridge': None,
+      'claim_status': 'caustic-upstream-bridge-pending',
+    }
+  try:
+    restart = restart_characteristic_family_from_caustic(
+      seed,
+      total_pressure_Pa,
+      ambient_pressure_Pa,
+      anchor_edge_index=0,
+      sample_count=6,
+    )
+    band = restart.family_band
+    if band is None or not band.converged or band.anchor_point_m is None:
+      return {
+        'status': 'missing_open_family_band',
+        'accepted': False,
+        'bridge': None,
+        'claim_status': 'caustic-upstream-bridge-pending',
+      }
+    bridge = build_caustic_upstream_bridge(old_family, band)
+    covered_path = tuple(
+      (state.x_m, state.y_m)
+      for state in band.boundary_states[:4]
+    )
+    covered = sample_caustic_upstream_bridge(bridge, covered_path)
+    gap = sample_caustic_upstream_bridge(
+      bridge,
+      (
+        band.anchor_point_m,
+        (0.675, 0.052),
+        (0.680, 0.050),
+      ),
+    )
+    old_only = build_caustic_upstream_bridge(
+      old_family,
+      band,
+      side_at=lambda _point: MocCausticBridgeSide.OLD_FAMILY,
+    )
+    no_fallback = sample_caustic_upstream_bridge(
+      old_only,
+      (band.anchor_point_m,),
+    )
+    if seed.edge_states[1].state is None:
+      return {
+        'status': 'missing_invariant_target',
+        'accepted': False,
+        'bridge': bridge.as_report(),
+        'claim_status': 'caustic-upstream-bridge-pending',
+      }
+    target_invariant = seed.edge_states[1].state.k_plus
+    invariant_shock = solve_marched_attached_shock_from_caustic_upstream_bridge_with_invariant_boundary(
+      bridge,
+      band.anchor_point_m,
+      CharacteristicFamily.PLUS,
+      lambda _index, _point: target_invariant,
+      sample_count=9,
+    )
+    start = (
+      0.5 * (band.input_edge_points_m[0][0] + band.input_edge_points_m[1][0]),
+      0.5 * (band.input_edge_points_m[0][1] + band.input_edge_points_m[1][1]),
+    )
+    shock = solve_marched_attached_shock_from_caustic_upstream_bridge(
+      bridge,
+      start,
+      downstream_flow_angle_at=lambda _index, point: 0.05 * max(
+        0.0,
+        min(1.0, point[1] / start[1]),
+      ),
+      sample_count=9,
+      shock_angle_tolerance_rad=0.2,
+    )
+    planner = None
+    if current_field is not None and current_field.converged:
+      current = current_field.as_coupled_chain_cell(
+        start_x_m=0.2,
+        end_x_m=0.8,
+      )
+      planner = plan_caustic_upstream_bridge_chain(
+        current,
+        bridge,
+        start_point_m=start,
+        end_x_m=1.4,
+        downstream_flow_angle_at=lambda _index, point: 0.05 * max(
+          0.0,
+          min(1.0, point[1] / start[1]),
+        ),
+        sample_count=9,
+        shock_angle_tolerance_rad=0.2,
+    )
+    planner_report = None if planner is None else planner.as_report()
+    invariant_planner = None
+    if current_field is not None and current_field.converged:
+      current = current_field.as_coupled_chain_cell(
+        start_x_m=0.2,
+        end_x_m=0.5,
+      )
+      invariant_planner = plan_caustic_upstream_bridge_invariant_chain(
+        current,
+        bridge,
+        start_point_m=band.anchor_point_m,
+        end_x_m=1.4,
+        downstream_invariant_family=CharacteristicFamily.PLUS,
+        downstream_invariant_at=lambda _index, _point: target_invariant,
+        sample_count=9,
+      )
+    invariant_planner_report = (
+      None if invariant_planner is None else invariant_planner.as_report()
+    )
+    accepted = (
+      bridge.fields_converged
+      and covered.status is MocCausticBridgeStatus.CONVERGED_BOUNDED_PATH
+      and covered.sampled_count == 4
+      and all(
+        sample.side is MocCausticBridgeSide.RESTARTED_FAMILY
+        and not sample.old_family_available
+        and sample.restarted_family_available
+        for sample in covered.samples
+      )
+      and gap.status is MocCausticBridgeStatus.DOMAIN_GAP
+      and gap.first_missing_sample_index == 2
+      and no_fallback.status is MocCausticBridgeStatus.SELECTED_SIDE_DOMAIN_GAP
+      and shock.coupling.status is MocCausticBridgeStatus.CONVERGED_BOUNDED_PATH
+      and shock.upstream_coupling_verified
+      and shock.physical_closure_verified is False
+      and shock.chain_promotion_blocked
+      and invariant_shock.shock.status.value == 'upstream_field_failure'
+      and invariant_shock.coupling.status is MocCausticBridgeStatus.DOMAIN_GAP
+      and invariant_shock.coupling.first_missing_sample_index == 4
+      and invariant_shock.upstream_coupling_verified is False
+      and invariant_shock.physical_closure_verified is False
+      and invariant_shock.chain_promotion_blocked
+      and planner_report is not None
+      and planner_report['planner_kind'] == MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH.value
+      and planner_report['planning_only'] is True
+      and planner_report['production_claim_allowed'] is False
+      and planner_report['step_count'] == 1
+      and planner_report['chain']['status'] == MocChainStatus.SOLVER_TERMINATED.value
+      and planner_report['chain']['termination_reason'] == MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE.value
+      and planner_report['chain']['physical_termination'] is False
+      and planner_report['chain']['cell_count'] == 1
+      and invariant_planner_report is not None
+      and invariant_planner_report['planner_kind'] == MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH.value
+      and invariant_planner_report['planning_only'] is True
+      and invariant_planner_report['production_claim_allowed'] is False
+      and invariant_planner_report['step_count'] == 1
+      and invariant_planner_report['chain']['status'] == MocChainStatus.SOLVER_TERMINATED.value
+      and invariant_planner_report['chain']['termination_reason'] == MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY.value
+      and invariant_planner_report['chain']['physical_termination'] is False
+      and invariant_planner_report['chain']['cell_count'] == 1
+    )
+    return {
+      'status': 'diagnostic-bounded-caustic-upstream-bridge',
+      'accepted': accepted,
+      'bridge': bridge.as_report(),
+      'covered_path_audit': covered.as_report(),
+      'gap_audit': gap.as_report(),
+      'explicit_old_side_no_fallback_audit': no_fallback.as_report(),
+      'shock': shock.as_report(),
+      'invariant_shock': invariant_shock.as_report(),
+      'planner': planner_report,
+      'invariant_planner': invariant_planner_report,
+      'claim_status': (
+        'bounded-old-family-restarted-family-bridge-and-planner-audit; '
+        'physical-caustic-remesh-and-downstream-closure-pending'
+      ),
+    }
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return {
+      'status': 'caustic-upstream-bridge-failure',
+      'accepted': False,
+      'bridge': None,
+      'message': str(error),
+      'claim_status': 'caustic-upstream-bridge-pending',
+    }
+
+
 def _caustic_family_band_terminal_refinement_probe(
   seed: Any,
   total_pressure_Pa: float,
@@ -2889,6 +3086,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
     fan_ambient.pressure_Pa,
     solver_generated_shock.field,
   )
+  caustic_upstream_bridge = _caustic_upstream_bridge_probe(
+    caustic_shock_seed,
+    fan_exit.total_pressure_Pa,
+    fan_ambient.pressure_Pa,
+    reflected_source_strip,
+    solver_generated_shock.field,
+  )
   reflected_zone_chain_boundary_probe = _reflected_zone_chain_boundary_probe(
     reflected_zone,
     solver_generated_shock.field,
@@ -3173,6 +3377,9 @@ def build_moc_primitive_report() -> dict[str, Any]:
   )
   caustic_family_band_invariant_chain_failure = (
     caustic_family_band_invariant_chain.get('accepted') is not True
+  )
+  caustic_upstream_bridge_failure = (
+    caustic_upstream_bridge.get('accepted') is not True
   )
   overexpanded_exit = derive_uniform_nozzle_exit(
     NozzleExitInput(
@@ -3554,6 +3761,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'caustic_family_band_terminal_field': caustic_family_band_terminal_field,
       'caustic_family_band_chain_planner': caustic_family_band_chain_planner,
       'caustic_family_band_invariant_chain': caustic_family_band_invariant_chain,
+      'caustic_upstream_bridge': caustic_upstream_bridge,
       'caustic_family_band_terminal_refinement': caustic_family_band_terminal_refinement,
       'caustic_family_band_terminal_measurement': caustic_family_band_terminal_measurement,
       'claim_status': (
@@ -4312,6 +4520,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'message': str(caustic_family_band_invariant_chain.get('message', '')),
       }
     ] if caustic_family_band_invariant_chain_failure else []),
+    *([
+      {
+        'case': 'caustic_upstream_bridge',
+        'status': str(caustic_upstream_bridge.get('status', 'missing')),
+        'message': str(caustic_upstream_bridge.get('message', '')),
+      }
+    ] if caustic_upstream_bridge_failure else []),
     *([
       {
         'case': 'solver_generated_chain_reference',
