@@ -34,6 +34,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocFieldCoupledPostShockChainReference,
   MocReflectedCharacteristicZoneResult,
   MocChainBoundaryKind,
+  MocChainContinuationPolicy,
   MocChainTerminationDecision,
   MocChainTerminationReason,
   MocChainStatus,
@@ -111,6 +112,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   prepare_caustic_shock_remesh,
   solve_caustic_shock_remesh,
   plan_caustic_shock_remesh_chain,
+  plan_caustic_remesh_downstream_field_chain,
   restart_characteristic_family_from_caustic,
   trace_caustic_family_band_forward_envelope,
   extend_source_characteristic_strip_centerline_reflection,
@@ -2173,8 +2175,21 @@ def _caustic_shock_remesh_execution_probe(seed: Any) -> dict[str, Any]:
     sample_count=9,
     shock_angle_tolerance_rad=0.2,
   )
+  downstream_field_planner = plan_caustic_remesh_downstream_field_chain(
+    direct,
+    start_x_m=request.event_point_m[0],
+    end_x_m=request.event_point_m[0] + 0.1,
+    start_point_at=lambda _field, _cell, _index: (0.7, 0.05),
+    downstream_flow_angle_rad=0.2,
+    policy=MocChainContinuationPolicy(
+      max_cells=1,
+      require_state_carry=True,
+    ),
+    allow_research_continuation=True,
+  )
   direct_report = direct.as_report()
   planner_report = planner.as_report()
+  downstream_field_planner_report = downstream_field_planner.as_report()
   accepted = (
     prepared.converged
     and direct.status is MocCausticShockRemeshStatus.CONVERGED_COUPLED_REMESH
@@ -2197,6 +2212,16 @@ def _caustic_shock_remesh_execution_probe(seed: Any) -> dict[str, Any]:
     and planner.steps[0].incoming_handoff_sample_count == len(
       current.continuation_boundary
     )
+    and downstream_field_planner.planner_kind is MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
+    and downstream_field_planner.production_claim_allowed is False
+    and downstream_field_planner.chain.status is MocChainStatus.TRUNCATED
+    and downstream_field_planner.chain.cell_count == 1
+    and downstream_field_planner.chain.resolved
+    and downstream_field_planner.diagnostics.get('seed_field_model') == (
+      'bounded-caustic-remesh-post-shock-field'
+    )
+    and downstream_field_planner.diagnostics.get('remesh_physical_closure_verified') is False
+    and downstream_field_planner.diagnostics.get('remesh_chain_promotion_blocked') is True
   )
   return {
     'status': 'diagnostic-coupled-caustic-remesh-execution',
@@ -2204,6 +2229,7 @@ def _caustic_shock_remesh_execution_probe(seed: Any) -> dict[str, Any]:
     'preparation': prepared.as_report(),
     'direct': direct_report,
     'planner': planner_report,
+    'downstream_field_planner': downstream_field_planner_report,
     'incoming_handoff_sample_count': len(current.continuation_boundary),
     'claim_status': (
       'solver-backed-local-caustic-remesh-and-one-step-planner; '

@@ -88,6 +88,7 @@ __all__ = (
   'plan_caustic_upstream_bridge_chain',
   'plan_caustic_upstream_bridge_invariant_chain',
   'plan_caustic_shock_remesh_chain',
+  'plan_caustic_remesh_downstream_field_chain',
   'plan_ambient_pressure_field_chain',
 )
 
@@ -2129,6 +2130,95 @@ def plan_caustic_shock_remesh_chain(
       'one_step_domain': True,
       'physical_closure_pending': True,
     },
+  )
+
+
+def plan_caustic_remesh_downstream_field_chain(
+  remesh: MocCausticShockRemeshResult,
+  *,
+  start_x_m: float,
+  end_x_m: float,
+  start_point_at: Callable[
+    [MocPostShockCharacteristicFieldResult, MocChainCell, int],
+    tuple[float, float],
+  ],
+  end_x_at: Callable[
+    [MocPostShockCharacteristicFieldResult, MocChainCell, int],
+    float,
+  ] | None = None,
+  target_centerline_y_m: float = 0.0,
+  downstream_flow_angle_at: Callable[[int, tuple[float, float]], float] | None = None,
+  downstream_flow_angle_rad: float | None = None,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  policy: MocChainContinuationPolicy | None = None,
+  allow_research_continuation: bool = False,
+) -> MocChainPlannerResult:
+  """Continue a converged caustic remesh field in an explicit research lane.
+
+  A coupled caustic remesh produces a bounded post-shock field, but the
+  remesh result itself is not a physically closed chain cell: the
+  old-family/new-family and downstream physical-boundary claim remains open.
+  This wrapper makes the next numerical experiment available without
+  weakening that gate.  The caller must explicitly opt into the research
+  continuation, and the returned planner remains
+  ``UPSTREAM_COUPLED_RESEARCH`` with production claims disabled.
+
+  The remesh field is accepted only after its event, upstream, shock, and
+  downstream characteristic-field seam checks pass.  Subsequent cells use
+  the existing bounded field-coupled solver; the accepted field is replaced
+  only after a complete next-cell solve returns.
+  """
+
+  if not isinstance(remesh, MocCausticShockRemeshResult):
+    raise TypeError('remesh must be a MocCausticShockRemeshResult')
+  if not isinstance(allow_research_continuation, bool):
+    raise TypeError('allow_research_continuation must be a bool')
+  if not allow_research_continuation:
+    raise ValueError(
+      'caustic remesh field continuation requires explicit '
+      'allow_research_continuation=True; production promotion remains blocked'
+    )
+  field = remesh.as_bounded_downstream_field()
+  planner = plan_post_shock_field_chain(
+    field,
+    start_x_m=start_x_m,
+    end_x_m=end_x_m,
+    start_point_at=start_point_at,
+    end_x_at=end_x_at,
+    target_centerline_y_m=target_centerline_y_m,
+    downstream_flow_angle_at=downstream_flow_angle_at,
+    downstream_flow_angle_rad=downstream_flow_angle_rad,
+    sample_count=sample_count,
+    branch=branch,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+    shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+    maximum_segment_iterations=maximum_segment_iterations,
+    policy=policy,
+  )
+  diagnostics = dict(planner.diagnostics)
+  diagnostics.update({
+    'caustic_remesh_continuation': remesh.as_report(),
+    'seed_field_model': 'bounded-caustic-remesh-post-shock-field',
+    'research_continuation_opt_in': allow_research_continuation,
+    'remesh_physical_closure_verified': remesh.physical_closure_verified,
+    'remesh_chain_promotion_blocked': remesh.chain_promotion_blocked,
+    'upstream_field_replacement_policy': (
+      'replace-only-after-complete-field-coupled-solve'
+    ),
+  })
+  return replace(
+    planner,
+    claim_status=(
+      'caustic-remesh-downstream-field research chain; '
+      'old-family-seam-and-physical-boundary-pending'
+    ),
+    diagnostics=diagnostics,
   )
 
 

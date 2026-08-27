@@ -1493,6 +1493,7 @@
           "shock_curve_verified": true,
           "downstream_field_verified": true,
           "remesh_seam_verified": true,
+          "bounded_downstream_field_available": true,
           "physical_closure_verified": false,
           "chain_promotion_blocked": true,
           "shock": {
@@ -1653,6 +1654,7 @@
                 "shock_curve_verified": true,
                 "downstream_field_verified": true,
                 "remesh_seam_verified": true,
+                "bounded_downstream_field_available": true,
                 "physical_closure_verified": false,
                 "chain_promotion_blocked": true,
                 "shock": {
@@ -1765,6 +1767,136 @@
             },
             "one_step_domain": true,
             "physical_closure_pending": true
+          }
+        },
+        "downstream_field_planner": {
+          "planner_kind": "upstream-coupled-research",
+          "planning_only": true,
+          "production_claim_allowed": false,
+          "claim_status": "caustic-remesh-downstream-field research chain; old-family-seam-and-physical-boundary-pending",
+          "step_count": 0,
+          "handoff_links_verified": null,
+          "steps": [],
+          "chain": {
+            "status": "truncated",
+            "termination_reason": "max-cell-limit",
+            "physical_termination": false,
+            "cell_count": 1,
+            "end_x_m": 0.7584201957653014,
+            "resolved": true,
+            "state_carry_count": 1,
+            "continuation_boundary_kinds": [
+              "post-shock-field-perimeter"
+            ],
+            "continuation_total_pressure_ranges_Pa": [
+              {
+                "cell_index": 1,
+                "minimum_Pa": 1897898.1841538635,
+                "maximum_Pa": 1964610.7872569442
+              }
+            ],
+            "continuation_boundary_maxima_nonincreasing": null,
+            "geometry_fidelity_counts": {
+              "resolved-planar-moc": 1
+            },
+            "diagnostics": {},
+            "message": "MOC chain reached the configured maximum cell count"
+          },
+          "diagnostics": {
+            "caustic_remesh_continuation": {
+              "status": "converged_coupled_caustic_shock_remesh",
+              "converged": true,
+              "event_point_m": [
+                0.6584201957653014,
+                0.056970655192732075
+              ],
+              "event_seam_verified": true,
+              "local_bridge_state_verified": true,
+              "upstream_coupling_verified": true,
+              "shock_curve_verified": true,
+              "downstream_field_verified": true,
+              "remesh_seam_verified": true,
+              "bounded_downstream_field_available": true,
+              "physical_closure_verified": false,
+              "chain_promotion_blocked": true,
+              "shock": {
+                "status": "converged_free_boundary_field",
+                "converged": true,
+                "physical_closure_verified": true,
+                "subsonic_terminal_required": false,
+                "sample_count": 9,
+                "endpoint_m": [
+                  0.7292121983923084,
+                  0.0
+                ],
+                "maximum_shock_angle_residual_rad": 0.0038234076384963123,
+                "field_status": "converged_closed",
+                "subsonic_boundary_verified": false,
+                "subsonic_shock_boundary": null,
+                "normal_shock_terminal": null,
+                "failed_sample_index": null,
+                "failed_point_m": null,
+                "message": "solver-generated attached-shock boundary reached the symmetry line and closed the post-shock characteristic field"
+              },
+              "request": {
+                "event_point_m": [
+                  0.6584201957653014,
+                  0.056970655192732075
+                ],
+                "upstream_edge_index": 0,
+                "upstream_state": {
+                  "x_m": 0.6584201957653014,
+                  "y_m": 0.056970655192732075,
+                  "theta_rad": -0.2,
+                  "mach": 2.9524960898197605,
+                  "gamma": 1.4
+                },
+                "upstream_static_pressure_Pa": 58477.95657993019,
+                "downstream_invariant_family": "C+",
+                "downstream_invariant_target": -0.7773765674048146,
+                "local_shock_state_ready": true,
+                "required_outputs": [
+                  "shock_boundary_points_m",
+                  "shock_boundary_upstream_states",
+                  "shock_boundary_downstream_states",
+                  "shock_boundary_total_pressure_loss",
+                  "post_shock_characteristic_field",
+                  "exact_incoming_handoff"
+                ],
+                "local_bridge_status": "converged_local_caustic_shock_compatibility",
+                "shock_curve_verified": false,
+                "downstream_field_verified": false,
+                "physical_closure_verified": false,
+                "chain_promotion_blocked": true
+              },
+              "chain_termination_decision": {
+                "physical_termination": false,
+                "reason": "open-physical-closure",
+                "message": "caustic remesh generated a bounded attached shock and closed downstream characteristic field with exact event/upstream coupling; ambient physical closure remains a separate first-cell gate",
+                "diagnostics": {
+                  "termination_model": "caustic-shock-remesh-fidelity-boundary",
+                  "remesh_status": "converged_coupled_caustic_shock_remesh",
+                  "event_point_m": [
+                    0.6584201957653014,
+                    0.056970655192732075
+                  ],
+                  "event_seam_verified": true,
+                  "local_bridge_state_verified": true,
+                  "upstream_coupling_verified": true,
+                  "shock_curve_verified": true,
+                  "downstream_field_verified": true,
+                  "remesh_seam_verified": true,
+                  "physical_closure_verified": false,
+                  "chain_promotion_blocked": true
+                }
+              },
+              "message": "caustic remesh generated a bounded attached shock and closed downstream characteristic field with exact event/upstream coupling; ambient physical closure remains a separate first-cell gate"
+            },
+            "seed_field_model": "bounded-caustic-remesh-post-shock-field",
+            "research_continuation_opt_in": true,
+            "remesh_physical_closure_verified": false,
+            "remesh_chain_promotion_blocked": true,
+            "upstream_field_replacement_policy": "replace-only-after-complete-field-coupled-solve"
           }
         },
         "incoming_handoff_sample_count": 10,

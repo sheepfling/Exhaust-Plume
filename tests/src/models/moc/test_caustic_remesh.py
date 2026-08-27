@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+import pytest
+
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput
 from exhaust_plume.models.moc import (
   CharacteristicFamily,
@@ -10,7 +12,10 @@ from exhaust_plume.models.moc import (
   MocChainBoundarySample,
   MocChainPlannerKind,
   MocChainTerminationReason,
+  MocChainContinuationPolicy,
+  MocChainStatus,
   plan_caustic_shock_remesh_chain,
+  plan_caustic_remesh_downstream_field_chain,
   assemble_source_characteristic_strip,
   build_caustic_shock_seed,
   extend_source_characteristic_strip_centerline_reflection,
@@ -166,6 +171,8 @@ def test_caustic_remesh_generates_a_bounded_new_family_field() -> None:
   assert result.chain_promotion_blocked
   assert result.shock is not None
   assert result.shock.field is not None
+  assert result.bounded_downstream_field_available
+  assert result.as_bounded_downstream_field() is result.shock.field
   assert result.shock.field.incoming_handoff_states == tuple(
     sample.state for sample in current.continuation_boundary
   )
@@ -189,6 +196,39 @@ def test_caustic_remesh_generates_a_bounded_new_family_field() -> None:
   assert planner.chain.diagnostics['remesh_status'] == (
     MocCausticShockRemeshStatus.CONVERGED_COUPLED_REMESH.value
   )
+
+  with pytest.raises(ValueError, match='allow_research_continuation=True'):
+    plan_caustic_remesh_downstream_field_chain(
+      result,
+      start_x_m=result.event_point_m[0],
+      end_x_m=result.event_point_m[0] + 0.1,
+      start_point_at=lambda _field, _cell, _index: (0.7, 0.05),
+      downstream_flow_angle_rad=0.2,
+    )
+
+  continuation_planner = plan_caustic_remesh_downstream_field_chain(
+    result,
+    start_x_m=result.event_point_m[0],
+    end_x_m=result.event_point_m[0] + 0.1,
+    start_point_at=lambda _field, _cell, _index: (0.7, 0.05),
+    downstream_flow_angle_rad=0.2,
+    policy=MocChainContinuationPolicy(
+      max_cells=1,
+      require_state_carry=True,
+    ),
+    allow_research_continuation=True,
+  )
+  assert continuation_planner.planner_kind is MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
+  assert continuation_planner.production_claim_allowed is False
+  assert continuation_planner.chain.status is MocChainStatus.TRUNCATED
+  assert continuation_planner.chain.cell_count == 1
+  assert continuation_planner.chain.resolved
+  assert continuation_planner.diagnostics['seed_field_model'] == (
+    'bounded-caustic-remesh-post-shock-field'
+  )
+  assert continuation_planner.diagnostics['research_continuation_opt_in'] is True
+  assert continuation_planner.diagnostics['remesh_physical_closure_verified'] is False
+  assert continuation_planner.diagnostics['remesh_chain_promotion_blocked'] is True
 
 
 def test_caustic_remesh_rejects_a_changed_event_state() -> None:

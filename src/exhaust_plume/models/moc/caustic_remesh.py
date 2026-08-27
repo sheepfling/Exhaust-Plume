@@ -35,6 +35,9 @@ from exhaust_plume.models.moc.free_boundary import (
   MocFreeBoundaryShockStatus,
   solve_marched_attached_shock_with_invariant_boundary,
 )
+from exhaust_plume.models.moc.post_shock import (
+  MocPostShockCharacteristicFieldResult,
+)
 from exhaust_plume.models.moc.primitives import (
   CharacteristicFamily,
   CharacteristicState,
@@ -386,6 +389,42 @@ class MocCausticShockRemeshResult:
   ####
 
   @property
+  def bounded_downstream_field_available(self) -> bool:
+    """Whether the remesh field is safe to use as a bounded solver input.
+
+    This is deliberately weaker than a chain-cell promotion gate.  The
+    remesh result still lacks the physical old-family/new-family closure
+    required for production claims, but a completely coupled downstream
+    characteristic field can be useful to a later research shock solve.
+    """
+
+    return bool(
+      self.converged
+      and self.remesh_seam_verified
+      and self.shock is not None
+      and self.shock.field is not None
+      and self.shock.field.converged
+    )
+
+  def as_bounded_downstream_field(self) -> MocPostShockCharacteristicFieldResult:
+    """Expose the remesh field for an explicit research continuation.
+
+    The returned field remains finite-domain and is not a promotion of this
+    remesh result into a physical chain cell.  Callers that want to continue
+    it must use the research-only field planner, which retains this result's
+    unresolved closure diagnostics in its report.
+    """
+
+    if not self.bounded_downstream_field_available:
+      raise ValueError(
+        'a bounded downstream continuation field requires a converged caustic '
+        'remesh with every event, upstream, shock, and field seam gate passed'
+      )
+    assert self.shock is not None
+    assert self.shock.field is not None
+    return self.shock.field
+
+  @property
   def remesh_seam_verified(self) -> bool:
     """Whether every local event, shock, and field seam gate passed."""
 
@@ -453,6 +492,7 @@ class MocCausticShockRemeshResult:
       'shock_curve_verified': self.shock_curve_verified,
       'downstream_field_verified': self.downstream_field_verified,
       'remesh_seam_verified': self.remesh_seam_verified,
+      'bounded_downstream_field_available': self.bounded_downstream_field_available,
       'physical_closure_verified': self.physical_closure_verified,
       'chain_promotion_blocked': self.chain_promotion_blocked,
       'shock': None if self.shock is None else self.shock.as_report(),
