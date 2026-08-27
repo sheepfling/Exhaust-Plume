@@ -131,8 +131,9 @@ The implementation in `exhaust_plume.models.moc` currently provides:
 - a bounded global ambient-axis shoot that treats a caller-supplied upstream
   attachment coordinate as the second boundary-value unknown, nests the local
   ambient-attachment solve, and bisects only a validated axis-pressure
-  residual. A converged scalar root still exposes no downstream field and
-  cannot promote a chain cell;
+  residual. The result separately validates the appended ambient-to-axis
+  perimeter and retains any tangency failure. A converged scalar root still
+  exposes no downstream field and cannot promote a chain cell;
 - a correctly oriented shock/ambient strip assembler in which shock-sourced
   ``C+`` characteristics and ambient-sourced ``C-`` characteristics form a
   connected physical-boundary net, plus a shock-to-ambient boundary marcher

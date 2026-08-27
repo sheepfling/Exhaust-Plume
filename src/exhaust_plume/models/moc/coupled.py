@@ -487,6 +487,17 @@ class MocAmbientAxisClosureShootResult:
   ####
 
   @property
+  def axis_boundary_verified(self) -> bool:
+    """Whether the full appended ambient-to-axis perimeter is accepted."""
+
+    return bool(
+      self.converged
+      and self.axis_closure is not None
+      and self.axis_closure.axis_boundary_verified
+    )
+  ####
+
+  @property
   def physical_closure_verified(self) -> bool:
     """Whether a full downstream physical first-cell field is present."""
 
@@ -512,6 +523,7 @@ class MocAmbientAxisClosureShootResult:
       'status': self.status.value,
       'converged': self.converged,
       'axis_pressure_closure_verified': self.axis_pressure_closure_verified,
+      'axis_boundary_verified': self.axis_boundary_verified,
       'physical_closure_verified': self.physical_closure_verified,
       'chain_promotion_blocked': self.chain_promotion_blocked,
       'selected_parameter': self.selected_parameter,

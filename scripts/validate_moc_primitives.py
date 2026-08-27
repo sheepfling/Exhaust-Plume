@@ -452,6 +452,7 @@ def _ambient_shock_strip_probe(
       and trial.axis_closure is not None
       and trial.axis_closure.axis_candidate_verified
       and not trial.axis_closure.ambient_pressure_verified
+      and not trial.axis_closure.axis_boundary_verified
       for trial in ambient_axis_closure_shoot.trials
     )
     and not ambient_axis_closure_shoot.physical_closure_verified
@@ -484,12 +485,14 @@ def _ambient_shock_strip_probe(
     and ambient_axis_closure_shoot_reference.closure_residual is not None
     and abs(ambient_axis_closure_shoot_reference.closure_residual) <= 1.0e-8
     and not ambient_axis_closure_shoot_reference.physical_closure_verified
+    and not ambient_axis_closure_shoot_reference.axis_boundary_verified
     and ambient_axis_closure_shoot_reference.chain_promotion_blocked
   )
   ambient_axis_closure_probe_accepted = (
     ambient_axis_closure.status is MocAmbientAxisClosureStatus.PRESSURE_FAILURE
     and ambient_axis_closure.axis_candidate_verified
     and not ambient_axis_closure.ambient_pressure_verified
+    and not ambient_axis_closure.axis_boundary_verified
     and not ambient_axis_closure.physical_closure_verified
     and ambient_axis_closure.chain_promotion_blocked
   )

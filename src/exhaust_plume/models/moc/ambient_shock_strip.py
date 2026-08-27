@@ -159,6 +159,9 @@ class MocAmbientAxisClosureResult:
   axis_candidate_verified: bool
   ambient_pressure_verified: bool
   message: str = ''
+  axis_boundary: MocAmbientPressureBoundaryResult | None = None
+  axis_boundary_tangent_residual: float | None = None
+  axis_boundary_verified: bool = False
 
   def __post_init__(self) -> None:
     if not isinstance(self.status, MocAmbientAxisClosureStatus):
@@ -206,6 +209,19 @@ class MocAmbientAxisClosureResult:
       raise TypeError('axis_candidate_verified must be a bool')
     if not isinstance(self.ambient_pressure_verified, bool):
       raise TypeError('ambient_pressure_verified must be a bool')
+    if self.axis_boundary is not None and not isinstance(
+        self.axis_boundary,
+        MocAmbientPressureBoundaryResult,
+    ):
+      raise TypeError(
+        'axis_boundary must be a MocAmbientPressureBoundaryResult or None'
+      )
+    if self.axis_boundary_tangent_residual is not None and not isfinite(
+        float(self.axis_boundary_tangent_residual)
+    ):
+      raise ValueError('axis_boundary_tangent_residual must be finite when supplied')
+    if not isinstance(self.axis_boundary_verified, bool):
+      raise TypeError('axis_boundary_verified must be a bool')
   ####
 
   @property
@@ -238,6 +254,7 @@ class MocAmbientAxisClosureResult:
       'converged': self.converged,
       'axis_candidate_verified': self.axis_candidate_verified,
       'ambient_pressure_verified': self.ambient_pressure_verified,
+      'axis_boundary_verified': self.axis_boundary_verified,
       'physical_closure_verified': self.physical_closure_verified,
       'chain_promotion_blocked': self.chain_promotion_blocked,
       'source_boundary_point_m': (
@@ -264,6 +281,10 @@ class MocAmbientAxisClosureResult:
       'relative_pressure_residual': self.relative_pressure_residual,
       'axis_geometry_residual_m': self.axis_geometry_residual_m,
       'axis_invariant_residual': self.axis_invariant_residual,
+      'axis_boundary': (
+        None if self.axis_boundary is None else self.axis_boundary.as_report()
+      ),
+      'axis_boundary_tangent_residual': self.axis_boundary_tangent_residual,
       'message': self.message,
     }
   ####
@@ -967,6 +988,22 @@ def probe_post_shock_ambient_axis_closure(
   pressure_residual = axis_static_pressure - ambient_pressure
   relative_pressure_residual = pressure_residual / ambient_pressure
   ambient_pressure_verified = abs(relative_pressure_residual) <= pressure_tolerance
+  axis_boundary = validate_ambient_pressure_boundary(
+    (
+      *march.boundary_samples,
+      MocAmbientBoundarySample(
+        point_m=axis.point_m,
+        state=axis.state,
+        total_pressure_Pa=source.total_pressure_Pa,
+      ),
+    ),
+    ambient_pressure,
+    position_tolerance_m=position_tolerance_m,
+    pressure_tolerance=pressure_tolerance,
+    tangent_tolerance=pressure_tolerance,
+  )
+  axis_boundary_tangent_residual = axis_boundary.maximum_absolute_tangent_residual
+  axis_boundary_verified = axis_boundary.converged
   if ambient_pressure_verified:
     status = MocAmbientAxisClosureStatus.CONVERGED
     message = (
@@ -974,6 +1011,11 @@ def probe_post_shock_ambient_axis_closure(
       'carried static pressure matches ambient within tolerance; full '
       'physical downstream closure remains pending'
     )
+    if not axis_boundary_verified:
+      message += (
+        '; the appended ambient-to-axis perimeter still fails its '
+        f'tangency gate: {axis_boundary.message}'
+      )
   else:
     status = MocAmbientAxisClosureStatus.PRESSURE_FAILURE
     message = (
@@ -996,6 +1038,9 @@ def probe_post_shock_ambient_axis_closure(
     axis_candidate_verified=axis_candidate_verified,
     ambient_pressure_verified=ambient_pressure_verified,
     message=message,
+    axis_boundary=axis_boundary,
+    axis_boundary_tangent_residual=axis_boundary_tangent_residual,
+    axis_boundary_verified=axis_boundary_verified,
   )
 ####
 

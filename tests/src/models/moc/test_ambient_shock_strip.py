@@ -121,6 +121,10 @@ def test_ambient_axis_probe_retains_the_centerline_pressure_gap() -> None:
   assert result.axis_static_pressure_Pa is not None
   assert result.relative_pressure_residual is not None
   assert abs(result.relative_pressure_residual) > 1.0e-8
+  assert result.axis_boundary is not None
+  assert result.axis_boundary.status.value == 'pressure_failure'
+  assert result.axis_boundary_verified is False
+  assert result.axis_boundary_tangent_residual is not None
   assert result.physical_closure_verified is False
   assert result.chain_promotion_blocked is True
   assert result.as_report()['axis_candidate_verified'] is True
@@ -154,8 +158,10 @@ def test_global_axis_shoot_solves_an_explicit_nonuniform_attachment_coordinate()
   assert result.status is MocAmbientAxisClosureShootStatus.CONVERGED_AXIS_PRESSURE
   assert result.converged
   assert result.axis_pressure_closure_verified
+  assert result.axis_boundary_verified is False
   assert result.axis_closure is not None
   assert result.axis_closure.converged
+  assert result.axis_closure.axis_boundary_verified is False
   assert result.selected_parameter == pytest.approx(0.7325093, abs=2.0e-6)
   assert result.closure_residual is not None
   assert abs(result.closure_residual) <= 1.0e-8
@@ -195,6 +201,7 @@ def test_global_axis_shoot_keeps_uniform_no_bracket_as_a_typed_failure() -> None
     result.trials[1].residual,
   )
   assert result.axis_pressure_closure_verified is False
+  assert result.axis_boundary_verified is False
   assert result.physical_closure_verified is False
   assert result.chain_promotion_blocked is True
 

@@ -632,7 +632,8 @@ not wait on this research closure.
   pressure residual. The canonical uniform field correctly returns a typed
   no-bracket result; a nonuniform research fixture exercises the converged
   scalar path, while both paths remain outside physical closure and chain
-  promotion until a downstream characteristic/mixed-regime field is solved.
+  promotion until the appended ambient-to-axis tangency gate and the
+  downstream characteristic/mixed-regime field are solved.
 
 ### MOC-3 — Re-solved continued cells
 
