@@ -149,6 +149,7 @@ from exhaust_plume.validation.moc_measurements import (  # noqa: E402
   MocTerminalClosureObservation,
   MocShockCellObservation,
   measure_moc_caustic_remesh,
+  measure_moc_chain_planner,
   measure_mixed_regime_compressible_potential_field,
   measure_moc_terminal_closure,
   measure_moc_shock_cell,
@@ -4347,6 +4348,9 @@ def build_moc_primitive_report() -> dict[str, Any]:
   ) = _shock_cell_chain_planner_mock(
     shock_seeded_field,
   )
+  shock_cell_chain_planner_measurement = measure_moc_chain_planner(
+    shock_cell_chain_planner,
+  )
   shock_cell_chain_trace_validation = [
     {
       'cell_index': cell.cell_index,
@@ -5492,6 +5496,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'observations': shock_cell_chain_mock_observations,
       'terminal_trace_validation': shock_cell_chain_trace_validation,
       'measurement_operator': shock_cell_chain_measurement.as_report(),
+      'planner_measurement': shock_cell_chain_planner_measurement.as_report(),
       'strict_upstream_coupling_gate': {
         'status': shock_cell_chain_strict_gate.status.value,
         'termination_reason': shock_cell_chain_strict_gate.termination_reason.value,
@@ -6060,6 +6065,12 @@ def build_moc_primitive_report() -> dict[str, Any]:
       or shock_cell_chain_planner.handoff_links_verified is not True
       or not shock_cell_chain_measurement.converged
       or shock_cell_chain_measurement.handoff_links_verified is not True
+      or not shock_cell_chain_planner_measurement.converged
+      or shock_cell_chain_planner_measurement.handoff_links_verified is not True
+      or not shock_cell_chain_planner_measurement.termination_verified
+      or not shock_cell_chain_planner_measurement.fidelity_isolation_verified
+      or shock_cell_chain_planner_measurement.physical_termination is not False
+      or shock_cell_chain_planner_measurement.production_claim_allowed
     ) else []),
     *([
       {
@@ -6068,6 +6079,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'message': shock_cell_chain_measurement.message,
       }
     ] if not shock_cell_chain_measurement.converged else []),
+    *([
+      {
+        'case': 'shock_cell_chain_planner_measurement_operator',
+        'status': shock_cell_chain_planner_measurement.status.value,
+        'message': shock_cell_chain_planner_measurement.message,
+      }
+    ] if not shock_cell_chain_planner_measurement.converged else []),
     *([
       {
         'case': 'shock_cell_chain_strict_upstream_coupling_gate',

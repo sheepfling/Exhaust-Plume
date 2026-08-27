@@ -141,7 +141,11 @@ closure remains open. The independent `op.moc.shock-cell-geometry` and
 `op.moc.shock-cell-chain` operators now measure explicit shock-cell geometry,
 perimeter topology, supplied shock-loss lineage, and exact adjacent
 state/total-pressure handoff identity for the reference and planner fixtures,
-but remain `not_accepted` without external observations.
+while the separate `op.moc.chain-planner` operator independently audits the
+continued-cell step sequence, returned-to-incoming fingerprints, typed
+termination, and fidelity isolation without using the planner's own handoff
+verdict as evidence. These operators remain `not_accepted` without external
+observations or a physical free-boundary closure.
 At the detected source-strip caustic, a separate one-sided new-family restart
 now reflects either selected C- anchor to the centerline and advances six
 ambient-pressure/tangent C+ boundary samples with finite residuals, then

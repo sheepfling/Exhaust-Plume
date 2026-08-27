@@ -9,11 +9,18 @@ from exhaust_plume.models.moc import (
   MocCharacteristicCell,
   MocChainBoundaryKind,
   MocChainBoundarySample,
+  MocChainGeometryFidelity,
+  MocPostShockBoundaryState,
+  MocShockBoundaryFitResult,
+  MocShockBoundaryFitStatus,
   MocPrescribedMixedRegimeClosureMock,
+  assemble_post_shock_characteristic_field,
+  plan_prescribed_post_shock_chain_mock,
   solve_marched_ambient_attachment_shock_cell_transition,
   solve_uniform_attached_shock_field,
 )
 from exhaust_plume.validation.moc_measurements import (
+  MocChainPlannerMeasurementStatus,
   MocTerminalClosureMeasurementStatus,
   MocTerminalClosureObservation,
   MocShockCellMeasurementStatus,
@@ -21,6 +28,7 @@ from exhaust_plume.validation.moc_measurements import (
   measure_moc_terminal_closure,
   measure_moc_shock_cell,
   measure_moc_shock_cell_chain,
+  measure_moc_chain_planner,
 )
 
 
@@ -101,6 +109,43 @@ def _terminal_field():
   )
   assert transition.terminal_field is not None
   return transition.terminal_field
+
+
+def _planner_fixture():
+  points = (
+    (0.76, 0.165),
+    (0.78, 0.110),
+    (0.80, 0.055),
+    (0.82, 0.0),
+  )
+  boundary = tuple(
+    MocPostShockBoundaryState(
+      point_m=point,
+      state=CharacteristicState(
+        x_m=point[0],
+        y_m=point[1],
+        theta_rad=-0.1 * (3 - index),
+        mach=2.0,
+        gamma=1.4,
+      ),
+      upstream_total_pressure_Pa=2.0e6,
+      downstream_total_pressure_Pa=1.8e6,
+    )
+    for index, point in enumerate(points)
+  )
+  field = assemble_post_shock_characteristic_field(
+    MocShockBoundaryFitResult(
+      status=MocShockBoundaryFitStatus.CONVERGED_FITTED,
+      boundary_states=boundary,
+      shock_angle_residuals_rad=(0.0,) * len(boundary),
+      maximum_shock_angle_residual_rad=0.0,
+    )
+  )
+  return plan_prescribed_post_shock_chain_mock(
+    field,
+    start_x_m=0.7,
+    end_x_m=1.0,
+  )
 
 
 def test_moc_measurement_extracts_geometry_and_shock_pressure_loss() -> None:
@@ -227,6 +272,67 @@ def test_moc_chain_measurement_rejects_reordered_indices() -> None:
 
   assert result.status is MocShockCellMeasurementStatus.CHAIN_FAILURE
   assert 'contiguous' in result.message
+
+
+def test_moc_chain_planner_measurement_recomputes_trace_handoffs() -> None:
+  planner = _planner_fixture()
+
+  result = measure_moc_chain_planner(planner)
+
+  assert result.status is MocChainPlannerMeasurementStatus.CONVERGED
+  assert result.converged
+  assert result.chain_cell_count == 3
+  assert result.step_count == 3
+  assert result.chain_cells_contiguous
+  assert result.chain_topology_verified
+  assert result.step_sequence_verified
+  assert result.incoming_handoffs_verified
+  assert result.returned_handoffs_verified
+  assert result.handoff_link_count == 2
+  assert result.handoff_links_verified is True
+  assert result.termination_verified
+  assert result.fidelity_isolation_verified
+  assert result.physical_termination is False
+  assert result.production_claim_allowed is False
+  assert result.as_report()['operator_id'] == 'op.moc.chain-planner'
+
+
+def test_moc_chain_planner_measurement_rejects_tampered_handoff_metadata() -> None:
+  planner = _planner_fixture()
+  tampered_step = replace(
+    planner.steps[1],
+    incoming_handoff_fingerprint='0' * 64,
+  )
+  tampered = replace(
+    planner,
+    steps=(planner.steps[0], tampered_step, *planner.steps[2:]),
+  )
+
+  result = measure_moc_chain_planner(tampered)
+
+  assert result.status is MocChainPlannerMeasurementStatus.HANDOFF_FAILURE
+  assert result.converged is False
+  assert result.handoff_links_verified is None
+  assert 'current-cell handoff' in result.message
+
+
+def test_moc_chain_planner_measurement_rejects_reduced_order_cell() -> None:
+  planner = _planner_fixture()
+  reduced_order_cell = replace(
+    planner.chain.cells[1],
+    geometry_fidelity=MocChainGeometryFidelity.SCALED_REDUCED_ORDER,
+  )
+  tampered_chain = replace(
+    planner.chain,
+    cells=(planner.chain.cells[0], reduced_order_cell, planner.chain.cells[2]),
+  )
+  tampered = replace(planner, chain=tampered_chain)
+
+  result = measure_moc_chain_planner(tampered)
+
+  assert result.status is MocChainPlannerMeasurementStatus.FIDELITY_FAILURE
+  assert result.fidelity_isolation_verified is False
+  assert result.production_claim_allowed is False
 
 
 def test_terminal_measurement_keeps_an_open_mixed_regime_boundary_blocked() -> None:

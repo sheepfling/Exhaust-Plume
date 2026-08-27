@@ -1146,6 +1146,20 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert planner['continuation_boundary_kinds'] == ['post-shock-field-perimeter']
   assert planner['measurement_operator']['handoff']['link_count'] == 2
   assert planner['measurement_operator']['handoff']['links_verified'] is True
+  planner_measurement = planner['planner_measurement']
+  assert planner_measurement['status'] == 'converged'
+  assert planner_measurement['operator_id'] == 'op.moc.chain-planner'
+  assert planner_measurement['counts'] == {
+    'steps': 3,
+    'chain_cells': 3,
+    'handoff_links': 2,
+  }
+  assert all(planner_measurement['checks'].values())
+  assert planner_measurement['physical_termination'] is False
+  assert planner_measurement['production_claim_allowed'] is False
+  assert planner_measurement['claim_status'] == (
+    'independent-planner-trace-audit; not-accepted'
+  )
   assert len(planner['terminal_trace_validation']) == 3
   assert all(
     entry['boundary_kind'] == 'post-shock-field-perimeter'

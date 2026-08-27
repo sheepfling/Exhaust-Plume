@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from hashlib import sha256
 from math import cos, fsum, hypot, isfinite, log, sin, sqrt
 from typing import Any, Sequence
 
@@ -35,7 +36,12 @@ from exhaust_plume.models.moc.caustic_remesh import (
 from exhaust_plume.models.moc.chain import (
   MocChainBoundaryKind,
   MocChainBoundarySample,
+  MocChainCell,
+  MocCellClosureStatus,
+  MocChainGeometryFidelity,
+  MocChainTerminationReason,
 )
+from exhaust_plume.models.moc.planner import MocChainPlannerResult
 from exhaust_plume.models.moc.compression import MocNormalShockTerminalResult
 from exhaust_plume.models.moc.primitives import CharacteristicState
 from exhaust_plume.models.moc.post_shock import (
@@ -53,6 +59,7 @@ from exhaust_plume.util.aero.shock_validity import ShockBranch
 
 __all__ = (
   'MOC_CAUSTIC_REMESH_OPERATOR_ID',
+  'MOC_CHAIN_PLANNER_OPERATOR_ID',
   'MOC_MIXED_REGIME_POTENTIAL_OPERATOR_ID',
   'MOC_SHOCK_CELL_CHAIN_OPERATOR_ID',
   'MOC_SHOCK_CELL_GEOMETRY_OPERATOR_ID',
@@ -60,6 +67,8 @@ __all__ = (
   'MocCausticRemeshMeasurement',
   'MocCausticRemeshMeasurementStatus',
   'MocCausticRemeshObservation',
+  'MocChainPlannerMeasurement',
+  'MocChainPlannerMeasurementStatus',
   'MocMixedRegimePotentialMeasurement',
   'MocMixedRegimePotentialMeasurementStatus',
   'MocTerminalClosureMeasurement',
@@ -70,6 +79,7 @@ __all__ = (
   'MocShockCellMeasurementStatus',
   'MocShockCellObservation',
   'measure_moc_caustic_remesh',
+  'measure_moc_chain_planner',
   'measure_mixed_regime_compressible_potential_field',
   'measure_moc_terminal_closure',
   'measure_moc_shock_cell',
@@ -81,6 +91,7 @@ MOC_SHOCK_CELL_GEOMETRY_OPERATOR_ID = 'op.moc.shock-cell-geometry'
 MOC_SHOCK_CELL_CHAIN_OPERATOR_ID = 'op.moc.shock-cell-chain'
 MOC_TERMINAL_CLOSURE_OPERATOR_ID = 'op.moc.terminal-closure'
 MOC_CAUSTIC_REMESH_OPERATOR_ID = 'op.moc.caustic-remesh'
+MOC_CHAIN_PLANNER_OPERATOR_ID = 'op.moc.chain-planner'
 MOC_MIXED_REGIME_POTENTIAL_OPERATOR_ID = 'op.moc.mixed-regime-compressible-potential'
 
 Point = tuple[float, float]
@@ -655,6 +666,486 @@ class MocShockCellChainMeasurement:
       'message': self.message,
     }
   ####
+
+
+class MocChainPlannerMeasurementStatus(str, Enum):
+  """Outcome of independently auditing a continued-cell planner trace."""
+
+  CONVERGED = 'converged'
+  INVALID_INPUT = 'invalid_input'
+  STEP_FAILURE = 'step_failure'
+  HANDOFF_FAILURE = 'handoff_failure'
+  TERMINATION_FAILURE = 'termination_failure'
+  FIDELITY_FAILURE = 'fidelity_failure'
+  TOPOLOGY_FAILURE = 'topology_failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocChainPlannerMeasurement:
+  """Independent checks for a planner's continued shock-cell trace.
+
+  The planner records its own handoff metadata while orchestrating callbacks.
+  This operator recomputes the same boundaries from the returned chain and
+  compares every recorded fingerprint, sequence link, result, and terminal
+  decision.  It deliberately reports a research trace only: a successful
+  audit does not establish a free-boundary shock solution or a product claim.
+  """
+
+  status: MocChainPlannerMeasurementStatus
+  operator_id: str
+  planner_kind: str | None
+  chain_status: str | None
+  termination_reason: str | None
+  step_count: int
+  chain_cell_count: int
+  chain_cells_contiguous: bool
+  chain_topology_verified: bool
+  step_sequence_verified: bool
+  incoming_handoffs_verified: bool
+  returned_handoffs_verified: bool
+  handoff_link_count: int
+  handoff_links_verified: bool | None
+  termination_verified: bool
+  fidelity_isolation_verified: bool
+  physical_termination: bool | None
+  production_claim_allowed: bool
+  claim_status: str
+  message: str
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocChainPlannerMeasurementStatus.CONVERGED
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    """Return a JSON-compatible planner-trace measurement record."""
+
+    return {
+      'status': self.status.value,
+      'operator_id': self.operator_id,
+      'converged': self.converged,
+      'planner_kind': self.planner_kind,
+      'chain_status': self.chain_status,
+      'termination_reason': self.termination_reason,
+      'counts': {
+        'steps': self.step_count,
+        'chain_cells': self.chain_cell_count,
+        'handoff_links': self.handoff_link_count,
+      },
+      'checks': {
+        'chain_cells_contiguous': self.chain_cells_contiguous,
+        'chain_topology_verified': self.chain_topology_verified,
+        'step_sequence_verified': self.step_sequence_verified,
+        'incoming_handoffs_verified': self.incoming_handoffs_verified,
+        'returned_handoffs_verified': self.returned_handoffs_verified,
+        'handoff_links_verified': self.handoff_links_verified,
+        'termination_verified': self.termination_verified,
+        'fidelity_isolation_verified': self.fidelity_isolation_verified,
+      },
+      'physical_termination': self.physical_termination,
+      'production_claim_allowed': self.production_claim_allowed,
+      'claim_status': self.claim_status,
+      'message': self.message,
+    }
+  ####
+
+
+def _planner_measurement_failure(
+  status: MocChainPlannerMeasurementStatus,
+  message: str,
+  *,
+  planner_kind: str | None = None,
+  chain_status: str | None = None,
+  termination_reason: str | None = None,
+  step_count: int = 0,
+  chain_cell_count: int = 0,
+  chain_cells_contiguous: bool = False,
+  chain_topology_verified: bool = False,
+  step_sequence_verified: bool = False,
+  incoming_handoffs_verified: bool = False,
+  returned_handoffs_verified: bool = False,
+  handoff_link_count: int = 0,
+  handoff_links_verified: bool | None = None,
+  termination_verified: bool = False,
+  fidelity_isolation_verified: bool = False,
+  physical_termination: bool | None = None,
+  production_claim_allowed: bool = False,
+) -> MocChainPlannerMeasurement:
+  return MocChainPlannerMeasurement(
+    status=status,
+    operator_id=MOC_CHAIN_PLANNER_OPERATOR_ID,
+    planner_kind=planner_kind,
+    chain_status=chain_status,
+    termination_reason=termination_reason,
+    step_count=step_count,
+    chain_cell_count=chain_cell_count,
+    chain_cells_contiguous=chain_cells_contiguous,
+    chain_topology_verified=chain_topology_verified,
+    step_sequence_verified=step_sequence_verified,
+    incoming_handoffs_verified=incoming_handoffs_verified,
+    returned_handoffs_verified=returned_handoffs_verified,
+    handoff_link_count=handoff_link_count,
+    handoff_links_verified=handoff_links_verified,
+    termination_verified=termination_verified,
+    fidelity_isolation_verified=fidelity_isolation_verified,
+    physical_termination=physical_termination,
+    production_claim_allowed=production_claim_allowed,
+    claim_status='independent-planner-trace-audit; not-accepted',
+    message=message,
+  )
+####
+
+
+def _planner_handoff_fingerprint(
+  boundary: tuple[MocChainBoundarySample, ...],
+) -> str | None:
+  """Recompute the planner's exact typed state/pressure boundary digest."""
+
+  if not boundary:
+    return None
+  payload = '\n'.join(
+    '|'.join(
+      value.hex()
+      for value in (
+        sample.state.x_m,
+        sample.state.y_m,
+        sample.state.theta_rad,
+        sample.state.mach,
+        sample.state.gamma,
+        sample.total_pressure_Pa,
+      )
+    )
+    for sample in boundary
+  )
+  return sha256(payload.encode('ascii')).hexdigest()
+####
+
+
+def measure_moc_chain_planner(
+  planner: MocChainPlannerResult,
+  *,
+  position_tolerance_m: float = 1.0e-10,
+) -> MocChainPlannerMeasurement:
+  """Independently audit a continued-cell planner and its terminal decision.
+
+  The operator never uses ``planner.handoff_links_verified`` as evidence.  It
+  reconstructs each incoming boundary from the chain cell, recomputes outgoing
+  boundary fingerprints, and checks that the final typed termination agrees
+  with the chain result.  The current acceptance target is an explicit
+  solver-terminated trace; a planner without a typed final decision is
+  intentionally reported as an audit failure.
+  """
+
+  if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
+    raise ValueError('position_tolerance_m must be finite and positive')
+  if not isinstance(planner, MocChainPlannerResult):
+    return _planner_measurement_failure(
+      MocChainPlannerMeasurementStatus.INVALID_INPUT,
+      'planner must be a MocChainPlannerResult',
+    )
+
+  raw_cells = tuple(planner.chain.cells)
+  steps = tuple(planner.steps)
+  planner_kind = planner.planner_kind.value
+  chain_status = planner.chain.status.value
+  termination_reason = planner.chain.termination_reason.value
+  physical_termination = planner.chain.physical_termination
+  step_count = len(steps)
+  chain_cell_count = len(raw_cells)
+  handoff_link_count = max(0, step_count - 1)
+  common = {
+    'planner_kind': planner_kind,
+    'chain_status': chain_status,
+    'termination_reason': termination_reason,
+    'step_count': step_count,
+    'chain_cell_count': chain_cell_count,
+    'handoff_link_count': handoff_link_count,
+    'physical_termination': physical_termination,
+    'production_claim_allowed': planner.production_claim_allowed,
+  }
+
+  if not raw_cells or not steps:
+    return _planner_measurement_failure(
+      MocChainPlannerMeasurementStatus.INVALID_INPUT,
+      'planner trace must contain at least one cell and one callback step',
+      **common,
+    )
+  if any(not isinstance(cell, MocChainCell) for cell in raw_cells):
+    return _planner_measurement_failure(
+      MocChainPlannerMeasurementStatus.INVALID_INPUT,
+      'planner chain must contain MocChainCell values',
+      **common,
+    )
+  cells = tuple(cell for cell in raw_cells if isinstance(cell, MocChainCell))
+  cell_indices = tuple(cell.cell_index for cell in cells)
+  chain_cells_contiguous = cell_indices == tuple(range(1, chain_cell_count + 1))
+  if not chain_cells_contiguous:
+    return _planner_measurement_failure(
+      MocChainPlannerMeasurementStatus.STEP_FAILURE,
+      'planner chain cells must have contiguous one-based indices',
+      chain_cells_contiguous=False,
+      **common,
+    )
+
+  chain_topology_verified = True
+  for cell in cells:
+    topology = validate_moc_mesh(cell.mesh)
+    if not (
+      topology.connected
+      and topology.forms_closed_zone
+      and topology.nonmanifold_edge_count == 0
+    ):
+      chain_topology_verified = False
+      break
+  if not chain_topology_verified:
+    return _planner_measurement_failure(
+      MocChainPlannerMeasurementStatus.TOPOLOGY_FAILURE,
+      'one or more planner cells failed the independent closed-mesh topology check',
+      chain_cells_contiguous=True,
+      chain_topology_verified=False,
+      **common,
+    )
+
+  fidelity_isolation_verified = (
+    planner.production_claim_allowed is False
+    and all(
+      cell.geometry_fidelity is MocChainGeometryFidelity.RESOLVED_PLANAR_MOC
+      and cell.physical_closure is MocCellClosureStatus.CLOSED
+      for cell in cells
+    )
+  )
+  if not fidelity_isolation_verified:
+    return _planner_measurement_failure(
+      MocChainPlannerMeasurementStatus.FIDELITY_FAILURE,
+      'planner trace contains a non-resolved or promotable cell fidelity',
+      chain_cells_contiguous=True,
+      chain_topology_verified=True,
+      fidelity_isolation_verified=False,
+      **common,
+    )
+
+  expected_current_indices = tuple(range(1, chain_cell_count + 1))
+  expected_next_indices = tuple(range(2, chain_cell_count + 2))
+  step_sequence_verified = (
+    tuple(step.current_cell_index for step in steps) == expected_current_indices
+    and tuple(step.next_cell_index for step in steps) == expected_next_indices
+  )
+  if not step_sequence_verified:
+    return _planner_measurement_failure(
+      MocChainPlannerMeasurementStatus.STEP_FAILURE,
+      'planner steps must visit every carried cell and attempt the next index in order',
+      chain_cells_contiguous=True,
+      chain_topology_verified=True,
+      step_sequence_verified=False,
+      fidelity_isolation_verified=True,
+      **common,
+    )
+
+  returned_handoffs_verified = True
+  previous_returned_fingerprint: str | None = None
+  for index, step in enumerate(steps):
+    current = cells[index]
+    boundary = current.continuation_boundary
+    expected_fingerprint = _planner_handoff_fingerprint(boundary)
+    expected_pressure_range = (
+      None
+      if not boundary
+      else (
+        min(sample.total_pressure_Pa for sample in boundary),
+        max(sample.total_pressure_Pa for sample in boundary),
+      )
+    )
+    if (
+      not boundary
+      or abs(step.current_end_x_m - current.end_x_m) > position_tolerance_m
+      or step.boundary_kind is not current.continuation_boundary_kind
+      or step.incoming_handoff_sample_count != len(boundary)
+      or step.incoming_total_pressure_range_Pa != expected_pressure_range
+      or step.incoming_handoff_fingerprint != expected_fingerprint
+    ):
+      return _planner_measurement_failure(
+        MocChainPlannerMeasurementStatus.HANDOFF_FAILURE,
+        f'planner step {index + 1} does not reproduce its current-cell handoff',
+        chain_cells_contiguous=True,
+        chain_topology_verified=True,
+        step_sequence_verified=True,
+        incoming_handoffs_verified=False,
+        returned_handoffs_verified=returned_handoffs_verified,
+        fidelity_isolation_verified=True,
+        **common,
+      )
+    expected_link_verified = (
+      step.incoming_handoff_link_verified is None
+      if index == 0
+      else (
+        previous_returned_fingerprint is not None
+        and expected_fingerprint == previous_returned_fingerprint
+        and step.incoming_handoff_link_verified is True
+      )
+    )
+    if not expected_link_verified:
+      return _planner_measurement_failure(
+        MocChainPlannerMeasurementStatus.HANDOFF_FAILURE,
+        f'planner handoff link {index} is not an exact returned-to-incoming match',
+        chain_cells_contiguous=True,
+        chain_topology_verified=True,
+        step_sequence_verified=True,
+        incoming_handoffs_verified=False,
+        returned_handoffs_verified=returned_handoffs_verified,
+        fidelity_isolation_verified=True,
+        **common,
+      )
+
+    if step.result_kind in (
+      'field-solve-returned',
+      'physical-field-solve-returned',
+      'cell-returned',
+    ):
+      if step.next_cell_index > chain_cell_count:
+        returned_handoffs_verified = False
+        return _planner_measurement_failure(
+          MocChainPlannerMeasurementStatus.STEP_FAILURE,
+          f'planner step {index + 1} returned a cell outside the chain result',
+          chain_cells_contiguous=True,
+          chain_topology_verified=True,
+          step_sequence_verified=True,
+          incoming_handoffs_verified=True,
+          returned_handoffs_verified=False,
+          fidelity_isolation_verified=True,
+          **common,
+        )
+      next_cell = cells[step.next_cell_index - 1]
+      next_boundary = next_cell.continuation_boundary
+      next_fingerprint = _planner_handoff_fingerprint(next_boundary)
+      next_pressure_range = (
+        None
+        if not next_boundary
+        else (
+          min(sample.total_pressure_Pa for sample in next_boundary),
+          max(sample.total_pressure_Pa for sample in next_boundary),
+        )
+      )
+      if (
+        abs(next_cell.start_x_m - current.end_x_m) > position_tolerance_m
+        or step.result_end_x_m is None
+        or abs(step.result_end_x_m - next_cell.end_x_m) > position_tolerance_m
+        or step.result_geometry_fidelity is not next_cell.geometry_fidelity
+        or step.result_physical_closure is not next_cell.physical_closure
+        or step.result_boundary_kind is not next_cell.continuation_boundary_kind
+        or step.result_handoff_sample_count != len(next_boundary)
+        or step.result_total_pressure_range_Pa != next_pressure_range
+        or step.result_handoff_fingerprint != next_fingerprint
+      ):
+        returned_handoffs_verified = False
+        return _planner_measurement_failure(
+          MocChainPlannerMeasurementStatus.HANDOFF_FAILURE,
+          f'planner step {index + 1} does not reproduce its returned-cell handoff',
+          chain_cells_contiguous=True,
+          chain_topology_verified=True,
+          step_sequence_verified=True,
+          incoming_handoffs_verified=True,
+          returned_handoffs_verified=False,
+          fidelity_isolation_verified=True,
+          **common,
+        )
+      previous_returned_fingerprint = next_fingerprint
+      continue
+
+    if step.result_kind in ('termination-returned', 'no-cell-returned'):
+      if (
+        step.result_end_x_m is not None
+        or step.result_geometry_fidelity is not None
+        or step.result_physical_closure is not None
+        or step.result_boundary_kind is not None
+        or step.result_handoff_sample_count is not None
+        or step.result_total_pressure_range_Pa is not None
+        or step.result_handoff_fingerprint is not None
+      ):
+        return _planner_measurement_failure(
+          MocChainPlannerMeasurementStatus.TERMINATION_FAILURE,
+          f'planner step {index + 1} attaches a cell handoff to a termination',
+          chain_cells_contiguous=True,
+          chain_topology_verified=True,
+          step_sequence_verified=True,
+          incoming_handoffs_verified=True,
+          returned_handoffs_verified=returned_handoffs_verified,
+          fidelity_isolation_verified=True,
+          **common,
+        )
+      previous_returned_fingerprint = None
+      continue
+
+    return _planner_measurement_failure(
+      MocChainPlannerMeasurementStatus.STEP_FAILURE,
+      f'planner step {index + 1} has unsupported result kind {step.result_kind!r}',
+      chain_cells_contiguous=True,
+      chain_topology_verified=True,
+      step_sequence_verified=True,
+      incoming_handoffs_verified=True,
+      returned_handoffs_verified=False,
+      fidelity_isolation_verified=True,
+      **common,
+    )
+
+  last_step = steps[-1]
+  termination_verified = False
+  if last_step.result_kind == 'termination-returned':
+    termination_verified = (
+      last_step.result_termination_reason is planner.chain.termination_reason
+      and last_step.result_physical_termination is physical_termination
+    )
+  elif last_step.result_kind == 'no-cell-returned':
+    termination_verified = (
+      planner.chain.termination_reason is MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL
+      and physical_termination is False
+    )
+  if not termination_verified:
+    return _planner_measurement_failure(
+      MocChainPlannerMeasurementStatus.TERMINATION_FAILURE,
+      'planner final step does not match the chain termination decision',
+      chain_cells_contiguous=True,
+      chain_topology_verified=True,
+      step_sequence_verified=True,
+      incoming_handoffs_verified=True,
+      returned_handoffs_verified=returned_handoffs_verified,
+      handoff_links_verified=(
+        None if handoff_link_count == 0 else returned_handoffs_verified
+      ),
+      termination_verified=False,
+      fidelity_isolation_verified=True,
+      **common,
+    )
+
+  return MocChainPlannerMeasurement(
+    status=MocChainPlannerMeasurementStatus.CONVERGED,
+    operator_id=MOC_CHAIN_PLANNER_OPERATOR_ID,
+    planner_kind=planner_kind,
+    chain_status=chain_status,
+    termination_reason=termination_reason,
+    step_count=step_count,
+    chain_cell_count=chain_cell_count,
+    chain_cells_contiguous=True,
+    chain_topology_verified=True,
+    step_sequence_verified=True,
+    incoming_handoffs_verified=True,
+    returned_handoffs_verified=returned_handoffs_verified,
+    handoff_link_count=handoff_link_count,
+    handoff_links_verified=(
+      None if handoff_link_count == 0 else returned_handoffs_verified
+    ),
+    termination_verified=True,
+    fidelity_isolation_verified=True,
+    physical_termination=physical_termination,
+    production_claim_allowed=planner.production_claim_allowed,
+    claim_status='independent-planner-trace-audit; not-accepted',
+    message=(
+      'planner cell sequence, exact state/pressure handoffs, typed solver '
+      'termination, and fidelity isolation independently verified; physical '
+      'free-boundary closure remains unestablished'
+    ),
+  )
+####
 
 
 def _empty_topology() -> MocTopologyResult:

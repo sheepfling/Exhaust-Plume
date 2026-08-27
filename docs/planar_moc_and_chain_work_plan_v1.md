@@ -1168,6 +1168,12 @@ Only after MOC-1 through MOC-5 pass:
   range, and the outgoing fingerprint. Multi-step mock and solver-generated
   references must prove every later callback consumed the exact prior result
   handoff; this is chain bookkeeping evidence, not free-boundary validation.
+- Added an independent ``op.moc.chain-planner`` audit for continued-cell
+  traces. It reconstructs each cell's topology, sequence position, exact
+  state/total-pressure handoff, returned-cell correspondence, typed terminal
+  decision, and resolved-planar-MOC fidelity from the planner data. A passing
+  three-cell mock audit remains explicitly ``not_accepted`` and non-physical;
+  it does not trust the planner's own handoff verdict or promote a chain.
 - The independent shock-cell measurement operators now pass local geometry,
   topology, and supplied shock-loss extraction for the current fixtures, but
   they do not provide external observations, uncertainty, or a provider-bound
