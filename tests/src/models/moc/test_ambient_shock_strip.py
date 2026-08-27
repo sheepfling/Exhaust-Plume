@@ -14,6 +14,7 @@ from exhaust_plume.models.moc import (
   MocAmbientShockBoundaryMarchStatus,
   MocAmbientAxisClosureStatus,
   MocAmbientAxisClosureShootStatus,
+  MocAmbientPhysicalFieldStatus,
   MocAmbientShockStripStatus,
   MocFreeBoundaryShockStatus,
   MocTerminalPatchShockCouplingStatus,
@@ -24,6 +25,7 @@ from exhaust_plume.models.moc import (
   march_post_shock_ambient_boundary,
   probe_post_shock_ambient_axis_closure,
   solve_marched_attached_shock_with_ambient_axis_closure,
+  solve_marched_attached_shock_with_ambient_physical_field,
   plan_terminal_reflection_patch_chain,
   solve_terminal_compression_candidate,
   solve_marched_attached_shock_chain_cell_from_terminal_reflection_patch,
@@ -204,6 +206,43 @@ def test_global_axis_shoot_keeps_uniform_no_bracket_as_a_typed_failure() -> None
   assert result.axis_boundary_verified is False
   assert result.physical_closure_verified is False
   assert result.chain_promotion_blocked is True
+
+
+def test_physical_field_bridge_blocks_scalar_axis_root_before_tangency_gate() -> None:
+  ambient_pressure = _axis_shoot_ambient_pressure()
+
+  def upstream_state_at(point: tuple[float, float]) -> CharacteristicState:
+    return CharacteristicState(
+      x_m=point[0],
+      y_m=point[1],
+      theta_rad=-0.2,
+      mach=2.0 + (point[0] - 0.5),
+      gamma=1.4,
+    )
+
+  result = solve_marched_attached_shock_with_ambient_physical_field(
+    upstream_state_at,
+    lambda _point: 100000.0,
+    lambda parameter: (parameter, 0.5),
+    0.7,
+    0.8,
+    ambient_pressure,
+    0.02,
+    0.12,
+    sample_count=9,
+    maximum_attachment_shooting_iterations=30,
+  )
+
+  assert result.status is MocAmbientPhysicalFieldStatus.AXIS_BOUNDARY_FAILURE
+  assert result.axis_closure_shoot is not None
+  assert result.axis_closure_shoot.axis_pressure_closure_verified
+  assert result.axis_closure_shoot.axis_boundary_verified is False
+  assert result.field is None
+  assert result.physical_closure_verified is False
+  assert result.chain_promotion_blocked is True
+  report = result.as_report()
+  assert report['production_claim_allowed'] is False
+  assert report['chain_promotion_blocked'] is True
 
 
 def test_shock_and_ambient_characteristic_strip_keeps_terminal_trace_open() -> None:

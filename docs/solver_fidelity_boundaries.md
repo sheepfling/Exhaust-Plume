@@ -24,6 +24,14 @@ The machine-readable copy is
 [`solver_fidelity_matrix_v1.json`](solver_fidelity_matrix_v1.json). The matrix
 is a governance artifact; it does not create a second product contract.
 
+The ambient-axis shooting seam has an additional promotion gate: a scalar
+attachment-coordinate pressure root is not a physical field. The retained
+ambient-to-axis point/state/total-pressure samples must first pass the full
+pressure and streamline-tangency validator, and only then may the coupled
+shock/ambient/centerline assembler attempt a state-carrying field. The bridge
+remains research-only and cannot change the basic visual, signature, ray, or
+focal-plane-array providers.
+
 ## Planar MOC foundation
 
 The first high-fidelity tranche is isolated in

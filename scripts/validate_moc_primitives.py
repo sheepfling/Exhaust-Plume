@@ -21,6 +21,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocAmbientShockStripStatus,
   MocAmbientAxisClosureStatus,
   MocAmbientAxisClosureShootStatus,
+  MocAmbientPhysicalFieldStatus,
   MocMixedRegimeBoundaryStatus,
   MocMixedRegimeDownstreamConditionKind,
   MocMixedRegimeFieldSample,
@@ -134,6 +135,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   march_post_shock_ambient_boundary,
   probe_post_shock_ambient_axis_closure,
   solve_marched_attached_shock_with_ambient_axis_closure,
+  solve_marched_attached_shock_with_ambient_physical_field,
   sample_reflected_zone_along_shock_path,
   validate_fan_reflected_interface,
   validate_closed_post_shock_field,
@@ -503,6 +505,62 @@ def _ambient_shock_strip_probe(
     and not ambient_axis_closure_shoot_reference.axis_boundary_verified
     and ambient_axis_closure_shoot_reference.chain_promotion_blocked
   )
+  ambient_physical_field = (
+    solve_marched_attached_shock_with_ambient_physical_field(
+      lambda point: replace(
+        upstream_reference,
+        x_m=point[0],
+        y_m=point[1],
+      ),
+      lambda _point: upstream_reference_pressure,
+      lambda parameter: (parameter, shock_start_y_m),
+      0.7,
+      0.8,
+      ambient_pressure,
+      0.02,
+      0.12,
+      sample_count=9,
+    )
+  )
+  ambient_physical_field_probe_accepted = (
+    ambient_physical_field.status
+    is MocAmbientPhysicalFieldStatus.AXIS_SHOOT_FAILURE
+    and ambient_physical_field.axis_closure_shoot is not None
+    and ambient_physical_field.axis_closure_shoot.status
+    is MocAmbientAxisClosureShootStatus.BRACKET_FAILURE
+    and ambient_physical_field.field is None
+    and not ambient_physical_field.physical_closure_verified
+    and ambient_physical_field.chain_promotion_blocked
+  )
+  ambient_physical_field_reference = (
+    solve_marched_attached_shock_with_ambient_physical_field(
+      lambda point: replace(
+        upstream_reference,
+        x_m=point[0],
+        y_m=point[1],
+        mach=2.0 + (point[0] - 0.5),
+      ),
+      lambda _point: upstream_reference_pressure,
+      lambda parameter: (parameter, shock_start_y_m),
+      0.7,
+      0.8,
+      ambient_pressure,
+      0.02,
+      0.12,
+      sample_count=9,
+      maximum_attachment_shooting_iterations=30,
+    )
+  )
+  ambient_physical_field_reference_accepted = (
+    ambient_physical_field_reference.status
+    is MocAmbientPhysicalFieldStatus.AXIS_BOUNDARY_FAILURE
+    and ambient_physical_field_reference.axis_closure_shoot is not None
+    and ambient_physical_field_reference.axis_closure_shoot.axis_pressure_closure_verified
+    and not ambient_physical_field_reference.axis_closure_shoot.axis_boundary_verified
+    and ambient_physical_field_reference.field is None
+    and not ambient_physical_field_reference.physical_closure_verified
+    and ambient_physical_field_reference.chain_promotion_blocked
+  )
   ambient_axis_closure_probe_accepted = (
     ambient_axis_closure.status is MocAmbientAxisClosureStatus.PRESSURE_FAILURE
     and ambient_axis_closure.axis_candidate_verified
@@ -692,6 +750,14 @@ def _ambient_shock_strip_probe(
     ),
     'ambient_axis_closure_shoot_reference_accepted': (
       ambient_axis_closure_shoot_reference_accepted
+    ),
+    'ambient_physical_field': ambient_physical_field.as_report(),
+    'ambient_physical_field_probe_accepted': (
+      ambient_physical_field_probe_accepted
+    ),
+    'ambient_physical_field_reference': ambient_physical_field_reference.as_report(),
+    'ambient_physical_field_reference_accepted': (
+      ambient_physical_field_reference_accepted
     ),
     'strip': strip.as_report(),
     'terminal_compression_candidate': solve_terminal_compression_candidate(
@@ -4749,6 +4815,17 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'ambient_axis_closure_shoot_reference_accepted'
     ) is not True
   )
+  ambient_physical_field_failure = (
+    ambient_shock_strip_probe.get('accepted') is True
+    and ambient_shock_strip_probe.get('ambient_physical_field_probe_accepted')
+    is not True
+  )
+  ambient_physical_field_reference_failure = (
+    ambient_shock_strip_probe.get('accepted') is True
+    and ambient_shock_strip_probe.get(
+      'ambient_physical_field_reference_accepted'
+    ) is not True
+  )
   terminal_patch_chain_probe = ambient_shock_strip_probe.get(
     'terminal_reflection_patch_chain_probe',
   )
@@ -5994,6 +6071,40 @@ def build_moc_primitive_report() -> dict[str, Any]:
         ),
       }
     ] if ambient_axis_closure_shoot_reference_failure else []),
+    *([
+      {
+        'case': 'solver_generated_ambient_physical_field',
+        'status': str(
+          ambient_shock_strip_probe.get('ambient_physical_field', {}).get(
+            'status',
+            'missing',
+          )
+        ),
+        'message': str(
+          ambient_shock_strip_probe.get('ambient_physical_field', {}).get(
+            'message',
+            '',
+          )
+        ),
+      }
+    ] if ambient_physical_field_failure else []),
+    *([
+      {
+        'case': 'solver_generated_ambient_physical_field_reference',
+        'status': str(
+          ambient_shock_strip_probe.get(
+            'ambient_physical_field_reference',
+            {},
+          ).get('status', 'missing')
+        ),
+        'message': str(
+          ambient_shock_strip_probe.get(
+            'ambient_physical_field_reference',
+            {},
+          ).get('message', '')
+        ),
+      }
+    ] if ambient_physical_field_reference_failure else []),
     *([
       {
         'case': 'solver_generated_terminal_patch_chain_probe',

@@ -23,6 +23,7 @@ from math import isfinite
 from typing import Callable, Sequence
 
 from exhaust_plume.models.moc.ambient_boundary import (
+  MocAmbientBoundarySample,
   MocAmbientPressureBoundaryResult,
   validate_post_shock_ambient_boundary,
 )
@@ -49,6 +50,10 @@ from exhaust_plume.models.moc.free_boundary import (
   solve_marched_attached_shock_from_source_strip,
 )
 from exhaust_plume.models.moc.post_shock import MocPostShockChainCellSolve
+from exhaust_plume.models.moc.physical_cell import (
+  MocPhysicalPostShockFieldResult,
+  assemble_ambient_boundary_post_shock_field,
+)
 from exhaust_plume.models.moc.primitives import (
   CharacteristicState,
   prandtl_meyer_angle_rad,
@@ -67,6 +72,9 @@ __all__ = (
   'MocAmbientAxisClosureShootTrial',
   'MocAmbientAxisClosureShootResult',
   'solve_marched_attached_shock_with_ambient_axis_closure',
+  'MocAmbientPhysicalFieldStatus',
+  'MocAmbientPhysicalFieldResult',
+  'solve_marched_attached_shock_with_ambient_physical_field',
   'MocInvariantClosureFamily',
   'MocInvariantClosureStatus',
   'MocInvariantClosureResult',
@@ -541,6 +549,142 @@ class MocAmbientAxisClosureShootResult:
       'shooting_iterations': self.shooting_iterations,
       'trial_count': self.trial_count,
       'trials': tuple(trial.as_report() for trial in self.trials),
+      'message': self.message,
+    }
+  ####
+
+
+class MocAmbientPhysicalFieldStatus(str, Enum):
+  """Outcome for promoting an ambient/axis shoot into a physical field."""
+
+  CONVERGED_AMBIENT_CLOSED = 'converged_ambient_closed_physical_field'
+  INVALID_INPUT = 'invalid_input'
+  AXIS_SHOOT_FAILURE = 'ambient_axis_shoot_failure'
+  AXIS_BOUNDARY_FAILURE = 'ambient_axis_boundary_failure'
+  FIELD_FAILURE = 'ambient_physical_field_failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocAmbientPhysicalFieldResult:
+  """A strict bridge from scalar ambient/axis shooting to a physical field.
+
+  The axis shoot is useful for finding a candidate attachment coordinate, but
+  its scalar pressure root is not itself a closed MOC cell.  This result keeps
+  that distinction explicit: the existing shoot must first pass the complete
+  appended ambient-to-axis boundary validator, after which the retained
+  boundary states are assembled into the shock/ambient/centerline field.
+  """
+
+  status: MocAmbientPhysicalFieldStatus
+  axis_closure_shoot: MocAmbientAxisClosureShootResult | None
+  field: MocPhysicalPostShockFieldResult | None
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.status, MocAmbientPhysicalFieldStatus):
+      raise TypeError('status must be a MocAmbientPhysicalFieldStatus')
+    if self.axis_closure_shoot is not None and not isinstance(
+        self.axis_closure_shoot,
+        MocAmbientAxisClosureShootResult,
+    ):
+      raise TypeError(
+        'axis_closure_shoot must be a MocAmbientAxisClosureShootResult or None'
+      )
+    if self.field is not None and not isinstance(
+        self.field,
+        MocPhysicalPostShockFieldResult,
+    ):
+      raise TypeError(
+        'field must be a MocPhysicalPostShockFieldResult or None'
+      )
+  ####
+
+  @property
+  def converged(self) -> bool:
+    """Whether the physical-field assembly passed its status gate."""
+
+    return bool(
+      self.status is MocAmbientPhysicalFieldStatus.CONVERGED_AMBIENT_CLOSED
+      and self.field is not None
+      and self.field.converged
+    )
+  ####
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    """Whether the immutable physical-field gates all passed."""
+
+    return bool(self.converged and self.field is not None and self.field.physical_closure_verified)
+  ####
+
+  @property
+  def state_sampling_available(self) -> bool:
+    """Whether the accepted field can safely feed a later shock solve."""
+
+    return bool(self.field is not None and self.field.state_sampling_available)
+  ####
+
+  @property
+  def upstream_coupling_verified(self) -> bool:
+    """Whether the accepted field retains the fitted upstream shock data."""
+
+    return bool(self.field is not None and self.field.upstream_shock_coupling_verified)
+  ####
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    """Whether this result may enter the continued physical shock chain."""
+
+    return not (
+      self.physical_closure_verified
+      and self.state_sampling_available
+      and self.upstream_coupling_verified
+    )
+  ####
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    """The bridge remains a research lane until independently validated."""
+
+    return False
+  ####
+
+  def as_coupled_chain_cell(
+    self,
+    *,
+    start_x_m: float,
+    end_x_m: float,
+    cell_index: int = 1,
+  ) -> MocChainCell:
+    """Promote only a fully sampled, upstream-coupled physical field."""
+
+    if self.chain_promotion_blocked or self.field is None:
+      raise ValueError(
+        'ambient physical-field result is not eligible for coupled chain promotion'
+      )
+    return self.field.as_coupled_chain_cell(
+      start_x_m=start_x_m,
+      end_x_m=end_x_m,
+      cell_index=cell_index,
+    )
+  ####
+
+  def as_report(self) -> dict[str, object]:
+    return {
+      'status': self.status.value,
+      'converged': self.converged,
+      'physical_closure_verified': self.physical_closure_verified,
+      'state_sampling_available': self.state_sampling_available,
+      'upstream_coupling_verified': self.upstream_coupling_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'axis_closure_shoot': (
+        None
+        if self.axis_closure_shoot is None
+        else self.axis_closure_shoot.as_report()
+      ),
+      'field': None if self.field is None else self.field.as_report(),
       'message': self.message,
     }
   ####
@@ -1336,6 +1480,220 @@ def solve_marched_attached_shock_with_ambient_axis_closure(
     completed_iterations,
     'axis-pressure shooting reached its iteration or parameter-width limit '
     f'before the ambient axis gate passed: residual={last_trial.residual}',
+  )
+####
+
+
+def solve_marched_attached_shock_with_ambient_physical_field(
+  upstream_state_at: Callable[[tuple[float, float]], CharacteristicState | None],
+  upstream_pressure_at: Callable[[tuple[float, float]], float | None],
+  shock_start_point_at: Callable[[float], tuple[float, float]],
+  start_parameter_lower: float,
+  start_parameter_upper: float,
+  ambient_pressure_Pa: float,
+  outer_downstream_flow_angle_lower_rad: float,
+  outer_downstream_flow_angle_upper_rad: float,
+  *,
+  target_centerline_y_m: float = 0.0,
+  target_centerline_flow_angle_rad: float = 0.0,
+  incoming_handoff: Sequence[MocChainBoundarySample] | None = None,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  attachment_pressure_tolerance: float = 1.0e-8,
+  pressure_tolerance: float = 1.0e-8,
+  tangent_tolerance: float = 1.0e-8,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  parameter_tolerance: float = 1.0e-10,
+  maximum_segment_iterations: int = 24,
+  maximum_boundary_iterations: int = 16,
+  maximum_attachment_shooting_iterations: int = 40,
+  maximum_shooting_iterations: int = 40,
+) -> MocAmbientPhysicalFieldResult:
+  """Gate an ambient/axis shoot before assembling a physical MOC field.
+
+  The underlying axis shoot deliberately reports a scalar pressure result.
+  This adapter promotes that result only when its appended ambient-to-axis
+  perimeter also passes pressure and streamline-tangency validation.  The
+  retained boundary states are then consumed by the coupled shock/ambient/
+  centerline assembler; no ambient state, shock point, or downstream turn is
+  inferred by this adapter.
+
+  A successful result is suitable for the research continued-cell seam, but
+  remains outside the production provider claim until the canonical reflected
+  free-boundary and external validation work is complete.
+  """
+
+  try:
+    shoot = solve_marched_attached_shock_with_ambient_axis_closure(
+      upstream_state_at,
+      upstream_pressure_at,
+      shock_start_point_at,
+      start_parameter_lower,
+      start_parameter_upper,
+      ambient_pressure_Pa,
+      outer_downstream_flow_angle_lower_rad,
+      outer_downstream_flow_angle_upper_rad,
+      target_centerline_y_m=target_centerline_y_m,
+      target_centerline_flow_angle_rad=target_centerline_flow_angle_rad,
+      incoming_handoff=incoming_handoff,
+      sample_count=sample_count,
+      branch=branch,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+      attachment_pressure_tolerance=attachment_pressure_tolerance,
+      pressure_tolerance=pressure_tolerance,
+      tangent_tolerance=tangent_tolerance,
+      shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+      parameter_tolerance=parameter_tolerance,
+      maximum_segment_iterations=maximum_segment_iterations,
+      maximum_boundary_iterations=maximum_boundary_iterations,
+      maximum_attachment_shooting_iterations=maximum_attachment_shooting_iterations,
+      maximum_shooting_iterations=maximum_shooting_iterations,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return MocAmbientPhysicalFieldResult(
+      status=MocAmbientPhysicalFieldStatus.INVALID_INPUT,
+      axis_closure_shoot=None,
+      field=None,
+      message=f'ambient axis physical-field solve raised: {error}',
+    )
+  if shoot.status is MocAmbientAxisClosureShootStatus.INVALID_INPUT:
+    return MocAmbientPhysicalFieldResult(
+      status=MocAmbientPhysicalFieldStatus.INVALID_INPUT,
+      axis_closure_shoot=shoot,
+      field=None,
+      message=f'ambient axis shoot rejected its inputs: {shoot.message}',
+    )
+  if not shoot.converged:
+    return MocAmbientPhysicalFieldResult(
+      status=MocAmbientPhysicalFieldStatus.AXIS_SHOOT_FAILURE,
+      axis_closure_shoot=shoot,
+      field=None,
+      message=(
+        'ambient axis shooting did not produce a scalar closure candidate: '
+        f'{shoot.message}'
+      ),
+    )
+
+  axis_closure = shoot.axis_closure
+  axis_boundary = None if axis_closure is None else axis_closure.axis_boundary
+  if (
+    axis_closure is None
+    or not axis_closure.converged
+    or axis_boundary is None
+    or not shoot.axis_boundary_verified
+    or not axis_boundary.converged
+  ):
+    return MocAmbientPhysicalFieldResult(
+      status=MocAmbientPhysicalFieldStatus.AXIS_BOUNDARY_FAILURE,
+      axis_closure_shoot=shoot,
+      field=None,
+      message=(
+        'ambient axis pressure shooting converged, but the complete '
+        'ambient-to-axis perimeter did not pass pressure and tangency '
+        'validation; no physical field was assembled'
+      ),
+    )
+
+  attachment = shoot.attachment
+  shock = None if attachment is None else attachment.shock
+  shock_fit = None if shock is None else shock.shock_fit
+  if (
+    attachment is None
+    or not attachment.converged
+    or shock is None
+    or not shock.converged
+    or shock_fit is None
+    or not shock_fit.converged
+  ):
+    return MocAmbientPhysicalFieldResult(
+      status=MocAmbientPhysicalFieldStatus.FIELD_FAILURE,
+      axis_closure_shoot=shoot,
+      field=None,
+      message=(
+        'ambient axis shooting retained no converged attached-shock fit for '
+        'physical-field assembly'
+      ),
+    )
+
+  boundary_points = tuple(axis_boundary.points_m)
+  boundary_states = tuple(axis_boundary.states)
+  boundary_pressures = tuple(axis_boundary.total_pressure_Pa)
+  if not (
+    len(boundary_points) == len(boundary_states) == len(boundary_pressures)
+    and len(boundary_points) >= 2
+  ):
+    return MocAmbientPhysicalFieldResult(
+      status=MocAmbientPhysicalFieldStatus.AXIS_BOUNDARY_FAILURE,
+      axis_closure_shoot=shoot,
+      field=None,
+      message=(
+        'accepted ambient axis boundary did not retain matching point, state, '
+        'and total-pressure samples'
+      ),
+    )
+  try:
+    ambient_samples = tuple(
+      MocAmbientBoundarySample(
+        point_m=point,
+        state=state,
+        total_pressure_Pa=pressure,
+      )
+      for point, state, pressure in zip(
+        boundary_points,
+        boundary_states,
+        boundary_pressures,
+        strict=True,
+      )
+    )
+    field = assemble_ambient_boundary_post_shock_field(
+      shock_fit,
+      ambient_samples,
+      float(ambient_pressure_Pa),
+      incoming_handoff=incoming_handoff,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+      pressure_tolerance=pressure_tolerance,
+      tangent_tolerance=tangent_tolerance,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return MocAmbientPhysicalFieldResult(
+      status=MocAmbientPhysicalFieldStatus.FIELD_FAILURE,
+      axis_closure_shoot=shoot,
+      field=None,
+      message=f'ambient physical-field assembly raised: {error}',
+    )
+  if not field.converged or not field.physical_closure_verified:
+    return MocAmbientPhysicalFieldResult(
+      status=MocAmbientPhysicalFieldStatus.FIELD_FAILURE,
+      axis_closure_shoot=shoot,
+      field=field,
+      message=(
+        'ambient axis boundary passed its local validator, but the coupled '
+        f'physical field did not pass immutable closure gates: {field.message}'
+      ),
+    )
+  if not field.state_sampling_available or not field.upstream_shock_coupling_verified:
+    return MocAmbientPhysicalFieldResult(
+      status=MocAmbientPhysicalFieldStatus.FIELD_FAILURE,
+      axis_closure_shoot=shoot,
+      field=field,
+      message=(
+        'ambient physical field closed geometrically but did not retain the '
+        'bounded state and upstream-shock samples required for chain continuation'
+      ),
+    )
+  return MocAmbientPhysicalFieldResult(
+    status=MocAmbientPhysicalFieldStatus.CONVERGED_AMBIENT_CLOSED,
+    axis_closure_shoot=shoot,
+    field=field,
+    message=(
+      'ambient axis shoot passed its full boundary gate and assembled a '
+      'state-carrying ambient-closed physical MOC field; production claim and '
+      'canonical reflected-domain validation remain pending'
+    ),
   )
 ####
 

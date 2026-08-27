@@ -246,6 +246,13 @@ not wait on this research closure.
   returns typed ``UPSTREAM_FIELD_BOUNDARY`` or ``OPEN_PHYSICAL_CLOSURE`` stops
   instead of extrapolating or fabricating a cell. Automatic reflected-domain
   and ambient free-boundary shooting remain pending.
+- Added a strict ambient-axis-shoot-to-physical-field bridge. A scalar
+  attachment-coordinate pressure root is now rechecked against the complete
+  ambient-to-axis pressure/tangency perimeter before the shock/ambient/
+  centerline field assembler can run. Failed tangency remains a typed
+  ``ambient_axis_boundary_failure`` with no field or chain promotion; a
+  future passing field will still be research-only until canonical reflected
+  coupling and external validation are complete.
 - Added typed downstream characteristic-state/total-pressure handoff samples
   and a state-carrying chain adapter. The shock-seeded field labels its
   composite carried edge as a post-shock field perimeter, not a single
@@ -1081,6 +1088,13 @@ Only after MOC-1 through MOC-5 pass:
   closed mixed-regime cell.
   The scalar shoot continues to demonstrate the old internal-characteristic
   failure without weakening the gate.
+- The ambient-axis physical-field bridge now makes the promotion boundary
+  executable: the nonuniform reference reaches an axis-pressure root but is
+  rejected before field assembly because its appended ambient-to-axis trace
+  fails tangency. The uniform canonical probe stops earlier at the
+  attachment-coordinate bracket. A passing boundary would still need the
+  immutable physical-field, state-sampling, upstream-coupling, refinement,
+  and external-validation gates before it could support continued cells.
 - The canonical marched shock now classifies a zero-turn/normal-shock endpoint
   as `subsonic_terminal_required`, carries a verified typed normal-shock
   terminal diagnostic, and can return a physical chain-stop decision after
