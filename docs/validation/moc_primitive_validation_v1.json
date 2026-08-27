@@ -129,6 +129,11 @@
         "total_pressure_ratio": 0.7208738614847455,
         "message": ""
       },
+      "failed_sample_index": 0,
+      "failed_point_m": [
+        0.5,
+        0.5
+      ],
       "message": "sample 0 reaches the symmetry line with zero flow turn; the typed subsonic terminal model is outside the supersonic MOC lane",
       "terminal_model_verified": true,
       "claim_status": "explicit-supersonic-moc-validity-boundary; chain-promotion-blocked"
@@ -163,6 +168,11 @@
         "message": ""
       },
       "normal_shock_terminal": null,
+      "failed_sample_index": 0,
+      "failed_point_m": [
+        0.5,
+        0.5
+      ],
       "message": "attached compression failed at sample 0: attached compression state is not supersonic downstream",
       "terminal_model_verified": false,
       "claim_status": "typed-strong-attached-subsonic-seam; no-supersonic-moc-state-fabricated; chain-promotion-blocked"
@@ -1498,6 +1508,11 @@
                 "total_pressure_ratio": 0.6349380497652964,
                 "message": ""
               },
+              "failed_sample_index": 4,
+              "failed_point_m": [
+                1.8016103678367972,
+                0.0
+              ],
               "message": "sample 4 reaches the symmetry line with zero flow turn; the typed subsonic terminal model is outside the supersonic MOC lane"
             }
           },
@@ -1539,6 +1554,11 @@
                 "total_pressure_ratio": 0.6933483373942863,
                 "message": ""
               },
+              "failed_sample_index": 4,
+              "failed_point_m": [
+                1.749327131009177,
+                0.0
+              ],
               "message": "sample 4 reaches the symmetry line with zero flow turn; the typed subsonic terminal model is outside the supersonic MOC lane"
             }
           }
@@ -1859,6 +1879,11 @@
                   "total_pressure_ratio": 0.47462635393176694,
                   "message": ""
                 },
+                "failed_sample_index": 8,
+                "failed_point_m": [
+                  0.9436765952998805,
+                  0.0
+                ],
                 "message": "sample 8 reaches the symmetry line with zero flow turn; the typed subsonic terminal model is outside the supersonic MOC lane"
               },
               "shock_fit": {
@@ -2023,6 +2048,11 @@
                   "total_pressure_ratio": 0.48009931425319424,
                   "message": ""
                 },
+                "failed_sample_index": 8,
+                "failed_point_m": [
+                  0.9606507344792572,
+                  0.0
+                ],
                 "message": "sample 8 reaches the symmetry line with zero flow turn; the typed subsonic terminal model is outside the supersonic MOC lane"
               },
               "shock_fit": {
@@ -2340,6 +2370,11 @@
             "subsonic_boundary_verified": false,
             "subsonic_shock_boundary": null,
             "normal_shock_terminal": null,
+            "failed_sample_index": 4,
+            "failed_point_m": [
+              0.7482512433166837,
+              0.028485327596366038
+            ],
             "message": "upstream field callback returned no CharacteristicState at sample 4"
           },
           "message": "invariant-conditioned caustic-band shock march stopped: upstream field callback returned no CharacteristicState at sample 4"
@@ -2432,6 +2467,7 @@
           "requested_sample_count": 4,
           "sampled_count": 4,
           "first_missing_sample_index": null,
+          "first_missing_point_m": null,
           "first_ambiguous_sample_index": null,
           "last_valid_point_m": [
             1.4839257747916486,
@@ -2504,6 +2540,10 @@
           "requested_sample_count": 3,
           "sampled_count": 2,
           "first_missing_sample_index": 2,
+          "first_missing_point_m": [
+            0.68,
+            0.05
+          ],
           "first_ambiguous_sample_index": null,
           "last_valid_point_m": [
             0.675,
@@ -2556,6 +2596,10 @@
           "requested_sample_count": 1,
           "sampled_count": 0,
           "first_missing_sample_index": 0,
+          "first_missing_point_m": [
+            0.6584201957653014,
+            0.056970655192732075
+          ],
           "first_ambiguous_sample_index": null,
           "last_valid_point_m": null,
           "side_counts": {
@@ -2614,6 +2658,11 @@
               "total_pressure_ratio": 0.47162743526095374,
               "message": ""
             },
+            "failed_sample_index": 8,
+            "failed_point_m": [
+              0.9421320150284584,
+              0.0
+            ],
             "message": "sample 8 reaches the symmetry line with zero flow turn; the typed subsonic terminal model is outside the supersonic MOC lane"
           },
           "coupling": {
@@ -2622,6 +2671,7 @@
             "requested_sample_count": 8,
             "sampled_count": 8,
             "first_missing_sample_index": null,
+            "first_missing_point_m": null,
             "first_ambiguous_sample_index": null,
             "last_valid_point_m": [
               0.9370732127669145,
@@ -2731,6 +2781,83 @@
           "downstream_condition_status": "caller-supplied",
           "message": "sample 8 reaches the symmetry line with zero flow turn; the typed subsonic terminal model is outside the supersonic MOC lane"
         },
+        "candidate_shock": {
+          "status": "upstream_field_failure",
+          "converged": false,
+          "upstream_coupling_verified": false,
+          "physical_closure_verified": false,
+          "chain_promotion_blocked": true,
+          "shock": {
+            "status": "upstream_field_failure",
+            "converged": false,
+            "physical_closure_verified": false,
+            "subsonic_terminal_required": false,
+            "sample_count": 1,
+            "endpoint_m": [
+              0.7431488332818272,
+              0.1158153281924007
+            ],
+            "maximum_shock_angle_residual_rad": null,
+            "field_status": null,
+            "subsonic_boundary_verified": false,
+            "subsonic_shock_boundary": null,
+            "normal_shock_terminal": null,
+            "failed_sample_index": 1,
+            "failed_point_m": [
+              0.7484390997017873,
+              0.10857687018037565
+            ],
+            "message": "upstream field callback returned no CharacteristicState at sample 1"
+          },
+          "coupling": {
+            "status": "caustic_bridge_domain_gap",
+            "converged": false,
+            "requested_sample_count": 1,
+            "sampled_count": 1,
+            "first_missing_sample_index": 1,
+            "first_missing_point_m": [
+              0.7484390997017873,
+              0.10857687018037565
+            ],
+            "first_ambiguous_sample_index": null,
+            "last_valid_point_m": [
+              0.7431488332818272,
+              0.1158153281924007
+            ],
+            "side_counts": {
+              "old-family": 1,
+              "restarted-family": 0
+            },
+            "side_transition_indices": [],
+            "physical_closure_verified": false,
+            "chain_promotion_blocked": true,
+            "bridge": {
+              "old_family_status": "converged_open_source_strip",
+              "old_family_converged": true,
+              "restarted_family_status": "converged_open_caustic_family_band",
+              "restarted_family_converged": true,
+              "fields_converged": true,
+              "side_selection": "unique-domain-coverage-only",
+              "physical_closure_verified": false,
+              "chain_promotion_blocked": true
+            },
+            "samples": [
+              {
+                "point_m": [
+                  0.7431488332818272,
+                  0.1158153281924007
+                ],
+                "side": "old-family",
+                "static_pressure_Pa": 101325.00000000001,
+                "old_family_available": true,
+                "restarted_family_available": false
+              }
+            ],
+            "message": "shock march stopped before the next candidate point could be sampled from the bounded caustic bridge; no extrapolation was used"
+          },
+          "downstream_condition_status": "caller-supplied",
+          "message": "caustic upstream bridge did not cover the shock path: shock march stopped before the next candidate point could be sampled from the bounded caustic bridge; no extrapolation was used"
+        },
         "invariant_shock": {
           "status": "upstream_field_failure",
           "converged": false,
@@ -2752,6 +2879,11 @@
             "subsonic_boundary_verified": false,
             "subsonic_shock_boundary": null,
             "normal_shock_terminal": null,
+            "failed_sample_index": 4,
+            "failed_point_m": [
+              0.7482512433166837,
+              0.028485327596366038
+            ],
             "message": "upstream field callback returned no CharacteristicState at sample 4"
           },
           "coupling": {
@@ -2760,6 +2892,10 @@
             "requested_sample_count": 4,
             "sampled_count": 4,
             "first_missing_sample_index": 4,
+            "first_missing_point_m": [
+              0.7482512433166837,
+              0.028485327596366038
+            ],
             "first_ambiguous_sample_index": null,
             "last_valid_point_m": [
               0.7266742126554121,
@@ -2886,6 +3022,7 @@
               "bridge_status": "converged_bounded_caustic_bridge_path",
               "bridge_sampled_count": 8,
               "bridge_first_missing_sample_index": null,
+              "bridge_first_missing_point_m": null,
               "bridge_first_ambiguous_sample_index": null,
               "upstream_coupling_verified": true,
               "physical_closure_verified": false,
@@ -2895,6 +3032,7 @@
                 "requested_sample_count": 8,
                 "sampled_count": 8,
                 "first_missing_sample_index": null,
+                "first_missing_point_m": null,
                 "first_ambiguous_sample_index": null,
                 "last_valid_point_m": [
                   0.9370732127669145,
@@ -3007,6 +3145,122 @@
           },
           "diagnostics": {}
         },
+        "candidate_planner": {
+          "planner_kind": "upstream-coupled-research",
+          "planning_only": true,
+          "production_claim_allowed": false,
+          "claim_status": "caustic-upstream-bridge-planner; physical-remesh-and-downstream-closure-pending",
+          "step_count": 1,
+          "steps": [
+            {
+              "current_cell_index": 1,
+              "next_cell_index": 2,
+              "current_end_x_m": 0.8,
+              "boundary_kind": "post-shock-field-perimeter",
+              "incoming_handoff_sample_count": 18,
+              "incoming_total_pressure_range_Pa": [
+                749635.1347251647,
+                764819.179280032
+              ],
+              "incoming_handoff_fingerprint": "d0c3cfd5c26535d39ff1ee5d6c0ce16797ff445aaf2d3130e41244d662347b9b",
+              "result_kind": "termination-returned",
+              "result_status": "upstream-field-boundary",
+              "result_end_x_m": null,
+              "result_geometry_fidelity": null,
+              "result_physical_closure": null,
+              "result_termination_reason": "upstream-field-boundary",
+              "result_physical_termination": false
+            }
+          ],
+          "chain": {
+            "status": "solver-terminated",
+            "termination_reason": "upstream-field-boundary",
+            "physical_termination": false,
+            "cell_count": 1,
+            "end_x_m": 0.8,
+            "resolved": true,
+            "state_carry_count": 1,
+            "continuation_boundary_kinds": [
+              "post-shock-field-perimeter"
+            ],
+            "continuation_total_pressure_ranges_Pa": [
+              {
+                "cell_index": 1,
+                "minimum_Pa": 749635.1347251647,
+                "maximum_Pa": 764819.179280032
+              }
+            ],
+            "continuation_boundary_maxima_nonincreasing": null,
+            "geometry_fidelity_counts": {
+              "resolved-planar-moc": 1
+            },
+            "diagnostics": {
+              "termination_model": "caustic-upstream-bridge",
+              "upstream_field_model": "bounded-old-family-restarted-family-bridge",
+              "next_cell_index": 2,
+              "requested_end_x_m": 1.4,
+              "bridge_status": "caustic_bridge_domain_gap",
+              "bridge_sampled_count": 1,
+              "bridge_first_missing_sample_index": 1,
+              "bridge_first_missing_point_m": [
+                0.7484390997017873,
+                0.10857687018037565
+              ],
+              "bridge_first_ambiguous_sample_index": null,
+              "upstream_coupling_verified": false,
+              "physical_closure_verified": false,
+              "bridge_report": {
+                "status": "caustic_bridge_domain_gap",
+                "converged": false,
+                "requested_sample_count": 1,
+                "sampled_count": 1,
+                "first_missing_sample_index": 1,
+                "first_missing_point_m": [
+                  0.7484390997017873,
+                  0.10857687018037565
+                ],
+                "first_ambiguous_sample_index": null,
+                "last_valid_point_m": [
+                  0.7431488332818272,
+                  0.1158153281924007
+                ],
+                "side_counts": {
+                  "old-family": 1,
+                  "restarted-family": 0
+                },
+                "side_transition_indices": [],
+                "physical_closure_verified": false,
+                "chain_promotion_blocked": true,
+                "bridge": {
+                  "old_family_status": "converged_open_source_strip",
+                  "old_family_converged": true,
+                  "restarted_family_status": "converged_open_caustic_family_band",
+                  "restarted_family_converged": true,
+                  "fields_converged": true,
+                  "side_selection": "unique-domain-coverage-only",
+                  "physical_closure_verified": false,
+                  "chain_promotion_blocked": true
+                },
+                "samples": [
+                  {
+                    "point_m": [
+                      0.7431488332818272,
+                      0.1158153281924007
+                    ],
+                    "side": "old-family",
+                    "static_pressure_Pa": 101325.00000000001,
+                    "old_family_available": true,
+                    "restarted_family_available": false
+                  }
+                ],
+                "message": "shock march stopped before the next candidate point could be sampled from the bounded caustic bridge; no extrapolation was used"
+              },
+              "shock_status": "upstream_field_failure"
+            },
+            "message": "caustic upstream bridge did not cover the next-shock path; no extrapolation or physical endpoint was inferred"
+          },
+          "diagnostics": {}
+        },
         "invariant_planner": {
           "planner_kind": "upstream-coupled-research",
           "planning_only": true,
@@ -3065,6 +3319,10 @@
               "bridge_status": "caustic_bridge_domain_gap",
               "bridge_sampled_count": 4,
               "bridge_first_missing_sample_index": 4,
+              "bridge_first_missing_point_m": [
+                0.7482512433166837,
+                0.028485327596366038
+              ],
               "bridge_first_ambiguous_sample_index": null,
               "upstream_coupling_verified": false,
               "physical_closure_verified": false,
@@ -3074,6 +3332,10 @@
                 "requested_sample_count": 4,
                 "sampled_count": 4,
                 "first_missing_sample_index": 4,
+                "first_missing_point_m": [
+                  0.7482512433166837,
+                  0.028485327596366038
+                ],
                 "first_ambiguous_sample_index": null,
                 "last_valid_point_m": [
                   0.7266742126554121,
@@ -3456,6 +3718,8 @@
         "subsonic_boundary_verified": false,
         "subsonic_shock_boundary": null,
         "normal_shock_terminal": null,
+        "failed_sample_index": null,
+        "failed_point_m": null,
         "message": "generated shock boundary did not close its characteristic field: the terminal fitted shock state must satisfy centerline theta = 0"
       },
       "message": "invariant bracket does not straddle the requested centerline flow-angle closure: lower residual=0.09881702387564383, upper residual=0.13717390736646007",
@@ -3543,6 +3807,8 @@
         "subsonic_boundary_verified": false,
         "subsonic_shock_boundary": null,
         "normal_shock_terminal": null,
+        "failed_sample_index": null,
+        "failed_point_m": null,
         "message": "solver-generated attached-shock boundary reached the symmetry line and closed the post-shock characteristic field"
       },
       "ambient_boundary": {
@@ -3604,6 +3870,11 @@
           "subsonic_boundary_verified": false,
           "subsonic_shock_boundary": null,
           "normal_shock_terminal": null,
+          "failed_sample_index": 1,
+          "failed_point_m": [
+            0.7537293661217448,
+            0.10133841216835061
+          ],
           "message": "upstream field callback returned no CharacteristicState at sample 1"
         },
         "coupling": {
@@ -3655,6 +3926,11 @@
             "subsonic_boundary_verified": false,
             "subsonic_shock_boundary": null,
             "normal_shock_terminal": null,
+            "failed_sample_index": 1,
+            "failed_point_m": [
+              0.7563328315030428,
+              0.10133841216835061
+            ],
             "message": "upstream field callback returned no CharacteristicState at sample 1"
           },
           "ambient_boundary": null,
@@ -4049,6 +4325,11 @@
             "total_pressure_ratio": 0.9598520994838985,
             "message": ""
           },
+          "failed_sample_index": 17,
+          "failed_point_m": [
+            1.932444024737439,
+            0.0
+          ],
           "message": "sample 17 reaches the symmetry line with zero flow turn; the typed subsonic terminal model is outside the supersonic MOC lane"
         },
         "coupling": {
@@ -4362,6 +4643,11 @@
               "total_pressure_ratio": 0.9598520994838985,
               "message": ""
             },
+            "failed_sample_index": 17,
+            "failed_point_m": [
+              1.932444024737439,
+              0.0
+            ],
             "message": "sample 17 reaches the symmetry line with zero flow turn; the typed subsonic terminal model is outside the supersonic MOC lane"
           },
           "coupling": {
@@ -4991,6 +5277,11 @@
             "total_pressure_ratio": 0.9598520994838985,
             "message": ""
           },
+          "failed_sample_index": 17,
+          "failed_point_m": [
+            1.932444024737439,
+            0.0
+          ],
           "message": "sample 17 reaches the symmetry line with zero flow turn; the typed subsonic terminal model is outside the supersonic MOC lane"
         },
         "coupling": {
@@ -5347,6 +5638,8 @@
         "subsonic_boundary_verified": false,
         "subsonic_shock_boundary": null,
         "normal_shock_terminal": null,
+        "failed_sample_index": null,
+        "failed_point_m": null,
         "message": "solver-generated attached-shock boundary reached the symmetry line and closed the post-shock characteristic field"
       },
       "ambient_march": {
@@ -5471,6 +5764,8 @@
           "subsonic_boundary_verified": false,
           "subsonic_shock_boundary": null,
           "normal_shock_terminal": null,
+          "failed_sample_index": null,
+          "failed_point_m": null,
           "message": "solver-generated attached-shock boundary reached the symmetry line and closed the post-shock characteristic field"
         },
         "ambient_march": {
@@ -5652,6 +5947,11 @@
             "total_pressure_ratio": 0.9598519734029278,
             "message": ""
           },
+          "failed_sample_index": 16,
+          "failed_point_m": [
+            1.932441612053076,
+            0.0
+          ],
           "message": "sample 16 reaches the symmetry line with zero flow turn; the typed subsonic terminal model is outside the supersonic MOC lane"
         },
         "coupling": {
@@ -8295,6 +8595,11 @@
                 "subsonic_boundary_verified": false,
                 "subsonic_shock_boundary": null,
                 "normal_shock_terminal": null,
+                "failed_sample_index": 0,
+                "failed_point_m": [
+                  1.2,
+                  0.1
+                ],
                 "message": "upstream field callback returned no CharacteristicState at sample 0"
               },
               "ambient_boundary": null,

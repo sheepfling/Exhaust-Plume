@@ -864,7 +864,12 @@ Only after MOC-1 through MOC-5 pass:
   The bridge-backed shock/planner seam carries the exact prior handoff but
   remains a one-step research diagnostic: it does not solve the missing
   caustic remesh, entropy branch, or downstream mixed-regime closure, and it
-  cannot promote a chain cell.
+  cannot promote a chain cell. A candidate attached shock started at the
+  terminal old-family boundary now records the first downstream point that
+  leaves both one-sided fields; the planner maps that exact point to an
+  ``UPSTREAM_FIELD_BOUNDARY`` stop instead of treating the retained one-point
+  prefix as a continued cell. This is the required corridor evidence for the
+  next physical remesher, not a substitute for one.
 - The independent shock-cell measurement operators now pass local geometry,
   topology, and supplied shock-loss extraction for the current fixtures, but
   they do not provide external observations, uncertainty, or a provider-bound

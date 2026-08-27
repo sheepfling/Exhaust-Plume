@@ -179,6 +179,31 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   )
   assert caustic_upstream_bridge['shock']['upstream_coupling_verified'] is True
   assert caustic_upstream_bridge['shock']['physical_closure_verified'] is False
+  candidate_shock = caustic_upstream_bridge['candidate_shock']
+  assert candidate_shock['shock']['status'] == 'upstream_field_failure'
+  assert candidate_shock['shock']['sample_count'] == 1
+  assert candidate_shock['shock']['failed_sample_index'] == 1
+  assert candidate_shock['shock']['failed_point_m'] is not None
+  assert candidate_shock['coupling']['status'] == 'caustic_bridge_domain_gap'
+  assert candidate_shock['coupling']['sampled_count'] == 1
+  assert candidate_shock['coupling']['first_missing_sample_index'] == 1
+  assert candidate_shock['coupling']['first_missing_point_m'] == (
+    candidate_shock['shock']['failed_point_m']
+  )
+  assert candidate_shock['upstream_coupling_verified'] is False
+  candidate_planner = caustic_upstream_bridge['candidate_planner']
+  assert candidate_planner['production_claim_allowed'] is False
+  assert candidate_planner['chain']['termination_reason'] == (
+    'upstream-field-boundary'
+  )
+  assert candidate_planner['chain']['physical_termination'] is False
+  assert candidate_planner['chain']['cell_count'] == 1
+  assert candidate_planner['chain']['diagnostics'][
+    'bridge_first_missing_sample_index'
+  ] == 1
+  assert candidate_planner['chain']['diagnostics'][
+    'bridge_first_missing_point_m'
+  ] == candidate_shock['coupling']['first_missing_point_m']
   assert caustic_upstream_bridge['invariant_shock']['shock']['status'] == (
     'upstream_field_failure'
   )

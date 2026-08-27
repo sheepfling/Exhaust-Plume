@@ -139,6 +139,30 @@ class MocFreeBoundaryShockResult:
   message: str = ''
   normal_shock_terminal: MocNormalShockTerminalResult | None = None
   subsonic_shock_boundary: MocSubsonicShockBoundaryResult | None = None
+  failed_sample_index: int | None = None
+  failed_point_m: tuple[float, float] | None = None
+
+  def __post_init__(self) -> None:
+    if self.failed_sample_index is not None and (
+      isinstance(self.failed_sample_index, bool)
+      or not isinstance(self.failed_sample_index, int)
+      or self.failed_sample_index < 0
+    ):
+      raise ValueError('failed_sample_index must be a nonnegative integer')
+    if self.failed_point_m is not None:
+      if len(self.failed_point_m) != 2 or not all(
+        isfinite(float(value)) for value in self.failed_point_m
+      ):
+        raise ValueError('failed_point_m must contain two finite coordinates')
+      object.__setattr__(
+        self,
+        'failed_point_m',
+        (float(self.failed_point_m[0]), float(self.failed_point_m[1])),
+      )
+    if (self.failed_sample_index is None) != (self.failed_point_m is None):
+      raise ValueError(
+        'failed_sample_index and failed_point_m must be supplied together'
+      )
 
   @property
   def converged(self) -> bool:
@@ -206,6 +230,8 @@ class MocFreeBoundaryShockResult:
         if self.normal_shock_terminal is None
         else self.normal_shock_terminal.as_report()
       ),
+      'failed_sample_index': self.failed_sample_index,
+      'failed_point_m': self.failed_point_m,
       'message': self.message,
     }
 ####
@@ -474,6 +500,8 @@ def _failure(
   endpoint_m: tuple[float, float] | None = None,
   normal_shock_terminal: MocNormalShockTerminalResult | None = None,
   subsonic_shock_boundary: MocSubsonicShockBoundaryResult | None = None,
+  failed_sample_index: int | None = None,
+  failed_point_m: tuple[float, float] | None = None,
   message: str,
 ) -> MocFreeBoundaryShockResult:
   residuals = tuple(float(value) for value in shock_angle_residuals)
@@ -491,6 +519,8 @@ def _failure(
     message=message,
     normal_shock_terminal=normal_shock_terminal,
     subsonic_shock_boundary=subsonic_shock_boundary,
+    failed_sample_index=failed_sample_index,
+    failed_point_m=failed_point_m,
   )
 ####
 
@@ -841,6 +871,8 @@ def solve_marched_attached_shock_field(
   if current_sample is None:
     return _failure(
       error_status,
+      failed_sample_index=0,
+      failed_point_m=start,
       normal_shock_terminal=normal_shock_terminal,
       subsonic_shock_boundary=subsonic_shock_boundary,
       message=error or 'initial shock sample failed',
@@ -869,6 +901,8 @@ def solve_marched_attached_shock_field(
           endpoint_m=points[-1] if points else None,
           normal_shock_terminal=normal_shock_terminal,
           subsonic_shock_boundary=subsonic_shock_boundary,
+          failed_sample_index=index,
+          failed_point_m=candidate_point,
           message=error or f'shock sample {index} failed',
         )
       next_sample = candidate_sample
@@ -890,6 +924,8 @@ def solve_marched_attached_shock_field(
             endpoint_m=points[-1] if points else None,
             normal_shock_terminal=normal_shock_terminal,
             subsonic_shock_boundary=subsonic_shock_boundary,
+            failed_sample_index=index,
+            failed_point_m=(float(next_x), float(next_y)),
             message=final_error or f'shock sample {index} failed at its converged endpoint',
           )
         next_sample = final_sample
@@ -903,6 +939,8 @@ def solve_marched_attached_shock_field(
         upstream_pressures=upstream_pressures,
         downstream_angles=downstream_angles,
         endpoint_m=points[-1] if points else None,
+        failed_sample_index=index,
+        failed_point_m=(float(next_x), float(next_y)),
         message=f'shock segment {index - 1} did not converge to a tangent-consistent endpoint',
       )
     if next_sample is None:
@@ -913,6 +951,8 @@ def solve_marched_attached_shock_field(
         upstream_pressures=upstream_pressures,
         downstream_angles=downstream_angles,
         endpoint_m=points[-1] if points else None,
+        failed_sample_index=index,
+        failed_point_m=(float(next_x), float(next_y)),
         message=f'shock segment {index - 1} produced no endpoint sample',
       )
     current_point = (float(next_x), float(next_y))
@@ -924,6 +964,8 @@ def solve_marched_attached_shock_field(
         upstream_pressures=upstream_pressures,
         downstream_angles=downstream_angles,
         endpoint_m=points[-1] if points else None,
+        failed_sample_index=index,
+        failed_point_m=current_point,
         message=f'shock sample {index} is not strictly downstream',
       )
     points.append(current_point)
@@ -1207,10 +1249,14 @@ def _caustic_bridge_coupling_for_shock_path(
     shock.status is MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE
     and coupling.converged
   ):
+    missing_index = shock.failed_sample_index
+    if missing_index is None:
+      missing_index = shock.sample_count
     return replace(
       coupling,
       status=MocCausticBridgeStatus.DOMAIN_GAP,
-      first_missing_sample_index=shock.sample_count,
+      first_missing_sample_index=missing_index,
+      first_missing_point_m=shock.failed_point_m,
       message=(
         'shock march stopped before the next candidate point could be '
         'sampled from the bounded caustic bridge; no extrapolation was used'

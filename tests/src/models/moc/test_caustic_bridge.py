@@ -206,6 +206,38 @@ def test_caustic_bridge_shock_and_planner_keep_open_seam_nonpromotable() -> None
   assert planner.chain.diagnostics['physical_closure_verified'] is False
 
 
+def test_caustic_bridge_reports_the_first_candidate_point_beyond_the_seam() -> None:
+  old_family, restarted_family, _seed = _caustic_bridge_fixture()
+  bridge = build_caustic_upstream_bridge(old_family, restarted_family)
+  start = old_family.minus_source_states[-1]
+
+  result = solve_marched_attached_shock_from_caustic_upstream_bridge(
+    bridge,
+    (start.x_m, start.y_m),
+    downstream_flow_angle_at=lambda _index, point: 0.05 * max(
+      0.0,
+      min(1.0, point[1] / start.y_m),
+    ),
+    sample_count=17,
+    shock_angle_tolerance_rad=0.2,
+  )
+
+  assert result.shock.status.value == 'upstream_field_failure'
+  assert result.shock.sample_count == 1
+  assert result.shock.failed_sample_index == 1
+  assert result.shock.failed_point_m is not None
+  assert result.coupling.status is MocCausticBridgeStatus.DOMAIN_GAP
+  assert result.coupling.sampled_count == 1
+  assert result.coupling.first_missing_sample_index == 1
+  assert result.coupling.first_missing_point_m == result.shock.failed_point_m
+  assert result.coupling.first_missing_point_m is not None
+  assert result.coupling.first_missing_point_m[0] > start.x_m
+  assert result.coupling.first_missing_point_m[1] < start.y_m
+  assert result.upstream_coupling_verified is False
+  assert result.physical_closure_verified is False
+  assert result.chain_promotion_blocked
+
+
 def test_caustic_bridge_invariant_api_preserves_bounded_stop_and_handoff() -> None:
   old_family, restarted_family, seed = _caustic_bridge_fixture()
   bridge = build_caustic_upstream_bridge(old_family, restarted_family)

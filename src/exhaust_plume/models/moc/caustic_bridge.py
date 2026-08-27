@@ -432,7 +432,36 @@ class MocCausticBridgeResult:
   first_missing_sample_index: int | None
   first_ambiguous_sample_index: int | None
   side_transition_indices: tuple[int, ...]
+  first_missing_point_m: tuple[float, float] | None = None
   message: str = ''
+
+  def __post_init__(self) -> None:
+    if self.first_missing_point_m is not None:
+      if len(self.first_missing_point_m) != 2 or not all(
+        isfinite(float(value)) for value in self.first_missing_point_m
+      ):
+        raise ValueError(
+          'first_missing_point_m must contain two finite coordinates'
+        )
+      object.__setattr__(
+        self,
+        'first_missing_point_m',
+        (
+          float(self.first_missing_point_m[0]),
+          float(self.first_missing_point_m[1]),
+        ),
+      )
+    if self.first_missing_sample_index is None:
+      if self.first_missing_point_m is not None:
+        raise ValueError(
+          'first_missing_point_m requires first_missing_sample_index'
+        )
+    elif (
+      isinstance(self.first_missing_sample_index, bool)
+      or not isinstance(self.first_missing_sample_index, int)
+      or self.first_missing_sample_index < 0
+    ):
+      raise ValueError('first_missing_sample_index must be a nonnegative integer')
 
   @property
   def converged(self) -> bool:
@@ -467,6 +496,7 @@ class MocCausticBridgeResult:
       'requested_sample_count': len(self.requested_points_m),
       'sampled_count': self.sampled_count,
       'first_missing_sample_index': self.first_missing_sample_index,
+      'first_missing_point_m': self.first_missing_point_m,
       'first_ambiguous_sample_index': self.first_ambiguous_sample_index,
       'last_valid_point_m': self.last_valid_point_m,
       'side_counts': side_counts,
@@ -509,6 +539,7 @@ def _invalid_result(
   bridge: MocCausticUpstreamBridge | None,
   points: tuple[tuple[float, float], ...] = (),
   first_missing_sample_index: int | None = None,
+  first_missing_point_m: tuple[float, float] | None = None,
   first_ambiguous_sample_index: int | None = None,
   message: str,
 ) -> MocCausticBridgeResult:
@@ -518,6 +549,7 @@ def _invalid_result(
     requested_points_m=points,
     samples=(),
     first_missing_sample_index=first_missing_sample_index,
+    first_missing_point_m=first_missing_point_m,
     first_ambiguous_sample_index=first_ambiguous_sample_index,
     side_transition_indices=(),
     message=message,
@@ -578,6 +610,7 @@ def sample_caustic_upstream_bridge(
         bridge=bridge,
         points=points,
         first_missing_sample_index=index,
+        first_missing_point_m=points[index],
         message=(
           'caustic bridge shock path must be strictly downstream in x and '
           'nonincreasing in y'
@@ -611,6 +644,7 @@ def sample_caustic_upstream_bridge(
         requested_points_m=points,
         samples=tuple(samples),
         first_missing_sample_index=first_missing,
+        first_missing_point_m=(point if first_missing is not None else None),
         first_ambiguous_sample_index=first_ambiguous,
         side_transition_indices=tuple(transitions),
         message=resolution.message or f'caustic bridge failed at sample {index}',

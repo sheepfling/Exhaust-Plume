@@ -2465,7 +2465,20 @@ def _caustic_upstream_bridge_probe(
       sample_count=9,
       shock_angle_tolerance_rad=0.2,
     )
+    candidate_start_state = old_family.minus_source_states[-1]
+    candidate_start = (candidate_start_state.x_m, candidate_start_state.y_m)
+    candidate_shock = solve_marched_attached_shock_from_caustic_upstream_bridge(
+      bridge,
+      candidate_start,
+      downstream_flow_angle_at=lambda _index, point: 0.05 * max(
+        0.0,
+        min(1.0, point[1] / candidate_start[1]),
+      ),
+      sample_count=17,
+      shock_angle_tolerance_rad=0.2,
+    )
     planner = None
+    candidate_planner = None
     if current_field is not None and current_field.converged:
       current = current_field.as_coupled_chain_cell(
         start_x_m=0.2,
@@ -2482,8 +2495,23 @@ def _caustic_upstream_bridge_probe(
         ),
         sample_count=9,
         shock_angle_tolerance_rad=0.2,
-    )
+      )
+      candidate_planner = plan_caustic_upstream_bridge_chain(
+        current,
+        bridge,
+        start_point_m=candidate_start,
+        end_x_m=1.4,
+        downstream_flow_angle_at=lambda _index, point: 0.05 * max(
+          0.0,
+          min(1.0, point[1] / candidate_start[1]),
+        ),
+        sample_count=17,
+        shock_angle_tolerance_rad=0.2,
+      )
     planner_report = None if planner is None else planner.as_report()
+    candidate_planner_report = (
+      None if candidate_planner is None else candidate_planner.as_report()
+    )
     invariant_planner = None
     if current_field is not None and current_field.converged:
       current = current_field.as_coupled_chain_cell(
@@ -2519,6 +2547,17 @@ def _caustic_upstream_bridge_probe(
       and shock.upstream_coupling_verified
       and shock.physical_closure_verified is False
       and shock.chain_promotion_blocked
+      and candidate_shock.shock.status.value == 'upstream_field_failure'
+      and candidate_shock.shock.sample_count == 1
+      and candidate_shock.shock.failed_sample_index == 1
+      and candidate_shock.shock.failed_point_m is not None
+      and candidate_shock.coupling.status is MocCausticBridgeStatus.DOMAIN_GAP
+      and candidate_shock.coupling.sampled_count == 1
+      and candidate_shock.coupling.first_missing_sample_index == 1
+      and candidate_shock.coupling.first_missing_point_m == candidate_shock.shock.failed_point_m
+      and candidate_shock.upstream_coupling_verified is False
+      and candidate_shock.physical_closure_verified is False
+      and candidate_shock.chain_promotion_blocked
       and invariant_shock.shock.status.value == 'upstream_field_failure'
       and invariant_shock.coupling.status is MocCausticBridgeStatus.DOMAIN_GAP
       and invariant_shock.coupling.first_missing_sample_index == 4
@@ -2534,6 +2573,17 @@ def _caustic_upstream_bridge_probe(
       and planner_report['chain']['termination_reason'] == MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE.value
       and planner_report['chain']['physical_termination'] is False
       and planner_report['chain']['cell_count'] == 1
+      and candidate_planner_report is not None
+      and candidate_planner_report['planner_kind'] == MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH.value
+      and candidate_planner_report['planning_only'] is True
+      and candidate_planner_report['production_claim_allowed'] is False
+      and candidate_planner_report['step_count'] == 1
+      and candidate_planner_report['chain']['status'] == MocChainStatus.SOLVER_TERMINATED.value
+      and candidate_planner_report['chain']['termination_reason'] == MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY.value
+      and candidate_planner_report['chain']['physical_termination'] is False
+      and candidate_planner_report['chain']['cell_count'] == 1
+      and candidate_planner_report['chain']['diagnostics']['bridge_first_missing_sample_index'] == 1
+      and candidate_planner_report['chain']['diagnostics']['bridge_first_missing_point_m'] == candidate_shock.coupling.first_missing_point_m
       and invariant_planner_report is not None
       and invariant_planner_report['planner_kind'] == MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH.value
       and invariant_planner_report['planning_only'] is True
@@ -2552,8 +2602,10 @@ def _caustic_upstream_bridge_probe(
       'gap_audit': gap.as_report(),
       'explicit_old_side_no_fallback_audit': no_fallback.as_report(),
       'shock': shock.as_report(),
+      'candidate_shock': candidate_shock.as_report(),
       'invariant_shock': invariant_shock.as_report(),
       'planner': planner_report,
+      'candidate_planner': candidate_planner_report,
       'invariant_planner': invariant_planner_report,
       'claim_status': (
         'bounded-old-family-restarted-family-bridge-and-planner-audit; '
