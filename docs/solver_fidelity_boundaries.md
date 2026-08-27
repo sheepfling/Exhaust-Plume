@@ -152,6 +152,9 @@ independently resamples each generated shock point and returns an explicit
 upstream-field boundary or verified normal-shock terminal. This is a solver
 interface only and does not promote the open zone or replace the missing
 mixed-regime perimeter.
+Its one-step planner wrapper records the exact incoming post-shock perimeter
+and preserves a valid-prefix miss as a non-physical ``upstream-field-boundary``
+stop; the finite open zone is not reused as a resolved cell for later steps.
 At the caustic handoff, a separate remesh-preparation contract now binds the
 selected one-sided state, exact crossing point, local invariant-conditioned
 shock bridge, and the required future shock-curve/new-family outputs. A ready

@@ -1524,6 +1524,29 @@ def solve_marched_attached_shock_from_post_shock_zone(
     shock.shock_points_m,
     position_tolerance_m=position_tolerance_m,
   )
+  # The march can discover a missing upstream sample after it has retained a
+  # valid prefix.  In that case the independent probe sees only the retained
+  # prefix and would otherwise report ``converged``.  Preserve the solver's
+  # first missing sample as the authoritative bounded-domain result so the
+  # chain adapter can distinguish a finite upstream boundary from a generic
+  # solver failure.
+  if (
+    shock.status is MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE
+    and coupling.converged
+  ):
+    missing_index = shock.failed_sample_index
+    if missing_index is None:
+      missing_index = shock.sample_count
+    coupling = replace(
+      coupling,
+      status=MocPostShockZoneSamplingStatus.OUTSIDE_DOMAIN,
+      first_missing_sample_index=missing_index,
+      message=(
+        'post-shock-zone shock march stopped before the next candidate point '
+        'could be sampled from the bounded open upstream field; no '
+        'extrapolation was used'
+      ),
+    )
   if shock.converged and coupling.converged:
     message = (
       'attached shock and post-shock field converged with complete bounded '
@@ -2675,6 +2698,11 @@ def solve_marched_attached_shock_chain_cell_from_post_shock_zone_or_termination(
   handoff = tuple(incoming_handoff)
   if handoff != current_cell.continuation_boundary:
     raise ValueError('incoming_handoff must exactly match the current cell boundary')
+  if current_cell.continuation_boundary_kind is not MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER:
+    raise ValueError(
+      'post-shock-zone continuation requires a post-shock field perimeter '
+      'handoff; a characteristic trace is a different solver boundary'
+    )
   if len(handoff) < 3:
     raise ValueError('continued post-shock-zone cells require at least three handoff samples')
   if not isfinite(float(end_x_m)) or end_x_m <= current_cell.end_x_m:

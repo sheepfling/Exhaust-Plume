@@ -135,6 +135,11 @@ not wait on this research closure.
   first missing sample and last valid upstream state, and returns a typed
   upstream-field stop or verified normal-shock terminal rather than appending
   an open-zone cell. Its downstream turn law remains caller-supplied.
+- Added a one-step open-zone chain planner wrapper. It records the exact
+  carried post-shock perimeter before consuming the bounded zone, promotes
+  only a fully covered upstream-coupled next field, and preserves a partial
+  shock march as an `UPSTREAM_FIELD_BOUNDARY` stop. The open zone is never
+  reused as though it were a resolved chain cell.
 - Added a caustic-family-band continued-chain planner seam. It carries the
   exact prior post-shock perimeter into the bounded band shock solve, records
   the solver-generated open zone and terminal diagnostics, and stops with a
@@ -714,6 +719,11 @@ it can be queried for a candidate continuation and returns a typed
 upstream-field boundary or normal-shock terminal. It remains an open solver
 interface, so a successful callback does not by itself authorize chain-cell
 promotion.
+The matching one-step planner wrapper now records this seam in the same
+handoff audit used by the other research planners. A valid-prefix shock march
+cannot be misreported as a generic solver failure: the first uncovered sample
+is retained and the planner returns a non-physical upstream-field stop. A
+later cell requires a newly solved bounded field.
 
 The bracketed ambient-attachment adapter removes one caller-supplied boundary
 coordinate: it solves the outer shock turn against the local post-shock

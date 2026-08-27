@@ -42,6 +42,7 @@ from exhaust_plume.models.moc import (
   continue_post_shock_characteristics_to_centerline_open,
   continue_post_shock_characteristic_chain,
   plan_post_shock_characteristic_chain,
+  plan_post_shock_zone_chain,
   plan_solver_generated_post_shock_chain_reference,
   plan_field_coupled_post_shock_chain_reference,
   plan_prescribed_post_shock_chain_mock,
@@ -339,6 +340,84 @@ def test_post_shock_zone_next_shock_carries_a_typed_terminal_to_the_chain() -> N
   assert decision.reason is MocChainTerminationReason.PHYSICAL_TERMINATION
   assert decision.diagnostics['termination_model'] == 'normal-shock-terminal'
   assert decision.diagnostics['upstream_field_model'] == 'bounded-open-post-shock-zone'
+
+
+def test_post_shock_zone_partial_shock_march_preserves_the_upstream_gap() -> None:
+  zone = _open_post_shock_zone_fixture()
+  seed_fit = MocShockBoundaryFitResult(
+    status=MocShockBoundaryFitStatus.CONVERGED_FITTED,
+    boundary_states=_prescribed_boundary(),
+    shock_angle_residuals_rad=(0.0,) * 4,
+    maximum_shock_angle_residual_rad=0.0,
+  )
+  seed_field = assemble_post_shock_characteristic_field(seed_fit)
+  current = seed_field.as_chain_cell(start_x_m=0.5, end_x_m=0.85)
+
+  solved = solve_marched_attached_shock_from_post_shock_zone(
+    zone,
+    (0.9, 0.01),
+    downstream_flow_angle_rad=0.0,
+    sample_count=5,
+    position_tolerance_m=1.0e-8,
+  )
+
+  assert solved.shock.status.value == 'upstream_field_failure'
+  assert solved.shock.failed_sample_index == 4
+  assert len(solved.shock.shock_points_m) == 4
+  assert solved.coupling.status is MocPostShockZoneSamplingStatus.OUTSIDE_DOMAIN
+  assert solved.coupling.sampled_count == 4
+  assert solved.coupling.first_missing_sample_index == 4
+
+  decision = solve_marched_attached_shock_chain_cell_from_post_shock_zone_or_termination(
+    current,
+    2,
+    current.continuation_boundary,
+    zone,
+    start_point_m=(0.9, 0.01),
+    end_x_m=1.35,
+    downstream_flow_angle_rad=0.0,
+    sample_count=5,
+    position_tolerance_m=1.0e-8,
+  )
+  assert isinstance(decision, MocChainTerminationDecision)
+  assert not decision.physical_termination
+  assert decision.reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+  assert decision.diagnostics['coupling_status'] == 'outside_post_shock_zone_domain'
+  assert decision.diagnostics['sampled_count'] == 4
+  assert decision.diagnostics['first_missing_sample_index'] == 4
+
+
+def test_post_shock_zone_planner_records_a_typed_terminal_stop() -> None:
+  zone = _open_post_shock_zone_fixture()
+  seed_fit = MocShockBoundaryFitResult(
+    status=MocShockBoundaryFitStatus.CONVERGED_FITTED,
+    boundary_states=_prescribed_boundary(),
+    shock_angle_residuals_rad=(0.0,) * 4,
+    maximum_shock_angle_residual_rad=0.0,
+  )
+  seed_field = assemble_post_shock_characteristic_field(seed_fit)
+  seed = seed_field.as_chain_cell(start_x_m=0.5, end_x_m=0.85)
+
+  planner = plan_post_shock_zone_chain(
+    seed,
+    zone,
+    start_point_m=(0.854, 0.001),
+    end_x_m=1.35,
+    downstream_flow_angle_at=lambda _index, point: (
+      0.02 * max(0.0, min(1.0, point[1] / 0.001))
+    ),
+    sample_count=5,
+  )
+
+  assert planner.planner_kind is MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
+  assert planner.production_claim_allowed is False
+  assert planner.chain.physical_termination
+  assert planner.chain.cell_count == 1
+  assert len(planner.steps) == 1
+  assert planner.steps[0].result_kind == 'termination-returned'
+  assert planner.steps[0].result_termination_reason is MocChainTerminationReason.PHYSICAL_TERMINATION
+  assert planner.steps[0].result_physical_termination is True
+  assert 'one-step-domain' in planner.claim_status
 
 
 def test_sampled_attached_shock_fit_produces_pressure_losing_boundary_states() -> None:

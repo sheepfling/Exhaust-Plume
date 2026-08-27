@@ -40,6 +40,7 @@ from exhaust_plume.models.moc.caustic_remesh import (
 from exhaust_plume.models.moc.post_shock import (
   MocPostShockChainCellSolve,
   MocPostShockCharacteristicFieldResult,
+  MocPostShockCharacteristicZoneResult,
   MocPostShockFieldContinuationSolver,
   assemble_post_shock_characteristic_field,
   continue_post_shock_characteristic_chain,
@@ -59,6 +60,7 @@ from exhaust_plume.models.moc.free_boundary import (
   solve_marched_attached_shock_from_caustic_upstream_bridge_with_invariant_boundary,
   solve_marched_attached_shock_chain_cell_from_post_shock_field_or_termination,
   solve_marched_attached_shock_chain_cell_from_post_shock_field_with_invariant_boundary_or_termination,
+  solve_marched_attached_shock_chain_cell_from_post_shock_zone_or_termination,
 )
 from exhaust_plume.models.moc.family_band_solver import (
   MocCausticFamilyBandEnvelopeStatus,
@@ -83,6 +85,7 @@ __all__ = (
   'plan_solver_generated_post_shock_chain_reference',
   'plan_field_coupled_post_shock_chain_reference',
   'plan_terminal_reflection_patch_chain',
+  'plan_post_shock_zone_chain',
   'plan_caustic_family_band_chain',
   'plan_caustic_family_band_invariant_chain',
   'plan_caustic_origin_envelope_chain',
@@ -1341,6 +1344,102 @@ def plan_terminal_reflection_patch_chain(
     claim_status=(
       'terminal-reflection-patch-planner-handoff; '
       'one-step-domain; mixed-regime-or-new-field-continuation-pending'
+    ),
+  )
+
+
+def plan_post_shock_zone_chain(
+  seed: MocChainCell,
+  post_shock_zone: MocPostShockCharacteristicZoneResult,
+  *,
+  start_point_m: tuple[float, float],
+  end_x_m: float,
+  target_centerline_y_m: float = 0.0,
+  downstream_flow_angle_at: Callable[[int, tuple[float, float]], float] | None = None,
+  downstream_flow_angle_rad: float | None = None,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  policy: MocChainContinuationPolicy | None = None,
+) -> MocChainPlannerResult:
+  """Plan one next shock against a bounded open post-shock zone.
+
+  The open zone is a finite solver interface, not a resolved chain cell.  It
+  can therefore be consumed for one next-shock attempt only.  A completely
+  covered shock plus closed downstream field is returned as a resolved
+  research cell; a zone boundary, subsonic terminal, or solver failure is
+  retained as the typed planner stop.  The planner never reuses the original
+  open zone for a later cell and never changes its research-only claim.
+  """
+
+  if not isinstance(post_shock_zone, MocPostShockCharacteristicZoneResult):
+    raise TypeError(
+      'post_shock_zone must be a MocPostShockCharacteristicZoneResult'
+    )
+  if (downstream_flow_angle_at is None) == (downstream_flow_angle_rad is None):
+    raise ValueError('supply exactly one downstream flow-angle provider')
+  attempted = False
+
+  def solve_next(
+    current: MocChainCell,
+    next_cell_index: int,
+  ) -> MocChainCell | MocChainTerminationDecision:
+    nonlocal attempted
+    if attempted:
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
+        message=(
+          'open post-shock zone planner completed its one-step upstream '
+          'domain; a later cell requires a newly solved bounded field'
+        ),
+        diagnostics={
+          'termination_model': 'open-post-shock-zone-one-step-domain',
+          'next_cell_index': next_cell_index,
+        },
+      )
+    attempted = True
+    solved = solve_marched_attached_shock_chain_cell_from_post_shock_zone_or_termination(
+      current,
+      next_cell_index,
+      current.continuation_boundary,
+      post_shock_zone,
+      start_point_m=start_point_m,
+      end_x_m=end_x_m,
+      target_centerline_y_m=target_centerline_y_m,
+      downstream_flow_angle_at=downstream_flow_angle_at,
+      downstream_flow_angle_rad=downstream_flow_angle_rad,
+      sample_count=sample_count,
+      branch=branch,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+      shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+      maximum_segment_iterations=maximum_segment_iterations,
+    )
+    if isinstance(solved, MocChainTerminationDecision):
+      return solved
+    return solved.field.as_coupled_chain_cell(
+      start_x_m=current.end_x_m,
+      end_x_m=solved.end_x_m,
+      cell_index=next_cell_index,
+    )
+
+  effective_policy = policy
+  if effective_policy is None:
+    effective_policy = MocChainContinuationPolicy(require_state_carry=True)
+  elif not effective_policy.require_state_carry:
+    effective_policy = replace(effective_policy, require_state_carry=True)
+  return plan_moc_chain(
+    seed,
+    solve_next,
+    policy=effective_policy,
+    planner_kind=MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH,
+    claim_status=(
+      'bounded-open-post-shock-zone-next-shock-planner; '
+      'one-step-domain-and-physical-downstream-closure-pending'
     ),
   )
 
