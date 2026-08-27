@@ -18,6 +18,7 @@ from typing import Any, Sequence
 
 from exhaust_plume.models.moc.mixed_regime import (
   MocMixedRegimeBoundaryResult,
+  MocMixedRegimeControlSection,
   MocMixedRegimeClosureResult,
   MocMixedRegimeDownstreamConditionKind,
   MocMixedRegimeDownstreamConditionResult,
@@ -26,6 +27,7 @@ from exhaust_plume.models.moc.mixed_regime import (
   MocMixedRegimeFieldSample,
   MocMixedRegimeFieldStatus,
   MocMixedRegimeFreeBoundaryResult,
+  MocMixedRegimePerimeterRequest,
   validate_mixed_regime_boundary,
   validate_mixed_regime_downstream_condition,
 )
@@ -65,6 +67,7 @@ __all__ = (
   'MOC_CAUSTIC_REMESH_OPERATOR_ID',
   'MOC_CHAIN_PLANNER_OPERATOR_ID',
   'MOC_MIXED_REGIME_FREE_BOUNDARY_OPERATOR_ID',
+  'MOC_MIXED_REGIME_CONTROL_SECTION_OPERATOR_ID',
   'MOC_MIXED_REGIME_POTENTIAL_OPERATOR_ID',
   'MOC_SHOCK_CELL_CHAIN_OPERATOR_ID',
   'MOC_SHOCK_CELL_GEOMETRY_OPERATOR_ID',
@@ -78,6 +81,8 @@ __all__ = (
   'MocMixedRegimePotentialMeasurementStatus',
   'MocMixedRegimeFreeBoundaryMeasurement',
   'MocMixedRegimeFreeBoundaryMeasurementStatus',
+  'MocMixedRegimeControlSectionMeasurement',
+  'MocMixedRegimeControlSectionMeasurementStatus',
   'MocTerminalClosureMeasurement',
   'MocTerminalClosureMeasurementStatus',
   'MocTerminalClosureObservation',
@@ -89,6 +94,7 @@ __all__ = (
   'measure_moc_chain_planner',
   'measure_mixed_regime_compressible_potential_field',
   'measure_mixed_regime_free_boundary_reference',
+  'measure_mixed_regime_control_section',
   'measure_moc_terminal_closure',
   'measure_moc_shock_cell',
   'measure_moc_shock_cell_chain',
@@ -102,6 +108,9 @@ MOC_CAUSTIC_REMESH_OPERATOR_ID = 'op.moc.caustic-remesh'
 MOC_CHAIN_PLANNER_OPERATOR_ID = 'op.moc.chain-planner'
 MOC_MIXED_REGIME_FREE_BOUNDARY_OPERATOR_ID = (
   'op.moc.mixed-regime-free-boundary-reference'
+)
+MOC_MIXED_REGIME_CONTROL_SECTION_OPERATOR_ID = (
+  'op.moc.mixed-regime-control-section'
 )
 MOC_MIXED_REGIME_POTENTIAL_OPERATOR_ID = 'op.moc.mixed-regime-compressible-potential'
 
@@ -464,6 +473,366 @@ class MocMixedRegimeFreeBoundaryMeasurement:
       'message': self.message,
     }
   ####
+
+
+class MocMixedRegimeControlSectionMeasurementStatus(str, Enum):
+  """Outcome of the independent scalar control-section audit."""
+
+  CONVERGED = 'converged'
+  INVALID_INPUT = 'invalid_input'
+  TERMINAL_FAILURE = 'terminal_failure'
+  GEOMETRY_FAILURE = 'geometry_failure'
+  STATE_FAILURE = 'state_failure'
+  FLUX_FAILURE = 'flux_failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocMixedRegimeControlSectionMeasurement:
+  """Independent evidence for an explicit downstream control section.
+
+  This operator remeasures the section geometry, terminal placement, scalar
+  isentropic state, total-pressure lineage, and oriented mass-flux proxy.  It
+  does not call the solver-owned control-section validator and it does not
+  treat a passing section as a closed mixed-regime field or chain cell.
+  """
+
+  status: MocMixedRegimeControlSectionMeasurementStatus
+  operator_id: str
+  sample_count: int
+  request_verified: bool
+  geometry_verified: bool
+  state_verified: bool
+  flux_verified: bool
+  terminal_equivalent_verified: bool
+  section_measure_m: float | None
+  mass_flux_proxy: float | None
+  minimum_normal_flux_factor: float | None
+  maximum_total_pressure_gain_Pa: float | None
+  maximum_isentropic_residual: float | None
+  minimum_downstream_terminal_margin_m: float | None
+  maximum_terminal_state_residual: float | None
+  physical_closure_verified: bool
+  chain_promotion_blocked: bool
+  production_claim_allowed: bool
+  claim_status: str
+  message: str
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocMixedRegimeControlSectionMeasurementStatus.CONVERGED
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'operator_id': self.operator_id,
+      'converged': self.converged,
+      'sample_count': self.sample_count,
+      'checks': {
+        'request_verified': self.request_verified,
+        'geometry_verified': self.geometry_verified,
+        'state_verified': self.state_verified,
+        'flux_verified': self.flux_verified,
+        'terminal_equivalent_verified': self.terminal_equivalent_verified,
+      },
+      'section_measure_m': self.section_measure_m,
+      'mass_flux_proxy': self.mass_flux_proxy,
+      'minimum_normal_flux_factor': self.minimum_normal_flux_factor,
+      'maximum_total_pressure_gain_Pa': self.maximum_total_pressure_gain_Pa,
+      'maximum_isentropic_residual': self.maximum_isentropic_residual,
+      'minimum_downstream_terminal_margin_m': self.minimum_downstream_terminal_margin_m,
+      'maximum_terminal_state_residual': self.maximum_terminal_state_residual,
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'claim_status': self.claim_status,
+      'message': self.message,
+    }
+  ####
+
+
+def _control_section_measurement_failure(
+  status: MocMixedRegimeControlSectionMeasurementStatus,
+  *,
+  sample_count: int = 0,
+  request_verified: bool = False,
+  geometry_verified: bool = False,
+  state_verified: bool = False,
+  flux_verified: bool = False,
+  terminal_equivalent_verified: bool = False,
+  section_measure_m: float | None = None,
+  mass_flux_proxy: float | None = None,
+  minimum_normal_flux_factor: float | None = None,
+  maximum_total_pressure_gain_Pa: float | None = None,
+  maximum_isentropic_residual: float | None = None,
+  minimum_downstream_terminal_margin_m: float | None = None,
+  maximum_terminal_state_residual: float | None = None,
+  message: str,
+) -> MocMixedRegimeControlSectionMeasurement:
+  return MocMixedRegimeControlSectionMeasurement(
+    status=status,
+    operator_id=MOC_MIXED_REGIME_CONTROL_SECTION_OPERATOR_ID,
+    sample_count=sample_count,
+    request_verified=request_verified,
+    geometry_verified=geometry_verified,
+    state_verified=state_verified,
+    flux_verified=flux_verified,
+    terminal_equivalent_verified=terminal_equivalent_verified,
+    section_measure_m=section_measure_m,
+    mass_flux_proxy=mass_flux_proxy,
+    minimum_normal_flux_factor=minimum_normal_flux_factor,
+    maximum_total_pressure_gain_Pa=maximum_total_pressure_gain_Pa,
+    maximum_isentropic_residual=maximum_isentropic_residual,
+    minimum_downstream_terminal_margin_m=minimum_downstream_terminal_margin_m,
+    maximum_terminal_state_residual=maximum_terminal_state_residual,
+    physical_closure_verified=False,
+    chain_promotion_blocked=True,
+    production_claim_allowed=False,
+    claim_status=(
+      'independent-mixed-regime-control-section-measurement; '
+      'not-a-2d-field-or-chain-validation'
+    ),
+    message=message,
+  )
+####
+
+
+def measure_mixed_regime_control_section(
+  request: MocMixedRegimePerimeterRequest,
+  section: MocMixedRegimeControlSection | None,
+  *,
+  position_tolerance_m: float = 1.0e-9,
+  state_tolerance: float = 1.0e-8,
+  pressure_tolerance: float = 1.0e-8,
+  normal_flux_tolerance: float = 1.0e-8,
+) -> MocMixedRegimeControlSectionMeasurement:
+  """Independently measure a scalar section without using solver verdicts."""
+
+  if not isinstance(request, MocMixedRegimePerimeterRequest):
+    return _control_section_measurement_failure(
+      MocMixedRegimeControlSectionMeasurementStatus.INVALID_INPUT,
+      message='request must be a MocMixedRegimePerimeterRequest',
+    )
+  if section is None:
+    return _control_section_measurement_failure(
+      MocMixedRegimeControlSectionMeasurementStatus.INVALID_INPUT,
+      request_verified=True,
+      message=(
+        'independent control-section measurement requires explicit section '
+        'geometry and scalar samples'
+      ),
+    )
+  if not isinstance(section, MocMixedRegimeControlSection):
+    return _control_section_measurement_failure(
+      MocMixedRegimeControlSectionMeasurementStatus.INVALID_INPUT,
+      request_verified=True,
+      message='section must be a MocMixedRegimeControlSection or None',
+    )
+  for name, value in (
+    ('position_tolerance_m', position_tolerance_m),
+    ('state_tolerance', state_tolerance),
+    ('pressure_tolerance', pressure_tolerance),
+    ('normal_flux_tolerance', normal_flux_tolerance),
+  ):
+    if not isfinite(float(value)) or float(value) <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+
+  terminal = request.terminal
+  upstream_state = terminal.upstream_state
+  request_verified = bool(
+    upstream_state is not None
+    and terminal.shock_point_m == request.terminal_point_m
+    and terminal.downstream_mach == request.terminal_downstream_mach
+    and terminal.downstream_flow_angle_rad == request.terminal_downstream_flow_angle_rad
+    and terminal.downstream_pressure_Pa == request.terminal_downstream_pressure_Pa
+    and terminal.downstream_total_pressure_Pa == request.terminal_downstream_total_pressure_Pa
+    and terminal.total_pressure_ratio == request.terminal_total_pressure_ratio
+  )
+  if not request_verified:
+    return _control_section_measurement_failure(
+      MocMixedRegimeControlSectionMeasurementStatus.TERMINAL_FAILURE,
+      sample_count=len(section.samples),
+      request_verified=False,
+      message='request does not retain a complete exact terminal seam',
+    )
+  assert upstream_state is not None
+
+  points = section.points_m
+  samples = section.samples
+  normal_angle = float(section.normal_angle_rad)
+  tangent = (-sin(normal_angle), cos(normal_angle))
+  normal = (cos(normal_angle), sin(normal_angle))
+  point_match = len(points) == len(samples) and all(
+    hypot(sample.point_m[0] - point[0], sample.point_m[1] - point[1])
+    <= float(position_tolerance_m)
+    for sample, point in zip(samples, points, strict=True)
+  )
+  normal_coordinates = tuple(
+    point[0] * normal[0] + point[1] * normal[1]
+    for point in points
+  )
+  tangent_coordinates = tuple(
+    point[0] * tangent[0] + point[1] * tangent[1]
+    for point in points
+  )
+  lengths = tuple(
+    hypot(second[0] - first[0], second[1] - first[1])
+    for first, second in zip(points, points[1:])
+  )
+  section_measure = fsum(lengths)
+  geometry_verified = bool(
+    len(points) >= 2
+    and point_match
+    and all(all(isfinite(value) for value in point) for point in points)
+    and isfinite(normal_angle)
+    and isfinite(section_measure)
+    and section_measure > float(position_tolerance_m)
+    and max(normal_coordinates, default=0.0)
+    - min(normal_coordinates, default=0.0)
+    <= float(position_tolerance_m)
+    and all(
+      second > first + float(position_tolerance_m)
+      for first, second in zip(tangent_coordinates, tangent_coordinates[1:])
+    )
+    and all(length > float(position_tolerance_m) for length in lengths)
+  )
+  terminal_x, terminal_y = request.terminal_point_m
+  terminal_angle = request.terminal_downstream_flow_angle_rad
+  margins = tuple(
+    (point[0] - terminal_x) * cos(terminal_angle)
+    + (point[1] - terminal_y) * sin(terminal_angle)
+    for point in points
+  )
+  minimum_margin = min(margins, default=None)
+  geometry_verified = bool(
+    geometry_verified
+    and minimum_margin is not None
+    and minimum_margin > float(position_tolerance_m)
+  )
+  try:
+    flux_factors = tuple(
+      cos(sample.flow_angle_rad - normal_angle)
+      for sample in samples
+    )
+    minimum_flux_factor = min(flux_factors, default=None)
+    mass_densities = tuple(
+      sample.total_pressure_Pa
+      * _free_boundary_mass_flux_measurement(sample.mach, sample.gamma)
+      * projection
+      for sample, projection in zip(samples, flux_factors, strict=True)
+    )
+    mass_flux = fsum(
+      0.5 * (first + second) * length
+      for first, second, length in zip(
+        mass_densities,
+        mass_densities[1:],
+        lengths,
+      )
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+    minimum_flux_factor = None
+    mass_flux = None
+  flux_verified = bool(
+    minimum_flux_factor is not None
+    and minimum_flux_factor > float(normal_flux_tolerance)
+    and mass_flux is not None
+    and isfinite(mass_flux)
+    and mass_flux > 0.0
+  )
+
+  total_pressure = request.terminal_downstream_total_pressure_Pa
+  terminal_mach = request.terminal_downstream_mach
+  maximum_isentropic_residual = max(
+    (
+      _relative_value_residual(
+        _scalar_total_pressure(
+          sample.mach,
+          sample.gamma,
+          sample.static_pressure_Pa,
+        ),
+        sample.total_pressure_Pa,
+      )
+      for sample in samples
+    ),
+    default=None,
+  )
+  maximum_total_pressure_gain = max(
+    (
+      max(0.0, sample.total_pressure_Pa - total_pressure)
+      for sample in samples
+    ),
+    default=None,
+  )
+  maximum_terminal_state_residual = max(
+    (
+      max(
+        abs(sample.mach - terminal_mach),
+        abs(sample.flow_angle_rad - terminal_angle),
+        _relative_value_residual(sample.total_pressure_Pa, total_pressure),
+      )
+      for sample in samples
+    ),
+    default=None,
+  )
+  state_verified = bool(
+    samples
+    and all(
+      sample.gamma > 1.0
+      and abs(sample.gamma - upstream_state.gamma) <= float(state_tolerance)
+      and 0.0 < sample.mach < 1.0
+      for sample in samples
+    )
+    and maximum_isentropic_residual is not None
+    and maximum_isentropic_residual <= float(state_tolerance)
+    and maximum_total_pressure_gain is not None
+    and maximum_total_pressure_gain <= float(pressure_tolerance) * max(
+      1.0,
+      abs(total_pressure),
+    )
+  )
+  terminal_equivalent_verified = bool(
+    state_verified
+    and maximum_terminal_state_residual is not None
+    and maximum_terminal_state_residual <= float(state_tolerance)
+  )
+  metrics = {
+    'sample_count': len(samples),
+    'request_verified': request_verified,
+    'geometry_verified': geometry_verified,
+    'state_verified': state_verified,
+    'flux_verified': flux_verified,
+    'terminal_equivalent_verified': terminal_equivalent_verified,
+    'section_measure_m': section_measure,
+    'mass_flux_proxy': mass_flux,
+    'minimum_normal_flux_factor': minimum_flux_factor,
+    'maximum_total_pressure_gain_Pa': maximum_total_pressure_gain,
+    'maximum_isentropic_residual': maximum_isentropic_residual,
+    'minimum_downstream_terminal_margin_m': minimum_margin,
+    'maximum_terminal_state_residual': maximum_terminal_state_residual,
+  }
+  if not geometry_verified:
+    status = MocMixedRegimeControlSectionMeasurementStatus.GEOMETRY_FAILURE
+    message = 'independent control-section geometry or downstream placement failed'
+  elif not flux_verified:
+    status = MocMixedRegimeControlSectionMeasurementStatus.FLUX_FAILURE
+    message = 'independent control-section oriented mass-flux gate failed'
+  elif not state_verified:
+    status = MocMixedRegimeControlSectionMeasurementStatus.STATE_FAILURE
+    message = 'independent control-section scalar state/pressure-lineage gate failed'
+  else:
+    status = MocMixedRegimeControlSectionMeasurementStatus.CONVERGED
+    message = (
+      'independent control-section geometry, placement, scalar state, '
+      'pressure-lineage, and oriented flux gates passed; this is not a '
+      'two-dimensional mixed-regime field or chain acceptance'
+    )
+  return _control_section_measurement_failure(
+    status,
+    message=message,
+    **metrics,
+  )
+####
 
 
 class MocCausticRemeshMeasurementStatus(str, Enum):

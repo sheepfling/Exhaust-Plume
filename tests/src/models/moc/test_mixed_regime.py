@@ -7,6 +7,8 @@ from exhaust_plume.models.moc import (
   CharacteristicState,
   MocMixedRegimeBoundaryStatus,
   MocMixedRegimeClosureStatus,
+  MocMixedRegimeControlSection,
+  MocMixedRegimeControlSectionStatus,
   MocMixedRegimeDownstreamPerimeterSpec,
   MocMixedRegimeDownstreamConditionKind,
   MocMixedRegimeDownstreamConditionStatus,
@@ -22,13 +24,17 @@ from exhaust_plume.models.moc import (
   solve_mixed_regime_downstream_condition,
   solve_mixed_regime_downstream_perimeter,
   solve_mixed_regime_downstream_free_boundary,
+  solve_mixed_regime_downstream_free_boundary_from_control_section,
   solve_mixed_regime_subsonic_field,
   validate_mixed_regime_boundary,
+  validate_mixed_regime_control_section,
   validate_mixed_regime_downstream_condition,
 )
 from exhaust_plume.validation.moc_measurements import (
+  MocMixedRegimeControlSectionMeasurementStatus,
   MocMixedRegimeFreeBoundaryMeasurementStatus,
   MocMixedRegimePotentialMeasurementStatus,
+  measure_mixed_regime_control_section,
   measure_mixed_regime_free_boundary_reference,
   measure_mixed_regime_compressible_potential_field,
 )
@@ -99,6 +105,32 @@ def _samples(terminal, *, interior_total_pressure: float | None = None):
       gamma=gamma,
     )
     for index, point in enumerate(points)
+  )
+
+
+def _terminal_equivalent_control_section(request):
+  terminal_x, terminal_y = request.terminal_point_m
+  gamma = request.terminal.upstream_state.gamma
+  points = (
+    (terminal_x + 0.02, terminal_y - 0.01),
+    (terminal_x + 0.02, terminal_y),
+    (terminal_x + 0.02, terminal_y + 0.01),
+  )
+  samples = tuple(
+    MocMixedRegimeFieldSample(
+      point_m=point,
+      mach=request.terminal_downstream_mach,
+      flow_angle_rad=request.terminal_downstream_flow_angle_rad,
+      static_pressure_Pa=request.terminal_downstream_pressure_Pa,
+      total_pressure_Pa=request.terminal_downstream_total_pressure_Pa,
+      gamma=gamma,
+    )
+    for point in points
+  )
+  return MocMixedRegimeControlSection(
+    points_m=points,
+    samples=samples,
+    normal_angle_rad=0.0,
   )
 
 
@@ -922,6 +954,164 @@ def test_downstream_condition_can_select_only_the_declared_boundary_edges() -> N
   assert result.condition_edge_indices == (0,)
   assert result.condition_sample_indices == (0, 1)
   assert result.pressure_residuals_Pa == (0.0, 0.0)
+
+
+def test_control_section_validator_requires_explicit_flux_bearing_geometry() -> None:
+  terminal = _terminal()
+  request = MocMixedRegimePerimeterRequest(
+    terminal=terminal,
+    terminal_point_m=terminal.shock_point_m,
+    terminal_downstream_mach=terminal.downstream_mach,
+    terminal_downstream_flow_angle_rad=terminal.downstream_flow_angle_rad,
+    terminal_downstream_pressure_Pa=terminal.downstream_pressure_Pa,
+    terminal_downstream_total_pressure_Pa=terminal.downstream_total_pressure_Pa,
+    terminal_total_pressure_ratio=terminal.total_pressure_ratio,
+    supersonic_patch=_supersonic_patch(),
+  )
+
+  result = validate_mixed_regime_control_section(request, None)
+
+  assert result.status is MocMixedRegimeControlSectionStatus.INVALID_INPUT
+  assert not result.converged
+  assert not result.physical_closure_verified
+  assert result.chain_promotion_blocked
+  assert 'area or mass flux' in result.message
+
+
+def test_control_section_validator_accepts_terminal_equivalent_scalar_section() -> None:
+  terminal = _terminal()
+  request = MocMixedRegimePerimeterRequest(
+    terminal=terminal,
+    terminal_point_m=terminal.shock_point_m,
+    terminal_downstream_mach=terminal.downstream_mach,
+    terminal_downstream_flow_angle_rad=terminal.downstream_flow_angle_rad,
+    terminal_downstream_pressure_Pa=terminal.downstream_pressure_Pa,
+    terminal_downstream_total_pressure_Pa=terminal.downstream_total_pressure_Pa,
+    terminal_total_pressure_ratio=terminal.total_pressure_ratio,
+    supersonic_patch=_supersonic_patch(),
+  )
+  section = _terminal_equivalent_control_section(request)
+
+  result = validate_mixed_regime_control_section(request, section)
+
+  assert result.status is MocMixedRegimeControlSectionStatus.CONVERGED
+  assert result.converged
+  assert result.section is section
+  assert result.section_measure_m == pytest.approx(0.02)
+  assert result.mass_flux_proxy is not None
+  assert result.mass_flux_proxy > 0.0
+  assert result.minimum_normal_flux_factor == pytest.approx(1.0)
+  assert result.maximum_isentropic_residual is not None
+  assert result.maximum_isentropic_residual <= 1.0e-8
+  assert result.maximum_terminal_state_residual == pytest.approx(0.0)
+  assert not result.physical_closure_verified
+  assert result.chain_promotion_blocked
+
+
+def test_control_section_measurement_rechecks_the_section_independently() -> None:
+  terminal = _terminal()
+  request = MocMixedRegimePerimeterRequest(
+    terminal=terminal,
+    terminal_point_m=terminal.shock_point_m,
+    terminal_downstream_mach=terminal.downstream_mach,
+    terminal_downstream_flow_angle_rad=terminal.downstream_flow_angle_rad,
+    terminal_downstream_pressure_Pa=terminal.downstream_pressure_Pa,
+    terminal_downstream_total_pressure_Pa=terminal.downstream_total_pressure_Pa,
+    terminal_total_pressure_ratio=terminal.total_pressure_ratio,
+    supersonic_patch=_supersonic_patch(),
+  )
+  section = _terminal_equivalent_control_section(request)
+
+  measurement = measure_mixed_regime_control_section(request, section)
+
+  assert measurement.status is MocMixedRegimeControlSectionMeasurementStatus.CONVERGED
+  assert measurement.converged
+  assert measurement.request_verified
+  assert measurement.geometry_verified
+  assert measurement.state_verified
+  assert measurement.flux_verified
+  assert measurement.terminal_equivalent_verified
+  assert measurement.mass_flux_proxy is not None
+  assert measurement.mass_flux_proxy > 0.0
+  assert not measurement.physical_closure_verified
+  assert measurement.chain_promotion_blocked
+  assert measurement.production_claim_allowed is False
+
+
+def test_control_section_reference_uses_measure_and_rejects_varying_section_projection() -> None:
+  terminal = _terminal()
+  request = MocMixedRegimePerimeterRequest(
+    terminal=terminal,
+    terminal_point_m=terminal.shock_point_m,
+    terminal_downstream_mach=terminal.downstream_mach,
+    terminal_downstream_flow_angle_rad=terminal.downstream_flow_angle_rad,
+    terminal_downstream_pressure_Pa=terminal.downstream_pressure_Pa,
+    terminal_downstream_total_pressure_Pa=terminal.downstream_total_pressure_Pa,
+    terminal_total_pressure_ratio=terminal.total_pressure_ratio,
+    supersonic_patch=_supersonic_patch(),
+  )
+  section = _terminal_equivalent_control_section(request)
+
+  result = solve_mixed_regime_downstream_free_boundary_from_control_section(
+    request,
+    section,
+    ambient_pressure_Pa=0.8 * terminal.downstream_pressure_Pa,
+    downstream_length_m=0.05,
+    free_boundary_sample_count=7,
+    radial_divisions=2,
+  )
+
+  assert result.status is MocMixedRegimeFreeBoundaryStatus.CONVERGED_REFERENCE
+  assert result.converged
+  assert result.physical_closure_verified
+  assert result.effective_inlet_height_m == pytest.approx(section.section_measure_m)
+  assert result.control_section is section
+  assert result.control_section_validation is not None
+  assert result.control_section_validation.converged
+  assert result.model == 'solver-owned-control-section-quasi-1d-reference'
+  assert result.chain_promotion_blocked
+
+  terminal_x, terminal_y = request.terminal_point_m
+  varying_mach = request.terminal_downstream_mach + 0.01
+  gamma = request.terminal.upstream_state.gamma
+  varying_static_pressure = request.terminal_downstream_total_pressure_Pa / (
+    1.0 + 0.5 * (gamma - 1.0) * varying_mach**2
+  ) ** (gamma / (gamma - 1.0))
+  varying_points = (
+    (terminal_x + 0.02, terminal_y - 0.01),
+    (terminal_x + 0.02, terminal_y),
+    (terminal_x + 0.02, terminal_y + 0.01),
+  )
+  varying_section = MocMixedRegimeControlSection(
+    points_m=varying_points,
+    samples=tuple(
+      MocMixedRegimeFieldSample(
+        point_m=point,
+        mach=varying_mach,
+        flow_angle_rad=request.terminal_downstream_flow_angle_rad,
+        static_pressure_Pa=varying_static_pressure,
+        total_pressure_Pa=request.terminal_downstream_total_pressure_Pa,
+        gamma=gamma,
+      )
+      for point in varying_points
+    ),
+    normal_angle_rad=0.0,
+  )
+
+  varying_result = solve_mixed_regime_downstream_free_boundary_from_control_section(
+    request,
+    varying_section,
+    ambient_pressure_Pa=0.8 * terminal.downstream_pressure_Pa,
+    downstream_length_m=0.05,
+  )
+
+  assert varying_result.status is MocMixedRegimeFreeBoundaryStatus.CONTROL_SECTION_FAILURE
+  assert not varying_result.converged
+  assert varying_result.closure is None
+  assert varying_result.control_section_validation is not None
+  assert varying_result.control_section_validation.converged
+  assert 'two-dimensional mixed-regime coupling' in varying_result.message
+  assert varying_result.chain_promotion_blocked
 
 
 def test_solver_owned_free_boundary_reference_shoots_height_and_closes_scalar_field() -> None:

@@ -59,6 +59,7 @@ from exhaust_plume.models.moc.post_shock import (
 )
 from exhaust_plume.models.moc.mixed_regime import (
   MocMixedRegimeClosureResult,
+  MocMixedRegimeControlSection,
   MocMixedRegimeDownstreamConditionKind,
   MocMixedRegimeDownstreamPerimeterSpec,
   MocMixedRegimeFreeBoundaryResult,
@@ -67,6 +68,7 @@ from exhaust_plume.models.moc.mixed_regime import (
   MocMixedRegimePerimeterRequest,
   solve_mixed_regime_downstream_perimeter,
   solve_mixed_regime_downstream_free_boundary,
+  solve_mixed_regime_downstream_free_boundary_from_control_section,
 )
 from exhaust_plume.models.moc.primitives import CharacteristicFamily, CharacteristicState
 from exhaust_plume.models.moc.source_strip import MocSourceStripContinuationResult
@@ -130,6 +132,7 @@ __all__ = (
   'plan_first_cell_terminal_closure',
   'plan_prescribed_first_cell_terminal_closure_mock',
   'plan_solver_generated_first_cell_terminal_closure_reference',
+  'plan_solver_generated_first_cell_terminal_closure_reference_from_control_section',
 )
 
 
@@ -847,6 +850,30 @@ class MocSolverGeneratedMixedRegimeClosureReference:
       maximum_iterations=self.maximum_iterations,
     )
 
+  def solve_from_control_section(
+    self,
+    request: MocMixedRegimePerimeterRequest,
+    control_section: MocMixedRegimeControlSection,
+  ) -> MocMixedRegimeFreeBoundaryResult:
+    """Run the reference using an explicit solver-supplied control section."""
+
+    if not isinstance(request, MocMixedRegimePerimeterRequest):
+      raise TypeError('request must be a MocMixedRegimePerimeterRequest')
+    if not isinstance(control_section, MocMixedRegimeControlSection):
+      raise TypeError(
+        'control_section must be a MocMixedRegimeControlSection'
+      )
+    return solve_mixed_regime_downstream_free_boundary_from_control_section(
+      request,
+      control_section,
+      ambient_pressure_Pa=self._ambient_pressure(request),
+      downstream_length_m=self.downstream_length_m,
+      free_boundary_sample_count=self.free_boundary_sample_count,
+      radial_divisions=self.radial_divisions,
+      terminal_regularization_fraction=self.terminal_regularization_fraction,
+      maximum_iterations=self.maximum_iterations,
+    )
+
   def as_report(self) -> dict[str, Any]:
     return {
       'model': self.model,
@@ -972,6 +999,7 @@ def plan_first_cell_terminal_closure(
   *,
   mock: MocPrescribedMixedRegimeClosureMock | None = None,
   solver: MocSolverGeneratedMixedRegimeClosureReference | None = None,
+  control_section: MocMixedRegimeControlSection | None = None,
   solve_field: Callable[
     [MocMixedRegimePerimeterRequest],
     MocMixedRegimeFieldResult | None,
@@ -986,7 +1014,9 @@ def plan_first_cell_terminal_closure(
   ``solve_field``.  In every case the terminal object owns the request and the
   real mixed-regime adapter owns seam acceptance.  Omitting all three only
   audits the already-solved supersonic terminal and preserves its open/
-  physical decision.
+  physical decision.  ``control_section`` is accepted only with ``solver``;
+  the section-aware path refuses to collapse a varying scalar section into a
+  one-dimensional height.
   """
 
   if not isinstance(terminal, MocFirstCellTerminalClosureResult):
@@ -1007,6 +1037,15 @@ def plan_first_cell_terminal_closure(
     raise TypeError(
       'solver must be a MocSolverGeneratedMixedRegimeClosureReference or None'
     )
+  if control_section is not None and not isinstance(
+    control_section,
+    MocMixedRegimeControlSection,
+  ):
+    raise TypeError(
+      'control_section must be a MocMixedRegimeControlSection or None'
+    )
+  if control_section is not None and solver is None:
+    raise ValueError('control_section requires the solver-generated reference')
   supplied_solvers = sum(
     value is not None for value in (mock, solver, solve_field)
   )
@@ -1032,6 +1071,9 @@ def plan_first_cell_terminal_closure(
   elif solver is not None:
     diagnostics['downstream_solver_model'] = solver.model
     diagnostics['solver_generated_mixed_regime_reference'] = solver.as_report()
+    diagnostics['control_section_supplied'] = control_section is not None
+    if control_section is not None:
+      diagnostics['control_section'] = control_section.as_report()
   elif solve_field is not None:
     diagnostics['downstream_solver_model'] = 'caller-supplied-mixed-regime-solver'
 
@@ -1049,8 +1091,11 @@ def plan_first_cell_terminal_closure(
             terminal.mixed_regime_perimeter_request()
           )
         elif solver is not None:
-          free_boundary = solver.solve(
-            terminal.mixed_regime_perimeter_request()
+          request = terminal.mixed_regime_perimeter_request()
+          free_boundary = (
+            solver.solve_from_control_section(request, control_section)
+            if control_section is not None
+            else solver.solve(request)
           )
           diagnostics['solver_generated_mixed_regime_result'] = (
             free_boundary.as_report()
@@ -1149,6 +1194,27 @@ def plan_solver_generated_first_cell_terminal_closure_reference(
     else solver
   )
   return plan_first_cell_terminal_closure(terminal, solver=reference)
+  ####
+
+
+def plan_solver_generated_first_cell_terminal_closure_reference_from_control_section(
+  terminal: MocFirstCellTerminalClosureResult,
+  control_section: MocMixedRegimeControlSection,
+  *,
+  solver: MocSolverGeneratedMixedRegimeClosureReference | None = None,
+) -> MocFirstCellTerminalClosurePlannerResult:
+  """Plan a first-cell closure from an explicit scalar control section."""
+
+  reference = (
+    MocSolverGeneratedMixedRegimeClosureReference()
+    if solver is None
+    else solver
+  )
+  return plan_first_cell_terminal_closure(
+    terminal,
+    solver=reference,
+    control_section=control_section,
+  )
   ####
 
 

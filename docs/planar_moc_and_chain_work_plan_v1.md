@@ -550,6 +550,20 @@ not wait on this research closure.
   model remain explicit assumptions; the result is a research reference for
   planner/visualization work, not the canonical reflected-MOC free boundary
   and not a next-cell seed.
+- Added an explicit scalar downstream control-section seam beside that
+  reference. A section carries ordered transverse geometry, subsonic state
+  samples, oriented flux, and total-pressure lineage; the validator rejects a
+  missing/invalid section without inferring area from the open supersonic
+  patch. The section-aware planner may feed the quasi-1D reference only when
+  its samples are terminal-equivalent, while a varying section returns a
+  typed control-section failure requiring the pending downstream 2-D solve.
+  The prescribed mixed-regime mock remains unchanged, and both section paths
+  keep physical product claims and supersonic chain promotion blocked.
+- Added an independent ``op.moc.mixed-regime-control-section`` measurement.
+  It recomputes section placement, transverse geometry, scalar isentropic
+  residuals, total-pressure gain, and oriented mass-flux evidence without
+  trusting the solver's cached verdict. A passing measurement is still only
+  input evidence for the declared reference lane.
 - Added an independent
   ``op.moc.mixed-regime-free-boundary-reference`` measurement. It recomputes
   the scalar height root, generated perimeter geometry, selected pressure and
@@ -1152,6 +1166,14 @@ Only after MOC-1 through MOC-5 pass:
   coupled free-boundary solve, with the reference's effective inlet height and
   terminal regularization replaced by geometry and flux obtained from the
   upstream solution.
+- The control-section adapter now makes that missing geometry/flux input
+  explicit. A terminal-equivalent scalar section can drive the bounded
+  quasi-1D reference for planner and visualization tests; a state-varying
+  section is retained as a typed input failure rather than projected into a
+  scalar height. The remaining promotion gate is a canonical reflected-MOC
+  downstream section/field solve with independent measurements, after which
+  only a separately solved supersonic next-cell handoff may continue the
+  shock-cell chain.
 - The terminal-boundary graph audit confirms that the canonical terminal's
   four solver-owned supersonic paths join with zero reported residual, while
   no downstream path or physical downstream condition is supplied. A future

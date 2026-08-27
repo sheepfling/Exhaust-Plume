@@ -141,6 +141,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   sample_reflected_zone_along_shock_path,
   validate_fan_reflected_interface,
   validate_closed_post_shock_field,
+  validate_mixed_regime_control_section,
   validate_characteristic_trace,
   validate_mixed_regime_boundary,
   validate_mixed_regime_downstream_condition,
@@ -155,6 +156,7 @@ from exhaust_plume.validation.moc_measurements import (  # noqa: E402
   MocShockCellObservation,
   measure_moc_caustic_remesh,
   measure_moc_chain_planner,
+  measure_mixed_regime_control_section,
   measure_mixed_regime_free_boundary_reference,
   measure_mixed_regime_compressible_potential_field,
   measure_moc_terminal_closure,
@@ -1511,6 +1513,14 @@ def _mixed_regime_boundary_probe(
   terminal_x, terminal_y = terminal.shock_point_m
   perimeter_mock = MocPrescribedMixedRegimeClosureMock(radial_divisions=2)
   perimeter_request = field.mixed_regime_perimeter_request()
+  control_section_requirement = validate_mixed_regime_control_section(
+    perimeter_request,
+    None,
+  )
+  control_section_measurement = measure_mixed_regime_control_section(
+    perimeter_request,
+    None,
+  )
   perimeter_specification = perimeter_mock.specification(perimeter_request)
   contract_points = perimeter_specification.perimeter_points_m
   contract_samples = tuple(
@@ -1710,6 +1720,12 @@ def _mixed_regime_boundary_probe(
       and terminal_attachment_measurement.chain_promotion_blocked
       and contract_fixture.physical_closure_verified is False
       and contract_fixture.chain_promotion_blocked
+      and control_section_requirement.status.value == 'invalid_input'
+      and not control_section_requirement.physical_closure_verified
+      and control_section_requirement.chain_promotion_blocked
+      and control_section_measurement.status.value == 'invalid_input'
+      and not control_section_measurement.physical_closure_verified
+      and control_section_measurement.chain_promotion_blocked
       and contract_condition.status.value == 'downstream-tangency-failure'
       and wall_condition.converged
       and wall_condition.chain_promotion_blocked
@@ -1717,6 +1733,8 @@ def _mixed_regime_boundary_probe(
     'physical_closure_verified': contract_fixture.physical_closure_verified,
     'chain_promotion_blocked': contract_fixture.chain_promotion_blocked,
     'missing_scalar_field': missing_field.as_report(),
+    'control_section_requirement': control_section_requirement.as_report(),
+    'control_section_measurement': control_section_measurement.as_report(),
     'mixed_regime_closure_mock': perimeter_mock.as_report(),
     'scalar_perimeter_contract_fixture': contract_fixture.as_report(),
     'explicit_downstream_perimeter_solver': explicit_perimeter_closure.as_report(),

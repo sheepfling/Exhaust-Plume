@@ -46,6 +46,21 @@ external validation. An independent
 reference and reports its large embedded 2-D divergence diagnostic without
 using it as a full-flow acceptance gate.
 
+The reference lane also accepts an explicit
+``MocMixedRegimeControlSection`` handoff. This is a transverse, scalar,
+flux-bearing input—not a ``CharacteristicState`` boundary. The section-aware
+planner uses its measured section length as the quasi-1-D effective inlet only
+when every sample is terminal-equivalent; a varying section returns a typed
+control-section failure and must wait for the canonical downstream 2-D solver.
+The existing prescribed mixed-regime planner mock remains a synthetic fixture,
+and both the mock and section-aware reference retain
+``physical_closure_verified``/product claims at their declared research-only
+ceiling and keep ``chain_promotion_blocked=true``.
+The independent ``op.moc.mixed-regime-control-section`` operator remeasures
+the section geometry, placement, scalar state, pressure lineage, and oriented
+flux separately; its convergence is input evidence only, not external plume
+validation.
+
 ## Planar MOC foundation
 
 The first high-fidelity tranche is isolated in

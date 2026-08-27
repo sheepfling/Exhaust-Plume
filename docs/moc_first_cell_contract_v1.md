@@ -528,6 +528,16 @@ quasi-one-dimensional area law are explicit assumptions because the terminal
 point carries no downstream area information. The result supports planner and
 visualization development, but it is not the canonical reflected-MOC free
 boundary and cannot seed another shock cell.
+The section-aware planner entry point also accepts an explicit scalar
+``MocMixedRegimeControlSection``. It computes the quasi-one-dimensional
+effective inlet measure from that section only when its states are
+terminal-equivalent; a varying section returns a typed control-section
+failure that points to the pending downstream 2-D solve. This section remains
+an input handoff, not a subsonic characteristic boundary, and its result keeps
+physical product claims and supersonic chain promotion blocked.
+The independent ``op.moc.mixed-regime-control-section`` measurement
+recomputes those section gates separately; it is input evidence for the
+reference lane, not external plume validation.
 The independent
 ``op.moc.mixed-regime-free-boundary-reference`` operator recomputes the height
 root, generated geometry, selected pressure/tangency condition, radial layout,
