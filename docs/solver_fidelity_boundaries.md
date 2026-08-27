@@ -71,7 +71,9 @@ varying section may pass this seam, but the result remains
 and ``chain_promotion_blocked=true``. The first-cell planner stores the result
 as evidence and leaves the terminal's open-closure decision unchanged; this
 is the boundary for a future genuine planar mixed-regime solver, not a relabel
-for the scalar reference.
+for the scalar reference. The field result must also retain the exact
+control-section object it consumed; a callback that returns a valid scalar
+field while ignoring that section is rejected as a seam failure.
 
 ## Planar MOC foundation
 

@@ -571,7 +571,9 @@ not wait on this research closure.
   perimeter, and named downstream-condition selections. The first-cell
   planner records this handoff without attaching it or issuing a physical
   stop, so even a varying-section callback cannot promote a scalar reference
-  mesh into canonical 2-D closure.
+  mesh into canonical 2-D closure. The returned field now also retains the
+  exact consumed control-section object, so a callback cannot satisfy the
+  scalar seam while silently ignoring the varying section.
 - Added an independent
   ``op.moc.mixed-regime-free-boundary-reference`` measurement. It recomputes
   the scalar height root, generated perimeter geometry, selected pressure and

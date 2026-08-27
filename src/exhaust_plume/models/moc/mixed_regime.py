@@ -979,6 +979,7 @@ class MocMixedRegimeFieldResult:
   centerline_tangent_residual_rad: float | None = None
   outlet_pressure_residual_Pa: float | None = None
   free_boundary_geometry_residual_m: float | None = None
+  control_section: MocMixedRegimeControlSection | None = None
 
   def __post_init__(self) -> None:
     if (
@@ -1010,6 +1011,13 @@ class MocMixedRegimeFieldResult:
         raise ValueError(
           'downstream_condition must retain the exact scalar boundary'
         )
+    if self.control_section is not None and not isinstance(
+      self.control_section,
+      MocMixedRegimeControlSection,
+    ):
+      raise TypeError(
+        'control_section must be a MocMixedRegimeControlSection or None'
+      )
 
   @property
   def converged(self) -> bool:
@@ -1143,6 +1151,9 @@ class MocMixedRegimeFieldResult:
       'centerline_tangent_residual_rad': self.centerline_tangent_residual_rad,
       'outlet_pressure_residual_Pa': self.outlet_pressure_residual_Pa,
       'free_boundary_geometry_residual_m': self.free_boundary_geometry_residual_m,
+      'control_section': (
+        None if self.control_section is None else self.control_section.as_report()
+      ),
       'boundary': self.boundary.as_report(),
       'downstream_condition': (
         None

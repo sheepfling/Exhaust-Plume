@@ -1537,6 +1537,8 @@ def _mixed_regime_boundary_probe(
     subsonic_samples=contract_samples,
   )
   explicit_perimeter_closure = perimeter_mock.solve(perimeter_request)
+  explicit_perimeter_field = explicit_perimeter_closure.field
+  assert explicit_perimeter_field is not None
   planar_section_mach = terminal.downstream_mach + 0.01
   planar_section_static_pressure = terminal.downstream_total_pressure_Pa / (
     1.0 + 0.5 * (terminal.upstream_state.gamma - 1.0)
@@ -1566,7 +1568,10 @@ def _mixed_regime_boundary_probe(
     perimeter_request,
     planar_control_section,
     perimeter_specification,
-    lambda _request, _section, _specification: explicit_perimeter_closure.field,
+    lambda _request, section, _specification: replace(
+      explicit_perimeter_field,
+      control_section=section,
+    ),
     solver_model='scalar-reference-callback-fixture',
   )
   planar_handoff_measurement = measure_moc_terminal_closure(

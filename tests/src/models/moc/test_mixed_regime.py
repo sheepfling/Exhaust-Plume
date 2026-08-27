@@ -1205,7 +1205,7 @@ def test_planar_downstream_handoff_requires_and_retains_a_varying_control_sectio
     received_specification: MocMixedRegimeDownstreamPerimeterSpec,
   ) -> MocMixedRegimeFieldResult:
     callback_arguments.extend((received, received_section, received_specification))
-    return scalar_closure.field
+    return replace(scalar_closure.field, control_section=received_section)
 
   result = run_mixed_regime_planar_field_solver(
     request,
@@ -1218,7 +1218,8 @@ def test_planar_downstream_handoff_requires_and_retains_a_varying_control_sectio
   assert result.converged
   assert result.handoff_verified
   assert result.section_is_varying
-  assert result.field is scalar_closure.field
+  assert result.field is not scalar_closure.field
+  assert result.field.control_section == section
   assert result.field_physical_closure_verified
   assert result.physical_closure_verified is False
   assert result.canonical_free_boundary_verified is False
@@ -1228,6 +1229,16 @@ def test_planar_downstream_handoff_requires_and_retains_a_varying_control_sectio
   assert result.closure is not None
   assert result.closure.converged
   assert result.closure.physical_closure_verified
+
+  ignored_section = run_mixed_regime_planar_field_solver(
+    request,
+    section,
+    perimeter_spec,
+    lambda _request, _section, _specification: scalar_closure.field,
+  )
+  assert ignored_section.status is MocMixedRegimePlanarSolveStatus.SEAM_FAILURE
+  assert 'control section' in ignored_section.message
+  assert ignored_section.chain_promotion_blocked
 
   pressure_mismatch_spec = replace(
     perimeter_spec,
@@ -1317,6 +1328,7 @@ def test_planar_downstream_handoff_rejects_a_changed_perimeter() -> None:
     scalar_closure.field,
     boundary=changed_boundary,
     downstream_condition=changed_condition,
+    control_section=section,
   )
 
   result = run_mixed_regime_planar_field_solver(

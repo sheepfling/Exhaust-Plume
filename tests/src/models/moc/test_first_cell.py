@@ -557,7 +557,10 @@ def test_first_cell_planner_records_planar_handoff_without_promoting_it() -> Non
     terminal_closure,
     section,
     specification,
-    lambda _request, _section, _specification: scalar_closure.field,
+    lambda _request, received_section, _specification: replace(
+      scalar_closure.field,
+      control_section=received_section,
+    ),
   )
 
   assert planner.resolved

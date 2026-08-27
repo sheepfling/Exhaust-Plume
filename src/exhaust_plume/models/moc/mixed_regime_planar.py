@@ -380,6 +380,21 @@ def run_mixed_regime_planar_field_solver(
       ),
     )
 
+  if field.control_section != control_section:
+    return _failure(
+      MocMixedRegimePlanarSolveStatus.SEAM_FAILURE,
+      request,
+      control_section=control_section,
+      perimeter_spec=perimeter_spec,
+      control_section_validation=section_validation,
+      field=field,
+      solver_model=solver_model,
+      message=(
+        'planar callback did not retain the exact supplied control section; '
+        'the downstream field must attest which section it consumed'
+      ),
+    )
+
   boundary = field.boundary
   if boundary.terminal != request.terminal:
     return _failure(
