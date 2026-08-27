@@ -192,7 +192,21 @@ def test_moc_chain_measurement_preserves_cell_order_and_spacing() -> None:
   assert result.status is MocShockCellMeasurementStatus.CONVERGED
   assert result.shock_start_spacing_m == pytest.approx((4.0,))
   assert result.axial_extent_m == pytest.approx((0.0, 7.0))
+  assert result.fresh_domain_verified is True
   assert result.as_report()['cell_count'] == 2
+
+
+def test_moc_chain_measurement_rejects_touching_domains_as_not_fresh() -> None:
+  result = measure_moc_shock_cell_chain(
+    (
+      _observation(cell_index=1, shock_start_x_m=0.0),
+      _observation(cell_index=2, shock_start_x_m=3.0),
+    )
+  )
+
+  assert result.status is MocShockCellMeasurementStatus.CHAIN_FAILURE
+  assert result.fresh_domain_verified is False
+  assert 'strictly downstream' in result.message
 
 
 def test_moc_chain_measurement_verifies_exact_state_pressure_handoff() -> None:

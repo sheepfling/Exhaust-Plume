@@ -1269,6 +1269,10 @@ Only after MOC-1 through MOC-5 pass:
   appended as a fake continued cell. The chain endpoint remains solver
   bookkeeping because an oblique centerline closure can extend beyond the
   requested axial step.
+- Extended the independent shock-cell-chain measurement with the matching
+  ``fresh_domain_verified`` gate. It reports touching or reused axial domains
+  as a chain-measurement failure instead of allowing topology and handoff
+  identity alone to stand in for continued-cell geometry.
 - The same independent planner audit is now attached to every typed-stop
   continuation probe in the validation report: ambient-pressure field,
   source-strip/fresh-domain, bounded post-shock-zone, terminal reflection,

@@ -1147,6 +1147,7 @@ class MocShockCellChainMeasurement:
   message: str
   handoff_link_count: int = 0
   handoff_links_verified: bool | None = None
+  fresh_domain_verified: bool | None = None
 
   @property
   def converged(self) -> bool:
@@ -1168,6 +1169,7 @@ class MocShockCellChainMeasurement:
         'link_count': self.handoff_link_count,
         'links_verified': self.handoff_links_verified,
       },
+      'fresh_domain_verified': self.fresh_domain_verified,
       'claim_status': self.claim_status,
       'message': self.message,
     }
@@ -5033,6 +5035,7 @@ def _chain_failure(
   cells: Sequence[MocShockCellMeasurement] = (),
   handoff_link_count: int = 0,
   handoff_links_verified: bool | None = None,
+  fresh_domain_verified: bool | None = None,
 ) -> MocShockCellChainMeasurement:
   return MocShockCellChainMeasurement(
     status=MocShockCellMeasurementStatus.CHAIN_FAILURE,
@@ -5045,6 +5048,7 @@ def _chain_failure(
     message=message,
     handoff_link_count=handoff_link_count,
     handoff_links_verified=handoff_links_verified,
+    fresh_domain_verified=fresh_domain_verified,
   )
 ####
 
@@ -5173,6 +5177,20 @@ def measure_moc_shock_cell_chain(
       message='continued shock-cell measurement extents overlap or reverse order',
       handoff_link_count=handoff_link_count,
       handoff_links_verified=handoff_links_verified,
+      fresh_domain_verified=False,
+    )
+  fresh_domain_verified = all(
+    right[0] > left[1] + position_tolerance_m
+    for left, right in zip(resolved_extents, resolved_extents[1:])
+  )
+  if not fresh_domain_verified:
+    return _chain_failure(
+      'continued shock-cell measurement domains must be strictly downstream '
+      'of the preceding cell',
+      cells=measurements,
+      handoff_link_count=handoff_link_count,
+      handoff_links_verified=handoff_links_verified,
+      fresh_domain_verified=False,
     )
   shock_starts = tuple(
     measurement.shock_start_m[0]
@@ -5199,5 +5217,6 @@ def measure_moc_shock_cell_chain(
     ),
     handoff_link_count=handoff_link_count,
     handoff_links_verified=handoff_links_verified,
+    fresh_domain_verified=True,
   )
 ####
