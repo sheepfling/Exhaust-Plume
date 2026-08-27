@@ -149,6 +149,7 @@ from exhaust_plume.validation.moc_measurements import (  # noqa: E402
   MocTerminalClosureObservation,
   MocShockCellObservation,
   measure_moc_caustic_remesh,
+  measure_mixed_regime_compressible_potential_field,
   measure_moc_terminal_closure,
   measure_moc_shock_cell,
   measure_moc_shock_cell_chain,
@@ -1473,6 +1474,15 @@ def _mixed_regime_boundary_probe(
     )
     for radial_divisions in (2, 3, 4)
   )
+  compressible_potential_measurement = (
+    measure_mixed_regime_compressible_potential_field(
+      compressible_potential_field,
+    )
+  )
+  compressible_potential_measurement_refinement = tuple(
+    measure_mixed_regime_compressible_potential_field(result)
+    for result in compressible_potential_field_refinement
+  )
   terminal_attachment_refinement: tuple[dict[str, Any], ...] = ()
   if field is not None and all(
     result.physical_closure_verified for result in conditioned_field_refinement
@@ -1548,6 +1558,17 @@ def _mixed_regime_boundary_probe(
         and result.potential_circulation_residual <= 1.0e-8
         for result in compressible_potential_field_refinement
       )
+      and compressible_potential_measurement.converged
+      and compressible_potential_measurement.reference_model_verified
+      and compressible_potential_measurement.physical_closure_verified is False
+      and compressible_potential_measurement.chain_promotion_blocked
+      and all(
+        result.converged
+        and result.reference_model_verified
+        and result.physical_closure_verified is False
+        and result.chain_promotion_blocked
+        for result in compressible_potential_measurement_refinement
+      )
       and len(terminal_attachment_refinement) == len(conditioned_field_refinement)
       and all(
         case['physical_termination_verified'] is True
@@ -1590,6 +1611,10 @@ def _mixed_regime_boundary_probe(
     'compressible_potential_field_reference': compressible_potential_field.as_report(),
     'compressible_potential_field_refinement': [
       result.as_report() for result in compressible_potential_field_refinement
+    ],
+    'compressible_potential_measurement': compressible_potential_measurement.as_report(),
+    'compressible_potential_measurement_refinement': [
+      result.as_report() for result in compressible_potential_measurement_refinement
     ],
     'terminal_attachment_refinement': list(terminal_attachment_refinement),
     'terminal_attachment_closure_result': (

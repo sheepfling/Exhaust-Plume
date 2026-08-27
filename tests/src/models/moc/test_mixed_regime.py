@@ -24,6 +24,10 @@ from exhaust_plume.models.moc import (
   validate_mixed_regime_boundary,
   validate_mixed_regime_downstream_condition,
 )
+from exhaust_plume.validation.moc_measurements import (
+  MocMixedRegimePotentialMeasurementStatus,
+  measure_mixed_regime_compressible_potential_field,
+)
 
 
 def _terminal():
@@ -655,6 +659,41 @@ def test_compressible_potential_reference_rejects_incompatible_boundary_circulat
   assert field.potential_circulation_residual is not None
   assert field.potential_circulation_residual > 0.0
   assert 'not single-valued' in field.message
+
+
+def test_independent_potential_measurement_rechecks_the_solver_field() -> None:
+  terminal = _terminal()
+  boundary, condition = _pressure_outflow_boundary_and_condition(terminal)
+  field = solve_mixed_regime_compressible_potential_field(
+    boundary,
+    radial_divisions=2,
+    downstream_condition=condition,
+  )
+
+  measurement = measure_mixed_regime_compressible_potential_field(field)
+
+  assert measurement.status is MocMixedRegimePotentialMeasurementStatus.CONVERGED
+  assert measurement.converged
+  assert measurement.reference_model_verified
+  assert measurement.boundary_verified
+  assert measurement.potential_layout_verified
+  assert measurement.downstream_condition_verified
+  assert measurement.physical_closure_verified is False
+  assert measurement.chain_promotion_blocked
+  assert measurement.maximum_mass_conservation_residual is not None
+  assert measurement.maximum_mass_conservation_residual <= 1.0e-8
+  assert measurement.maximum_boundary_velocity_residual is not None
+  assert measurement.maximum_boundary_velocity_residual <= 1.0e-8
+
+  tampered = replace(
+    field,
+    velocity_potential=(field.velocity_potential[0] + 0.01, *field.velocity_potential[1:]),
+  )
+  tampered_measurement = measure_mixed_regime_compressible_potential_field(tampered)
+
+  assert tampered_measurement.status is MocMixedRegimePotentialMeasurementStatus.RESIDUAL_FAILURE
+  assert not tampered_measurement.converged
+  assert tampered_measurement.reference_model_verified is False
 
 
 def test_field_solver_rejects_a_condition_from_a_different_scalar_boundary() -> None:

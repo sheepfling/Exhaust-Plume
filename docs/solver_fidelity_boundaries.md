@@ -113,6 +113,14 @@ terminal seam before applying the named downstream condition and radial
 reference-field gates. This improves reproducibility for finite-domain
 planner fixtures without inferring the canonical perimeter or promoting the
 reference model to a production MOC provider.
+An independent ``op.moc.mixed-regime-compressible-potential`` measurement
+operator now rechecks that reference from its returned mesh and potential
+samples. It independently verifies the scalar boundary seam, radial layout,
+circulation, compressible mass residual, boundary-potential velocity, and
+strict-subsonic limit across the reported refinement levels. A passing
+measurement is evidence for the explicitly bounded scalar reference only;
+``physical_closure_verified`` remains false and chain promotion remains
+blocked.
 The terminal probe now keeps the shock branch explicit as well. The weak
 branch may reach the scalar normal-shock endpoint; a strong attached branch
 that becomes subsonic earlier is retained as a typed scalar boundary with its

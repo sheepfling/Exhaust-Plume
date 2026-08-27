@@ -87,6 +87,13 @@ not wait on this research closure.
   refinement. It remains a scalar research model with chain promotion blocked;
   it does not infer the canonical free boundary or create a supersonic MOC
   ``CharacteristicState`` field.
+- Added an independent measurement operator for that compressible potential
+  reference. It reconstructs the boundary seam, radial layout, potential
+  gradients, compressible mass residual, circulation, and subsonic gate from
+  the returned field data rather than trusting solver convenience properties.
+  The validation report records the operator and its radial-refinement
+  results; the measurement remains explicitly non-canonical and
+  non-promotable.
 - Added explicit source-window metadata and a terminal-window continuation
   result. When the full triangular continuation reaches a characteristic
   caustic, a converged terminal patch can be consumed without hiding the

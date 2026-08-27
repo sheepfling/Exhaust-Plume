@@ -537,6 +537,30 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
     and case['potential_circulation_residual'] <= 1.0e-8
     for case in potential_refinement
   )
+  potential_measurement = mixed_regime_boundary[
+    'compressible_potential_measurement'
+  ]
+  assert potential_measurement['status'] == 'converged_reference_measurement'
+  assert potential_measurement['operator_id'] == (
+    'op.moc.mixed-regime-compressible-potential'
+  )
+  assert potential_measurement['converged'] is True
+  assert potential_measurement['checks']['boundary_verified'] is True
+  assert potential_measurement['checks']['potential_layout_verified'] is True
+  assert potential_measurement['checks']['reference_model_verified'] is True
+  assert potential_measurement['physical_closure_verified'] is False
+  assert potential_measurement['chain_promotion_blocked'] is True
+  potential_measurement_refinement = mixed_regime_boundary[
+    'compressible_potential_measurement_refinement'
+  ]
+  assert [case['radial_divisions'] for case in potential_measurement_refinement] == [2, 3, 4]
+  assert all(
+    case['status'] == 'converged_reference_measurement'
+    and case['checks']['reference_model_verified'] is True
+    and case['physical_closure_verified'] is False
+    and case['chain_promotion_blocked'] is True
+    for case in potential_measurement_refinement
+  )
   terminal_attachment_refinement = mixed_regime_boundary['terminal_attachment_refinement']
   assert [case['radial_divisions'] for case in terminal_attachment_refinement] == [2, 3, 4]
   assert all(

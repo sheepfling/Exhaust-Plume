@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from math import cos, fsum, hypot, isfinite, log, sin
+from math import cos, fsum, hypot, isfinite, log, sin, sqrt
 from typing import Any, Sequence
 
 from exhaust_plume.models.moc.mixed_regime import (
@@ -53,12 +53,15 @@ from exhaust_plume.util.aero.shock_validity import ShockBranch
 
 __all__ = (
   'MOC_CAUSTIC_REMESH_OPERATOR_ID',
+  'MOC_MIXED_REGIME_POTENTIAL_OPERATOR_ID',
   'MOC_SHOCK_CELL_CHAIN_OPERATOR_ID',
   'MOC_SHOCK_CELL_GEOMETRY_OPERATOR_ID',
   'MOC_TERMINAL_CLOSURE_OPERATOR_ID',
   'MocCausticRemeshMeasurement',
   'MocCausticRemeshMeasurementStatus',
   'MocCausticRemeshObservation',
+  'MocMixedRegimePotentialMeasurement',
+  'MocMixedRegimePotentialMeasurementStatus',
   'MocTerminalClosureMeasurement',
   'MocTerminalClosureMeasurementStatus',
   'MocTerminalClosureObservation',
@@ -67,6 +70,7 @@ __all__ = (
   'MocShockCellMeasurementStatus',
   'MocShockCellObservation',
   'measure_moc_caustic_remesh',
+  'measure_mixed_regime_compressible_potential_field',
   'measure_moc_terminal_closure',
   'measure_moc_shock_cell',
   'measure_moc_shock_cell_chain',
@@ -77,6 +81,7 @@ MOC_SHOCK_CELL_GEOMETRY_OPERATOR_ID = 'op.moc.shock-cell-geometry'
 MOC_SHOCK_CELL_CHAIN_OPERATOR_ID = 'op.moc.shock-cell-chain'
 MOC_TERMINAL_CLOSURE_OPERATOR_ID = 'op.moc.terminal-closure'
 MOC_CAUSTIC_REMESH_OPERATOR_ID = 'op.moc.caustic-remesh'
+MOC_MIXED_REGIME_POTENTIAL_OPERATOR_ID = 'op.moc.mixed-regime-compressible-potential'
 
 Point = tuple[float, float]
 
@@ -221,6 +226,93 @@ class MocTerminalClosureMeasurement:
         'maximum_velocity_divergence_residual': self.maximum_velocity_divergence_residual,
       },
       'claim_status': self.claim_status,
+      'message': self.message,
+    }
+  ####
+
+
+class MocMixedRegimePotentialMeasurementStatus(str, Enum):
+  """Outcome of the independent compressible-potential measurement."""
+
+  CONVERGED = 'converged_reference_measurement'
+  INVALID_INPUT = 'invalid_input'
+  FIELD_FAILURE = 'field_failure'
+  BOUNDARY_FAILURE = 'boundary_failure'
+  GEOMETRY_FAILURE = 'geometry_failure'
+  TOPOLOGY_FAILURE = 'topology_failure'
+  RESIDUAL_FAILURE = 'potential_residual_failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocMixedRegimePotentialMeasurement:
+  """Independent checks for the explicit scalar potential reference field."""
+
+  status: MocMixedRegimePotentialMeasurementStatus
+  operator_id: str
+  model: str | None
+  radial_divisions: int | None
+  node_count: int
+  cell_count: int
+  topology: MocTopologyResult
+  boundary_verified: bool
+  potential_layout_verified: bool
+  reference_model_verified: bool
+  downstream_condition_verified: bool
+  physical_closure_verified: bool
+  chain_promotion_blocked: bool
+  maximum_thermodynamic_residual: float | None
+  maximum_mass_conservation_residual: float | None
+  maximum_boundary_velocity_residual: float | None
+  potential_circulation_residual: float | None
+  maximum_mach: float | None
+  message: str
+  nonlinear_iteration_count: int = 0
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocMixedRegimePotentialMeasurementStatus.CONVERGED
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    """Return a JSON-compatible independent potential-field measurement."""
+
+    return {
+      'status': self.status.value,
+      'operator_id': self.operator_id,
+      'converged': self.converged,
+      'model': self.model,
+      'radial_divisions': self.radial_divisions,
+      'node_count': self.node_count,
+      'cell_count': self.cell_count,
+      'topology': {
+        'status': self.topology.status.value,
+        'connected': self.topology.connected,
+        'forms_closed_zone': self.topology.forms_closed_zone,
+        'boundary_edge_count': self.topology.boundary_edge_count,
+        'boundary_component_count': self.topology.boundary_component_count,
+        'nonmanifold_edge_count': self.topology.nonmanifold_edge_count,
+      },
+      'checks': {
+        'boundary_verified': self.boundary_verified,
+        'potential_layout_verified': self.potential_layout_verified,
+        'reference_model_verified': self.reference_model_verified,
+        'downstream_condition_verified': self.downstream_condition_verified,
+      },
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'residuals': {
+        'maximum_thermodynamic_residual': self.maximum_thermodynamic_residual,
+        'maximum_mass_conservation_residual': self.maximum_mass_conservation_residual,
+        'maximum_boundary_velocity_residual': self.maximum_boundary_velocity_residual,
+        'potential_circulation_residual': self.potential_circulation_residual,
+      },
+      'maximum_mach': self.maximum_mach,
+      'nonlinear_iteration_count': self.nonlinear_iteration_count,
+      'claim_status': (
+        'independent-explicit-perimeter-potential-reference-measurement; '
+        'not-canonical-free-boundary-validation'
+      ),
       'message': self.message,
     }
   ####
@@ -1371,6 +1463,464 @@ def _mixed_field_harmonic_residual(
     if radial_divisions == 1:
       break
   return max(residuals, default=None)
+####
+
+
+def _potential_measurement_failure(
+  status: MocMixedRegimePotentialMeasurementStatus,
+  *,
+  field: MocMixedRegimeFieldResult | None = None,
+  topology: MocTopologyResult | None = None,
+  boundary_verified: bool = False,
+  potential_layout_verified: bool = False,
+  maximum_thermodynamic_residual: float | None = None,
+  maximum_mass_conservation_residual: float | None = None,
+  maximum_boundary_velocity_residual: float | None = None,
+  potential_circulation_residual: float | None = None,
+  maximum_mach: float | None = None,
+  message: str,
+) -> MocMixedRegimePotentialMeasurement:
+  return MocMixedRegimePotentialMeasurement(
+    status=status,
+    operator_id=MOC_MIXED_REGIME_POTENTIAL_OPERATOR_ID,
+    model=None if field is None else field.model,
+    radial_divisions=None if field is None else field.radial_divisions,
+    node_count=0 if field is None else len(field.nodes),
+    cell_count=0 if field is None else len(field.cells),
+    topology=_empty_topology() if topology is None else topology,
+    boundary_verified=boundary_verified,
+    potential_layout_verified=potential_layout_verified,
+    reference_model_verified=False,
+    downstream_condition_verified=bool(
+      field is not None
+      and field.downstream_condition is not None
+      and field.downstream_condition.converged
+      and field.downstream_condition.boundary == field.boundary
+    ),
+    physical_closure_verified=False,
+    chain_promotion_blocked=True,
+    maximum_thermodynamic_residual=maximum_thermodynamic_residual,
+    maximum_mass_conservation_residual=maximum_mass_conservation_residual,
+    maximum_boundary_velocity_residual=maximum_boundary_velocity_residual,
+    potential_circulation_residual=potential_circulation_residual,
+    maximum_mach=maximum_mach,
+    nonlinear_iteration_count=(
+      0 if field is None else field.nonlinear_iteration_count
+    ),
+    message=message,
+  )
+
+
+def _measurement_potential_primitive(
+  q_x: float,
+  q_y: float,
+  gamma: float,
+) -> tuple[float, float, float, float, float, float, float]:
+  """Recompute the normalized compressible potential primitive independently."""
+
+  speed_squared = q_x * q_x + q_y * q_y
+  sonic_factor = 0.5 * (gamma - 1.0)
+  enthalpy_factor = 1.0 - sonic_factor * speed_squared
+  if enthalpy_factor <= 0.0:
+    raise ValueError('potential measurement reached a nonphysical enthalpy factor')
+  mach = sqrt(speed_squared / enthalpy_factor)
+  density = enthalpy_factor ** (1.0 / (gamma - 1.0))
+  jacobian_scale = density / enthalpy_factor
+  return (
+    mach,
+    density * q_x,
+    density * q_y,
+    density - jacobian_scale * q_x * q_x,
+    -jacobian_scale * q_x * q_y,
+    -jacobian_scale * q_y * q_x,
+    density - jacobian_scale * q_y * q_y,
+  )
+
+
+def measure_mixed_regime_compressible_potential_field(
+  field: MocMixedRegimeFieldResult,
+  *,
+  position_tolerance_m: float = 1.0e-9,
+  thermodynamic_tolerance: float = 1.0e-8,
+  potential_tolerance: float = 1.0e-8,
+  residual_tolerance: float = 1.0e-8,
+  velocity_tolerance: float = 1.0e-8,
+  subsonic_margin: float = 1.0e-6,
+  mesh_vertex_tolerance_m: float = 1.0e-12,
+) -> MocMixedRegimePotentialMeasurement:
+  """Independently measure a scalar compressible potential reference field.
+
+  The operator treats the field as data.  It reconstructs the scalar seam,
+  radial node layout, triangle potential gradients, compressible mass flux,
+  boundary-potential residual, circulation, and strict-subsonic gate without
+  reading the field's convenience acceptance properties.  This validates the
+  explicit finite-domain reference only; it never turns it into a canonical
+  free-boundary or supersonic-chain result.
+  """
+
+  if not isinstance(field, MocMixedRegimeFieldResult):
+    raise TypeError('field must be a MocMixedRegimeFieldResult')
+  for name, value in (
+    ('position_tolerance_m', position_tolerance_m),
+    ('thermodynamic_tolerance', thermodynamic_tolerance),
+    ('potential_tolerance', potential_tolerance),
+    ('residual_tolerance', residual_tolerance),
+    ('velocity_tolerance', velocity_tolerance),
+    ('subsonic_margin', subsonic_margin),
+    ('mesh_vertex_tolerance_m', mesh_vertex_tolerance_m),
+  ):
+    if not isfinite(float(value)) or float(value) <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+  if subsonic_margin >= 1.0:
+    raise ValueError('subsonic_margin must be less than one')
+  if field.model != 'compressible-isentropic-potential-reference':
+    return _potential_measurement_failure(
+      MocMixedRegimePotentialMeasurementStatus.INVALID_INPUT,
+      field=field,
+      message=(
+        'potential measurement requires the explicitly named compressible '
+        f'potential model, received {field.model!r}'
+      ),
+    )
+  if not field.converged:
+    return _potential_measurement_failure(
+      MocMixedRegimePotentialMeasurementStatus.FIELD_FAILURE,
+      field=field,
+      message=f'potential field is not converged: {field.message}',
+    )
+
+  boundary = field.boundary
+  boundary_verified = False
+  try:
+    if boundary.terminal is not None:
+      independent_boundary = validate_mixed_regime_boundary(
+        boundary.terminal,
+        boundary.supersonic_patch,
+        supersonic_patch_converged=boundary.supersonic_patch_verified,
+        subsonic_samples=boundary.subsonic_samples,
+        perimeter_points_m=boundary.perimeter_points_m,
+        position_tolerance_m=position_tolerance_m,
+        pressure_tolerance=thermodynamic_tolerance,
+      )
+      boundary_verified = independent_boundary.converged
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+    boundary_verified = False
+  if not boundary_verified:
+    return _potential_measurement_failure(
+      MocMixedRegimePotentialMeasurementStatus.BOUNDARY_FAILURE,
+      field=field,
+      boundary_verified=False,
+      message='potential measurement could not independently verify the scalar seam',
+    )
+
+  perimeter = boundary.perimeter_points_m
+  samples = boundary.subsonic_samples
+  unique_points = tuple(perimeter[:-1])
+  unique_samples = tuple(samples[:-1])
+  if len(unique_points) < 3 or len(unique_points) != len(unique_samples):
+    return _potential_measurement_failure(
+      MocMixedRegimePotentialMeasurementStatus.BOUNDARY_FAILURE,
+      field=field,
+      boundary_verified=boundary_verified,
+      message='potential measurement requires a closed perimeter with unique samples',
+    )
+  perimeter_count = len(unique_points)
+  radial_divisions = field.radial_divisions
+  expected_node_count = 1 + radial_divisions * perimeter_count
+  unknown_count = 1 + (radial_divisions - 1) * perimeter_count
+  outer_start = unknown_count
+  if len(field.nodes) != expected_node_count:
+    return _potential_measurement_failure(
+      MocMixedRegimePotentialMeasurementStatus.GEOMETRY_FAILURE,
+      field=field,
+      boundary_verified=boundary_verified,
+      message=(
+        'potential measurement node count does not match the declared radial '
+        f'mesh: expected={expected_node_count}, actual={len(field.nodes)}'
+      ),
+    )
+  if field.interior_point_m is None:
+    return _potential_measurement_failure(
+      MocMixedRegimePotentialMeasurementStatus.GEOMETRY_FAILURE,
+      field=field,
+      boundary_verified=boundary_verified,
+      message='potential measurement requires the radial mesh interior point',
+    )
+  expected_points = [field.interior_point_m]
+  for level in range(1, radial_divisions + 1):
+    scale = level / radial_divisions
+    expected_points.extend(
+      (
+        field.interior_point_m[0] + scale * (point[0] - field.interior_point_m[0]),
+        field.interior_point_m[1] + scale * (point[1] - field.interior_point_m[1]),
+      )
+      for point in unique_points
+    )
+  potential = tuple(float(value) for value in field.velocity_potential)
+  layout_verified = len(potential) == expected_node_count and all(
+    hypot(
+      field.nodes[index].point_m[0] - point[0],
+      field.nodes[index].point_m[1] - point[1],
+    ) <= position_tolerance_m
+    for index, point in enumerate(expected_points)
+  )
+  if not layout_verified:
+    return _potential_measurement_failure(
+      MocMixedRegimePotentialMeasurementStatus.GEOMETRY_FAILURE,
+      field=field,
+      boundary_verified=boundary_verified,
+      potential_layout_verified=False,
+      message='potential measurement radial node/potential layout is inconsistent',
+    )
+
+  gamma_reference = unique_samples[0].gamma
+  total_pressure_reference = unique_samples[0].total_pressure_Pa
+  maximum_total_pressure_residual = max(
+    _relative_value_residual(sample.total_pressure_Pa, total_pressure_reference)
+    for sample in unique_samples
+  )
+  maximum_gamma_residual = max(
+    _relative_value_residual(sample.gamma, gamma_reference)
+    for sample in unique_samples
+  )
+  if (
+    maximum_total_pressure_residual > thermodynamic_tolerance
+    or maximum_gamma_residual > thermodynamic_tolerance
+  ):
+    return _potential_measurement_failure(
+      MocMixedRegimePotentialMeasurementStatus.RESIDUAL_FAILURE,
+      field=field,
+      boundary_verified=boundary_verified,
+      potential_layout_verified=layout_verified,
+      maximum_thermodynamic_residual=max(
+        maximum_total_pressure_residual,
+        maximum_gamma_residual,
+      ),
+      message='potential measurement found nonuniform isentropic boundary data',
+    )
+
+  boundary_velocities: list[tuple[float, float]] = []
+  try:
+    sonic_factor = 0.5 * (gamma_reference - 1.0)
+    for sample in unique_samples:
+      speed = sample.mach / sqrt(
+        1.0 + sonic_factor * sample.mach * sample.mach
+      )
+      boundary_velocities.append(
+        (
+          speed * cos(sample.flow_angle_rad),
+          speed * sin(sample.flow_angle_rad),
+        )
+      )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return _potential_measurement_failure(
+      MocMixedRegimePotentialMeasurementStatus.RESIDUAL_FAILURE,
+      field=field,
+      boundary_verified=boundary_verified,
+      potential_layout_verified=layout_verified,
+      message=f'potential measurement boundary velocity conversion failed: {error}',
+    )
+
+  circulation = 0.0
+  for index, point in enumerate(unique_points):
+    next_index = (index + 1) % perimeter_count
+    displacement = (
+      unique_points[next_index][0] - point[0],
+      unique_points[next_index][1] - point[1],
+    )
+    circulation += 0.5 * (
+      (boundary_velocities[index][0] + boundary_velocities[next_index][0]) * displacement[0]
+      + (boundary_velocities[index][1] + boundary_velocities[next_index][1]) * displacement[1]
+    )
+  circulation_residual = abs(circulation)
+  node_lookup = {
+    _key(sample.point_m, mesh_vertex_tolerance_m): index
+    for index, sample in enumerate(field.nodes)
+  }
+  mass_residuals = [0.0 for _ in range(unknown_count)]
+  maximum_mach = 0.0
+  try:
+    for cell in field.cells:
+      vertices = _cell_vertices(cell)
+      if len(vertices) != 3:
+        raise ValueError('potential measurement requires triangular cells')
+      indices = tuple(
+        node_lookup.get(_key(point, mesh_vertex_tolerance_m))
+        for point in vertices
+      )
+      if any(index is None for index in indices):
+        raise ValueError('potential measurement cell vertex is absent from the field nodes')
+      resolved_indices = tuple(index for index in indices if index is not None)
+      if len(resolved_indices) != 3:
+        raise ValueError('potential measurement cell node lookup is incomplete')
+      first, second, third = vertices
+      area_twice = (
+        (second[0] - first[0]) * (third[1] - first[1])
+        - (second[1] - first[1]) * (third[0] - first[0])
+      )
+      if abs(area_twice) <= 1.0e-20:
+        raise ValueError('potential measurement encountered a zero-area cell')
+      gradients = (
+        ((second[1] - third[1]) / area_twice, (third[0] - second[0]) / area_twice),
+        ((third[1] - first[1]) / area_twice, (first[0] - third[0]) / area_twice),
+        ((first[1] - second[1]) / area_twice, (second[0] - first[0]) / area_twice),
+      )
+      q_x = sum(
+        potential[index] * gradients[local][0]
+        for local, index in enumerate(resolved_indices)
+      )
+      q_y = sum(
+        potential[index] * gradients[local][1]
+        for local, index in enumerate(resolved_indices)
+      )
+      primitive = _measurement_potential_primitive(
+        q_x,
+        q_y,
+        gamma_reference,
+      )
+      mach, flux_x, flux_y = primitive[:3]
+      if mach >= 1.0 - subsonic_margin:
+        raise ValueError(f'potential measurement found a sonic cell state: mach={mach}')
+      maximum_mach = max(maximum_mach, mach)
+      area = abs(area_twice) * 0.5
+      for local, row_index in enumerate(resolved_indices):
+        if row_index < unknown_count:
+          mass_residuals[row_index] += area * (
+            gradients[local][0] * flux_x
+            + gradients[local][1] * flux_y
+          )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return _potential_measurement_failure(
+      MocMixedRegimePotentialMeasurementStatus.RESIDUAL_FAILURE,
+      field=field,
+      topology=validate_moc_mesh(
+        field.cells,
+        vertex_tolerance_m=mesh_vertex_tolerance_m,
+      ),
+      boundary_verified=boundary_verified,
+      potential_layout_verified=layout_verified,
+      potential_circulation_residual=circulation_residual,
+      maximum_mach=maximum_mach,
+      message=f'potential measurement residual reconstruction failed: {error}',
+    )
+
+  boundary_velocity_residual = 0.0
+  for index in range(perimeter_count):
+    next_index = (index + 1) % perimeter_count
+    displacement = (
+      unique_points[next_index][0] - unique_points[index][0],
+      unique_points[next_index][1] - unique_points[index][1],
+    )
+    segment_length = hypot(*displacement)
+    if segment_length <= position_tolerance_m:
+      return _potential_measurement_failure(
+        MocMixedRegimePotentialMeasurementStatus.GEOMETRY_FAILURE,
+        field=field,
+        boundary_verified=boundary_verified,
+        potential_layout_verified=layout_verified,
+        potential_circulation_residual=circulation_residual,
+        maximum_mach=maximum_mach,
+        message='potential measurement found a zero-length perimeter segment',
+      )
+    tangent = (
+      displacement[0] / segment_length,
+      displacement[1] / segment_length,
+    )
+    computed = (
+      potential[outer_start + next_index]
+      - potential[outer_start + index]
+    ) / segment_length
+    prescribed = 0.5 * (
+      (boundary_velocities[index][0] + boundary_velocities[next_index][0]) * tangent[0]
+      + (boundary_velocities[index][1] + boundary_velocities[next_index][1]) * tangent[1]
+    )
+    boundary_velocity_residual = max(
+      boundary_velocity_residual,
+      abs(computed - prescribed),
+    )
+
+  topology = validate_moc_mesh(
+    field.cells,
+    vertex_tolerance_m=mesh_vertex_tolerance_m,
+  )
+  thermodynamic_residual = _mixed_field_thermodynamic_residual(field.nodes)
+  if thermodynamic_residual is not None:
+    thermodynamic_residual = max(
+      thermodynamic_residual,
+      maximum_total_pressure_residual,
+      maximum_gamma_residual,
+    )
+  mass_residual = max(abs(value) for value in mass_residuals)
+  model_verified = bool(
+    topology.connected
+    and topology.forms_closed_zone
+    and not topology.nonmanifold_edge_count
+    and thermodynamic_residual is not None
+    and thermodynamic_residual <= thermodynamic_tolerance
+    and mass_residual <= residual_tolerance
+    and boundary_velocity_residual <= velocity_tolerance
+    and circulation_residual <= potential_tolerance * max(
+      1.0,
+      max(
+        hypot(
+          unique_points[(index + 1) % perimeter_count][0] - point[0],
+          unique_points[(index + 1) % perimeter_count][1] - point[1],
+        )
+        for index, point in enumerate(unique_points)
+      )
+      * max(1.0, max(hypot(*velocity) for velocity in boundary_velocities)),
+    )
+    and maximum_mach < 1.0 - subsonic_margin
+  )
+  if not model_verified:
+    return _potential_measurement_failure(
+      MocMixedRegimePotentialMeasurementStatus.RESIDUAL_FAILURE,
+      field=field,
+      topology=topology,
+      boundary_verified=boundary_verified,
+      potential_layout_verified=layout_verified,
+      maximum_thermodynamic_residual=thermodynamic_residual,
+      maximum_mass_conservation_residual=mass_residual,
+      maximum_boundary_velocity_residual=boundary_velocity_residual,
+      potential_circulation_residual=circulation_residual,
+      maximum_mach=maximum_mach,
+      message=(
+        'independent compressible potential residual gate failed: '
+        f'thermodynamic={thermodynamic_residual}, mass={mass_residual}, '
+        f'boundary_velocity={boundary_velocity_residual}, '
+        f'circulation={circulation_residual}, maximum_mach={maximum_mach}'
+      ),
+    )
+  return MocMixedRegimePotentialMeasurement(
+    status=MocMixedRegimePotentialMeasurementStatus.CONVERGED,
+    operator_id=MOC_MIXED_REGIME_POTENTIAL_OPERATOR_ID,
+    model=field.model,
+    radial_divisions=radial_divisions,
+    node_count=len(field.nodes),
+    cell_count=len(field.cells),
+    topology=topology,
+    boundary_verified=boundary_verified,
+    potential_layout_verified=layout_verified,
+    reference_model_verified=True,
+    downstream_condition_verified=bool(
+      field.downstream_condition is not None
+      and field.downstream_condition.converged
+      and field.downstream_condition.boundary == boundary
+    ),
+    physical_closure_verified=False,
+    chain_promotion_blocked=True,
+    maximum_thermodynamic_residual=thermodynamic_residual,
+    maximum_mass_conservation_residual=mass_residual,
+    maximum_boundary_velocity_residual=boundary_velocity_residual,
+    potential_circulation_residual=circulation_residual,
+    maximum_mach=maximum_mach,
+    nonlinear_iteration_count=field.nonlinear_iteration_count,
+    message=(
+      'independent compressible potential measurement passed the explicit '
+      'perimeter, radial layout, nonlinear mass, circulation, and subsonic '
+      'gates; it remains a non-canonical scalar reference'
+    ),
+  )
 ####
 
 
