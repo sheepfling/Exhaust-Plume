@@ -84,6 +84,25 @@ def _uniform_reference(sample_count: int):
   )
 
 
+def _fresh_uniform_field(current_end_x_m: float, incoming_handoff) -> MocPostShockCharacteristicFieldResult:
+  result = solve_uniform_attached_shock_field(
+    CharacteristicState(
+      x_m=current_end_x_m + 0.01,
+      y_m=0.1,
+      theta_rad=-0.2,
+      mach=2.0,
+      gamma=1.4,
+    ),
+    100000.0,
+    (current_end_x_m + 0.01, 0.1),
+    outer_downstream_flow_angle_rad=0.05,
+    sample_count=17,
+    incoming_handoff=tuple(incoming_handoff),
+  )
+  assert result.field is not None
+  return result.field
+
+
 def _broad_bounded_field_reference() -> MocPostShockCharacteristicFieldResult:
   """Build a clearly labeled broad domain for continuation-contract tests."""
 
@@ -1189,7 +1208,7 @@ def test_source_strip_sequence_planner_requires_fresh_domains_per_cell(
     solver_strips.append(upstream_strip)
     incoming = tuple(incoming_handoff)
     field = replace(
-      seed_field,
+      _fresh_uniform_field(current.end_x_m, incoming),
       incoming_handoff_states=tuple(sample.state for sample in incoming),
       incoming_handoff_total_pressure_Pa=tuple(
         sample.total_pressure_Pa for sample in incoming
@@ -1233,8 +1252,10 @@ def test_source_strip_sequence_planner_requires_fresh_domains_per_cell(
   assert planner.chain.physical_termination is False
   assert planner.handoff_links_verified is True
   assert len(provider_calls) == 2
-  assert provider_calls[0][2] == planner.chain.cells[0].continuation_boundary
-  assert provider_calls[1][2] == planner.chain.cells[1].continuation_boundary
+  assert provider_calls[0][2] == planner.chain.cells[1].continuation_boundary
+  assert provider_calls[1][2] == planner.chain.cells[2].continuation_boundary
+  assert provider_calls[0][2] != planner.chain.cells[0].continuation_boundary
+  assert provider_calls[1][2] != provider_calls[0][2]
   assert solver_strips == [initial.strip, replacement.strip]
   assert planner.diagnostics['source_strip_chain_model'] == (
     'bounded-source-strip-fresh-domain-sequence'
@@ -1268,7 +1289,7 @@ def test_source_strip_sequence_planner_rejects_reused_strip(
   def fake_source_solver(current, _next_cell_index, incoming_handoff, _strip, **kwargs):
     incoming = tuple(incoming_handoff)
     field = replace(
-      seed_field,
+      _fresh_uniform_field(current.end_x_m, incoming),
       incoming_handoff_states=tuple(sample.state for sample in incoming),
       incoming_handoff_total_pressure_Pa=tuple(
         sample.total_pressure_Pa for sample in incoming

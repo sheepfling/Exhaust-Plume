@@ -2185,6 +2185,52 @@ def _validate_post_shock_handoff(
   return None
 
 
+def _validate_post_shock_geometry_handoff(
+  current: MocChainCell,
+  next_field: MocPostShockCharacteristicFieldResult,
+  end_x_m: float,
+  *,
+  position_tolerance_m: float,
+) -> str | None:
+  """Require a returned field to expose a fresh downstream cell domain.
+
+  ``end_x_m`` is the chain bookkeeping endpoint requested by the local
+  solver.  The closed characteristic perimeter can legitimately reach beyond
+  that axial request because its centerline closure is oblique, so the
+  freshness gate only constrains the upstream edge of the returned geometry.
+  """
+
+  if not isfinite(float(end_x_m)) or end_x_m <= current.end_x_m:
+    return 'continued post-shock field endpoint must be downstream of the current cell'
+  if not next_field.shock_boundary_points_m:
+    return 'continued post-shock field does not expose a shock boundary'
+  field_points = [
+    point
+    for cell in next_field.cells
+    for point in cell.vertices_xr_m
+  ]
+  field_points.extend(next_field.shock_boundary_points_m)
+  field_points.extend(
+    (state.x_m, state.y_m)
+    for state in next_field.continuation_boundary_states
+  )
+  if not field_points:
+    return 'continued post-shock field does not expose a geometric domain'
+  if any(
+    len(point) != 2
+    or not all(isfinite(float(value)) for value in point)
+    for point in field_points
+  ):
+    return 'continued post-shock field contains non-finite geometry'
+  minimum_x = min(float(point[0]) for point in field_points)
+  if minimum_x <= current.end_x_m + position_tolerance_m:
+    return (
+      'continued post-shock field must start strictly downstream of the '
+      f'current cell: minimum_x={minimum_x}, current_end_x={current.end_x_m}'
+    )
+  return None
+
+
 def continue_post_shock_characteristic_chain(
   seed: MocPostShockCharacteristicFieldResult,
   solve_next: MocPostShockFieldContinuationSolver,
@@ -2306,6 +2352,14 @@ def continue_post_shock_characteristic_chain(
     )
     if handoff_error is not None:
       raise ValueError(handoff_error)
+    geometry_error = _validate_post_shock_geometry_handoff(
+      current,
+      solved.field,
+      solved.end_x_m,
+      position_tolerance_m=policy.position_tolerance_m,
+    )
+    if geometry_error is not None:
+      raise ValueError(geometry_error)
     try:
       return (
         solved.field.as_coupled_chain_cell(

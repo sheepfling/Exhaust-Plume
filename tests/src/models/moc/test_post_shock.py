@@ -601,11 +601,11 @@ def test_shock_seeded_post_shock_field_rejects_nonconverged_fit() -> None:
 
 def _next_chain_field(handoff) -> MocPostShockChainCellSolve:
   points = (
-    (1.0, 0.20),
-    (1.02, 0.14),
-    (1.04, 0.08),
-    (1.06, 0.04),
-    (1.08, 0.0),
+    (1.20, 0.20),
+    (1.22, 0.14),
+    (1.24, 0.08),
+    (1.26, 0.04),
+    (1.28, 0.0),
   )
   angles = (-0.30, -0.20, -0.10, -0.05, 0.0)
   samples = tuple(
@@ -980,6 +980,38 @@ def test_post_shock_chain_rejects_a_changed_state_handoff() -> None:
   assert result.status is MocChainStatus.SOLVER_FAILURE
   assert result.termination_reason is MocChainTerminationReason.SOLVER_ERROR
   assert 'changed consumed state sample' in result.message
+
+
+def test_post_shock_chain_rejects_a_reused_upstream_field_domain() -> None:
+  seed_fit = MocShockBoundaryFitResult(
+    status=MocShockBoundaryFitStatus.CONVERGED_FITTED,
+    boundary_states=_prescribed_boundary(),
+    shock_angle_residuals_rad=(0.0,) * 4,
+    maximum_shock_angle_residual_rad=0.0,
+  )
+  seed_field = assemble_post_shock_characteristic_field(seed_fit)
+
+  def solve_next(_current, _index, handoff):
+    solved = _next_chain_field(handoff)
+    reused_points = tuple(
+      (point[0] - 0.25, point[1])
+      for point in solved.field.shock_boundary_points_m
+    )
+    return MocPostShockChainCellSolve(
+      field=replace(solved.field, shock_boundary_points_m=reused_points),
+      end_x_m=2.0,
+    )
+
+  result = continue_post_shock_characteristic_chain(
+    seed_field,
+    solve_next,
+    start_x_m=0.7,
+    end_x_m=1.0,
+  )
+
+  assert result.status is MocChainStatus.SOLVER_FAILURE
+  assert result.termination_reason is MocChainTerminationReason.SOLVER_ERROR
+  assert 'start strictly downstream' in result.message
 
 
 def test_post_shock_chain_rejects_a_total_pressure_reset() -> None:

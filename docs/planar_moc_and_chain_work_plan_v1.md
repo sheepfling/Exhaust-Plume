@@ -1262,6 +1262,13 @@ Only after MOC-1 through MOC-5 pass:
   separately preserves its typed physical-stop result. All remain explicitly
   ``not_accepted`` at the product boundary; the operator does not trust the
   planner's own handoff verdict or promote a chain.
+- Hardened the continued post-shock field handoff with a fresh downstream
+  domain gate. A returned field must place every reported mesh, shock, and
+  carried continuation point strictly after the current cell; a valid old
+  field with a new endpoint is now rejected as a solver error rather than
+  appended as a fake continued cell. The chain endpoint remains solver
+  bookkeeping because an oblique centerline closure can extend beyond the
+  requested axial step.
 - The same independent planner audit is now attached to every typed-stop
   continuation probe in the validation report: ambient-pressure field,
   source-strip/fresh-domain, bounded post-shock-zone, terminal reflection,
