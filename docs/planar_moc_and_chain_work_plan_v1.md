@@ -161,6 +161,13 @@ not wait on this research closure.
   characteristic-invariant boundary law. The opt-in planners preserve the
   remesh's hard physical-closure/promotion block and carry its report into
   the planner diagnostics; they are not production chain providers.
+- Added a strict bridge-fed caustic remesh adapter. It uses the bounded
+  old-family/restarted-family bridge at the exact event and every generated
+  shock sample, retains the first uncovered point as a typed upstream-field
+  boundary, and never falls back to a last state or callback extrapolation.
+  The callback-owned remesh fixture remains available as a separate local
+  solver contract; the bridge-fed path is the explicit canonical coupling
+  gate and remains non-promotable when the caustic corridor ends.
 - Added a weak-branch caustic-origin forward-envelope reachability gate. It
   follows the local zero-turn attached limit through the bounded restarted
   family band, retains the valid prefix and first missing point, and returns a
@@ -992,6 +999,13 @@ Only after MOC-1 through MOC-5 pass:
   remains one-step/non-physical by policy. The canonical first-cell
   downstream perimeter is still missing, so this remesh result cannot yet
   promote a continued cell.
+- The remesh also has a strict bridge-fed entry point. It samples the exact
+  old-family/restarted-family seam at the event and along the candidate shock,
+  returns the first uncovered point as ``UPSTREAM_FIELD_FAILURE``, and retains
+  the independent bridge audit in the result. This makes the canonical
+  caustic corridor a real solver input boundary rather than a callback-owned
+  assumption; it still does not solve the missing physical downstream
+  closure.
 - Planner steps now record both sides of each continued-cell handoff: the
   incoming fingerprint, the returned cell/field boundary kind and pressure
   range, and the outgoing fingerprint. Multi-step mock and solver-generated

@@ -176,6 +176,11 @@ physical-closure/promotion block in their diagnostics, and use the same
 replace-only-after-complete-field-coupled handoff rule as the ordinary field
 planner. These are continuation experiments, not production promotions of
 the unresolved caustic seam.
+The strict ``solve_caustic_shock_remesh_from_upstream_bridge`` entry point
+uses the bounded old-family/restarted-family bridge at the exact event and
+along the generated shock path. A gap or ambiguous branch is retained as an
+explicit event/upstream failure with an independent bridge audit; no last
+state or callback extrapolation can satisfy the remesh contract.
 The converged post-shock field now exposes bounded state, static-pressure, and
 total-pressure samplers backed by its solver-carried cell vertices and shock
 boundary. A separate field-coupled continued-cell adapter and planner uses

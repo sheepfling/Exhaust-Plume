@@ -267,6 +267,17 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert caustic_remesh['planner']['chain']['termination_reason'] == (
     'open-physical-closure'
   )
+  assert caustic_remesh['bridge_coupled_remesh']['status'] == (
+    'caustic_remesh_upstream_field_failure'
+  )
+  assert caustic_remesh['bridge_coupled_remesh']['upstream_bridge_verified'] is False
+  assert caustic_remesh['bridge_coupled_remesh']['upstream_bridge_audit']['status'] == (
+    'caustic_bridge_domain_gap'
+  )
+  assert caustic_remesh['bridge_coupled_remesh']['upstream_bridge_audit'][
+    'first_missing_sample_index'
+  ] == 1
+  assert caustic_remesh['bridge_coupled_remesh']['shock']['failed_sample_index'] == 1
   assert strong_subsonic_boundary['status'] == 'subsonic_terminal_required'
   assert strong_subsonic_boundary['subsonic_boundary_verified'] is True
   assert strong_subsonic_boundary['terminal_model_verified'] is False

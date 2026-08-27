@@ -15,7 +15,7 @@ to masquerade as a resolved shock-cell transition.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from math import isfinite
 from typing import Callable, Sequence
@@ -24,6 +24,12 @@ from exhaust_plume.models.moc.caustic_shock import (
   MocCausticShockBridgeResult,
   MocCausticShockBridgeStatus,
   solve_caustic_shock_bridge,
+)
+from exhaust_plume.models.moc.caustic_bridge import (
+  MocCausticBridgeResult,
+  MocCausticBridgeStatus,
+  MocCausticUpstreamBridge,
+  sample_caustic_upstream_bridge,
 )
 from exhaust_plume.models.moc.chain import (
   MocChainBoundarySample,
@@ -55,6 +61,7 @@ __all__ = (
   'MocCausticShockRemeshResult',
   'prepare_caustic_shock_remesh',
   'solve_caustic_shock_remesh',
+  'solve_caustic_shock_remesh_from_upstream_bridge',
 )
 
 
@@ -348,6 +355,7 @@ class MocCausticShockRemeshResult:
   shock_curve_verified: bool
   downstream_field_verified: bool
   message: str = ''
+  upstream_bridge_audit: MocCausticBridgeResult | None = None
 
   def __post_init__(self) -> None:
     if self.event_point_m is not None:
@@ -369,6 +377,13 @@ class MocCausticShockRemeshResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+    if self.upstream_bridge_audit is not None and not isinstance(
+      self.upstream_bridge_audit,
+      MocCausticBridgeResult,
+    ):
+      raise TypeError(
+        'upstream_bridge_audit must be a MocCausticBridgeResult when supplied'
+      )
   ####
 
   @property
@@ -387,6 +402,15 @@ class MocCausticShockRemeshResult:
   def chain_promotion_blocked(self) -> bool:
     return True
   ####
+
+  @property
+  def upstream_bridge_verified(self) -> bool:
+    """Whether an explicit old/restarted-family bridge covered the path."""
+
+    return bool(
+      self.upstream_bridge_audit is not None
+      and self.upstream_bridge_audit.converged
+    )
 
   @property
   def bounded_downstream_field_available(self) -> bool:
@@ -475,6 +499,12 @@ class MocCausticShockRemeshResult:
         'shock_curve_verified': self.shock_curve_verified,
         'downstream_field_verified': self.downstream_field_verified,
         'remesh_seam_verified': self.remesh_seam_verified,
+        'upstream_bridge_verified': self.upstream_bridge_verified,
+        'upstream_bridge_audit_status': (
+          None
+          if self.upstream_bridge_audit is None
+          else self.upstream_bridge_audit.status.value
+        ),
         'physical_closure_verified': self.physical_closure_verified,
         'chain_promotion_blocked': self.chain_promotion_blocked,
       },
@@ -493,6 +523,12 @@ class MocCausticShockRemeshResult:
       'downstream_field_verified': self.downstream_field_verified,
       'remesh_seam_verified': self.remesh_seam_verified,
       'bounded_downstream_field_available': self.bounded_downstream_field_available,
+      'upstream_bridge_verified': self.upstream_bridge_verified,
+      'upstream_bridge_audit': (
+        None
+        if self.upstream_bridge_audit is None
+        else self.upstream_bridge_audit.as_report()
+      ),
       'physical_closure_verified': self.physical_closure_verified,
       'chain_promotion_blocked': self.chain_promotion_blocked,
       'shock': None if self.shock is None else self.shock.as_report(),
@@ -535,6 +571,40 @@ def _pressure_matches(
   )
 
 
+def _caustic_bridge_audit_for_shock(
+  bridge: MocCausticUpstreamBridge,
+  shock: MocFreeBoundaryShockResult,
+  *,
+  position_tolerance_m: float,
+) -> MocCausticBridgeResult:
+  """Audit the retained shock path against the two-sided upstream bridge."""
+
+  audit = sample_caustic_upstream_bridge(
+    bridge,
+    shock.shock_points_m,
+    position_tolerance_m=position_tolerance_m,
+  )
+  if (
+    shock.status is MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE
+    and audit.converged
+  ):
+    missing_index = shock.failed_sample_index
+    if missing_index is None:
+      missing_index = shock.sample_count
+    return replace(
+      audit,
+      status=MocCausticBridgeStatus.DOMAIN_GAP,
+      first_missing_sample_index=missing_index,
+      first_missing_point_m=shock.failed_point_m,
+      message=(
+        'caustic remesh shock march stopped before the next candidate point '
+        'could be sampled from the bounded old/restarted-family bridge; no '
+        'extrapolation was used'
+      ),
+    )
+  return audit
+
+
 def _remesh_result(
   status: MocCausticShockRemeshStatus,
   *,
@@ -545,6 +615,7 @@ def _remesh_result(
   upstream_coupling_verified: bool = False,
   shock_curve_verified: bool = False,
   downstream_field_verified: bool = False,
+  upstream_bridge_audit: MocCausticBridgeResult | None = None,
   message: str,
 ) -> MocCausticShockRemeshResult:
   return MocCausticShockRemeshResult(
@@ -558,6 +629,7 @@ def _remesh_result(
     shock_curve_verified=shock_curve_verified,
     downstream_field_verified=downstream_field_verified,
     message=message,
+    upstream_bridge_audit=upstream_bridge_audit,
   )
 
 
@@ -864,6 +936,127 @@ def solve_caustic_shock_remesh(
     downstream_field_verified=downstream_field_verified,
     message=message,
   )
+  ####
+
+
+def solve_caustic_shock_remesh_from_upstream_bridge(
+  request: MocCausticShockRemeshRequest,
+  bridge: MocCausticUpstreamBridge,
+  incoming_handoff: Sequence[MocChainBoundarySample],
+  *,
+  downstream_invariant_at: Callable[[int, tuple[float, float]], float] | None = None,
+  target_centerline_y_m: float = 0.0,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  pressure_tolerance: float = 1.0e-8,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  maximum_downstream_angle_rad: float = 0.9,
+  maximum_invariant_scan_samples: int = 64,
+  maximum_invariant_iterations: int = 80,
+) -> MocCausticShockRemeshResult:
+  """Run the caustic remesh against an explicit old/restarted-family bridge.
+
+  This adapter is the strict upstream-coupled remesh boundary.  It samples
+  the bridge at the exact prepared event and along the generated shock path;
+  a gap, ambiguous overlap, or selected-side mismatch is retained as a typed
+  upstream/event failure.  The bridge is never replaced by a last valid state
+  or by a callback-owned extrapolation.
+  """
+
+  if not isinstance(request, MocCausticShockRemeshRequest):
+    return _remesh_result(
+      MocCausticShockRemeshStatus.INVALID_INPUT,
+      message='request must be a MocCausticShockRemeshRequest',
+    )
+  if not isinstance(bridge, MocCausticUpstreamBridge):
+    return _remesh_result(
+      MocCausticShockRemeshStatus.INVALID_INPUT,
+      request=request,
+      message='bridge must be a MocCausticUpstreamBridge',
+    )
+
+  event_audit = sample_caustic_upstream_bridge(
+    bridge,
+    (request.event_point_m,),
+    position_tolerance_m=position_tolerance_m,
+  )
+  if not event_audit.converged:
+    status = (
+      MocCausticShockRemeshStatus.UPSTREAM_FIELD_FAILURE
+      if event_audit.status is MocCausticBridgeStatus.FIELD_INPUT_FAILURE
+      else MocCausticShockRemeshStatus.EVENT_SEAM_FAILURE
+    )
+    return _remesh_result(
+      status,
+      request=request,
+      upstream_bridge_audit=event_audit,
+      message=(
+        'caustic remesh explicit upstream bridge did not cover the prepared '
+        f'event: {event_audit.message}'
+      ),
+    )
+  assert event_audit.samples
+  event_sample = event_audit.samples[0]
+  if not _state_matches(
+    event_sample.state,
+    request.upstream_state,
+    position_tolerance_m=position_tolerance_m,
+    state_tolerance=invariant_tolerance,
+  ) or not _pressure_matches(
+    event_sample.static_pressure_Pa,
+    request.upstream_static_pressure_Pa,
+    pressure_tolerance=pressure_tolerance,
+  ):
+    return _remesh_result(
+      MocCausticShockRemeshStatus.EVENT_SEAM_FAILURE,
+      request=request,
+      upstream_bridge_audit=event_audit,
+      message=(
+        'caustic remesh explicit upstream bridge event sample does not '
+        'reproduce the prepared one-sided state and static pressure'
+      ),
+    )
+
+  result = solve_caustic_shock_remesh(
+    request,
+    bridge.state_at,
+    bridge.static_pressure_at,
+    incoming_handoff,
+    downstream_invariant_at=downstream_invariant_at,
+    target_centerline_y_m=target_centerline_y_m,
+    sample_count=sample_count,
+    branch=branch,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+    pressure_tolerance=pressure_tolerance,
+    shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+    maximum_segment_iterations=maximum_segment_iterations,
+    maximum_downstream_angle_rad=maximum_downstream_angle_rad,
+    maximum_invariant_scan_samples=maximum_invariant_scan_samples,
+    maximum_invariant_iterations=maximum_invariant_iterations,
+  )
+  if result.shock is None:
+    return replace(result, upstream_bridge_audit=event_audit)
+  path_audit = _caustic_bridge_audit_for_shock(
+    bridge,
+    result.shock,
+    position_tolerance_m=position_tolerance_m,
+  )
+  if result.converged and not path_audit.converged:
+    return replace(
+      result,
+      status=MocCausticShockRemeshStatus.UPSTREAM_FIELD_FAILURE,
+      upstream_coupling_verified=False,
+      upstream_bridge_audit=path_audit,
+      message=(
+        'caustic remesh generated a field, but the explicit old/restarted-'
+        'family bridge did not cover the complete shock path'
+      ),
+    )
+  return replace(result, upstream_bridge_audit=path_audit)
   ####
 
 

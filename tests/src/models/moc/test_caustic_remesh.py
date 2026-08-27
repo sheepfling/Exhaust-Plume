@@ -8,6 +8,8 @@ from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput
 from exhaust_plume.models.moc import (
   CharacteristicFamily,
   CharacteristicState,
+  MocCausticBridgeSide,
+  MocCausticBridgeStatus,
   MocCausticShockRemeshStatus,
   MocChainBoundarySample,
   MocChainPlannerKind,
@@ -18,11 +20,13 @@ from exhaust_plume.models.moc import (
   plan_caustic_remesh_downstream_field_chain,
   plan_caustic_remesh_downstream_field_invariant_chain,
   assemble_source_characteristic_strip,
+  build_caustic_upstream_bridge,
   build_caustic_shock_seed,
   extend_source_characteristic_strip_centerline_reflection,
   prepare_caustic_shock_remesh,
   restart_characteristic_family_from_caustic,
   solve_caustic_shock_remesh,
+  solve_caustic_shock_remesh_from_upstream_bridge,
   solve_reflected_free_boundary,
   solve_uniform_attached_shock_field,
   solve_underexpanded_expansion_fan,
@@ -287,6 +291,75 @@ def test_caustic_remesh_rejects_a_changed_event_state() -> None:
   assert result.status is MocCausticShockRemeshStatus.EVENT_SEAM_FAILURE
   assert result.remesh_seam_verified is False
   assert result.as_chain_termination_decision().reason is MocChainTerminationReason.CHARACTERISTIC_CAUSTIC
+
+
+def test_caustic_remesh_uses_the_bounded_old_restarted_family_bridge() -> None:
+  original_seed, old_family, _restarted_family = _fixture()
+  assert original_seed.edge_states[0].state is not None
+  negative_state = replace(
+    original_seed.edge_states[0].state,
+    theta_rad=-0.2,
+  )
+  seed = replace(
+    original_seed,
+    edge_states=(
+      replace(original_seed.edge_states[0], state=negative_state),
+      *original_seed.edge_states[1:],
+    ),
+  )
+  assert seed.edge_states[1].state is not None
+  restart = restart_characteristic_family_from_caustic(
+    seed,
+    2.0e6,
+    101325.0,
+    anchor_edge_index=0,
+    sample_count=6,
+  )
+  assert restart.family_band is not None
+  bridge = build_caustic_upstream_bridge(
+    old_family,
+    restart.family_band,
+    side_at=lambda _point: MocCausticBridgeSide.RESTARTED_FAMILY,
+  )
+  prepared = prepare_caustic_shock_remesh(
+    seed,
+    CharacteristicFamily.PLUS,
+    seed.edge_states[1].state.k_plus,
+    upstream_edge_index=0,
+  )
+  assert prepared.request is not None
+  request = prepared.request
+  reference = solve_uniform_attached_shock_field(
+    CharacteristicState(0.5, 0.5, -0.2, 2.0, 1.4),
+    100000.0,
+    (0.5, 0.5),
+    outer_downstream_flow_angle_rad=0.05,
+    sample_count=9,
+  )
+  assert reference.field is not None
+  current = reference.field.as_coupled_chain_cell(start_x_m=0.2, end_x_m=0.5)
+
+  result = solve_caustic_shock_remesh_from_upstream_bridge(
+    request,
+    bridge,
+    current.continuation_boundary,
+    downstream_invariant_at=lambda _index, _point: request.downstream_invariant_target,
+    target_centerline_y_m=0.0,
+    sample_count=9,
+    shock_angle_tolerance_rad=0.2,
+  )
+
+  assert result.status is MocCausticShockRemeshStatus.UPSTREAM_FIELD_FAILURE
+  assert result.upstream_bridge_verified is False
+  assert result.upstream_bridge_audit is not None
+  assert result.upstream_bridge_audit.status is MocCausticBridgeStatus.DOMAIN_GAP
+  assert result.upstream_bridge_audit.sampled_count == 1
+  assert result.upstream_bridge_audit.first_missing_sample_index == 1
+  assert result.shock is not None
+  assert result.shock.failed_sample_index == 1
+  assert result.upstream_bridge_audit.first_missing_point_m == result.shock.failed_point_m
+  assert result.physical_closure_verified is False
+  assert result.chain_promotion_blocked
 
 
 def test_caustic_remesh_planner_carries_exact_perimeter_to_typed_stop() -> None:

@@ -160,6 +160,7 @@ from exhaust_plume.models.moc.caustic_remesh import (
   MocCausticShockRemeshResult,
   prepare_caustic_shock_remesh,
   solve_caustic_shock_remesh,
+  solve_caustic_shock_remesh_from_upstream_bridge,
 )
 from exhaust_plume.models.moc.caustic_bridge import (
   MocCausticBridgeSide,
@@ -560,6 +561,7 @@ __all__ = (
   'MocCausticShockRemeshResult',
   'prepare_caustic_shock_remesh',
   'solve_caustic_shock_remesh',
+  'solve_caustic_shock_remesh_from_upstream_bridge',
   'restart_characteristic_family_from_caustic',
   'trace_caustic_family_band_forward_envelope',
   'solve_marched_attached_shock_from_caustic_family_band',

@@ -111,6 +111,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_caustic_shock_bridge,
   prepare_caustic_shock_remesh,
   solve_caustic_shock_remesh,
+  solve_caustic_shock_remesh_from_upstream_bridge,
   plan_caustic_shock_remesh_chain,
   plan_caustic_remesh_downstream_field_chain,
   plan_caustic_remesh_downstream_field_invariant_chain,
@@ -2048,7 +2049,12 @@ def _caustic_shock_bridge_probe(seed: Any) -> dict[str, Any]:
   }
 
 
-def _caustic_shock_remesh_execution_probe(seed: Any) -> dict[str, Any]:
+def _caustic_shock_remesh_execution_probe(
+  seed: Any,
+  old_family: Any,
+  total_pressure_Pa: float,
+  ambient_pressure_Pa: float,
+) -> dict[str, Any]:
   """Exercise the bounded caustic remesh executor and one-step planner.
 
   The canonical reflected seed has a positive event-side turn, so it is not a
@@ -2070,6 +2076,7 @@ def _caustic_shock_remesh_execution_probe(seed: Any) -> dict[str, Any]:
       'accepted': False,
       'direct': None,
       'planner': None,
+      'bridge_coupled_remesh': None,
       'claim_status': 'caustic-remesh-execution-pending',
     }
 
@@ -2094,6 +2101,7 @@ def _caustic_shock_remesh_execution_probe(seed: Any) -> dict[str, Any]:
       'accepted': False,
       'direct': None,
       'planner': None,
+      'bridge_coupled_remesh': None,
       'preparation': prepared.as_report(),
       'claim_status': 'caustic-remesh-execution-pending',
     }
@@ -2105,6 +2113,7 @@ def _caustic_shock_remesh_execution_probe(seed: Any) -> dict[str, Any]:
       'accepted': False,
       'direct': None,
       'planner': None,
+      'bridge_coupled_remesh': None,
       'preparation': prepared.as_report(),
       'claim_status': 'caustic-remesh-execution-pending',
     }
@@ -2122,6 +2131,7 @@ def _caustic_shock_remesh_execution_probe(seed: Any) -> dict[str, Any]:
       'accepted': False,
       'direct': None,
       'planner': None,
+      'bridge_coupled_remesh': None,
       'preparation': prepared.as_report(),
       'claim_status': 'caustic-remesh-execution-pending',
     }
@@ -2166,6 +2176,29 @@ def _caustic_shock_remesh_execution_probe(seed: Any) -> dict[str, Any]:
     sample_count=9,
     shock_angle_tolerance_rad=0.2,
   )
+  bridge_restart = restart_characteristic_family_from_caustic(
+    fixture_seed,
+    total_pressure_Pa,
+    ambient_pressure_Pa,
+    anchor_edge_index=0,
+    sample_count=6,
+  )
+  bridge_coupled_remesh = None
+  if bridge_restart.family_band is not None and bridge_restart.family_band.converged:
+    upstream_bridge = build_caustic_upstream_bridge(
+      old_family,
+      bridge_restart.family_band,
+      side_at=lambda _point: MocCausticBridgeSide.RESTARTED_FAMILY,
+    )
+    bridge_coupled_remesh = solve_caustic_shock_remesh_from_upstream_bridge(
+      request,
+      upstream_bridge,
+      current.continuation_boundary,
+      downstream_invariant_at=lambda _index, _point: request.downstream_invariant_target,
+      target_centerline_y_m=0.0,
+      sample_count=9,
+      shock_angle_tolerance_rad=0.2,
+    )
   planner = plan_caustic_shock_remesh_chain(
     current,
     request,
@@ -2239,6 +2272,17 @@ def _caustic_shock_remesh_execution_probe(seed: Any) -> dict[str, Any]:
     )
     and downstream_field_planner.diagnostics.get('remesh_physical_closure_verified') is False
     and downstream_field_planner.diagnostics.get('remesh_chain_promotion_blocked') is True
+    and bridge_coupled_remesh is not None
+    and bridge_coupled_remesh.status is MocCausticShockRemeshStatus.UPSTREAM_FIELD_FAILURE
+    and bridge_coupled_remesh.upstream_bridge_verified is False
+    and bridge_coupled_remesh.upstream_bridge_audit is not None
+    and bridge_coupled_remesh.upstream_bridge_audit.status is MocCausticBridgeStatus.DOMAIN_GAP
+    and bridge_coupled_remesh.upstream_bridge_audit.first_missing_sample_index == 1
+    and bridge_coupled_remesh.shock is not None
+    and bridge_coupled_remesh.shock.failed_sample_index == 1
+    and bridge_coupled_remesh.upstream_bridge_audit.first_missing_point_m == (
+      bridge_coupled_remesh.shock.failed_point_m
+    )
     and invariant_downstream_field_planner.planner_kind is MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
     and invariant_downstream_field_planner.production_claim_allowed is False
     and invariant_downstream_field_planner.chain.status is MocChainStatus.TRUNCATED
@@ -2253,6 +2297,9 @@ def _caustic_shock_remesh_execution_probe(seed: Any) -> dict[str, Any]:
     'preparation': prepared.as_report(),
     'direct': direct_report,
     'planner': planner_report,
+    'bridge_coupled_remesh': (
+      None if bridge_coupled_remesh is None else bridge_coupled_remesh.as_report()
+    ),
     'downstream_field_planner': downstream_field_planner_report,
     'invariant_downstream_field_planner': invariant_downstream_field_planner_report,
     'incoming_handoff_sample_count': len(current.continuation_boundary),
@@ -3531,6 +3578,9 @@ def build_moc_primitive_report() -> dict[str, Any]:
   caustic_shock_bridge = _caustic_shock_bridge_probe(caustic_shock_seed)
   caustic_shock_remesh_execution = _caustic_shock_remesh_execution_probe(
     caustic_shock_seed,
+    reflected_source_strip,
+    fan_exit.total_pressure_Pa,
+    fan_ambient.pressure_Pa,
   )
   caustic_family_restart = _caustic_family_restart_probe(
     caustic_shock_seed,
