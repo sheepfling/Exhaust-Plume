@@ -4309,8 +4309,11 @@ def build_moc_primitive_report() -> dict[str, Any]:
   solver_generated_chain_measurement_observations: list[MocShockCellObservation] = []
   solver_generated_chain_measurement = None
   solver_generated_chain_planner = None
+  solver_generated_chain_planner_measurement = None
   solver_generated_field_coupled_chain_planner = None
+  solver_generated_field_coupled_chain_planner_measurement = None
   solver_generated_invariant_field_coupled_chain_planner = None
+  solver_generated_invariant_field_coupled_chain_planner_measurement = None
   ambient_pressure_field_coupled_chain_planner = None
   if solver_generated_shock.field is not None and solver_generated_shock.field.converged:
     (
@@ -4321,14 +4324,27 @@ def build_moc_primitive_report() -> dict[str, Any]:
     ) = _solver_generated_chain_reference(
       solver_generated_shock.field,
     )
+    solver_generated_chain_planner_measurement = measure_moc_chain_planner(
+      solver_generated_chain_planner,
+    )
     solver_generated_field_coupled_chain_planner = (
       _solver_generated_field_coupled_chain_planner(solver_generated_shock.field)
     )
+    if solver_generated_field_coupled_chain_planner is not None:
+      solver_generated_field_coupled_chain_planner_measurement = (
+        measure_moc_chain_planner(solver_generated_field_coupled_chain_planner)
+      )
     solver_generated_invariant_field_coupled_chain_planner = (
       _solver_generated_invariant_field_coupled_chain_planner(
         solver_generated_shock.field
       )
     )
+    if solver_generated_invariant_field_coupled_chain_planner is not None:
+      solver_generated_invariant_field_coupled_chain_planner_measurement = (
+        measure_moc_chain_planner(
+          solver_generated_invariant_field_coupled_chain_planner
+        )
+      )
     ambient_pressure_field_coupled_chain_planner = (
       _ambient_pressure_field_coupled_chain_planner(solver_generated_shock.field)
     )
@@ -4503,6 +4519,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or solver_generated_chain_planner.production_claim_allowed
     or len(solver_generated_chain_planner.steps) != 3
     or solver_generated_chain_planner.handoff_links_verified is not True
+    or solver_generated_chain_planner_measurement is None
+    or not solver_generated_chain_planner_measurement.converged
+    or solver_generated_chain_planner_measurement.handoff_links_verified is not True
+    or not solver_generated_chain_planner_measurement.termination_verified
+    or not solver_generated_chain_planner_measurement.fidelity_isolation_verified
+    or solver_generated_chain_planner_measurement.physical_termination is not False
+    or solver_generated_chain_planner_measurement.production_claim_allowed
     or solver_generated_chain_measurement is None
     or not solver_generated_chain_measurement.converged
     or solver_generated_chain_measurement.handoff_links_verified is not True
@@ -4520,6 +4543,10 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or solver_generated_field_coupled_chain_planner.chain.cell_count != 1
     or solver_generated_field_coupled_chain_planner.chain.termination_reason is not MocChainTerminationReason.PHYSICAL_TERMINATION
     or len(solver_generated_field_coupled_chain_planner.steps) != 1
+    or solver_generated_field_coupled_chain_planner_measurement is None
+    or not solver_generated_field_coupled_chain_planner_measurement.converged
+    or not solver_generated_field_coupled_chain_planner_measurement.termination_verified
+    or not solver_generated_field_coupled_chain_planner_measurement.fidelity_isolation_verified
     or solver_generated_field_coupled_chain_planner.steps[0].boundary_kind is not MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER
     or solver_generated_field_coupled_chain_planner.chain.diagnostics.get('termination_model') != 'normal-shock-terminal'
     or solver_generated_field_coupled_chain_planner.chain.diagnostics.get('upstream_field_model') != 'bounded-post-shock-characteristic-field'
@@ -4536,6 +4563,10 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or solver_generated_invariant_field_coupled_chain_planner.chain.cell_count != 1
     or solver_generated_invariant_field_coupled_chain_planner.chain.termination_reason is not MocChainTerminationReason.PHYSICAL_TERMINATION
     or len(solver_generated_invariant_field_coupled_chain_planner.steps) != 1
+    or solver_generated_invariant_field_coupled_chain_planner_measurement is None
+    or not solver_generated_invariant_field_coupled_chain_planner_measurement.converged
+    or not solver_generated_invariant_field_coupled_chain_planner_measurement.termination_verified
+    or not solver_generated_invariant_field_coupled_chain_planner_measurement.fidelity_isolation_verified
     or solver_generated_invariant_field_coupled_chain_planner.steps[0].boundary_kind is not MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER
     or solver_generated_invariant_field_coupled_chain_planner.chain.diagnostics.get('termination_model') != 'normal-shock-terminal'
     or solver_generated_invariant_field_coupled_chain_planner.chain.diagnostics.get('shock_condition_model') != 'explicit-downstream-characteristic-invariant'
@@ -5319,6 +5350,11 @@ def build_moc_primitive_report() -> dict[str, Any]:
         if solver_generated_chain_planner is None
         else solver_generated_chain_planner.claim_status
       ),
+      'planner_measurement': (
+        None
+        if solver_generated_chain_planner_measurement is None
+        else solver_generated_chain_planner_measurement.as_report()
+      ),
     },
     'solver_generated_chain_terminal_probe': {
       **solver_generated_chain_terminal_probe,
@@ -5400,6 +5436,11 @@ def build_moc_primitive_report() -> dict[str, Any]:
         if solver_generated_field_coupled_chain_planner is None
         else dict(solver_generated_field_coupled_chain_planner.chain.diagnostics)
       ),
+      'planner_measurement': (
+        None
+        if solver_generated_field_coupled_chain_planner_measurement is None
+        else solver_generated_field_coupled_chain_planner_measurement.as_report()
+      ),
       'accepted': not solver_generated_field_coupled_chain_failure,
       'claim_status': (
         None
@@ -5412,6 +5453,11 @@ def build_moc_primitive_report() -> dict[str, Any]:
         None
         if solver_generated_invariant_field_coupled_chain_planner_report is None
         else solver_generated_invariant_field_coupled_chain_planner_report
+      ),
+      'planner_measurement': (
+        None
+        if solver_generated_invariant_field_coupled_chain_planner_measurement is None
+        else solver_generated_invariant_field_coupled_chain_planner_measurement.as_report()
       ),
       'accepted': not solver_generated_invariant_field_coupled_chain_failure,
       'claim_status': (

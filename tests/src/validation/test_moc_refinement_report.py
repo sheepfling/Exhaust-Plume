@@ -122,6 +122,17 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
     'solver-generated-post-shock-chain-reference'
   )
   assert generated_chain_planner['diagnostics']['solver_generated_chain_reference']['production_claim_allowed'] is False
+  generated_chain_planner_measurement = generated_chain_planner['planner_measurement']
+  assert generated_chain_planner_measurement['status'] == 'converged'
+  assert generated_chain_planner_measurement['planner_kind'] == 'solver-generated-reference'
+  assert generated_chain_planner_measurement['counts'] == {
+    'steps': 3,
+    'chain_cells': 3,
+    'handoff_links': 2,
+  }
+  assert all(generated_chain_planner_measurement['checks'].values())
+  assert generated_chain_planner_measurement['physical_termination'] is False
+  assert generated_chain_planner_measurement['production_claim_allowed'] is False
   assert [step['next_cell_index'] for step in generated_chain_planner['planner_steps']] == [2, 3, 4]
   assert all(
     step['boundary_kind'] == 'post-shock-field-perimeter'
@@ -213,6 +224,16 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
     'replace-only-after-complete-field-coupled-solve'
   )
   assert field_coupled_chain_planner['status'] == 'physically-terminated'
+  assert field_coupled_chain_planner['planner_measurement']['status'] == 'converged'
+  field_coupled_measurement_checks = field_coupled_chain_planner['planner_measurement']['checks']
+  assert all(
+    value
+    for name, value in field_coupled_measurement_checks.items()
+    if name != 'handoff_links_verified'
+  )
+  assert field_coupled_measurement_checks['handoff_links_verified'] is None
+  assert field_coupled_chain_planner['planner_measurement']['physical_termination'] is True
+  assert field_coupled_chain_planner['planner_measurement']['production_claim_allowed'] is False
   assert field_coupled_chain_planner['termination_reason'] == 'physical-termination'
   assert field_coupled_chain_planner['physical_termination'] is True
   assert field_coupled_chain_planner['cell_count'] == 1

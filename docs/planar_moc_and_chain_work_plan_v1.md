@@ -732,6 +732,13 @@ downstream-turn law remain explicit callbacks. Neither is evidence for
 production automatic shock placement, physical termination, or external
 validation.
 
+The independent planner-trace measurement is applied to both three-cell
+traces and to the field-coupled one-cell terminal reference. It reconstructs
+the returned chain data and exact handoff fingerprints instead of accepting
+the planner's own summary flags. A passing audit verifies orchestration and
+fidelity isolation only; it does not turn a prescribed boundary, explicit
+turn law, or named terminal model into canonical free-boundary evidence.
+
 The continuation adapter also exposes a strict upstream-coupled mode. It
 rejects the prescribed planner seed before callback execution and requires
 each generated field to carry the fitted upstream shock state/pressure
@@ -1171,9 +1178,12 @@ Only after MOC-1 through MOC-5 pass:
 - Added an independent ``op.moc.chain-planner`` audit for continued-cell
   traces. It reconstructs each cell's topology, sequence position, exact
   state/total-pressure handoff, returned-cell correspondence, typed terminal
-  decision, and resolved-planar-MOC fidelity from the planner data. A passing
-  three-cell mock audit remains explicitly ``not_accepted`` and non-physical;
-  it does not trust the planner's own handoff verdict or promote a chain.
+  decision, and resolved-planar-MOC fidelity from the planner data. The
+  three-cell prescribed mock and solver-generated reference both pass this
+  independent trace audit, while the field-coupled one-cell terminal audit
+  separately preserves its typed physical-stop result. All remain explicitly
+  ``not_accepted`` at the product boundary; the operator does not trust the
+  planner's own handoff verdict or promote a chain.
 - The independent shock-cell measurement operators now pass local geometry,
   topology, and supplied shock-loss extraction for the current fixtures, but
   they do not provide external observations, uncertainty, or a provider-bound
