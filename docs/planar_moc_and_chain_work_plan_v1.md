@@ -157,9 +157,10 @@ not wait on this research closure.
   caustic remesh. The handoff exposes the solver-carried field only after the
   event, upstream, shock, and characteristic-field seams pass, and a
   research-only planner can feed that field into the existing re-solved
-  continued-cell lane. The opt-in planner preserves the remesh's hard
-  physical-closure/promotion block and carries its report into the planner
-  diagnostics; it is not a production chain provider.
+  continued-cell lane with either an explicit flow-angle or selected
+  characteristic-invariant boundary law. The opt-in planners preserve the
+  remesh's hard physical-closure/promotion block and carry its report into
+  the planner diagnostics; they are not production chain providers.
 - Added a weak-branch caustic-origin forward-envelope reachability gate. It
   follows the local zero-turn attached limit through the bounded restarted
   family band, retains the valid prefix and first missing point, and returns a

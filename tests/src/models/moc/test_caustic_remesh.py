@@ -16,6 +16,7 @@ from exhaust_plume.models.moc import (
   MocChainStatus,
   plan_caustic_shock_remesh_chain,
   plan_caustic_remesh_downstream_field_chain,
+  plan_caustic_remesh_downstream_field_invariant_chain,
   assemble_source_characteristic_strip,
   build_caustic_shock_seed,
   extend_source_characteristic_strip_centerline_reflection,
@@ -229,6 +230,25 @@ def test_caustic_remesh_generates_a_bounded_new_family_field() -> None:
   assert continuation_planner.diagnostics['research_continuation_opt_in'] is True
   assert continuation_planner.diagnostics['remesh_physical_closure_verified'] is False
   assert continuation_planner.diagnostics['remesh_chain_promotion_blocked'] is True
+
+  invariant_continuation_planner = plan_caustic_remesh_downstream_field_invariant_chain(
+    result,
+    start_x_m=result.event_point_m[0],
+    end_x_m=result.event_point_m[0] + 0.1,
+    start_point_at=lambda _field, _cell, _index: (0.7, 0.05),
+    downstream_invariant_family=CharacteristicFamily.PLUS,
+    downstream_invariant_at=lambda _field, _index, _point: 0.0,
+    policy=MocChainContinuationPolicy(
+      max_cells=1,
+      require_state_carry=True,
+    ),
+    allow_research_continuation=True,
+  )
+  assert invariant_continuation_planner.planner_kind is MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
+  assert invariant_continuation_planner.chain.status is MocChainStatus.TRUNCATED
+  assert invariant_continuation_planner.chain.resolved
+  assert invariant_continuation_planner.diagnostics['downstream_invariant_family'] == 'C+'
+  assert invariant_continuation_planner.diagnostics['remesh_chain_promotion_blocked'] is True
 
 
 def test_caustic_remesh_rejects_a_changed_event_state() -> None:

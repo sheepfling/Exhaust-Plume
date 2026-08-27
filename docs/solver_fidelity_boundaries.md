@@ -170,11 +170,12 @@ chain cell. Event, upstream-field, and shock-solve failures retain their
 specific typed termination reasons.
 When all remesh seams do pass, ``as_bounded_downstream_field`` exposes the
 finite solver-carried field as an explicit research input for a later shock
-solve. ``plan_caustic_remesh_downstream_field_chain`` requires an explicit
-research opt-in, preserves the remesh's physical-closure/promotion block in
-its diagnostics, and uses the same replace-only-after-complete-field-coupled
-handoff rule as the ordinary field planner. This is a continuation experiment,
-not a production promotion of the unresolved caustic seam.
+solve. ``plan_caustic_remesh_downstream_field_chain`` and its invariant-law
+counterpart require an explicit research opt-in, preserve the remesh's
+physical-closure/promotion block in their diagnostics, and use the same
+replace-only-after-complete-field-coupled handoff rule as the ordinary field
+planner. These are continuation experiments, not production promotions of
+the unresolved caustic seam.
 The converged post-shock field now exposes bounded state, static-pressure, and
 total-pressure samplers backed by its solver-carried cell vertices and shock
 boundary. A separate field-coupled continued-cell adapter and planner uses

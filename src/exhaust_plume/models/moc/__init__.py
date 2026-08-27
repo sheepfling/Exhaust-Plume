@@ -311,6 +311,7 @@ from exhaust_plume.models.moc.planner import (
   plan_caustic_upstream_bridge_invariant_chain,
   plan_caustic_shock_remesh_chain,
   plan_caustic_remesh_downstream_field_chain,
+  plan_caustic_remesh_downstream_field_invariant_chain,
   plan_ambient_pressure_field_chain,
 )
 from exhaust_plume.models.moc.chain import (
@@ -378,6 +379,7 @@ __all__ = (
   'plan_caustic_upstream_bridge_invariant_chain',
   'plan_caustic_shock_remesh_chain',
   'plan_caustic_remesh_downstream_field_chain',
+  'plan_caustic_remesh_downstream_field_invariant_chain',
   'MocShockToCenterlineResult',
   'MocTurnCompressionResult',
   'MocFreeBoundaryResult',
