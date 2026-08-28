@@ -447,6 +447,17 @@ not wait on this research closure.
   returns either a fully coupled next-field solve or a typed bounded/normal-
   shock stop. It never appends an open patch or fabricates a subsonic cell;
   the caller-supplied downstream turn remains research-only input.
+- Connected the accepted physical field to that continuation seam through a
+  bounded terminal-reflection-patch source. The source exposes the exact first
+  outgoing C- point, finite state/static-pressure callbacks, explicit spatial
+  extents, and no-extrapolation semantics. On the canonical field, the
+  generated ambient-attachment bracket does not straddle a next-shock
+  solution because the outgoing source starts at ambient pressure, so the
+  planner records an ``open-physical-closure`` stop rather than appending a
+  false cell. A separate uniform-source probe confirms that the same planner
+  maps a verified normal-shock/subsonic arrival to a typed physical
+  termination, leaving the unresolved mixed-regime field outside the MOC
+  chain.
 - Added a first-cell composite assembler. It cancels the shared terminal C+
   seam between the physical shock/ambient strip and the centerline-reflection
   patch, verifies the fitted shock, ambient streamline, centerline, and

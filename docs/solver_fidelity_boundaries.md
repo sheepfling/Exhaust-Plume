@@ -128,6 +128,16 @@ characteristic-cell evidence only, leaves the downstream subsonic field
 unsolved, and therefore cannot set physical closure or promote a chain cell.
 The checkpoint rejects a mesh unless the complete solver-generated shock edge
 is present and the terminal upstream state/pressure sample is carried with it.
+The accepted physical field can now be projected into a bounded
+``bounded-terminal-reflection-patch`` upstream source with the exact outgoing
+``C-`` start point and no-extrapolation callbacks. The canonical generated
+ambient-attachment attempt reaches an explicit ``open-physical-closure``
+boundary because its outgoing source begins at ambient pressure and the
+configured compression bracket does not straddle a next-shock solution; this
+is recorded as a failed continuation, not as a resolved cell. An independent
+bounded uniform-source case exercises the other legal outcome: a verified
+subsonic normal shock becomes a typed physical termination while the
+mixed-regime downstream field remains outside the supersonic MOC chain.
 The first-cell-owned terminal closure bridge now consumes the composite's exact
 outgoing ``C-`` handoff, fits that terminal shock, and closes only the
 supersonic side. It reports ``converged_first_cell_supersonic_region`` while

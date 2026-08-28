@@ -32,6 +32,7 @@ from exhaust_plume.models.moc import (
   assemble_ambient_boundary_post_shock_field,
   assemble_ambient_boundary_post_shock_field_with_centerline_reflection,
   assemble_terminal_trace_centerline_patch,
+  build_terminal_reflection_patch_upstream_source,
   centerline_characteristic_point,
   continue_ambient_closed_post_shock_chain,
   march_post_shock_ambient_boundary,
@@ -43,6 +44,7 @@ from exhaust_plume.models.moc import (
   plan_ambient_closed_post_shock_chain_terminal_patch_reference,
   solve_marched_attached_shock_field,
   solve_marched_attached_shock_with_ambient_centerline_physical_field,
+  solve_attached_compression_to_turn,
   solve_uniform_attached_shock_field,
   solve_ambient_closed_post_shock_chain_cell_from_physical_field_terminal_patch_or_termination,
   solve_ambient_closed_post_shock_chain_cell_from_candidate_or_termination,
@@ -398,6 +400,96 @@ def test_accepted_physical_field_projects_to_a_valid_terminal_source_strip() -> 
       field.centerline_boundary_total_pressure_Pa,
       strict=True,
     )
+  )
+
+
+def test_terminal_reflection_patch_exposes_a_bounded_exact_outgoing_source() -> None:
+  field = _canonical_ambient_closed_field()
+
+  source = build_terminal_reflection_patch_upstream_source(field)
+
+  assert isinstance(source, MocBoundedUpstreamFieldSource)
+  assert source.model == 'bounded-terminal-reflection-patch'
+  assert source.preferred_start_point_m is not None
+  assert source.domain_x_extent_m is not None
+  assert source.domain_y_extent_m is not None
+  start = source.preferred_start_point_m
+  state = source.state_at(start)
+  pressure = source.static_pressure_at(start)
+  assert state is not None
+  assert state.x_m == pytest.approx(start[0])
+  assert state.y_m == pytest.approx(start[1])
+  assert pressure is not None
+  assert pressure > 0.0
+  assert source.state_at(
+    (source.domain_x_extent_m[1] + 0.1, source.domain_y_extent_m[1] + 0.1)
+  ) is None
+  report = source.as_report()
+  assert report['extrapolation_allowed'] is False
+  assert report['upstream_coupling_verified'] is False
+  assert report['preferred_start_point_m'] == pytest.approx(start)
+
+
+def test_generated_chain_maps_verified_normal_shock_to_physical_termination() -> None:
+  field = _canonical_ambient_closed_field()
+  source = MocBoundedUpstreamFieldSource(
+    state_at=lambda point: CharacteristicState(
+      x_m=point[0],
+      y_m=point[1],
+      theta_rad=0.0,
+      mach=2.0,
+      gamma=1.4,
+    ),
+    static_pressure_at=lambda _point: 100000.0,
+    model='uniform-normal-shock-terminal-reference-source',
+    domain_x_extent_m=(0.0, 10.0),
+    domain_y_extent_m=(0.0, 0.5),
+  )
+  compression = solve_attached_compression_to_turn(
+    upstream_mach=2.0,
+    gamma=1.4,
+    upstream_pressure_Pa=100000.0,
+    target_turn_rad=0.05,
+  )
+  assert compression.converged
+  assert compression.downstream_pressure_Pa is not None
+  reference = MocSolverGeneratedAmbientClosedPostShockChainReference(
+    total_cell_count=2,
+    shock_start_y_m=0.5,
+    ambient_pressure_Pa=compression.downstream_pressure_Pa,
+    outer_downstream_flow_angle_lower_rad=0.02,
+    outer_downstream_flow_angle_upper_rad=0.12,
+    sample_count=9,
+    upstream_source_provider=lambda *_args, source=source: source,
+  )
+
+  planner = plan_solver_generated_ambient_closed_post_shock_chain_reference(
+    field,
+    start_x_m=0.5,
+    end_x_m=field.ambient_boundary_points_m[-1][0],
+    reference=reference,
+    policy=MocChainContinuationPolicy(max_cells=2, require_state_carry=True),
+  )
+
+  assert planner.planner_kind is MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
+  assert planner.production_claim_allowed is False
+  assert planner.chain.resolved
+  assert planner.chain.cell_count == 1
+  assert planner.chain.physical_termination
+  assert planner.chain.termination_reason is MocChainTerminationReason.PHYSICAL_TERMINATION
+  assert planner.steps[0].result_kind == 'termination-returned'
+  assert planner.steps[0].result_termination_reason is (
+    MocChainTerminationReason.PHYSICAL_TERMINATION
+  )
+  diagnostics = planner.chain.diagnostics
+  assert diagnostics['termination_model'] == 'normal-shock-terminal'
+  assert diagnostics['shock_status'] == 'subsonic_terminal_required'
+  assert diagnostics['upstream_source']['model'] == source.model
+  assert diagnostics['upstream_source']['extrapolation_allowed'] is False
+  assert diagnostics['upstream_sample_count'] == 8
+  result_report = diagnostics['ambient_physical_field_result']
+  assert result_report['ambient_attachment']['shock']['status'] == (
+    'subsonic_terminal_required'
   )
 
 

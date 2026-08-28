@@ -97,7 +97,10 @@ from exhaust_plume.models.moc.source_strip import (
   MocSourceStripCausticShockSeedResult,
   MocSourceStripContinuationResult,
 )
-from exhaust_plume.models.moc.terminal_patch import MocTerminalReflectionPatchResult
+from exhaust_plume.models.moc.terminal_patch import (
+  MocTerminalReflectionPatchResult,
+  assemble_terminal_trace_centerline_patch,
+)
 from exhaust_plume.models.moc.terminal_patch_solver import (
   solve_marched_attached_shock_chain_cell_from_terminal_reflection_patch_or_termination,
 )
@@ -136,6 +139,7 @@ __all__ = (
   'MocSolverGeneratedPostShockChainReference',
   'MocFieldCoupledPostShockChainReference',
   'MocBoundedUpstreamFieldSource',
+  'build_terminal_reflection_patch_upstream_source',
   'MocSolverGeneratedAmbientClosedPostShockChainReference',
   'MocPrescribedAmbientClosedPostShockChainMock',
   'MocPhysicalPostShockTerminalPatchPlannerResult',
@@ -2571,6 +2575,7 @@ class MocBoundedUpstreamFieldSource:
   domain_x_extent_m: tuple[float, float] | None = None
   domain_y_extent_m: tuple[float, float] | None = None
   upstream_coupling_verified: bool = False
+  preferred_start_point_m: tuple[float, float] | None = None
 
   def __post_init__(self) -> None:
     if not callable(self.state_at) or not callable(self.static_pressure_at):
@@ -2581,6 +2586,21 @@ class MocBoundedUpstreamFieldSource:
     object.__setattr__(self, 'model', model)
     if not isinstance(self.upstream_coupling_verified, bool):
       raise TypeError('upstream_coupling_verified must be a bool')
+    if self.preferred_start_point_m is not None:
+      try:
+        preferred_start = (
+          float(self.preferred_start_point_m[0]),
+          float(self.preferred_start_point_m[1]),
+        )
+      except (IndexError, TypeError, ValueError) as error:
+        raise ValueError(
+          'preferred_start_point_m must contain two finite coordinates'
+        ) from error
+      if not all(isfinite(value) for value in preferred_start):
+        raise ValueError(
+          'preferred_start_point_m must contain two finite coordinates'
+        )
+      object.__setattr__(self, 'preferred_start_point_m', preferred_start)
     for name in ('domain_x_extent_m', 'domain_y_extent_m'):
       extent = getattr(self, name)
       if extent is None:
@@ -2626,6 +2646,61 @@ class MocBoundedUpstreamFieldSource:
     )
   ####
 
+  @classmethod
+  def from_terminal_reflection_patch(
+    cls,
+    patch: MocTerminalReflectionPatchResult,
+    *,
+    sample_position_tolerance_m: float = 1.0e-3,
+  ) -> 'MocBoundedUpstreamFieldSource':
+    """Expose a converged reflected patch as a finite upstream source."""
+
+    if not isinstance(patch, MocTerminalReflectionPatchResult):
+      raise TypeError(
+        'patch must be a MocTerminalReflectionPatchResult'
+      )
+    if not patch.converged:
+      raise ValueError(
+        'only a converged terminal reflection patch can become an upstream source'
+      )
+    tolerance = float(sample_position_tolerance_m)
+    if not isfinite(tolerance) or tolerance <= 0.0:
+      raise ValueError(
+        'sample_position_tolerance_m must be finite and positive'
+      )
+    points = tuple(
+      point
+      for cell in patch.cells
+      for point in cell.vertices_xr_m
+    )
+    points = (*points, *patch.outgoing_trace_points_m, *patch.axis_points_m)
+    x_extent = None
+    y_extent = None
+    if points:
+      x_extent = (min(point[0] for point in points), max(point[0] for point in points))
+      y_extent = (min(point[1] for point in points), max(point[1] for point in points))
+    preferred_start = (
+      patch.outgoing_trace_points_m[0]
+      if patch.outgoing_trace_points_m
+      else None
+    )
+    return cls(
+      state_at=lambda point, patch=patch, tolerance=tolerance: patch.state_at(
+        point,
+        position_tolerance_m=tolerance,
+      ),
+      static_pressure_at=lambda point, patch=patch, tolerance=tolerance: patch.static_pressure_at(
+        point,
+        position_tolerance_m=tolerance,
+      ),
+      model='bounded-terminal-reflection-patch',
+      domain_x_extent_m=x_extent,
+      domain_y_extent_m=y_extent,
+      upstream_coupling_verified=False,
+      preferred_start_point_m=preferred_start,
+    )
+  ####
+
   def as_report(self) -> dict[str, Any]:
     """Serialize source provenance without serializing callback objects."""
 
@@ -2636,8 +2711,71 @@ class MocBoundedUpstreamFieldSource:
       'domain_x_extent_m': self.domain_x_extent_m,
       'domain_y_extent_m': self.domain_y_extent_m,
       'extrapolation_allowed': False,
+      'preferred_start_point_m': self.preferred_start_point_m,
     }
   ####
+
+
+def build_terminal_reflection_patch_upstream_source(
+  field: MocPhysicalPostShockFieldResult,
+  *,
+  trace_position_tolerance_m: float = 1.0e-3,
+  trace_invariant_tolerance: float = 1.0e-10,
+  sample_position_tolerance_m: float = 1.0e-3,
+) -> MocBoundedUpstreamFieldSource | MocChainTerminationDecision:
+  """Build the solver-owned reflected-patch source for a next shock.
+
+  The returned source is bounded by the accepted field's terminal reflection
+  patch.  A failed projection is a typed physical-closure stop, never a
+  fallback to the whole closed field or an extrapolated state.
+  """
+
+  if not isinstance(field, MocPhysicalPostShockFieldResult):
+    raise TypeError('field must be a MocPhysicalPostShockFieldResult')
+  try:
+    strip = field.as_open_shock_ambient_strip(
+      trace_position_tolerance_m=trace_position_tolerance_m,
+      trace_invariant_tolerance=trace_invariant_tolerance,
+    )
+    patch = assemble_terminal_trace_centerline_patch(
+      strip,
+      trace_position_tolerance_m=trace_position_tolerance_m,
+      invariant_tolerance=trace_invariant_tolerance,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
+      message=(
+        'accepted physical field could not produce a bounded terminal '
+        f'reflection-patch upstream source: {error}'
+      ),
+      diagnostics={
+        'termination_model': 'terminal-reflection-patch-source-projection',
+        'source_projection_status': 'failed',
+        'source_projection_error': type(error).__name__,
+      },
+    )
+  if not patch.converged:
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
+      message=(
+        'terminal reflection patch did not converge; no next-cell upstream '
+        f'source was promoted: {patch.message}'
+      ),
+      diagnostics={
+        'termination_model': 'terminal-reflection-patch-source-projection',
+        'source_projection_status': patch.status.value,
+        'source_strip_status': patch.source_strip_status.value if patch.source_strip_status is not None else None,
+        'reflection_patch': patch.as_report(),
+      },
+    )
+  return MocBoundedUpstreamFieldSource.from_terminal_reflection_patch(
+    patch,
+    sample_position_tolerance_m=sample_position_tolerance_m,
+  )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -2886,12 +3024,10 @@ class MocSolverGeneratedAmbientClosedPostShockChainReference:
         ),
       )
 
-    start = self.start_point_at(current, next_cell_index)
     end_x = self.end_x_at(current, next_cell_index)
     diagnostics: dict[str, Any] = {
       'continuation_model': self.model,
       'next_cell_index': next_cell_index,
-      'start_point_m': start,
       'end_x_m': end_x,
       'incoming_handoff_sample_count': len(handoff),
       'incoming_handoff_fingerprint': _handoff_fingerprint(handoff),
@@ -2941,6 +3077,12 @@ class MocSolverGeneratedAmbientClosedPostShockChainReference:
         {'source_provider_returned_type': type(source).__name__},
       )
     diagnostics['upstream_source'] = source.as_report()
+    start = (
+      self.start_point_at(current, next_cell_index)
+      if source.preferred_start_point_m is None
+      else source.preferred_start_point_m
+    )
+    diagnostics['start_point_m'] = start
 
     try:
       start_state = source.state_at(start)
@@ -3023,6 +3165,40 @@ class MocSolverGeneratedAmbientClosedPostShockChainReference:
 
     attachment = result.ambient_attachment
     shock = None if attachment is None else attachment.shock
+    if shock is not None and shock.subsonic_terminal_required:
+      terminal = shock.normal_shock_terminal
+      if (
+        not shock.terminal_model_verified
+        or terminal is None
+        or len(shock.upstream_states) != shock.sample_count
+        or len(shock.upstream_pressure_Pa) != shock.sample_count
+        or terminal.upstream_state is None
+        or terminal.upstream_pressure_Pa is None
+      ):
+        return decision(
+          MocChainTerminationReason.SOLVER_ERROR,
+          'generated next-cell shock reached an incomplete normal-shock terminal; no physical endpoint was inferred',
+          {'shock_status': shock.status.value},
+        )
+      return MocChainTerminationDecision(
+        physical_termination=True,
+        reason=MocChainTerminationReason.PHYSICAL_TERMINATION,
+        message=(
+          'generated next-cell shock reached a verified subsonic normal shock; '
+          'the mixed-regime downstream field remains outside the supersonic '
+          'MOC chain'
+        ),
+        diagnostics={
+          **diagnostics,
+          'termination_model': 'normal-shock-terminal',
+          'shock_point_m': terminal.shock_point_m,
+          'downstream_mach': terminal.downstream_mach,
+          'downstream_pressure_Pa': terminal.downstream_pressure_Pa,
+          'total_pressure_ratio': terminal.total_pressure_ratio,
+          'upstream_sample_count': shock.sample_count,
+          'shock_status': shock.status.value,
+        },
+      )
     if shock is not None and shock.status is MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE:
       return decision(
         MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
