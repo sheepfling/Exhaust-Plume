@@ -717,7 +717,9 @@ def test_continued_chain_planner_keeps_scalar_terminal_reference_separate() -> N
         total_cell_count=3,
       ),
       policy=MocChainContinuationPolicy(max_cells=5, require_state_carry=True),
-      solver=MocSolverGeneratedMixedRegimeClosureReference(),
+      solver=MocSolverGeneratedMixedRegimeClosureReference(
+        ambient_pressure_ratio=0.9,
+      ),
       free_boundary_refinement_sample_counts=(5, 7, 9),
     )
   )
@@ -725,15 +727,15 @@ def test_continued_chain_planner_keeps_scalar_terminal_reference_separate() -> N
   assert planner.resolved
   assert planner.physical_termination
   assert planner.physical_closure_verified is False
-  assert planner.mixed_regime_model_closure_verified is False
+  assert planner.mixed_regime_model_closure_verified
   assert planner.terminal_planner is not None
   assert planner.terminal_planner.mixed_regime_reference is not None
   assert planner.terminal_planner.diagnostics[
     'free_boundary_reference_audit_accepted'
-  ] is False
+  ] is True
   assert planner.terminal_planner.diagnostics[
     'free_boundary_refinement_accepted'
-  ] is False
+  ] is True
   assert planner.terminal_planner.diagnostics['free_boundary_refinement'][
     'resolutions'
   ] == [5, 7, 9]
