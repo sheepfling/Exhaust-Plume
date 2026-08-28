@@ -1674,6 +1674,7 @@ class MocSolverGeneratedPostShockChainReference:
   gamma: float = 1.4
   upstream_flow_angle_rad: float = -0.20
   downstream_flow_angle_scale_rad_per_m: float = 0.10
+  target_centerline_y_m: float = 0.0
   branch: ShockBranch = ShockBranch.WEAK
 
   def __post_init__(self) -> None:
@@ -1700,6 +1701,7 @@ class MocSolverGeneratedPostShockChainReference:
         'downstream_flow_angle_scale_rad_per_m',
         self.downstream_flow_angle_scale_rad_per_m,
       ),
+      ('target_centerline_y_m', self.target_centerline_y_m),
     ):
       if not isfinite(float(value)):
         raise ValueError(f'{name} must be finite')
@@ -1709,6 +1711,10 @@ class MocSolverGeneratedPostShockChainReference:
       raise ValueError('shock_start_offset_m must be finite and positive')
     if self.shock_start_y_m <= 0.0:
       raise ValueError('shock_start_y_m must be finite and positive')
+    if self.shock_start_y_m <= self.target_centerline_y_m:
+      raise ValueError(
+        'shock_start_y_m must be strictly above target_centerline_y_m'
+      )
     if self.mach <= 1.0:
       raise ValueError('mach must be finite and greater than one')
     if self.gamma <= 1.0:
@@ -1732,6 +1738,7 @@ class MocSolverGeneratedPostShockChainReference:
       'cell_axial_length_m': self.cell_axial_length_m,
       'shock_start_offset_m': self.shock_start_offset_m,
       'shock_start_y_m': self.shock_start_y_m,
+      'target_centerline_y_m': self.target_centerline_y_m,
       'sample_count': self.sample_count,
       'mach': self.mach,
       'gamma': self.gamma,
@@ -1741,6 +1748,9 @@ class MocSolverGeneratedPostShockChainReference:
       ),
       'branch': self.branch.value,
       'upstream_state_model': 'uniform-explicit-reference-state',
+      'upstream_pressure_model': (
+        'normalized-shock-height-resampling-of-exact-incoming-handoff'
+      ),
       'downstream_condition_model': 'linear-explicit-reference-turn-law',
       'claim_status': (
         'solver-generated-shock-and-closed-post-shock-field-reference; '
@@ -1780,13 +1790,10 @@ class MocSolverGeneratedPostShockChainReference:
         ),
       )
 
-    incoming_total_pressure = max(
-      sample.total_pressure_Pa for sample in handoff
-    )
+    incoming_total_pressure_trace = self._resample_incoming_total_pressure(handoff)
     isentropic_factor = (
       1.0 + 0.5 * (self.gamma - 1.0) * self.mach * self.mach
     ) ** (self.gamma / (self.gamma - 1.0))
-    upstream_pressure = incoming_total_pressure / isentropic_factor
     shock_start = (
       current.end_x_m + self.shock_start_offset_m,
       self.shock_start_y_m,
@@ -1804,7 +1811,13 @@ class MocSolverGeneratedPostShockChainReference:
         mach=self.mach,
         gamma=self.gamma,
       ),
-      upstream_pressure_at=lambda _point: upstream_pressure,
+      upstream_pressure_at=lambda point: (
+        self._upstream_pressure_at(
+          point,
+          incoming_total_pressure_trace,
+        ) / isentropic_factor
+      ),
+      target_centerline_y_m=self.target_centerline_y_m,
       downstream_flow_angle_at=(
         lambda _index, point: (
           self.downstream_flow_angle_scale_rad_per_m * point[1]
@@ -1814,6 +1827,61 @@ class MocSolverGeneratedPostShockChainReference:
       branch=self.branch,
     )
     return result
+
+  def _resample_incoming_total_pressure(
+    self,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+  ) -> tuple[float, ...]:
+    """Resample the complete prior pressure trace for this reference solve.
+
+    The reference has no physical mapping from the prior perimeter to the
+    next shock.  Normalized-index interpolation is therefore retained as an
+    explicit fixture policy, but it preserves pressure variation instead of
+    collapsing the handoff to its maximum value.
+    """
+
+    pressures = tuple(sample.total_pressure_Pa for sample in incoming_handoff)
+    if len(pressures) == self.sample_count:
+      return pressures
+    last_incoming_index = len(pressures) - 1
+    last_shock_index = self.sample_count - 1
+    return tuple(
+      (
+        pressures[lower_index]
+        if lower_index == upper_index
+        else pressures[lower_index]
+        + (pressures[upper_index] - pressures[lower_index]) * fraction
+      )
+      for index in range(self.sample_count)
+      for position in (index * last_incoming_index / last_shock_index,)
+      for lower_index in (int(position),)
+      for upper_index in (min(lower_index + 1, last_incoming_index),)
+      for fraction in (position - lower_index,)
+    )
+
+  def _upstream_pressure_at(
+    self,
+    point: tuple[float, float],
+    incoming_total_pressure_trace: tuple[float, ...],
+  ) -> float:
+    """Return a height-interpolated pressure from the preserved handoff."""
+
+    span = self.shock_start_y_m - self.target_centerline_y_m
+    normalized_height = (
+      self.shock_start_y_m - float(point[1])
+    ) / span
+    normalized_height = min(1.0, max(0.0, normalized_height))
+    position = normalized_height * (len(incoming_total_pressure_trace) - 1)
+    lower_index = int(position)
+    upper_index = min(lower_index + 1, len(incoming_total_pressure_trace) - 1)
+    fraction = position - lower_index
+    return (
+      incoming_total_pressure_trace[lower_index]
+      + (
+        incoming_total_pressure_trace[upper_index]
+        - incoming_total_pressure_trace[lower_index]
+      ) * fraction
+    )
 
 
 @dataclass(frozen=True, slots=True)

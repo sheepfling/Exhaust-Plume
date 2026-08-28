@@ -4870,6 +4870,15 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or solver_generated_chain_fixture_report.get(
       'physical_chain_promotion_allowed'
     ) is not False
+    or solver_generated_chain_fixture_report.get('upstream_pressure_model') != (
+      'normalized-shock-height-resampling-of-exact-incoming-handoff'
+    )
+    or solver_generated_chain_report.get('cell_geometry') is None
+    or len(solver_generated_chain_report['cell_geometry']) != 5
+    or any(
+      not cell['boundary_geometry']['shock_boundary_points_m']
+      for cell in solver_generated_chain_report['cell_geometry']
+    )
     or any(
       not cell.carries_state
       for cell in solver_generated_chain_reference.cells
@@ -5778,6 +5787,16 @@ def build_moc_primitive_report() -> dict[str, Any]:
           'physical_chain_promotion_allowed'
         )
       ),
+      'upstream_pressure_model': (
+        None
+        if solver_generated_chain_fixture_report is None
+        else solver_generated_chain_fixture_report.get('upstream_pressure_model')
+      ),
+      'cell_geometry': (
+        None
+        if solver_generated_chain_report is None
+        else solver_generated_chain_report['cell_geometry']
+      ),
       'continuation_total_pressure_ranges_Pa': (
         None
         if solver_generated_chain_report is None
@@ -6049,6 +6068,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'continuation_boundary_maxima_nonincreasing': shock_cell_chain_mock_report[
         'continuation_boundary_maxima_nonincreasing'
       ],
+      'cell_geometry': shock_cell_chain_mock_report['cell_geometry'],
       'observations': shock_cell_chain_mock_observations,
       'terminal_trace_validation': shock_cell_chain_trace_validation,
       'measurement_operator': shock_cell_chain_measurement.as_report(),
@@ -6684,6 +6704,11 @@ def build_moc_primitive_report() -> dict[str, Any]:
       or shock_cell_chain_fixture_report[
         'physical_chain_promotion_allowed'
       ] is not False
+      or len(shock_cell_chain_mock_report['cell_geometry']) != shock_cell_chain_mock.cell_count
+      or any(
+        not cell['boundary_geometry']['shock_boundary_points_m']
+        for cell in shock_cell_chain_mock_report['cell_geometry']
+      )
     ) else []),
     *([
       {

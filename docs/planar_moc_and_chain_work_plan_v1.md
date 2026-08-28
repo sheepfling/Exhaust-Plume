@@ -1364,6 +1364,18 @@ Only after MOC-1 through MOC-5 pass:
   physical upstream-to-shock mapping.
 - The recovered validation archive is not a substitute for the missing
   provider-bound measurement/operator bindings.
+- Continued-cell chain reports now expose per-cell transverse extents and a
+  structured boundary-geometry/pressure-trace payload. The payload preserves
+  incoming handoff, shock, centerline, and (where applicable) ambient paths so
+  planner and visualization consumers can inspect expansion and pressure loss
+  without reaching into solver internals. These traces are evidence surfaces,
+  not an elevation of the chain's fidelity or closure claim.
+- The solver-generated continued-chain reference now carries the complete
+  prior total-pressure trace into each local shock solve using an explicit
+  normalized shock-height interpolation policy. This removes the old
+  max-pressure flattening while keeping the uniform upstream-state and
+  reference-turn assumptions visible; reflected-field coupling and canonical
+  free-boundary closure remain pending.
 
 These blockers are intentionally represented as structured statuses in code;
 they are not reasons to weaken the fidelity boundary.

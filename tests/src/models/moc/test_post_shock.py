@@ -789,6 +789,13 @@ def test_prescribed_post_shock_chain_mock_is_reusable_and_nonproduction() -> Non
   )
   assert planner.diagnostics['prescribed_chain_mock']['free_boundary_verified'] is False
   assert planner.diagnostics['prescribed_chain_mock']['physical_chain_promotion_allowed'] is False
+  chain_report = planner.chain.as_report()
+  assert len(chain_report['cell_geometry']) == planner.chain.cell_count
+  assert all(
+    cell['mesh_y_extent_m'] is not None
+    and cell['boundary_geometry']['shock_boundary_points_m']
+    for cell in chain_report['cell_geometry']
+  )
   assert planner.handoff_links_verified is True
   assert [step.result_kind for step in planner.steps] == [
     'field-solve-returned',
@@ -968,6 +975,51 @@ def test_solver_generated_post_shock_reference_re_solves_multiple_cells() -> Non
   )
   assert planner.diagnostics['solver_generated_chain_reference']['free_boundary_verified'] is False
   assert planner.diagnostics['solver_generated_chain_reference']['physical_chain_promotion_allowed'] is False
+  assert planner.diagnostics['solver_generated_chain_reference']['upstream_pressure_model'] == (
+    'normalized-shock-height-resampling-of-exact-incoming-handoff'
+  )
+  assert planner.chain.as_report()['cell_geometry'][-1]['boundary_geometry']['shock_boundary_points_m']
+
+
+def test_solver_generated_reference_preserves_pressure_variation_from_handoff() -> None:
+  generated = solve_uniform_attached_shock_field(
+    CharacteristicState(
+      x_m=0.5,
+      y_m=0.5,
+      theta_rad=-0.2,
+      mach=2.0,
+      gamma=1.4,
+    ),
+    100000.0,
+    (0.5, 0.5),
+    outer_downstream_flow_angle_rad=0.05,
+    sample_count=9,
+  )
+  assert generated.field is not None
+  seed_cell = generated.field.as_chain_cell(
+    start_x_m=0.5,
+    end_x_m=1.0,
+    cell_index=1,
+  )
+  incoming_handoff = tuple(
+    replace(
+      sample,
+      total_pressure_Pa=sample.total_pressure_Pa * (1.0 + 0.08 * index / 8.0),
+    )
+    for index, sample in enumerate(seed_cell.continuation_boundary)
+  )
+  current = replace(seed_cell, continuation_boundary=incoming_handoff)
+  reference = MocSolverGeneratedPostShockChainReference(total_cell_count=2)
+
+  solved = reference.solve_next(current, 2, incoming_handoff)
+
+  assert isinstance(solved, MocPostShockChainCellSolve)
+  assert solved.field.upstream_total_pressure_range_Pa is not None
+  assert (
+    solved.field.upstream_total_pressure_range_Pa[1]
+    > solved.field.upstream_total_pressure_range_Pa[0]
+  )
+  assert reference.as_report()['target_centerline_y_m'] == pytest.approx(0.0)
 
 
 def test_field_coupled_post_shock_reference_uses_the_bounded_prior_field() -> None:

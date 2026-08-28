@@ -1407,6 +1407,35 @@ class MocPostShockCharacteristicFieldResult:
       'minimum_forward_margin_m': self.minimum_forward_margin_m,
       'minimum_post_shock_total_pressure_ratio': self.minimum_post_shock_total_pressure_ratio,
       'maximum_post_shock_total_pressure_ratio': self.maximum_post_shock_total_pressure_ratio,
+      'boundary_geometry': {
+        'incoming_handoff_points_m': [
+          [state.x_m, state.y_m] for state in self.incoming_handoff_states
+        ],
+        'shock_boundary_points_m': [
+          list(point) for point in self.shock_boundary_points_m
+        ],
+        'centerline_boundary_points_m': [
+          list(point) for point in self.centerline_boundary_points_m
+        ],
+        'continuation_boundary_points_m': [
+          [state.x_m, state.y_m]
+          for state in self.continuation_boundary_states
+        ],
+      },
+      'boundary_pressure_traces': {
+        'incoming_handoff_total_pressure_Pa': list(
+          self.incoming_handoff_total_pressure_Pa
+        ),
+        'upstream_total_pressure_Pa': list(
+          self.upstream_boundary_total_pressure_Pa
+        ),
+        'shock_total_pressure_Pa': list(
+          self.shock_boundary_total_pressure_Pa
+        ),
+        'continuation_total_pressure_Pa': list(
+          self.continuation_boundary_total_pressure_Pa
+        ),
+      },
     }
     if diagnostics is not None:
       reserved = set(chain_diagnostics) & set(diagnostics)

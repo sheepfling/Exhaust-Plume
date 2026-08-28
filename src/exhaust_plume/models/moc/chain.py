@@ -485,6 +485,27 @@ class MocChainCell:
   ####
 
   @property
+  def mesh_y_extent_m(self) -> tuple[float, float] | None:
+    """Return the finite transverse extent of the supplied mesh vertices."""
+
+    points: list[tuple[float, float]] = []
+    for polygon in self.mesh:
+      vertices = getattr(polygon, 'vertices_xr_m', None)
+      if vertices is None:
+        continue
+      try:
+        for point in vertices:
+          if len(point) != 2 or not all(isfinite(float(value)) for value in point):
+            return None
+          points.append((float(point[0]), float(point[1])))
+      except (TypeError, ValueError):
+        return None
+    if not points:
+      return None
+    return min(point[1] for point in points), max(point[1] for point in points)
+  ####
+
+  @property
   def continuation_boundary_x_extent_m(self) -> tuple[float, float] | None:
     """Return the finite axial extent of the carried state boundary."""
 
@@ -666,9 +687,22 @@ class MocChainResult:
           'start_x_m': cell.start_x_m,
           'end_x_m': cell.end_x_m,
           'mesh_x_extent_m': cell.mesh_x_extent_m,
+          'mesh_y_extent_m': cell.mesh_y_extent_m,
           'continuation_boundary_x_extent_m': (
             cell.continuation_boundary_x_extent_m
           ),
+        }
+        for cell in self.cells
+      ],
+      'cell_geometry': [
+        {
+          'cell_index': cell.cell_index,
+          'geometry_fidelity': cell.geometry_fidelity.value,
+          'physical_closure': cell.physical_closure.value,
+          'continuation_boundary_kind': cell.continuation_boundary_kind.value,
+          'mesh_x_extent_m': cell.mesh_x_extent_m,
+          'mesh_y_extent_m': cell.mesh_y_extent_m,
+          'boundary_geometry': cell.diagnostics.get('boundary_geometry'),
         }
         for cell in self.cells
       ],

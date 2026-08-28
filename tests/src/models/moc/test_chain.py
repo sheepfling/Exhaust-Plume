@@ -151,6 +151,7 @@ def test_resolved_moc_chain_continues_until_solver_returns_none() -> None:
       'start_x_m': 0.0,
       'end_x_m': 1.0,
       'mesh_x_extent_m': (0.0, 1.0),
+      'mesh_y_extent_m': (0.0, 1.0),
       'continuation_boundary_x_extent_m': None,
     },
     {
@@ -158,6 +159,7 @@ def test_resolved_moc_chain_continues_until_solver_returns_none() -> None:
       'start_x_m': 1.0,
       'end_x_m': 2.0,
       'mesh_x_extent_m': (1.0, 2.0),
+      'mesh_y_extent_m': (0.0, 1.0),
       'continuation_boundary_x_extent_m': None,
     },
   ]

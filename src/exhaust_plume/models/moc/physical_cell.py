@@ -692,6 +692,37 @@ class MocPhysicalPostShockFieldResult:
       'ambient_boundary_maximum_absolute_tangent_residual': (
         self.ambient_boundary.maximum_absolute_tangent_residual
       ),
+      'boundary_geometry': {
+        'incoming_handoff_points_m': [
+          [state.x_m, state.y_m] for state in self.incoming_handoff_states
+        ],
+        'shock_boundary_points_m': [
+          list(point) for point in self.shock_boundary_points_m
+        ],
+        'ambient_boundary_points_m': [
+          list(point) for point in self.ambient_boundary_points_m
+        ],
+        'centerline_boundary_points_m': [
+          list(point) for point in self.centerline_boundary_points_m
+        ],
+      },
+      'boundary_pressure_traces': {
+        'incoming_handoff_total_pressure_Pa': list(
+          self.incoming_handoff_total_pressure_Pa
+        ),
+        'upstream_shock_total_pressure_Pa': list(
+          self.upstream_shock_boundary_total_pressure_Pa
+        ),
+        'post_shock_total_pressure_Pa': list(
+          self.post_shock_boundary_total_pressure_Pa
+        ),
+        'ambient_total_pressure_Pa': list(
+          self.ambient_boundary.total_pressure_Pa
+        ),
+        'centerline_total_pressure_Pa': list(
+          self.centerline_boundary_total_pressure_Pa
+        ),
+      },
     }
     if diagnostics is not None:
       reserved = set(chain_diagnostics) & set(diagnostics)
