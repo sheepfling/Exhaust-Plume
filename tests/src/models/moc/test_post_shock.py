@@ -926,6 +926,95 @@ def test_prescribed_post_shock_chain_mock_can_vary_shock_height_per_cell() -> No
   assert pressure_ranges[3][1] < pressure_ranges[2][1]
 
 
+def test_prescribed_post_shock_chain_mock_accepts_an_explicit_geometry_schedule() -> None:
+  seed_fit = MocShockBoundaryFitResult(
+    status=MocShockBoundaryFitStatus.CONVERGED_FITTED,
+    boundary_states=_prescribed_boundary(),
+    shock_angle_residuals_rad=(0.0,) * 4,
+    maximum_shock_angle_residual_rad=0.0,
+  )
+  seed_field = assemble_post_shock_characteristic_field(seed_fit)
+  mock = MocPrescribedPostShockChainMock(
+    total_cell_count=4,
+    cell_axial_lengths_m=(0.45, 0.55, 0.65),
+    shock_start_offsets_m=(0.12, 0.16, 0.20),
+    shock_geometry_scales_per_cell=(1.0, 0.8, 0.6),
+    # An explicit schedule must take precedence over the legacy linear law.
+    shock_geometry_scale_per_cell=-1.0,
+  )
+
+  planner = plan_prescribed_post_shock_chain_mock(
+    seed_field,
+    start_x_m=0.7,
+    end_x_m=1.0,
+    mock=mock,
+  )
+
+  def mesh_maximum_y(cell) -> float:
+    return max(
+      point[1]
+      for polygon in cell.mesh
+      for point in polygon.vertices_xr_m
+    )
+
+  assert planner.resolved
+  assert tuple(cell.end_x_m for cell in planner.chain.cells) == pytest.approx(
+    (1.0, 1.45, 2.0, 2.65)
+  )
+  assert tuple(
+    mesh_maximum_y(cell) for cell in planner.chain.cells[1:]
+  ) == pytest.approx(
+    tuple(
+      mock.shock_ordinates_m[0] * scale
+      for scale in mock.shock_geometry_scales_per_cell
+    )
+  )
+  assert mock.cell_axial_length_for_cell(3) == pytest.approx(0.55)
+  assert mock.shock_start_offset_for_cell(4) == pytest.approx(0.20)
+  assert mock.shock_geometry_scale_for_cell(2) == pytest.approx(1.0)
+  report = mock.as_report()
+  assert report['geometry_schedule_model'] == 'explicit-per-cell-schedule'
+  assert report['cell_axial_lengths_m'] == pytest.approx((0.45, 0.55, 0.65))
+  assert report['shock_start_offsets_m'] == pytest.approx((0.12, 0.16, 0.20))
+  assert report['shock_geometry_scales_per_cell'] == pytest.approx((1.0, 0.8, 0.6))
+  assert report['per_cell_geometry_schedule'] == [
+    {
+      'cell_index': 2,
+      'axial_length_m': pytest.approx(0.45),
+      'shock_start_offset_m': pytest.approx(0.12),
+      'shock_geometry_scale': pytest.approx(1.0),
+    },
+    {
+      'cell_index': 3,
+      'axial_length_m': pytest.approx(0.55),
+      'shock_start_offset_m': pytest.approx(0.16),
+      'shock_geometry_scale': pytest.approx(0.8),
+    },
+    {
+      'cell_index': 4,
+      'axial_length_m': pytest.approx(0.65),
+      'shock_start_offset_m': pytest.approx(0.20),
+      'shock_geometry_scale': pytest.approx(0.6),
+    },
+  ]
+  assert planner.production_claim_allowed is False
+
+
+def test_prescribed_post_shock_chain_mock_rejects_an_incomplete_geometry_schedule() -> None:
+  with pytest.raises(ValueError, match='cell_axial_lengths_m must contain one value'):
+    MocPrescribedPostShockChainMock(
+      total_cell_count=4,
+      cell_axial_lengths_m=(0.45, 0.55),
+    )
+
+  with pytest.raises(ValueError, match='continued-cell shock geometry must fit'):
+    MocPrescribedPostShockChainMock(
+      total_cell_count=2,
+      cell_axial_lengths_m=(0.20,),
+      shock_start_offsets_m=(0.19,),
+    )
+
+
 def test_solver_generated_post_shock_reference_re_solves_multiple_cells() -> None:
   generated = solve_uniform_attached_shock_field(
     CharacteristicState(

@@ -1340,6 +1340,12 @@ class MocPrescribedPostShockChainMock:
   mach: float = 2.0
   gamma: float = 1.4
   pressure_loss_ratio: float | None = None
+  # Optional schedules apply to continued cells 2..total_cell_count.  They
+  # are explicit geometry controls for planner/visualization scenarios; they
+  # do not turn this prescribed-boundary fixture into a free-boundary solver.
+  cell_axial_lengths_m: tuple[float, ...] | None = None
+  shock_start_offsets_m: tuple[float, ...] | None = None
+  shock_geometry_scales_per_cell: tuple[float, ...] | None = None
 
   def __post_init__(self) -> None:
     if (
@@ -1414,16 +1420,86 @@ class MocPrescribedPostShockChainMock:
       )
     if any(not isfinite(value) for value in configured_upstream_angles):
       raise ValueError('upstream flow angles must be finite')
-    for cell_index in range(2, self.total_cell_count + 1):
-      scale = 1.0 + float(self.shock_geometry_scale_per_cell) * (cell_index - 2)
-      if scale <= 0.0:
+    if self.shock_geometry_scales_per_cell is None:
+      for cell_index in range(2, self.total_cell_count + 1):
+        scale = 1.0 + float(self.shock_geometry_scale_per_cell) * (cell_index - 2)
+        if scale <= 0.0:
+          raise ValueError(
+            'shock_geometry_scale_per_cell produces a non-positive scale '
+            f'at cell {cell_index}'
+          )
+
+    def normalize_schedule(
+      values: tuple[float, ...] | None,
+      name: str,
+      *,
+      positive: bool = True,
+    ) -> tuple[float, ...] | None:
+      if values is None:
+        return None
+      try:
+        normalized = tuple(float(value) for value in values)
+      except (TypeError, ValueError) as error:
+        raise ValueError(f'{name} must be a numeric sequence') from error
+      expected_count = self.total_cell_count - 1
+      if len(normalized) != expected_count:
         raise ValueError(
-          'shock_geometry_scale_per_cell produces a non-positive scale '
-          f'at cell {cell_index}'
+          f'{name} must contain one value for each continued cell '
+          f'(expected {expected_count}, got {len(normalized)})'
+        )
+      if any(
+        not isfinite(value) or (value <= 0.0 if positive else False)
+        for value in normalized
+      ):
+        qualifier = 'finite and positive' if positive else 'finite'
+        raise ValueError(f'{name} must contain {qualifier} values')
+      return normalized
+
+    normalized_lengths = normalize_schedule(
+      self.cell_axial_lengths_m,
+      'cell_axial_lengths_m',
+    )
+    normalized_offsets = normalize_schedule(
+      self.shock_start_offsets_m,
+      'shock_start_offsets_m',
+    )
+    normalized_scales = normalize_schedule(
+      self.shock_geometry_scales_per_cell,
+      'shock_geometry_scales_per_cell',
+    )
+    for cell_index in range(2, self.total_cell_count + 1):
+      schedule_index = cell_index - 2
+      axial_length = (
+        float(self.cell_axial_length_m)
+        if normalized_lengths is None
+        else normalized_lengths[schedule_index]
+      )
+      start_offset = (
+        float(self.shock_start_offset_m)
+        if normalized_offsets is None
+        else normalized_offsets[schedule_index]
+      )
+      scale = self._scheduled_scale_for_index(
+        schedule_index,
+        normalized_scales,
+        float(self.shock_geometry_scale_per_cell),
+      )
+      shock_end_offset = (
+        start_offset
+        + float(self.shock_sample_spacing_m) * scale * (len(ordinates) - 1)
+      )
+      if shock_end_offset >= axial_length:
+        raise ValueError(
+          'continued-cell shock geometry must fit before the cell end: '
+          f'cell {cell_index} ends at {axial_length} m but reaches '
+          f'{shock_end_offset} m from its start'
         )
     object.__setattr__(self, 'shock_ordinates_m', ordinates)
     object.__setattr__(self, 'downstream_flow_angles_rad', downstream_angles)
     object.__setattr__(self, 'upstream_flow_angles_rad', configured_upstream_angles)
+    object.__setattr__(self, 'cell_axial_lengths_m', normalized_lengths)
+    object.__setattr__(self, 'shock_start_offsets_m', normalized_offsets)
+    object.__setattr__(self, 'shock_geometry_scales_per_cell', normalized_scales)
 
   @property
   def sample_count(self) -> int:
@@ -1431,14 +1507,19 @@ class MocPrescribedPostShockChainMock:
 
     return len(self.shock_ordinates_m)
 
-  def shock_geometry_scale_for_cell(self, cell_index: int) -> float:
-    """Return the deterministic geometry multiplier for one continued cell.
+  @staticmethod
+  def _scheduled_scale_for_index(
+    schedule_index: int,
+    explicit_schedule: tuple[float, ...] | None,
+    linear_step: float,
+  ) -> float:
+    """Resolve one scale during immutable configuration validation."""
 
-    The multiplier is a fixture control, not a solved shock-placement law.
-    Keeping it behind a named method makes the scenario visible to report and
-    visualization consumers while keeping the fidelity boundary explicit.
-    """
+    if explicit_schedule is not None:
+      return explicit_schedule[schedule_index]
+    return 1.0 + linear_step * schedule_index
 
+  def _validate_continued_cell_index(self, cell_index: int) -> int:
     if (
       isinstance(cell_index, bool)
       or not isinstance(cell_index, int)
@@ -1448,7 +1529,37 @@ class MocPrescribedPostShockChainMock:
         'cell_index must identify a configured continued cell '
         f'(2 through {self.total_cell_count})'
       )
-    scale = 1.0 + float(self.shock_geometry_scale_per_cell) * (cell_index - 2)
+    return cell_index - 2
+
+  def cell_axial_length_for_cell(self, cell_index: int) -> float:
+    """Return the configured axial length for one continued cell."""
+
+    schedule_index = self._validate_continued_cell_index(cell_index)
+    if self.cell_axial_lengths_m is not None:
+      return self.cell_axial_lengths_m[schedule_index]
+    return float(self.cell_axial_length_m)
+
+  def shock_start_offset_for_cell(self, cell_index: int) -> float:
+    """Return the configured shock-start offset for one continued cell."""
+
+    schedule_index = self._validate_continued_cell_index(cell_index)
+    if self.shock_start_offsets_m is not None:
+      return self.shock_start_offsets_m[schedule_index]
+    return float(self.shock_start_offset_m)
+
+  def shock_geometry_scale_for_cell(self, cell_index: int) -> float:
+    """Return the deterministic geometry multiplier for one continued cell.
+
+    The multiplier is a fixture control, not a solved shock-placement law.
+    Keeping it behind a named method makes the scenario visible to report and
+    visualization consumers while keeping the fidelity boundary explicit.
+    """
+
+    schedule_index = self._validate_continued_cell_index(cell_index)
+    if self.shock_geometry_scales_per_cell is not None:
+      scale = self.shock_geometry_scales_per_cell[schedule_index]
+    else:
+      scale = 1.0 + float(self.shock_geometry_scale_per_cell) * schedule_index
     if scale <= 0.0:
       raise ValueError(
         'shock_geometry_scale_per_cell produces a non-positive scale '
@@ -1517,6 +1628,30 @@ class MocPrescribedPostShockChainMock:
         }
         for cell_index in range(2, self.total_cell_count + 1)
       ],
+      'cell_axial_lengths_m': self.cell_axial_lengths_m,
+      'shock_start_offsets_m': self.shock_start_offsets_m,
+      'shock_geometry_scales_per_cell': self.shock_geometry_scales_per_cell,
+      'per_cell_geometry_schedule': [
+        {
+          'cell_index': cell_index,
+          'axial_length_m': self.cell_axial_length_for_cell(cell_index),
+          'shock_start_offset_m': self.shock_start_offset_for_cell(cell_index),
+          'shock_geometry_scale': self.shock_geometry_scale_for_cell(cell_index),
+        }
+        for cell_index in range(2, self.total_cell_count + 1)
+      ],
+      'geometry_schedule_model': (
+        'explicit-per-cell-schedule'
+        if any(
+          value is not None
+          for value in (
+            self.cell_axial_lengths_m,
+            self.shock_start_offsets_m,
+            self.shock_geometry_scales_per_cell,
+          )
+        )
+        else 'global-values-with-linear-scale'
+      ),
       'shock_ordinates_m': self.shock_ordinates_m,
       'downstream_flow_angles_rad': self.downstream_flow_angles_rad,
       'upstream_flow_angle_start_rad': self.upstream_flow_angle_start_rad,
@@ -1568,7 +1703,7 @@ class MocPrescribedPostShockChainMock:
       )
     upstream_total_pressures = self._resample_incoming_total_pressure(handoff)
     shock_geometry_scale = self.shock_geometry_scale_for_cell(next_cell_index)
-    shock_start_x_m = current.end_x_m + self.shock_start_offset_m
+    shock_start_x_m = current.end_x_m + self.shock_start_offset_for_cell(next_cell_index)
     shock_points = tuple(
       (
         shock_start_x_m
@@ -1648,7 +1783,7 @@ class MocPrescribedPostShockChainMock:
       )
     return MocPostShockChainCellSolve(
       field=field,
-      end_x_m=current.end_x_m + self.cell_axial_length_m,
+      end_x_m=current.end_x_m + self.cell_axial_length_for_cell(next_cell_index),
     )
 
 

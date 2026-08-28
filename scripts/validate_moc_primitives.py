@@ -1861,7 +1861,9 @@ def _shock_cell_chain_planner_mock(
   # handoff/fresh-domain checks cover more than the unit-test default.
   mock = MocPrescribedPostShockChainMock(
     total_cell_count=5,
-    shock_geometry_scale_per_cell=0.05,
+    cell_axial_lengths_m=(0.46, 0.50, 0.54, 0.58),
+    shock_start_offsets_m=(0.16, 0.18, 0.20, 0.22),
+    shock_geometry_scales_per_cell=(1.00, 1.05, 1.10, 1.15),
   )
 
   def solve_next(current, cell_index, handoff):
@@ -6044,6 +6046,21 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'physical_chain_promotion_allowed': shock_cell_chain_fixture_report[
         'physical_chain_promotion_allowed'
       ],
+      'geometry_schedule_model': shock_cell_chain_fixture_report[
+        'geometry_schedule_model'
+      ],
+      'cell_axial_lengths_m': shock_cell_chain_fixture_report[
+        'cell_axial_lengths_m'
+      ],
+      'shock_start_offsets_m': shock_cell_chain_fixture_report[
+        'shock_start_offsets_m'
+      ],
+      'shock_geometry_scales_per_cell': shock_cell_chain_fixture_report[
+        'shock_geometry_scales_per_cell'
+      ],
+      'per_cell_geometry_schedule': shock_cell_chain_fixture_report[
+        'per_cell_geometry_schedule'
+      ],
       'shock_geometry_scale_schedule': shock_cell_chain_fixture_report[
         'shock_geometry_scale_schedule'
       ],
@@ -6700,6 +6717,10 @@ def build_moc_primitive_report() -> dict[str, Any]:
       or shock_cell_chain_fixture_report['claim_fidelity_ceiling'] != (
         MocChainGeometryFidelity.PRESCRIBED_BOUNDARY_DIAGNOSTIC.value
       )
+      or shock_cell_chain_fixture_report['geometry_schedule_model'] != (
+        'explicit-per-cell-schedule'
+      )
+      or len(shock_cell_chain_fixture_report['per_cell_geometry_schedule']) != 4
       or shock_cell_chain_fixture_report['free_boundary_verified'] is not False
       or shock_cell_chain_fixture_report[
         'physical_chain_promotion_allowed'

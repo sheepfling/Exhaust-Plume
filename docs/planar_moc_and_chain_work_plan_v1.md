@@ -1376,6 +1376,12 @@ Only after MOC-1 through MOC-5 pass:
   max-pressure flattening while keeping the uniform upstream-state and
   reference-turn assumptions visible; reflected-field coupling and canonical
   free-boundary closure remain pending.
+- The prescribed planner mock now accepts an explicit per-cell geometry
+  schedule for continued cells: axial pitch, shock-start offset, and shock
+  height scale can vary independently across a chain. The standalone artifact
+  exercises a five-cell expanding schedule, while the mock still routes every
+  shock through the branch-checked attached-shock fit and remains capped at
+  ``prescribed-boundary-diagnostic`` fidelity.
 
 These blockers are intentionally represented as structured statuses in code;
 they are not reasons to weaken the fidelity boundary.

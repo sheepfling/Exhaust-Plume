@@ -1231,6 +1231,14 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert planner['production_claim_allowed'] is False
   assert planner['planner_step_count'] == 5
   assert planner['handoff_links_verified'] is True
+  assert planner['geometry_schedule_model'] == 'explicit-per-cell-schedule'
+  assert planner['cell_axial_lengths_m'] == pytest.approx((0.46, 0.50, 0.54, 0.58))
+  assert planner['shock_start_offsets_m'] == pytest.approx((0.16, 0.18, 0.20, 0.22))
+  assert planner['shock_geometry_scales_per_cell'] == pytest.approx((1.00, 1.05, 1.10, 1.15))
+  assert [entry['cell_index'] for entry in planner['per_cell_geometry_schedule']] == [2, 3, 4, 5]
+  assert [entry['axial_length_m'] for entry in planner['per_cell_geometry_schedule']] == pytest.approx(
+    (0.46, 0.50, 0.54, 0.58)
+  )
   assert [step['next_cell_index'] for step in planner['planner_steps']] == [2, 3, 4, 5, 6]
   assert all(
     step['boundary_kind'] == 'post-shock-field-perimeter'
