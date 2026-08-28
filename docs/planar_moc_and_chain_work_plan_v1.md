@@ -1674,3 +1674,14 @@ mesh topology, and bounded state sampling. This strengthens the local audit
 without changing the result's research-only ceiling: physical closure,
 canonical mixed-regime continuation, and external validation are still the
 next gates.
+
+The same evidence artifact now includes an independent physical-field-chain
+audit, `op.moc.ambient-closed-physical-field-chain`. It remeasures each
+solver-generated ambient-closed field and verifies the exact centerline
+handoff plus fresh downstream ambient interface across the three-field
+research prefix. The generic shock-cell measurement explicitly carries the
+zero-strength endpoint allowance used by the reflected continuation, without
+relaxing interior shock total-pressure loss. This closes the local planner/
+field-chain evidence seam only; canonical reflected remeshing,
+mixed-regime/free-boundary closure, refinement, and external validation remain
+the release gates, and no lower-fidelity provider is changed.

@@ -39,6 +39,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocPostShockBoundaryState,
   MocPostShockChainCellSolve,
   MocPostShockCharacteristicFieldResult,
+  MocPhysicalPostShockFieldContinuationSolve,
   MocReflectedDomainRemeshRequest,
   MocReflectedDomainRemeshStatus,
   MocReflectedTracePolarity,
@@ -195,6 +196,7 @@ from exhaust_plume.validation.moc_measurements import (  # noqa: E402
   MocShockCellObservation,
   MocShockCellChainRefinementCase,
   measure_moc_caustic_remesh,
+  measure_moc_ambient_closed_physical_field_chain,
   measure_moc_chain_planner,
   measure_moc_reflected_domain_remesh,
   measure_mixed_regime_control_section,
@@ -993,6 +995,8 @@ def _ambient_shock_strip_probe(
   ambient_centerline_physical_terminal_patch_mixed_regime_planner_accepted = False
   ambient_centerline_physical_terminal_patch_ambient_closure_chain = None
   ambient_centerline_physical_terminal_patch_ambient_closure_chain_accepted = False
+  ambient_centerline_physical_terminal_patch_field_chain_audit = None
+  ambient_centerline_physical_terminal_patch_field_chain_audit_accepted = False
   ambient_centerline_physical_terminal_patch_refinement = []
   ambient_centerline_physical_terminal_patch_refinement_accepted = False
   if (
@@ -1419,6 +1423,64 @@ def _ambient_shock_strip_probe(
         'endpoint_policy'
       ].startswith('use-next-field-ambient-boundary-endpoint')
     )
+    continued_fields = [physical_field]
+    continued_field = physical_field
+    continued_cell = physical_field.as_coupled_chain_cell(
+      start_x_m=shock_fit.boundary_states[0].point_m[0],
+      end_x_m=physical_field.ambient_boundary_points_m[-1][0],
+      cell_index=1,
+    )
+    field_chain_audit_error = None
+    try:
+      for field_index in range(
+        2,
+        terminal_patch_ambient_closure_reference.total_cell_count + 1,
+      ):
+        continuation = terminal_patch_ambient_closure_reference.solve_next(
+          continued_cell,
+          field_index,
+          continued_cell.continuation_boundary,
+          continued_field,
+          end_x_m=terminal_patch_ambient_closure_end_x_m,
+        )
+        if not isinstance(
+          continuation,
+          MocPhysicalPostShockFieldContinuationSolve,
+        ):
+          field_chain_audit_error = continuation.message
+          break
+        previous_end_x_m = continued_cell.end_x_m
+        continued_field = continuation.field
+        continued_fields.append(continued_field)
+        continued_cell = continued_field.as_coupled_chain_cell(
+          start_x_m=previous_end_x_m,
+          end_x_m=continuation.end_x_m,
+          cell_index=field_index,
+        )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      field_chain_audit_error = str(error)
+    field_chain_measurement = measure_moc_ambient_closed_physical_field_chain(
+      tuple(continued_fields)
+    )
+    ambient_centerline_physical_terminal_patch_field_chain_audit = (
+      field_chain_measurement.as_report()
+    )
+    if field_chain_audit_error is not None:
+      ambient_centerline_physical_terminal_patch_field_chain_audit[
+        'continuation_error'
+      ] = field_chain_audit_error
+    ambient_centerline_physical_terminal_patch_field_chain_audit_accepted = (
+      field_chain_audit_error is None
+      and ambient_centerline_physical_terminal_patch_ambient_closure_chain_accepted
+      and field_chain_measurement.converged
+      and field_chain_measurement.field_count
+      == terminal_patch_ambient_closure_reference.total_cell_count
+      and field_chain_measurement.handoff_links_verified is True
+      and field_chain_measurement.fresh_domain_verified
+      and field_chain_measurement.physical_closure_verified
+      and field_chain_measurement.chain_promotion_blocked
+      and not field_chain_measurement.production_claim_allowed
+    )
     for refinement_sample_count in (5, 9, 17):
       refinement_result = ambient_centerline_physical_field_refinement_results.get(
         refinement_sample_count
@@ -1816,6 +1878,12 @@ def _ambient_shock_strip_probe(
     ),
     'ambient_centerline_physical_terminal_patch_ambient_closure_chain_accepted': (
       ambient_centerline_physical_terminal_patch_ambient_closure_chain_accepted
+    ),
+    'ambient_centerline_physical_terminal_patch_field_chain_audit': (
+      ambient_centerline_physical_terminal_patch_field_chain_audit
+    ),
+    'ambient_centerline_physical_terminal_patch_field_chain_audit_accepted': (
+      ambient_centerline_physical_terminal_patch_field_chain_audit_accepted
     ),
     'ambient_centerline_physical_terminal_patch_refinement': (
       ambient_centerline_physical_terminal_patch_refinement
@@ -7046,6 +7114,12 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'ambient_centerline_physical_terminal_patch_ambient_closure_chain_accepted'
     ) is not True
   )
+  ambient_centerline_physical_terminal_patch_field_chain_audit_failure = (
+    ambient_shock_strip_probe.get('accepted') is True
+    and ambient_shock_strip_probe.get(
+      'ambient_centerline_physical_terminal_patch_field_chain_audit_accepted'
+    ) is not True
+  )
   ambient_centerline_physical_terminal_patch_refinement_failure = (
     ambient_shock_strip_probe.get('accepted') is True
     and ambient_shock_strip_probe.get(
@@ -8725,6 +8799,23 @@ def build_moc_primitive_report() -> dict[str, Any]:
         ),
       }
     ] if ambient_centerline_physical_terminal_patch_ambient_closure_chain_failure else []),
+    *([
+      {
+        'case': 'solver_generated_ambient_centerline_physical_terminal_patch_field_chain_audit',
+        'status': str(
+          ambient_shock_strip_probe.get(
+            'ambient_centerline_physical_terminal_patch_field_chain_audit',
+            {},
+          ).get('status', 'missing')
+        ),
+        'message': str(
+          ambient_shock_strip_probe.get(
+            'ambient_centerline_physical_terminal_patch_field_chain_audit',
+            {},
+          ).get('message', '')
+        ),
+      }
+    ] if ambient_centerline_physical_terminal_patch_field_chain_audit_failure else []),
     *([
       {
         'case': 'solver_generated_terminal_reflection_patch_trace_profile',

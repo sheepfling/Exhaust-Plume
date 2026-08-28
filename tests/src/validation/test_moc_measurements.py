@@ -7,20 +7,27 @@ import pytest
 from exhaust_plume.models.moc import (
   CharacteristicState,
   MocCharacteristicCell,
+  MocChainContinuationPolicy,
   MocChainBoundaryKind,
   MocChainBoundarySample,
   MocChainGeometryFidelity,
+  MocPhysicalPostShockFieldContinuationSolve,
   MocPostShockBoundaryState,
   MocShockBoundaryFitResult,
   MocShockBoundaryFitStatus,
   MocPrescribedMixedRegimeClosureMock,
+  MocTerminalReflectionPatchAmbientClosureChainReference,
   assemble_post_shock_characteristic_field,
+  plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closure,
   plan_prescribed_post_shock_chain_mock,
+  solve_marched_attached_shock_field,
+  solve_marched_attached_shock_with_ambient_centerline_physical_field,
   solve_marched_ambient_attachment_shock_cell_transition,
   solve_uniform_attached_shock_field,
 )
 from exhaust_plume.validation.moc_measurements import (
   MocChainPlannerMeasurementStatus,
+  MocPhysicalFieldChainMeasurementStatus,
   MocTerminalClosureMeasurementStatus,
   MocTerminalClosureObservation,
   MocShockCellMeasurementStatus,
@@ -28,11 +35,47 @@ from exhaust_plume.validation.moc_measurements import (
   MocShockCellChainRefinementCase,
   MocShockCellChainRefinementMeasurementStatus,
   measure_moc_terminal_closure,
+  measure_moc_ambient_closed_physical_field_chain,
   measure_moc_shock_cell,
   measure_moc_shock_cell_chain,
   measure_moc_shock_cell_chain_refinement,
   measure_moc_chain_planner,
 )
+
+
+def _canonical_ambient_closed_physical_field():
+  """Return a solver-owned reflected field for chain measurement tests."""
+
+  upstream = CharacteristicState(
+    x_m=0.5,
+    y_m=0.5,
+    theta_rad=-0.2,
+    mach=2.0,
+    gamma=1.4,
+  )
+  shock = solve_marched_attached_shock_field(
+    lambda point: replace(upstream, x_m=point[0], y_m=point[1]),
+    lambda _point: 100000.0,
+    (0.5, 0.5),
+    downstream_flow_angle_at=lambda _index, point: 0.05 * point[1] / 0.5,
+    sample_count=9,
+  )
+  assert shock.shock_fit is not None
+  first = shock.shock_fit.boundary_states[0]
+  ambient_pressure = first.downstream_total_pressure_Pa / (
+    1.0 + 0.5 * (first.state.gamma - 1.0) * first.state.mach**2
+  ) ** (first.state.gamma / (first.state.gamma - 1.0))
+  result = solve_marched_attached_shock_with_ambient_centerline_physical_field(
+    lambda point: replace(upstream, x_m=point[0], y_m=point[1]),
+    lambda _point: 100000.0,
+    (0.5, 0.5),
+    ambient_pressure,
+    0.02,
+    0.12,
+    sample_count=9,
+  )
+  assert result.field is not None
+  return result.field
 
 
 def _observation(
@@ -289,6 +332,106 @@ def test_moc_chain_measurement_rejects_reordered_indices() -> None:
 
   assert result.status is MocShockCellMeasurementStatus.CHAIN_FAILURE
   assert 'contiguous' in result.message
+
+
+def test_physical_field_chain_measurement_audits_continued_solver_fields() -> None:
+  seed = _canonical_ambient_closed_physical_field()
+  reference = MocTerminalReflectionPatchAmbientClosureChainReference(
+    total_cell_count=3,
+  )
+  current = seed.as_coupled_chain_cell(
+    start_x_m=0.5,
+    end_x_m=seed.ambient_boundary_points_m[-1][0],
+    cell_index=1,
+  )
+  field = seed
+  fields = [seed]
+  for index in range(2, 4):
+    solved = reference.solve_next(
+      current,
+      index,
+      current.continuation_boundary,
+      field,
+      end_x_m=8.0,
+    )
+    assert isinstance(solved, MocPhysicalPostShockFieldContinuationSolve)
+    previous_end = current.end_x_m
+    field = solved.field
+    fields.append(field)
+    current = field.as_coupled_chain_cell(
+      start_x_m=previous_end,
+      end_x_m=solved.end_x_m,
+      cell_index=index,
+    )
+
+  planner = plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closure(
+    seed,
+    start_x_m=0.5,
+    end_x_m=8.0,
+    reference=reference,
+    policy=MocChainContinuationPolicy(max_cells=4, require_state_carry=True),
+  )
+  assert planner.chain.cell_count == 3
+
+  result = measure_moc_ambient_closed_physical_field_chain(tuple(fields))
+
+  assert result.status is MocPhysicalFieldChainMeasurementStatus.CONVERGED
+  assert result.converged
+  assert result.field_count == 3
+  assert result.handoff_link_count == 2
+  assert result.handoff_links_verified is True
+  assert result.fresh_domain_verified is True
+  assert result.physical_closure_verified is True
+  assert all(result.field_physical_closure_verified)
+  assert all(measurement.converged for measurement in result.field_measurements)
+  report = result.as_report()
+  assert report['operator_id'] == 'op.moc.ambient-closed-physical-field-chain'
+  assert report['chain_promotion_blocked'] is True
+  assert report['production_claim_allowed'] is False
+  assert report['audited_field_count'] == 3
+
+
+def test_physical_field_chain_measurement_rejects_changed_handoff() -> None:
+  seed = _canonical_ambient_closed_physical_field()
+  reference = MocTerminalReflectionPatchAmbientClosureChainReference(
+    total_cell_count=2,
+  )
+  current = seed.as_coupled_chain_cell(
+    start_x_m=0.5,
+    end_x_m=seed.ambient_boundary_points_m[-1][0],
+    cell_index=1,
+  )
+  solved = reference.solve_next(
+    current,
+    2,
+    current.continuation_boundary,
+    seed,
+    end_x_m=8.0,
+  )
+  assert isinstance(solved, MocPhysicalPostShockFieldContinuationSolve)
+  tampered = replace(
+    solved.field,
+    incoming_handoff_total_pressure_Pa=(
+      solved.field.incoming_handoff_total_pressure_Pa[0] + 1.0,
+      *solved.field.incoming_handoff_total_pressure_Pa[1:],
+    ),
+  )
+
+  result = measure_moc_ambient_closed_physical_field_chain((seed, tampered))
+
+  assert result.status is MocPhysicalFieldChainMeasurementStatus.HANDOFF_FAILURE
+  assert result.handoff_links_verified is False
+  assert 'exact previous centerline handoff' in result.message
+
+
+def test_physical_field_chain_measurement_recomputes_closure_without_cached_flag() -> None:
+  field = _canonical_ambient_closed_physical_field()
+  tampered = replace(field, characteristic_family_orientation_verified=False)
+
+  result = measure_moc_ambient_closed_physical_field_chain((tampered,))
+
+  assert result.status is MocPhysicalFieldChainMeasurementStatus.CONVERGED
+  assert result.physical_closure_verified is True
 
 
 def test_moc_chain_refinement_measurement_compares_resolutions_without_promotion() -> None:

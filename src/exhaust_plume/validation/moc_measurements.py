@@ -39,6 +39,11 @@ from exhaust_plume.models.moc.caustic_remesh import (
   MocCausticShockRemeshRequest,
   MocCausticShockRemeshResult,
 )
+from exhaust_plume.models.moc.ambient_boundary import (
+  MocAmbientBoundarySample,
+  MocAmbientPressureBoundaryResult,
+  validate_ambient_pressure_boundary,
+)
 from exhaust_plume.models.moc.chain import (
   MocChainBoundaryKind,
   MocChainBoundarySample,
@@ -52,7 +57,12 @@ from exhaust_plume.models.moc.planner import MocChainPlannerResult
 from exhaust_plume.models.moc.compression import MocNormalShockTerminalResult
 from exhaust_plume.models.moc.primitives import (
   CharacteristicFamily,
+  CharacteristicPointResult,
   CharacteristicState,
+)
+from exhaust_plume.models.moc.physical_cell import (
+  MocPhysicalPostShockFieldResult,
+  MocPhysicalPostShockFieldStatus,
 )
 from exhaust_plume.models.moc.reflected_domain import (
   MocReflectedDomainRemeshResult,
@@ -71,7 +81,7 @@ from exhaust_plume.models.moc.terminal_patch import (
   classify_reflected_trace_polarity,
 )
 from exhaust_plume.models.moc.topology import MocTopologyResult, validate_moc_mesh
-from exhaust_plume.models.moc.zone import MocCharacteristicNode
+from exhaust_plume.models.moc.zone import MocCharacteristicCell, MocCharacteristicNode
 from exhaust_plume.models.moc.free_boundary import MocFreeBoundaryShockResult
 from exhaust_plume.util.aero.shock_validity import ShockBranch
 
@@ -86,6 +96,7 @@ __all__ = (
   'MOC_SHOCK_CELL_CHAIN_OPERATOR_ID',
   'MOC_SHOCK_CELL_CHAIN_REFINEMENT_OPERATOR_ID',
   'MOC_SHOCK_CELL_GEOMETRY_OPERATOR_ID',
+  'MOC_AMBIENT_CLOSED_PHYSICAL_FIELD_CHAIN_OPERATOR_ID',
   'MOC_TERMINAL_CLOSURE_OPERATOR_ID',
   'MocCausticRemeshMeasurement',
   'MocCausticRemeshMeasurementStatus',
@@ -113,6 +124,8 @@ __all__ = (
   'MocShockCellMeasurement',
   'MocShockCellMeasurementStatus',
   'MocShockCellObservation',
+  'MocPhysicalFieldChainMeasurement',
+  'MocPhysicalFieldChainMeasurementStatus',
   'measure_moc_caustic_remesh',
   'measure_moc_chain_planner',
   'measure_moc_reflected_domain_remesh',
@@ -124,11 +137,15 @@ __all__ = (
   'measure_moc_shock_cell',
   'measure_moc_shock_cell_chain',
   'measure_moc_shock_cell_chain_refinement',
+  'measure_moc_ambient_closed_physical_field_chain',
 )
 
 
 MOC_SHOCK_CELL_GEOMETRY_OPERATOR_ID = 'op.moc.shock-cell-geometry'
 MOC_SHOCK_CELL_CHAIN_OPERATOR_ID = 'op.moc.shock-cell-chain'
+MOC_AMBIENT_CLOSED_PHYSICAL_FIELD_CHAIN_OPERATOR_ID = (
+  'op.moc.ambient-closed-physical-field-chain'
+)
 MOC_SHOCK_CELL_CHAIN_REFINEMENT_OPERATOR_ID = (
   'op.moc.shock-cell-chain-refinement'
 )
@@ -1382,6 +1399,8 @@ class MocShockCellObservation:
   outgoing_handoff: tuple[MocChainBoundarySample, ...] = ()
   incoming_boundary_kind: MocChainBoundaryKind | None = None
   outgoing_boundary_kind: MocChainBoundaryKind | None = None
+  zero_strength_shock_start_allowed: bool = False
+  zero_strength_shock_endpoints_allowed: bool = False
 
   def __post_init__(self) -> None:
     if isinstance(self.cell_index, bool) or not isinstance(self.cell_index, int):
@@ -1431,6 +1450,12 @@ class MocShockCellObservation:
         raise TypeError(
           f'{name} must be a MocChainBoundaryKind or None'
         )
+    for name in (
+      'zero_strength_shock_start_allowed',
+      'zero_strength_shock_endpoints_allowed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
   ####
 
 
@@ -1551,7 +1576,184 @@ class MocShockCellChainMeasurement:
       'claim_status': self.claim_status,
       'message': self.message,
     }
+  ####
+
+
+class MocPhysicalFieldChainMeasurementStatus(str, Enum):
+  """Outcome of independently auditing a carried physical-field chain."""
+
+  CONVERGED = 'converged'
+  INVALID_INPUT = 'invalid_input'
+  FIELD_FAILURE = 'field_failure'
+  TOPOLOGY_FAILURE = 'topology_failure'
+  BOUNDARY_FAILURE = 'boundary_failure'
+  HANDOFF_FAILURE = 'handoff_failure'
+  DOMAIN_FAILURE = 'domain_failure'
 ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocPhysicalFieldChainMeasurement:
+  """Independent evidence for a sequence of ambient-closed MOC fields.
+
+  The measurement consumes the solver-returned fields as immutable data.  It
+  rechecks each field's explicit shock/ambient/centerline perimeter, retained
+  state samples, characteristic residuals, total-pressure loss, and mesh
+  topology.  Adjacent fields must carry the exact centerline handoff and begin
+  at a fresh downstream ambient interface.  A passing result is local
+  research evidence only: canonical reflected free-boundary closure,
+  refinement, and external validation still control product promotion.
+  """
+
+  status: MocPhysicalFieldChainMeasurementStatus
+  operator_id: str = MOC_AMBIENT_CLOSED_PHYSICAL_FIELD_CHAIN_OPERATOR_ID
+  field_count: int = 0
+  field_measurements: tuple[MocShockCellMeasurement, ...] = ()
+  field_statuses: tuple[str, ...] = ()
+  field_topology_verified: tuple[bool, ...] = ()
+  field_ambient_boundary_verified: tuple[bool, ...] = ()
+  field_state_sampling_verified: tuple[bool, ...] = ()
+  field_upstream_shock_coupling_verified: tuple[bool, ...] = ()
+  field_physical_closure_verified: tuple[bool, ...] = ()
+  handoff_link_count: int = 0
+  handoff_links_verified: bool | None = None
+  fresh_domain_verified: bool = False
+  physical_closure_verified: bool = False
+  chain_promotion_blocked: bool = True
+  production_claim_allowed: bool = False
+  claim_status: str = (
+    'independent-ambient-closed-physical-field-chain-audit; not-accepted'
+  )
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if (
+      isinstance(self.field_count, bool)
+      or not isinstance(self.field_count, int)
+      or self.field_count < 0
+    ):
+      raise ValueError('field_count must be a nonnegative integer')
+    measurements = tuple(self.field_measurements)
+    if any(
+      not isinstance(measurement, MocShockCellMeasurement)
+      for measurement in measurements
+    ):
+      raise TypeError(
+        'field_measurements must contain MocShockCellMeasurement values'
+      )
+    if len(measurements) > self.field_count:
+      raise ValueError('field_measurements cannot exceed field_count')
+    object.__setattr__(self, 'field_measurements', measurements)
+    statuses = tuple(str(status) for status in self.field_statuses)
+    if len(statuses) > self.field_count:
+      raise ValueError('field_statuses cannot exceed field_count')
+    if any(not status for status in statuses):
+      raise ValueError('field_statuses must contain non-empty strings')
+    object.__setattr__(self, 'field_statuses', statuses)
+    for name in (
+      'field_topology_verified',
+      'field_ambient_boundary_verified',
+      'field_state_sampling_verified',
+      'field_upstream_shock_coupling_verified',
+      'field_physical_closure_verified',
+    ):
+      values = tuple(getattr(self, name))
+      if len(values) > self.field_count:
+        raise ValueError(f'{name} cannot exceed field_count')
+      if any(not isinstance(value, bool) for value in values):
+        raise TypeError(f'{name} must contain bool values')
+      object.__setattr__(self, name, values)
+    if (
+      isinstance(self.handoff_link_count, bool)
+      or not isinstance(self.handoff_link_count, int)
+      or self.handoff_link_count < 0
+    ):
+      raise ValueError('handoff_link_count must be a nonnegative integer')
+    if self.handoff_links_verified is not None and not isinstance(
+      self.handoff_links_verified,
+      bool,
+    ):
+      raise TypeError('handoff_links_verified must be a bool or None')
+    for name in (
+      'fresh_domain_verified',
+      'physical_closure_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+  ####
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocPhysicalFieldChainMeasurementStatus.CONVERGED
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    """Return JSON-compatible per-field and chain audit evidence."""
+
+    audited_count = max(
+      len(self.field_measurements),
+      len(self.field_statuses),
+      len(self.field_topology_verified),
+      len(self.field_ambient_boundary_verified),
+      len(self.field_state_sampling_verified),
+      len(self.field_upstream_shock_coupling_verified),
+      len(self.field_physical_closure_verified),
+    )
+    fields = []
+    for index in range(audited_count):
+      measurement = (
+        self.field_measurements[index]
+        if index < len(self.field_measurements) else None
+      )
+      fields.append({
+        'field_index': index + 1,
+        'solver_status': (
+          self.field_statuses[index]
+          if index < len(self.field_statuses) else None
+        ),
+        'topology_verified': (
+          self.field_topology_verified[index]
+          if index < len(self.field_topology_verified) else False
+        ),
+        'ambient_boundary_verified': (
+          self.field_ambient_boundary_verified[index]
+          if index < len(self.field_ambient_boundary_verified) else False
+        ),
+        'state_sampling_verified': (
+          self.field_state_sampling_verified[index]
+          if index < len(self.field_state_sampling_verified) else False
+        ),
+        'upstream_shock_coupling_verified': (
+          self.field_upstream_shock_coupling_verified[index]
+          if index < len(self.field_upstream_shock_coupling_verified) else False
+        ),
+        'physical_closure_verified': (
+          self.field_physical_closure_verified[index]
+          if index < len(self.field_physical_closure_verified) else False
+        ),
+        'measurement': None if measurement is None else measurement.as_report(),
+      })
+    return {
+      'status': self.status.value,
+      'operator_id': self.operator_id,
+      'converged': self.converged,
+      'field_count': self.field_count,
+      'audited_field_count': audited_count,
+      'fields': fields,
+      'handoff': {
+        'link_count': self.handoff_link_count,
+        'links_verified': self.handoff_links_verified,
+      },
+      'fresh_domain_verified': self.fresh_domain_verified,
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'claim_status': self.claim_status,
+      'message': self.message,
+    }
+  ####
 
 
 class MocShockCellChainRefinementMeasurementStatus(str, Enum):
@@ -2805,6 +3007,9 @@ def _pressure_metrics(
   downstream: tuple[float, ...],
   *,
   expected_count: int,
+  zero_strength_shock_start_allowed: bool = False,
+  zero_strength_shock_endpoints_allowed: bool = False,
+  zero_strength_tolerance: float = 1.0e-10,
 ) -> tuple[int, float | None, float | None, bool | None, str | None]:
   if not upstream and not downstream:
     return 0, None, None, None, None
@@ -2829,12 +3034,28 @@ def _pressure_metrics(
     downstream_value < upstream_value
     for upstream_value, downstream_value in zip(upstream, downstream, strict=True)
   )
+  if not loss_verified:
+    start_allowed = bool(
+      zero_strength_shock_start_allowed
+      and abs(ratios[0] - 1.0) <= zero_strength_tolerance
+      and all(0.0 < ratio < 1.0 for ratio in ratios[1:])
+    )
+    endpoints_allowed = bool(
+      zero_strength_shock_endpoints_allowed
+      and abs(ratios[0] - 1.0) <= zero_strength_tolerance
+      and abs(ratios[-1] - 1.0) <= zero_strength_tolerance
+      and all(0.0 < ratio < 1.0 for ratio in ratios[1:-1])
+    )
+    loss_verified = start_allowed or endpoints_allowed
   return (
     len(ratios),
     min(ratios),
     max(ratios),
     loss_verified,
-    None if loss_verified else 'every shock sample must reduce total pressure',
+    None if loss_verified else (
+      'every shock sample must reduce total pressure unless an explicit '
+      'zero-strength endpoint allowance is supplied'
+    ),
   )
 ####
 
@@ -3038,6 +3259,8 @@ def measure_moc_shock_cell(
     observation.upstream_total_pressure_Pa,
     observation.downstream_total_pressure_Pa,
     expected_count=len(shock),
+    zero_strength_shock_start_allowed=observation.zero_strength_shock_start_allowed,
+    zero_strength_shock_endpoints_allowed=observation.zero_strength_shock_endpoints_allowed,
   )
   if pressure_error is not None:
     return MocShockCellMeasurement(
@@ -6505,12 +6728,15 @@ def measure_moc_reflected_domain_remesh(
       for state, next_state in zip(centerline, centerline[1:])
     )
   )
+  centerline_reference_state = centerline[0] if centerline else None
   outer_source_verified = bool(
     len(outer) >= 3
     and len(outer) == len(centerline)
+    and centerline_reference_state is not None
     and all(isinstance(state, CharacteristicState) for state in outer)
     and all(
-      abs(state.gamma - centerline[0].gamma) <= request.invariant_tolerance
+      abs(state.gamma - centerline_reference_state.gamma)
+      <= request.invariant_tolerance
       and state.y_m > request.target_centerline_y_m + request.position_tolerance_m
       for state in outer
     )
@@ -6871,5 +7097,699 @@ def measure_moc_shock_cell_chain(
     handoff_link_count=handoff_link_count,
     handoff_links_verified=handoff_links_verified,
     fresh_domain_verified=True,
+  )
+####
+
+
+def measure_moc_ambient_closed_physical_field_chain(
+  fields: Sequence[MocPhysicalPostShockFieldResult],
+  *,
+  position_tolerance_m: float = 1.0e-9,
+  state_tolerance: float = 1.0e-9,
+  invariant_tolerance: float = 1.0e-8,
+  pressure_tolerance: float = 1.0e-8,
+  tangent_tolerance: float = 1.0e-8,
+  area_tolerance_m2: float = 1.0e-9,
+  mesh_vertex_tolerance_m: float = 1.0e-12,
+) -> MocPhysicalFieldChainMeasurement:
+  """Independently audit a sequence of solver-owned physical MOC fields.
+
+  This operator is intentionally stricter than the planner trace audit.  It
+  remeasures every field from its raw mesh and retained state arrays, then
+  checks that each next field consumes the previous centerline trace exactly
+  and starts at the previous ambient endpoint.  It does not use
+  ``physical_closure_verified``, ``state_sampling_available``,
+  ``upstream_shock_coupling_verified``, or ``pressure_loss_verified`` as proof.
+  A passing result is still research evidence, not a canonical reflected
+  free-boundary or externally validated shock train.
+  """
+
+  try:
+    items = tuple(fields)
+  except TypeError:
+    return MocPhysicalFieldChainMeasurement(
+      status=MocPhysicalFieldChainMeasurementStatus.INVALID_INPUT,
+      field_count=0,
+      message='fields must be an iterable of MocPhysicalPostShockFieldResult values',
+    )
+  if not items:
+    return MocPhysicalFieldChainMeasurement(
+      status=MocPhysicalFieldChainMeasurementStatus.INVALID_INPUT,
+      message='at least one physical post-shock field is required',
+    )
+  if any(not isinstance(field, MocPhysicalPostShockFieldResult) for field in items):
+    return MocPhysicalFieldChainMeasurement(
+      status=MocPhysicalFieldChainMeasurementStatus.INVALID_INPUT,
+      field_count=len(items),
+      field_statuses=('invalid_input',) * len(items),
+      field_topology_verified=(False,) * len(items),
+      field_ambient_boundary_verified=(False,) * len(items),
+      field_state_sampling_verified=(False,) * len(items),
+      field_upstream_shock_coupling_verified=(False,) * len(items),
+      field_physical_closure_verified=(False,) * len(items),
+      message='fields must contain only MocPhysicalPostShockFieldResult values',
+    )
+  for name, value in (
+    ('position_tolerance_m', position_tolerance_m),
+    ('state_tolerance', state_tolerance),
+    ('invariant_tolerance', invariant_tolerance),
+    ('pressure_tolerance', pressure_tolerance),
+    ('tangent_tolerance', tangent_tolerance),
+    ('area_tolerance_m2', area_tolerance_m2),
+    ('mesh_vertex_tolerance_m', mesh_vertex_tolerance_m),
+  ):
+    if not isfinite(float(value)) or float(value) <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+
+  statuses: list[str] = []
+  topology_verified: list[bool] = []
+  ambient_boundary_verified: list[bool] = []
+  state_sampling_verified: list[bool] = []
+  upstream_coupling_verified: list[bool] = []
+  physical_closure_verified: list[bool] = []
+  measurements: list[MocShockCellMeasurement] = []
+  reference_ambient_pressure: float | None = None
+
+  def failure(
+    status: MocPhysicalFieldChainMeasurementStatus,
+    message: str,
+    *,
+    handoff_links_verified: bool | None = None,
+    fresh_domain_verified: bool = False,
+  ) -> MocPhysicalFieldChainMeasurement:
+    return MocPhysicalFieldChainMeasurement(
+      status=status,
+      field_count=len(items),
+      field_measurements=tuple(measurements),
+      field_statuses=tuple(statuses),
+      field_topology_verified=tuple(topology_verified),
+      field_ambient_boundary_verified=tuple(ambient_boundary_verified),
+      field_state_sampling_verified=tuple(state_sampling_verified),
+      field_upstream_shock_coupling_verified=tuple(upstream_coupling_verified),
+      field_physical_closure_verified=tuple(physical_closure_verified),
+      handoff_link_count=max(0, len(statuses) - 1),
+      handoff_links_verified=handoff_links_verified,
+      fresh_domain_verified=fresh_domain_verified,
+      physical_closure_verified=False,
+      message=message,
+    )
+
+  def close(
+    actual: float,
+    expected: float,
+    tolerance: float,
+    *,
+    relative: bool = False,
+  ) -> bool:
+    scale = (
+      max(1.0, abs(float(actual)), abs(float(expected)))
+      if relative else 1.0
+    )
+    return abs(float(actual) - float(expected)) <= tolerance * scale
+
+  def state_matches(
+    state: object,
+    point: Point,
+    *,
+    require_axis: bool = False,
+  ) -> bool:
+    if not isinstance(state, CharacteristicState):
+      return False
+    return bool(
+      close(state.x_m, point[0], position_tolerance_m)
+      and close(state.y_m, point[1], position_tolerance_m)
+      and (not require_axis or abs(state.y_m) <= position_tolerance_m)
+    )
+
+  def state_values_match(left: object, right: object) -> bool:
+    if not isinstance(left, CharacteristicState) or not isinstance(
+      right,
+      CharacteristicState,
+    ):
+      return False
+    return bool(
+      close(left.x_m, right.x_m, position_tolerance_m)
+      and close(left.y_m, right.y_m, position_tolerance_m)
+      and close(left.theta_rad, right.theta_rad, state_tolerance)
+      and close(left.mach, right.mach, state_tolerance)
+      and close(left.gamma, right.gamma, state_tolerance)
+    )
+
+  def positive_pressures(values: Sequence[float]) -> bool:
+    try:
+      return all(isfinite(float(value)) and float(value) > 0.0 for value in values)
+    except (TypeError, ValueError):
+      return False
+
+  def sequence_matches(
+    actual: Sequence[float],
+    expected: Sequence[float],
+    tolerance: float,
+    *,
+    relative: bool = False,
+  ) -> bool:
+    try:
+      return len(actual) == len(expected) and all(
+        close(value, reference, tolerance, relative=relative)
+        for value, reference in zip(actual, expected, strict=True)
+      )
+    except (TypeError, ValueError):
+      return False
+
+  for field_index, field in enumerate(items, start=1):
+    raw_status = field.status
+    statuses.append(
+      raw_status.value
+      if isinstance(raw_status, MocPhysicalPostShockFieldStatus)
+      else str(raw_status)
+    )
+    topology_verified.append(False)
+    ambient_boundary_verified.append(False)
+    state_sampling_verified.append(False)
+    upstream_coupling_verified.append(False)
+    physical_closure_verified.append(False)
+
+    if raw_status is not MocPhysicalPostShockFieldStatus.CONVERGED_AMBIENT_CLOSED:
+      return failure(
+        MocPhysicalFieldChainMeasurementStatus.FIELD_FAILURE,
+        f'physical field {field_index} did not report a converged ambient-closed result',
+      )
+
+    try:
+      nodes = tuple(field.nodes)
+      cells = tuple(field.cells)
+      shock_points = _points(field.shock_boundary_points_m, 'shock boundary')
+      ambient_points = _points(
+        field.ambient_boundary_points_m,
+        'ambient boundary',
+      )
+      centerline_points = _points(
+        field.centerline_boundary_points_m,
+        'centerline boundary',
+      )
+    except (TypeError, ValueError, AttributeError) as error:
+      return failure(
+        MocPhysicalFieldChainMeasurementStatus.FIELD_FAILURE,
+        f'physical field {field_index} raw geometry could not be read: {error}',
+      )
+    if not nodes or not cells or any(
+      not isinstance(cell, MocCharacteristicCell) for cell in cells
+    ):
+      return failure(
+        MocPhysicalFieldChainMeasurementStatus.FIELD_FAILURE,
+        f'physical field {field_index} must retain typed nodes and characteristic cells',
+      )
+    try:
+      topology = validate_moc_mesh(
+        cells,
+        vertex_tolerance_m=mesh_vertex_tolerance_m,
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      return failure(
+        MocPhysicalFieldChainMeasurementStatus.TOPOLOGY_FAILURE,
+        f'physical field {field_index} topology could not be remeasured: {error}',
+      )
+    if not (
+      topology.connected
+      and topology.forms_closed_zone
+      and topology.nonmanifold_edge_count == 0
+    ):
+      return failure(
+        MocPhysicalFieldChainMeasurementStatus.TOPOLOGY_FAILURE,
+        f'physical field {field_index} failed the independent mesh topology check: '
+        f'{topology.message}',
+      )
+    topology_verified[-1] = True
+
+    if len(shock_points) < 3 or len(ambient_points) != len(shock_points):
+      return failure(
+        MocPhysicalFieldChainMeasurementStatus.BOUNDARY_FAILURE,
+        f'physical field {field_index} must pair at least three shock and ambient samples',
+      )
+    shock_error = _validate_polyline(
+      shock_points,
+      'shock boundary',
+      position_tolerance_m=position_tolerance_m,
+      require_strict_x=True,
+    )
+    centerline_error = _validate_polyline(
+      centerline_points,
+      'centerline boundary',
+      position_tolerance_m=position_tolerance_m,
+      require_strict_x=False,
+    )
+    if shock_error or centerline_error:
+      return failure(
+        MocPhysicalFieldChainMeasurementStatus.BOUNDARY_FAILURE,
+        f'physical field {field_index} boundary geometry failed: '
+        f'{shock_error or centerline_error}',
+      )
+    if (
+      hypot(
+        shock_points[-1][0] - centerline_points[0][0],
+        shock_points[-1][1] - centerline_points[0][1],
+      ) > position_tolerance_m
+      or hypot(
+        shock_points[0][0] - ambient_points[0][0],
+        shock_points[0][1] - ambient_points[0][1],
+      ) > position_tolerance_m
+      or any(abs(point[1]) > position_tolerance_m for point in centerline_points)
+    ):
+      return failure(
+        MocPhysicalFieldChainMeasurementStatus.BOUNDARY_FAILURE,
+        f'physical field {field_index} shock/ambient/centerline seam is not a valid axis closure',
+      )
+    try:
+      edge_counts, _vertex_points = _edge_counts(
+        cells,
+        vertex_tolerance_m=mesh_vertex_tolerance_m,
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      return failure(
+        MocPhysicalFieldChainMeasurementStatus.TOPOLOGY_FAILURE,
+        f'physical field {field_index} perimeter could not be remeasured: {error}',
+      )
+    if not all(
+      _polyline_has_boundary_edges(
+        path,
+        edge_counts,
+        vertex_tolerance_m=mesh_vertex_tolerance_m,
+      )
+      for path in (shock_points, ambient_points, centerline_points)
+    ):
+      return failure(
+        MocPhysicalFieldChainMeasurementStatus.BOUNDARY_FAILURE,
+        f'physical field {field_index} is missing an explicit shock, ambient, or centerline perimeter path',
+      )
+
+    upstream_states = tuple(field.upstream_shock_boundary_states)
+    upstream_pressures = tuple(field.upstream_shock_boundary_total_pressure_Pa)
+    post_shock_states = tuple(field.post_shock_boundary_states)
+    post_shock_pressures = tuple(field.post_shock_boundary_total_pressure_Pa)
+    centerline_states = tuple(field.centerline_boundary_states)
+    centerline_pressures = tuple(field.centerline_boundary_total_pressure_Pa)
+    if (
+      len(upstream_states) != len(shock_points)
+      or len(upstream_pressures) != len(shock_points)
+      or len(post_shock_states) != len(shock_points)
+      or len(post_shock_pressures) != len(shock_points)
+      or len(centerline_states) != len(centerline_points)
+      or len(centerline_pressures) != len(centerline_points)
+    ):
+      return failure(
+        MocPhysicalFieldChainMeasurementStatus.FIELD_FAILURE,
+        f'physical field {field_index} does not retain complete boundary state arrays',
+      )
+    if not (
+      positive_pressures(upstream_pressures)
+      and positive_pressures(post_shock_pressures)
+      and positive_pressures(centerline_pressures)
+      and all(
+        state_matches(state, point)
+        for state, point in zip(upstream_states, shock_points, strict=True)
+      )
+      and all(
+        state_matches(state, point)
+        for state, point in zip(post_shock_states, shock_points, strict=True)
+      )
+      and all(
+        state_matches(state, point, require_axis=True)
+        and abs(state.theta_rad) <= state_tolerance
+        for state, point in zip(centerline_states, centerline_points, strict=True)
+      )
+      and all(
+        second[0] > first[0] + position_tolerance_m
+        for first, second in zip(centerline_points, centerline_points[1:])
+      )
+    ):
+      return failure(
+        MocPhysicalFieldChainMeasurementStatus.FIELD_FAILURE,
+        f'physical field {field_index} boundary state sampling is inconsistent',
+      )
+    upstream_coupling_verified[-1] = True
+
+    boundary = field.ambient_boundary
+    if not isinstance(boundary, MocAmbientPressureBoundaryResult):
+      return failure(
+        MocPhysicalFieldChainMeasurementStatus.BOUNDARY_FAILURE,
+        f'physical field {field_index} did not retain an ambient boundary result',
+      )
+    boundary_points = tuple(boundary.points_m)
+    boundary_states = tuple(boundary.states)
+    boundary_pressures = tuple(boundary.total_pressure_Pa)
+    ambient_pressure = boundary.ambient_pressure_Pa
+    if (
+      ambient_pressure is None
+      or not isfinite(float(ambient_pressure))
+      or float(ambient_pressure) <= 0.0
+      or len(boundary_points) != len(ambient_points)
+      or len(boundary_states) != len(ambient_points)
+      or len(boundary_pressures) != len(ambient_points)
+      or not positive_pressures(boundary_pressures)
+      or any(
+        not state_matches(state, point)
+        for state, point in zip(boundary_states, ambient_points, strict=True)
+      )
+      or any(
+        hypot(point[0] - boundary_point[0], point[1] - boundary_point[1])
+        > position_tolerance_m
+        for point, boundary_point in zip(
+          ambient_points,
+          boundary_points,
+          strict=True,
+        )
+      )
+    ):
+      return failure(
+        MocPhysicalFieldChainMeasurementStatus.BOUNDARY_FAILURE,
+        f'physical field {field_index} ambient boundary samples are inconsistent',
+      )
+    try:
+      ambient_samples = tuple(
+        MocAmbientBoundarySample(
+          point_m=point,
+          state=state,
+          total_pressure_Pa=pressure,
+        )
+        for point, state, pressure in zip(
+          ambient_points,
+          boundary_states,
+          boundary_pressures,
+          strict=True,
+        )
+      )
+      independent_boundary = validate_ambient_pressure_boundary(
+        ambient_samples,
+        float(ambient_pressure),
+        position_tolerance_m=position_tolerance_m,
+        pressure_tolerance=pressure_tolerance,
+        tangent_tolerance=tangent_tolerance,
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      return failure(
+        MocPhysicalFieldChainMeasurementStatus.BOUNDARY_FAILURE,
+        f'physical field {field_index} ambient boundary could not be remeasured: {error}',
+      )
+    raw_boundary_consistent = bool(
+      independent_boundary.converged
+      and sequence_matches(
+        boundary.static_pressure_Pa,
+        independent_boundary.static_pressure_Pa,
+        pressure_tolerance,
+        relative=True,
+      )
+      and sequence_matches(
+        boundary.pressure_residuals,
+        independent_boundary.pressure_residuals,
+        pressure_tolerance,
+      )
+      and sequence_matches(
+        boundary.tangent_residuals,
+        independent_boundary.tangent_residuals,
+        tangent_tolerance,
+      )
+    )
+    if not raw_boundary_consistent:
+      return failure(
+        MocPhysicalFieldChainMeasurementStatus.BOUNDARY_FAILURE,
+        f'physical field {field_index} ambient pressure/tangency gates failed independent measurement',
+      )
+    ambient_boundary_verified[-1] = True
+    if reference_ambient_pressure is None:
+      reference_ambient_pressure = float(ambient_pressure)
+    elif not close(
+      float(ambient_pressure),
+      reference_ambient_pressure,
+      pressure_tolerance,
+      relative=True,
+    ):
+      return failure(
+        MocPhysicalFieldChainMeasurementStatus.BOUNDARY_FAILURE,
+        'continued physical fields changed the ambient pressure reference',
+      )
+
+    node_residuals_geometry: list[float] = []
+    node_residuals_invariant: list[float] = []
+    node_sampling_verified = True
+    for node in nodes:
+      if not isinstance(node, MocCharacteristicNode):
+        node_sampling_verified = False
+        continue
+      point_result = node.point_result
+      node_pressure = node.total_pressure_Pa
+      node_ok = bool(
+        isinstance(point_result, CharacteristicPointResult)
+        and point_result.converged
+        and state_matches(node.state, node.point_m)
+        and state_values_match(node.state, point_result.state)
+        and isinstance(point_result.point_m, tuple)
+        and len(point_result.point_m) == 2
+        and state_matches(point_result.state, point_result.point_m)
+        and close(point_result.point_m[0], node.point_m[0], position_tolerance_m)
+        and close(point_result.point_m[1], node.point_m[1], position_tolerance_m)
+        and node_pressure is not None
+        and isfinite(float(node_pressure))
+        and float(node_pressure) > 0.0
+      )
+      if node_ok:
+        geometry_residual = point_result.geometry_residual
+        invariant_residuals = (
+          point_result.invariant_residual_plus,
+          point_result.invariant_residual_minus,
+        )
+        if (
+          geometry_residual is None
+          or not isfinite(float(geometry_residual))
+          or abs(float(geometry_residual)) > invariant_tolerance
+          or any(
+            value is None
+            or not isfinite(float(value))
+            or abs(float(value)) > invariant_tolerance
+            for value in invariant_residuals
+          )
+        ):
+          node_ok = False
+        else:
+          node_residuals_geometry.append(abs(float(geometry_residual)))
+          for value in invariant_residuals:
+            if value is not None:
+              node_residuals_invariant.append(abs(float(value)))
+      node_sampling_verified = node_sampling_verified and node_ok
+    source_samples: list[tuple[Point, CharacteristicState, float]] = [
+      ((state.x_m, state.y_m), state, pressure)
+      for state, pressure in zip(
+        post_shock_states,
+        post_shock_pressures,
+        strict=True,
+      )
+    ]
+    source_samples.extend(
+      (point, state, pressure)
+      for point, state, pressure in zip(
+        boundary_points,
+        boundary_states,
+        boundary_pressures,
+        strict=True,
+      )
+    )
+    source_samples.extend(
+      (point, state, pressure)
+      for point, state, pressure in zip(
+        centerline_points,
+        centerline_states,
+        centerline_pressures,
+        strict=True,
+      )
+    )
+    source_samples.extend(
+      (node.point_m, node.state, float(node.total_pressure_Pa))
+      for node in nodes
+      if node.total_pressure_Pa is not None
+    )
+    for cell in cells:
+      try:
+        vertices = _cell_vertices(cell)
+      except (AttributeError, TypeError, ValueError):
+        node_sampling_verified = False
+        break
+      for vertex in vertices:
+        if not any(
+          hypot(vertex[0] - point[0], vertex[1] - point[1])
+          <= mesh_vertex_tolerance_m
+          and pressure is not None
+          and isfinite(float(pressure))
+          and float(pressure) > 0.0
+          for point, _state, pressure in source_samples
+        ):
+          node_sampling_verified = False
+          break
+      if not node_sampling_verified:
+        break
+    state_sampling_verified[-1] = node_sampling_verified
+    if not node_sampling_verified:
+      return failure(
+        MocPhysicalFieldChainMeasurementStatus.FIELD_FAILURE,
+        f'physical field {field_index} does not retain a bounded state and pressure sample for every mesh vertex',
+      )
+
+    summary_residuals_verified = bool(
+      field.maximum_geometry_residual_m is not None
+      and field.maximum_absolute_invariant_residual is not None
+      and isfinite(float(field.maximum_geometry_residual_m))
+      and isfinite(float(field.maximum_absolute_invariant_residual))
+      and 0.0 <= float(field.maximum_geometry_residual_m) <= invariant_tolerance
+      and 0.0 <= float(field.maximum_absolute_invariant_residual) <= invariant_tolerance
+      and float(field.maximum_geometry_residual_m)
+      >= max(node_residuals_geometry, default=0.0) - invariant_tolerance
+      and float(field.maximum_absolute_invariant_residual)
+      >= max(node_residuals_invariant, default=0.0) - invariant_tolerance
+    )
+    pressure_ratios = tuple(
+      downstream / upstream
+      for upstream, downstream in zip(
+        upstream_pressures,
+        post_shock_pressures,
+        strict=True,
+      )
+    )
+    strict_pressure_loss = all(0.0 < ratio < 1.0 for ratio in pressure_ratios)
+    if not strict_pressure_loss:
+      start_allowed = bool(
+        field.zero_strength_shock_start_allowed
+        and abs(pressure_ratios[0] - 1.0) <= pressure_tolerance
+        and all(0.0 < ratio < 1.0 for ratio in pressure_ratios[1:])
+      )
+      endpoints_allowed = bool(
+        field.zero_strength_shock_endpoints_allowed
+        and abs(pressure_ratios[0] - 1.0) <= pressure_tolerance
+        and abs(pressure_ratios[-1] - 1.0) <= pressure_tolerance
+        and all(0.0 < ratio < 1.0 for ratio in pressure_ratios[1:-1])
+      )
+      strict_pressure_loss = start_allowed or endpoints_allowed
+    raw_physical_closure = bool(
+      summary_residuals_verified
+      and strict_pressure_loss
+      and independent_boundary.converged
+    )
+    if not raw_physical_closure:
+      return failure(
+        MocPhysicalFieldChainMeasurementStatus.FIELD_FAILURE,
+        f'physical field {field_index} failed independent residual or shock-loss closure gates',
+      )
+
+    try:
+      incoming_states = tuple(field.incoming_handoff_states)
+      incoming_pressures = tuple(field.incoming_handoff_total_pressure_Pa)
+      incoming = tuple(
+        MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
+        for state, pressure in zip(incoming_states, incoming_pressures, strict=True)
+      )
+      outgoing = tuple(
+        MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
+        for state, pressure in zip(centerline_states, centerline_pressures, strict=True)
+      )
+      observation = MocShockCellObservation(
+        cell_index=field_index,
+        shock_boundary_points_m=shock_points,
+        centerline_boundary_points_m=centerline_points,
+        cells=cells,
+        upstream_total_pressure_Pa=upstream_pressures,
+        downstream_total_pressure_Pa=post_shock_pressures,
+        incoming_handoff=incoming,
+        outgoing_handoff=outgoing,
+        incoming_boundary_kind=(
+          MocChainBoundaryKind.CENTERLINE_TRACE if incoming else None
+        ),
+        outgoing_boundary_kind=MocChainBoundaryKind.CENTERLINE_TRACE,
+        zero_strength_shock_start_allowed=field.zero_strength_shock_start_allowed,
+        zero_strength_shock_endpoints_allowed=field.zero_strength_shock_endpoints_allowed,
+      )
+    except (TypeError, ValueError) as error:
+      return failure(
+        MocPhysicalFieldChainMeasurementStatus.HANDOFF_FAILURE,
+        f'physical field {field_index} handoff data could not be assembled: {error}',
+      )
+    measurement = measure_moc_shock_cell(
+      observation,
+      position_tolerance_m=position_tolerance_m,
+      axis_tolerance_m=position_tolerance_m,
+      area_tolerance_m2=area_tolerance_m2,
+      mesh_vertex_tolerance_m=mesh_vertex_tolerance_m,
+    )
+    measurements.append(measurement)
+    if not measurement.converged:
+      return failure(
+        MocPhysicalFieldChainMeasurementStatus.FIELD_FAILURE,
+        f'physical field {field_index} failed independent shock-cell measurement: '
+        f'{measurement.message}',
+      )
+    physical_closure_verified[-1] = True
+
+    if field_index > 1:
+      previous = items[field_index - 2]
+      expected_incoming = tuple(
+        MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
+        for state, pressure in zip(
+          previous.centerline_boundary_states,
+          previous.centerline_boundary_total_pressure_Pa,
+          strict=True,
+        )
+      )
+      if incoming != expected_incoming:
+        return failure(
+          MocPhysicalFieldChainMeasurementStatus.HANDOFF_FAILURE,
+          f'physical field {field_index} changed the exact previous centerline handoff',
+          handoff_links_verified=False,
+        )
+      try:
+        previous_end_x = float(previous.ambient_boundary_points_m[-1][0])
+        current_vertices = tuple(
+          vertex
+          for cell in cells
+          for vertex in _cell_vertices(cell)
+        )
+        current_min_x = min(vertex[0] for vertex in current_vertices)
+        current_max_x = max(vertex[0] for vertex in current_vertices)
+      except (AttributeError, TypeError, ValueError) as error:
+        return failure(
+          MocPhysicalFieldChainMeasurementStatus.DOMAIN_FAILURE,
+          f'physical field {field_index} domain extent could not be measured: {error}',
+          handoff_links_verified=True,
+        )
+      if (
+        abs(shock_points[0][0] - previous_end_x) > position_tolerance_m
+        or abs(ambient_points[0][0] - previous_end_x) > position_tolerance_m
+        or current_min_x < previous_end_x - position_tolerance_m
+        or current_max_x <= previous_end_x + position_tolerance_m
+      ):
+        return failure(
+          MocPhysicalFieldChainMeasurementStatus.DOMAIN_FAILURE,
+          f'physical field {field_index} does not begin at a fresh downstream ambient interface',
+          handoff_links_verified=True,
+        )
+
+  handoff_link_count = max(0, len(items) - 1)
+  return MocPhysicalFieldChainMeasurement(
+    status=MocPhysicalFieldChainMeasurementStatus.CONVERGED,
+    field_count=len(items),
+    field_measurements=tuple(measurements),
+    field_statuses=tuple(statuses),
+    field_topology_verified=tuple(topology_verified),
+    field_ambient_boundary_verified=tuple(ambient_boundary_verified),
+    field_state_sampling_verified=tuple(state_sampling_verified),
+    field_upstream_shock_coupling_verified=tuple(upstream_coupling_verified),
+    field_physical_closure_verified=tuple(physical_closure_verified),
+    handoff_link_count=handoff_link_count,
+    handoff_links_verified=True if handoff_link_count else None,
+    fresh_domain_verified=True,
+    physical_closure_verified=True,
+    chain_promotion_blocked=True,
+    production_claim_allowed=False,
+    message=(
+      'independent ambient-closed physical-field chain audit passed raw mesh, '
+      'boundary, state-sampling, shock-loss, exact-handoff, and fresh-domain '
+      'checks; canonical reflected free-boundary closure and external '
+      'validation remain pending'
+    ),
   )
 ####

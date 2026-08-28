@@ -1144,6 +1144,23 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert terminal_patch_ambient_closure_chain['diagnostics'][
     'terminal_reflection_patch_ambient_closure_chain_reference'
   ]['polarity_aware'] is True
+  terminal_patch_field_chain_audit = ambient_strip[
+    'ambient_centerline_physical_terminal_patch_field_chain_audit'
+  ]
+  assert ambient_strip[
+    'ambient_centerline_physical_terminal_patch_field_chain_audit_accepted'
+  ] is True
+  assert terminal_patch_field_chain_audit['status'] == 'converged'
+  assert terminal_patch_field_chain_audit['field_count'] == 3
+  assert terminal_patch_field_chain_audit['audited_field_count'] == 3
+  assert terminal_patch_field_chain_audit['handoff'] == {
+    'link_count': 2,
+    'links_verified': True,
+  }
+  assert terminal_patch_field_chain_audit['fresh_domain_verified'] is True
+  assert terminal_patch_field_chain_audit['physical_closure_verified'] is True
+  assert terminal_patch_field_chain_audit['chain_promotion_blocked'] is True
+  assert terminal_patch_field_chain_audit['production_claim_allowed'] is False
   first_cell = ambient_strip['first_cell_composite']
   assert first_cell['chain_termination_decision']['physical_termination'] is False
   assert first_cell['chain_termination_decision']['reason'] == 'open-physical-closure'

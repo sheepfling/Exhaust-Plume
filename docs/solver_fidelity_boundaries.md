@@ -671,3 +671,23 @@ pressure lineage, topology, and bounded state sampling. It also preserves the
 typed rejection of reusing the prior single `C-` front. A passing measurement
 is bounded remesh evidence only and keeps physical closure, chain promotion,
 and production claims false.
+
+## Physical field-chain audit checkpoint
+
+The continued terminal-patch lane now has a separate
+`op.moc.ambient-closed-physical-field-chain` measurement operator. It audits
+the solver-returned fields as raw data: explicit shock, ambient, and
+centerline perimeter paths; remeasured ambient pressure/tangency; retained
+node states and pressures; characteristic residuals; shock total-pressure
+loss; and mesh topology. Adjacent fields must preserve the exact centerline
+state/total-pressure handoff and begin at the preceding field's ambient
+interface. Explicit zero-strength shock endpoints are accepted only when the
+field declares the endpoint allowance; interior samples remain strict.
+
+The standalone evidence report exercises the planner reference and the
+independent field audit together: three locally closed research fields and
+two exact handoff links pass with fresh downstream domains. The audit remains
+non-promoting evidence. Canonical alternating-family reflected remeshing,
+mixed-regime/free-boundary closure, refinement, and external validation are
+still open, and the basic/reduced, signature, ray, and focal-plane-array
+providers remain untouched.
