@@ -45,6 +45,14 @@ external validation. An independent
 ``op.moc.mixed-regime-free-boundary-reference`` measurement rechecks that
 reference and reports its large embedded 2-D divergence diagnostic without
 using it as a full-flow acceptance gate.
+The separate
+``op.moc.mixed-regime-free-boundary-refinement`` operator remeasures solver
+outputs at declared 5/7/9 free-boundary resolutions, requires one exact seam
+and fixed reference parameters, and records outlet-height sensitivity. The
+canonical generated case is locally stable (perimeter counts 8/10/12), but
+the rising 2-D divergence diagnostic is retained as evidence of the
+quasi-1-D model limitation; this sequence cannot promote a reflected-MOC
+cell or close the canonical downstream boundary.
 
 The reference lane also accepts an explicit
 ``MocMixedRegimeControlSection`` handoff. This is a transverse, scalar,

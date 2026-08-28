@@ -177,6 +177,8 @@ from exhaust_plume.validation.moc_measurements import (  # noqa: E402
   MocCausticRemeshMeasurementStatus,
   MocCausticRemeshObservation,
   MocMixedRegimeFreeBoundaryMeasurementStatus,
+  MocMixedRegimeFreeBoundaryRefinementCase,
+  MocMixedRegimeFreeBoundaryRefinementMeasurementStatus,
   MocTerminalClosureObservation,
   MocShockCellObservation,
   MocShockCellChainRefinementCase,
@@ -184,6 +186,7 @@ from exhaust_plume.validation.moc_measurements import (  # noqa: E402
   measure_moc_chain_planner,
   measure_mixed_regime_control_section,
   measure_mixed_regime_free_boundary_reference,
+  measure_mixed_regime_free_boundary_refinement,
   measure_mixed_regime_compressible_potential_field,
   measure_moc_terminal_closure,
   measure_moc_shock_cell,
@@ -1172,6 +1175,7 @@ def _ambient_shock_strip_probe(
   first_cell_terminal_closure_free_boundary_planner = None
   first_cell_terminal_closure_free_boundary_result = None
   first_cell_terminal_closure_free_boundary_measurement = None
+  first_cell_terminal_closure_free_boundary_refinement_measurement = None
   if terminal_patch.converged:
     terminal_patch_shock_probe = solve_marched_attached_shock_from_terminal_reflection_patch(
       terminal_patch,
@@ -1334,6 +1338,12 @@ def _ambient_shock_strip_probe(
                 first_cell_terminal_closure_free_boundary_result,
               )
             )
+            first_cell_terminal_closure_free_boundary_refinement_measurement = (
+              _solver_generated_free_boundary_refinement_probe(
+                first_cell_terminal_closure.mixed_regime_perimeter_request(),
+                free_boundary_solver,
+              )
+            )
             first_cell_terminal_closure_free_boundary_planner = (
               plan_solver_generated_first_cell_terminal_closure_reference(
                 first_cell_terminal_closure,
@@ -1478,6 +1488,11 @@ def _ambient_shock_strip_probe(
       None
       if first_cell_terminal_closure_free_boundary_measurement is None
       else first_cell_terminal_closure_free_boundary_measurement.as_report()
+    ),
+    'first_cell_terminal_closure_free_boundary_refinement_measurement': (
+      None
+      if first_cell_terminal_closure_free_boundary_refinement_measurement is None
+      else first_cell_terminal_closure_free_boundary_refinement_measurement.as_report()
     ),
     'terminal_trace_acceptance_tolerance_m': 2.0e-4,
     'message': strip.message,
@@ -2857,6 +2872,25 @@ def _solver_generated_chain_refinement_probe() -> Any:
       )
     )
   return measure_moc_shock_cell_chain_refinement(cases)
+
+
+def _solver_generated_free_boundary_refinement_probe(
+  request: Any,
+  solver: Any,
+) -> Any:
+  """Measure the quasi-one-dimensional free-boundary reference at 3 resolutions."""
+
+  cases = tuple(
+    MocMixedRegimeFreeBoundaryRefinementCase(
+      resolution=sample_count,
+      result=replace(
+        solver,
+        free_boundary_sample_count=sample_count,
+      ).solve(request),
+    )
+    for sample_count in (5, 7, 9)
+  )
+  return measure_mixed_regime_free_boundary_refinement(cases)
 
 
 def _solver_generated_field_coupled_chain_planner(
@@ -6616,6 +6650,11 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'first_cell_terminal_closure_free_boundary_measurement',
     )
   )
+  first_cell_terminal_closure_free_boundary_refinement_measurement_probe = (
+    ambient_shock_strip_probe.get(
+      'first_cell_terminal_closure_free_boundary_refinement_measurement',
+    )
+  )
   first_cell_terminal_closure_free_boundary_planner_failure = (
     not isinstance(first_cell_terminal_closure_free_boundary_planner_probe, dict)
     or first_cell_terminal_closure_free_boundary_planner_probe.get('planner_kind')
@@ -6671,6 +6710,42 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or first_cell_terminal_closure_free_boundary_measurement_probe.get(
       'production_claim_allowed'
     ) is not False
+  )
+  first_cell_terminal_closure_free_boundary_refinement_measurement_failure = (
+    not isinstance(
+      first_cell_terminal_closure_free_boundary_refinement_measurement_probe,
+      dict,
+    )
+    or first_cell_terminal_closure_free_boundary_refinement_measurement_probe.get(
+      'status'
+    ) != MocMixedRegimeFreeBoundaryRefinementMeasurementStatus.CONVERGED.value
+    or first_cell_terminal_closure_free_boundary_refinement_measurement_probe.get(
+      'converged'
+    ) is not True
+    or first_cell_terminal_closure_free_boundary_refinement_measurement_probe.get(
+      'physical_closure_verified'
+    ) is not True
+    or first_cell_terminal_closure_free_boundary_refinement_measurement_probe.get(
+      'canonical_reflected_moc_closure_verified'
+    ) is not False
+    or first_cell_terminal_closure_free_boundary_refinement_measurement_probe.get(
+      'chain_promotion_blocked'
+    ) is not True
+    or first_cell_terminal_closure_free_boundary_refinement_measurement_probe.get(
+      'production_claim_allowed'
+    ) is not False
+    or not isinstance(
+      first_cell_terminal_closure_free_boundary_refinement_measurement_probe.get(
+        'checks'
+      ),
+      dict,
+    )
+    or not all(
+      value is True
+      for value in first_cell_terminal_closure_free_boundary_refinement_measurement_probe[
+        'checks'
+      ].values()
+    )
   )
   caustic_family_restart_failure = (
     caustic_family_restart.get('accepted') is not True
@@ -8204,6 +8279,38 @@ def build_moc_primitive_report() -> dict[str, Any]:
         ),
       }
     ] if first_cell_terminal_closure_free_boundary_planner_failure else []),
+    *([
+      {
+        'case': 'solver_generated_first_cell_terminal_closure_free_boundary_refinement_measurement',
+        'status': (
+          'missing'
+          if not isinstance(
+            first_cell_terminal_closure_free_boundary_refinement_measurement_probe,
+            dict,
+          )
+          else str(
+            first_cell_terminal_closure_free_boundary_refinement_measurement_probe.get(
+              'status',
+              'missing',
+            )
+          )
+        ),
+        'message': (
+          'solver-owned free-boundary refinement evidence did not retain '
+          'fixed seam/parameters and stable declared resolutions'
+          if not isinstance(
+            first_cell_terminal_closure_free_boundary_refinement_measurement_probe,
+            dict,
+          )
+          else str(
+            first_cell_terminal_closure_free_boundary_refinement_measurement_probe.get(
+              'message',
+              '',
+            )
+          )
+        ),
+      }
+    ] if first_cell_terminal_closure_free_boundary_refinement_measurement_failure else []),
     *([
       {
         'case': 'ambient_attachment_closure_probe',

@@ -100,6 +100,9 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   planner = report['geometry_cases']['shock_cell_chain_planner_mock']
   invariant_closure = report['geometry_cases']['terminal_source_window_invariant_closure']
   ambient_strip = report['geometry_cases']['solver_generated_ambient_shock_strip']
+  first_cell_free_boundary_refinement = ambient_strip[
+    'first_cell_terminal_closure_free_boundary_refinement_measurement'
+  ]
   first_cell_terminal = report['geometry_cases']['solver_generated_first_cell_terminal_closure']
   first_cell_terminal_planner_summary = report['geometry_cases'][
     'solver_generated_first_cell_terminal_closure_planner'
@@ -1103,6 +1106,23 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert first_cell_terminal_planner['termination']['physical_termination'] is True
   assert first_cell_terminal_planner['diagnostics']['mixed_regime_closure_attached'] is True
   assert first_cell_terminal_planner['diagnostics']['prescribed_mixed_regime_closure_mock']['production_claim_allowed'] is False
+  assert first_cell_free_boundary_refinement['status'] == 'converged'
+  assert first_cell_free_boundary_refinement['operator_id'] == (
+    'op.moc.mixed-regime-free-boundary-refinement'
+  )
+  assert first_cell_free_boundary_refinement['resolutions'] == [5, 7, 9]
+  assert first_cell_free_boundary_refinement['parameters']['perimeter_sample_counts'] == [8, 10, 12]
+  assert all(first_cell_free_boundary_refinement['checks'].values())
+  assert first_cell_free_boundary_refinement['physical_closure_verified'] is True
+  assert first_cell_free_boundary_refinement['canonical_reflected_moc_closure_verified'] is False
+  assert first_cell_free_boundary_refinement['chain_promotion_blocked'] is True
+  assert first_cell_free_boundary_refinement['production_claim_allowed'] is False
+  assert all(
+    residual > 1.0
+    for residual in first_cell_free_boundary_refinement['residuals'][
+      'maximum_velocity_divergence_residuals'
+    ]
+  )
   terminal_patch_refinement = report['geometry_cases']['terminal_reflection_patch_refinement']
   assert terminal_patch_refinement['status'] == (
     'diagnostic-terminal-patch-resolutions-reach-mixed-regime-gate'

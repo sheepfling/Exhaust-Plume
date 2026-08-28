@@ -67,6 +67,7 @@ __all__ = (
   'MOC_CAUSTIC_REMESH_OPERATOR_ID',
   'MOC_CHAIN_PLANNER_OPERATOR_ID',
   'MOC_MIXED_REGIME_FREE_BOUNDARY_OPERATOR_ID',
+  'MOC_MIXED_REGIME_FREE_BOUNDARY_REFINEMENT_OPERATOR_ID',
   'MOC_MIXED_REGIME_CONTROL_SECTION_OPERATOR_ID',
   'MOC_MIXED_REGIME_POTENTIAL_OPERATOR_ID',
   'MOC_SHOCK_CELL_CHAIN_OPERATOR_ID',
@@ -82,6 +83,9 @@ __all__ = (
   'MocMixedRegimePotentialMeasurementStatus',
   'MocMixedRegimeFreeBoundaryMeasurement',
   'MocMixedRegimeFreeBoundaryMeasurementStatus',
+  'MocMixedRegimeFreeBoundaryRefinementCase',
+  'MocMixedRegimeFreeBoundaryRefinementMeasurement',
+  'MocMixedRegimeFreeBoundaryRefinementMeasurementStatus',
   'MocMixedRegimeControlSectionMeasurement',
   'MocMixedRegimeControlSectionMeasurementStatus',
   'MocTerminalClosureMeasurement',
@@ -98,6 +102,7 @@ __all__ = (
   'measure_moc_chain_planner',
   'measure_mixed_regime_compressible_potential_field',
   'measure_mixed_regime_free_boundary_reference',
+  'measure_mixed_regime_free_boundary_refinement',
   'measure_mixed_regime_control_section',
   'measure_moc_terminal_closure',
   'measure_moc_shock_cell',
@@ -116,6 +121,9 @@ MOC_CAUSTIC_REMESH_OPERATOR_ID = 'op.moc.caustic-remesh'
 MOC_CHAIN_PLANNER_OPERATOR_ID = 'op.moc.chain-planner'
 MOC_MIXED_REGIME_FREE_BOUNDARY_OPERATOR_ID = (
   'op.moc.mixed-regime-free-boundary-reference'
+)
+MOC_MIXED_REGIME_FREE_BOUNDARY_REFINEMENT_OPERATOR_ID = (
+  'op.moc.mixed-regime-free-boundary-refinement'
 )
 MOC_MIXED_REGIME_CONTROL_SECTION_OPERATOR_ID = (
   'op.moc.mixed-regime-control-section'
@@ -477,6 +485,251 @@ class MocMixedRegimeFreeBoundaryMeasurement:
         'maximum_harmonic_residual': self.maximum_harmonic_residual,
         'maximum_velocity_divergence_residual': self.maximum_velocity_divergence_residual,
       },
+      'claim_status': self.claim_status,
+      'message': self.message,
+    }
+  ####
+
+
+class MocMixedRegimeFreeBoundaryRefinementMeasurementStatus(str, Enum):
+  """Outcome of comparing independent free-boundary resolutions."""
+
+  CONVERGED = 'converged'
+  INVALID_INPUT = 'invalid_input'
+  RESOLUTION_FAILURE = 'resolution_failure'
+  CASE_FAILURE = 'case_failure'
+  CONSISTENCY_FAILURE = 'consistency_failure'
+  SENSITIVITY_FAILURE = 'sensitivity_failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocMixedRegimeFreeBoundaryRefinementCase:
+  """One solver-owned free-boundary result at a declared resolution.
+
+  ``resolution`` is caller-supplied metadata.  The refinement operator checks
+  that the returned perimeter actually grows with that metadata, but it does
+  not infer a resolution label from the returned geometry.
+  """
+
+  resolution: int
+  result: MocMixedRegimeFreeBoundaryResult
+
+  def __post_init__(self) -> None:
+    if (
+      isinstance(self.resolution, bool)
+      or not isinstance(self.resolution, int)
+      or self.resolution < 1
+    ):
+      raise ValueError('resolution must be a positive integer')
+    if not isinstance(self.result, MocMixedRegimeFreeBoundaryResult):
+      raise TypeError(
+        'result must be a MocMixedRegimeFreeBoundaryResult'
+      )
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocMixedRegimeFreeBoundaryRefinementMeasurement:
+  """Independent numerical-sensitivity evidence for the reference lane.
+
+  A passing result means that the explicitly supplied quasi-one-dimensional
+  free-boundary reference is stable over the declared resolutions.  It does
+  not validate the missing reflected two-dimensional downstream law and can
+  never promote the result into a continued shock-cell chain.
+  """
+
+  status: MocMixedRegimeFreeBoundaryRefinementMeasurementStatus
+  operator_id: str = MOC_MIXED_REGIME_FREE_BOUNDARY_REFINEMENT_OPERATOR_ID
+  cases: tuple[MocMixedRegimeFreeBoundaryRefinementCase, ...] = ()
+  measurements: tuple[MocMixedRegimeFreeBoundaryMeasurement, ...] = ()
+  resolutions: tuple[int, ...] = ()
+  ambient_pressure_Pa: tuple[float, ...] = ()
+  effective_inlet_height_m: tuple[float, ...] = ()
+  downstream_length_m: tuple[float, ...] = ()
+  perimeter_sample_counts: tuple[int, ...] = ()
+  radial_divisions: tuple[int, ...] = ()
+  resolution_order_verified: bool = False
+  request_consistent: bool = False
+  solver_parameters_consistent: bool = False
+  perimeter_resolution_verified: bool = False
+  radial_divisions_consistent: bool = False
+  case_measurements_verified: bool = False
+  scalar_root_verified: bool = False
+  mass_flow_verified: bool = False
+  geometry_verified: bool = False
+  local_reference_closure_verified: bool = False
+  refinement_convergence_verified: bool = False
+  chain_promotion_blocked: bool = True
+  production_claim_allowed: bool = False
+  outlet_height_delta_residuals_m: tuple[float, ...] = ()
+  height_root_residuals_m: tuple[float | None, ...] = ()
+  free_boundary_geometry_residuals_m: tuple[float | None, ...] = ()
+  mass_flow_residuals: tuple[float | None, ...] = ()
+  maximum_velocity_divergence_residuals: tuple[float | None, ...] = ()
+  claim_status: str = 'not_accepted'
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    cases = tuple(self.cases)
+    measurements = tuple(self.measurements)
+    if len(cases) != len(measurements):
+      raise ValueError('cases and measurements must have equal lengths')
+    if any(
+      not isinstance(case, MocMixedRegimeFreeBoundaryRefinementCase)
+      for case in cases
+    ):
+      raise TypeError(
+        'cases must contain MocMixedRegimeFreeBoundaryRefinementCase values'
+      )
+    if any(
+      not isinstance(measurement, MocMixedRegimeFreeBoundaryMeasurement)
+      for measurement in measurements
+    ):
+      raise TypeError(
+        'measurements must contain MocMixedRegimeFreeBoundaryMeasurement values'
+      )
+    object.__setattr__(self, 'cases', cases)
+    object.__setattr__(self, 'measurements', measurements)
+    object.__setattr__(
+      self,
+      'resolutions',
+      tuple(case.resolution for case in cases),
+    )
+    results = tuple(case.result for case in cases)
+    object.__setattr__(
+      self,
+      'ambient_pressure_Pa',
+      tuple(float(result.ambient_pressure_Pa) for result in results),
+    )
+    object.__setattr__(
+      self,
+      'effective_inlet_height_m',
+      tuple(float(result.effective_inlet_height_m) for result in results),
+    )
+    object.__setattr__(
+      self,
+      'downstream_length_m',
+      tuple(float(result.downstream_length_m) for result in results),
+    )
+    object.__setattr__(
+      self,
+      'perimeter_sample_counts',
+      tuple(
+        0
+        if result.boundary is None
+        else len(result.boundary.perimeter_points_m)
+        for result in results
+      ),
+    )
+    object.__setattr__(
+      self,
+      'radial_divisions',
+      tuple(
+        0 if result.field is None else int(result.field.radial_divisions)
+        for result in results
+      ),
+    )
+    for name in (
+      'outlet_height_delta_residuals_m',
+      'height_root_residuals_m',
+      'free_boundary_geometry_residuals_m',
+      'mass_flow_residuals',
+      'maximum_velocity_divergence_residuals',
+    ):
+      values = tuple(
+        None if value is None else float(value)
+        for value in getattr(self, name)
+      )
+      if any(
+        value is not None
+        and (not isfinite(value) or value < 0.0)
+        for value in values
+      ):
+        raise ValueError(f'{name} must contain finite nonnegative values or None')
+      object.__setattr__(self, name, values)
+    for name in (
+      'resolution_order_verified',
+      'request_consistent',
+      'solver_parameters_consistent',
+      'perimeter_resolution_verified',
+      'radial_divisions_consistent',
+      'case_measurements_verified',
+      'scalar_root_verified',
+      'mass_flow_verified',
+      'geometry_verified',
+      'local_reference_closure_verified',
+      'refinement_convergence_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+    object.__setattr__(self, 'claim_status', str(self.claim_status))
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocMixedRegimeFreeBoundaryRefinementMeasurementStatus.CONVERGED
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    """Return JSON-compatible free-boundary refinement evidence."""
+
+    return {
+      'status': self.status.value,
+      'operator_id': self.operator_id,
+      'converged': self.converged,
+      'case_count': len(self.cases),
+      'resolutions': list(self.resolutions),
+      'parameters': {
+        'ambient_pressure_Pa': list(self.ambient_pressure_Pa),
+        'effective_inlet_height_m': list(self.effective_inlet_height_m),
+        'downstream_length_m': list(self.downstream_length_m),
+        'perimeter_sample_counts': list(self.perimeter_sample_counts),
+        'radial_divisions': list(self.radial_divisions),
+      },
+      'cases': [
+        {
+          'resolution': case.resolution,
+          'result': case.result.as_report(),
+          'measurement': measurement.as_report(),
+        }
+        for case, measurement in zip(
+          self.cases,
+          self.measurements,
+          strict=True,
+        )
+      ],
+      'checks': {
+        'resolution_order_verified': self.resolution_order_verified,
+        'request_consistent': self.request_consistent,
+        'solver_parameters_consistent': self.solver_parameters_consistent,
+        'perimeter_resolution_verified': self.perimeter_resolution_verified,
+        'radial_divisions_consistent': self.radial_divisions_consistent,
+        'case_measurements_verified': self.case_measurements_verified,
+        'scalar_root_verified': self.scalar_root_verified,
+        'mass_flow_verified': self.mass_flow_verified,
+        'geometry_verified': self.geometry_verified,
+        'local_reference_closure_verified': self.local_reference_closure_verified,
+        'refinement_convergence_verified': self.refinement_convergence_verified,
+      },
+      'residuals': {
+        'outlet_height_delta_residuals_m': list(self.outlet_height_delta_residuals_m),
+        'height_root_residuals_m': list(self.height_root_residuals_m),
+        'free_boundary_geometry_residuals_m': list(
+          self.free_boundary_geometry_residuals_m
+        ),
+        'mass_flow_residuals': list(self.mass_flow_residuals),
+        'maximum_velocity_divergence_residuals': list(
+          self.maximum_velocity_divergence_residuals
+        ),
+      },
+      'physical_closure_verified': self.local_reference_closure_verified,
+      'canonical_reflected_moc_closure_verified': False,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
       'claim_status': self.claim_status,
       'message': self.message,
     }
@@ -4119,6 +4372,345 @@ def measure_mixed_regime_free_boundary_reference(
       'independent quasi-one-dimensional free-boundary reference measurement '
       'passed its exact seam, generated-perimeter, condition, radial-field, '
       'height-root, and mass-flow gates; it remains non-canonical evidence'
+    ),
+  )
+####
+
+
+def _free_boundary_refinement_failure(
+  status: MocMixedRegimeFreeBoundaryRefinementMeasurementStatus,
+  message: str,
+  *,
+  cases: Sequence[MocMixedRegimeFreeBoundaryRefinementCase] = (),
+  measurements: Sequence[MocMixedRegimeFreeBoundaryMeasurement] = (),
+  resolution_order_verified: bool = False,
+  request_consistent: bool = False,
+  solver_parameters_consistent: bool = False,
+  perimeter_resolution_verified: bool = False,
+  radial_divisions_consistent: bool = False,
+  case_measurements_verified: bool = False,
+  scalar_root_verified: bool = False,
+  mass_flow_verified: bool = False,
+  geometry_verified: bool = False,
+  local_reference_closure_verified: bool = False,
+  refinement_convergence_verified: bool = False,
+  outlet_height_delta_residuals_m: Sequence[float] = (),
+  height_root_residuals_m: Sequence[float | None] = (),
+  free_boundary_geometry_residuals_m: Sequence[float | None] = (),
+  mass_flow_residuals: Sequence[float | None] = (),
+  maximum_velocity_divergence_residuals: Sequence[float | None] = (),
+) -> MocMixedRegimeFreeBoundaryRefinementMeasurement:
+  valid_cases = tuple(
+    case
+    for case in cases
+    if isinstance(case, MocMixedRegimeFreeBoundaryRefinementCase)
+  )
+  valid_measurements = tuple(
+    measurement
+    for measurement in measurements
+    if isinstance(measurement, MocMixedRegimeFreeBoundaryMeasurement)
+  )
+  paired_count = min(len(valid_cases), len(valid_measurements))
+  return MocMixedRegimeFreeBoundaryRefinementMeasurement(
+    status=status,
+    cases=valid_cases[:paired_count],
+    measurements=valid_measurements[:paired_count],
+    resolution_order_verified=resolution_order_verified,
+    request_consistent=request_consistent,
+    solver_parameters_consistent=solver_parameters_consistent,
+    perimeter_resolution_verified=perimeter_resolution_verified,
+    radial_divisions_consistent=radial_divisions_consistent,
+    case_measurements_verified=case_measurements_verified,
+    scalar_root_verified=scalar_root_verified,
+    mass_flow_verified=mass_flow_verified,
+    geometry_verified=geometry_verified,
+    local_reference_closure_verified=local_reference_closure_verified,
+    refinement_convergence_verified=refinement_convergence_verified,
+    chain_promotion_blocked=True,
+    production_claim_allowed=False,
+    outlet_height_delta_residuals_m=tuple(outlet_height_delta_residuals_m),
+    height_root_residuals_m=tuple(height_root_residuals_m),
+    free_boundary_geometry_residuals_m=tuple(
+      free_boundary_geometry_residuals_m
+    ),
+    mass_flow_residuals=tuple(mass_flow_residuals),
+    maximum_velocity_divergence_residuals=tuple(
+      maximum_velocity_divergence_residuals
+    ),
+    message=message,
+  )
+####
+
+
+def measure_mixed_regime_free_boundary_refinement(
+  cases: Sequence[MocMixedRegimeFreeBoundaryRefinementCase],
+  *,
+  outlet_height_tolerance_m: float = 1.0e-8,
+  position_tolerance_m: float = 1.0e-9,
+  state_tolerance: float = 1.0e-9,
+  pressure_tolerance: float = 1.0e-8,
+  tangent_tolerance_rad: float = 1.0e-8,
+  height_tolerance_m: float = 1.0e-9,
+  thermodynamic_tolerance: float = 1.0e-8,
+  residual_tolerance: float = 1.0e-8,
+  mass_tolerance: float = 1.0e-8,
+  mesh_vertex_tolerance_m: float = 1.0e-12,
+) -> MocMixedRegimeFreeBoundaryRefinementMeasurement:
+  """Compare independently measured free-boundary results by resolution.
+
+  The operator reruns the single-case measurement for every supplied result,
+  verifies that the exact terminal request and solver parameters are held
+  fixed, and compares the returned outlet height between successive
+  resolutions.  It measures numerical stability of the quasi-one-dimensional
+  reference only; a passing sequence does not close the canonical reflected
+  two-dimensional downstream problem.
+  """
+
+  for name, value in (
+    ('outlet_height_tolerance_m', outlet_height_tolerance_m),
+    ('position_tolerance_m', position_tolerance_m),
+    ('state_tolerance', state_tolerance),
+    ('pressure_tolerance', pressure_tolerance),
+    ('tangent_tolerance_rad', tangent_tolerance_rad),
+    ('height_tolerance_m', height_tolerance_m),
+    ('thermodynamic_tolerance', thermodynamic_tolerance),
+    ('residual_tolerance', residual_tolerance),
+    ('mass_tolerance', mass_tolerance),
+    ('mesh_vertex_tolerance_m', mesh_vertex_tolerance_m),
+  ):
+    if not isfinite(float(value)) or float(value) <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+  try:
+    items = tuple(cases)
+  except TypeError:
+    return _free_boundary_refinement_failure(
+      MocMixedRegimeFreeBoundaryRefinementMeasurementStatus.INVALID_INPUT,
+      'refinement cases must be iterable',
+    )
+  if len(items) < 2:
+    return _free_boundary_refinement_failure(
+      MocMixedRegimeFreeBoundaryRefinementMeasurementStatus.INVALID_INPUT,
+      'at least two free-boundary refinement cases are required',
+    )
+  if any(
+    not isinstance(case, MocMixedRegimeFreeBoundaryRefinementCase)
+    for case in items
+  ):
+    return _free_boundary_refinement_failure(
+      MocMixedRegimeFreeBoundaryRefinementMeasurementStatus.INVALID_INPUT,
+      'refinement cases must contain '
+      'MocMixedRegimeFreeBoundaryRefinementCase values',
+      cases=items,
+    )
+  resolutions = tuple(case.resolution for case in items)
+  resolution_order_verified = all(
+    right > left
+    for left, right in zip(resolutions, resolutions[1:])
+  )
+  if not resolution_order_verified:
+    return _free_boundary_refinement_failure(
+      MocMixedRegimeFreeBoundaryRefinementMeasurementStatus.RESOLUTION_FAILURE,
+      'refinement resolutions must be strictly increasing from coarse to fine',
+      cases=items,
+    )
+
+  measurements = tuple(
+    measure_mixed_regime_free_boundary_reference(
+      case.result,
+      position_tolerance_m=position_tolerance_m,
+      state_tolerance=state_tolerance,
+      pressure_tolerance=pressure_tolerance,
+      tangent_tolerance_rad=tangent_tolerance_rad,
+      height_tolerance_m=height_tolerance_m,
+      thermodynamic_tolerance=thermodynamic_tolerance,
+      residual_tolerance=residual_tolerance,
+      mass_tolerance=mass_tolerance,
+      mesh_vertex_tolerance_m=mesh_vertex_tolerance_m,
+    )
+    for case in items
+  )
+  case_measurements_verified = all(
+    measurement.converged for measurement in measurements
+  )
+  scalar_root_verified = all(
+    measurement.scalar_root_verified for measurement in measurements
+  )
+  mass_flow_verified = all(
+    measurement.mass_flow_verified for measurement in measurements
+  )
+  height_root_residuals = tuple(
+    measurement.height_residual_m for measurement in measurements
+  )
+  mass_flow_residuals = tuple(
+    measurement.mass_flow_residual for measurement in measurements
+  )
+  geometry_residuals = tuple(
+    measurement.free_boundary_geometry_residual_m
+    for measurement in measurements
+  )
+  velocity_divergence_residuals = tuple(
+    measurement.maximum_velocity_divergence_residual
+    for measurement in measurements
+  )
+  geometry_verified = all(
+    residual is not None and residual <= float(position_tolerance_m)
+    for residual in geometry_residuals
+  )
+  local_reference_closure_verified = all(
+    measurement.physical_closure_verified
+    and measurement.chain_promotion_blocked
+    and not measurement.production_claim_allowed
+    for measurement in measurements
+  )
+
+  results = tuple(case.result for case in items)
+  request_consistent = all(
+    result.request == results[0].request
+    for result in results[1:]
+  )
+
+  def _consistent_float(values: Sequence[float]) -> bool:
+    if not values:
+      return False
+    reference = float(values[0])
+    return all(
+      abs(float(value) - reference)
+      <= 1.0e-12 * max(1.0, abs(float(value)), abs(reference))
+      for value in values[1:]
+    )
+
+  models = tuple(result.model for result in results)
+  ambient_pressures = tuple(result.ambient_pressure_Pa for result in results)
+  inlet_heights = tuple(result.effective_inlet_height_m for result in results)
+  downstream_lengths = tuple(result.downstream_length_m for result in results)
+  radial_values = tuple(
+    0 if result.field is None else result.field.radial_divisions
+    for result in results
+  )
+  solver_parameters_consistent = bool(
+    len(set(models)) == 1
+    and _consistent_float(ambient_pressures)
+    and _consistent_float(inlet_heights)
+    and _consistent_float(downstream_lengths)
+  )
+  perimeter_counts = tuple(
+    0
+    if result.boundary is None
+    else len(result.boundary.perimeter_points_m)
+    for result in results
+  )
+  perimeter_resolution_verified = bool(
+    all(count >= 3 for count in perimeter_counts)
+    and all(
+      right > left
+      for left, right in zip(perimeter_counts, perimeter_counts[1:])
+    )
+  )
+  radial_divisions_consistent = bool(
+    all(value > 0 for value in radial_values)
+    and len(set(radial_values)) == 1
+  )
+
+  outlet_heights = tuple(
+    measurement.outlet_height_m for measurement in measurements
+  )
+  if all(height is not None for height in outlet_heights):
+    resolved_outlet_heights = tuple(
+      height for height in outlet_heights if height is not None
+    )
+    outlet_height_delta_residuals = tuple(
+      abs(current - previous)
+      for previous, current in zip(
+        resolved_outlet_heights,
+        resolved_outlet_heights[1:],
+      )
+    )
+  else:
+    outlet_height_delta_residuals = ()
+  refinement_convergence_verified = bool(
+    case_measurements_verified
+    and scalar_root_verified
+    and mass_flow_verified
+    and geometry_verified
+    and local_reference_closure_verified
+    and len(outlet_height_delta_residuals) == len(items) - 1
+    and all(
+      residual <= float(outlet_height_tolerance_m)
+      for residual in outlet_height_delta_residuals
+    )
+  )
+
+  common = {
+    'cases': items,
+    'measurements': measurements,
+    'resolution_order_verified': True,
+    'request_consistent': request_consistent,
+    'solver_parameters_consistent': solver_parameters_consistent,
+    'perimeter_resolution_verified': perimeter_resolution_verified,
+    'radial_divisions_consistent': radial_divisions_consistent,
+    'case_measurements_verified': case_measurements_verified,
+    'scalar_root_verified': scalar_root_verified,
+    'mass_flow_verified': mass_flow_verified,
+    'geometry_verified': geometry_verified,
+    'local_reference_closure_verified': local_reference_closure_verified,
+    'refinement_convergence_verified': refinement_convergence_verified,
+    'outlet_height_delta_residuals_m': outlet_height_delta_residuals,
+    'height_root_residuals_m': height_root_residuals,
+    'free_boundary_geometry_residuals_m': geometry_residuals,
+    'mass_flow_residuals': mass_flow_residuals,
+    'maximum_velocity_divergence_residuals': velocity_divergence_residuals,
+  }
+  if not case_measurements_verified:
+    return _free_boundary_refinement_failure(
+      MocMixedRegimeFreeBoundaryRefinementMeasurementStatus.CASE_FAILURE,
+      'one or more free-boundary cases failed independent measurement',
+      **common,
+    )
+  if not (
+    request_consistent
+    and solver_parameters_consistent
+    and perimeter_resolution_verified
+    and radial_divisions_consistent
+  ):
+    return _free_boundary_refinement_failure(
+      MocMixedRegimeFreeBoundaryRefinementMeasurementStatus.CONSISTENCY_FAILURE,
+      'refinement cases must retain one exact seam and fixed solver parameters '
+      'while increasing the returned perimeter resolution',
+      **common,
+    )
+  if not refinement_convergence_verified:
+    return _free_boundary_refinement_failure(
+      MocMixedRegimeFreeBoundaryRefinementMeasurementStatus.SENSITIVITY_FAILURE,
+      'free-boundary outlet height or local reference residuals exceeded the '
+      'declared refinement tolerances',
+      **common,
+    )
+  return MocMixedRegimeFreeBoundaryRefinementMeasurement(
+    status=MocMixedRegimeFreeBoundaryRefinementMeasurementStatus.CONVERGED,
+    cases=items,
+    measurements=measurements,
+    resolution_order_verified=True,
+    request_consistent=True,
+    solver_parameters_consistent=True,
+    perimeter_resolution_verified=True,
+    radial_divisions_consistent=True,
+    case_measurements_verified=True,
+    scalar_root_verified=True,
+    mass_flow_verified=True,
+    geometry_verified=True,
+    local_reference_closure_verified=True,
+    refinement_convergence_verified=True,
+    chain_promotion_blocked=True,
+    production_claim_allowed=False,
+    outlet_height_delta_residuals_m=outlet_height_delta_residuals,
+    height_root_residuals_m=height_root_residuals,
+    free_boundary_geometry_residuals_m=geometry_residuals,
+    mass_flow_residuals=mass_flow_residuals,
+    maximum_velocity_divergence_residuals=velocity_divergence_residuals,
+    message=(
+      'independent solver-owned quasi-one-dimensional free-boundary results '
+      'are stable across the declared resolutions; this is refinement evidence '
+      'only and does not close or promote the canonical reflected-MOC chain'
     ),
   )
 ####

@@ -96,6 +96,11 @@ extension remains diagnostic-only. The report also records a terminal
 source-window attempt after the full continuation reaches a characteristic
 caustic, plus a bracketed constant-invariant shock closure attempt; the
 canonical bracket does not straddle a centerline closure and is not promoted.
+The same report also remeasures the solver-owned quasi-one-dimensional
+free-boundary reference at declared 5/7/9 resolutions. Its fixed seam,
+parameter, perimeter, scalar-root, mass-flow, and outlet-height gates pass,
+while the rising embedded 2-D divergence diagnostic keeps the evidence
+explicitly research-only and blocks chain promotion.
 The latest caustic report additionally executes the solver-owned constant-
 invariant simple-wave terminal lane: it verifies the exact event state,
 attached-shock prefix, open post-shock zone, typed subsonic terminal, and the

@@ -38,9 +38,12 @@ from exhaust_plume.models.moc import (
 from exhaust_plume.validation.moc_measurements import (
   MocMixedRegimeControlSectionMeasurementStatus,
   MocMixedRegimeFreeBoundaryMeasurementStatus,
+  MocMixedRegimeFreeBoundaryRefinementCase,
+  MocMixedRegimeFreeBoundaryRefinementMeasurementStatus,
   MocMixedRegimePotentialMeasurementStatus,
   measure_mixed_regime_control_section,
   measure_mixed_regime_free_boundary_reference,
+  measure_mixed_regime_free_boundary_refinement,
   measure_mixed_regime_compressible_potential_field,
 )
 
@@ -1610,3 +1613,58 @@ def test_independent_free_boundary_measurement_rechecks_the_reference_lane() -> 
   assert tampered_measurement.status is not MocMixedRegimeFreeBoundaryMeasurementStatus.CONVERGED
   assert not tampered_measurement.converged
   assert not tampered_measurement.scalar_root_verified
+
+
+def test_independent_free_boundary_refinement_rechecks_declared_resolution() -> None:
+  terminal = _terminal()
+  request = MocMixedRegimePerimeterRequest(
+    terminal=terminal,
+    terminal_point_m=terminal.shock_point_m,
+    terminal_downstream_mach=terminal.downstream_mach,
+    terminal_downstream_flow_angle_rad=terminal.downstream_flow_angle_rad,
+    terminal_downstream_pressure_Pa=terminal.downstream_pressure_Pa,
+    terminal_downstream_total_pressure_Pa=terminal.downstream_total_pressure_Pa,
+    terminal_total_pressure_ratio=terminal.total_pressure_ratio,
+    supersonic_patch=_supersonic_patch(),
+  )
+  cases = tuple(
+    MocMixedRegimeFreeBoundaryRefinementCase(
+      resolution=resolution,
+      result=solve_mixed_regime_downstream_free_boundary(
+        request,
+        ambient_pressure_Pa=0.8 * terminal.downstream_pressure_Pa,
+        effective_inlet_height_m=0.01,
+        downstream_length_m=0.05,
+        free_boundary_sample_count=resolution,
+        radial_divisions=2,
+      ),
+    )
+    for resolution in (5, 7, 9)
+  )
+
+  measurement = measure_mixed_regime_free_boundary_refinement(cases)
+
+  assert measurement.status is MocMixedRegimeFreeBoundaryRefinementMeasurementStatus.CONVERGED
+  assert measurement.converged
+  assert measurement.resolutions == (5, 7, 9)
+  assert measurement.perimeter_sample_counts[0] < measurement.perimeter_sample_counts[1]
+  assert measurement.perimeter_sample_counts[1] < measurement.perimeter_sample_counts[2]
+  assert measurement.request_consistent
+  assert measurement.solver_parameters_consistent
+  assert measurement.radial_divisions_consistent
+  assert measurement.case_measurements_verified
+  assert measurement.scalar_root_verified
+  assert measurement.mass_flow_verified
+  assert measurement.geometry_verified
+  assert measurement.local_reference_closure_verified
+  assert measurement.refinement_convergence_verified
+  assert measurement.chain_promotion_blocked
+  assert measurement.production_claim_allowed is False
+  assert len(measurement.outlet_height_delta_residuals_m) == 2
+
+  reversed_measurement = measure_mixed_regime_free_boundary_refinement(
+    (cases[1], cases[0]),
+  )
+
+  assert reversed_measurement.status is MocMixedRegimeFreeBoundaryRefinementMeasurementStatus.RESOLUTION_FAILURE
+  assert not reversed_measurement.converged
