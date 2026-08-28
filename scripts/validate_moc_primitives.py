@@ -23,6 +23,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocAmbientAxisClosureStatus,
   MocAmbientAxisClosureShootStatus,
   MocAmbientPhysicalFieldStatus,
+  MocAmbientClosedChainSourceMode,
   MocBoundedUpstreamFieldSource,
   MocMixedRegimeBoundaryStatus,
   MocMixedRegimeControlSection,
@@ -98,7 +99,6 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_attached_shock_to_centerline,
   solve_terminal_compression_candidate,
   assemble_terminal_trace_centerline_patch,
-  build_terminal_reflection_patch_upstream_source,
   assemble_first_cell_composite,
   assemble_first_cell_terminal_shock_field,
   solve_marched_attached_shock_from_terminal_reflection_patch,
@@ -877,68 +877,60 @@ def _ambient_shock_strip_probe(
         'solver_generated_ambient_closed_chain_reference'
       ]['upstream_source_model'] == 'callback-supplied-bounded-source'
     )
-    reflected_source = build_terminal_reflection_patch_upstream_source(
-      physical_field,
-      trace_position_tolerance_m=1.0e-3,
-      trace_invariant_tolerance=1.0e-10,
-      sample_position_tolerance_m=1.0e-3,
-    )
-    if isinstance(reflected_source, MocBoundedUpstreamFieldSource):
-      reflected_source_reference = (
-        MocSolverGeneratedAmbientClosedPostShockChainReference(
-          total_cell_count=2,
-          shock_start_y_m=shock_start_y_m,
-          ambient_pressure_Pa=ambient_pressure,
-          outer_downstream_flow_angle_lower_rad=0.02,
-          outer_downstream_flow_angle_upper_rad=0.12,
-          sample_count=9,
-          upstream_source_provider=lambda *_args, source=reflected_source: source,
-        )
-      )
-      reflected_source_planner = (
-        plan_solver_generated_ambient_closed_post_shock_chain_reference(
-          physical_field,
-          start_x_m=shock_fit.boundary_states[0].point_m[0],
-          end_x_m=physical_field.ambient_boundary_points_m[-1][0],
-          reference=reflected_source_reference,
-          policy=MocChainContinuationPolicy(
-            max_cells=2,
-            require_state_carry=True,
-          ),
-        )
-      )
-      reflected_source_planner_report = reflected_source_planner.as_report()
-      ambient_centerline_physical_reflected_source_chain_accepted = (
-        reflected_source_planner.planner_kind
-        is MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
-        and reflected_source_planner.production_claim_allowed is False
-        and reflected_source_planner.chain.resolved
-        and reflected_source_planner.chain.cell_count == 1
-        and reflected_source_planner.chain.physical_termination is False
-        and reflected_source_planner.chain.termination_reason
-        is MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
-        and len(reflected_source_planner.steps) == 1
-        and reflected_source_planner.steps[0].result_kind == 'termination-returned'
-        and reflected_source_planner.steps[0].result_termination_reason
-        == MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE.value
-        and reflected_source_planner.chain.diagnostics['upstream_source']['model']
-        == 'bounded-terminal-reflection-patch'
-      )
-      ambient_centerline_physical_reflected_source_chain = {
-        'accepted': ambient_centerline_physical_reflected_source_chain_accepted,
-        'source': reflected_source.as_report(),
-        'planner': reflected_source_planner_report,
-        'claim_status': (
-          'actual-terminal-reflection-patch-source-reaches-ambient-attachment-'
-          'closure-boundary; no extrapolation or next-cell promotion'
+    reflected_source_reference = (
+      MocSolverGeneratedAmbientClosedPostShockChainReference(
+        total_cell_count=2,
+        shock_start_y_m=shock_start_y_m,
+        ambient_pressure_Pa=ambient_pressure,
+        outer_downstream_flow_angle_lower_rad=0.02,
+        outer_downstream_flow_angle_upper_rad=0.12,
+        sample_count=9,
+        upstream_source_mode=(
+          MocAmbientClosedChainSourceMode.TERMINAL_REFLECTION_PATCH
         ),
-      }
-    else:
-      ambient_centerline_physical_reflected_source_chain = {
-        'accepted': False,
-        'source_projection': reflected_source.as_report(),
-        'claim_status': 'terminal-reflection-patch-source-projection-failed',
-      }
+      )
+    )
+    reflected_source_planner = (
+      plan_solver_generated_ambient_closed_post_shock_chain_reference(
+        physical_field,
+        start_x_m=shock_fit.boundary_states[0].point_m[0],
+        end_x_m=physical_field.ambient_boundary_points_m[-1][0],
+        reference=reflected_source_reference,
+        policy=MocChainContinuationPolicy(
+          max_cells=2,
+          require_state_carry=True,
+        ),
+      )
+    )
+    reflected_source_planner_report = reflected_source_planner.as_report()
+    reflected_source_report = reflected_source_planner.chain.diagnostics.get(
+      'upstream_source'
+    )
+    ambient_centerline_physical_reflected_source_chain_accepted = (
+      reflected_source_planner.planner_kind
+      is MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
+      and reflected_source_planner.production_claim_allowed is False
+      and reflected_source_planner.chain.resolved
+      and reflected_source_planner.chain.cell_count == 1
+      and reflected_source_planner.chain.physical_termination is False
+      and reflected_source_planner.chain.termination_reason
+      is MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+      and len(reflected_source_planner.steps) == 1
+      and reflected_source_planner.steps[0].result_kind == 'termination-returned'
+      and reflected_source_planner.steps[0].result_termination_reason
+      == MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE.value
+      and isinstance(reflected_source_report, dict)
+      and reflected_source_report['model'] == 'bounded-terminal-reflection-patch'
+    )
+    ambient_centerline_physical_reflected_source_chain = {
+      'accepted': ambient_centerline_physical_reflected_source_chain_accepted,
+      'source': reflected_source_report,
+      'planner': reflected_source_planner_report,
+      'claim_status': (
+        'solver-owned-terminal-reflection-patch-source-reaches-ambient-'
+        'attachment-closure-boundary; no extrapolation or next-cell promotion'
+      ),
+    }
     terminal_source = MocBoundedUpstreamFieldSource(
       state_at=lambda point: CharacteristicState(
         x_m=point[0],

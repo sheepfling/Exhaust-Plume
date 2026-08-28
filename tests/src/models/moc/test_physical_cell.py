@@ -8,6 +8,7 @@ import pytest
 from exhaust_plume.models.moc import (
   CharacteristicState,
   CharacteristicFamily,
+  MocAmbientClosedChainSourceMode,
   MocAmbientClosedPostShockChainCandidate,
   MocAmbientBoundarySample,
   MocBoundedUpstreamFieldSource,
@@ -1094,6 +1095,64 @@ def test_generated_chain_routes_the_reflection_patch_to_an_open_closure_stop() -
   assert diagnostics['ambient_physical_field_result']['status'] == (
     'ambient_attachment_failure'
   )
+
+
+def test_generated_chain_can_derive_the_reflection_patch_source_without_callback() -> None:
+  field = _canonical_ambient_closed_field()
+  reference = MocSolverGeneratedAmbientClosedPostShockChainReference(
+    total_cell_count=2,
+    shock_start_y_m=0.5,
+    ambient_pressure_Pa=101325.0,
+    outer_downstream_flow_angle_lower_rad=0.02,
+    outer_downstream_flow_angle_upper_rad=0.12,
+    sample_count=9,
+    upstream_source_mode=MocAmbientClosedChainSourceMode.TERMINAL_REFLECTION_PATCH,
+  )
+
+  planner = plan_solver_generated_ambient_closed_post_shock_chain_reference(
+    field,
+    start_x_m=0.5,
+    end_x_m=field.ambient_boundary_points_m[-1][0],
+    reference=reference,
+    policy=MocChainContinuationPolicy(
+      max_cells=2,
+      require_state_carry=True,
+    ),
+  )
+
+  assert planner.resolved
+  assert planner.chain.cell_count == 1
+  assert planner.chain.physical_termination is False
+  assert planner.chain.termination_reason is (
+    MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+  )
+  assert planner.steps[0].result_kind == 'termination-returned'
+  assert planner.steps[0].result_termination_reason is (
+    MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+  )
+  assert planner.chain.diagnostics['upstream_source']['model'] == (
+    'bounded-terminal-reflection-patch'
+  )
+  reference_report = planner.diagnostics[
+    'solver_generated_ambient_closed_chain_reference'
+  ]
+  assert reference_report['upstream_source_mode'] == (
+    'terminal-reflection-patch'
+  )
+  assert reference_report['upstream_source_model'] == (
+    'terminal-reflection-patch'
+  )
+  assert reference_report['source_trace_position_tolerance_m'] == pytest.approx(
+    1.0e-3
+  )
+
+
+def test_generated_chain_rejects_mixed_callback_and_source_mode() -> None:
+  with pytest.raises(ValueError, match='cannot be combined'):
+    MocSolverGeneratedAmbientClosedPostShockChainReference(
+      upstream_source_mode=MocAmbientClosedChainSourceMode.TERMINAL_REFLECTION_PATCH,
+      upstream_source_provider=lambda *_args: None,
+    )
 
 
 def test_generated_ambient_closed_chain_reference_re_solves_explicit_reference_cells() -> None:

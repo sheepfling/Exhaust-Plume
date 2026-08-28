@@ -8939,6 +8939,9 @@
               "pressure_tolerance": 1e-08,
               "tangent_tolerance": 1e-08,
               "shock_angle_tolerance_rad": 0.01,
+              "upstream_source_mode": "previous-ambient-closed-physical-field",
+              "source_trace_position_tolerance_m": 0.001,
+              "source_sample_position_tolerance_m": 0.001,
               "upstream_source_model": "callback-supplied-bounded-source",
               "upstream_source_contract": "finite-state-pressure-callbacks; no extrapolation; exact handoff provided to source provider",
               "downstream_condition_model": "ambient-attachment-shoot-plus-centerline-reflection",
@@ -21629,6 +21632,9 @@
             "pressure_tolerance": 1e-08,
             "tangent_tolerance": 1e-08,
             "shock_angle_tolerance_rad": 0.01,
+            "upstream_source_mode": "previous-ambient-closed-physical-field",
+            "source_trace_position_tolerance_m": 0.001,
+            "source_sample_position_tolerance_m": 0.001,
             "upstream_source_model": "callback-supplied-bounded-source",
             "upstream_source_contract": "finite-state-pressure-callbacks; no extrapolation; exact handoff provided to source provider",
             "downstream_condition_model": "ambient-attachment-shoot-plus-centerline-reflection",
@@ -21963,7 +21969,10 @@
               "pressure_tolerance": 1e-08,
               "tangent_tolerance": 1e-08,
               "shock_angle_tolerance_rad": 0.01,
-              "upstream_source_model": "callback-supplied-bounded-source",
+              "upstream_source_mode": "terminal-reflection-patch",
+              "source_trace_position_tolerance_m": 0.001,
+              "source_sample_position_tolerance_m": 0.001,
+              "upstream_source_model": "terminal-reflection-patch",
               "upstream_source_contract": "finite-state-pressure-callbacks; no extrapolation; exact handoff provided to source provider",
               "downstream_condition_model": "ambient-attachment-shoot-plus-centerline-reflection",
               "claim_status": "solver-generated-ambient-closed-chain-reference; reflected-upstream-remesher-and-external-validation-pending"
@@ -21972,7 +21981,7 @@
             "source_provider_policy": "bounded-callback-source-or-previous-field; no extrapolation"
           }
         },
-        "claim_status": "actual-terminal-reflection-patch-source-reaches-ambient-attachment-closure-boundary; no extrapolation or next-cell promotion"
+        "claim_status": "solver-owned-terminal-reflection-patch-source-reaches-ambient-attachment-closure-boundary; no extrapolation or next-cell promotion"
       },
       "ambient_centerline_physical_reflected_source_chain_accepted": true,
       "ambient_centerline_physical_terminal_source_chain": {
@@ -22325,6 +22334,9 @@
               "pressure_tolerance": 1e-08,
               "tangent_tolerance": 1e-08,
               "shock_angle_tolerance_rad": 0.01,
+              "upstream_source_mode": "previous-ambient-closed-physical-field",
+              "source_trace_position_tolerance_m": 0.001,
+              "source_sample_position_tolerance_m": 0.001,
               "upstream_source_model": "callback-supplied-bounded-source",
               "upstream_source_contract": "finite-state-pressure-callbacks; no extrapolation; exact handoff provided to source provider",
               "downstream_condition_model": "ambient-attachment-shoot-plus-centerline-reflection",

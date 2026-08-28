@@ -1536,6 +1536,14 @@ source is the preceding field and the planner stops at its boundary with
 `UPSTREAM_FIELD_BOUNDARY`. A uniform callback is only a labeled plumbing
 fixture for multi-cell regression; it does not constitute reflected upstream
 coupling, free-boundary closure, or a product-ready solver.
+The explicit `MocAmbientClosedChainSourceMode.TERMINAL_REFLECTION_PATCH`
+variant now derives the bounded next-source projection from the accepted
+field's outgoing shock/ambient strip and reflected centerline patch inside the
+solver-generated reference. In the canonical case this produces one accepted
+continued-cell attempt and then the typed `OPEN_PHYSICAL_CLOSURE` stop; it
+does not extrapolate or promote an unresolved next cell. The mode is an
+orchestration seam for the pending reflected-domain/mixed-regime solve, not a
+new production fidelity tier.
 When a source supplies a preferred shock-start point, the planner also checks
 that the point is at or downstream of the current cell interface before
 sampling it. A stale or backtracking preferred point is an explicit bounded

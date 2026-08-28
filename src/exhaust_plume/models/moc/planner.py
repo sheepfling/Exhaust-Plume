@@ -132,6 +132,7 @@ from exhaust_plume.util.aero.shock_validity import ShockBranch
 
 __all__ = (
   'MocChainPlannerKind',
+  'MocAmbientClosedChainSourceMode',
   'MocChainPlannerStep',
   'MocChainPlannerResult',
   'MocFirstCellTerminalClosurePlannerResult',
@@ -193,6 +194,24 @@ class MocChainPlannerKind(str, Enum):
   PRESCRIBED_BOUNDARY_MOCK = 'prescribed-boundary-mock'
   SOLVER_GENERATED_REFERENCE = 'solver-generated-reference'
   UPSTREAM_COUPLED_RESEARCH = 'upstream-coupled-research'
+####
+
+
+class MocAmbientClosedChainSourceMode(str, Enum):
+  """Solver-owned source choices for an ambient-closed chain reference.
+
+  ``PREVIOUS_FIELD`` preserves the original bounded-domain behavior: the
+  accepted field itself is exposed as the next upstream source and a
+  downstream miss is a typed field-boundary stop.  ``TERMINAL_REFLECTION_PATCH``
+  derives the next bounded source by projecting the accepted field's terminal
+  shock/ambient strip to its reflected centerline patch.  The latter is a
+  real solver-owned continuation attempt, but it remains research-only until
+  the reflected-domain and downstream free-boundary gates are independently
+  closed.
+  """
+
+  PREVIOUS_FIELD = 'previous-ambient-closed-physical-field'
+  TERMINAL_REFLECTION_PATCH = 'terminal-reflection-patch'
 ####
 
 
@@ -2963,9 +2982,12 @@ class MocSolverGeneratedAmbientClosedPostShockChainReference:
   centerline-reflection physical-field solver.  It does not own the missing
   downstream upstream-domain solve: ``upstream_source_provider`` must return
   a bounded source produced by a reflected-domain remesher, new-family
-  continuation, or an explicitly named reference fixture.  When omitted, the
-  prior closed field is used as the source, so a finite-domain miss becomes a
-  typed ``UPSTREAM_FIELD_BOUNDARY`` stop.
+  continuation, or an explicitly named reference fixture.  When no provider
+  is supplied, ``upstream_source_mode`` selects either the prior closed field
+  or the solver-owned terminal-reflection-patch source.  The default
+  prior-field mode preserves the finite-domain ``UPSTREAM_FIELD_BOUNDARY``
+  behavior; reflected-patch mode makes the next physical continuation attempt
+  without requiring a manually wired callback.
 
   A returned field replaces the active chain source only after all physical
   field gates and the exact incoming centerline handoff pass.  This is a
@@ -2992,6 +3014,11 @@ class MocSolverGeneratedAmbientClosedPostShockChainReference:
   maximum_segment_iterations: int = 24
   maximum_boundary_iterations: int = 16
   maximum_shooting_iterations: int = 40
+  upstream_source_mode: MocAmbientClosedChainSourceMode = (
+    MocAmbientClosedChainSourceMode.PREVIOUS_FIELD
+  )
+  source_trace_position_tolerance_m: float = 1.0e-3
+  source_sample_position_tolerance_m: float = 1.0e-3
   upstream_source_provider: Callable[
     [
       MocPhysicalPostShockFieldResult,
@@ -3018,6 +3045,13 @@ class MocSolverGeneratedAmbientClosedPostShockChainReference:
       raise ValueError('sample_count must be an integer of at least three')
     if not isinstance(self.branch, ShockBranch):
       raise TypeError('branch must be a ShockBranch')
+    if not isinstance(
+      self.upstream_source_mode,
+      MocAmbientClosedChainSourceMode,
+    ):
+      raise TypeError(
+        'upstream_source_mode must be a MocAmbientClosedChainSourceMode'
+      )
     for name in (
       'cell_axial_length_m',
       'shock_start_offset_m',
@@ -3033,6 +3067,8 @@ class MocSolverGeneratedAmbientClosedPostShockChainReference:
       'pressure_tolerance',
       'tangent_tolerance',
       'shock_angle_tolerance_rad',
+      'source_trace_position_tolerance_m',
+      'source_sample_position_tolerance_m',
     ):
       value = float(getattr(self, name))
       if not isfinite(value):
@@ -3057,9 +3093,20 @@ class MocSolverGeneratedAmbientClosedPostShockChainReference:
       'pressure_tolerance',
       'tangent_tolerance',
       'shock_angle_tolerance_rad',
+      'source_trace_position_tolerance_m',
+      'source_sample_position_tolerance_m',
     ):
       if getattr(self, name) <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+    if (
+      self.upstream_source_provider is not None
+      and self.upstream_source_mode
+      is not MocAmbientClosedChainSourceMode.PREVIOUS_FIELD
+    ):
+      raise ValueError(
+        'upstream_source_provider cannot be combined with a non-default '
+        'upstream_source_mode'
+      )
     for name in (
       'maximum_segment_iterations',
       'maximum_boundary_iterations',
@@ -3106,10 +3153,17 @@ class MocSolverGeneratedAmbientClosedPostShockChainReference:
       'pressure_tolerance': self.pressure_tolerance,
       'tangent_tolerance': self.tangent_tolerance,
       'shock_angle_tolerance_rad': self.shock_angle_tolerance_rad,
+      'upstream_source_mode': self.upstream_source_mode.value,
+      'source_trace_position_tolerance_m': (
+        self.source_trace_position_tolerance_m
+      ),
+      'source_sample_position_tolerance_m': (
+        self.source_sample_position_tolerance_m
+      ),
       'upstream_source_model': (
         'callback-supplied-bounded-source'
         if self.upstream_source_provider is not None
-        else 'bounded-previous-ambient-closed-physical-field'
+        else self.upstream_source_mode.value
       ),
       'upstream_source_contract': (
         'finite-state-pressure-callbacks; no extrapolation; exact handoff '
@@ -3155,14 +3209,21 @@ class MocSolverGeneratedAmbientClosedPostShockChainReference:
     next_cell_index: int,
     incoming_handoff: tuple[MocChainBoundarySample, ...],
   ) -> MocBoundedUpstreamFieldSource | MocChainTerminationDecision | None:
-    if self.upstream_source_provider is None:
-      return MocBoundedUpstreamFieldSource.from_physical_field(current_field)
-    return self.upstream_source_provider(
-      current_field,
-      current,
-      next_cell_index,
-      incoming_handoff,
-    )
+    if self.upstream_source_provider is not None:
+      return self.upstream_source_provider(
+        current_field,
+        current,
+        next_cell_index,
+        incoming_handoff,
+      )
+    if self.upstream_source_mode is MocAmbientClosedChainSourceMode.TERMINAL_REFLECTION_PATCH:
+      return build_terminal_reflection_patch_upstream_source(
+        current_field,
+        trace_position_tolerance_m=self.source_trace_position_tolerance_m,
+        trace_invariant_tolerance=self.invariant_tolerance,
+        sample_position_tolerance_m=self.source_sample_position_tolerance_m,
+      )
+    return MocBoundedUpstreamFieldSource.from_physical_field(current_field)
   ####
 
   def solve_next(

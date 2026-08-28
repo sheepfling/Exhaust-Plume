@@ -546,9 +546,15 @@ non-extrapolating state and static-pressure callbacks, while
 the existing attached-shock/ambient/centerline physical field is completely
 accepted. The default source wraps the preceding finite field and therefore
 ends with `UPSTREAM_FIELD_BOUNDARY`; a uniform source callback is a named
-multi-cell plumbing fixture, not reflected upstream coupling. This lane stays
-research-only until a reflected/free-boundary remesher, mixed-regime handoff,
-refinement evidence, and independent external validation are available.
+multi-cell plumbing fixture, not reflected upstream coupling. An explicit
+`MocAmbientClosedChainSourceMode.TERMINAL_REFLECTION_PATCH` option can now
+derive the bounded next-source projection from the accepted field's outgoing
+shock/ambient strip and reflected centerline patch without a manually wired
+callback. On the canonical case it reaches the same typed
+`OPEN_PHYSICAL_CLOSURE` boundary after the accepted prefix; it does not
+extrapolate or promote a next cell. This lane stays research-only until a
+reflected/free-boundary remesher, mixed-regime handoff, refinement evidence,
+and independent external validation are available.
 The caustic bridge can now be adapted into the same bounded source contract;
 its callbacks retain one-sided branch selection and return no state across a
 bridge gap. This makes the new-family corridor consumable by the generic

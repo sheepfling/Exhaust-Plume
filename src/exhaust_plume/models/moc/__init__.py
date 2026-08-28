@@ -350,6 +350,7 @@ from exhaust_plume.models.moc.post_shock import (
 )
 from exhaust_plume.models.moc.planner import (
   MocChainPlannerKind,
+  MocAmbientClosedChainSourceMode,
   MocChainPlannerResult,
   MocChainPlannerStep,
   MocFirstCellTerminalClosurePlannerResult,
@@ -462,6 +463,7 @@ __all__ = (
   'run_mixed_regime_planar_field_solver',
   'solve_mixed_regime_planar_potential_reference',
   'MocChainPlannerKind',
+  'MocAmbientClosedChainSourceMode',
   'MocChainPlannerResult',
   'MocChainPlannerStep',
   'MocFirstCellTerminalClosurePlannerResult',
