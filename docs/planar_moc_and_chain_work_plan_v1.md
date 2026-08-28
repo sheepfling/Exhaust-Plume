@@ -1394,6 +1394,17 @@ Only after MOC-1 through MOC-5 pass:
   non-physical caustic termination without appending a chain cell. This keeps
   continuation orchestration auditable while the first physical post-caustic
   shock-cell solve remains a separate gate.
+- Added a solver-owned ambient-attachment-to-physical-field path. It keeps the
+  legacy scalar axis/corner bridge diagnostic, but closes the canonical
+  solver-generated ambient boundary by continuing every ambient ``C-`` source
+  to ``y=0`` and adding the terminal axis cells. The canonical nine-sample
+  reference is a state-carrying 45-node/53-cell ambient-closed field with all
+  immutable physical gates passing. The strict physical-chain adapter consumes
+  only the exact physical ambient sample count and records the centerline
+  handoff; its canonical next-cell probe stops at the bounded upstream-domain
+  edge rather than extrapolating a second shock. Reflected/mixed-regime
+  upstream extension, production next-cell solving, refinement, and external
+  validation remain open gates.
 
 These blockers are intentionally represented as structured statuses in code;
 they are not reasons to weaken the fidelity boundary.

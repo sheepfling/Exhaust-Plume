@@ -352,8 +352,15 @@ state/total-pressure samples needed to make its own mesh a bounded upstream
 domain. Its explicit-perimeter next-cell adapter fits the candidate shock from
 those samples and preserves the exact centerline handoff; leaving the bounded
 domain or failing the next ambient perimeter is a typed non-physical stop.
-This is a solver/chain foundation only: automatic reflected-domain and
-ambient free-boundary shooting remain promotion gates.
+The solver-owned centerline-reflection entry point now closes the canonical
+ambient boundary by continuing each ambient-sourced ``C-`` characteristic to
+the symmetry line and adding the terminal axis cells; it never treats the
+terminal internal ``C+`` row as the axis and rejects an appended axis corner as
+an unpaired source. The canonical nine-sample reference passes the immutable
+closure, state-sampling, and upstream-shock-coupling gates. This is still a
+solver/chain foundation only: reflected/mixed-regime upstream extension,
+automatic next-cell free-boundary shooting, refinement, and external
+validation remain promotion gates.
 The caustic-family-band continuation is isolated as a separate one-step
 planner path: it carries the exact prior perimeter into the bounded restarted
 family, solves the next shock and open supersonic zone, and records the typed

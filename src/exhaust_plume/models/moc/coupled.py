@@ -53,6 +53,7 @@ from exhaust_plume.models.moc.post_shock import MocPostShockChainCellSolve
 from exhaust_plume.models.moc.physical_cell import (
   MocPhysicalPostShockFieldResult,
   assemble_ambient_boundary_post_shock_field,
+  assemble_ambient_boundary_post_shock_field_with_centerline_reflection,
 )
 from exhaust_plume.models.moc.primitives import (
   CharacteristicState,
@@ -68,6 +69,7 @@ __all__ = (
   'MocAmbientAttachmentStatus',
   'MocAmbientAttachmentResult',
   'solve_marched_attached_shock_with_ambient_attachment_closure',
+  'solve_marched_attached_shock_with_ambient_centerline_physical_field',
   'MocAmbientAxisClosureShootStatus',
   'MocAmbientAxisClosureShootTrial',
   'MocAmbientAxisClosureShootResult',
@@ -559,6 +561,7 @@ class MocAmbientPhysicalFieldStatus(str, Enum):
 
   CONVERGED_AMBIENT_CLOSED = 'converged_ambient_closed_physical_field'
   INVALID_INPUT = 'invalid_input'
+  AMBIENT_ATTACHMENT_FAILURE = 'ambient_attachment_failure'
   AXIS_SHOOT_FAILURE = 'ambient_axis_shoot_failure'
   AXIS_BOUNDARY_FAILURE = 'ambient_axis_boundary_failure'
   FIELD_FAILURE = 'ambient_physical_field_failure'
@@ -567,19 +570,20 @@ class MocAmbientPhysicalFieldStatus(str, Enum):
 
 @dataclass(frozen=True, slots=True)
 class MocAmbientPhysicalFieldResult:
-  """A strict bridge from scalar ambient/axis shooting to a physical field.
+  """A strict bridge from an ambient-boundary solve to a physical field.
 
-  The axis shoot is useful for finding a candidate attachment coordinate, but
-  its scalar pressure root is not itself a closed MOC cell.  This result keeps
-  that distinction explicit: the existing shoot must first pass the complete
-  appended ambient-to-axis boundary validator, after which the retained
-  boundary states are assembled into the shock/ambient/centerline field.
+  The optional axis shoot remains the legacy global attachment-coordinate
+  path.  The optional ambient attachment result is the local pressure-matched
+  path that can feed the explicit C− centerline-reflection assembler.  In
+  either case the retained field must pass the immutable physical-field gates
+  before it can enter the research chain.
   """
 
   status: MocAmbientPhysicalFieldStatus
   axis_closure_shoot: MocAmbientAxisClosureShootResult | None
   field: MocPhysicalPostShockFieldResult | None
   message: str = ''
+  ambient_attachment: MocAmbientAttachmentResult | None = None
 
   def __post_init__(self) -> None:
     if not isinstance(self.status, MocAmbientPhysicalFieldStatus):
@@ -597,6 +601,13 @@ class MocAmbientPhysicalFieldResult:
     ):
       raise TypeError(
         'field must be a MocPhysicalPostShockFieldResult or None'
+      )
+    if self.ambient_attachment is not None and not isinstance(
+      self.ambient_attachment,
+      MocAmbientAttachmentResult,
+    ):
+      raise TypeError(
+        'ambient_attachment must be a MocAmbientAttachmentResult or None'
       )
   ####
 
@@ -683,6 +694,11 @@ class MocAmbientPhysicalFieldResult:
         None
         if self.axis_closure_shoot is None
         else self.axis_closure_shoot.as_report()
+      ),
+      'ambient_attachment': (
+        None
+        if self.ambient_attachment is None
+        else self.ambient_attachment.as_report()
       ),
       'field': None if self.field is None else self.field.as_report(),
       'message': self.message,
@@ -1102,6 +1118,200 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
     message=(
       'ambient shock attachment converged and produced a physical open '
       'shock/ambient strip; terminal centerline closure remains pending'
+    ),
+  )
+####
+
+
+def solve_marched_attached_shock_with_ambient_centerline_physical_field(
+  upstream_state_at: Callable[[tuple[float, float]], CharacteristicState | None],
+  upstream_pressure_at: Callable[[tuple[float, float]], float | None],
+  start_point_m: tuple[float, float],
+  ambient_pressure_Pa: float,
+  outer_downstream_flow_angle_lower_rad: float,
+  outer_downstream_flow_angle_upper_rad: float,
+  *,
+  target_centerline_y_m: float = 0.0,
+  target_centerline_flow_angle_rad: float = 0.0,
+  incoming_handoff: Sequence[MocChainBoundarySample] | None = None,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  attachment_pressure_tolerance: float = 1.0e-8,
+  pressure_tolerance: float = 1.0e-8,
+  tangent_tolerance: float = 1.0e-8,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  maximum_boundary_iterations: int = 16,
+  maximum_shooting_iterations: int = 40,
+) -> MocAmbientPhysicalFieldResult:
+  """Assemble the solver-owned ambient-closed reflected physical field.
+
+  This path first solves the local shock/ambient attachment, then uses the
+  physical ambient samples generated from the fitted shock as the ``C-``
+  sources for the explicit centerline-reflection assembler.  The resulting
+  field is the accepted research handoff for a continued shock-cell chain.
+  It is intentionally separate from
+  :func:`solve_marched_attached_shock_with_ambient_physical_field`, whose
+  global attachment-coordinate/axis-corner behavior remains a diagnostic
+  reference path.
+
+  The reflected assembler closes each ambient ``C-`` characteristic on the
+  symmetry line.  Consequently this entry point only accepts the canonical
+  planar centerline target ``y=0, theta=0``; a nonzero target would describe
+  a different boundary-value problem and must use another closure lane.
+  """
+
+  try:
+    target_y = float(target_centerline_y_m)
+    target_angle = float(target_centerline_flow_angle_rad)
+  except (TypeError, ValueError):
+    return MocAmbientPhysicalFieldResult(
+      status=MocAmbientPhysicalFieldStatus.INVALID_INPUT,
+      axis_closure_shoot=None,
+      field=None,
+      message='centerline target coordinates and flow angle must be numeric',
+    )
+  try:
+    target_is_centerline = (
+      abs(target_y) <= float(position_tolerance_m)
+      and abs(target_angle) <= float(tangent_tolerance)
+    )
+  except (TypeError, ValueError):
+    target_is_centerline = False
+  if not target_is_centerline:
+    return MocAmbientPhysicalFieldResult(
+      status=MocAmbientPhysicalFieldStatus.INVALID_INPUT,
+      axis_closure_shoot=None,
+      field=None,
+      message=(
+        'centerline-reflection physical-field assembly requires target '
+        'centerline y=0 and flow angle theta=0'
+      ),
+    )
+
+  try:
+    attachment = solve_marched_attached_shock_with_ambient_attachment_closure(
+      upstream_state_at,
+      upstream_pressure_at,
+      start_point_m,
+      ambient_pressure_Pa,
+      outer_downstream_flow_angle_lower_rad,
+      outer_downstream_flow_angle_upper_rad,
+      target_centerline_y_m=target_y,
+      target_centerline_flow_angle_rad=target_angle,
+      incoming_handoff=incoming_handoff,
+      sample_count=sample_count,
+      branch=branch,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+      attachment_pressure_tolerance=attachment_pressure_tolerance,
+      pressure_tolerance=pressure_tolerance,
+      tangent_tolerance=tangent_tolerance,
+      shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+      maximum_segment_iterations=maximum_segment_iterations,
+      maximum_boundary_iterations=maximum_boundary_iterations,
+      maximum_shooting_iterations=maximum_shooting_iterations,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return MocAmbientPhysicalFieldResult(
+      status=MocAmbientPhysicalFieldStatus.INVALID_INPUT,
+      axis_closure_shoot=None,
+      field=None,
+      message=f'ambient centerline physical-field solve raised: {error}',
+    )
+  if attachment.status is MocAmbientAttachmentStatus.INVALID_INPUT:
+    status = MocAmbientPhysicalFieldStatus.INVALID_INPUT
+  elif not attachment.converged:
+    status = MocAmbientPhysicalFieldStatus.AMBIENT_ATTACHMENT_FAILURE
+  else:
+    status = None
+  if status is not None:
+    return MocAmbientPhysicalFieldResult(
+      status=status,
+      axis_closure_shoot=None,
+      field=None,
+      ambient_attachment=attachment,
+      message=(
+        'ambient attachment did not produce the physical boundary required '
+        f'for centerline reflection: {attachment.message}'
+      ),
+    )
+
+  shock = attachment.shock
+  ambient_march = attachment.ambient_march
+  shock_fit = None if shock is None else shock.shock_fit
+  if (
+    shock is None
+    or not shock.converged
+    or shock_fit is None
+    or not shock_fit.converged
+    or ambient_march is None
+    or not ambient_march.converged
+  ):
+    return MocAmbientPhysicalFieldResult(
+      status=MocAmbientPhysicalFieldStatus.AMBIENT_ATTACHMENT_FAILURE,
+      axis_closure_shoot=None,
+      field=None,
+      ambient_attachment=attachment,
+      message=(
+        'ambient attachment reported convergence without retaining a '
+        'converged shock fit and ambient boundary march'
+      ),
+    )
+
+  try:
+    field = assemble_ambient_boundary_post_shock_field_with_centerline_reflection(
+      shock_fit,
+      ambient_march.boundary_samples,
+      float(ambient_pressure_Pa),
+      incoming_handoff=incoming_handoff,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+      pressure_tolerance=pressure_tolerance,
+      tangent_tolerance=tangent_tolerance,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return MocAmbientPhysicalFieldResult(
+      status=MocAmbientPhysicalFieldStatus.FIELD_FAILURE,
+      axis_closure_shoot=None,
+      field=None,
+      ambient_attachment=attachment,
+      message=f'ambient centerline physical-field assembly raised: {error}',
+    )
+  if not field.converged or not field.physical_closure_verified:
+    return MocAmbientPhysicalFieldResult(
+      status=MocAmbientPhysicalFieldStatus.FIELD_FAILURE,
+      axis_closure_shoot=None,
+      field=field,
+      ambient_attachment=attachment,
+      message=(
+        'ambient attachment passed, but the reflected physical field did not '
+        f'pass immutable closure gates: {field.message}'
+      ),
+    )
+  if not field.state_sampling_available or not field.upstream_shock_coupling_verified:
+    return MocAmbientPhysicalFieldResult(
+      status=MocAmbientPhysicalFieldStatus.FIELD_FAILURE,
+      axis_closure_shoot=None,
+      field=field,
+      ambient_attachment=attachment,
+      message=(
+        'ambient reflected field closed geometrically but did not retain the '
+        'bounded state and upstream-shock samples required for chain '
+        'continuation'
+      ),
+    )
+  return MocAmbientPhysicalFieldResult(
+    status=MocAmbientPhysicalFieldStatus.CONVERGED_AMBIENT_CLOSED,
+    axis_closure_shoot=None,
+    field=field,
+    ambient_attachment=attachment,
+    message=(
+      'ambient attachment and explicit C- centerline reflection produced a '
+      'state-carrying ambient-closed physical MOC field; production claim '
+      'and external reflected-domain validation remain pending'
     ),
   )
 ####

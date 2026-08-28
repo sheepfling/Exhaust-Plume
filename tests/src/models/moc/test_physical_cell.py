@@ -7,6 +7,7 @@ import pytest
 
 from exhaust_plume.models.moc import (
   CharacteristicState,
+  CharacteristicFamily,
   MocAmbientBoundarySample,
   MocChainContinuationPolicy,
   MocChainTerminationDecision,
@@ -22,6 +23,8 @@ from exhaust_plume.models.moc import (
   MocShockBoundaryFitStatus,
   CharacteristicPointResult,
   assemble_ambient_boundary_post_shock_field,
+  assemble_ambient_boundary_post_shock_field_with_centerline_reflection,
+  centerline_characteristic_point,
   continue_ambient_closed_post_shock_chain,
   march_post_shock_ambient_boundary,
   plan_ambient_closed_post_shock_chain,
@@ -203,6 +206,105 @@ def test_coupled_post_shock_field_accepts_an_explicit_axis_corner_before_axis_ga
   assert result.topology.forms_closed_zone
   assert result.ambient_boundary_points_m[-1] == axis_corner.point_m
   assert result.centerline_boundary_points_m[-1] == axis_corner.point_m
+
+
+def test_centerline_reflection_closes_each_ambient_c_minus_characteristic() -> None:
+  shock = solve_marched_attached_shock_field(
+    lambda point: CharacteristicState(
+      x_m=point[0],
+      y_m=point[1],
+      theta_rad=-0.2,
+      mach=2.0,
+      gamma=1.4,
+    ),
+    lambda _point: 100000.0,
+    (0.5, 0.5),
+    downstream_flow_angle_at=lambda _index, point: 0.05 * point[1] / 0.5,
+    sample_count=9,
+  )
+  assert shock.converged
+  assert shock.shock_fit is not None
+  first = shock.shock_fit.boundary_states[0]
+  ambient_pressure = first.downstream_total_pressure_Pa / (
+    1.0 + 0.5 * (first.state.gamma - 1.0) * first.state.mach**2
+  ) ** (first.state.gamma / (first.state.gamma - 1.0))
+  march = march_post_shock_ambient_boundary(
+    shock.shock_fit,
+    ambient_pressure,
+  )
+  assert march.converged
+
+  result = assemble_ambient_boundary_post_shock_field_with_centerline_reflection(
+    shock.shock_fit,
+    march.boundary_samples,
+    ambient_pressure,
+  )
+
+  assert result.status is MocPhysicalPostShockFieldStatus.CONVERGED_AMBIENT_CLOSED
+  assert result.converged
+  assert result.physical_closure_verified
+  assert result.state_sampling_available
+  assert result.upstream_shock_coupling_verified
+  assert result.node_count == 45
+  assert result.cell_count == 53
+  assert len(result.centerline_boundary_points_m) == 10
+  assert all(
+    abs(point[1]) <= 1.0e-10
+    and abs(state.theta_rad) <= 1.0e-10
+    for point, state in zip(
+      result.centerline_boundary_points_m,
+      result.centerline_boundary_states,
+      strict=True,
+    )
+  )
+  assert all(result.physical_closure_gates.values())
+
+
+def test_centerline_reflection_does_not_accept_an_appended_axis_corner() -> None:
+  shock = solve_marched_attached_shock_field(
+    lambda point: CharacteristicState(
+      x_m=point[0],
+      y_m=point[1],
+      theta_rad=-0.2,
+      mach=2.0,
+      gamma=1.4,
+    ),
+    lambda _point: 100000.0,
+    (0.5, 0.5),
+    downstream_flow_angle_at=lambda _index, point: 0.05 * point[1] / 0.5,
+    sample_count=9,
+  )
+  assert shock.shock_fit is not None
+  first = shock.shock_fit.boundary_states[0]
+  ambient_pressure = first.downstream_total_pressure_Pa / (
+    1.0 + 0.5 * (first.state.gamma - 1.0) * first.state.mach**2
+  ) ** (first.state.gamma / (first.state.gamma - 1.0))
+  march = march_post_shock_ambient_boundary(
+    shock.shock_fit,
+    ambient_pressure,
+  )
+  assert march.converged
+  last = march.boundary_samples[-1]
+  axis = centerline_characteristic_point(
+    last.state,
+    CharacteristicFamily.MINUS,
+  )
+  assert axis.point_m is not None
+  assert axis.state is not None
+  axis_corner = MocAmbientBoundarySample(
+    point_m=axis.point_m,
+    state=axis.state,
+    total_pressure_Pa=last.total_pressure_Pa,
+  )
+
+  result = assemble_ambient_boundary_post_shock_field_with_centerline_reflection(
+    shock.shock_fit,
+    (*march.boundary_samples, axis_corner),
+    ambient_pressure,
+  )
+
+  assert result.status is MocPhysicalPostShockFieldStatus.INVALID_INPUT
+  assert 'one physical ambient sample per fitted shock sample' in result.message
 
 
 def _manufactured_closed_physical_field(
@@ -422,6 +524,44 @@ def test_physical_field_next_shock_returns_bounded_upstream_stop_without_extrapo
   assert decision.reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
   assert decision.diagnostics['first_missing_sample_index'] == 0
   assert decision.diagnostics['sampled_count'] == 0
+
+
+def test_ambient_physical_chain_rejects_an_appended_axis_corner_source() -> None:
+  field = _manufactured_closed_physical_field()
+  current = field.as_coupled_chain_cell(
+    start_x_m=0.0,
+    end_x_m=2.0,
+    cell_index=1,
+  )
+  ambient_boundary = tuple(
+    MocAmbientBoundarySample(
+      point_m=point,
+      state=state,
+      total_pressure_Pa=pressure,
+    )
+    for point, state, pressure in zip(
+      field.ambient_boundary.points_m,
+      field.ambient_boundary.states,
+      field.ambient_boundary.total_pressure_Pa,
+      strict=True,
+    )
+  )
+
+  decision = solve_ambient_closed_post_shock_chain_cell_from_physical_field_or_termination(
+    current,
+    2,
+    current.continuation_boundary,
+    field,
+    shock_points_m=((2.5, 0.4), (2.7, 0.2), (2.9, 0.0)),
+    downstream_flow_angles_rad=(0.1, 0.1, 0.1),
+    ambient_boundary=(*ambient_boundary, ambient_boundary[-1]),
+    ambient_pressure_Pa=100000.0,
+    end_x_m=3.0,
+  )
+
+  assert isinstance(decision, MocChainTerminationDecision)
+  assert decision.reason is MocChainTerminationReason.INVALID_INPUT
+  assert 'explicit axis corner is not a C- source' in decision.message
 
 
 def test_ambient_closed_physical_chain_requires_exact_incoming_handoff() -> None:

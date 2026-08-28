@@ -41,9 +41,11 @@ from exhaust_plume.models.moc.post_shock import (
   fit_attached_shock_boundary,
 )
 from exhaust_plume.models.moc.primitives import (
+  CharacteristicFamily,
   CharacteristicState,
   CharacteristicPointResult,
   MocPrimitiveStatus,
+  centerline_characteristic_point,
   interior_characteristic_point,
   inverse_prandtl_meyer_angle_rad,
 )
@@ -56,6 +58,7 @@ __all__ = (
   'MocPhysicalPostShockFieldResult',
   'MocPhysicalPostShockFieldContinuationSolve',
   'assemble_ambient_boundary_post_shock_field',
+  'assemble_ambient_boundary_post_shock_field_with_centerline_reflection',
   'solve_ambient_closed_post_shock_chain_cell_from_physical_field_or_termination',
   'continue_ambient_closed_post_shock_chain',
 )
@@ -1075,6 +1078,7 @@ def assemble_ambient_boundary_post_shock_field(
   ambient_pressure_Pa: float,
   *,
   incoming_handoff: Sequence[MocChainBoundarySample] | None = None,
+  centerline_reflection: bool = False,
   position_tolerance_m: float = 1.0e-10,
   invariant_tolerance: float = 1.0e-10,
   pressure_tolerance: float = 1.0e-8,
@@ -1083,14 +1087,16 @@ def assemble_ambient_boundary_post_shock_field(
   """Assemble a shock/ambient/centerline triangular characteristic field.
 
   The ambient samples are the physical outer boundary and are ordered from
-  the shock attachment toward the downstream axis.  Shock states supply the
-  ``C+`` sources and ambient states supply the ``C-`` sources.  A diagonal
-  intersection must reproduce each ambient boundary point; the closing
-  perimeter must then lie on ``y=0`` with ``theta=0``.  The ambient trace may
-  contain one explicit downstream axis corner in addition to the ``N`` shock
-  samples; that corner closes the centerline seam and is not used as an
-  unpaired characteristic source.  This is a coupled boundary acceptance
-  primitive, not an automatic boundary shooter.
+  the shock attachment toward downstream.  Shock states supply the ``C+``
+  sources and ambient states supply the ``C-`` sources.  A diagonal
+  intersection must reproduce each ambient boundary point.  By default the
+  function retains the historical boundary-conditioned triangular strip and
+  accepts one explicit downstream axis corner as a diagnostic input.  When
+  ``centerline_reflection`` is true, the ambient trace must contain exactly
+  the ``N`` shock samples; every ambient-sourced ``C-`` characteristic is
+  then continued to ``y=0`` and terminal axis cells are added.  That explicit
+  reflected mode is the physical centerline closure path and never treats
+  the terminal C+ row as the axis.
   """
 
   if not isinstance(shock_fit, MocShockBoundaryFitResult):
@@ -1102,6 +1108,8 @@ def assemble_ambient_boundary_post_shock_field(
     )
   if not isfinite(float(ambient_pressure_Pa)) or ambient_pressure_Pa <= 0.0:
     raise ValueError('ambient_pressure_Pa must be finite and positive')
+  if not isinstance(centerline_reflection, bool):
+    raise TypeError('centerline_reflection must be a bool')
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('invariant_tolerance', invariant_tolerance),
@@ -1164,6 +1172,19 @@ def assemble_ambient_boundary_post_shock_field(
         'shock and ambient boundaries must contain at least three samples, '
         'with either equal counts or one explicit ambient downstream axis '
         'corner'
+      ),
+    )
+  if centerline_reflection and len(samples) != len(shock_samples):
+    ambient_result = _empty_ambient_boundary(float(ambient_pressure_Pa))
+    return _failure(
+      MocPhysicalPostShockFieldStatus.INVALID_INPUT,
+      ambient_boundary=ambient_result,
+      shock_points=tuple(sample.point_m for sample in shock_samples),
+      ambient_points=tuple(sample.point_m for sample in samples),
+      message=(
+        'centerline-reflection assembly requires one physical ambient '
+        'sample per fitted shock sample; an explicit axis corner is not a '
+        'C- source'
       ),
     )
   upstream_shock_states = tuple(shock_fit.upstream_states)
@@ -1281,7 +1302,7 @@ def assemble_ambient_boundary_post_shock_field(
       ambient_points=ambient_points,
       message='shock boundary must terminate on the symmetry line',
     )
-  if abs(ambient_points[-1][1]) > position_tolerance_m:
+  if not centerline_reflection and abs(ambient_points[-1][1]) > position_tolerance_m:
     return _failure(
       MocPhysicalPostShockFieldStatus.GEOMETRY_FAILURE,
       ambient_boundary=ambient_result,
@@ -1371,6 +1392,112 @@ def assemble_ambient_boundary_post_shock_field(
       )
   ####
 
+  axis_results: tuple[CharacteristicPointResult, ...] = ()
+  if centerline_reflection:
+    resolved_axis_results: list[CharacteristicPointResult] = []
+    for index, sample in enumerate(samples):
+      try:
+        axis_result = centerline_characteristic_point(
+          sample.state,
+          CharacteristicFamily.MINUS,
+          position_tolerance_m=position_tolerance_m,
+          invariant_tolerance=invariant_tolerance,
+        )
+      except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+        return _failure(
+          MocPhysicalPostShockFieldStatus.AXIS_FAILURE,
+          ambient_boundary=ambient_result,
+          characteristic_layer_count=expected_count - 1,
+          nodes=tuple(nodes_by_index.values()),
+          shock_points=shock_points,
+          ambient_points=ambient_points,
+          axis_points=tuple(
+            result.point_m
+            for result in resolved_axis_results
+            if result.point_m is not None
+          ),
+          axis_states=tuple(
+            result.state
+            for result in resolved_axis_results
+            if result.state is not None
+          ),
+          axis_pressures=tuple(
+            samples[axis_index].total_pressure_Pa
+            for axis_index in range(len(resolved_axis_results))
+          ),
+          pressure_ratios=pressure_ratios,
+          message=f'ambient C- centerline reflection {index} raised: {error}',
+        )
+      if (
+        not axis_result.converged
+        or axis_result.point_m is None
+        or axis_result.state is None
+      ):
+        status = (
+          MocPhysicalPostShockFieldStatus.INVARIANT_FAILURE
+          if axis_result.status is MocPrimitiveStatus.INVARIANT_FAILURE
+          else MocPhysicalPostShockFieldStatus.AXIS_FAILURE
+        )
+        return _failure(
+          status,
+          ambient_boundary=ambient_result,
+          characteristic_layer_count=expected_count - 1,
+          nodes=tuple(nodes_by_index.values()),
+          shock_points=shock_points,
+          ambient_points=ambient_points,
+          axis_points=tuple(
+            result.point_m
+            for result in resolved_axis_results
+            if result.point_m is not None
+          ),
+          axis_states=tuple(
+            result.state
+            for result in resolved_axis_results
+            if result.state is not None
+          ),
+          axis_pressures=tuple(
+            samples[axis_index].total_pressure_Pa
+            for axis_index in range(len(resolved_axis_results))
+          ),
+          pressure_ratios=pressure_ratios,
+          message=(
+            f'ambient C- centerline reflection {index} failed: '
+            f'{axis_result.message}'
+          ),
+        )
+      resolved_axis_results.append(axis_result)
+    axis_results = tuple(resolved_axis_results)
+    axis_x_values = tuple(
+      result.point_m[0]
+      for result in axis_results
+      if result.point_m is not None
+    )
+    if (
+      len(axis_x_values) != expected_count
+      or any(
+        second <= first + position_tolerance_m
+        for first, second in zip(axis_x_values, axis_x_values[1:])
+      )
+      or axis_x_values[0] <= shock_points[-1][0] + position_tolerance_m
+    ):
+      return _failure(
+        MocPhysicalPostShockFieldStatus.AXIS_FAILURE,
+        ambient_boundary=ambient_result,
+        characteristic_layer_count=expected_count - 1,
+        nodes=tuple(nodes_by_index.values()),
+        shock_points=shock_points,
+        ambient_points=ambient_points,
+        axis_points=tuple(result.point_m for result in axis_results if result.point_m is not None),
+        axis_states=tuple(result.state for result in axis_results if result.state is not None),
+        axis_pressures=tuple(sample.total_pressure_Pa for sample in samples),
+        pressure_ratios=pressure_ratios,
+        message=(
+          'ambient C- centerline reflections must form a strictly downstream '
+          'axis trace after the fitted shock endpoint'
+        ),
+      )
+  ####
+
   def node_point(plus_index: int, minus_index: int) -> tuple[float, float]:
     return nodes_by_index[(plus_index, minus_index)].point_m
 
@@ -1416,7 +1543,51 @@ def assemble_ambient_boundary_post_shock_field(
           boundary_indices=(index, index + 1),
         )
       )
-    if len(ambient_points) == expected_count + 1:
+    if centerline_reflection:
+      assert len(axis_results) == expected_count
+      cells_list.append(
+        MocCharacteristicCell(
+          cell_index=len(cells_list),
+          cell_kind='post-shock-ambient-centerline-triangle',
+          vertices_xr_m=(
+            shock_points[-1],
+            node_point(expected_count - 1, 0),
+            axis_results[0].point_m,
+          ),
+          centerline_indices=(expected_count,),
+          boundary_indices=(0,),
+        )
+      )
+      for column in range(expected_count - 2):
+        cells_list.append(
+          MocCharacteristicCell(
+            cell_index=len(cells_list),
+            cell_kind='post-shock-ambient-centerline-strip',
+            vertices_xr_m=(
+              node_point(expected_count - 1, column),
+              node_point(expected_count - 1, column + 1),
+              axis_results[column + 1].point_m,
+              axis_results[column].point_m,
+            ),
+            centerline_indices=(expected_count,),
+            boundary_indices=(column, column + 1),
+          )
+        )
+      cells_list.append(
+        MocCharacteristicCell(
+          cell_index=len(cells_list),
+          cell_kind='post-shock-ambient-centerline-terminal',
+          vertices_xr_m=(
+            node_point(expected_count - 1, expected_count - 2),
+            ambient_points[-1],
+            axis_results[-1].point_m,
+            axis_results[-2].point_m,
+          ),
+          centerline_indices=(expected_count,),
+          boundary_indices=(expected_count - 2, expected_count - 1),
+        )
+      )
+    elif len(ambient_points) == expected_count + 1:
       cells_list.append(
         MocCharacteristicCell(
           cell_index=len(cells_list),
@@ -1477,24 +1648,39 @@ def assemble_ambient_boundary_post_shock_field(
     )
   ####
 
-  axis_points_natural = [shock_points[-1]]
-  axis_states_natural = [shock_samples[-1].state]
-  axis_pressures_natural = [shock_samples[-1].downstream_total_pressure_Pa]
-  axis_points_natural.extend(
-    node_point(expected_count - 1, column)
-    for column in range(expected_count - 2, -1, -1)
-  )
-  axis_states_natural.extend(
-    axis_state(expected_count - 1, column)
-    for column in range(expected_count - 2, -1, -1)
-  )
-  axis_pressures_natural.extend(
-    shock_samples[column].downstream_total_pressure_Pa
-    for column in range(expected_count - 2, -1, -1)
-  )
-  axis_points_natural.append(ambient_points[-1])
-  axis_states_natural.append(samples[-1].state)
-  axis_pressures_natural.append(samples[-1].total_pressure_Pa)
+  if centerline_reflection:
+    assert len(axis_results) == expected_count
+    axis_points_natural = [shock_points[-1]]
+    axis_states_natural = [shock_samples[-1].state]
+    axis_pressures_natural = [shock_samples[-1].downstream_total_pressure_Pa]
+    axis_points_natural.extend(
+      result.point_m for result in axis_results
+    )
+    axis_states_natural.extend(
+      result.state for result in axis_results
+    )
+    axis_pressures_natural.extend(
+      sample.total_pressure_Pa for sample in samples
+    )
+  else:
+    axis_points_natural = [shock_points[-1]]
+    axis_states_natural = [shock_samples[-1].state]
+    axis_pressures_natural = [shock_samples[-1].downstream_total_pressure_Pa]
+    axis_points_natural.extend(
+      node_point(expected_count - 1, column)
+      for column in range(expected_count - 2, -1, -1)
+    )
+    axis_states_natural.extend(
+      axis_state(expected_count - 1, column)
+      for column in range(expected_count - 2, -1, -1)
+    )
+    axis_pressures_natural.extend(
+      shock_samples[column].downstream_total_pressure_Pa
+      for column in range(expected_count - 2, -1, -1)
+    )
+    axis_points_natural.append(ambient_points[-1])
+    axis_states_natural.append(samples[-1].state)
+    axis_pressures_natural.append(samples[-1].total_pressure_Pa)
   natural_axis = (
     tuple(axis_points_natural),
     tuple(axis_states_natural),
@@ -1578,26 +1764,30 @@ def assemble_ambient_boundary_post_shock_field(
       pressure_ratios=pressure_ratios,
       message='coupled field is missing an explicit shock, ambient, or centerline perimeter edge',
     )
-  maximum_geometry_residual = max(
-    (
-      abs(node.point_result.geometry_residual)
-      for node in nodes_by_index.values()
-      if node.point_result.geometry_residual is not None
-    ),
-    default=None,
+  geometry_residuals = tuple(
+    abs(node.point_result.geometry_residual)
+    for node in nodes_by_index.values()
+    if node.point_result.geometry_residual is not None
+  ) + tuple(
+    abs(result.geometry_residual)
+    for result in axis_results
+    if result.geometry_residual is not None
   )
-  maximum_invariant_residual = max(
-    (
-      abs(value)
-      for node in nodes_by_index.values()
-      for value in (
-        node.point_result.invariant_residual_plus,
-        node.point_result.invariant_residual_minus,
-      )
-      if value is not None
-    ),
-    default=None,
+  maximum_geometry_residual = max(geometry_residuals, default=None)
+  invariant_residuals = tuple(
+    abs(value)
+    for node in nodes_by_index.values()
+    for value in (
+      node.point_result.invariant_residual_plus,
+      node.point_result.invariant_residual_minus,
+    )
+    if value is not None
+  ) + tuple(
+    abs(result.invariant_residual_minus)
+    for result in axis_results
+    if result.invariant_residual_minus is not None
   )
+  maximum_invariant_residual = max(invariant_residuals, default=None)
   characteristic_family_orientation_verified = all(
     node.point_result.converged
     and node.point_result.invariant_residual_plus is not None
@@ -1628,7 +1818,9 @@ def assemble_ambient_boundary_post_shock_field(
     )
   return MocPhysicalPostShockFieldResult(
     status=MocPhysicalPostShockFieldStatus.CONVERGED_AMBIENT_CLOSED,
-    characteristic_layer_count=expected_count - 1,
+    characteristic_layer_count=(
+      expected_count if centerline_reflection else expected_count - 1
+    ),
     nodes=tuple(nodes_by_index.values()),
     cells=cells,
     topology=topology,
@@ -1656,6 +1848,41 @@ def assemble_ambient_boundary_post_shock_field(
     post_shock_boundary_total_pressure_Pa=tuple(
       sample.downstream_total_pressure_Pa for sample in shock_samples
     ),
+  )
+
+
+def assemble_ambient_boundary_post_shock_field_with_centerline_reflection(
+  shock_fit: MocShockBoundaryFitResult,
+  ambient_boundary: Sequence[MocAmbientBoundarySample],
+  ambient_pressure_Pa: float,
+  *,
+  incoming_handoff: Sequence[MocChainBoundarySample] | None = None,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  pressure_tolerance: float = 1.0e-8,
+  tangent_tolerance: float = 1.0e-8,
+) -> MocPhysicalPostShockFieldResult:
+  """Assemble an ambient-closed field with explicit C− axis reflection.
+
+  The ordinary assembler retains an open terminal characteristic strip for
+  boundary-conditioned diagnostics.  This entry point selects the physical
+  closure mode: each ambient C− source is continued to the symmetry line,
+  and the resulting axis cells are added to the mesh.  The ambient boundary
+  must therefore contain only the physical shock-to-outer samples; an
+  appended geometric axis corner is rejected rather than treated as another
+  characteristic source.
+  """
+
+  return assemble_ambient_boundary_post_shock_field(
+    shock_fit,
+    ambient_boundary,
+    ambient_pressure_Pa,
+    incoming_handoff=incoming_handoff,
+    centerline_reflection=True,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+    pressure_tolerance=pressure_tolerance,
+    tangent_tolerance=tangent_tolerance,
   )
 
 
@@ -1738,7 +1965,9 @@ def solve_ambient_closed_post_shock_chain_cell_from_physical_field_or_terminatio
   ``upstream_field`` is the only source for the next shock's upstream state
   and pressure.  The candidate shock curve and ambient-pressure perimeter are
   explicit inputs because this adapter does not yet contain the canonical
-  reflected-domain/free-boundary shooter.  A missing sample returns a typed
+  reflected-domain/free-boundary shooter.  The ambient perimeter must contain
+  exactly one physical sample per candidate shock sample; centerline corners
+  are generated by the solver-owned reflection step.  A missing sample returns a typed
   ``UPSTREAM_FIELD_BOUNDARY`` stop; a failed physical perimeter returns an
   ``OPEN_PHYSICAL_CLOSURE`` stop.  Neither condition fabricates a resolved
   cell or extrapolates the preceding field.
@@ -1885,10 +2114,11 @@ def solve_ambient_closed_post_shock_chain_cell_from_physical_field_or_terminatio
       MocChainTerminationReason.INVALID_INPUT,
       'ambient_boundary must contain MocAmbientBoundarySample values',
     )
-  if len(ambient_samples) not in (len(points), len(points) + 1):
+  if len(ambient_samples) != len(points):
     return decision(
       MocChainTerminationReason.INVALID_INPUT,
-      'ambient_boundary must match the shock count or include one explicit axis corner',
+      'ambient_boundary must contain exactly one physical sample per shock point; '
+      'an explicit axis corner is not a C- source',
     )
 
   upstream_states: list[CharacteristicState] = []
@@ -1950,7 +2180,7 @@ def solve_ambient_closed_post_shock_chain_cell_from_physical_field_or_terminatio
       },
     )
   try:
-    field = assemble_ambient_boundary_post_shock_field(
+    field = assemble_ambient_boundary_post_shock_field_with_centerline_reflection(
       shock_fit,
       ambient_samples,
       float(ambient_pressure_Pa),

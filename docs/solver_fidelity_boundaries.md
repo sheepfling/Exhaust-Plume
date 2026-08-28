@@ -272,6 +272,17 @@ records the exact centerline handoff, and returns typed upstream-domain or
 open-closure stops. It is a continuation foundation; the reflected-domain and
 automatic ambient free-boundary shooter are still required before canonical
 provider promotion.
+The solver-owned ambient-centerline physical-field path now supplies the
+canonical reflected closure for the generated ambient boundary: each ambient
+``C-`` source is continued to the symmetry line and the terminal axis cells
+are assembled explicitly. The legacy scalar axis/corner path remains a
+diagnostic reference. The canonical nine-sample reflected field passes its
+closure, state-sampling, and upstream-shock-coupling gates, while its physical
+next-cell probe stops at the bounded upstream domain with
+``UPSTREAM_FIELD_BOUNDARY`` rather than extrapolating. This does not authorize
+the production provider; mixed-regime/reflected upstream extension,
+next-cell free-boundary solving, refinement, and external validation remain
+required.
 The caustic-family-band branch has the same hard ceiling through a separate
 one-step planner. It carries the exact prior post-shock perimeter into both
 canonical restarted-family orientations, solves a bounded next shock and open

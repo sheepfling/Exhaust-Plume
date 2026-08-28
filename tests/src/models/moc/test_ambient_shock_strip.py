@@ -25,6 +25,7 @@ from exhaust_plume.models.moc import (
   march_post_shock_ambient_boundary,
   probe_post_shock_ambient_axis_closure,
   solve_marched_attached_shock_with_ambient_axis_closure,
+  solve_marched_attached_shock_with_ambient_centerline_physical_field,
   solve_marched_attached_shock_with_ambient_physical_field,
   plan_terminal_reflection_patch_chain,
   solve_terminal_compression_candidate,
@@ -243,6 +244,44 @@ def test_physical_field_bridge_blocks_scalar_axis_root_before_tangency_gate() ->
   report = result.as_report()
   assert report['production_claim_allowed'] is False
   assert report['chain_promotion_blocked'] is True
+
+
+def test_ambient_centerline_physical_field_closes_the_reflected_boundary() -> None:
+  ambient_pressure = _axis_shoot_ambient_pressure()
+
+  def upstream_state_at(point: tuple[float, float]) -> CharacteristicState:
+    return CharacteristicState(
+      x_m=point[0],
+      y_m=point[1],
+      theta_rad=-0.2,
+      mach=2.0,
+      gamma=1.4,
+    )
+
+  result = solve_marched_attached_shock_with_ambient_centerline_physical_field(
+    upstream_state_at,
+    lambda _point: 100000.0,
+    (0.5, 0.5),
+    ambient_pressure,
+    0.02,
+    0.12,
+    sample_count=9,
+  )
+
+  assert result.status is MocAmbientPhysicalFieldStatus.CONVERGED_AMBIENT_CLOSED
+  assert result.converged
+  assert result.physical_closure_verified
+  assert result.state_sampling_available
+  assert result.upstream_coupling_verified
+  assert result.chain_promotion_blocked is False
+  assert result.production_claim_allowed is False
+  assert result.axis_closure_shoot is None
+  assert result.ambient_attachment is not None
+  assert result.ambient_attachment.converged
+  assert result.field is not None
+  assert result.field.node_count == 45
+  assert result.field.cell_count == 53
+  assert result.as_report()['ambient_attachment'] is not None
 
 
 def test_shock_and_ambient_characteristic_strip_keeps_terminal_trace_open() -> None:

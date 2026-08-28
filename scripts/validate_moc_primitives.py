@@ -64,6 +64,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   plan_caustic_upstream_bridge_chain,
   plan_caustic_upstream_bridge_invariant_chain,
   plan_ambient_pressure_field_chain,
+  plan_ambient_closed_post_shock_chain,
   plan_post_shock_characteristic_chain,
   plan_field_coupled_post_shock_chain_reference,
   plan_post_shock_field_invariant_chain,
@@ -142,7 +143,9 @@ from exhaust_plume.models.moc import (  # noqa: E402
   march_post_shock_ambient_boundary,
   probe_post_shock_ambient_axis_closure,
   solve_marched_attached_shock_with_ambient_axis_closure,
+  solve_marched_attached_shock_with_ambient_centerline_physical_field,
   solve_marched_attached_shock_with_ambient_physical_field,
+  solve_ambient_closed_post_shock_chain_cell_from_physical_field_or_termination,
   sample_reflected_zone_along_shock_path,
   validate_fan_reflected_interface,
   validate_closed_post_shock_field,
@@ -573,6 +576,163 @@ def _ambient_shock_strip_probe(
     and not ambient_physical_field_reference.physical_closure_verified
     and ambient_physical_field_reference.chain_promotion_blocked
   )
+  ambient_centerline_physical_field = (
+    solve_marched_attached_shock_with_ambient_centerline_physical_field(
+      lambda point: replace(
+        upstream_reference,
+        x_m=point[0],
+        y_m=point[1],
+      ),
+      lambda _point: upstream_reference_pressure,
+      (0.5, shock_start_y_m),
+      ambient_pressure,
+      0.02,
+      0.12,
+      sample_count=9,
+    )
+  )
+  ambient_centerline_physical_field_accepted = (
+    ambient_centerline_physical_field.status
+    is MocAmbientPhysicalFieldStatus.CONVERGED_AMBIENT_CLOSED
+    and ambient_centerline_physical_field.converged
+    and ambient_centerline_physical_field.physical_closure_verified
+    and ambient_centerline_physical_field.state_sampling_available
+    and ambient_centerline_physical_field.upstream_coupling_verified
+    and not ambient_centerline_physical_field.chain_promotion_blocked
+    and not ambient_centerline_physical_field.production_claim_allowed
+    and ambient_centerline_physical_field.axis_closure_shoot is None
+    and ambient_centerline_physical_field.ambient_attachment is not None
+    and ambient_centerline_physical_field.ambient_attachment.converged
+    and ambient_centerline_physical_field.field is not None
+    and ambient_centerline_physical_field.field.node_count == 45
+    and ambient_centerline_physical_field.field.cell_count == 53
+  )
+  ambient_centerline_physical_field_refinement = []
+  for refinement_sample_count in (5, 9, 17):
+    if refinement_sample_count == 9:
+      refinement_result = ambient_centerline_physical_field
+    else:
+      refinement_result = (
+        solve_marched_attached_shock_with_ambient_centerline_physical_field(
+          lambda point: replace(
+            upstream_reference,
+            x_m=point[0],
+            y_m=point[1],
+          ),
+          lambda _point: upstream_reference_pressure,
+          (0.5, shock_start_y_m),
+          ambient_pressure,
+          0.02,
+          0.12,
+          sample_count=refinement_sample_count,
+        )
+      )
+    refinement_field = refinement_result.field
+    ambient_centerline_physical_field_refinement.append({
+      'sample_count': refinement_sample_count,
+      'status': refinement_result.status.value,
+      'converged': refinement_result.converged,
+      'physical_closure_verified': refinement_result.physical_closure_verified,
+      'state_sampling_available': refinement_result.state_sampling_available,
+      'upstream_coupling_verified': refinement_result.upstream_coupling_verified,
+      'node_count': None if refinement_field is None else refinement_field.node_count,
+      'cell_count': None if refinement_field is None else refinement_field.cell_count,
+      'maximum_geometry_residual_m': (
+        None
+        if refinement_field is None
+        else refinement_field.maximum_geometry_residual_m
+      ),
+      'maximum_absolute_invariant_residual': (
+        None
+        if refinement_field is None
+        else refinement_field.maximum_absolute_invariant_residual
+      ),
+      'message': refinement_result.message,
+    })
+  ambient_centerline_physical_field_refinement_accepted = (
+    len(ambient_centerline_physical_field_refinement) == 3
+    and all(
+      case['status'] == MocAmbientPhysicalFieldStatus.CONVERGED_AMBIENT_CLOSED.value
+      and case['converged'] is True
+      and case['physical_closure_verified'] is True
+      and case['state_sampling_available'] is True
+      and case['upstream_coupling_verified'] is True
+      and isinstance(case['node_count'], int)
+      and isinstance(case['cell_count'], int)
+      and case['node_count'] > 0
+      and case['cell_count'] > 0
+      and case['maximum_geometry_residual_m'] is not None
+      and case['maximum_absolute_invariant_residual'] is not None
+      for case in ambient_centerline_physical_field_refinement
+    )
+  )
+  ambient_centerline_physical_chain_probe = None
+  ambient_centerline_physical_chain_probe_accepted = False
+  if (
+    ambient_centerline_physical_field_accepted
+    and ambient_centerline_physical_field.field is not None
+    and ambient_centerline_physical_field.ambient_attachment is not None
+    and ambient_centerline_physical_field.ambient_attachment.ambient_march is not None
+  ):
+    physical_field = ambient_centerline_physical_field.field
+    mesh_points = tuple(
+      point
+      for cell in physical_field.cells
+      for point in cell.vertices_xr_m
+    )
+    seed_end_x_m = max(point[0] for point in mesh_points)
+    candidate_points = ((2.1, 0.3), (2.3, 0.15), (2.5, 0.0))
+    candidate_ambient_samples = tuple(
+      replace(
+        sample,
+        point_m=point,
+        state=replace(sample.state, x_m=point[0], y_m=point[1]),
+      )
+      for point, sample in zip(
+        candidate_points,
+        ambient_centerline_physical_field.ambient_attachment.ambient_march.boundary_samples,
+        strict=False,
+      )
+    )
+
+    def solve_ambient_physical_chain_next(
+      current_cell,
+      next_cell_index,
+      incoming_handoff,
+    ):
+      return solve_ambient_closed_post_shock_chain_cell_from_physical_field_or_termination(
+        current_cell,
+        next_cell_index,
+        incoming_handoff,
+        physical_field,
+        shock_points_m=candidate_points,
+        downstream_flow_angles_rad=(0.03, 0.015, 0.0),
+        ambient_boundary=candidate_ambient_samples,
+        ambient_pressure_Pa=ambient_pressure,
+        end_x_m=2.6,
+      )
+
+    physical_chain_planner = plan_ambient_closed_post_shock_chain(
+      physical_field,
+      solve_ambient_physical_chain_next,
+      start_x_m=shock_fit.boundary_states[0].point_m[0],
+      end_x_m=seed_end_x_m,
+      policy=MocChainContinuationPolicy(max_cells=2),
+    )
+    ambient_centerline_physical_chain_probe = physical_chain_planner.as_report()
+    ambient_centerline_physical_chain_probe_accepted = (
+      physical_chain_planner.planner_kind is MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
+      and physical_chain_planner.production_claim_allowed is False
+      and physical_chain_planner.chain.resolved
+      and physical_chain_planner.chain.cell_count == 1
+      and physical_chain_planner.chain.termination_reason
+      is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+      and physical_chain_planner.chain.physical_termination is False
+      and len(physical_chain_planner.steps) == 1
+      and physical_chain_planner.steps[0].result_kind == 'termination-returned'
+      and physical_chain_planner.steps[0].result_termination_reason
+      == MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY.value
+    )
   ambient_axis_closure_probe_accepted = (
     ambient_axis_closure.status is MocAmbientAxisClosureStatus.PRESSURE_FAILURE
     and ambient_axis_closure.axis_candidate_verified
@@ -800,6 +960,24 @@ def _ambient_shock_strip_probe(
     'ambient_physical_field_reference': ambient_physical_field_reference.as_report(),
     'ambient_physical_field_reference_accepted': (
       ambient_physical_field_reference_accepted
+    ),
+    'ambient_centerline_physical_field': (
+      ambient_centerline_physical_field.as_report()
+    ),
+    'ambient_centerline_physical_field_accepted': (
+      ambient_centerline_physical_field_accepted
+    ),
+    'ambient_centerline_physical_field_refinement': (
+      ambient_centerline_physical_field_refinement
+    ),
+    'ambient_centerline_physical_field_refinement_accepted': (
+      ambient_centerline_physical_field_refinement_accepted
+    ),
+    'ambient_centerline_physical_chain_probe': (
+      ambient_centerline_physical_chain_probe
+    ),
+    'ambient_centerline_physical_chain_probe_accepted': (
+      ambient_centerline_physical_chain_probe_accepted
     ),
     'strip': strip.as_report(),
     'terminal_compression_candidate': solve_terminal_compression_candidate(
@@ -5097,6 +5275,24 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'ambient_physical_field_reference_accepted'
     ) is not True
   )
+  ambient_centerline_physical_field_failure = (
+    ambient_shock_strip_probe.get('accepted') is True
+    and ambient_shock_strip_probe.get(
+      'ambient_centerline_physical_field_accepted'
+    ) is not True
+  )
+  ambient_centerline_physical_field_refinement_failure = (
+    ambient_shock_strip_probe.get('accepted') is True
+    and ambient_shock_strip_probe.get(
+      'ambient_centerline_physical_field_refinement_accepted'
+    ) is not True
+  )
+  ambient_centerline_physical_chain_failure = (
+    ambient_shock_strip_probe.get('accepted') is True
+    and ambient_shock_strip_probe.get(
+      'ambient_centerline_physical_chain_probe_accepted'
+    ) is not True
+  )
   terminal_patch_chain_probe = ambient_shock_strip_probe.get(
     'terminal_reflection_patch_chain_probe',
   )
@@ -6538,6 +6734,52 @@ def build_moc_primitive_report() -> dict[str, Any]:
         ),
       }
     ] if ambient_physical_field_reference_failure else []),
+    *([
+      {
+        'case': 'solver_generated_ambient_centerline_physical_field',
+        'status': str(
+          ambient_shock_strip_probe.get(
+            'ambient_centerline_physical_field',
+            {},
+          ).get('status', 'missing')
+        ),
+        'message': str(
+          ambient_shock_strip_probe.get(
+            'ambient_centerline_physical_field',
+            {},
+          ).get('message', '')
+        ),
+      }
+    ] if ambient_centerline_physical_field_failure else []),
+    *([
+      {
+        'case': 'solver_generated_ambient_centerline_physical_field_refinement',
+        'status': 'refinement-gate-failed',
+        'message': str(
+          ambient_shock_strip_probe.get(
+            'ambient_centerline_physical_field_refinement',
+            [],
+          )
+        ),
+      }
+    ] if ambient_centerline_physical_field_refinement_failure else []),
+    *([
+      {
+        'case': 'solver_generated_ambient_centerline_physical_chain',
+        'status': str(
+          ambient_shock_strip_probe.get(
+            'ambient_centerline_physical_chain_probe',
+            {},
+          ).get('chain', {}).get('termination_reason', 'missing')
+        ),
+        'message': str(
+          ambient_shock_strip_probe.get(
+            'ambient_centerline_physical_chain_probe',
+            {},
+          ).get('message', '')
+        ),
+      }
+    ] if ambient_centerline_physical_chain_failure else []),
     *([
       {
         'case': 'solver_generated_terminal_patch_chain_probe',
