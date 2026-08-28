@@ -1924,6 +1924,23 @@ def solve_marched_attached_shock_from_reflected_zone(
       coupling=coupling,
       message='reflected-zone shock solve stopped at the upstream field boundary',
     )
+  if not reflected_zone.state_sampling_available:
+    shock = _failure(
+      MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE,
+      message=(
+        'reflected upstream zone does not provide a converged bounded '
+        'state/pressure field'
+      ),
+    )
+    coupling = sample_reflected_zone_along_shock_path(reflected_zone, ())
+    return MocReflectedZoneShockSolveResult(
+      shock=shock,
+      coupling=coupling,
+      message=(
+        'reflected-zone shock solve stopped because the upstream zone is '
+        'geometry-only or otherwise missing bounded pressure samples'
+      ),
+    )
 
   shock = solve_marched_attached_shock_field(
     reflected_zone.state_at,
@@ -2053,6 +2070,37 @@ def solve_marched_attached_shock_with_ambient_pressure_closure_from_reflected_zo
       closure=closure,
       coupling=coupling,
       message='reflected-zone ambient closure stopped before generating a shock path',
+    )
+  if not reflected_zone.state_sampling_available:
+    shock = _failure(
+      MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE,
+      message=(
+        'reflected upstream zone does not provide a converged bounded '
+        'state/pressure field'
+      ),
+    )
+    coupling = sample_reflected_zone_along_shock_path(reflected_zone, ())
+    closure = MocAmbientClosureResult(
+      status=MocAmbientClosureStatus.FIELD_FAILURE,
+      shock=shock,
+      ambient_boundary=None,
+      ambient_pressure_Pa=requested_pressure,
+      outer_downstream_flow_angle_rad=None,
+      outer_flow_angle_bracket=requested_bracket,
+      closure_residual=None,
+      shooting_iterations=0,
+      message=(
+        'ambient closure stopped because the reflected upstream zone is '
+        'geometry-only or otherwise missing bounded pressure samples'
+      ),
+    )
+    return MocReflectedZoneAmbientClosureResult(
+      closure=closure,
+      coupling=coupling,
+      message=(
+        'reflected-zone ambient closure stopped because the upstream zone '
+        'does not expose a bounded state/pressure field'
+      ),
     )
 
   closure = solve_marched_attached_shock_with_ambient_pressure_closure(

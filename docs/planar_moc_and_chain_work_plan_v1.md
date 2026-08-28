@@ -1334,6 +1334,17 @@ Only after MOC-1 through MOC-5 pass:
   closed-field result. Its chain adapter now emits a typed centerline handoff
   and requires bounded state-sampling evidence, so a validated field can seed
   continued-cell bookkeeping without dropping the downstream boundary.
+- Added bounded reflected-zone capability reporting: the open reflected mesh
+  now exposes its finite extents, cell-kind counts, and whether its state and
+  pressure samplers are actually usable. Reflected-zone shock and ambient
+  closure adapters stop with a typed upstream-field failure when the caller
+  provides geometry without total-pressure lineage; they no longer let a
+  geometry-only zone reach a pressure callback.
+- Routed the standalone reflected-zone artifact through that canonical report
+  and added a regression for the geometry-only handoff. The canonical case
+  still reports a pressure-capable open domain, while the continued shock-cell
+  planner remains a five-cell research fixture with exact handoff auditing and
+  no production claim.
 - The recovered validation archive is not a substitute for the missing
   provider-bound measurement/operator bindings.
 

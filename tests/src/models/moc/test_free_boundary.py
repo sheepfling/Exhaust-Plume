@@ -698,6 +698,54 @@ def test_reflected_zone_shock_solver_keeps_upstream_coverage_domain_bounded() ->
   assert result.as_report()['downstream_condition_status'] == 'caller-supplied'
 
 
+def test_reflected_zone_shock_solvers_reject_geometry_only_upstream_zone() -> None:
+  reflected_boundary, ambient = _reflected_boundary_reference()
+  gas = CaloricallyPerfectGas.dry_air()
+  exit_state = derive_uniform_nozzle_exit(
+    NozzleExitInput(
+      mach=2.0,
+      total_pressure_Pa=2.0e6,
+      total_temperature_K=900.0,
+      exit_radius_m=0.05,
+    ),
+    gas,
+  )
+  fan = solve_underexpanded_expansion_fan(exit_state, ambient, characteristic_count=8)
+  zone = assemble_reflected_characteristic_zone(fan, reflected_boundary)
+  assert zone.converged
+  assert zone.state_sampling_available is False
+
+  start = reflected_boundary.boundary_points_m[-1]
+  shock_result = solve_marched_attached_shock_from_reflected_zone(
+    zone,
+    start,
+    downstream_flow_angle_rad=0.05,
+    sample_count=9,
+  )
+
+  assert shock_result.shock.status is MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE
+  assert not shock_result.converged
+  assert 'geometry-only' in shock_result.message
+  assert 'bounded state/pressure field' in shock_result.shock.message
+
+  closure_result = (
+    solve_marched_attached_shock_with_ambient_pressure_closure_from_reflected_zone(
+      zone,
+      start,
+      ambient.pressure_Pa,
+      -0.05,
+      0.02,
+      sample_count=9,
+    )
+  )
+
+  assert closure_result.closure.status is MocAmbientClosureStatus.FIELD_FAILURE
+  assert not closure_result.converged
+  assert 'bounded state/pressure field' in closure_result.message
+  assert 'geometry-only' in closure_result.closure.message
+  assert 'bounded pressure samples' in closure_result.closure.message
+
+
 def test_ambient_pressure_closure_rejects_a_non_straddling_outer_angle_bracket() -> None:
   state = CharacteristicState(
     x_m=0.5,
