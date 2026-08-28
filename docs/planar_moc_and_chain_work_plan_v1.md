@@ -1766,3 +1766,23 @@ finite source band cannot be reused. This closes the local physical-field
 bridge but remains non-canonical: the provisional compression envelope,
 reflected free-boundary remesher, mixed-regime closure, refinement, and
 external validation are still open, and no product/provider lane consumes it.
+
+## External observation comparison checkpoint
+
+The continued-cell validation seam now includes the separate
+`op.moc.shock-cell-external-comparison` operator. A caller can register an
+external case with explicit calibration or validation role, source/provenance,
+axial-transverse metre metadata, and one or more indexed cell observations.
+The operator compares only exact overlapping cell indices and reports per-cell
+axial length, maximum radius, shock start/end, and centerline-end residuals,
+including uncertainty-normalized diagnostics when uncertainties are supplied.
+It never fits an axial origin, synthesizes a missing cell, converts units, or
+extrapolates beyond the observed range.
+
+`audit_moc_external_validation_splits` separately checks that calibration and
+validation case identities are both present and disjoint. A successful split
+audit is governance evidence only. The comparison and split audit both remain
+`not_accepted`: no external observation archive is currently available in the
+workspace, canonical reflected free-boundary/mixed-regime closure is still
+open, and neither the planner mock nor any visualization, signature, ray, or
+focal-plane-array provider consumes this lane.
