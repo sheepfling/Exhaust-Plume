@@ -55,8 +55,10 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocCausticSimpleWaveTraceStatus,
   MocCausticBridgeSide,
   MocCausticBridgeStatus,
+  MocCausticUpstreamContinuationStatus,
   build_caustic_upstream_bridge,
   sample_caustic_upstream_bridge,
+  solve_caustic_upstream_continuation,
   plan_caustic_family_band_chain,
   plan_caustic_family_band_invariant_chain,
   plan_caustic_upstream_bridge_chain,
@@ -3930,6 +3932,92 @@ def _caustic_upstream_bridge_probe(
     }
 
 
+def _caustic_upstream_continuation_probe(
+  seed: Any,
+  total_pressure_Pa: float,
+  ambient_pressure_Pa: float,
+  old_family: Any,
+) -> dict[str, Any]:
+  """Audit solver-owned branch selection and the exact caustic seam."""
+
+  if seed is None or old_family is None:
+    return {
+      'status': 'missing_seed_or_old_family',
+      'accepted': False,
+      'branch_audit': None,
+      'continuation': None,
+      'claim_status': 'caustic-upstream-continuation-pending',
+    }
+  try:
+    branch_audit = solve_caustic_upstream_continuation(
+      old_family,
+      seed,
+      total_pressure_Pa,
+      ambient_pressure_Pa,
+      sample_count=6,
+    )
+    continuation = solve_caustic_upstream_continuation(
+      old_family,
+      seed,
+      total_pressure_Pa,
+      ambient_pressure_Pa,
+      anchor_edge_index=0,
+      sample_count=6,
+    )
+    event_point = continuation.event_point_m
+    event_sample_available = bool(
+      event_point is not None
+      and continuation.state_at(event_point) is not None
+      and continuation.static_pressure_at(event_point) is not None
+    )
+    accepted = (
+      branch_audit.status is (
+        MocCausticUpstreamContinuationStatus.BRANCH_SELECTION_REQUIRED
+      )
+      and branch_audit.converged is False
+      and branch_audit.bridge is None
+      and len(branch_audit.restart_results) == 2
+      and all(
+        restart.converged
+        and restart.caustic_handoff_verified
+        for restart in branch_audit.restart_results
+      )
+      and continuation.status is (
+        MocCausticUpstreamContinuationStatus.CONVERGED_BOUNDED_CONTINUATION
+      )
+      and continuation.converged
+      and continuation.seam_verified
+      and continuation.state_sampling_available
+      and continuation.selected_anchor_edge_index == 0
+      and continuation.bridge is not None
+      and continuation.bridge.fields_converged
+      and event_sample_available
+      and continuation.physical_closure_verified is False
+      and continuation.chain_promotion_blocked
+    )
+    return {
+      'status': 'solver-owned-bounded-caustic-upstream-continuation',
+      'accepted': accepted,
+      'event_point_m': event_point,
+      'event_sample_available': event_sample_available,
+      'branch_audit': branch_audit.as_report(),
+      'continuation': continuation.as_report(),
+      'claim_status': (
+        'bounded-solver-owned-caustic-upstream-continuation; '
+        'shock-branch-physics-and-physical-closure-pending'
+      ),
+    }
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return {
+      'status': 'caustic-upstream-continuation-failure',
+      'accepted': False,
+      'branch_audit': None,
+      'continuation': None,
+      'message': str(error),
+      'claim_status': 'caustic-upstream-continuation-pending',
+    }
+
+
 def _caustic_family_band_terminal_refinement_probe(
   seed: Any,
   total_pressure_Pa: float,
@@ -4628,6 +4716,12 @@ def build_moc_primitive_report() -> dict[str, Any]:
     reflected_source_strip,
     solver_generated_shock.field,
   )
+  caustic_upstream_continuation = _caustic_upstream_continuation_probe(
+    caustic_shock_seed,
+    fan_exit.total_pressure_Pa,
+    fan_ambient.pressure_Pa,
+    reflected_source_strip,
+  )
   reflected_zone_chain_boundary_probe = _reflected_zone_chain_boundary_probe(
     reflected_zone,
     solver_generated_shock.field,
@@ -5162,6 +5256,9 @@ def build_moc_primitive_report() -> dict[str, Any]:
   caustic_upstream_bridge_failure = (
     caustic_upstream_bridge.get('accepted') is not True
   )
+  caustic_upstream_continuation_failure = (
+    caustic_upstream_continuation.get('accepted') is not True
+  )
   overexpanded_exit = derive_uniform_nozzle_exit(
     NozzleExitInput(
       mach=2.0,
@@ -5534,6 +5631,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'caustic_family_band_chain_planner': caustic_family_band_chain_planner,
       'caustic_family_band_invariant_chain': caustic_family_band_invariant_chain,
       'caustic_upstream_bridge': caustic_upstream_bridge,
+      'caustic_upstream_continuation': caustic_upstream_continuation,
       'caustic_family_band_terminal_refinement': caustic_family_band_terminal_refinement,
       'caustic_family_band_terminal_measurement': caustic_family_band_terminal_measurement,
       'claim_status': (
@@ -6613,6 +6711,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'message': str(caustic_upstream_bridge.get('message', '')),
       }
     ] if caustic_upstream_bridge_failure else []),
+    *([
+      {
+        'case': 'caustic_upstream_continuation',
+        'status': str(caustic_upstream_continuation.get('status', 'missing')),
+        'message': str(caustic_upstream_continuation.get('message', '')),
+      }
+    ] if caustic_upstream_continuation_failure else []),
     *([
       {
         'case': 'solver_generated_chain_reference',

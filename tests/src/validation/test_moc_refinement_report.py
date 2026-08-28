@@ -85,6 +85,9 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
     'reflected_source_strip_centerline_reflection_extension'
   ]
   caustic_upstream_bridge = centerline_reflection_extension['caustic_upstream_bridge']
+  caustic_upstream_continuation = centerline_reflection_extension[
+    'caustic_upstream_continuation'
+  ]
   caustic_remesh = centerline_reflection_extension['caustic_shock_remesh_execution']
   simple_wave_terminal = caustic_remesh['simple_wave_terminal']
   simple_wave_terminal_planner = caustic_remesh['simple_wave_terminal_planner']
@@ -403,6 +406,37 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   _assert_chain_planner_measurement(
     caustic_upstream_bridge['invariant_planner_measurement'],
     physical_termination=False,
+  )
+  assert caustic_upstream_continuation['status'] == (
+    'solver-owned-bounded-caustic-upstream-continuation'
+  )
+  assert caustic_upstream_continuation['accepted'] is True
+  assert caustic_upstream_continuation['event_sample_available'] is True
+  branch_audit = caustic_upstream_continuation['branch_audit']
+  assert branch_audit['status'] == (
+    'caustic_continuation_branch_selection_required'
+  )
+  assert branch_audit['converged'] is False
+  assert branch_audit['bridge'] is None
+  assert branch_audit['restart_count'] == 2
+  assert all(
+    restart['converged'] is True
+    and restart['caustic_handoff_verified'] is True
+    for restart in branch_audit['restart_results']
+  )
+  continuation = caustic_upstream_continuation['continuation']
+  assert continuation['status'] == (
+    'converged_bounded_caustic_upstream_continuation'
+  )
+  assert continuation['converged'] is True
+  assert continuation['selected_anchor_edge_index'] == 0
+  assert continuation['seam_verified'] is True
+  assert continuation['state_sampling_available'] is True
+  assert continuation['bridge']['fields_converged'] is True
+  assert continuation['physical_closure_verified'] is False
+  assert continuation['chain_promotion_blocked'] is True
+  assert continuation['chain_termination_decision']['reason'] == (
+    'characteristic-caustic'
   )
   assert caustic_remesh['accepted'] is True
   assert caustic_remesh['status'] == 'diagnostic-coupled-caustic-remesh-execution'

@@ -1382,6 +1382,13 @@ Only after MOC-1 through MOC-5 pass:
   exercises a five-cell expanding schedule, while the mock still routes every
   shock through the branch-checked attached-shock fit and remains capped at
   ``prescribed-boundary-diagnostic`` fidelity.
+- Added a solver-owned bounded caustic upstream continuation controller. It
+  audits both one-sided new-family restarts, refuses to choose a branch when
+  none is selected, and for an explicit branch exposes an exact event
+  state/pressure seam through a bounded old-family/restarted-family bridge.
+  The bridge is usable for research-only upstream sampling, but shock-curve
+  physics, downstream mixed-regime closure, and continued-cell promotion
+  remain blocked.
 
 These blockers are intentionally represented as structured statuses in code;
 they are not reasons to weaken the fidelity boundary.

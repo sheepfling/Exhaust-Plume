@@ -196,6 +196,11 @@ from exhaust_plume.models.moc.caustic_bridge import (
   build_caustic_upstream_bridge,
   sample_caustic_upstream_bridge,
 )
+from exhaust_plume.models.moc.caustic_continuation import (
+  MocCausticUpstreamContinuationStatus,
+  MocCausticUpstreamContinuationResult,
+  solve_caustic_upstream_continuation,
+)
 from exhaust_plume.models.moc.caustic_restart import (
   MocCausticFamilyBandResult,
   MocCausticFamilyBandStatus,
@@ -646,6 +651,9 @@ __all__ = (
   'prepare_caustic_shock_remesh',
   'solve_caustic_shock_remesh',
   'solve_caustic_shock_remesh_from_upstream_bridge',
+  'MocCausticUpstreamContinuationStatus',
+  'MocCausticUpstreamContinuationResult',
+  'solve_caustic_upstream_continuation',
   'MocCausticSimpleWaveTraceStatus',
   'MocCausticSimpleWaveTrace',
   'build_caustic_simple_wave_trace',

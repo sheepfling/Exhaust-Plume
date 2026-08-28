@@ -7,6 +7,7 @@ from exhaust_plume.models.moc import (
   MocCausticBridgeSide,
   MocCausticBridgeStatus,
   MocCausticFamilyBandStatus,
+  MocCausticUpstreamContinuationStatus,
   MocChainTerminationReason,
   build_caustic_upstream_bridge,
   extend_source_characteristic_strip_centerline_reflection,
@@ -14,6 +15,7 @@ from exhaust_plume.models.moc import (
   plan_caustic_upstream_bridge_invariant_chain,
   restart_characteristic_family_from_caustic,
   sample_caustic_upstream_bridge,
+  solve_caustic_upstream_continuation,
   solve_marched_attached_shock_from_caustic_upstream_bridge,
   solve_marched_attached_shock_from_caustic_upstream_bridge_with_invariant_boundary,
   solve_reflected_free_boundary,
@@ -99,6 +101,84 @@ def test_caustic_bridge_accepts_unique_restarted_family_coverage() -> None:
   assert all(not sample.old_family_available for sample in result.samples)
   assert all(sample.restarted_family_available for sample in result.samples)
   assert result.physical_closure_verified is False
+  assert result.chain_promotion_blocked
+
+
+def test_caustic_continuation_requires_an_explicit_one_sided_branch() -> None:
+  old_family, _restarted_family, seed = _caustic_bridge_fixture()
+
+  result = solve_caustic_upstream_continuation(
+    old_family,
+    seed,
+    old_family.total_pressure_Pa,
+    101325.0,
+    sample_count=6,
+  )
+
+  assert result.status is MocCausticUpstreamContinuationStatus.BRANCH_SELECTION_REQUIRED
+  assert result.converged is False
+  assert result.seam_verified is False
+  assert result.bridge is None
+  assert len(result.restart_results) == 2
+  assert all(restart.converged for restart in result.restart_results)
+  assert all(
+    restart.caustic_handoff_verified for restart in result.restart_results
+  )
+  assert result.physical_closure_verified is False
+  assert result.chain_promotion_blocked
+  assert result.as_chain_termination_decision().reason is (
+    MocChainTerminationReason.CHARACTERISTIC_CAUSTIC
+  )
+
+
+def test_caustic_continuation_builds_exact_selected_branch_seam() -> None:
+  old_family, _restarted_family, seed = _caustic_bridge_fixture()
+
+  result = solve_caustic_upstream_continuation(
+    old_family,
+    seed,
+    old_family.total_pressure_Pa,
+    101325.0,
+    anchor_edge_index=0,
+    sample_count=6,
+  )
+
+  assert result.status is (
+    MocCausticUpstreamContinuationStatus.CONVERGED_BOUNDED_CONTINUATION
+  )
+  assert result.converged
+  assert result.seam_verified
+  assert result.state_sampling_available
+  assert result.selected_anchor_edge_index == 0
+  assert result.bridge is not None
+  assert result.event_point_m is not None
+  assert result.state_at(result.event_point_m) is not None
+  assert result.static_pressure_at(result.event_point_m) is not None
+  assert result.physical_closure_verified is False
+  assert result.chain_promotion_blocked
+  assert result.as_chain_termination_decision().reason is (
+    MocChainTerminationReason.CHARACTERISTIC_CAUSTIC
+  )
+
+
+def test_caustic_continuation_does_not_hide_an_invalid_side_selector() -> None:
+  old_family, _restarted_family, seed = _caustic_bridge_fixture()
+
+  result = solve_caustic_upstream_continuation(
+    old_family,
+    seed,
+    old_family.total_pressure_Pa,
+    101325.0,
+    anchor_edge_index=0,
+    sample_count=6,
+    side_at=lambda _point: MocCausticBridgeSide.OLD_FAMILY,
+  )
+
+  assert result.status is MocCausticUpstreamContinuationStatus.SEAM_FAILURE
+  assert result.converged is False
+  assert result.seam_verified is False
+  assert result.bridge is not None
+  assert result.state_sampling_available is False
   assert result.chain_promotion_blocked
 
 

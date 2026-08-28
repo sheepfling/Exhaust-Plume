@@ -338,7 +338,14 @@ subsonic terminal is never coerced into a characteristic state. The matching
 `plan_caustic_simple_wave_terminal_chain` wrapper records the exact prior
 perimeter and returns an `OPEN_PHYSICAL_CLOSURE` one-step research stop. This
 is solver-owned continuation evidence, not a physical caustic remesh, mixed-
-regime perimeter, or production chain cell.
+regime perimeter, or production chain cell. The caustic upstream continuation
+controller now owns the preceding branch-selection seam: it audits both
+one-sided family restarts, returns `BRANCH_SELECTION_REQUIRED` without a
+bridge when no branch is selected, and for an explicit anchor edge verifies
+the event point, state, pressure, and total-pressure lineage before exposing
+an x-split bounded bridge. This makes the continuation usable as a solver
+interface for later shock-cell work while keeping the unresolved shock curve,
+mixed-regime closure, and chain promotion explicitly blocked.
 
 ## What is done for the basic solver
 
