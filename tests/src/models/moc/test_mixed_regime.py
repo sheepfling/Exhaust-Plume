@@ -1,5 +1,5 @@
 from dataclasses import replace
-from math import atan2, pi
+from math import atan2, pi, sqrt
 
 import pytest
 
@@ -17,11 +17,13 @@ from exhaust_plume.models.moc import (
   MocMixedRegimeFieldSample,
   MocMixedRegimeFreeBoundaryStatus,
   MocMixedRegimePlanarSolveStatus,
+  MocMixedRegimePlanarPotentialReference,
   MocMixedRegimePerimeterRequest,
   MocPrescribedMixedRegimeClosureMock,
   MocPostShockBoundaryState,
   run_mixed_regime_closure_solver,
   run_mixed_regime_planar_field_solver,
+  solve_mixed_regime_planar_potential_reference,
   solve_normal_shock_terminal,
   solve_mixed_regime_compressible_potential_field,
   solve_mixed_regime_downstream_condition,
@@ -1344,6 +1346,123 @@ def test_planar_downstream_handoff_rejects_a_changed_perimeter() -> None:
   assert result.field is changed_field
   assert result.chain_promotion_blocked
   assert 'perimeter geometry' in result.message
+
+
+def test_planar_potential_reference_projects_a_varying_section_into_a_nonlinear_field() -> None:
+  terminal = _terminal()
+  request = MocMixedRegimePerimeterRequest(
+    terminal=terminal,
+    terminal_point_m=terminal.shock_point_m,
+    terminal_downstream_mach=terminal.downstream_mach,
+    terminal_downstream_flow_angle_rad=terminal.downstream_flow_angle_rad,
+    terminal_downstream_pressure_Pa=terminal.downstream_pressure_Pa,
+    terminal_downstream_total_pressure_Pa=terminal.downstream_total_pressure_Pa,
+    terminal_total_pressure_ratio=terminal.total_pressure_ratio,
+    supersonic_patch=_supersonic_patch(),
+  )
+  terminal_x, terminal_y = request.terminal_point_m
+  gamma = request.terminal.upstream_state.gamma
+  sonic_factor = 0.5 * (gamma - 1.0)
+  terminal_speed = request.terminal_downstream_mach / sqrt(
+    1.0 + sonic_factor * request.terminal_downstream_mach ** 2
+  )
+  section_points = (
+    (terminal_x + 0.02, terminal_y - 0.01),
+    (terminal_x + 0.02, terminal_y),
+    (terminal_x + 0.02, terminal_y + 0.01),
+  )
+  section_samples = []
+  for point in section_points:
+    tangential_speed = 0.12 * (point[1] - terminal_y)
+    speed_squared = terminal_speed ** 2 + tangential_speed ** 2
+    mach = sqrt(speed_squared / (1.0 - sonic_factor * speed_squared))
+    static_pressure = request.terminal_downstream_total_pressure_Pa / (
+      1.0 + sonic_factor * mach ** 2
+    ) ** (gamma / (gamma - 1.0))
+    section_samples.append(
+      MocMixedRegimeFieldSample(
+        point_m=point,
+        mach=mach,
+        flow_angle_rad=atan2(tangential_speed, terminal_speed),
+        static_pressure_Pa=static_pressure,
+        total_pressure_Pa=request.terminal_downstream_total_pressure_Pa,
+        gamma=gamma,
+      )
+    )
+  section = MocMixedRegimeControlSection(
+    points_m=section_points,
+    samples=tuple(section_samples),
+    normal_angle_rad=0.0,
+  )
+  perimeter_spec = MocMixedRegimeDownstreamPerimeterSpec(
+    perimeter_points_m=(
+      (terminal_x, terminal_y),
+      (terminal_x + 0.1, terminal_y),
+      (terminal_x + 0.1, terminal_y + 0.1),
+      (terminal_x, terminal_y + 0.1),
+      (terminal_x, terminal_y),
+    ),
+    condition_kind=MocMixedRegimeDownstreamConditionKind.PRESSURE_OUTFLOW_SECTION,
+    ambient_pressure_Pa=terminal.downstream_pressure_Pa,
+    condition_edge_indices=(0,),
+    condition_sample_indices=(0, 1),
+  )
+
+  result = MocMixedRegimePlanarPotentialReference(
+    radial_divisions=2,
+  ).solve(request, section, perimeter_spec)
+
+  assert result.status is MocMixedRegimePlanarSolveStatus.CONVERGED_HANDOFF
+  assert result.converged
+  assert result.handoff_verified
+  assert result.section_is_varying
+  assert result.control_section_projection_verified
+  assert result.maximum_control_section_projection_residual is not None
+  assert result.maximum_control_section_projection_residual <= 1.0e-8
+  assert result.projection_model == (
+    'affine-control-section-potential-extension'
+  )
+  assert result.field is not None
+  assert result.field.model == 'compressible-isentropic-potential-reference'
+  assert result.field.control_section is section
+  assert result.field.model_closure_verified
+  assert result.field.velocity_potential
+  assert result.field.nonlinear_update_residual is not None
+  assert result.field.nonlinear_update_residual <= 1.0e-8
+  assert result.field_physical_closure_verified
+  assert result.physical_closure_verified is False
+  assert result.canonical_free_boundary_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  assert result.closure is not None
+  assert result.closure.converged
+
+  direct_result = solve_mixed_regime_planar_potential_reference(
+    request,
+    section,
+    perimeter_spec,
+    radial_divisions=2,
+  )
+  assert direct_result.as_report()['projection_model'] == (
+    'affine-control-section-potential-extension'
+  )
+
+  non_affine_samples = list(section.samples)
+  non_affine_samples[1] = replace(
+    non_affine_samples[1],
+    flow_angle_rad=atan2(0.003, terminal_speed),
+  )
+  non_affine_section = replace(
+    section,
+    samples=tuple(non_affine_samples),
+  )
+  rejected = MocMixedRegimePlanarPotentialReference(
+    radial_divisions=2,
+  ).solve(request, non_affine_section, perimeter_spec)
+  assert rejected.status is MocMixedRegimePlanarSolveStatus.CONTROL_SECTION_FAILURE
+  assert not rejected.converged
+  assert not rejected.control_section_projection_verified
+  assert 'affine' in rejected.message
 
 
 def test_solver_owned_free_boundary_reference_shoots_height_and_closes_scalar_field() -> None:

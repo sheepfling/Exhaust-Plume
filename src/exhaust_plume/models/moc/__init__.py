@@ -70,9 +70,11 @@ from exhaust_plume.models.moc.mixed_regime import (
 )
 from exhaust_plume.models.moc.mixed_regime_planar import (
   MocMixedRegimePlanarFieldSolver,
+  MocMixedRegimePlanarPotentialReference,
   MocMixedRegimePlanarSolveStatus,
   MocMixedRegimePlanarSolveResult,
   run_mixed_regime_planar_field_solver,
+  solve_mixed_regime_planar_potential_reference,
 )
 from exhaust_plume.models.moc.boundary import (
   MocFreeBoundaryPointResult,
@@ -349,6 +351,7 @@ from exhaust_plume.models.moc.planner import (
   MocPrescribedPostShockChainMock,
   MocSolverGeneratedPostShockChainReference,
   MocFieldCoupledPostShockChainReference,
+  plan_first_cell_terminal_closure_with_planar_potential_reference,
   plan_moc_chain,
   plan_post_shock_characteristic_chain,
   plan_post_shock_field_chain,
@@ -437,9 +440,11 @@ __all__ = (
   'solve_mixed_regime_downstream_free_boundary_from_control_section',
   'validate_mixed_regime_control_section',
   'MocMixedRegimePlanarFieldSolver',
+  'MocMixedRegimePlanarPotentialReference',
   'MocMixedRegimePlanarSolveStatus',
   'MocMixedRegimePlanarSolveResult',
   'run_mixed_regime_planar_field_solver',
+  'solve_mixed_regime_planar_potential_reference',
   'MocChainPlannerKind',
   'MocChainPlannerResult',
   'MocChainPlannerStep',
@@ -705,6 +710,7 @@ __all__ = (
   'plan_solver_generated_first_cell_terminal_closure_reference',
   'plan_solver_generated_first_cell_terminal_closure_reference_from_control_section',
   'plan_first_cell_terminal_closure_with_planar_handoff',
+  'plan_first_cell_terminal_closure_with_planar_potential_reference',
   'assemble_ambient_boundary_post_shock_field',
   'assemble_ambient_boundary_post_shock_field_with_centerline_reflection',
   'MocPhysicalPostShockTerminalPatchTransitionResult',

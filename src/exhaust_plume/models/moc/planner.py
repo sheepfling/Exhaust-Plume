@@ -85,6 +85,7 @@ from exhaust_plume.models.moc.mixed_regime import (
 )
 from exhaust_plume.models.moc.mixed_regime_planar import (
   MocMixedRegimePlanarFieldSolver,
+  MocMixedRegimePlanarPotentialReference,
   MocMixedRegimePlanarSolveResult,
   run_mixed_regime_planar_field_solver,
 )
@@ -163,6 +164,7 @@ __all__ = (
   'plan_solver_generated_first_cell_terminal_closure_reference',
   'plan_solver_generated_first_cell_terminal_closure_reference_from_control_section',
   'plan_first_cell_terminal_closure_with_planar_handoff',
+  'plan_first_cell_terminal_closure_with_planar_potential_reference',
 )
 
 
@@ -1570,6 +1572,82 @@ def plan_first_cell_terminal_closure_with_planar_handoff(
     claim_status=(
       'explicit-planar-downstream-handoff-only; canonical-reflected-moc-'
       'free-boundary-and-external-validation-pending'
+    ),
+    diagnostics=diagnostics,
+    mixed_regime_planar_handoff=handoff,
+  )
+  ####
+
+
+def plan_first_cell_terminal_closure_with_planar_potential_reference(
+  terminal: MocFirstCellTerminalClosureResult,
+  control_section: MocMixedRegimeControlSection,
+  perimeter_spec: MocMixedRegimeDownstreamPerimeterSpec,
+  *,
+  reference: MocMixedRegimePlanarPotentialReference | None = None,
+) -> MocFirstCellTerminalClosurePlannerResult:
+  """Plan a first-cell terminal beside the built-in planar reference.
+
+  The reference consumes the exact terminal request, explicit control section,
+  and explicit closed perimeter.  Its converged field remains an adjacent
+  research handoff: this wrapper never attaches it to the supersonic terminal
+  or promotes it into a continued shock-cell chain.
+  """
+
+  if not isinstance(terminal, MocFirstCellTerminalClosureResult):
+    raise TypeError(
+      'terminal must be a MocFirstCellTerminalClosureResult'
+    )
+  if not isinstance(control_section, MocMixedRegimeControlSection):
+    raise TypeError(
+      'control_section must be a MocMixedRegimeControlSection'
+    )
+  if not isinstance(
+    perimeter_spec,
+    MocMixedRegimeDownstreamPerimeterSpec,
+  ):
+    raise TypeError(
+      'perimeter_spec must be a MocMixedRegimeDownstreamPerimeterSpec'
+    )
+  planar_reference = (
+    MocMixedRegimePlanarPotentialReference()
+    if reference is None
+    else reference
+  )
+  if not isinstance(
+    planar_reference,
+    MocMixedRegimePlanarPotentialReference,
+  ):
+    raise TypeError(
+      'reference must be a MocMixedRegimePlanarPotentialReference or None'
+    )
+  handoff = planar_reference.solve(
+    terminal.mixed_regime_perimeter_request(),
+    control_section,
+    perimeter_spec,
+  )
+  base = plan_first_cell_terminal_closure(terminal)
+  diagnostics = dict(base.diagnostics)
+  diagnostics.update({
+    'mixed_regime_planar_potential_reference': planar_reference.as_report(),
+    'mixed_regime_planar_handoff_verified': handoff.handoff_verified,
+    'mixed_regime_planar_handoff': handoff.as_report(),
+    'mixed_regime_planar_handoff_attached': False,
+    'mixed_regime_planar_handoff_chain_promotion_blocked': (
+      handoff.chain_promotion_blocked
+    ),
+    'mixed_regime_planar_handoff_physical_closure_verified': (
+      handoff.physical_closure_verified
+    ),
+    'mixed_regime_planar_projection_verified': (
+      handoff.control_section_projection_verified
+    ),
+  })
+  return replace(
+    base,
+    claim_status=(
+      'control-section-projected-compressible-potential-reference; '
+      'canonical-reflected-moc-free-boundary-and-external-validation-pending'
     ),
     diagnostics=diagnostics,
     mixed_regime_planar_handoff=handoff,

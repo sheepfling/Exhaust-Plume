@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import replace
 import json
-from math import cos, isfinite, log, pi, sin
+from math import atan2, cos, isfinite, log, pi, sin, sqrt
 from pathlib import Path
 import sys
 from typing import Any
@@ -27,6 +27,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocMixedRegimeDownstreamConditionKind,
   MocMixedRegimeFieldSample,
   MocMixedRegimePlanarSolveStatus,
+  MocMixedRegimePlanarPotentialReference,
   MocSolverGeneratedMixedRegimeClosureReference,
   MocInvariantClosureFamily,
   MocFreeBoundaryShockResult,
@@ -1923,6 +1924,64 @@ def _mixed_regime_boundary_probe(
       mixed_regime_closure=planar_downstream_handoff.closure,
     )
   )
+  planar_reference_specification = replace(
+    perimeter_specification,
+    condition_edge_indices=(0,),
+    condition_sample_indices=(0, 1),
+  )
+  planar_reference_sonic_factor = 0.5 * (terminal.upstream_state.gamma - 1.0)
+  planar_reference_terminal_speed = terminal.downstream_mach / sqrt(
+    1.0
+    + planar_reference_sonic_factor * terminal.downstream_mach * terminal.downstream_mach
+  )
+
+  def planar_reference_sample(
+    point: tuple[float, float],
+  ) -> MocMixedRegimeFieldSample:
+    tangential_speed = 0.12 * (point[1] - terminal_y)
+    speed_squared = (
+      planar_reference_terminal_speed * planar_reference_terminal_speed
+      + tangential_speed * tangential_speed
+    )
+    mach = sqrt(
+      speed_squared
+      / (1.0 - planar_reference_sonic_factor * speed_squared)
+    )
+    static_pressure = terminal.downstream_total_pressure_Pa / (
+      1.0 + planar_reference_sonic_factor * mach * mach
+    ) ** (terminal.upstream_state.gamma / (terminal.upstream_state.gamma - 1.0))
+    return MocMixedRegimeFieldSample(
+      point_m=point,
+      mach=mach,
+      flow_angle_rad=atan2(
+        tangential_speed,
+        planar_reference_terminal_speed,
+      ),
+      static_pressure_Pa=static_pressure,
+      total_pressure_Pa=terminal.downstream_total_pressure_Pa,
+      gamma=terminal.upstream_state.gamma,
+    )
+
+  planar_reference_control_section = MocMixedRegimeControlSection(
+    points_m=planar_section_points,
+    samples=tuple(planar_reference_sample(point) for point in planar_section_points),
+    normal_angle_rad=0.0,
+  )
+  planar_potential_reference = MocMixedRegimePlanarPotentialReference(
+    radial_divisions=2,
+  )
+  planar_potential_handoff = planar_potential_reference.solve(
+    perimeter_request,
+    planar_reference_control_section,
+    planar_reference_specification,
+  )
+  planar_potential_measurement = (
+    None
+    if planar_potential_handoff.field is None
+    else measure_mixed_regime_compressible_potential_field(
+      planar_potential_handoff.field,
+    )
+  )
   contract_condition = validate_mixed_regime_downstream_condition(
     contract_fixture,
     MocMixedRegimeDownstreamConditionKind.SLIP_WALL,
@@ -2126,6 +2185,26 @@ def _mixed_regime_boundary_probe(
       and planar_handoff_measurement.converged
       and planar_handoff_measurement.physical_closure_verified
       and planar_handoff_measurement.chain_promotion_blocked
+      and planar_potential_handoff.status is MocMixedRegimePlanarSolveStatus.CONVERGED_HANDOFF
+      and planar_potential_handoff.handoff_verified
+      and planar_potential_handoff.section_is_varying
+      and planar_potential_handoff.control_section_projection_verified
+      and planar_potential_handoff.maximum_control_section_projection_residual is not None
+      and planar_potential_handoff.maximum_control_section_projection_residual <= 1.0e-8
+      and planar_potential_handoff.field_physical_closure_verified
+      and planar_potential_handoff.physical_closure_verified is False
+      and planar_potential_handoff.canonical_free_boundary_verified is False
+      and planar_potential_handoff.chain_promotion_blocked
+      and planar_potential_handoff.production_claim_allowed is False
+      and planar_potential_handoff.field is not None
+      and planar_potential_handoff.field.model == (
+        'compressible-isentropic-potential-reference'
+      )
+      and planar_potential_measurement is not None
+      and planar_potential_measurement.converged
+      and planar_potential_measurement.reference_model_verified
+      and planar_potential_measurement.physical_closure_verified is False
+      and planar_potential_measurement.chain_promotion_blocked
       and contract_condition.status.value == 'downstream-tangency-failure'
       and wall_condition.converged
       and wall_condition.chain_promotion_blocked
@@ -2137,6 +2216,13 @@ def _mixed_regime_boundary_probe(
     'control_section_measurement': control_section_measurement.as_report(),
     'planar_downstream_handoff': planar_downstream_handoff.as_report(),
     'planar_downstream_handoff_measurement': planar_handoff_measurement.as_report(),
+    'planar_potential_reference_configuration': planar_potential_reference.as_report(),
+    'planar_potential_reference': planar_potential_handoff.as_report(),
+    'planar_potential_reference_measurement': (
+      None
+      if planar_potential_measurement is None
+      else planar_potential_measurement.as_report()
+    ),
     'mixed_regime_closure_mock': perimeter_mock.as_report(),
     'scalar_perimeter_contract_fixture': contract_fixture.as_report(),
     'explicit_downstream_perimeter_solver': explicit_perimeter_closure.as_report(),
@@ -7348,7 +7434,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
     'next_gates': [
       'replace the research terminal-patch downstream turn with a physically validated reflected-domain law for any further shock-cell transition',
       'replace the provisional constant-invariant boundary with a physically validated downstream closure and a straddling canonical bracket',
-      'complete and independently validate the mixed-regime downstream closure after the open oblique supersonic patch and before chain promotion',
+      'complete and independently validate the canonical reflected-MOC mixed-regime downstream closure after the open oblique supersonic patch; the affine projected potential reference remains research-only',
       'production next-cell shock fitting that consumes the typed state/total-pressure handoff without a geometric template',
       'grid/refinement convergence for the assembled reflected zone and mild attached-overexpanded cases',
       'external measurement-operator comparison using the independent MOC extraction before provider integration',

@@ -472,3 +472,11 @@ adapter for the prescribed mixed-regime mock and scalar reference. Those
 results prove request identity and local seam bookkeeping only; they remain
 beside the terminal chain, are not attached as canonical closure, and cannot
 raise the product fidelity ceiling.
+
+The downstream handoff now also has a reproducible research reference that
+projects an explicit scalar control section into an explicit perimeter and
+solves the nonlinear compressible isentropic potential field. Its affine
+profile assumption, projection residual, perimeter condition, field residuals,
+and independent measurement are all reported. This is useful for planner and
+visualization work, but it is not a canonical reflected-MOC free-boundary
+solve, does not infer geometry, and cannot seed a continued shock-cell chain.

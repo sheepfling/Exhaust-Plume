@@ -1445,3 +1445,13 @@ caller field callback—against that exact request. The result is recorded
 beside the one-cell chain and reports local mixed-regime model convergence
 separately from canonical physical closure; the downstream field is never
 attached as a supersonic cell and `production_claim_allowed` remains false.
+
+The planar downstream lane also includes a separately named affine
+control-section projection reference. It consumes a validated scalar section,
+fits its tangential and normal velocity profiles, extends those profiles over
+an explicitly closed perimeter, and runs the nonlinear compressible
+isentropic potential-field solver. The planner records this field beside the
+terminal result, including projection residuals and an independent field
+measurement, but does not attach it as a supersonic cell. It remains below
+canonical reflected-MOC/free-boundary closure and external validation, with
+chain promotion blocked.
