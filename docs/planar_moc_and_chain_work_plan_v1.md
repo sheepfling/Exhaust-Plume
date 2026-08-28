@@ -1435,3 +1435,13 @@ mixed-regime handoff (or a separately validated reflected-domain solver),
 refinement evidence for the trace-to-patch seam, and independent
 measurement-space validation. The basic visual solver and reduced-order
 shock-train provider remain unchanged.
+
+The terminal transition now retains its solver-owned artifacts as a typed
+`MocPhysicalPostShockTerminalPatchTransitionResult`: the projected source
+strip, reflected patch, downstream shock solve, clipped supersonic terminal
+field, and exact `MocMixedRegimePerimeterRequest`. A companion planner can run
+the explicit prescribed mixed-regime mock—or the existing scalar reference or
+caller field callback—against that exact request. The result is recorded
+beside the one-cell chain and reports local mixed-regime model convergence
+separately from canonical physical closure; the downstream field is never
+attached as a supersonic cell and `production_claim_allowed` remains false.

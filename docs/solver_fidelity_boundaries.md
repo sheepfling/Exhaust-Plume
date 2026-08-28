@@ -464,3 +464,11 @@ because its downstream turn condition and external validation are not yet
 canonical. Further shock cells require a separately solved mixed-regime or
 reflected-domain continuation. No basic, reduced-order, signature, or FPA
 provider is changed by this lane.
+
+# Continued terminal-patch planner handoff
+
+The transition also exposes a typed downstream request and a planner-only
+adapter for the prescribed mixed-regime mock and scalar reference. Those
+results prove request identity and local seam bookkeeping only; they remain
+beside the terminal chain, are not attached as canonical closure, and cannot
+raise the product fidelity ceiling.

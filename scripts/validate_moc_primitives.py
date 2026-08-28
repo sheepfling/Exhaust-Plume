@@ -66,6 +66,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   plan_ambient_pressure_field_chain,
   plan_ambient_closed_post_shock_chain,
   plan_ambient_closed_post_shock_chain_terminal_patch,
+  plan_ambient_closed_post_shock_chain_terminal_patch_mock,
   plan_post_shock_characteristic_chain,
   plan_field_coupled_post_shock_chain_reference,
   plan_post_shock_field_invariant_chain,
@@ -675,6 +676,8 @@ def _ambient_shock_strip_probe(
   ambient_centerline_physical_chain_probe_accepted = False
   ambient_centerline_physical_terminal_patch_planner = None
   ambient_centerline_physical_terminal_patch_planner_accepted = False
+  ambient_centerline_physical_terminal_patch_mixed_regime_planner = None
+  ambient_centerline_physical_terminal_patch_mixed_regime_planner_accepted = False
   ambient_centerline_physical_terminal_patch_refinement = []
   ambient_centerline_physical_terminal_patch_refinement_accepted = False
   if (
@@ -771,6 +774,42 @@ def _ambient_shock_strip_probe(
       and terminal_patch_planner.steps[0].result_termination_reason
       == MocChainTerminationReason.PHYSICAL_TERMINATION.value
       and terminal_patch_planner.chain.diagnostics.get('centerline_seam_verified') is True
+    )
+    terminal_patch_mixed_regime_planner = (
+      plan_ambient_closed_post_shock_chain_terminal_patch_mock(
+        physical_field,
+        start_x_m=shock_fit.boundary_states[0].point_m[0],
+        end_x_m=physical_field.ambient_boundary_points_m[-1][0],
+        terminal_end_x_m=physical_field.centerline_boundary_points_m[-1][0] + 0.25,
+        sample_count=9,
+        trace_position_tolerance_m=1.0e-3,
+        seam_position_tolerance_m=3.0e-3,
+        position_tolerance_m=1.0e-3,
+        policy=MocChainContinuationPolicy(
+          max_cells=2,
+          require_state_carry=True,
+        ),
+      )
+    )
+    ambient_centerline_physical_terminal_patch_mixed_regime_planner = (
+      terminal_patch_mixed_regime_planner.as_report()
+    )
+    ambient_centerline_physical_terminal_patch_mixed_regime_planner_accepted = (
+      terminal_patch_mixed_regime_planner.planner_kind
+      is MocChainPlannerKind.PRESCRIBED_BOUNDARY_MOCK
+      and terminal_patch_mixed_regime_planner.production_claim_allowed is False
+      and terminal_patch_mixed_regime_planner.resolved
+      and terminal_patch_mixed_regime_planner.physical_termination
+      and terminal_patch_mixed_regime_planner.physical_closure_verified is False
+      and terminal_patch_mixed_regime_planner.chain_promotion_blocked
+      and terminal_patch_mixed_regime_planner.transition is not None
+      and terminal_patch_mixed_regime_planner.transition.mixed_regime_seam_available
+      and terminal_patch_mixed_regime_planner.mixed_regime_closure is not None
+      and terminal_patch_mixed_regime_planner.mixed_regime_closure.converged
+      and terminal_patch_mixed_regime_planner.mixed_regime_model_closure_verified
+      and terminal_patch_mixed_regime_planner.diagnostics[
+        'mixed_regime_closure_attached'
+      ] is False
     )
     for refinement_sample_count in (5, 9, 17):
       refinement_result = ambient_centerline_physical_field_refinement_results.get(
@@ -1089,6 +1128,12 @@ def _ambient_shock_strip_probe(
     ),
     'ambient_centerline_physical_terminal_patch_planner_accepted': (
       ambient_centerline_physical_terminal_patch_planner_accepted
+    ),
+    'ambient_centerline_physical_terminal_patch_mixed_regime_planner': (
+      ambient_centerline_physical_terminal_patch_mixed_regime_planner
+    ),
+    'ambient_centerline_physical_terminal_patch_mixed_regime_planner_accepted': (
+      ambient_centerline_physical_terminal_patch_mixed_regime_planner_accepted
     ),
     'ambient_centerline_physical_terminal_patch_refinement': (
       ambient_centerline_physical_terminal_patch_refinement
@@ -5416,6 +5461,12 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'ambient_centerline_physical_terminal_patch_planner_accepted'
     ) is not True
   )
+  ambient_centerline_physical_terminal_patch_mixed_regime_failure = (
+    ambient_shock_strip_probe.get('accepted') is True
+    and ambient_shock_strip_probe.get(
+      'ambient_centerline_physical_terminal_patch_mixed_regime_planner_accepted'
+    ) is not True
+  )
   ambient_centerline_physical_terminal_patch_refinement_failure = (
     ambient_shock_strip_probe.get('accepted') is True
     and ambient_shock_strip_probe.get(
@@ -6926,6 +6977,18 @@ def build_moc_primitive_report() -> dict[str, Any]:
         ),
       }
     ] if ambient_centerline_physical_terminal_patch_failure else []),
+    *([
+      {
+        'case': 'solver_generated_ambient_centerline_physical_terminal_patch_mixed_regime',
+        'status': 'mixed-regime-planner-gate-failed',
+        'message': str(
+          ambient_shock_strip_probe.get(
+            'ambient_centerline_physical_terminal_patch_mixed_regime_planner',
+            {},
+          )
+        ),
+      }
+    ] if ambient_centerline_physical_terminal_patch_mixed_regime_failure else []),
     *([
       {
         'case': 'solver_generated_ambient_centerline_physical_terminal_patch_refinement',

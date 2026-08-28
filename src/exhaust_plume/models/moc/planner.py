@@ -52,7 +52,9 @@ from exhaust_plume.models.moc.caustic_terminal import (
 from exhaust_plume.models.moc.physical_cell import (
   MocPhysicalPostShockFieldContinuationSolve,
   MocPhysicalPostShockFieldResult,
+  MocPhysicalPostShockTerminalPatchTransitionResult,
   solve_ambient_closed_post_shock_chain_cell_from_physical_field_terminal_patch_or_termination,
+  solve_ambient_closed_post_shock_terminal_patch_transition,
   continue_ambient_closed_post_shock_chain,
 )
 from exhaust_plume.models.moc.first_cell_closure import (
@@ -76,6 +78,7 @@ from exhaust_plume.models.moc.mixed_regime import (
   MocMixedRegimeFieldResult,
   MocMixedRegimeFieldSample,
   MocMixedRegimePerimeterRequest,
+  run_mixed_regime_closure_solver,
   solve_mixed_regime_downstream_perimeter,
   solve_mixed_regime_downstream_free_boundary,
   solve_mixed_regime_downstream_free_boundary_from_control_section,
@@ -126,6 +129,7 @@ __all__ = (
   'MocPrescribedPostShockChainMock',
   'MocSolverGeneratedPostShockChainReference',
   'MocFieldCoupledPostShockChainReference',
+  'MocPhysicalPostShockTerminalPatchPlannerResult',
   'plan_moc_chain',
   'plan_post_shock_characteristic_chain',
   'plan_post_shock_field_chain',
@@ -151,6 +155,9 @@ __all__ = (
   'plan_ambient_pressure_field_chain',
   'plan_ambient_closed_post_shock_chain',
   'plan_ambient_closed_post_shock_chain_terminal_patch',
+  'plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime',
+  'plan_ambient_closed_post_shock_chain_terminal_patch_mock',
+  'plan_ambient_closed_post_shock_chain_terminal_patch_reference',
   'plan_first_cell_terminal_closure',
   'plan_prescribed_first_cell_terminal_closure_mock',
   'plan_solver_generated_first_cell_terminal_closure_reference',
@@ -1025,6 +1032,150 @@ class MocFirstCellTerminalClosurePlannerResult:
         None
         if self.mixed_regime_planar_handoff is None
         else self.mixed_regime_planar_handoff.as_report()
+      ),
+      'diagnostics': dict(self.diagnostics),
+    }
+  ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocPhysicalPostShockTerminalPatchPlannerResult:
+  """Planner result for a continued physical field reaching a terminal.
+
+  ``chain_planner`` records the exact cell-to-terminal callback and typed
+  physical stop.  ``transition`` retains the solver-owned terminal artifacts
+  so the optional mixed-regime mock or reference can consume the exact shock
+  seam afterward.  The downstream result is intentionally reported beside,
+  never attached as, the supersonic chain cell.
+  """
+
+  chain_planner: MocChainPlannerResult
+  transition: MocPhysicalPostShockTerminalPatchTransitionResult | None
+  mixed_regime_closure: MocMixedRegimeClosureResult | None
+  mixed_regime_reference: MocMixedRegimeFreeBoundaryResult | None
+  planner_kind: MocChainPlannerKind
+  claim_status: str
+  diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.chain_planner, MocChainPlannerResult):
+      raise TypeError('chain_planner must be a MocChainPlannerResult')
+    if self.transition is not None and not isinstance(
+      self.transition,
+      MocPhysicalPostShockTerminalPatchTransitionResult,
+    ):
+      raise TypeError(
+        'transition must be a '
+        'MocPhysicalPostShockTerminalPatchTransitionResult or None'
+      )
+    if self.mixed_regime_closure is not None and not isinstance(
+      self.mixed_regime_closure,
+      MocMixedRegimeClosureResult,
+    ):
+      raise TypeError(
+        'mixed_regime_closure must be a MocMixedRegimeClosureResult or None'
+      )
+    if self.mixed_regime_reference is not None and not isinstance(
+      self.mixed_regime_reference,
+      MocMixedRegimeFreeBoundaryResult,
+    ):
+      raise TypeError(
+        'mixed_regime_reference must be a '
+        'MocMixedRegimeFreeBoundaryResult or None'
+      )
+    if self.mixed_regime_closure is not None and self.transition is not None:
+      if self.transition.mixed_regime_request is None:
+        raise ValueError(
+          'mixed_regime_closure requires a transition mixed-regime seam'
+        )
+      if self.mixed_regime_closure.request != (
+        self.transition.mixed_regime_request
+      ):
+        raise ValueError(
+          'mixed_regime_closure must retain the exact transition seam'
+        )
+    if self.mixed_regime_reference is not None and self.transition is not None:
+      if self.transition.mixed_regime_request is None:
+        raise ValueError(
+          'mixed_regime_reference requires a transition mixed-regime seam'
+        )
+      if self.mixed_regime_reference.request != (
+        self.transition.mixed_regime_request
+      ):
+        raise ValueError(
+          'mixed_regime_reference must retain the exact transition seam'
+        )
+    if not isinstance(self.planner_kind, MocChainPlannerKind):
+      raise TypeError('planner_kind must be a MocChainPlannerKind')
+    object.__setattr__(self, 'claim_status', str(self.claim_status))
+    object.__setattr__(self, 'diagnostics', MappingProxyType(dict(self.diagnostics)))
+
+  @property
+  def resolved(self) -> bool:
+    """Whether the retained chain reached its typed terminal boundary."""
+
+    return self.chain_planner.chain.resolved
+
+  @property
+  def physical_termination(self) -> bool:
+    """Whether the downstream shock is a verified physical chain stop."""
+
+    return self.chain_planner.chain.physical_termination
+
+  @property
+  def mixed_regime_model_closure_verified(self) -> bool:
+    """Whether an optional local mock/reference field passed its own gates."""
+
+    return bool(
+      self.mixed_regime_closure is not None
+      and self.mixed_regime_closure.converged
+      and self.mixed_regime_closure.physical_closure_verified
+    )
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    """The canonical downstream field remains outside this planner seam."""
+
+    return False
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    """A terminal mixed-regime handoff cannot seed another supersonic cell."""
+
+    return True
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    """Planner, mock, and scalar-reference results cannot support products."""
+
+    return False
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'planner_kind': self.planner_kind.value,
+      'planning_only': True,
+      'production_claim_allowed': self.production_claim_allowed,
+      'claim_status': self.claim_status,
+      'resolved': self.resolved,
+      'physical_termination': self.physical_termination,
+      'physical_closure_verified': self.physical_closure_verified,
+      'mixed_regime_model_closure_verified': (
+        self.mixed_regime_model_closure_verified
+      ),
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'chain_planner': self.chain_planner.as_report(),
+      'transition': (
+        None if self.transition is None else self.transition.as_report()
+      ),
+      'mixed_regime_closure': (
+        None
+        if self.mixed_regime_closure is None
+        else self.mixed_regime_closure.as_report()
+      ),
+      'mixed_regime_reference': (
+        None
+        if self.mixed_regime_reference is None
+        else self.mixed_regime_reference.as_report()
       ),
       'diagnostics': dict(self.diagnostics),
     }
@@ -5028,5 +5179,274 @@ def plan_ambient_closed_post_shock_chain_terminal_patch(
       'production_claim_allowed': False,
       'physical_cell_promotion': 'blocked-at-mixed-regime-boundary',
     },
+  )
+####
+
+
+def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
+  seed: MocPhysicalPostShockFieldResult,
+  *,
+  start_x_m: float,
+  end_x_m: float,
+  terminal_end_x_m: float,
+  target_centerline_y_m: float = 0.0,
+  downstream_flow_angle_at: Callable[[int, tuple[float, float]], float] | None = None,
+  downstream_flow_angle_rad: float | None = 0.0,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  trace_position_tolerance_m: float = 1.0e-3,
+  seam_position_tolerance_m: float = 3.0e-3,
+  position_tolerance_m: float = 1.0e-3,
+  invariant_tolerance: float = 1.0e-10,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  policy: MocChainContinuationPolicy | None = None,
+  mock: MocPrescribedMixedRegimeClosureMock | None = None,
+  solver: MocSolverGeneratedMixedRegimeClosureReference | None = None,
+  solve_field: Callable[
+    [MocMixedRegimePerimeterRequest],
+    MocMixedRegimeFieldResult | None,
+  ] | None = None,
+  claim_status: str | None = None,
+) -> MocPhysicalPostShockTerminalPatchPlannerResult:
+  """Plan the terminal transition and exercise its exact mixed-regime seam.
+
+  The chain portion is the same one-step terminal-patch planner used by the
+  supersonic lane.  Once that transition reaches a typed normal-shock stop,
+  the retained request is sent to exactly one explicitly selected downstream
+  mode: the default prescribed mock, the solver-owned scalar free-boundary
+  reference, or a caller-supplied mixed-regime field callback.  The returned
+  mixed-regime result is evidence beside the chain; it is never attached as a
+  new supersonic cell and never raises the production claim ceiling.
+  """
+
+  if not isinstance(seed, MocPhysicalPostShockFieldResult):
+    raise TypeError('seed must be a MocPhysicalPostShockFieldResult')
+  if mock is not None and not isinstance(
+    mock,
+    MocPrescribedMixedRegimeClosureMock,
+  ):
+    raise TypeError(
+      'mock must be a MocPrescribedMixedRegimeClosureMock or None'
+    )
+  if solver is not None and not isinstance(
+    solver,
+    MocSolverGeneratedMixedRegimeClosureReference,
+  ):
+    raise TypeError(
+      'solver must be a MocSolverGeneratedMixedRegimeClosureReference or None'
+    )
+  if solve_field is not None and not callable(solve_field):
+    raise TypeError('solve_field must be callable when supplied')
+  supplied_modes = sum(
+    value is not None for value in (mock, solver, solve_field)
+  )
+  if supplied_modes > 1:
+    raise ValueError('supply only one of mock, solver, or solve_field')
+  if supplied_modes == 0:
+    mock = MocPrescribedMixedRegimeClosureMock()
+
+  planner_kind = (
+    MocChainPlannerKind.PRESCRIBED_BOUNDARY_MOCK
+    if mock is not None
+    else MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
+  )
+  transition: MocPhysicalPostShockTerminalPatchTransitionResult | None = None
+  invoked = False
+
+  def solve_next(
+    current: MocChainCell,
+    next_cell_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+  ) -> MocChainTerminationDecision:
+    nonlocal invoked, transition
+    if invoked:
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
+        message=(
+          'terminal-patch mixed-regime planner is intentionally limited to '
+          'one continued shock transition'
+        ),
+      )
+    invoked = True
+    transition = solve_ambient_closed_post_shock_terminal_patch_transition(
+      current,
+      next_cell_index,
+      incoming_handoff,
+      seed,
+      end_x_m=terminal_end_x_m,
+      target_centerline_y_m=target_centerline_y_m,
+      downstream_flow_angle_at=downstream_flow_angle_at,
+      downstream_flow_angle_rad=downstream_flow_angle_rad,
+      sample_count=sample_count,
+      branch=branch,
+      trace_position_tolerance_m=trace_position_tolerance_m,
+      seam_position_tolerance_m=seam_position_tolerance_m,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+      shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+      maximum_segment_iterations=maximum_segment_iterations,
+    )
+    return transition.decision
+
+  default_claim = (
+    'continued-terminal-patch-planner-mixed-regime; '
+    'typed-normal-shock-stop; canonical-mixed-regime-free-boundary-pending'
+  )
+  chain_planner = plan_ambient_closed_post_shock_chain(
+    seed,
+    solve_next,
+    start_x_m=start_x_m,
+    end_x_m=end_x_m,
+    policy=policy,
+    require_upstream_shock_coupling=True,
+    claim_status=default_claim if claim_status is None else claim_status,
+  )
+
+  mixed_regime_closure: MocMixedRegimeClosureResult | None = None
+  mixed_regime_reference: MocMixedRegimeFreeBoundaryResult | None = None
+  diagnostics: dict[str, Any] = {
+    'planner_model': 'ambient-closed-field-terminal-patch-mixed-regime-planner',
+    'transition_model': (
+      'accepted-ambient-closed-field -> open-shock-ambient-strip -> '
+      'centerline-reflection-patch -> attached-shock -> normal-shock-terminal'
+    ),
+    'terminal_patch_planner_depth': 1,
+    'terminal_end_x_m': float(terminal_end_x_m),
+    'target_centerline_y_m': float(target_centerline_y_m),
+    'downstream_flow_angle_model': (
+      'callback-supplied'
+      if downstream_flow_angle_at is not None
+      else 'constant-research-angle'
+    ),
+    'downstream_flow_angle_rad': downstream_flow_angle_rad,
+    'sample_count': sample_count,
+    'branch': branch.value,
+    'trace_position_tolerance_m': float(trace_position_tolerance_m),
+    'seam_position_tolerance_m': float(seam_position_tolerance_m),
+    'position_tolerance_m': float(position_tolerance_m),
+    'invariant_tolerance': float(invariant_tolerance),
+    'shock_angle_tolerance_rad': float(shock_angle_tolerance_rad),
+    'mixed_regime_solver_supplied': supplied_modes == 1,
+    'mixed_regime_closure_attached': False,
+    'chain_promotion_blocked': True,
+    'production_claim_allowed': False,
+  }
+  if mock is not None:
+    diagnostics['mixed_regime_solver_mode'] = 'prescribed-boundary-mock'
+    diagnostics['prescribed_mixed_regime_closure_mock'] = mock.as_report()
+  elif solver is not None:
+    diagnostics['mixed_regime_solver_mode'] = 'solver-generated-reference'
+    diagnostics['solver_generated_mixed_regime_reference'] = solver.as_report()
+  else:
+    diagnostics['mixed_regime_solver_mode'] = 'caller-supplied-field'
+
+  if transition is None:
+    diagnostics['mixed_regime_solver_skipped'] = (
+      'the chain planner did not invoke the terminal transition'
+    )
+  elif transition.mixed_regime_request is None:
+    diagnostics['mixed_regime_solver_skipped'] = (
+      'terminal transition did not produce a complete mixed-regime seam'
+    )
+    diagnostics['transition_report'] = transition.as_report()
+  else:
+    request = transition.as_mixed_regime_perimeter_request()
+    try:
+      if mock is not None:
+        mixed_regime_closure = mock.solve(request)
+      elif solver is not None:
+        mixed_regime_reference = solver.solve(request)
+        mixed_regime_closure = mixed_regime_reference.closure
+      else:
+        assert solve_field is not None
+        mixed_regime_closure = run_mixed_regime_closure_solver(
+          request,
+          solve_field,
+        )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      diagnostics['mixed_regime_solver_error'] = str(error)
+    else:
+      diagnostics['mixed_regime_closure_status'] = (
+        mixed_regime_closure.status.value
+        if mixed_regime_closure is not None
+        else 'solver-owned-reference-no-closure'
+      )
+      diagnostics['mixed_regime_model_closure_verified'] = bool(
+        mixed_regime_closure is not None
+        and mixed_regime_closure.converged
+        and mixed_regime_closure.physical_closure_verified
+      )
+      if mixed_regime_reference is not None:
+        diagnostics['solver_generated_mixed_regime_result'] = (
+          mixed_regime_reference.as_report()
+        )
+      if mixed_regime_closure is not None and not mixed_regime_closure.converged:
+        diagnostics['mixed_regime_closure_message'] = (
+          mixed_regime_closure.message
+        )
+
+  return MocPhysicalPostShockTerminalPatchPlannerResult(
+    chain_planner=chain_planner,
+    transition=transition,
+    mixed_regime_closure=mixed_regime_closure,
+    mixed_regime_reference=mixed_regime_reference,
+    planner_kind=planner_kind,
+    claim_status=(
+      default_claim if claim_status is None else claim_status
+    ),
+    diagnostics=diagnostics,
+  )
+####
+
+
+def plan_ambient_closed_post_shock_chain_terminal_patch_mock(
+  seed: MocPhysicalPostShockFieldResult,
+  *,
+  start_x_m: float,
+  end_x_m: float,
+  terminal_end_x_m: float,
+  mock: MocPrescribedMixedRegimeClosureMock | None = None,
+  **kwargs: Any,
+) -> MocPhysicalPostShockTerminalPatchPlannerResult:
+  """Run the continued terminal transition through the explicit planner mock."""
+
+  fixture = (
+    MocPrescribedMixedRegimeClosureMock() if mock is None else mock
+  )
+  return plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
+    seed,
+    start_x_m=start_x_m,
+    end_x_m=end_x_m,
+    terminal_end_x_m=terminal_end_x_m,
+    mock=fixture,
+    **kwargs,
+  )
+####
+
+
+def plan_ambient_closed_post_shock_chain_terminal_patch_reference(
+  seed: MocPhysicalPostShockFieldResult,
+  *,
+  start_x_m: float,
+  end_x_m: float,
+  terminal_end_x_m: float,
+  solver: MocSolverGeneratedMixedRegimeClosureReference | None = None,
+  **kwargs: Any,
+) -> MocPhysicalPostShockTerminalPatchPlannerResult:
+  """Run the continued terminal transition through the scalar reference."""
+
+  reference = (
+    MocSolverGeneratedMixedRegimeClosureReference()
+    if solver is None else solver
+  )
+  return plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
+    seed,
+    start_x_m=start_x_m,
+    end_x_m=end_x_m,
+    terminal_end_x_m=terminal_end_x_m,
+    solver=reference,
+    **kwargs,
   )
 ####

@@ -10,6 +10,7 @@ from exhaust_plume.models.moc import (
   CharacteristicFamily,
   MocAmbientBoundarySample,
   MocChainContinuationPolicy,
+  MocChainPlannerKind,
   MocChainTerminationDecision,
   MocChainTerminationReason,
   MocCharacteristicCell,
@@ -17,6 +18,8 @@ from exhaust_plume.models.moc import (
   MocPhysicalPostShockFieldResult,
   MocPhysicalPostShockFieldStatus,
   MocPhysicalPostShockFieldContinuationSolve,
+  MocPhysicalPostShockTerminalPatchTransitionResult,
+  MocPrescribedMixedRegimeClosureMock,
   MocPostShockBoundaryState,
   MocPrimitiveStatus,
   MocShockBoundaryFitResult,
@@ -30,9 +33,12 @@ from exhaust_plume.models.moc import (
   march_post_shock_ambient_boundary,
   plan_ambient_closed_post_shock_chain,
   plan_ambient_closed_post_shock_chain_terminal_patch,
+  plan_ambient_closed_post_shock_chain_terminal_patch_mock,
+  plan_ambient_closed_post_shock_chain_terminal_patch_reference,
   solve_marched_attached_shock_field,
   solve_marched_attached_shock_with_ambient_centerline_physical_field,
   solve_ambient_closed_post_shock_chain_cell_from_physical_field_terminal_patch_or_termination,
+  solve_ambient_closed_post_shock_terminal_patch_transition,
   solve_ambient_closed_post_shock_chain_cell_from_physical_field_or_termination,
   validate_ambient_pressure_boundary,
   validate_moc_mesh,
@@ -418,6 +424,112 @@ def test_physical_field_terminal_patch_transition_reaches_typed_normal_shock_sto
   assert decision.diagnostics['chain_cell_promotion'] == (
     'blocked-at-mixed-regime-boundary'
   )
+
+
+def test_physical_field_terminal_patch_transition_retains_mixed_regime_seam() -> None:
+  field = _canonical_ambient_closed_field()
+  current = field.as_coupled_chain_cell(
+    start_x_m=0.5,
+    end_x_m=field.ambient_boundary_points_m[-1][0],
+    cell_index=1,
+  )
+
+  transition = solve_ambient_closed_post_shock_terminal_patch_transition(
+    current,
+    2,
+    current.continuation_boundary,
+    field,
+    end_x_m=2.2,
+    sample_count=9,
+    trace_position_tolerance_m=1.0e-3,
+    position_tolerance_m=1.0e-3,
+  )
+
+  assert isinstance(
+    transition,
+    MocPhysicalPostShockTerminalPatchTransitionResult,
+  )
+  assert transition.converged
+  assert transition.physical_terminal_verified
+  assert transition.physical_closure_verified is False
+  assert transition.chain_promotion_blocked
+  assert transition.source_strip is not None
+  assert transition.reflection_patch is not None
+  assert transition.downstream_shock is not None
+  assert transition.terminal_field is not None
+  assert transition.terminal_field.supersonic_region_closed
+  assert transition.mixed_regime_seam_available
+  request = transition.as_mixed_regime_perimeter_request()
+  assert request.perimeter_supplied is False
+  assert request.open_supersonic_zone_is_a_perimeter is False
+  assert transition.as_report()['mixed_regime_request']['terminal_point_m'] == (
+    request.terminal_point_m
+  )
+
+
+def test_terminal_patch_planner_mock_consumes_exact_retained_seam() -> None:
+  field = _canonical_ambient_closed_field()
+  planner = plan_ambient_closed_post_shock_chain_terminal_patch_mock(
+    field,
+    start_x_m=0.5,
+    end_x_m=field.ambient_boundary_points_m[-1][0],
+    terminal_end_x_m=2.2,
+    mock=MocPrescribedMixedRegimeClosureMock(
+      streamwise_length_m=0.02,
+      transverse_length_m=0.01,
+      radial_divisions=2,
+    ),
+    sample_count=9,
+    trace_position_tolerance_m=1.0e-3,
+    position_tolerance_m=1.0e-3,
+    policy=MocChainContinuationPolicy(
+      max_cells=2,
+      require_state_carry=True,
+    ),
+  )
+
+  assert planner.planner_kind is MocChainPlannerKind.PRESCRIBED_BOUNDARY_MOCK
+  assert planner.resolved
+  assert planner.physical_termination
+  assert planner.physical_closure_verified is False
+  assert planner.mixed_regime_closure is not None
+  assert planner.mixed_regime_closure.converged
+  assert planner.mixed_regime_model_closure_verified
+  assert planner.chain_promotion_blocked
+  assert planner.transition is not None
+  assert planner.transition.mixed_regime_request is not None
+  assert planner.mixed_regime_closure.request == (
+    planner.transition.mixed_regime_request
+  )
+  assert planner.diagnostics['mixed_regime_closure_attached'] is False
+  assert planner.diagnostics['mixed_regime_model_closure_verified'] is True
+  assert planner.as_report()['production_claim_allowed'] is False
+
+
+def test_terminal_patch_planner_reference_keeps_scalar_result_separate() -> None:
+  field = _canonical_ambient_closed_field()
+  planner = plan_ambient_closed_post_shock_chain_terminal_patch_reference(
+    field,
+    start_x_m=0.5,
+    end_x_m=field.ambient_boundary_points_m[-1][0],
+    terminal_end_x_m=2.2,
+    sample_count=9,
+    trace_position_tolerance_m=1.0e-3,
+    position_tolerance_m=1.0e-3,
+    policy=MocChainContinuationPolicy(
+      max_cells=2,
+      require_state_carry=True,
+    ),
+  )
+
+  assert planner.planner_kind is MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
+  assert planner.physical_termination
+  assert planner.physical_closure_verified is False
+  assert planner.mixed_regime_reference is not None
+  assert planner.mixed_regime_reference.converged
+  assert planner.mixed_regime_model_closure_verified
+  assert planner.chain_promotion_blocked
+  assert planner.diagnostics['mixed_regime_closure_attached'] is False
 
 
 def test_terminal_patch_planner_records_one_seed_and_physical_stop() -> None:

@@ -15,7 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 from math import cos, hypot, isfinite, sin, sqrt
-from typing import Any, Callable, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Sequence
 
 from exhaust_plume.models.moc.ambient_boundary import (
   MocAmbientBoundarySample,
@@ -45,6 +45,9 @@ from exhaust_plume.models.moc.post_shock import (
   MocShockBoundaryFitResult,
   fit_attached_shock_boundary,
 )
+from exhaust_plume.models.moc.mixed_regime import (
+  MocMixedRegimePerimeterRequest,
+)
 from exhaust_plume.models.moc.primitives import (
   CharacteristicFamily,
   CharacteristicState,
@@ -62,16 +65,22 @@ from exhaust_plume.models.moc.terminal_patch import (
 )
 from exhaust_plume.models.moc.terminal_patch_solver import (
   MocTerminalPatchShockCouplingStatus,
+  MocTerminalReflectionPatchShockSolveResult,
   solve_marched_attached_shock_from_terminal_reflection_patch,
 )
 from exhaust_plume.util.aero.shock_validity import ShockBranch
+
+if TYPE_CHECKING:
+  from exhaust_plume.models.moc.shock_chain import MocTerminalShockCellFieldResult
 
 __all__ = (
   'MocPhysicalPostShockFieldStatus',
   'MocPhysicalPostShockFieldResult',
   'MocPhysicalPostShockFieldContinuationSolve',
+  'MocPhysicalPostShockTerminalPatchTransitionResult',
   'assemble_ambient_boundary_post_shock_field',
   'assemble_ambient_boundary_post_shock_field_with_centerline_reflection',
+  'solve_ambient_closed_post_shock_terminal_patch_transition',
   'solve_ambient_closed_post_shock_chain_cell_from_physical_field_terminal_patch_or_termination',
   'solve_ambient_closed_post_shock_chain_cell_from_physical_field_or_termination',
   'continue_ambient_closed_post_shock_chain',
@@ -965,6 +974,163 @@ class MocPhysicalPostShockFieldContinuationSolve:
       raise TypeError('field must be a MocPhysicalPostShockFieldResult')
     if not isfinite(float(self.end_x_m)) or self.end_x_m <= 0.0:
       raise ValueError('end_x_m must be finite and positive')
+  ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocPhysicalPostShockTerminalPatchTransitionResult:
+  """Retained artifacts for a physical-field terminal-patch transition.
+
+  The chain adapter historically returned only the final termination decision.
+  That was sufficient for stopping a supersonic chain, but it discarded the
+  typed source strip, reflection patch, and terminal shock objects needed by
+  a downstream mixed-regime planner.  This result keeps those objects
+  together without changing their claim ceiling: the normal-shock endpoint
+  is a valid chain stop, while the mixed-regime request is still an explicit
+  handoff and never a promoted supersonic cell.
+  """
+
+  decision: MocChainTerminationDecision
+  source_strip: MocAmbientShockStripResult | None = None
+  reflection_patch: MocTerminalReflectionPatchResult | None = None
+  downstream_shock: MocTerminalReflectionPatchShockSolveResult | None = None
+  terminal_field: 'MocTerminalShockCellFieldResult | None' = None
+  mixed_regime_request: MocMixedRegimePerimeterRequest | None = None
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.decision, MocChainTerminationDecision):
+      raise TypeError('decision must be a MocChainTerminationDecision')
+    if self.source_strip is not None and not isinstance(
+      self.source_strip,
+      MocAmbientShockStripResult,
+    ):
+      raise TypeError(
+        'source_strip must be a MocAmbientShockStripResult or None'
+      )
+    if self.reflection_patch is not None and not isinstance(
+      self.reflection_patch,
+      MocTerminalReflectionPatchResult,
+    ):
+      raise TypeError(
+        'reflection_patch must be a MocTerminalReflectionPatchResult or None'
+      )
+    if self.downstream_shock is not None and not isinstance(
+      self.downstream_shock,
+      MocTerminalReflectionPatchShockSolveResult,
+    ):
+      raise TypeError(
+        'downstream_shock must be a '
+        'MocTerminalReflectionPatchShockSolveResult or None'
+      )
+    if self.mixed_regime_request is not None and not isinstance(
+      self.mixed_regime_request,
+      MocMixedRegimePerimeterRequest,
+    ):
+      raise TypeError(
+        'mixed_regime_request must be a MocMixedRegimePerimeterRequest or None'
+      )
+    if self.terminal_field is not None:
+      # Keep the import local.  shock_chain imports the coupled solver, which
+      # imports this module; importing it at module scope would create a
+      # cycle during package initialization.
+      from exhaust_plume.models.moc.shock_chain import (
+        MocTerminalShockCellFieldResult,
+      )
+
+      if not isinstance(self.terminal_field, MocTerminalShockCellFieldResult):
+        raise TypeError(
+          'terminal_field must be a MocTerminalShockCellFieldResult or None'
+        )
+      if self.mixed_regime_request is not None:
+        if not self.terminal_field.converged:
+          raise ValueError(
+            'mixed_regime_request requires a converged terminal_field'
+          )
+        if (
+          self.terminal_field.mixed_regime_perimeter_request()
+          != self.mixed_regime_request
+        ):
+          raise ValueError(
+            'mixed_regime_request must retain the terminal_field seam'
+          )
+    elif self.mixed_regime_request is not None:
+      raise ValueError(
+        'mixed_regime_request requires the retained terminal_field'
+      )
+    object.__setattr__(self, 'mixed_regime_request', self.mixed_regime_request)
+
+  @property
+  def converged(self) -> bool:
+    """Whether the transition produced the typed normal-shock chain stop."""
+
+    return self.decision.physical_termination
+
+  @property
+  def physical_terminal_verified(self) -> bool:
+    """Whether a verified subsonic terminal was retained."""
+
+    return self.decision.physical_termination
+
+  @property
+  def mixed_regime_seam_available(self) -> bool:
+    """Whether a complete terminal request is available downstream."""
+
+    return self.mixed_regime_request is not None
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    """The downstream mixed-regime field is intentionally not attached here."""
+
+    return False
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    """A terminal patch transition is a stop, never a new supersonic cell."""
+
+    return True
+
+  def as_mixed_regime_perimeter_request(self) -> MocMixedRegimePerimeterRequest:
+    """Return the exact scalar seam for a downstream mixed-regime solver."""
+
+    if self.mixed_regime_request is None:
+      raise ValueError(
+        'this terminal-patch transition did not produce a mixed-regime seam'
+      )
+    return self.mixed_regime_request
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.decision.reason.value,
+      'converged': self.converged,
+      'physical_terminal_verified': self.physical_terminal_verified,
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'mixed_regime_seam_available': self.mixed_regime_seam_available,
+      'decision': self.decision.as_report(),
+      'source_strip': (
+        None if self.source_strip is None else self.source_strip.as_report()
+      ),
+      'reflection_patch': (
+        None
+        if self.reflection_patch is None
+        else self.reflection_patch.as_report()
+      ),
+      'downstream_shock': (
+        None
+        if self.downstream_shock is None
+        else self.downstream_shock.as_report()
+      ),
+      'terminal_field': (
+        None
+        if self.terminal_field is None
+        else self.terminal_field.as_report()
+      ),
+      'mixed_regime_request': (
+        None
+        if self.mixed_regime_request is None
+        else self.mixed_regime_request.as_report()
+      ),
+    }
   ####
 
 
@@ -2056,7 +2222,7 @@ def assemble_ambient_boundary_post_shock_field_with_centerline_reflection(
   )
 
 
-def solve_ambient_closed_post_shock_chain_cell_from_physical_field_terminal_patch_or_termination(
+def solve_ambient_closed_post_shock_terminal_patch_transition(
   current_cell: MocChainCell,
   next_cell_index: int,
   incoming_handoff: Sequence[MocChainBoundarySample],
@@ -2074,7 +2240,7 @@ def solve_ambient_closed_post_shock_chain_cell_from_physical_field_terminal_patc
   invariant_tolerance: float = 1.0e-10,
   shock_angle_tolerance_rad: float = 1.0e-2,
   maximum_segment_iterations: int = 24,
-) -> MocChainTerminationDecision:
+) -> MocPhysicalPostShockTerminalPatchTransitionResult:
   """Continue an accepted field through a reflected terminal patch.
 
   This is the solver-owned continuation seam for the current planar lane:
@@ -2098,16 +2264,31 @@ def solve_ambient_closed_post_shock_chain_cell_from_physical_field_terminal_patc
   terminal-trace cell instead of deriving the patch from a closed field.
   """
 
+  source_strip: MocAmbientShockStripResult | None = None
+  reflection_patch: MocTerminalReflectionPatchResult | None = None
+  downstream_shock: MocTerminalReflectionPatchShockSolveResult | None = None
+  terminal_field: 'MocTerminalShockCellFieldResult | None' = None
+  mixed_regime_request: MocMixedRegimePerimeterRequest | None = None
+
   def decision(
     reason: MocChainTerminationReason,
     message: str,
     diagnostics: dict[str, Any] | None = None,
-  ) -> MocChainTerminationDecision:
-    return MocChainTerminationDecision(
-      physical_termination=False,
-      reason=reason,
-      message=message,
-      diagnostics={} if diagnostics is None else diagnostics,
+    *,
+    physical_termination: bool = False,
+  ) -> MocPhysicalPostShockTerminalPatchTransitionResult:
+    return MocPhysicalPostShockTerminalPatchTransitionResult(
+      decision=MocChainTerminationDecision(
+        physical_termination=physical_termination,
+        reason=reason,
+        message=message,
+        diagnostics={} if diagnostics is None else diagnostics,
+      ),
+      source_strip=source_strip,
+      reflection_patch=reflection_patch,
+      downstream_shock=downstream_shock,
+      terminal_field=terminal_field,
+      mixed_regime_request=mixed_regime_request,
     )
 
   if not isinstance(current_cell, MocChainCell):
@@ -2290,6 +2471,7 @@ def solve_ambient_closed_post_shock_chain_cell_from_physical_field_terminal_patc
         'next_cell_index': next_cell_index,
       },
     )
+  reflection_patch = patch
   seam_position_tolerance = float(seam_position_tolerance_m)
   common_diagnostics: dict[str, Any] = {
     'termination_model': 'ambient-closed-physical-field-terminal-reflection',
@@ -2413,6 +2595,7 @@ def solve_ambient_closed_post_shock_chain_cell_from_physical_field_terminal_patc
       'terminal-patch downstream shock solve raised; no physical endpoint was inferred',
       common_diagnostics,
     )
+  downstream_shock = solved
   common_diagnostics['downstream_shock_report'] = solved.as_report()
   if solved.physical_terminal_verified:
     terminal = solved.shock.normal_shock_terminal
@@ -2432,6 +2615,63 @@ def solve_ambient_closed_post_shock_chain_cell_from_physical_field_terminal_patc
         'verified terminal shock lies beyond the requested continuation interval',
         common_diagnostics,
       )
+    try:
+      # Keep this import local because shock_chain imports the coupled solver,
+      # which imports this module during package initialization.
+      from exhaust_plume.models.moc.shock_chain import (
+        assemble_terminal_shock_cell_field,
+      )
+
+      terminal_field = assemble_terminal_shock_cell_field(
+        source_strip,
+        patch,
+        solved,
+        target_centerline_y_m=target_centerline_y_m,
+        # The chain seam uses a millimetre-scale tolerance for the projected
+        # field/patch axis coordinates.  Mesh validity must remain at the
+        # smaller geometric scale, otherwise the first source-strip cells can
+        # be classified as zero-area merely because they are narrow.
+        position_tolerance_m=1.0e-9,
+        mesh_vertex_tolerance_m=1.0e-9,
+        shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      common_diagnostics.update({
+        'terminal_field_status': 'assembly-failure',
+        'terminal_field_message': str(error),
+      })
+      return decision(
+        MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
+        'verified terminal shock did not produce a closed supersonic terminal field',
+        common_diagnostics,
+      )
+    common_diagnostics['terminal_field_report'] = terminal_field.as_report()
+    if not terminal_field.converged or not terminal_field.supersonic_region_closed:
+      common_diagnostics.update({
+        'terminal_field_status': terminal_field.status.value,
+        'terminal_field_message': terminal_field.message,
+      })
+      return decision(
+        MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
+        'verified terminal shock reached a boundary, but its supersonic field remained open',
+        common_diagnostics,
+      )
+    try:
+      mixed_regime_request = terminal_field.mixed_regime_perimeter_request()
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      common_diagnostics.update({
+        'mixed_regime_request_status': 'assembly-failure',
+        'mixed_regime_request_message': str(error),
+      })
+      return decision(
+        MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
+        'closed supersonic terminal field did not expose a complete mixed-regime seam',
+        common_diagnostics,
+      )
+    common_diagnostics.update({
+      'mixed_regime_request_available': True,
+      'mixed_regime_request_report': mixed_regime_request.as_report(),
+    })
     terminal_decision = solved.as_physical_termination_decision()
     diagnostics = dict(terminal_decision.diagnostics)
     diagnostics.update(common_diagnostics)
@@ -2441,15 +2681,15 @@ def solve_ambient_closed_post_shock_chain_cell_from_physical_field_terminal_patc
       'physical_terminal_verified': True,
       'chain_cell_promotion': 'blocked-at-mixed-regime-boundary',
     })
-    return MocChainTerminationDecision(
-      physical_termination=True,
-      reason=MocChainTerminationReason.PHYSICAL_TERMINATION,
-      message=(
+    return decision(
+      MocChainTerminationReason.PHYSICAL_TERMINATION,
+      (
         'continued reflected physical field reached a verified normal-shock '
         'terminal; the unresolved subsonic mixed-regime field remains outside '
         'the supersonic shock-cell chain'
       ),
-      diagnostics=diagnostics,
+      diagnostics,
+      physical_termination=True,
     )
   common_diagnostics.update({
     'physical_terminal_verified': False,
@@ -2470,6 +2710,54 @@ def solve_ambient_closed_post_shock_chain_cell_from_physical_field_terminal_patc
     'continued shock did not produce a verified terminal or a complete next cell; no physical endpoint was inferred',
     common_diagnostics,
   )
+
+
+def solve_ambient_closed_post_shock_chain_cell_from_physical_field_terminal_patch_or_termination(
+  current_cell: MocChainCell,
+  next_cell_index: int,
+  incoming_handoff: Sequence[MocChainBoundarySample],
+  upstream_field: MocPhysicalPostShockFieldResult,
+  *,
+  end_x_m: float,
+  target_centerline_y_m: float = 0.0,
+  downstream_flow_angle_at: Callable[[int, tuple[float, float]], float] | None = None,
+  downstream_flow_angle_rad: float | None = 0.0,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  trace_position_tolerance_m: float = 1.0e-3,
+  seam_position_tolerance_m: float = 3.0e-3,
+  position_tolerance_m: float = 1.0e-3,
+  invariant_tolerance: float = 1.0e-10,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+) -> MocChainTerminationDecision:
+  """Return only the typed chain decision from the retained transition.
+
+  The richer transition result is the object-level API for downstream
+  mixed-regime planning.  This compatibility entry point preserves the
+  existing chain callback contract for callers that only need a cell-or-stop
+  decision.
+  """
+
+  result = solve_ambient_closed_post_shock_terminal_patch_transition(
+    current_cell,
+    next_cell_index,
+    incoming_handoff,
+    upstream_field,
+    end_x_m=end_x_m,
+    target_centerline_y_m=target_centerline_y_m,
+    downstream_flow_angle_at=downstream_flow_angle_at,
+    downstream_flow_angle_rad=downstream_flow_angle_rad,
+    sample_count=sample_count,
+    branch=branch,
+    trace_position_tolerance_m=trace_position_tolerance_m,
+    seam_position_tolerance_m=seam_position_tolerance_m,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+    shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+    maximum_segment_iterations=maximum_segment_iterations,
+  )
+  return result.decision
 
 
 def _physical_chain_failure(
