@@ -578,3 +578,9 @@ potential extension, and refuses perimeter points outside the measured
 transverse span. This is a higher-resolution scalar research lane for planner
 and visualization work; it remains below canonical reflected-MOC free-boundary
 closure and cannot promote a continued shock cell.
+
+The first-cell planner exposes this variant through a named wrapper so its
+non-affine profile evidence can be compared with the affine reference without
+merging their model assumptions. The wrapper records the exact terminal seam
+and leaves the scalar field beside the supersonic chain; it does not alter the
+chain termination or promotion gates.

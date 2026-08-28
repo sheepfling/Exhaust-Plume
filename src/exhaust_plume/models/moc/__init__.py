@@ -406,6 +406,7 @@ from exhaust_plume.models.moc.planner import (
   plan_solver_generated_first_cell_terminal_closure_reference,
   plan_solver_generated_first_cell_terminal_closure_reference_from_control_section,
   plan_first_cell_terminal_closure_with_planar_handoff,
+  plan_first_cell_terminal_closure_with_planar_frozen_profile_reference,
 )
 from exhaust_plume.models.moc.chain import (
   MocCellClosureStatus,
@@ -747,6 +748,7 @@ __all__ = (
   'plan_solver_generated_first_cell_terminal_closure_reference',
   'plan_solver_generated_first_cell_terminal_closure_reference_from_control_section',
   'plan_first_cell_terminal_closure_with_planar_handoff',
+  'plan_first_cell_terminal_closure_with_planar_frozen_profile_reference',
   'plan_first_cell_terminal_closure_with_planar_potential_reference',
   'assemble_ambient_boundary_post_shock_field',
   'assemble_ambient_boundary_post_shock_field_with_centerline_reflection',

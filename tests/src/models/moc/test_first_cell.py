@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from math import atan2, sqrt
 
 from exhaust_plume.models.moc import (
   CharacteristicState,
@@ -14,6 +15,7 @@ from exhaust_plume.models.moc import (
   MocMixedRegimeDownstreamConditionStatus,
   MocMixedRegimePerimeterRequest,
   MocMixedRegimePlanarPotentialReference,
+  MocMixedRegimePlanarFrozenProfileReference,
   MocPrescribedMixedRegimeClosureMock,
   MocSolverGeneratedMixedRegimeClosureReference,
   MocTerminalBoundaryGraphStatus,
@@ -29,6 +31,7 @@ from exhaust_plume.models.moc import (
   plan_solver_generated_first_cell_terminal_closure_reference_from_control_section,
   plan_first_cell_terminal_closure_with_planar_handoff,
   plan_first_cell_terminal_closure_with_planar_potential_reference,
+  plan_first_cell_terminal_closure_with_planar_frozen_profile_reference,
   solve_mixed_regime_subsonic_field,
   solve_marched_first_cell_terminal_closure,
   solve_marched_attached_shock_field,
@@ -652,6 +655,110 @@ def test_first_cell_planner_records_builtin_planar_potential_reference_without_p
   )
   assert planner.diagnostics['mixed_regime_planar_handoff_attached'] is False
   assert planner.diagnostics['mixed_regime_planar_projection_verified'] is True
+
+
+def test_first_cell_planner_records_non_affine_planar_reference_without_promotion() -> None:
+  shock_fit, strip, patch = _first_cell_inputs()
+  composite = assemble_first_cell_composite(
+    shock_fit,
+    strip,
+    patch,
+    position_tolerance_m=1.0e-3,
+  )
+  terminal_closure = solve_marched_first_cell_terminal_closure(
+    composite,
+    downstream_flow_angle_rad=0.0,
+    sample_count=17,
+    shock_position_tolerance_m=2.0e-4,
+  )
+  request = terminal_closure.mixed_regime_perimeter_request()
+  point = request.terminal_point_m
+  gamma = request.terminal.upstream_state.gamma
+  sonic_factor = 0.5 * (gamma - 1.0)
+  terminal_speed = request.terminal_downstream_mach / sqrt(
+    1.0 + sonic_factor * request.terminal_downstream_mach ** 2
+  )
+  section_points = (
+    (point[0] + 0.02, point[1] - 0.01),
+    (point[0] + 0.02, point[1]),
+    (point[0] + 0.02, point[1] + 0.01),
+  )
+  section = MocMixedRegimeControlSection(
+    points_m=section_points,
+    samples=tuple(
+      MocMixedRegimeFieldSample(
+        point_m=section_point,
+        mach=(
+          (terminal_speed ** 2 + tangential_speed ** 2)
+          / (
+            1.0
+            - sonic_factor * (terminal_speed ** 2 + tangential_speed ** 2)
+          )
+        ) ** 0.5,
+        flow_angle_rad=atan2(tangential_speed, terminal_speed),
+        static_pressure_Pa=(
+          request.terminal_downstream_total_pressure_Pa
+          / (
+            1.0
+            + sonic_factor * (
+              (terminal_speed ** 2 + tangential_speed ** 2)
+              / (
+                1.0
+                - sonic_factor * (
+                  terminal_speed ** 2 + tangential_speed ** 2
+                )
+              )
+            )
+          ) ** (gamma / (gamma - 1.0))
+        ),
+        total_pressure_Pa=request.terminal_downstream_total_pressure_Pa,
+        gamma=gamma,
+      )
+      for section_point, tangential_speed in zip(
+        section_points,
+        (0.002, 0.0, 0.002),
+        strict=True,
+      )
+    ),
+    normal_angle_rad=0.0,
+  )
+  perimeter_spec = MocMixedRegimeDownstreamPerimeterSpec(
+    perimeter_points_m=(
+      point,
+      (point[0] + 0.1, point[1]),
+      (point[0] + 0.1, point[1] + 0.01),
+      (point[0], point[1] + 0.01),
+      point,
+    ),
+    condition_kind=MocMixedRegimeDownstreamConditionKind.PRESSURE_OUTFLOW_SECTION,
+    ambient_pressure_Pa=request.terminal_downstream_pressure_Pa,
+    condition_edge_indices=(0,),
+    condition_sample_indices=(0, 1),
+  )
+
+  planner = plan_first_cell_terminal_closure_with_planar_frozen_profile_reference(
+    terminal_closure,
+    section,
+    perimeter_spec,
+    reference=MocMixedRegimePlanarFrozenProfileReference(radial_divisions=2),
+  )
+
+  assert planner.resolved
+  assert planner.physical_closure_verified is False
+  assert planner.physical_termination is False
+  assert planner.chain_promotion_blocked
+  assert planner.terminal.mixed_regime_field is None
+  assert planner.mixed_regime_planar_handoff is not None
+  assert planner.mixed_regime_planar_handoff.converged
+  assert planner.mixed_regime_planar_handoff.section_is_varying
+  assert planner.mixed_regime_planar_handoff.projection_model == (
+    'piecewise-linear-frozen-transverse-profile'
+  )
+  assert planner.diagnostics['mixed_regime_planar_handoff_attached'] is False
+  assert planner.diagnostics['mixed_regime_planar_projection_verified'] is True
+  assert planner.diagnostics[
+    'mixed_regime_planar_frozen_profile_reference'
+  ]['extrapolation_allowed'] is False
 
 
 def test_first_cell_terminal_closure_rejects_a_changed_outgoing_handoff() -> None:

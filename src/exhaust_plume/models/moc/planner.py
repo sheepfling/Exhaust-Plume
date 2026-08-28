@@ -90,6 +90,7 @@ from exhaust_plume.models.moc.mixed_regime import (
 from exhaust_plume.models.moc.mixed_regime_planar import (
   MocMixedRegimePlanarFieldSolver,
   MocMixedRegimePlanarPotentialReference,
+  MocMixedRegimePlanarFrozenProfileReference,
   MocMixedRegimePlanarSolveResult,
   run_mixed_regime_planar_field_solver,
 )
@@ -185,6 +186,7 @@ __all__ = (
   'plan_solver_generated_first_cell_terminal_closure_reference_from_control_section',
   'plan_first_cell_terminal_closure_with_planar_handoff',
   'plan_first_cell_terminal_closure_with_planar_potential_reference',
+  'plan_first_cell_terminal_closure_with_planar_frozen_profile_reference',
 )
 
 
@@ -1865,6 +1867,84 @@ def plan_first_cell_terminal_closure_with_planar_potential_reference(
     base,
     claim_status=(
       'control-section-projected-compressible-potential-reference; '
+      'canonical-reflected-moc-free-boundary-and-external-validation-pending'
+    ),
+    diagnostics=diagnostics,
+    mixed_regime_planar_handoff=handoff,
+  )
+  ####
+
+
+def plan_first_cell_terminal_closure_with_planar_frozen_profile_reference(
+  terminal: MocFirstCellTerminalClosureResult,
+  control_section: MocMixedRegimeControlSection,
+  perimeter_spec: MocMixedRegimeDownstreamPerimeterSpec,
+  *,
+  reference: MocMixedRegimePlanarFrozenProfileReference | None = None,
+) -> MocFirstCellTerminalClosurePlannerResult:
+  """Plan a first cell beside the non-affine planar reference lane.
+
+  The frozen-profile reference is intentionally an adjacent research result.
+  This wrapper retains its exact request and profile diagnostics in planner
+  evidence, but never attaches a scalar potential field to the supersonic
+  terminal or promotes it into a continued shock-cell chain.
+  """
+
+  if not isinstance(terminal, MocFirstCellTerminalClosureResult):
+    raise TypeError(
+      'terminal must be a MocFirstCellTerminalClosureResult'
+    )
+  if not isinstance(control_section, MocMixedRegimeControlSection):
+    raise TypeError(
+      'control_section must be a MocMixedRegimeControlSection'
+    )
+  if not isinstance(
+    perimeter_spec,
+    MocMixedRegimeDownstreamPerimeterSpec,
+  ):
+    raise TypeError(
+      'perimeter_spec must be a MocMixedRegimeDownstreamPerimeterSpec'
+    )
+  planar_reference = (
+    MocMixedRegimePlanarFrozenProfileReference()
+    if reference is None
+    else reference
+  )
+  if not isinstance(
+    planar_reference,
+    MocMixedRegimePlanarFrozenProfileReference,
+  ):
+    raise TypeError(
+      'reference must be a MocMixedRegimePlanarFrozenProfileReference or None'
+    )
+  handoff = planar_reference.solve(
+    terminal.mixed_regime_perimeter_request(),
+    control_section,
+    perimeter_spec,
+  )
+  base = plan_first_cell_terminal_closure(terminal)
+  diagnostics = dict(base.diagnostics)
+  diagnostics.update({
+    'mixed_regime_planar_frozen_profile_reference': (
+      planar_reference.as_report()
+    ),
+    'mixed_regime_planar_handoff_verified': handoff.handoff_verified,
+    'mixed_regime_planar_handoff': handoff.as_report(),
+    'mixed_regime_planar_handoff_attached': False,
+    'mixed_regime_planar_handoff_chain_promotion_blocked': (
+      handoff.chain_promotion_blocked
+    ),
+    'mixed_regime_planar_handoff_physical_closure_verified': (
+      handoff.physical_closure_verified
+    ),
+    'mixed_regime_planar_projection_verified': (
+      handoff.control_section_projection_verified
+    ),
+  })
+  return replace(
+    base,
+    claim_status=(
+      'control-section-frozen-profile-compressible-potential-reference; '
       'canonical-reflected-moc-free-boundary-and-external-validation-pending'
     ),
     diagnostics=diagnostics,

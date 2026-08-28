@@ -1580,3 +1580,9 @@ not extrapolated states. The resulting nonlinear field and independent
 measurement are useful for higher-resolution planning and visualization, but
 the lane remains a scalar research reference with no canonical free-boundary
 or continued-chain promotion claim.
+
+The first-cell planner now has an explicit wrapper for this frozen-profile
+reference. It retains the exact terminal request, section, perimeter, profile
+policy, and independent handoff result as adjacent diagnostics. The wrapper
+keeps the terminal's mixed-regime field unattached and preserves the typed
+open-physical-closure chain stop.
