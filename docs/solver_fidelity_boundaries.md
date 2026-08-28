@@ -665,3 +665,9 @@ nonuniform entropy transport, the canonical free boundary, the mixed-regime
 downstream field, or the physical shock-cell closure; those remain the next
 gates. The basic visual, reduced-order, signature, ray, and focal-plane-array
 providers remain untouched.
+The independent `op.moc.reflected-domain-remesh` measurement operator
+rechecks the raw incoming trace, polarity, reflection seam, source rows,
+pressure lineage, topology, and bounded state sampling. It also preserves the
+typed rejection of reusing the prior single `C-` front. A passing measurement
+is bounded remesh evidence only and keeps physical closure, chain promotion,
+and production claims false.

@@ -26247,7 +26247,7 @@
             "model": "solver-generated-terminal-reflection-patch-ambient-closure-chain-reference",
             "planning_only": true,
             "production_claim_allowed": false,
-            "physical_chain_promotion_allowed": true,
+            "physical_chain_promotion_allowed": false,
             "total_cell_count_including_seed": 3,
             "target_centerline_y_m": 0.0,
             "target_centerline_flow_angle_rad": 0.0,
@@ -26646,6 +26646,45 @@
           },
           "message": "explicit reflected-domain Cauchy remesh converged as a bounded source field; shock, nonuniform entropy, ambient closure, and promotion remain separate gates"
         },
+        "independent_measurement": {
+          "status": "converged",
+          "operator_id": "op.moc.reflected-domain-remesh",
+          "converged": true,
+          "remesh_status": "converged_bounded_reflected_domain_field",
+          "incoming_trace_polarity": "compression-required",
+          "counts": {
+            "incoming_trace_sample_count": 18,
+            "centerline_source_count": 6,
+            "outer_source_count": 6,
+            "source_node_count": 21,
+            "source_cell_count": 20
+          },
+          "source_topology": {
+            "status": "open",
+            "connected": true,
+            "forms_closed_zone": true,
+            "boundary_edge_count": 17,
+            "boundary_component_count": 1,
+            "nonmanifold_edge_count": 0
+          },
+          "checks": {
+            "result_status_verified": true,
+            "incoming_trace_verified": true,
+            "polarity_verified": true,
+            "reflection_seam_verified": true,
+            "centerline_source_verified": true,
+            "outer_source_verified": true,
+            "total_pressure_verified": true,
+            "source_topology_verified": true,
+            "source_sampling_verified": true,
+            "bounded_remesh_verified": true
+          },
+          "physical_closure_verified": false,
+          "chain_promotion_blocked": true,
+          "production_claim_allowed": false,
+          "claim_status": "independent-reflected-domain-remesh-audit; not-accepted",
+          "message": "bounded reflected-domain Cauchy remesh passed independent trace, seam, source-row, pressure, topology, and sampling checks; physical closure and chain promotion remain separate pending gates"
+        },
         "reused_single_front_rejection": {
           "status": "reflected_domain_outer_source_failure",
           "converged": false,
@@ -26793,6 +26832,45 @@
             }
           },
           "message": "new outer source data must be a downstream, above-centerline curve with varying C- invariant; the prior single C- front cannot be reused"
+        },
+        "reused_single_front_measurement": {
+          "status": "source_failure",
+          "operator_id": "op.moc.reflected-domain-remesh",
+          "converged": false,
+          "remesh_status": "reflected_domain_outer_source_failure",
+          "incoming_trace_polarity": "compression-required",
+          "counts": {
+            "incoming_trace_sample_count": 18,
+            "centerline_source_count": 6,
+            "outer_source_count": 6,
+            "source_node_count": 0,
+            "source_cell_count": 0
+          },
+          "source_topology": {
+            "status": "invalid_input",
+            "connected": false,
+            "forms_closed_zone": false,
+            "boundary_edge_count": 0,
+            "boundary_component_count": 0,
+            "nonmanifold_edge_count": 0
+          },
+          "checks": {
+            "result_status_verified": false,
+            "incoming_trace_verified": true,
+            "polarity_verified": true,
+            "reflection_seam_verified": true,
+            "centerline_source_verified": true,
+            "outer_source_verified": false,
+            "total_pressure_verified": false,
+            "source_topology_verified": false,
+            "source_sampling_verified": false,
+            "bounded_remesh_verified": false
+          },
+          "physical_closure_verified": false,
+          "chain_promotion_blocked": true,
+          "production_claim_allowed": false,
+          "claim_status": "independent-reflected-domain-remesh-audit; not-accepted",
+          "message": "reflected-domain centerline/outer source rows or scalar pressure lineage failed independent measurement"
         },
         "one_step_planner": {
           "planner_kind": "upstream-coupled-research",
@@ -38136,6 +38214,45 @@
         },
         "message": "explicit reflected-domain Cauchy remesh converged as a bounded source field; shock, nonuniform entropy, ambient closure, and promotion remain separate gates"
       },
+      "independent_measurement": {
+        "status": "converged",
+        "operator_id": "op.moc.reflected-domain-remesh",
+        "converged": true,
+        "remesh_status": "converged_bounded_reflected_domain_field",
+        "incoming_trace_polarity": "compression-required",
+        "counts": {
+          "incoming_trace_sample_count": 18,
+          "centerline_source_count": 6,
+          "outer_source_count": 6,
+          "source_node_count": 21,
+          "source_cell_count": 20
+        },
+        "source_topology": {
+          "status": "open",
+          "connected": true,
+          "forms_closed_zone": true,
+          "boundary_edge_count": 17,
+          "boundary_component_count": 1,
+          "nonmanifold_edge_count": 0
+        },
+        "checks": {
+          "result_status_verified": true,
+          "incoming_trace_verified": true,
+          "polarity_verified": true,
+          "reflection_seam_verified": true,
+          "centerline_source_verified": true,
+          "outer_source_verified": true,
+          "total_pressure_verified": true,
+          "source_topology_verified": true,
+          "source_sampling_verified": true,
+          "bounded_remesh_verified": true
+        },
+        "physical_closure_verified": false,
+        "chain_promotion_blocked": true,
+        "production_claim_allowed": false,
+        "claim_status": "independent-reflected-domain-remesh-audit; not-accepted",
+        "message": "bounded reflected-domain Cauchy remesh passed independent trace, seam, source-row, pressure, topology, and sampling checks; physical closure and chain promotion remain separate pending gates"
+      },
       "reused_single_front_rejection": {
         "status": "reflected_domain_outer_source_failure",
         "converged": false,
@@ -38283,6 +38400,45 @@
           }
         },
         "message": "new outer source data must be a downstream, above-centerline curve with varying C- invariant; the prior single C- front cannot be reused"
+      },
+      "reused_single_front_measurement": {
+        "status": "source_failure",
+        "operator_id": "op.moc.reflected-domain-remesh",
+        "converged": false,
+        "remesh_status": "reflected_domain_outer_source_failure",
+        "incoming_trace_polarity": "compression-required",
+        "counts": {
+          "incoming_trace_sample_count": 18,
+          "centerline_source_count": 6,
+          "outer_source_count": 6,
+          "source_node_count": 0,
+          "source_cell_count": 0
+        },
+        "source_topology": {
+          "status": "invalid_input",
+          "connected": false,
+          "forms_closed_zone": false,
+          "boundary_edge_count": 0,
+          "boundary_component_count": 0,
+          "nonmanifold_edge_count": 0
+        },
+        "checks": {
+          "result_status_verified": false,
+          "incoming_trace_verified": true,
+          "polarity_verified": true,
+          "reflection_seam_verified": true,
+          "centerline_source_verified": true,
+          "outer_source_verified": false,
+          "total_pressure_verified": false,
+          "source_topology_verified": false,
+          "source_sampling_verified": false,
+          "bounded_remesh_verified": false
+        },
+        "physical_closure_verified": false,
+        "chain_promotion_blocked": true,
+        "production_claim_allowed": false,
+        "claim_status": "independent-reflected-domain-remesh-audit; not-accepted",
+        "message": "reflected-domain centerline/outer source rows or scalar pressure lineage failed independent measurement"
       },
       "one_step_planner": {
         "planner_kind": "upstream-coupled-research",
@@ -61154,7 +61310,7 @@
   },
   "failures": [],
   "next_gates": [
-    "replace the research terminal-patch downstream turn with a physically validated reflected-domain law for any further shock-cell transition",
+    "replace the bounded reflected-domain Cauchy fixture with a coupled canonical alternating-family/free-boundary remesher for any further shock-cell transition",
     "replace the provisional constant-invariant boundary with a physically validated downstream closure and a straddling canonical bracket",
     "complete and independently validate the canonical reflected-MOC mixed-regime downstream closure after the open oblique supersonic patch; the affine projected potential reference remains research-only",
     "production next-cell shock fitting that consumes the typed state/total-pressure handoff without a geometric template",

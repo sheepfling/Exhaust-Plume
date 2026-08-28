@@ -190,11 +190,13 @@ from exhaust_plume.validation.moc_measurements import (  # noqa: E402
   MocMixedRegimeFreeBoundaryMeasurementStatus,
   MocMixedRegimeFreeBoundaryRefinementCase,
   MocMixedRegimeFreeBoundaryRefinementMeasurementStatus,
+  MocReflectedDomainRemeshMeasurementStatus,
   MocTerminalClosureObservation,
   MocShockCellObservation,
   MocShockCellChainRefinementCase,
   measure_moc_caustic_remesh,
   measure_moc_chain_planner,
+  measure_moc_reflected_domain_remesh,
   measure_mixed_regime_control_section,
   measure_mixed_regime_free_boundary_reference,
   measure_mixed_regime_free_boundary_refinement,
@@ -554,6 +556,8 @@ def _reflected_domain_remesh_probe(
       'message': f'reflected-domain fixture failed: {error}',
       'claim_status': 'reflected-domain-remesh-pending',
     }
+  remesh_measurement = measure_moc_reflected_domain_remesh(remesh)
+  reused_front_measurement = measure_moc_reflected_domain_remesh(reused_front)
 
   one_step_planner = None
   one_step_error = None
@@ -670,6 +674,11 @@ def _reflected_domain_remesh_probe(
   )
   accepted = bool(
     remesh.status is MocReflectedDomainRemeshStatus.CONVERGED_BOUNDED_FIELD
+    and remesh_measurement.status is MocReflectedDomainRemeshMeasurementStatus.CONVERGED
+    and remesh_measurement.bounded_remesh_verified
+    and remesh_measurement.physical_closure_verified is False
+    and remesh_measurement.chain_promotion_blocked
+    and remesh_measurement.production_claim_allowed is False
     and remesh.state_sampling_available
     and remesh.reflection_seam_verified
     and remesh.centerline_source_verified
@@ -678,6 +687,8 @@ def _reflected_domain_remesh_probe(
     and remesh.physical_closure_verified is False
     and remesh.chain_promotion_blocked
     and reused_front.status is MocReflectedDomainRemeshStatus.OUTER_SOURCE_FAILURE
+    and reused_front_measurement.converged is False
+    and reused_front_measurement.outer_source_verified is False
     and one_step_planner is not None
     and one_step_planner.production_claim_allowed is False
     and one_step_planner.diagnostics['one_step_domain'] is True
@@ -701,7 +712,9 @@ def _reflected_domain_remesh_probe(
     'status': remesh.status.value,
     'accepted': accepted,
     'remesh': remesh.as_report(),
+    'independent_measurement': remesh_measurement.as_report(),
     'reused_single_front_rejection': reused_front.as_report(),
+    'reused_single_front_measurement': reused_front_measurement.as_report(),
     'one_step_planner': one_step_report,
     'one_step_error': one_step_error,
     'sequence_planner': sequence_report,
@@ -1392,7 +1405,7 @@ def _ambient_shock_strip_probe(
       ]
       and terminal_patch_ambient_closure_planner.diagnostics[
         'terminal_reflection_patch_ambient_closure_chain_reference'
-      ]['physical_chain_promotion_allowed'] is True
+      ]['physical_chain_promotion_allowed'] is False
       and terminal_patch_ambient_closure_planner.diagnostics[
         'terminal_reflection_patch_ambient_closure_chain_reference'
       ]['polarity_aware'] is True

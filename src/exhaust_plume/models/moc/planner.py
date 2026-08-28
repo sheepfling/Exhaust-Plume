@@ -3801,7 +3801,11 @@ class MocTerminalReflectionPatchAmbientClosureChainReference:
       'model': self.model,
       'planning_only': True,
       'production_claim_allowed': False,
-      'physical_chain_promotion_allowed': True,
+      # The reference may exercise a locally accepted physical-field
+      # continuation, but its reflected-domain/remeshing and external
+      # validation gates are still open.  Keep the serialized claim ceiling
+      # aligned with the chain and result contracts.
+      'physical_chain_promotion_allowed': False,
       'total_cell_count_including_seed': self.total_cell_count,
       'target_centerline_y_m': self.target_centerline_y_m,
       'target_centerline_flow_angle_rad': self.target_centerline_flow_angle_rad,

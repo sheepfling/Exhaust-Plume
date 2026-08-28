@@ -46,10 +46,18 @@ from exhaust_plume.models.moc.chain import (
   MocCellClosureStatus,
   MocChainGeometryFidelity,
   MocChainTerminationReason,
+  validate_characteristic_trace,
 )
 from exhaust_plume.models.moc.planner import MocChainPlannerResult
 from exhaust_plume.models.moc.compression import MocNormalShockTerminalResult
-from exhaust_plume.models.moc.primitives import CharacteristicState
+from exhaust_plume.models.moc.primitives import (
+  CharacteristicFamily,
+  CharacteristicState,
+)
+from exhaust_plume.models.moc.reflected_domain import (
+  MocReflectedDomainRemeshResult,
+  MocReflectedDomainRemeshStatus,
+)
 from exhaust_plume.models.moc.post_shock import (
   MocPostShockBoundaryState,
   MocPostShockCharacteristicFieldResult,
@@ -58,6 +66,10 @@ from exhaust_plume.models.moc.post_shock import (
   fit_attached_shock_boundary,
 )
 from exhaust_plume.models.moc.shock_chain import MocTerminalShockCellFieldResult
+from exhaust_plume.models.moc.source_strip import MocSourceCharacteristicStripResult
+from exhaust_plume.models.moc.terminal_patch import (
+  classify_reflected_trace_polarity,
+)
 from exhaust_plume.models.moc.topology import MocTopologyResult, validate_moc_mesh
 from exhaust_plume.models.moc.zone import MocCharacteristicNode
 from exhaust_plume.models.moc.free_boundary import MocFreeBoundaryShockResult
@@ -66,6 +78,7 @@ from exhaust_plume.util.aero.shock_validity import ShockBranch
 __all__ = (
   'MOC_CAUSTIC_REMESH_OPERATOR_ID',
   'MOC_CHAIN_PLANNER_OPERATOR_ID',
+  'MOC_REFLECTED_DOMAIN_REMESH_OPERATOR_ID',
   'MOC_MIXED_REGIME_FREE_BOUNDARY_OPERATOR_ID',
   'MOC_MIXED_REGIME_FREE_BOUNDARY_REFINEMENT_OPERATOR_ID',
   'MOC_MIXED_REGIME_CONTROL_SECTION_OPERATOR_ID',
@@ -79,6 +92,8 @@ __all__ = (
   'MocCausticRemeshObservation',
   'MocChainPlannerMeasurement',
   'MocChainPlannerMeasurementStatus',
+  'MocReflectedDomainRemeshMeasurement',
+  'MocReflectedDomainRemeshMeasurementStatus',
   'MocMixedRegimePotentialMeasurement',
   'MocMixedRegimePotentialMeasurementStatus',
   'MocMixedRegimeFreeBoundaryMeasurement',
@@ -100,6 +115,7 @@ __all__ = (
   'MocShockCellObservation',
   'measure_moc_caustic_remesh',
   'measure_moc_chain_planner',
+  'measure_moc_reflected_domain_remesh',
   'measure_mixed_regime_compressible_potential_field',
   'measure_mixed_regime_free_boundary_reference',
   'measure_mixed_regime_free_boundary_refinement',
@@ -119,6 +135,7 @@ MOC_SHOCK_CELL_CHAIN_REFINEMENT_OPERATOR_ID = (
 MOC_TERMINAL_CLOSURE_OPERATOR_ID = 'op.moc.terminal-closure'
 MOC_CAUSTIC_REMESH_OPERATOR_ID = 'op.moc.caustic-remesh'
 MOC_CHAIN_PLANNER_OPERATOR_ID = 'op.moc.chain-planner'
+MOC_REFLECTED_DOMAIN_REMESH_OPERATOR_ID = 'op.moc.reflected-domain-remesh'
 MOC_MIXED_REGIME_FREE_BOUNDARY_OPERATOR_ID = (
   'op.moc.mixed-regime-free-boundary-reference'
 )
@@ -1239,6 +1256,106 @@ class MocCausticRemeshMeasurement:
         'minimum_total_pressure_ratio': self.minimum_total_pressure_ratio,
         'maximum_total_pressure_ratio': self.maximum_total_pressure_ratio,
       },
+      'claim_status': self.claim_status,
+      'message': self.message,
+    }
+  ####
+
+
+class MocReflectedDomainRemeshMeasurementStatus(str, Enum):
+  """Outcome of the independent reflected-domain remesh measurement."""
+
+  CONVERGED = 'converged'
+  INVALID_INPUT = 'invalid_input'
+  INCOMING_TRACE_FAILURE = 'incoming_trace_failure'
+  REFLECTION_SEAM_FAILURE = 'reflection_seam_failure'
+  SOURCE_FAILURE = 'source_failure'
+  FIELD_FAILURE = 'field_failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainRemeshMeasurement:
+  """Independent gates for one bounded reflected-domain source remesh.
+
+  The remesh result is treated as raw solver data.  This operator repeats the
+  incoming ``C-`` trace, polarity, reflection seam, source-row, topology, and
+  source sampling checks without accepting the result object's cached boolean
+  flags as evidence.  A converged measurement is only a bounded Cauchy-field
+  result; it does not close the downstream free boundary or promote a chain
+  cell.
+  """
+
+  status: MocReflectedDomainRemeshMeasurementStatus
+  operator_id: str
+  remesh_status: str | None
+  incoming_trace_polarity: str | None
+  incoming_trace_sample_count: int
+  centerline_source_count: int
+  outer_source_count: int
+  source_node_count: int
+  source_cell_count: int
+  source_topology: MocTopologyResult
+  result_status_verified: bool
+  incoming_trace_verified: bool
+  polarity_verified: bool
+  reflection_seam_verified: bool
+  centerline_source_verified: bool
+  outer_source_verified: bool
+  total_pressure_verified: bool
+  source_topology_verified: bool
+  source_sampling_verified: bool
+  bounded_remesh_verified: bool
+  physical_closure_verified: bool
+  chain_promotion_blocked: bool
+  production_claim_allowed: bool
+  claim_status: str
+  message: str
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocReflectedDomainRemeshMeasurementStatus.CONVERGED
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    """Return a JSON-compatible independent remesh measurement record."""
+
+    return {
+      'status': self.status.value,
+      'operator_id': self.operator_id,
+      'converged': self.converged,
+      'remesh_status': self.remesh_status,
+      'incoming_trace_polarity': self.incoming_trace_polarity,
+      'counts': {
+        'incoming_trace_sample_count': self.incoming_trace_sample_count,
+        'centerline_source_count': self.centerline_source_count,
+        'outer_source_count': self.outer_source_count,
+        'source_node_count': self.source_node_count,
+        'source_cell_count': self.source_cell_count,
+      },
+      'source_topology': {
+        'status': self.source_topology.status.value,
+        'connected': self.source_topology.connected,
+        'forms_closed_zone': self.source_topology.forms_closed_zone,
+        'boundary_edge_count': self.source_topology.boundary_edge_count,
+        'boundary_component_count': self.source_topology.boundary_component_count,
+        'nonmanifold_edge_count': self.source_topology.nonmanifold_edge_count,
+      },
+      'checks': {
+        'result_status_verified': self.result_status_verified,
+        'incoming_trace_verified': self.incoming_trace_verified,
+        'polarity_verified': self.polarity_verified,
+        'reflection_seam_verified': self.reflection_seam_verified,
+        'centerline_source_verified': self.centerline_source_verified,
+        'outer_source_verified': self.outer_source_verified,
+        'total_pressure_verified': self.total_pressure_verified,
+        'source_topology_verified': self.source_topology_verified,
+        'source_sampling_verified': self.source_sampling_verified,
+        'bounded_remesh_verified': self.bounded_remesh_verified,
+      },
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
       'claim_status': self.claim_status,
       'message': self.message,
     }
@@ -6199,6 +6316,367 @@ def measure_moc_caustic_remesh(
     maximum_field_invariant_residual=maximum_field_invariant_residual,
     minimum_total_pressure_ratio=minimum_total_pressure_ratio,
     maximum_total_pressure_ratio=maximum_total_pressure_ratio,
+    message=message,
+  )
+####
+
+
+def _reflected_domain_remesh_measurement_failure(
+  status: MocReflectedDomainRemeshMeasurementStatus,
+  *,
+  remesh_status: str | None = None,
+  incoming_trace_polarity: str | None = None,
+  incoming_trace_sample_count: int = 0,
+  centerline_source_count: int = 0,
+  outer_source_count: int = 0,
+  source_node_count: int = 0,
+  source_cell_count: int = 0,
+  source_topology: MocTopologyResult | None = None,
+  result_status_verified: bool = False,
+  incoming_trace_verified: bool = False,
+  polarity_verified: bool = False,
+  reflection_seam_verified: bool = False,
+  centerline_source_verified: bool = False,
+  outer_source_verified: bool = False,
+  total_pressure_verified: bool = False,
+  source_topology_verified: bool = False,
+  source_sampling_verified: bool = False,
+  bounded_remesh_verified: bool = False,
+  message: str,
+) -> MocReflectedDomainRemeshMeasurement:
+  return MocReflectedDomainRemeshMeasurement(
+    status=status,
+    operator_id=MOC_REFLECTED_DOMAIN_REMESH_OPERATOR_ID,
+    remesh_status=remesh_status,
+    incoming_trace_polarity=incoming_trace_polarity,
+    incoming_trace_sample_count=incoming_trace_sample_count,
+    centerline_source_count=centerline_source_count,
+    outer_source_count=outer_source_count,
+    source_node_count=source_node_count,
+    source_cell_count=source_cell_count,
+    source_topology=(
+      _empty_topology() if source_topology is None else source_topology
+    ),
+    result_status_verified=result_status_verified,
+    incoming_trace_verified=incoming_trace_verified,
+    polarity_verified=polarity_verified,
+    reflection_seam_verified=reflection_seam_verified,
+    centerline_source_verified=centerline_source_verified,
+    outer_source_verified=outer_source_verified,
+    total_pressure_verified=total_pressure_verified,
+    source_topology_verified=source_topology_verified,
+    source_sampling_verified=source_sampling_verified,
+    bounded_remesh_verified=bounded_remesh_verified,
+    physical_closure_verified=False,
+    chain_promotion_blocked=True,
+    production_claim_allowed=False,
+    claim_status='independent-reflected-domain-remesh-audit; not-accepted',
+    message=message,
+  )
+####
+
+
+def measure_moc_reflected_domain_remesh(
+  remesh: MocReflectedDomainRemeshResult,
+) -> MocReflectedDomainRemeshMeasurement:
+  """Independently audit one bounded reflected-domain source remesh.
+
+  The operator remeasures the raw request and source-strip data.  In
+  particular, it does not use ``reflection_seam_verified``,
+  ``centerline_source_verified``, ``outer_source_verified``, or
+  ``source_field_verified`` from the solver result as acceptance evidence.
+  Passing therefore means only that the explicit Cauchy remesh is locally
+  bounded and reproducible; canonical free-boundary closure and chain
+  promotion remain separate gates.
+  """
+
+  if not isinstance(remesh, MocReflectedDomainRemeshResult):
+    return _reflected_domain_remesh_measurement_failure(
+      MocReflectedDomainRemeshMeasurementStatus.INVALID_INPUT,
+      message=(
+        'remesh must be a MocReflectedDomainRemeshResult'
+      ),
+    )
+
+  remesh_status = getattr(remesh.status, 'value', str(remesh.status))
+  result_status_verified = (
+    remesh.status is MocReflectedDomainRemeshStatus.CONVERGED_BOUNDED_FIELD
+  )
+  request = remesh.request
+  if request is None:
+    return _reflected_domain_remesh_measurement_failure(
+      MocReflectedDomainRemeshMeasurementStatus.INVALID_INPUT,
+      remesh_status=remesh_status,
+      result_status_verified=result_status_verified,
+      message='reflected-domain remesh result does not carry a request',
+    )
+
+  incoming = tuple(request.incoming_trace)
+  centerline = tuple(request.centerline_source_states)
+  outer = tuple(request.outer_source_states)
+  incoming_count = len(incoming)
+  centerline_count = len(centerline)
+  outer_count = len(outer)
+
+  try:
+    incoming_validation = validate_characteristic_trace(
+      incoming,
+      CharacteristicFamily.MINUS,
+      position_tolerance_m=request.position_tolerance_m,
+      forward_position_tolerance_m=request.trace_forward_tolerance_m,
+      invariant_tolerance=request.invariant_tolerance,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return _reflected_domain_remesh_measurement_failure(
+      MocReflectedDomainRemeshMeasurementStatus.INVALID_INPUT,
+      remesh_status=remesh_status,
+      incoming_trace_sample_count=incoming_count,
+      centerline_source_count=centerline_count,
+      outer_source_count=outer_count,
+      result_status_verified=result_status_verified,
+      message=f'incoming reflected trace measurement raised: {error}',
+    )
+  incoming_trace_verified = incoming_validation.converged
+
+  try:
+    polarity = classify_reflected_trace_polarity(
+      incoming,
+      target_centerline_y_m=request.target_centerline_y_m,
+      target_centerline_flow_angle_rad=request.target_centerline_flow_angle_rad,
+      position_tolerance_m=request.position_tolerance_m,
+      forward_position_tolerance_m=request.trace_forward_tolerance_m,
+      invariant_tolerance=request.invariant_tolerance,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return _reflected_domain_remesh_measurement_failure(
+      MocReflectedDomainRemeshMeasurementStatus.INVALID_INPUT,
+      remesh_status=remesh_status,
+      incoming_trace_sample_count=incoming_count,
+      centerline_source_count=centerline_count,
+      outer_source_count=outer_count,
+      result_status_verified=result_status_verified,
+      incoming_trace_verified=incoming_trace_verified,
+      message=f'reflected trace polarity measurement raised: {error}',
+    )
+  incoming_trace_polarity = getattr(polarity.status, 'value', str(polarity.status))
+  polarity_verified = bool(
+    polarity.converged
+    and (
+      request.declared_polarity is None
+      or request.declared_polarity is polarity.status
+    )
+  )
+
+  reflection_seam_verified = False
+  if incoming and centerline:
+    anchor = incoming[-1]
+    first_centerline = centerline[0]
+    reflection_seam_verified = bool(
+      abs(anchor.state.y_m - request.target_centerline_y_m)
+      <= request.position_tolerance_m
+      and abs(anchor.state.theta_rad - request.target_centerline_flow_angle_rad)
+      <= request.invariant_tolerance
+      and _caustic_state_matches(
+        first_centerline,
+        anchor.state,
+        position_tolerance_m=request.position_tolerance_m,
+        state_tolerance=request.invariant_tolerance,
+      )
+      and _pressure_matches(
+        anchor.total_pressure_Pa,
+        request.total_pressure_Pa,
+        pressure_tolerance=request.pressure_tolerance,
+      )
+    )
+
+  centerline_source_verified = bool(
+    len(centerline) >= 3
+    and all(isinstance(state, CharacteristicState) for state in centerline)
+    and all(
+      abs(state.gamma - centerline[0].gamma) <= request.invariant_tolerance
+      and abs(state.y_m - request.target_centerline_y_m)
+      <= request.position_tolerance_m
+      and abs(state.theta_rad - request.target_centerline_flow_angle_rad)
+      <= request.invariant_tolerance
+      for state in centerline
+    )
+    and all(
+      next_state.x_m > state.x_m + request.position_tolerance_m
+      for state, next_state in zip(centerline, centerline[1:])
+    )
+  )
+  outer_source_verified = bool(
+    len(outer) >= 3
+    and len(outer) == len(centerline)
+    and all(isinstance(state, CharacteristicState) for state in outer)
+    and all(
+      abs(state.gamma - centerline[0].gamma) <= request.invariant_tolerance
+      and state.y_m > request.target_centerline_y_m + request.position_tolerance_m
+      for state in outer
+    )
+    and all(
+      next_state.x_m > state.x_m + request.position_tolerance_m
+      for state, next_state in zip(outer, outer[1:])
+    )
+    and bool(centerline)
+    and outer[0].x_m > centerline[0].x_m + request.position_tolerance_m
+    and (
+      max(state.k_minus for state in outer)
+      - min(state.k_minus for state in outer)
+      > request.invariant_tolerance
+    )
+  )
+
+  incoming_pressure_verified = bool(
+    incoming
+    and all(
+      _pressure_matches(
+        sample.total_pressure_Pa,
+        request.total_pressure_Pa,
+        pressure_tolerance=request.pressure_tolerance,
+      )
+      for sample in incoming
+    )
+  )
+
+  source_strip = remesh.source_strip
+  source_node_count = 0
+  source_cell_count = 0
+  source_topology = _empty_topology()
+  source_topology_verified = False
+  source_sampling_verified = False
+  source_pressure_verified = False
+  if isinstance(source_strip, MocSourceCharacteristicStripResult):
+    source_node_count = len(source_strip.nodes)
+    source_cell_count = len(source_strip.cells)
+    try:
+      source_topology = validate_moc_mesh(source_strip.cells)
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+      source_topology = _empty_topology()
+    source_topology_verified = bool(
+      source_strip.converged
+      and source_topology.connected
+      and source_topology.forms_closed_zone
+      and source_topology.nonmanifold_edge_count == 0
+    )
+    source_samples = (*centerline, *outer)
+    sampled_states_verified = True
+    sampled_pressures_verified = True
+    if not source_samples:
+      sampled_states_verified = False
+      sampled_pressures_verified = False
+    for state in source_samples:
+      try:
+        sampled_state = source_strip.state_at(
+          (state.x_m, state.y_m),
+          position_tolerance_m=request.position_tolerance_m,
+        )
+        sampled_pressure = source_strip.static_pressure_at(
+          (state.x_m, state.y_m),
+          position_tolerance_m=request.position_tolerance_m,
+        )
+      except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+        sampled_state = None
+        sampled_pressure = None
+      sampled_states_verified = sampled_states_verified and bool(
+        _caustic_state_matches(
+          sampled_state,
+          state,
+          position_tolerance_m=request.position_tolerance_m,
+          state_tolerance=request.invariant_tolerance,
+        )
+      )
+      sampled_pressures_verified = sampled_pressures_verified and bool(
+        sampled_pressure is not None
+        and isfinite(float(sampled_pressure))
+        and float(sampled_pressure) > 0.0
+      )
+    source_sampling_verified = bool(
+      source_strip.converged
+      and sampled_states_verified
+      and sampled_pressures_verified
+    )
+    source_pressure_verified = _pressure_matches(
+      source_strip.total_pressure_Pa,
+      request.total_pressure_Pa,
+      pressure_tolerance=request.pressure_tolerance,
+    )
+  total_pressure_verified = bool(
+    incoming_pressure_verified and source_pressure_verified
+  )
+  bounded_remesh_verified = bool(
+    result_status_verified
+    and incoming_trace_verified
+    and polarity_verified
+    and reflection_seam_verified
+    and centerline_source_verified
+    and outer_source_verified
+    and total_pressure_verified
+    and source_topology_verified
+    and source_sampling_verified
+  )
+
+  if not incoming_trace_verified or not polarity_verified:
+    status = MocReflectedDomainRemeshMeasurementStatus.INCOMING_TRACE_FAILURE
+    message = (
+      'incoming reflected C- trace or declared polarity failed independent '
+      'measurement'
+    )
+  elif not reflection_seam_verified:
+    status = MocReflectedDomainRemeshMeasurementStatus.REFLECTION_SEAM_FAILURE
+    message = (
+      'incoming reflected endpoint, first centerline state, or total-pressure '
+      'seam failed independent measurement'
+    )
+  elif (
+    not centerline_source_verified
+    or not outer_source_verified
+    or not total_pressure_verified
+  ):
+    status = MocReflectedDomainRemeshMeasurementStatus.SOURCE_FAILURE
+    message = (
+      'reflected-domain centerline/outer source rows or scalar pressure '
+      'lineage failed independent measurement'
+    )
+  elif not source_topology_verified or not source_sampling_verified:
+    status = MocReflectedDomainRemeshMeasurementStatus.FIELD_FAILURE
+    message = (
+      'reflected-domain source topology or state/pressure sampling failed '
+      'independent measurement'
+    )
+  elif not result_status_verified:
+    status = MocReflectedDomainRemeshMeasurementStatus.FIELD_FAILURE
+    message = (
+      'the remesh result did not report a converged bounded source field'
+    )
+  else:
+    status = MocReflectedDomainRemeshMeasurementStatus.CONVERGED
+    message = (
+      'bounded reflected-domain Cauchy remesh passed independent trace, seam, '
+      'source-row, pressure, topology, and sampling checks; physical closure '
+      'and chain promotion remain separate pending gates'
+    )
+
+  return _reflected_domain_remesh_measurement_failure(
+    status,
+    remesh_status=remesh_status,
+    incoming_trace_polarity=incoming_trace_polarity,
+    incoming_trace_sample_count=incoming_count,
+    centerline_source_count=centerline_count,
+    outer_source_count=outer_count,
+    source_node_count=source_node_count,
+    source_cell_count=source_cell_count,
+    source_topology=source_topology,
+    result_status_verified=result_status_verified,
+    incoming_trace_verified=incoming_trace_verified,
+    polarity_verified=polarity_verified,
+    reflection_seam_verified=reflection_seam_verified,
+    centerline_source_verified=centerline_source_verified,
+    outer_source_verified=outer_source_verified,
+    total_pressure_verified=total_pressure_verified,
+    source_topology_verified=source_topology_verified,
+    source_sampling_verified=source_sampling_verified,
+    bounded_remesh_verified=bounded_remesh_verified,
     message=message,
   )
 ####

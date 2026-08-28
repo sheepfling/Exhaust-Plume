@@ -1668,3 +1668,9 @@ report exercises both the accepted remesh and the typed rejection of front
 reuse. Canonical alternating-family/free-boundary remeshing, nonuniform
 entropy transport, mixed-regime closure, refinement, and external validation
 remain open, and no product/provider lane consumes this result.
+An independent `op.moc.reflected-domain-remesh` measurement now rechecks the
+raw trace, polarity, reflection seam, source rows, scalar pressure lineage,
+mesh topology, and bounded state sampling. This strengthens the local audit
+without changing the result's research-only ceiling: physical closure,
+canonical mixed-regime continuation, and external validation are still the
+next gates.

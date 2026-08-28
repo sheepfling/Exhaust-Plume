@@ -136,6 +136,12 @@ The latest report also exercises the explicit reflected-domain Cauchy remesh:
 the prior single ``C-`` front is retained only as a reflection anchor, a new
 outer source curve is required, exact handoff provenance is checked for the
 fresh-domain sequence, and the bounded result remains research-only.
+The same remesh now has an independent ``op.moc.reflected-domain-remesh``
+measurement operator. It rechecks the raw incoming trace, polarity, reflection
+seam, source rows, scalar pressure lineage, mesh topology, and bounded state
+sampling, including the typed single-front reuse rejection. A passing audit is
+still non-production: physical closure, canonical mixed-regime continuation,
+and external validation remain open.
 The same validation report now exercises a bounded scalar ambient-pressure
 shoot against the actual post-shock outer perimeter. Its synthetic pressure
 coordinate reaches a candidate root but the independent streamline-tangency

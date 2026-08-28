@@ -14,6 +14,7 @@ from exhaust_plume.models.moc import (
   MocReflectedDomainRemeshRequest,
   MocReflectedDomainRemeshStatus,
   MocSourceStripContinuationStatus,
+  MocTerminalReflectionPatchAmbientClosureChainReference,
   assemble_terminal_trace_centerline_patch,
   inverse_prandtl_meyer_angle_rad,
   plan_reflected_domain_remesh_shock_chain,
@@ -22,6 +23,10 @@ from exhaust_plume.models.moc import (
   solve_marched_attached_shock_with_ambient_centerline_physical_field,
   solve_reflected_domain_remesh,
   solve_uniform_attached_shock_field,
+)
+from exhaust_plume.validation.moc_measurements import (
+  MocReflectedDomainRemeshMeasurementStatus,
+  measure_moc_reflected_domain_remesh,
 )
 
 
@@ -204,6 +209,52 @@ def test_reflected_domain_remesh_rejects_reusing_the_single_c_minus_front_as_a_c
   )
 
 
+def test_reflected_domain_remesh_measurement_rechecks_raw_bounded_field_data():
+  _field, _patch, request = _request()
+  remesh = solve_reflected_domain_remesh(request)
+  assert remesh.converged
+
+  tampered = replace(
+    remesh,
+    reflection_seam_verified=False,
+    centerline_source_verified=False,
+    outer_source_verified=False,
+    source_field_verified=False,
+  )
+  measurement = measure_moc_reflected_domain_remesh(tampered)
+
+  assert measurement.status is MocReflectedDomainRemeshMeasurementStatus.CONVERGED
+  assert measurement.bounded_remesh_verified
+  assert measurement.incoming_trace_verified
+  assert measurement.polarity_verified
+  assert measurement.reflection_seam_verified
+  assert measurement.centerline_source_verified
+  assert measurement.outer_source_verified
+  assert measurement.total_pressure_verified
+  assert measurement.source_topology_verified
+  assert measurement.source_sampling_verified
+  assert measurement.physical_closure_verified is False
+  assert measurement.chain_promotion_blocked
+  assert measurement.production_claim_allowed is False
+
+
+def test_reflected_domain_remesh_measurement_preserves_single_front_rejection():
+  _field, patch, request = _request()
+  reused = solve_reflected_domain_remesh(
+    replace(
+      request,
+      outer_source_states=patch.outgoing_trace_states[:6],
+    )
+  )
+
+  measurement = measure_moc_reflected_domain_remesh(reused)
+
+  assert measurement.status is MocReflectedDomainRemeshMeasurementStatus.SOURCE_FAILURE
+  assert measurement.converged is False
+  assert measurement.outer_source_verified is False
+  assert measurement.bounded_remesh_verified is False
+
+
 def test_reflected_domain_remesh_rejects_a_wrong_reflection_anchor():
   _field, _patch, request = _request()
   changed_centerline = (
@@ -257,6 +308,14 @@ def test_reflected_domain_one_step_planner_keeps_the_remesh_below_physical_claim
     MocReflectedDomainRemeshStatus.CONVERGED_BOUNDED_FIELD.value
   )
   assert planner.chain.physical_termination is False
+
+
+def test_terminal_reflection_reference_report_keeps_chain_promotion_blocked():
+  report = MocTerminalReflectionPatchAmbientClosureChainReference().as_report()
+
+  assert report['planning_only'] is True
+  assert report['production_claim_allowed'] is False
+  assert report['physical_chain_promotion_allowed'] is False
 
 
 def test_reflected_domain_sequence_requires_exact_handoff_for_each_new_remesh(
