@@ -214,7 +214,8 @@ now measure explicit shock-cell geometry,
 perimeter topology, supplied shock-loss lineage, and exact adjacent
 state/total-pressure handoff identity for the reference and planner fixtures,
 while the separate `op.moc.chain-planner` operator independently audits the
-continued-cell step sequence, returned-to-incoming fingerprints, typed
+continued-cell step sequence, returned-to-incoming fingerprints, the exact
+state/total-pressure handoff retained by each returned field, typed
 termination, and fidelity isolation without using the planner's own handoff
 verdict as evidence across the prescribed mock, generated reference, and
 field-coupled terminal traces and the typed-stop continuation probes. These

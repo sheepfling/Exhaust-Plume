@@ -368,6 +368,12 @@ def test_moc_chain_planner_measurement_recomputes_trace_handoffs() -> None:
   assert result.production_claim_allowed is False
   assert result.as_report()['operator_id'] == 'op.moc.chain-planner'
   assert result.as_report()['checks']['domain_freshness_verified'] is True
+  assert all(
+    step.result_consumed_handoff_sample_count == step.incoming_handoff_sample_count
+    and step.result_consumed_total_pressure_range_Pa == step.incoming_total_pressure_range_Pa
+    and step.result_consumed_handoff_fingerprint == step.incoming_handoff_fingerprint
+    for step in planner.steps[:2]
+  )
 
 
 def test_moc_chain_planner_measurement_rejects_a_reused_mesh_domain() -> None:
@@ -407,6 +413,25 @@ def test_moc_chain_planner_measurement_rejects_tampered_handoff_metadata() -> No
   assert result.converged is False
   assert result.handoff_links_verified is None
   assert 'current-cell handoff' in result.message
+
+
+def test_moc_chain_planner_measurement_rejects_tampered_consumed_handoff_metadata() -> None:
+  planner = _planner_fixture()
+  tampered_step = replace(
+    planner.steps[1],
+    result_consumed_handoff_fingerprint='0' * 64,
+  )
+  tampered = replace(
+    planner,
+    steps=(planner.steps[0], tampered_step, *planner.steps[2:]),
+  )
+
+  result = measure_moc_chain_planner(tampered)
+
+  assert result.status is MocChainPlannerMeasurementStatus.HANDOFF_FAILURE
+  assert result.converged is False
+  assert result.returned_handoffs_verified is False
+  assert 'consumed by its returned field' in result.message
 
 
 def test_moc_chain_planner_measurement_rejects_reduced_order_cell() -> None:

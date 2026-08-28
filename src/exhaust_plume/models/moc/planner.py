@@ -219,6 +219,9 @@ class MocChainPlannerStep:
   result_handoff_sample_count: int | None = None
   result_total_pressure_range_Pa: tuple[float, float] | None = None
   result_handoff_fingerprint: str | None = None
+  result_consumed_handoff_sample_count: int | None = None
+  result_consumed_total_pressure_range_Pa: tuple[float, float] | None = None
+  result_consumed_handoff_fingerprint: str | None = None
 
   def __post_init__(self) -> None:
     if isinstance(self.current_cell_index, bool) or self.current_cell_index < 1:
@@ -313,6 +316,42 @@ class MocChainPlannerStep:
         str,
     ):
       raise TypeError('result_handoff_fingerprint must be a string or None')
+    if self.result_consumed_handoff_sample_count is not None:
+      if (
+        isinstance(self.result_consumed_handoff_sample_count, bool)
+        or self.result_consumed_handoff_sample_count < 0
+      ):
+        raise ValueError(
+          'result_consumed_handoff_sample_count must be nonnegative when supplied'
+        )
+    consumed_pressure_range = self.result_consumed_total_pressure_range_Pa
+    if consumed_pressure_range is not None:
+      if len(consumed_pressure_range) != 2:
+        raise ValueError(
+          'result_consumed_total_pressure_range_Pa must contain two values'
+        )
+      minimum, maximum = (float(value) for value in consumed_pressure_range)
+      if (
+        not isfinite(minimum)
+        or not isfinite(maximum)
+        or minimum <= 0.0
+        or maximum < minimum
+      ):
+        raise ValueError(
+          'result consumed total-pressure range must be finite and ordered'
+        )
+      object.__setattr__(
+        self,
+        'result_consumed_total_pressure_range_Pa',
+        (minimum, maximum),
+      )
+    if self.result_consumed_handoff_fingerprint is not None and not isinstance(
+        self.result_consumed_handoff_fingerprint,
+        str,
+    ):
+      raise TypeError(
+        'result_consumed_handoff_fingerprint must be a string or None'
+      )
   ####
 
   @classmethod
@@ -385,6 +424,11 @@ class MocChainPlannerStep:
       'result_handoff_sample_count': self.result_handoff_sample_count,
       'result_total_pressure_range_Pa': self.result_total_pressure_range_Pa,
       'result_handoff_fingerprint': self.result_handoff_fingerprint,
+      'result_consumed_handoff_sample_count': self.result_consumed_handoff_sample_count,
+      'result_consumed_total_pressure_range_Pa': (
+        self.result_consumed_total_pressure_range_Pa
+      ),
+      'result_consumed_handoff_fingerprint': self.result_consumed_handoff_fingerprint,
     }
   ####
 
@@ -401,6 +445,7 @@ class MocChainPlannerStep:
       )
     if isinstance(result, MocPostShockChainCellSolve):
       field = result.field
+      consumed_boundary = _field_incoming_handoff(field)
       boundary = tuple(
         MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
         for state, pressure in zip(
@@ -428,9 +473,11 @@ class MocChainPlannerStep:
           boundary,
           MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER,
         ),
+        **_result_consumed_handoff_fields(consumed_boundary),
       )
     if isinstance(result, MocPhysicalPostShockFieldContinuationSolve):
       field = result.field
+      consumed_boundary = _field_incoming_handoff(field)
       boundary = tuple(
         MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
         for state, pressure in zip(
@@ -458,6 +505,7 @@ class MocChainPlannerStep:
           boundary,
           MocChainBoundaryKind.CENTERLINE_TRACE,
         ),
+        **_result_consumed_handoff_fields(consumed_boundary),
       )
     if isinstance(result, MocChainCell):
       return replace(
@@ -605,6 +653,48 @@ def _result_handoff_fields(
     'result_handoff_sample_count': len(boundary),
     'result_total_pressure_range_Pa': pressure_range,
     'result_handoff_fingerprint': _handoff_fingerprint(boundary),
+  }
+
+
+def _field_incoming_handoff(
+  field: MocPostShockCharacteristicFieldResult | MocPhysicalPostShockFieldResult,
+) -> tuple[MocChainBoundarySample, ...] | None:
+  """Extract the exact input handoff retained by a returned solver field."""
+
+  states = getattr(field, 'incoming_handoff_states', None)
+  pressures = getattr(field, 'incoming_handoff_total_pressure_Pa', None)
+  if states is None or pressures is None:
+    return None
+  try:
+    if len(states) != len(pressures):
+      return None
+    return tuple(
+      MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
+      for state, pressure in zip(states, pressures, strict=True)
+    )
+  except (TypeError, ValueError):
+    return None
+
+
+def _result_consumed_handoff_fields(
+  boundary: tuple[MocChainBoundarySample, ...] | None,
+) -> dict[str, Any]:
+  """Return provenance fields for the handoff actually consumed by a field."""
+
+  if boundary is None:
+    return {
+      'result_consumed_handoff_sample_count': None,
+      'result_consumed_total_pressure_range_Pa': None,
+      'result_consumed_handoff_fingerprint': None,
+    }
+  pressure_range = None
+  if boundary:
+    pressures = tuple(sample.total_pressure_Pa for sample in boundary)
+    pressure_range = (min(pressures), max(pressures))
+  return {
+    'result_consumed_handoff_sample_count': len(boundary),
+    'result_consumed_total_pressure_range_Pa': pressure_range,
+    'result_consumed_handoff_fingerprint': _handoff_fingerprint(boundary),
   }
 
 

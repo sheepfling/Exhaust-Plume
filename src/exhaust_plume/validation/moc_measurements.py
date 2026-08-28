@@ -2077,6 +2077,27 @@ def measure_moc_chain_planner(
           fidelity_isolation_verified=True,
           **common,
         )
+      if step.result_kind in (
+        'field-solve-returned',
+        'physical-field-solve-returned',
+      ) and (
+        step.result_consumed_handoff_sample_count != len(boundary)
+        or step.result_consumed_total_pressure_range_Pa != expected_pressure_range
+        or step.result_consumed_handoff_fingerprint != expected_fingerprint
+      ):
+        returned_handoffs_verified = False
+        return _planner_measurement_failure(
+          MocChainPlannerMeasurementStatus.HANDOFF_FAILURE,
+          f'planner step {index + 1} does not reproduce the handoff consumed by its returned field',
+          chain_cells_contiguous=True,
+          chain_topology_verified=True,
+          domain_freshness_verified=True,
+          step_sequence_verified=True,
+          incoming_handoffs_verified=True,
+          returned_handoffs_verified=False,
+          fidelity_isolation_verified=True,
+          **common,
+        )
       next_cell = cells[step.next_cell_index - 1]
       next_boundary = next_cell.continuation_boundary
       next_fingerprint = _planner_handoff_fingerprint(next_boundary)
@@ -2124,6 +2145,9 @@ def measure_moc_chain_planner(
         or step.result_handoff_sample_count is not None
         or step.result_total_pressure_range_Pa is not None
         or step.result_handoff_fingerprint is not None
+        or step.result_consumed_handoff_sample_count is not None
+        or step.result_consumed_total_pressure_range_Pa is not None
+        or step.result_consumed_handoff_fingerprint is not None
       ):
         return _planner_measurement_failure(
           MocChainPlannerMeasurementStatus.TERMINATION_FAILURE,

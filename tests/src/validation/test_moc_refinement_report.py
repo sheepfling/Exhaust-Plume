@@ -179,6 +179,12 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
     and step['incoming_handoff_fingerprint']
     for step in generated_chain_planner['planner_steps']
   )
+  assert all(
+    step['result_consumed_handoff_sample_count'] >= 3
+    and step['result_consumed_total_pressure_range_Pa']
+    and step['result_consumed_handoff_fingerprint']
+    for step in generated_chain_planner['planner_steps'][:4]
+  )
   assert source_strip_chain_planner['accepted'] is True
   assert source_strip_chain_planner['planner']['planner_kind'] == (
     'upstream-coupled-research'
@@ -1466,6 +1472,12 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert all(
     step['result_handoff_sample_count'] >= 3
     and step['result_handoff_fingerprint']
+    for step in planner['planner_steps'][:4]
+  )
+  assert all(
+    step['result_consumed_handoff_sample_count'] >= 3
+    and step['result_consumed_total_pressure_range_Pa']
+    and step['result_consumed_handoff_fingerprint']
     for step in planner['planner_steps'][:4]
   )
   assert all(
