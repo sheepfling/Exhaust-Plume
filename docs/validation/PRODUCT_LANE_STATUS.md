@@ -106,6 +106,11 @@ The reflected-zone shock entry point now drives the attached-shock march from
 the solved reflected state/pressure callbacks and independently reports the
 first outside-domain sample; the canonical attempt is expected to stop there,
 so no continued cell is promoted from that result.
+The caustic validation also adapts its converged old-family/restarted-family
+bridge to the generic bounded upstream-source contract. The adapter preserves
+one-sided branch selection and returns no state or pressure across the measured
+gap; it is solver-owned research plumbing and does not promote an open caustic
+band or expand the planar-MOC claim ceiling.
 The same validation report now exercises a bounded scalar ambient-pressure
 shoot against the actual post-shock outer perimeter. Its synthetic pressure
 coordinate reaches a candidate root but the independent streamline-tangency

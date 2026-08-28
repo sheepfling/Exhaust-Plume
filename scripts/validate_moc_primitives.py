@@ -4388,6 +4388,42 @@ def _caustic_upstream_bridge_probe(
         'claim_status': 'caustic-upstream-bridge-pending',
       }
     bridge = build_caustic_upstream_bridge(old_family, band)
+    bridge_source = MocBoundedUpstreamFieldSource.from_caustic_upstream_bridge(
+      bridge,
+      sample_position_tolerance_m=1.0e-3,
+      preferred_start_point_m=band.anchor_point_m,
+    )
+    source_old_point = old_family.cells[0].vertices_xr_m[0]
+    source_restarted_point = band.cells[0].vertices_xr_m[0]
+    source_gap_point = (0.680, 0.050)
+    bounded_source_audit = {
+      'source': bridge_source.as_report(),
+      'old_point_m': source_old_point,
+      'restarted_point_m': source_restarted_point,
+      'old_point_state_matches_bridge': bridge_source.state_at(source_old_point)
+      == bridge.state_at(source_old_point, position_tolerance_m=1.0e-3),
+      'restarted_point_state_matches_bridge': bridge_source.state_at(
+        source_restarted_point
+      ) == bridge.state_at(
+        source_restarted_point,
+        position_tolerance_m=1.0e-3,
+      ),
+      'old_point_pressure_matches_bridge': bridge_source.static_pressure_at(
+        source_old_point
+      ) == bridge.static_pressure_at(
+        source_old_point,
+        position_tolerance_m=1.0e-3,
+      ),
+      'restarted_point_pressure_matches_bridge': bridge_source.static_pressure_at(
+        source_restarted_point
+      ) == bridge.static_pressure_at(
+        source_restarted_point,
+        position_tolerance_m=1.0e-3,
+      ),
+      'gap_state_is_none': bridge_source.state_at(source_gap_point) is None,
+      'gap_pressure_is_none': bridge_source.static_pressure_at(source_gap_point)
+      is None,
+    }
     covered_path = tuple(
       (state.x_m, state.y_m)
       for state in band.boundary_states[:4]
@@ -4519,6 +4555,18 @@ def _caustic_upstream_bridge_probe(
     )
     accepted = (
       bridge.fields_converged
+      and bounded_source_audit['source']['model']
+      == 'bounded-caustic-upstream-bridge'
+      and bounded_source_audit['source']['upstream_coupling_verified'] is False
+      and bounded_source_audit['source']['extrapolation_allowed'] is False
+      and bounded_source_audit['source']['preferred_start_point_m']
+      == band.anchor_point_m
+      and bounded_source_audit['old_point_state_matches_bridge']
+      and bounded_source_audit['restarted_point_state_matches_bridge']
+      and bounded_source_audit['old_point_pressure_matches_bridge']
+      and bounded_source_audit['restarted_point_pressure_matches_bridge']
+      and bounded_source_audit['gap_state_is_none']
+      and bounded_source_audit['gap_pressure_is_none']
       and covered.status is MocCausticBridgeStatus.CONVERGED_BOUNDED_PATH
       and covered.sampled_count == 4
       and all(
@@ -4603,6 +4651,7 @@ def _caustic_upstream_bridge_probe(
       'status': 'diagnostic-bounded-caustic-upstream-bridge',
       'accepted': accepted,
       'bridge': bridge.as_report(),
+      'bounded_source_audit': bounded_source_audit,
       'covered_path_audit': covered.as_report(),
       'gap_audit': gap.as_report(),
       'explicit_old_side_no_fallback_audit': no_fallback.as_report(),

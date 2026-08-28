@@ -1244,6 +1244,13 @@ Only after MOC-1 through MOC-5 pass:
   caustic corridor a real solver input boundary rather than a callback-owned
   assumption; it still does not solve the missing physical downstream
   closure.
+- ``MocBoundedUpstreamFieldSource.from_caustic_upstream_bridge`` now exposes
+  the converged old-family/restarted-family bridge through the generic
+  repeated-cell source contract. The adapter preserves the bridge's one-sided
+  selection and domain gaps, reports the union of its finite mesh extents, and
+  keeps ``upstream_coupling_verified`` false. It is therefore usable as a
+  solver-owned research input, but cannot promote the open caustic band to a
+  shock cell or authorize a production claim.
 - Added a separate solver-owned simple-wave terminal lane. It builds a
   constant-invariant upstream trace from the exact selected caustic state,
   marches an attached shock against an explicit turn profile, fits the

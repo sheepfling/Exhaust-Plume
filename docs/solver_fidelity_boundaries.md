@@ -511,3 +511,8 @@ ends with `UPSTREAM_FIELD_BOUNDARY`; a uniform source callback is a named
 multi-cell plumbing fixture, not reflected upstream coupling. This lane stays
 research-only until a reflected/free-boundary remesher, mixed-regime handoff,
 refinement evidence, and independent external validation are available.
+The caustic bridge can now be adapted into the same bounded source contract;
+its callbacks retain one-sided branch selection and return no state across a
+bridge gap. This makes the new-family corridor consumable by the generic
+planner for diagnostics, while its unresolved caustic/shock and downstream
+closure gates continue to block cell promotion.

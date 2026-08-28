@@ -342,6 +342,16 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert caustic_upstream_bridge['accepted'] is True
   assert caustic_upstream_bridge['status'] == 'diagnostic-bounded-caustic-upstream-bridge'
   assert caustic_upstream_bridge['bridge']['fields_converged'] is True
+  bounded_source = caustic_upstream_bridge['bounded_source_audit']
+  assert bounded_source['source']['model'] == 'bounded-caustic-upstream-bridge'
+  assert bounded_source['source']['upstream_coupling_verified'] is False
+  assert bounded_source['source']['extrapolation_allowed'] is False
+  assert bounded_source['old_point_state_matches_bridge'] is True
+  assert bounded_source['restarted_point_state_matches_bridge'] is True
+  assert bounded_source['old_point_pressure_matches_bridge'] is True
+  assert bounded_source['restarted_point_pressure_matches_bridge'] is True
+  assert bounded_source['gap_state_is_none'] is True
+  assert bounded_source['gap_pressure_is_none'] is True
   assert caustic_upstream_bridge['covered_path_audit']['status'] == (
     'converged_bounded_caustic_bridge_path'
   )

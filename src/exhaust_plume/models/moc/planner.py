@@ -2701,6 +2701,62 @@ class MocBoundedUpstreamFieldSource:
     )
   ####
 
+  @classmethod
+  def from_caustic_upstream_bridge(
+    cls,
+    bridge: MocCausticUpstreamBridge,
+    *,
+    sample_position_tolerance_m: float = 1.0e-3,
+    preferred_start_point_m: tuple[float, float] | None = None,
+  ) -> 'MocBoundedUpstreamFieldSource':
+    """Expose a converged old/new-family bridge as a bounded source.
+
+    The bridge remains authoritative for branch selection and domain gaps.
+    This adapter only supplies the callback shape consumed by the generic
+    shock-chain reference; it does not turn the open caustic band into a
+    closed cell or mark upstream coupling as physically verified.
+    """
+
+    if not isinstance(bridge, MocCausticUpstreamBridge):
+      raise TypeError('bridge must be a MocCausticUpstreamBridge')
+    if not bridge.fields_converged:
+      raise ValueError(
+        'only a bridge with converged old and restarted fields can become '
+        'an upstream source'
+      )
+    tolerance = float(sample_position_tolerance_m)
+    if not isfinite(tolerance) or tolerance <= 0.0:
+      raise ValueError(
+        'sample_position_tolerance_m must be finite and positive'
+      )
+    points = tuple(
+      (float(point[0]), float(point[1]))
+      for field in (bridge.old_family, bridge.restarted_family)
+      for cell in field.cells
+      for point in cell.vertices_xr_m
+    )
+    x_extent = None
+    y_extent = None
+    if points:
+      x_extent = (min(point[0] for point in points), max(point[0] for point in points))
+      y_extent = (min(point[1] for point in points), max(point[1] for point in points))
+    return cls(
+      state_at=lambda point, bridge=bridge, tolerance=tolerance: bridge.state_at(
+        point,
+        position_tolerance_m=tolerance,
+      ),
+      static_pressure_at=lambda point, bridge=bridge, tolerance=tolerance: bridge.static_pressure_at(
+        point,
+        position_tolerance_m=tolerance,
+      ),
+      model='bounded-caustic-upstream-bridge',
+      domain_x_extent_m=x_extent,
+      domain_y_extent_m=y_extent,
+      upstream_coupling_verified=False,
+      preferred_start_point_m=preferred_start_point_m,
+    )
+  ####
+
   def as_report(self) -> dict[str, Any]:
     """Serialize source provenance without serializing callback objects."""
 

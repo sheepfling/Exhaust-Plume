@@ -4,6 +4,7 @@ from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput
 from exhaust_plume.models.moc import (
   CharacteristicFamily,
   CharacteristicState,
+  MocBoundedUpstreamFieldSource,
   MocCausticBridgeSide,
   MocCausticBridgeStatus,
   MocCausticFamilyBandStatus,
@@ -273,6 +274,53 @@ def test_caustic_bridge_selected_side_never_falls_back() -> None:
   assert result.first_missing_sample_index == 0
   assert result.sampled_count == 0
   assert bridge.state_at(restarted_family.anchor_point_m) is None
+
+
+def test_caustic_bridge_adapts_to_bounded_chain_source_without_extrapolation() -> None:
+  old_family, restarted_family, _seed = _caustic_bridge_fixture()
+  bridge = build_caustic_upstream_bridge(old_family, restarted_family)
+  assert restarted_family.anchor_point_m is not None
+
+  source = MocBoundedUpstreamFieldSource.from_caustic_upstream_bridge(
+    bridge,
+    sample_position_tolerance_m=1.0e-3,
+    preferred_start_point_m=restarted_family.anchor_point_m,
+  )
+  old_point = old_family.cells[0].vertices_xr_m[0]
+  restarted_point = restarted_family.cells[0].vertices_xr_m[0]
+
+  assert source.model == 'bounded-caustic-upstream-bridge'
+  assert source.upstream_coupling_verified is False
+  assert source.preferred_start_point_m == restarted_family.anchor_point_m
+  assert source.domain_x_extent_m is not None
+  assert source.domain_y_extent_m is not None
+  assert source.state_at(old_point) == bridge.state_at(
+    old_point,
+    position_tolerance_m=1.0e-3,
+  )
+  assert source.state_at(restarted_point) == bridge.state_at(
+    restarted_point,
+    position_tolerance_m=1.0e-3,
+  )
+  assert source.static_pressure_at(old_point) == bridge.static_pressure_at(
+    old_point,
+    position_tolerance_m=1.0e-3,
+  )
+  assert source.static_pressure_at(restarted_point) == bridge.static_pressure_at(
+    restarted_point,
+    position_tolerance_m=1.0e-3,
+  )
+  assert source.state_at((0.680, 0.050)) is None
+  assert source.static_pressure_at((0.680, 0.050)) is None
+  assert source.as_report() == {
+    'model': 'bounded-caustic-upstream-bridge',
+    'state_sampling_available': True,
+    'upstream_coupling_verified': False,
+    'domain_x_extent_m': source.domain_x_extent_m,
+    'domain_y_extent_m': source.domain_y_extent_m,
+    'extrapolation_allowed': False,
+    'preferred_start_point_m': restarted_family.anchor_point_m,
+  }
 
 
 def test_caustic_bridge_shock_and_planner_keep_open_seam_nonpromotable() -> None:
