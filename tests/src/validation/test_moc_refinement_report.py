@@ -94,6 +94,10 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   caustic_remesh = centerline_reflection_extension['caustic_shock_remesh_execution']
   simple_wave_terminal = caustic_remesh['simple_wave_terminal']
   simple_wave_terminal_planner = caustic_remesh['simple_wave_terminal_planner']
+  reflected_domain = report['geometry_cases']['solver_generated_reflected_domain_remesh']
+  alternating_physical_chain_refinement = reflected_domain[
+    'alternating_physical_field_chain_refinement'
+  ]
   reflected_probe = report['geometry_cases']['reflected_zone_shock_coupling']
   reflected_chain_boundary = report['geometry_cases']['reflected_zone_chain_boundary_probe']
   trace_extension = report['geometry_cases']['reflected_boundary_trace_extension']
@@ -164,6 +168,26 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert generated_chain_refinement['cell_count'] == 5
   assert all(generated_chain_refinement['checks'].values())
   assert generated_chain_refinement['claim_status'] == 'not_accepted'
+  assert alternating_physical_chain_refinement['status'] == 'converged'
+  assert alternating_physical_chain_refinement['operator_id'] == (
+    'op.moc.reflected-domain-alternating-physical-field-chain-refinement'
+  )
+  assert alternating_physical_chain_refinement['resolutions'] == [17, 33]
+  assert alternating_physical_chain_refinement['field_count'] == 2
+  assert all(
+    value is True
+    for value in alternating_physical_chain_refinement['checks'].values()
+    if value is not None
+  )
+  assert alternating_physical_chain_refinement['physical_closure_verified'] is False
+  assert alternating_physical_chain_refinement['chain_promotion_blocked'] is True
+  assert alternating_physical_chain_refinement['production_claim_allowed'] is False
+  assert alternating_physical_chain_refinement['declared_tolerances'] == {
+    'endpoint_tolerance_m': 1.0e-3,
+    'shock_spacing_tolerance_m': 1.0e-4,
+    'area_tolerance_m2': 1.5e-3,
+    'maximum_radius_tolerance_m': 5.0e-4,
+  }
   assert generated_chain_planner['planner_kind'] == 'solver-generated-reference'
   assert generated_chain_planner['planning_only'] is True
   assert generated_chain_planner['production_claim_allowed'] is False

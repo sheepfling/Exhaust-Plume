@@ -1970,3 +1970,20 @@ blocked, and production claims remain disallowed. The canonical reflected
 free-boundary/mixed-regime closure and external validation archive are still
 open, and the fast visualization, signature, ray, and focal-plane-array
 providers remain untouched.
+
+## Standalone continued-chain validation checkpoint
+
+The standalone primitive-validation report now runs the alternating
+physical-field refinement probe from the solver-generated ambient-closed seed.
+For each of the 17- and 33-sample cases it rebuilds the reflected strip,
+centerline patch, alternating source band, and two-cell shock sequence from
+fresh carried fields and exact centerline handoffs. The report records the
+declared geometry tolerances, per-case measurements, residuals, and every
+research-chain gate; a missing or inconsistent refinement result fails the
+validation artifact rather than being hidden by the older one-cell probe.
+
+This checkpoint makes the planner mock and continued shock-cell evidence
+visible in the same artifact used by the broader primitive gate. It does not
+turn numerical repeatability into physical closure: the canonical reflected
+free-boundary/mixed-regime coupling, external observations, and product
+promotion remain open release gates.
