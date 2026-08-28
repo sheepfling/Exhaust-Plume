@@ -56,6 +56,8 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocCausticShockBridgeStatus,
   MocCausticShockRemeshStatus,
   MocCausticShockRemeshPreparationStatus,
+  MocCausticUpstreamRemeshRequest,
+  MocCausticUpstreamRemeshStatus,
   MocCausticSimpleWaveTerminalStatus,
   MocCausticSimpleWaveTraceStatus,
   MocCausticBridgeSide,
@@ -138,9 +140,11 @@ from exhaust_plume.models.moc import (  # noqa: E402
   prepare_caustic_shock_remesh,
   solve_caustic_shock_remesh,
   solve_caustic_shock_remesh_from_upstream_bridge,
+  solve_caustic_upstream_remesh,
   solve_caustic_simple_wave_terminal_remesh,
   plan_caustic_shock_remesh_chain,
   plan_caustic_shock_remesh_chain_from_upstream_bridge,
+  plan_caustic_upstream_remesh_shock_chain,
   plan_caustic_simple_wave_terminal_chain,
   plan_caustic_remesh_downstream_field_chain,
   plan_caustic_remesh_downstream_field_invariant_chain,
@@ -3437,6 +3441,219 @@ def _caustic_shock_bridge_probe(seed: Any) -> dict[str, Any]:
   }
 
 
+def _caustic_upstream_cauchy_remesh_probe(
+  seed: Any,
+  total_pressure_Pa: float,
+  field: MocPostShockCharacteristicFieldResult | None,
+) -> dict[str, Any]:
+  """Audit the explicit two-trace caustic upstream remesh lane.
+
+  The trace construction is a deterministic compatibility fixture for this
+  report.  It exercises the solver-owned Cauchy assembler and its one-step
+  planner contract; it is not the canonical free-boundary remesher.
+  """
+
+  def failure(status: str, message: str) -> dict[str, Any]:
+    return {
+      'status': status,
+      'accepted': False,
+      'remesh': None,
+      'direct_shock': None,
+      'planner': None,
+      'planner_measurement': None,
+      'message': message,
+      'claim_status': 'caustic-upstream-cauchy-remesh-pending',
+    }
+
+  if (
+    seed is None
+    or field is None
+    or len(getattr(seed, 'edge_states', ())) != 2
+    or seed.edge_states[0].state is None
+    or seed.event is None
+    or seed.event.caustic_point_m is None
+  ):
+    return failure(
+      'missing_seed_or_post_shock_field',
+      'explicit caustic Cauchy remesh requires a seed event and post-shock field',
+    )
+
+  try:
+    selected = seed.edge_states[0].state
+    assert selected is not None
+    event = seed.event.caustic_point_m
+    assert event is not None
+    centerline_states: list[CharacteristicState] = []
+    outer_states: list[CharacteristicState] = []
+    for index in range(6):
+      k_plus = selected.k_plus + 0.004 * index
+      theta = selected.theta_rad - 0.006 * index
+      centerline_inverse = inverse_prandtl_meyer_angle_rad(
+        -k_plus,
+        selected.gamma,
+      )
+      outer_inverse = inverse_prandtl_meyer_angle_rad(
+        theta - k_plus,
+        selected.gamma,
+      )
+      if centerline_inverse.value is None or outer_inverse.value is None:
+        return failure(
+          'trace_inversion_failure',
+          'deterministic caustic Cauchy trace inversion did not converge',
+        )
+      centerline_probe = CharacteristicState(
+        x_m=0.0,
+        y_m=0.0,
+        theta_rad=0.0,
+        mach=centerline_inverse.value,
+        gamma=selected.gamma,
+      )
+      outer_probe = CharacteristicState(
+        x_m=0.0,
+        y_m=0.0,
+        theta_rad=theta,
+        mach=outer_inverse.value,
+        gamma=selected.gamma,
+      )
+      characteristic_angle = 0.5 * (
+        centerline_probe.theta_rad
+        + centerline_probe.mu_rad
+        + outer_probe.theta_rad
+        + outer_probe.mu_rad
+      )
+      sine = sin(characteristic_angle)
+      if abs(sine) <= 1.0e-12:
+        return failure(
+          'trace_geometry_failure',
+          'deterministic caustic Cauchy trace has a degenerate characteristic',
+        )
+      y = event[1] * (1.0 - 0.12 * index)
+      if index == 0:
+        centerline_x = event[0] - event[1] * cos(characteristic_angle) / sine
+      else:
+        centerline_x = 0.5191348811250018 + 0.027 * index
+      centerline_states.append(
+        CharacteristicState(
+          x_m=centerline_x,
+          y_m=0.0,
+          theta_rad=0.0,
+          mach=centerline_inverse.value,
+          gamma=selected.gamma,
+        )
+      )
+      if index == 0:
+        outer_states.append(selected)
+      else:
+        distance = y / sine
+        outer_states.append(
+          CharacteristicState(
+            x_m=centerline_x + distance * cos(characteristic_angle),
+            y_m=y,
+            theta_rad=theta,
+            mach=outer_inverse.value,
+            gamma=selected.gamma,
+          )
+        )
+
+    request = MocCausticUpstreamRemeshRequest(
+      seed=seed,
+      upstream_edge_index=0,
+      centerline_source_states=tuple(centerline_states),
+      outer_source_states=tuple(outer_states),
+      total_pressure_Pa=total_pressure_Pa,
+    )
+    remesh = solve_caustic_upstream_remesh(request)
+    direct_shock = None
+    if remesh.state_sampling_available and remesh.strip is not None:
+      direct_shock = solve_marched_attached_shock_from_source_strip(
+        remesh.strip,
+        request.event_point_m,
+        downstream_flow_angle_rad=0.2,
+        sample_count=9,
+        shock_angle_tolerance_rad=0.2,
+      )
+    planner = None
+    if direct_shock is not None:
+      planner = plan_caustic_upstream_remesh_shock_chain(
+        field,
+        remesh,
+        start_point_m=request.event_point_m,
+        start_x_m=0.2,
+        end_x_m=0.6,
+        downstream_flow_angle_rad=0.2,
+        sample_count=9,
+        shock_angle_tolerance_rad=0.2,
+        policy=MocChainContinuationPolicy(
+          max_cells=2,
+          require_state_carry=True,
+        ),
+      )
+    planner_measurement = (
+      None if planner is None else measure_moc_chain_planner(planner)
+    )
+    accepted = bool(
+      remesh.status is MocCausticUpstreamRemeshStatus.CONVERGED_BOUNDED_FIELD
+      and remesh.converged
+      and remesh.state_sampling_available
+      and remesh.event_seam_verified
+      and remesh.centerline_trace_verified
+      and remesh.outer_trace_verified
+      and remesh.source_field_verified
+      and remesh.physical_closure_verified is False
+      and remesh.chain_promotion_blocked
+      and direct_shock is not None
+      and direct_shock.status.value == 'upstream_field_failure'
+      and direct_shock.sample_count == 4
+      and direct_shock.failed_sample_index == 4
+      and planner is not None
+      and planner.planner_kind is MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
+      and planner.production_claim_allowed is False
+      and planner.chain.status is MocChainStatus.SOLVER_TERMINATED
+      and planner.chain.cell_count == 1
+      and planner.chain.physical_termination is False
+      and planner.chain.termination_reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+      and len(planner.steps) == 1
+      and planner.steps[0].result_kind == 'termination-returned'
+      and planner.steps[0].result_termination_reason is (
+        MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+      )
+      and planner.diagnostics.get('one_step_domain') is True
+      and planner.diagnostics.get('source_strip_reuse_policy') == (
+        'never-reuse-after-one-next-cell-attempt'
+      )
+      and planner_measurement is not None
+      and planner_measurement.converged
+      and planner_measurement.termination_verified
+      and planner_measurement.fidelity_isolation_verified
+      and planner_measurement.physical_termination is False
+      and planner_measurement.production_claim_allowed is False
+    )
+    return {
+      'status': 'diagnostic-caustic-upstream-cauchy-remesh',
+      'accepted': accepted,
+      'remesh': remesh.as_report(),
+      'direct_shock': (
+        None if direct_shock is None else direct_shock.as_report()
+      ),
+      'planner': None if planner is None else planner.as_report(),
+      'planner_measurement': (
+        None
+        if planner_measurement is None
+        else planner_measurement.as_report()
+      ),
+      'trace_model': (
+        'deterministic-compatible-centerline-c-plus-and-outer-pre-shock-'
+        'c-minus-diagnostic-traces'
+      ),
+      'claim_status': (
+        'solver-owned-two-trace-cauchy-remesh-and-one-step-chain-attempt; '
+        'canonical-outer-trace-and-physical-closure-pending'
+      ),
+    }
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return failure('caustic-upstream-cauchy-remesh-failure', str(error))
+
+
 def _caustic_shock_remesh_execution_probe(
   seed: Any,
   old_family: Any,
@@ -3468,6 +3685,7 @@ def _caustic_shock_remesh_execution_probe(
       'bridge_coupled_remesh': None,
       'bridge_coupled_measurement': None,
       'bridge_coupled_planner': None,
+      'upstream_cauchy_remesh': None,
       'claim_status': 'caustic-remesh-execution-pending',
     }
 
@@ -3496,6 +3714,7 @@ def _caustic_shock_remesh_execution_probe(
       'bridge_coupled_remesh': None,
       'bridge_coupled_measurement': None,
       'bridge_coupled_planner': None,
+      'upstream_cauchy_remesh': None,
       'preparation': prepared.as_report(),
       'claim_status': 'caustic-remesh-execution-pending',
     }
@@ -3511,6 +3730,7 @@ def _caustic_shock_remesh_execution_probe(
       'bridge_coupled_remesh': None,
       'bridge_coupled_measurement': None,
       'bridge_coupled_planner': None,
+      'upstream_cauchy_remesh': None,
       'preparation': prepared.as_report(),
       'claim_status': 'caustic-remesh-execution-pending',
     }
@@ -3532,10 +3752,16 @@ def _caustic_shock_remesh_execution_probe(
       'bridge_coupled_remesh': None,
       'bridge_coupled_measurement': None,
       'bridge_coupled_planner': None,
+      'upstream_cauchy_remesh': None,
       'preparation': prepared.as_report(),
       'claim_status': 'caustic-remesh-execution-pending',
     }
   current = reference.field.as_coupled_chain_cell(start_x_m=0.2, end_x_m=0.5)
+  caustic_upstream_cauchy_remesh = _caustic_upstream_cauchy_remesh_probe(
+    seed,
+    total_pressure_Pa,
+    reference.field,
+  )
 
   def upstream_state_at(point_m: tuple[float, float]) -> CharacteristicState:
     if point_m == request.event_point_m:
@@ -3722,6 +3948,7 @@ def _caustic_shock_remesh_execution_probe(
     and planner_measurement.fidelity_isolation_verified
     and planner_measurement.physical_termination is False
     and planner_measurement.production_claim_allowed is False
+    and caustic_upstream_cauchy_remesh['accepted'] is True
     and downstream_field_planner.planner_kind is MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
     and downstream_field_planner.production_claim_allowed is False
     and downstream_field_planner.chain.status is MocChainStatus.TRUNCATED
@@ -3811,6 +4038,7 @@ def _caustic_shock_remesh_execution_probe(
     'direct_measurement': direct_measurement.as_report(),
     'planner': planner_report,
     'planner_measurement': planner_measurement.as_report(),
+    'upstream_cauchy_remesh': caustic_upstream_cauchy_remesh,
     'bridge_coupled_remesh': (
       None if bridge_coupled_remesh is None else bridge_coupled_remesh.as_report()
     ),

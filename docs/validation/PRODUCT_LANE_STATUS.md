@@ -110,7 +110,11 @@ The caustic validation also adapts its converged old-family/restarted-family
 bridge to the generic bounded upstream-source contract. The adapter preserves
 one-sided branch selection and returns no state or pressure across the measured
 gap; it is solver-owned research plumbing and does not promote an open caustic
-band or expand the planar-MOC claim ceiling.
+band or expand the planar-MOC claim ceiling. A separate validation probe now
+also covers an explicit centerline-conditioned Cauchy remesh and its one-step
+shock-chain boundary; it passes the bounded source/topology and typed
+upstream-field-stop checks while the canonical outer trace and physical closure
+remain pending.
 The same validation report now exercises a bounded scalar ambient-pressure
 shoot against the actual post-shock outer perimeter. Its synthetic pressure
 coordinate reaches a candidate root but the independent streamline-tangency

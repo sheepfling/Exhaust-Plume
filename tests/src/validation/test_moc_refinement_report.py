@@ -510,6 +510,56 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
     caustic_remesh['planner_measurement'],
     physical_termination=False,
   )
+  upstream_cauchy = caustic_remesh['upstream_cauchy_remesh']
+  assert upstream_cauchy['status'] == (
+    'diagnostic-caustic-upstream-cauchy-remesh'
+  )
+  assert upstream_cauchy['accepted'] is True
+  assert upstream_cauchy['remesh']['status'] == (
+    'converged_bounded_caustic_upstream_field'
+  )
+  assert upstream_cauchy['remesh']['state_sampling_available'] is True
+  assert upstream_cauchy['remesh']['event_seam_verified'] is True
+  assert upstream_cauchy['remesh']['centerline_trace_verified'] is True
+  assert upstream_cauchy['remesh']['outer_trace_verified'] is True
+  assert upstream_cauchy['remesh']['source_field_verified'] is True
+  assert upstream_cauchy['remesh']['physical_closure_verified'] is False
+  assert upstream_cauchy['remesh']['chain_promotion_blocked'] is True
+  assert upstream_cauchy['remesh']['request']['source_data_model'] == (
+    'explicit-centerline-c-plus-and-outer-pre-shock-c-minus-traces'
+  )
+  assert upstream_cauchy['remesh']['request']['outer_trace_generation'] == (
+    'caller-supplied-coupled-remesher-data'
+  )
+  assert upstream_cauchy['remesh']['strip']['topology_forms_closed_zone'] is True
+  assert upstream_cauchy['direct_shock']['status'] == 'upstream_field_failure'
+  assert upstream_cauchy['direct_shock']['sample_count'] == 4
+  assert upstream_cauchy['direct_shock']['failed_sample_index'] == 4
+  assert upstream_cauchy['planner']['planner_kind'] == (
+    'upstream-coupled-research'
+  )
+  assert upstream_cauchy['planner']['planning_only'] is True
+  assert upstream_cauchy['planner']['production_claim_allowed'] is False
+  assert upstream_cauchy['planner']['step_count'] == 1
+  assert upstream_cauchy['planner']['steps'][0]['result_kind'] == (
+    'termination-returned'
+  )
+  assert upstream_cauchy['planner']['steps'][0]['result_termination_reason'] == (
+    'upstream-field-boundary'
+  )
+  assert upstream_cauchy['planner']['chain']['cell_count'] == 1
+  assert upstream_cauchy['planner']['chain']['physical_termination'] is False
+  assert upstream_cauchy['planner']['chain']['termination_reason'] == (
+    'upstream-field-boundary'
+  )
+  assert upstream_cauchy['planner']['diagnostics']['one_step_domain'] is True
+  assert upstream_cauchy['planner']['diagnostics']['source_strip_reuse_policy'] == (
+    'never-reuse-after-one-next-cell-attempt'
+  )
+  _assert_chain_planner_measurement(
+    upstream_cauchy['planner_measurement'],
+    physical_termination=False,
+  )
   assert caustic_remesh['bridge_coupled_remesh']['status'] == (
     'caustic_remesh_upstream_field_failure'
   )

@@ -46,6 +46,9 @@ from exhaust_plume.models.moc.caustic_remesh import (
   solve_caustic_shock_remesh,
   solve_caustic_shock_remesh_from_upstream_bridge,
 )
+from exhaust_plume.models.moc.caustic_upstream_remesh import (
+  MocCausticUpstreamRemeshResult,
+)
 from exhaust_plume.models.moc.caustic_terminal import (
   solve_caustic_simple_wave_terminal_remesh,
 )
@@ -164,6 +167,7 @@ __all__ = (
   'plan_caustic_upstream_continuation',
   'plan_caustic_shock_remesh_chain',
   'plan_caustic_shock_remesh_chain_from_upstream_bridge',
+  'plan_caustic_upstream_remesh_shock_chain',
   'plan_caustic_simple_wave_terminal_chain',
   'plan_caustic_remesh_downstream_field_chain',
   'plan_caustic_remesh_downstream_field_invariant_chain',
@@ -4759,6 +4763,165 @@ def plan_caustic_shock_remesh_chain(
       ),
     },
   )
+
+
+def plan_caustic_upstream_remesh_shock_chain(
+  seed: MocPostShockCharacteristicFieldResult,
+  remesh: MocCausticUpstreamRemeshResult,
+  *,
+  start_point_m: tuple[float, float],
+  start_x_m: float,
+  end_x_m: float,
+  target_centerline_y_m: float = 0.0,
+  downstream_flow_angle_at: Callable[[int, tuple[float, float]], float] | None = None,
+  downstream_flow_angle_rad: float | None = None,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  policy: MocChainContinuationPolicy | None = None,
+) -> MocChainPlannerResult:
+  """Plan one next-shock attempt from a caustic-conditioned Cauchy field.
+
+  The remesh supplies one finite upstream characteristic domain.  A successful
+  shock/field solve may append one research cell; the same remesh is never
+  reused for another cell.  This keeps the planner mock and the physical
+  upstream-remesh lane separate while making the exact chain boundary
+  observable.
+  """
+
+  if not isinstance(seed, MocPostShockCharacteristicFieldResult):
+    raise TypeError('seed must be a MocPostShockCharacteristicFieldResult')
+  if not isinstance(remesh, MocCausticUpstreamRemeshResult):
+    raise TypeError('remesh must be a MocCausticUpstreamRemeshResult')
+  if (downstream_flow_angle_at is None) == (downstream_flow_angle_rad is None):
+    raise ValueError('supply exactly one downstream flow-angle provider')
+  if downstream_flow_angle_at is not None and not callable(
+    downstream_flow_angle_at
+  ):
+    raise TypeError('downstream_flow_angle_at must be callable when supplied')
+  if downstream_flow_angle_rad is not None and not isfinite(
+    float(downstream_flow_angle_rad)
+  ):
+    raise ValueError('downstream_flow_angle_rad must be finite when supplied')
+  if not isinstance(branch, ShockBranch):
+    raise TypeError('branch must be a ShockBranch')
+  if not isfinite(float(start_x_m)) or not isfinite(float(end_x_m)):
+    raise ValueError('start_x_m and end_x_m must be finite')
+  if end_x_m <= start_x_m:
+    raise ValueError('end_x_m must be strictly downstream of start_x_m')
+  if len(start_point_m) != 2 or not all(
+    isfinite(float(value)) for value in start_point_m
+  ):
+    raise ValueError('start_point_m must contain two finite coordinates')
+  for name, value in (
+    ('position_tolerance_m', position_tolerance_m),
+    ('invariant_tolerance', invariant_tolerance),
+    ('shock_angle_tolerance_rad', shock_angle_tolerance_rad),
+  ):
+    if not isfinite(float(value)) or float(value) <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+  if (
+    isinstance(sample_count, bool)
+    or not isinstance(sample_count, int)
+    or sample_count < 3
+  ):
+    raise ValueError('sample_count must be an integer of at least three')
+  if (
+    isinstance(maximum_segment_iterations, bool)
+    or not isinstance(maximum_segment_iterations, int)
+    or maximum_segment_iterations < 1
+  ):
+    raise ValueError('maximum_segment_iterations must be a positive integer')
+
+  source_strip = (
+    remesh.strip
+    if remesh.state_sampling_available
+    and remesh.strip is not None
+    and remesh.strip.converged
+    else None
+  )
+  initial_decision = (
+    None
+    if source_strip is not None
+    else remesh.as_chain_termination_decision()
+  )
+  attempted = False
+
+  def solve_next(
+    current: MocChainCell,
+    next_cell_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+  ) -> MocPostShockChainCellSolve | MocChainTerminationDecision:
+    nonlocal attempted
+    if attempted:
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
+        message=(
+          'caustic upstream Cauchy remesh planner consumed its one-step '
+          'source domain; a later cell requires a newly solved upstream field'
+        ),
+        diagnostics={
+          'termination_model': 'caustic-upstream-remesh-one-step-domain',
+          'next_cell_index': next_cell_index,
+        },
+      )
+    attempted = True
+    if initial_decision is not None:
+      decision = initial_decision
+      diagnostics = dict(decision.diagnostics)
+      diagnostics.update({
+        'planner_model': 'caustic-upstream-remesh-one-step-domain',
+        'next_cell_index': next_cell_index,
+        'remesh_report': remesh.as_report(),
+      })
+      return replace(decision, diagnostics=diagnostics)
+    assert source_strip is not None
+    return solve_marched_attached_shock_chain_cell_from_source_strip_or_termination(
+      current,
+      next_cell_index,
+      incoming_handoff,
+      source_strip,
+      start_point_m=start_point_m,
+      end_x_m=current.end_x_m + float(end_x_m) - float(start_x_m),
+      target_centerline_y_m=target_centerline_y_m,
+      downstream_flow_angle_at=downstream_flow_angle_at,
+      downstream_flow_angle_rad=downstream_flow_angle_rad,
+      sample_count=sample_count,
+      branch=branch,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+      shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+      maximum_segment_iterations=maximum_segment_iterations,
+    )
+
+  planner = plan_post_shock_characteristic_chain(
+    seed,
+    solve_next,
+    start_x_m=start_x_m,
+    end_x_m=end_x_m,
+    policy=policy,
+    require_upstream_shock_coupling=True,
+    planner_kind=MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH,
+    claim_status=(
+      'caustic-upstream-cauchy-remesh-shock-chain; one-step-bounded-domain; '
+      'physical-caustic-and-ambient-closure-pending'
+    ),
+  )
+  diagnostics = dict(planner.diagnostics)
+  diagnostics.update({
+    'caustic_upstream_remesh': remesh.as_report(),
+    'source_strip_chain_model': 'caustic-upstream-cauchy-remesh-one-step',
+    'one_step_domain': True,
+    'source_strip_reuse_policy': (
+      'never-reuse-after-one-next-cell-attempt'
+    ),
+    'physical_closure_pending': True,
+  })
+  return replace(planner, diagnostics=diagnostics)
 
 
 def plan_caustic_simple_wave_terminal_chain(

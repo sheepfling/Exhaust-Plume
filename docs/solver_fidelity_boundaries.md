@@ -379,7 +379,13 @@ interface for later shock-cell work while keeping the unresolved shock curve,
 mixed-regime closure, and chain promotion explicitly blocked. The planner
 wrapper records that branch audit and the typed non-physical caustic stop; it
 does not append the bounded bridge as a chain cell or change the basic/reduced
-provider lanes.
+provider lanes. A separate centerline-conditioned upstream Cauchy remesher
+now consumes explicit centerline `C+` and outer/pre-shock `C-` traces,
+verifies their exact event state/pressure seam, and exposes a bounded source
+strip to one shock-chain attempt. The outer trace is caller-supplied coupled-
+remesher data, not an inferred or extrapolated boundary; the resulting
+upstream-field stop, open physical closure, and promotion block remain
+explicit.
 
 ## What is done for the basic solver
 

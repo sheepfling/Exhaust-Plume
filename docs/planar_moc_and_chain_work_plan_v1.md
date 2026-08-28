@@ -1251,6 +1251,15 @@ Only after MOC-1 through MOC-5 pass:
   keeps ``upstream_coupling_verified`` false. It is therefore usable as a
   solver-owned research input, but cannot promote the open caustic band to a
   shock cell or authorize a production claim.
+- Added a separate solver-owned centerline-conditioned upstream Cauchy-remesh
+  lane. It consumes an explicit centerline ``C+`` trace and outer/pre-shock
+  ``C-`` trace, checks the exact selected one-sided caustic state/pressure seam,
+  and assembles a bounded characteristic source strip without generating or
+  extrapolating the missing outer trace. Its one-step shock-chain adapter
+  preserves the first uncovered upstream sample as a typed
+  ``UPSTREAM_FIELD_BOUNDARY`` stop; the source field remains open and the
+  canonical outer trace, entropy/shock closure, and chain promotion remain
+  pending.
 - Added a separate solver-owned simple-wave terminal lane. It builds a
   constant-invariant upstream trace from the exact selected caustic state,
   marches an attached shock against an explicit turn profile, fits the

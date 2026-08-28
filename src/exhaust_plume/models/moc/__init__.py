@@ -181,6 +181,12 @@ from exhaust_plume.models.moc.caustic_remesh import (
   solve_caustic_shock_remesh,
   solve_caustic_shock_remesh_from_upstream_bridge,
 )
+from exhaust_plume.models.moc.caustic_upstream_remesh import (
+  MocCausticUpstreamRemeshStatus,
+  MocCausticUpstreamRemeshRequest,
+  MocCausticUpstreamRemeshResult,
+  solve_caustic_upstream_remesh,
+)
 from exhaust_plume.models.moc.caustic_terminal import (
   MocCausticSimpleWaveTraceStatus,
   MocCausticSimpleWaveTrace,
@@ -379,6 +385,7 @@ from exhaust_plume.models.moc.planner import (
   plan_caustic_upstream_bridge_invariant_chain,
   plan_caustic_shock_remesh_chain,
   plan_caustic_shock_remesh_chain_from_upstream_bridge,
+  plan_caustic_upstream_remesh_shock_chain,
   plan_caustic_simple_wave_terminal_chain,
   plan_caustic_remesh_downstream_field_chain,
   plan_caustic_remesh_downstream_field_invariant_chain,
@@ -490,6 +497,7 @@ __all__ = (
   'plan_caustic_upstream_bridge_invariant_chain',
   'plan_caustic_shock_remesh_chain',
   'plan_caustic_shock_remesh_chain_from_upstream_bridge',
+  'plan_caustic_upstream_remesh_shock_chain',
   'plan_caustic_simple_wave_terminal_chain',
   'plan_caustic_remesh_downstream_field_chain',
   'plan_caustic_remesh_downstream_field_invariant_chain',
@@ -685,6 +693,10 @@ __all__ = (
   'prepare_caustic_shock_remesh',
   'solve_caustic_shock_remesh',
   'solve_caustic_shock_remesh_from_upstream_bridge',
+  'MocCausticUpstreamRemeshStatus',
+  'MocCausticUpstreamRemeshRequest',
+  'MocCausticUpstreamRemeshResult',
+  'solve_caustic_upstream_remesh',
   'MocCausticUpstreamContinuationStatus',
   'MocCausticUpstreamContinuationResult',
   'solve_caustic_upstream_continuation',
