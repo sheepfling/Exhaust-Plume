@@ -151,6 +151,7 @@ __all__ = (
   'build_terminal_reflection_patch_upstream_source',
   'MocSolverGeneratedAmbientClosedPostShockChainReference',
   'MocTerminalReflectionPatchAmbientClosureChainReference',
+  'plan_reflected_domain_remesh_ambient_closed_chain',
   'MocPrescribedAmbientClosedPostShockChainMock',
   'MocPhysicalPostShockTerminalPatchPlannerResult',
   'plan_moc_chain',
@@ -2954,6 +2955,84 @@ class MocBoundedUpstreamFieldSource:
       domain_x_extent_m=x_extent,
       domain_y_extent_m=y_extent,
       upstream_coupling_verified=field.upstream_shock_coupling_verified,
+    )
+  ####
+
+  @classmethod
+  def from_reflected_domain_remesh(
+    cls,
+    remesh: MocReflectedDomainRemeshResult,
+    *,
+    sample_position_tolerance_m: float = 1.0e-3,
+    preferred_start_point_m: tuple[float, float] | None = None,
+  ) -> 'MocBoundedUpstreamFieldSource':
+    """Expose one converged reflected remesh as a bounded shock source.
+
+    The remesh is an open Cauchy source field, not a closed shock cell.  This
+    adapter therefore carries no upstream-shock-coupling claim and preserves
+    the strip's finite interpolation domain.  A caller may override the
+    preferred shock-start point only when it has an independently justified
+    source location; the default is the first point on the newly supplied
+    outer source curve.
+    """
+
+    if not isinstance(remesh, MocReflectedDomainRemeshResult):
+      raise TypeError(
+        'remesh must be a MocReflectedDomainRemeshResult'
+      )
+    if not remesh.state_sampling_available or remesh.source_strip is None:
+      raise ValueError(
+        'only a converged reflected-domain remesh with bounded state sampling '
+        'can become an upstream source'
+      )
+    tolerance = float(sample_position_tolerance_m)
+    if not isfinite(tolerance) or tolerance <= 0.0:
+      raise ValueError(
+        'sample_position_tolerance_m must be finite and positive'
+      )
+    strip = remesh.source_strip
+    request = remesh.request
+    if request is None or not request.outer_source_states:
+      raise ValueError(
+        'a converged reflected-domain remesh must retain its outer source curve'
+      )
+    points = tuple(
+      (float(state.x_m), float(state.y_m))
+      for state in (
+        *strip.plus_source_states,
+        *strip.minus_source_states,
+      )
+    )
+    points = (*points, *(point for cell in strip.cells for point in cell.vertices_xr_m))
+    x_extent = None
+    y_extent = None
+    if points:
+      x_extent = (
+        min(point[0] for point in points),
+        max(point[0] for point in points),
+      )
+      y_extent = (
+        min(point[1] for point in points),
+        max(point[1] for point in points),
+      )
+    preferred_start = (
+      request.outer_source_states[0].x_m,
+      request.outer_source_states[0].y_m,
+    ) if preferred_start_point_m is None else preferred_start_point_m
+    return cls(
+      state_at=lambda point, strip=strip, tolerance=tolerance: strip.state_at(
+        point,
+        position_tolerance_m=tolerance,
+      ),
+      static_pressure_at=lambda point, strip=strip, tolerance=tolerance: strip.static_pressure_at(
+        point,
+        position_tolerance_m=tolerance,
+      ),
+      model='bounded-reflected-domain-cauchy-remesh',
+      domain_x_extent_m=x_extent,
+      domain_y_extent_m=y_extent,
+      upstream_coupling_verified=False,
+      preferred_start_point_m=preferred_start,
     )
   ####
 
@@ -7328,6 +7407,362 @@ def plan_reflected_domain_remesh_shock_chain_sequence(
     ),
     diagnostics=diagnostics,
   )
+####
+
+
+def plan_reflected_domain_remesh_ambient_closed_chain(
+  seed: MocPhysicalPostShockFieldResult,
+  initial_remesh: MocReflectedDomainRemeshResult,
+  remesh_at: Callable[
+    [
+      MocPhysicalPostShockFieldResult,
+      MocChainCell,
+      int,
+      tuple[MocChainBoundarySample, ...],
+    ],
+    MocReflectedDomainRemeshResult | MocChainTerminationDecision | None,
+  ],
+  *,
+  start_x_m: float,
+  end_x_m: float,
+  reference: MocSolverGeneratedAmbientClosedPostShockChainReference | None = None,
+  policy: MocChainContinuationPolicy | None = None,
+) -> MocChainPlannerResult:
+  """Plan physical shock cells from fresh reflected-domain remeshes.
+
+  ``initial_remesh`` supplies the bounded Cauchy domain for cell two.  Every
+  later call to ``remesh_at`` must return a new remesh whose request records the
+  exact centerline handoff from the currently accepted cell.  Each accepted
+  remesh is adapted to the real ambient-pressure/centerline-reflection field
+  solver; it is never passed to the source-strip-only shock adapter.
+
+  This is the first planner seam that joins the reflected-domain remesher to a
+  physical ambient-closed field solve.  It remains research-only: the outer
+  source curve is explicit caller-owned Cauchy data, entropy is still the
+  remesh's uniform-total-pressure model, and canonical free-boundary closure
+  is not inferred from a successful cell prefix.
+  """
+
+  if not isinstance(seed, MocPhysicalPostShockFieldResult):
+    raise TypeError('seed must be a MocPhysicalPostShockFieldResult')
+  if not isinstance(initial_remesh, MocReflectedDomainRemeshResult):
+    raise TypeError(
+      'initial_remesh must be a MocReflectedDomainRemeshResult'
+    )
+  if not callable(remesh_at):
+    raise TypeError('remesh_at must be callable')
+  fixture = (
+    MocSolverGeneratedAmbientClosedPostShockChainReference()
+    if reference is None
+    else reference
+  )
+  if not isinstance(
+    fixture,
+    MocSolverGeneratedAmbientClosedPostShockChainReference,
+  ):
+    raise TypeError(
+      'reference must be a '
+      'MocSolverGeneratedAmbientClosedPostShockChainReference'
+    )
+  if fixture.upstream_source_mode is not MocAmbientClosedChainSourceMode.PREVIOUS_FIELD:
+    raise ValueError(
+      'reflected-domain remesh continuation owns the upstream source; '
+      'reference.upstream_source_mode must be PREVIOUS_FIELD'
+    )
+
+  used_remesh_ids: set[int] = set()
+  used_strip_fingerprints: set[str] = set()
+  remesh_attempts: list[dict[str, Any]] = []
+  active_field = seed
+  first_attempt = True
+
+  def provider_failure(
+    next_cell_index: int,
+    message: str,
+    *,
+    reason: MocChainTerminationReason = MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
+    diagnostics: dict[str, Any] | None = None,
+  ) -> MocChainTerminationDecision:
+    payload: dict[str, Any] = {
+      'termination_model': 'reflected-domain-remesh-ambient-closed-chain',
+      'next_cell_index': next_cell_index,
+      'reflected_domain_reuse_policy': (
+        'fresh-reflected-domain-remesh-and-source-strip-required-per-cell'
+      ),
+    }
+    if diagnostics is not None:
+      payload.update(diagnostics)
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=reason,
+      message=message,
+      diagnostics=payload,
+    )
+
+  def source_provider(
+    current_field: MocPhysicalPostShockFieldResult,
+    current: MocChainCell,
+    next_cell_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+  ) -> MocBoundedUpstreamFieldSource | MocChainTerminationDecision | None:
+    nonlocal first_attempt
+    if first_attempt:
+      candidate: MocReflectedDomainRemeshResult | MocChainTerminationDecision | None = (
+        initial_remesh
+      )
+      role = 'initial-reflected-domain-remesh'
+      first_attempt = False
+    else:
+      try:
+        candidate = remesh_at(
+          current_field,
+          current,
+          next_cell_index,
+          incoming_handoff,
+        )
+      except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+        remesh_attempts.append({
+          'current_cell_index': current.cell_index,
+          'next_cell_index': next_cell_index,
+          'role': 'reflected-domain-remesh-provider',
+          'provider_error': type(error).__name__,
+          'fresh_remesh': False,
+          'fresh_source_field': False,
+        })
+        return provider_failure(
+          next_cell_index,
+          f'reflected-domain remesh provider failed: {error}',
+          reason=MocChainTerminationReason.SOLVER_ERROR,
+        )
+      role = 'reflected-domain-remesh-provider'
+
+    if candidate is None:
+      remesh_attempts.append({
+        'current_cell_index': current.cell_index,
+        'next_cell_index': next_cell_index,
+        'role': role,
+        'provider_result': None,
+        'fresh_remesh': False,
+        'fresh_source_field': False,
+      })
+      return provider_failure(
+        next_cell_index,
+        'reflected-domain remesh provider returned no bounded source field',
+      )
+    if isinstance(candidate, MocChainTerminationDecision):
+      remesh_attempts.append({
+        'current_cell_index': current.cell_index,
+        'next_cell_index': next_cell_index,
+        'role': role,
+        'provider_decision': candidate.as_report(),
+        'fresh_remesh': False,
+        'fresh_source_field': False,
+      })
+      if candidate.physical_termination:
+        return provider_failure(
+          next_cell_index,
+          (
+            'reflected-domain remesh provider cannot declare physical '
+            'termination before a downstream shock solve'
+          ),
+          reason=MocChainTerminationReason.INVALID_INPUT,
+        )
+      return candidate
+    if not isinstance(candidate, MocReflectedDomainRemeshResult):
+      remesh_attempts.append({
+        'current_cell_index': current.cell_index,
+        'next_cell_index': next_cell_index,
+        'role': role,
+        'provider_result_type': type(candidate).__name__,
+        'fresh_remesh': False,
+        'fresh_source_field': False,
+      })
+      return provider_failure(
+        next_cell_index,
+        (
+          'reflected-domain remesh provider must return a '
+          'MocReflectedDomainRemeshResult, MocChainTerminationDecision, or None'
+        ),
+        reason=MocChainTerminationReason.INVALID_INPUT,
+      )
+
+    request = candidate.request
+    incoming_handoff_verified = bool(
+      request is not None and request.incoming_handoff == incoming_handoff
+    )
+    if not incoming_handoff_verified:
+      remesh_attempts.append({
+        'current_cell_index': current.cell_index,
+        'next_cell_index': next_cell_index,
+        'role': 'reflected-domain-remesh-handoff-seam',
+        'remesh': candidate.as_report(),
+        'incoming_handoff_sample_count': len(incoming_handoff),
+        'remesh_request_incoming_handoff_sample_count': (
+          None if request is None else len(request.incoming_handoff)
+        ),
+        'incoming_handoff_verified': False,
+        'fresh_remesh': False,
+        'fresh_source_field': False,
+      })
+      return provider_failure(
+        next_cell_index,
+        (
+          'reflected-domain remesh provider did not record the exact incoming '
+          'centerline handoff'
+        ),
+        reason=MocChainTerminationReason.STATE_NOT_CARRIED,
+        diagnostics={
+          'incoming_handoff_sample_count': len(incoming_handoff),
+          'remesh_request_incoming_handoff_sample_count': (
+            None if request is None else len(request.incoming_handoff)
+          ),
+          'incoming_handoff_verified': False,
+        },
+      )
+
+    strip_fingerprint = _characteristic_strip_fingerprint(candidate.source_strip)
+    remesh_is_fresh = id(candidate) not in used_remesh_ids
+    strip_is_fresh = (
+      candidate.source_strip is not None
+      and strip_fingerprint is not None
+      and strip_fingerprint not in used_strip_fingerprints
+    )
+    if not remesh_is_fresh or not strip_is_fresh:
+      remesh_attempts.append({
+        'current_cell_index': current.cell_index,
+        'next_cell_index': next_cell_index,
+        'role': 'reflected-domain-remesh-freshness-gate',
+        'remesh': candidate.as_report(),
+        'incoming_handoff_verified': True,
+        'fresh_remesh': remesh_is_fresh,
+        'fresh_source_field': strip_is_fresh,
+        'source_strip_fingerprint': strip_fingerprint,
+      })
+      return provider_failure(
+        next_cell_index,
+        (
+          'reflected-domain remesh or source strip was reused; every continued '
+          'cell requires a fresh bounded upstream domain'
+        ),
+        diagnostics={
+          'incoming_handoff_verified': True,
+          'fresh_remesh': remesh_is_fresh,
+          'fresh_source_field': strip_is_fresh,
+          'source_strip_fingerprint': strip_fingerprint,
+        },
+      )
+
+    if not candidate.state_sampling_available:
+      remesh_attempts.append({
+        'current_cell_index': current.cell_index,
+        'next_cell_index': next_cell_index,
+        'role': role,
+        'remesh': candidate.as_report(),
+        'incoming_handoff_verified': True,
+        'fresh_remesh': True,
+        'fresh_source_field': False,
+      })
+      decision = candidate.as_chain_termination_decision()
+      return provider_failure(
+        next_cell_index,
+        decision.message,
+        reason=decision.reason,
+        diagnostics={
+          'remesh': candidate.as_report(),
+          'incoming_handoff_verified': True,
+          'fresh_remesh': True,
+          'fresh_source_field': False,
+        },
+      )
+
+    used_remesh_ids.add(id(candidate))
+    if strip_fingerprint is not None:
+      used_strip_fingerprints.add(strip_fingerprint)
+    try:
+      source = MocBoundedUpstreamFieldSource.from_reflected_domain_remesh(
+        candidate,
+        sample_position_tolerance_m=fixture.source_sample_position_tolerance_m,
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      remesh_attempts.append({
+        'current_cell_index': current.cell_index,
+        'next_cell_index': next_cell_index,
+        'role': role,
+        'remesh': candidate.as_report(),
+        'incoming_handoff_verified': True,
+        'fresh_remesh': True,
+        'fresh_source_field': False,
+        'adapter_error': type(error).__name__,
+      })
+      return provider_failure(
+        next_cell_index,
+        f'reflected-domain remesh could not become a bounded source: {error}',
+        reason=MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
+      )
+    remesh_attempts.append({
+      'current_cell_index': current.cell_index,
+      'next_cell_index': next_cell_index,
+      'role': role,
+      'remesh': candidate.as_report(),
+      'incoming_handoff_sample_count': len(incoming_handoff),
+      'incoming_handoff_verified': True,
+      'fresh_remesh': True,
+      'fresh_source_field': True,
+      'source_strip_fingerprint': strip_fingerprint,
+      'source': source.as_report(),
+    })
+    return source
+
+  fixture = replace(fixture, upstream_source_provider=source_provider)
+
+  def solve_next(
+    current: MocChainCell,
+    next_cell_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+  ) -> MocPhysicalPostShockFieldContinuationSolve | MocChainTerminationDecision:
+    nonlocal active_field
+    solved = fixture.solve_next(
+      current,
+      next_cell_index,
+      incoming_handoff,
+      active_field,
+    )
+    if isinstance(solved, MocPhysicalPostShockFieldContinuationSolve):
+      active_field = solved.field
+    return solved
+
+  planner = plan_ambient_closed_post_shock_chain(
+    seed,
+    solve_next,
+    start_x_m=start_x_m,
+    end_x_m=end_x_m,
+    policy=policy,
+    require_upstream_shock_coupling=True,
+    claim_status=(
+      'reflected-domain-remesh to ambient-closed physical-field chain; '
+      'explicit Cauchy outer source; canonical free-boundary and external '
+      'validation pending'
+    ),
+  )
+  diagnostics = dict(planner.diagnostics)
+  diagnostics.update({
+    'reflected_domain_ambient_closed_chain_model': (
+      'solver-generated-reflected-domain-cauchy-remesh-plus-ambient-closed-'
+      'physical-field-solve'
+    ),
+    'reference': fixture.as_report(),
+    'initial_reflected_domain_remesh': initial_remesh.as_report(),
+    'reflected_domain_remesh_attempt_count': len(remesh_attempts),
+    'reflected_domain_remesh_attempts': remesh_attempts,
+    'reflected_domain_reuse_policy': (
+      'fresh-reflected-domain-remesh-and-source-strip-required-per-cell'
+    ),
+    'canonical_reflected_domain_closed': False,
+    'free_boundary_verified': False,
+    'physical_chain_promotion_allowed': False,
+    'external_validation_pending': True,
+  })
+  return replace(planner, diagnostics=diagnostics)
 ####
 
 

@@ -1685,3 +1685,16 @@ relaxing interior shock total-pressure loss. This closes the local planner/
 field-chain evidence seam only; canonical reflected remeshing,
 mixed-regime/free-boundary closure, refinement, and external validation remain
 the release gates, and no lower-fidelity provider is changed.
+
+The reflected-remesh lane now also exposes a physical solver bridge through
+`plan_reflected_domain_remesh_ambient_closed_chain`. Its source adapter keeps
+the remesh bounded and selects the first state on the newly supplied outer
+`C-` source curve as the next shock-start preference. The planner requires the
+exact prior centerline handoff in every remesh request and rejects reused
+remesh/source-strip identities before invoking the ambient-closed physical
+field solver. This is a stronger continued-shock-cell orchestration seam than
+the source-strip-only sequence, but it is still a research reference: the
+outer curve is caller-supplied Cauchy data, uniform total pressure is retained,
+and canonical reflected free-boundary closure, refinement, and external
+validation remain open. The existing basic visualization, reduced-order,
+signature, ray, and focal-plane-array providers remain untouched.

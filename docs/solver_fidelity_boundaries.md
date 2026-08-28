@@ -691,3 +691,21 @@ non-promoting evidence. Canonical alternating-family reflected remeshing,
 mixed-regime/free-boundary closure, refinement, and external validation are
 still open, and the basic/reduced, signature, ray, and focal-plane-array
 providers remain untouched.
+
+## Reflected-remesh to physical-field chain checkpoint
+
+The reflected-domain lane now has an explicit bridge into the real
+ambient-closed physical-field solver. `MocBoundedUpstreamFieldSource` can expose
+one converged Cauchy remesh through bounded state and static-pressure callbacks;
+the adapter uses the newly supplied outer source curve as the preferred shock
+start and returns no extrapolated state outside the remesh domain.
+
+`plan_reflected_domain_remesh_ambient_closed_chain` consumes a seed physical
+field, an initial remesh, and a remesh callback for later cells. Before each
+physical solve it requires an exact incoming centerline handoff, a fresh
+remesh object, and a fresh source-strip fingerprint. Accepted remeshes are then
+passed to the ambient-pressure/centerline-reflection field solver, not the
+source-strip-only shock adapter. The planner records each remesh and solver
+attempt, but remains research-only: the outer curve is explicit Cauchy data,
+the remesh still uses a uniform-total-pressure model, canonical free-boundary
+closure is false, and product providers are unchanged.

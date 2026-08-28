@@ -7,16 +7,21 @@ import pytest
 
 from exhaust_plume.models.moc import (
   CharacteristicState,
+  MocAmbientPhysicalFieldResult,
+  MocAmbientPhysicalFieldStatus,
+  MocBoundedUpstreamFieldSource,
   MocChainBoundarySample,
   MocChainContinuationPolicy,
   MocChainTerminationReason,
   MocPostShockChainCellSolve,
   MocReflectedDomainRemeshRequest,
   MocReflectedDomainRemeshStatus,
+  MocSolverGeneratedAmbientClosedPostShockChainReference,
   MocSourceStripContinuationStatus,
   MocTerminalReflectionPatchAmbientClosureChainReference,
   assemble_terminal_trace_centerline_patch,
   inverse_prandtl_meyer_angle_rad,
+  plan_reflected_domain_remesh_ambient_closed_chain,
   plan_reflected_domain_remesh_shock_chain,
   plan_reflected_domain_remesh_shock_chain_sequence,
   solve_marched_attached_shock_field,
@@ -283,6 +288,232 @@ def test_reflected_domain_remesh_records_observed_polarity_without_promoting_it(
   assert result.incoming_trace_polarity is not None
   assert result.incoming_trace_polarity.status is observed.status
   assert result.as_report()['request']['declared_polarity'] == observed.status.value
+
+
+def test_reflected_domain_remesh_exposes_a_bounded_physical_solver_source():
+  _field, _patch, request = _request()
+  remesh = solve_reflected_domain_remesh(request)
+
+  source = MocBoundedUpstreamFieldSource.from_reflected_domain_remesh(remesh)
+
+  assert source.model == 'bounded-reflected-domain-cauchy-remesh'
+  assert source.preferred_start_point_m == pytest.approx(
+    (
+      request.outer_source_states[0].x_m,
+      request.outer_source_states[0].y_m,
+    )
+  )
+  assert source.domain_x_extent_m is not None
+  assert source.domain_y_extent_m is not None
+  start = source.preferred_start_point_m
+  assert start is not None
+  state = source.state_at(start)
+  pressure = source.static_pressure_at(start)
+  assert state is not None
+  assert state.x_m == pytest.approx(start[0])
+  assert state.y_m == pytest.approx(start[1])
+  assert pressure is not None
+  assert pressure > 0.0
+  assert source.state_at(
+    (
+      source.domain_x_extent_m[1] + 0.1,
+      source.domain_y_extent_m[1] + 0.1,
+    )
+  ) is None
+  report = source.as_report()
+  assert report['extrapolation_allowed'] is False
+  assert report['upstream_coupling_verified'] is False
+
+
+def test_reflected_domain_ambient_closed_planner_connects_fresh_remeshes_to_physical_solver(
+  monkeypatch: pytest.MonkeyPatch,
+):
+  seed = _canonical_field()
+  _field, _patch, initial_request = _request(incoming_handoff=_handoff(seed))
+  initial_remesh = solve_reflected_domain_remesh(initial_request)
+  assert initial_remesh.converged
+  solver_calls = []
+  remesh_calls = []
+
+  def fake_physical_solver(
+    _state_at,
+    _pressure_at,
+    start_point_m,
+    ambient_pressure_Pa,
+    _lower,
+    _upper,
+    **kwargs,
+  ):
+    incoming = tuple(kwargs['incoming_handoff'])
+    solver_calls.append((start_point_m, ambient_pressure_Pa, incoming))
+    field = replace(
+      seed,
+      incoming_handoff_states=tuple(sample.state for sample in incoming),
+      incoming_handoff_total_pressure_Pa=tuple(
+        sample.total_pressure_Pa for sample in incoming
+      ),
+    )
+    return MocAmbientPhysicalFieldResult(
+      status=MocAmbientPhysicalFieldStatus.CONVERGED_AMBIENT_CLOSED,
+      axis_closure_shoot=None,
+      field=field,
+      message='manufactured accepted physical-field solver result',
+    )
+
+  monkeypatch.setattr(
+    'exhaust_plume.models.moc.planner.solve_marched_attached_shock_with_ambient_centerline_physical_field',
+    fake_physical_solver,
+  )
+
+  def remesh_at(current_field, current, next_cell_index, incoming_handoff):
+    remesh_calls.append(
+      (current_field, current.cell_index, next_cell_index, incoming_handoff)
+    )
+    _field, _patch, request = _request(incoming_handoff=incoming_handoff)
+    offset = 0.001 * len(remesh_calls)
+    request = replace(
+      request,
+      outer_source_states=tuple(
+        replace(state, x_m=state.x_m + offset)
+        for state in request.outer_source_states
+      ),
+    )
+    return solve_reflected_domain_remesh(request)
+
+  planner = plan_reflected_domain_remesh_ambient_closed_chain(
+    seed,
+    initial_remesh,
+    remesh_at,
+    start_x_m=0.0,
+    end_x_m=0.1,
+    reference=MocSolverGeneratedAmbientClosedPostShockChainReference(
+      total_cell_count=3,
+      cell_axial_length_m=0.4,
+      ambient_pressure_Pa=101325.0,
+      sample_count=9,
+    ),
+    policy=MocChainContinuationPolicy(max_cells=4, require_state_carry=True),
+  )
+
+  assert planner.resolved
+  assert planner.chain.cell_count == 3
+  assert planner.chain.termination_reason is (
+    MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL
+  )
+  assert planner.handoff_links_verified is True
+  assert planner.production_claim_allowed is False
+  assert len(solver_calls) == 2
+  assert len(remesh_calls) == 1
+  assert remesh_calls[0][0] is not seed
+  assert planner.diagnostics['reflected_domain_remesh_attempt_count'] == 2
+  assert all(
+    attempt['fresh_remesh'] is True
+    and attempt['fresh_source_field'] is True
+    and attempt['incoming_handoff_verified'] is True
+    for attempt in planner.diagnostics['reflected_domain_remesh_attempts']
+  )
+  assert planner.diagnostics['canonical_reflected_domain_closed'] is False
+  assert planner.diagnostics['free_boundary_verified'] is False
+  assert planner.diagnostics['physical_chain_promotion_allowed'] is False
+  assert planner.diagnostics['external_validation_pending'] is True
+
+
+def test_reflected_domain_ambient_closed_planner_rejects_mismatched_initial_handoff(
+  monkeypatch: pytest.MonkeyPatch,
+):
+  seed = _canonical_field()
+  _field, _patch, initial_request = _request()
+  initial_remesh = solve_reflected_domain_remesh(initial_request)
+  solver_called = False
+
+  def fake_physical_solver(*_args, **_kwargs):
+    nonlocal solver_called
+    solver_called = True
+    raise AssertionError('physical solver must not run after a handoff failure')
+
+  monkeypatch.setattr(
+    'exhaust_plume.models.moc.planner.solve_marched_attached_shock_with_ambient_centerline_physical_field',
+    fake_physical_solver,
+  )
+  planner = plan_reflected_domain_remesh_ambient_closed_chain(
+    seed,
+    initial_remesh,
+    lambda *_args: initial_remesh,
+    start_x_m=0.0,
+    end_x_m=0.1,
+    reference=MocSolverGeneratedAmbientClosedPostShockChainReference(
+      total_cell_count=2,
+      cell_axial_length_m=0.4,
+      sample_count=9,
+    ),
+    policy=MocChainContinuationPolicy(max_cells=3, require_state_carry=True),
+  )
+
+  assert solver_called is False
+  assert planner.chain.cell_count == 1
+  assert planner.chain.termination_reason is MocChainTerminationReason.STATE_NOT_CARRIED
+  assert planner.steps[0].result_termination_reason is (
+    MocChainTerminationReason.STATE_NOT_CARRIED
+  )
+  attempt = planner.diagnostics['reflected_domain_remesh_attempts'][0]
+  assert attempt['role'] == 'reflected-domain-remesh-handoff-seam'
+  assert attempt['incoming_handoff_verified'] is False
+
+
+def test_reflected_domain_ambient_closed_planner_rejects_reused_remesh(
+  monkeypatch: pytest.MonkeyPatch,
+):
+  seed = _canonical_field()
+  _field, _patch, initial_request = _request(incoming_handoff=_handoff(seed))
+  initial_remesh = solve_reflected_domain_remesh(initial_request)
+  assert initial_remesh.converged
+  solver_calls = 0
+
+  def fake_physical_solver(*_args, **kwargs):
+    nonlocal solver_calls
+    solver_calls += 1
+    incoming = tuple(kwargs['incoming_handoff'])
+    field = replace(
+      seed,
+      incoming_handoff_states=tuple(sample.state for sample in incoming),
+      incoming_handoff_total_pressure_Pa=tuple(
+        sample.total_pressure_Pa for sample in incoming
+      ),
+    )
+    return MocAmbientPhysicalFieldResult(
+      status=MocAmbientPhysicalFieldStatus.CONVERGED_AMBIENT_CLOSED,
+      axis_closure_shoot=None,
+      field=field,
+    )
+
+  monkeypatch.setattr(
+    'exhaust_plume.models.moc.planner.solve_marched_attached_shock_with_ambient_centerline_physical_field',
+    fake_physical_solver,
+  )
+  planner = plan_reflected_domain_remesh_ambient_closed_chain(
+    seed,
+    initial_remesh,
+    lambda *_args: initial_remesh,
+    start_x_m=0.0,
+    end_x_m=0.1,
+    reference=MocSolverGeneratedAmbientClosedPostShockChainReference(
+      total_cell_count=3,
+      cell_axial_length_m=0.4,
+      sample_count=9,
+    ),
+    policy=MocChainContinuationPolicy(max_cells=4, require_state_carry=True),
+  )
+
+  assert solver_calls == 1
+  assert planner.chain.cell_count == 2
+  assert planner.chain.termination_reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+  assert planner.steps[-1].result_termination_reason is (
+    MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+  )
+  attempt = planner.diagnostics['reflected_domain_remesh_attempts'][-1]
+  assert attempt['role'] == 'reflected-domain-remesh-freshness-gate'
+  assert attempt['fresh_remesh'] is False
+  assert attempt['fresh_source_field'] is False
 
 
 def test_reflected_domain_one_step_planner_keeps_the_remesh_below_physical_claims():
