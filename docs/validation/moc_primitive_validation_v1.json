@@ -8902,6 +8902,9 @@
                   "attachment_pressure_residual": null,
                   "shooting_iterations": 0,
                   "zero_strength_attachment": false,
+                  "continuation_law": "linear-centerline-reference",
+                  "continuation_polarity": null,
+                  "compression_amplitude_rad": null,
                   "shock": null,
                   "ambient_march": null,
                   "strip": null,
@@ -16052,6 +16055,9 @@
           "attachment_pressure_residual": 3.4163352213004437e-09,
           "shooting_iterations": 24,
           "zero_strength_attachment": false,
+          "continuation_law": "linear-centerline-reference",
+          "continuation_polarity": null,
+          "compression_amplitude_rad": null,
           "shock": {
             "status": "converged_free_boundary_field",
             "converged": true,
@@ -16471,6 +16477,9 @@
           "attachment_pressure_residual": -5.477961234253517e-09,
           "shooting_iterations": 24,
           "zero_strength_attachment": false,
+          "continuation_law": "linear-centerline-reference",
+          "continuation_polarity": null,
+          "compression_amplitude_rad": null,
           "shock": {
             "status": "converged_free_boundary_field",
             "converged": true,
@@ -18074,6 +18083,9 @@
             "attachment_pressure_residual": 3.4163352213004437e-09,
             "shooting_iterations": 24,
             "zero_strength_attachment": false,
+            "continuation_law": "linear-centerline-reference",
+            "continuation_polarity": null,
+            "compression_amplitude_rad": null,
             "shock": {
               "status": "converged_free_boundary_field",
               "converged": true,
@@ -18505,6 +18517,9 @@
             "attachment_pressure_residual": -5.477961234253517e-09,
             "shooting_iterations": 24,
             "zero_strength_attachment": false,
+            "continuation_law": "linear-centerline-reference",
+            "continuation_polarity": null,
+            "compression_amplitude_rad": null,
             "shock": {
               "status": "converged_free_boundary_field",
               "converged": true,
@@ -20092,6 +20107,9 @@
           "attachment_pressure_residual": 3.4163352213004437e-09,
           "shooting_iterations": 24,
           "zero_strength_attachment": false,
+          "continuation_law": "linear-centerline-reference",
+          "continuation_polarity": null,
+          "compression_amplitude_rad": null,
           "shock": {
             "status": "converged_free_boundary_field",
             "converged": true,
@@ -21948,6 +21966,9 @@
                   "attachment_pressure_residual": 0.6505522453299795,
                   "shooting_iterations": 0,
                   "zero_strength_attachment": false,
+                  "continuation_law": "linear-centerline-reference",
+                  "continuation_polarity": null,
+                  "compression_amplitude_rad": null,
                   "shock": null,
                   "ambient_march": null,
                   "strip": null,
@@ -22267,6 +22288,9 @@
                   "attachment_pressure_residual": 3.72784946749866e-09,
                   "shooting_iterations": 24,
                   "zero_strength_attachment": false,
+                  "continuation_law": "linear-centerline-reference",
+                  "continuation_polarity": null,
+                  "compression_amplitude_rad": null,
                   "shock": {
                     "status": "subsonic_terminal_required",
                     "converged": false,
@@ -25540,7 +25564,7 @@
         "planning_only": true,
         "production_claim_allowed": false,
         "claim_status": "solver-generated-terminal-reflection-patch-ambient-closure-chain; canonical-reflected-free-boundary-and-external-validation-pending",
-        "step_count": 2,
+        "step_count": 3,
         "handoff_links_verified": true,
         "steps": [
           {
@@ -25557,7 +25581,7 @@
             "incoming_handoff_link_verified": null,
             "result_kind": "physical-field-solve-returned",
             "result_status": "converged_ambient_closed_field",
-            "result_end_x_m": 2.4446760456013403,
+            "result_end_x_m": 2.4514843948728195,
             "result_geometry_fidelity": "resolved-planar-moc",
             "result_physical_closure": "closed",
             "result_termination_reason": null,
@@ -25565,10 +25589,10 @@
             "result_boundary_kind": "centerline-trace",
             "result_handoff_sample_count": 10,
             "result_total_pressure_range_Pa": [
-              764796.8309621131,
+              764708.0037646675,
               764819.179280032
             ],
-            "result_handoff_fingerprint": "5aedb35d67be77faf4dc8378203a8657b08c94e28b02ecda137d8f24887b0150",
+            "result_handoff_fingerprint": "8bbe19b2ad7945dcadf135103212d0ff6f733645f3f7742551ab3a4bbe03e924",
             "result_consumed_handoff_sample_count": 10,
             "result_consumed_total_pressure_range_Pa": [
               749635.1342916992,
@@ -25579,14 +25603,47 @@
           {
             "current_cell_index": 2,
             "next_cell_index": 3,
-            "current_end_x_m": 2.4446760456013403,
+            "current_end_x_m": 2.4514843948728195,
             "boundary_kind": "centerline-trace",
             "incoming_handoff_sample_count": 10,
             "incoming_total_pressure_range_Pa": [
-              764796.8309621131,
+              764708.0037646675,
               764819.179280032
             ],
-            "incoming_handoff_fingerprint": "5aedb35d67be77faf4dc8378203a8657b08c94e28b02ecda137d8f24887b0150",
+            "incoming_handoff_fingerprint": "8bbe19b2ad7945dcadf135103212d0ff6f733645f3f7742551ab3a4bbe03e924",
+            "incoming_handoff_link_verified": true,
+            "result_kind": "physical-field-solve-returned",
+            "result_status": "converged_ambient_closed_field",
+            "result_end_x_m": 3.7032782141405205,
+            "result_geometry_fidelity": "resolved-planar-moc",
+            "result_physical_closure": "closed",
+            "result_termination_reason": null,
+            "result_physical_termination": null,
+            "result_boundary_kind": "centerline-trace",
+            "result_handoff_sample_count": 10,
+            "result_total_pressure_range_Pa": [
+              764701.8136483965,
+              764710.2514597338
+            ],
+            "result_handoff_fingerprint": "5b5b149c5ac294680ceb56ffdb3cbe61d8dd675b9252d348ad6c1e7b281e863a",
+            "result_consumed_handoff_sample_count": 10,
+            "result_consumed_total_pressure_range_Pa": [
+              764708.0037646675,
+              764819.179280032
+            ],
+            "result_consumed_handoff_fingerprint": "8bbe19b2ad7945dcadf135103212d0ff6f733645f3f7742551ab3a4bbe03e924"
+          },
+          {
+            "current_cell_index": 3,
+            "next_cell_index": 4,
+            "current_end_x_m": 3.7032782141405205,
+            "boundary_kind": "centerline-trace",
+            "incoming_handoff_sample_count": 10,
+            "incoming_total_pressure_range_Pa": [
+              764701.8136483965,
+              764710.2514597338
+            ],
+            "incoming_handoff_fingerprint": "5b5b149c5ac294680ceb56ffdb3cbe61d8dd675b9252d348ad6c1e7b281e863a",
             "incoming_handoff_link_verified": true,
             "result_kind": "termination-returned",
             "result_status": "solver-returned-no-next-cell",
@@ -25608,10 +25665,10 @@
           "status": "solver-terminated",
           "termination_reason": "solver-returned-no-next-cell",
           "physical_termination": false,
-          "cell_count": 2,
-          "end_x_m": 2.4446760456013403,
+          "cell_count": 3,
+          "end_x_m": 3.7032782141405205,
           "resolved": true,
-          "state_carry_count": 2,
+          "state_carry_count": 3,
           "continuation_boundary_kinds": [
             "centerline-trace"
           ],
@@ -25623,8 +25680,13 @@
             },
             {
               "cell_index": 2,
-              "minimum_Pa": 764796.8309621131,
+              "minimum_Pa": 764708.0037646675,
               "maximum_Pa": 764819.179280032
+            },
+            {
+              "cell_index": 3,
+              "minimum_Pa": 764701.8136483965,
+              "maximum_Pa": 764710.2514597338
             }
           ],
           "continuation_boundary_maxima_nonincreasing": true,
@@ -25649,18 +25711,35 @@
             {
               "cell_index": 2,
               "start_x_m": 1.472094211207191,
-              "end_x_m": 2.4446760456013403,
+              "end_x_m": 2.4514843948728195,
               "mesh_x_extent_m": [
                 1.472094211207191,
-                3.053320559353713
+                3.075146571047155
               ],
               "mesh_y_extent_m": [
                 0.0,
-                0.49801177676837693
+                0.5099107910362327
               ],
               "continuation_boundary_x_extent_m": [
-                1.958645797827614,
-                3.053320559353713
+                1.9516793833513655,
+                3.075146571047155
+              ]
+            },
+            {
+              "cell_index": 3,
+              "start_x_m": 2.4514843948728195,
+              "end_x_m": 3.7032782141405205,
+              "mesh_x_extent_m": [
+                2.4514843948728195,
+                4.218133646037481
+              ],
+              "mesh_y_extent_m": [
+                0.0,
+                0.5348032041208858
+              ],
+              "continuation_boundary_x_extent_m": [
+                3.061951683055794,
+                4.218133646037481
               ]
             }
           ],
@@ -25807,11 +25886,11 @@
               "continuation_boundary_kind": "centerline-trace",
               "mesh_x_extent_m": [
                 1.472094211207191,
-                3.053320559353713
+                3.075146571047155
               ],
               "mesh_y_extent_m": [
                 0.0,
-                0.49801177676837693
+                0.5099107910362327
               ],
               "boundary_geometry": {
                 "incoming_handoff_points_m": [
@@ -25862,35 +25941,35 @@
                     0.49801177676837693
                   ],
                   [
-                    1.5337195367209508,
+                    1.5334238099572768,
                     0.43576030467232985
                   ],
                   [
-                    1.5948507774601275,
+                    1.593750532756381,
                     0.3735088325762827
                   ],
                   [
-                    1.6558000251542617,
+                    1.6535516954318012,
                     0.31125736048023556
                   ],
                   [
-                    1.716728766308948,
+                    1.7131594051432069,
                     0.24900588838418847
                   ],
                   [
-                    1.7775507636302992,
+                    1.7726651244728968,
                     0.18675441628814138
                   ],
                   [
-                    1.8381901103813654,
+                    1.8321748970479532,
                     0.12450294419209423
                   ],
                   [
-                    1.8985770808706495,
+                    1.8918052797289078,
                     0.06225147209604709
                   ],
                   [
-                    1.958645797827614,
+                    1.9516793833513655,
                     0.0
                   ]
                 ],
@@ -25900,41 +25979,41 @@
                     0.49801177676837693
                   ],
                   [
-                    1.6008496804953067,
-                    0.4922936129981341
+                    1.6000053963143872,
+                    0.4928898097795191
                   ],
                   [
-                    1.727488529593345,
-                    0.4882712340513686
+                    1.7245889974734614,
+                    0.49040421511932236
                   ],
                   [
-                    1.8522152488284547,
-                    0.4858840235182083
+                    1.8468039817315387,
+                    0.4901064567779486
                   ],
                   [
-                    1.9750931779531404,
-                    0.4850851149569
+                    1.9675561657684426,
+                    0.4916237829004198
                   ],
                   [
-                    2.0959459572610757,
-                    0.48582978675152877
+                    2.087575013217615,
+                    0.49463453516112244
                   ],
                   [
-                    2.214605862947527,
-                    0.4880665651089568
+                    2.2076630566333932,
+                    0.4988545295856248
                   ],
                   [
-                    2.330905276505386,
-                    0.49173738344363593
+                    2.328670681933775,
+                    0.5040268082383101
                   ],
                   [
-                    2.4446760456013403,
-                    0.49677778336594314
+                    2.4514843948728195,
+                    0.5099107910362327
                   ]
                 ],
                 "centerline_boundary_points_m": [
                   [
-                    1.958645797827614,
+                    1.9516793833513655,
                     0.0
                   ],
                   [
@@ -25942,35 +26021,211 @@
                     0.0
                   ],
                   [
-                    2.0975737766725966,
+                    2.1077439585287014,
                     0.0
                   ],
                   [
-                    2.235060166289826,
+                    2.2520160199786843,
                     0.0
                   ],
                   [
-                    2.372126590668848,
+                    2.393181123891879,
                     0.0
                   ],
                   [
-                    2.5089937375212643,
+                    2.5320600012856027,
                     0.0
                   ],
                   [
-                    2.64561231593216,
+                    2.6691790193206564,
                     0.0
                   ],
                   [
-                    2.78192191562936,
+                    2.805049145666545,
                     0.0
                   ],
                   [
-                    2.917852653159061,
+                    2.9401938759555932,
                     0.0
                   ],
                   [
-                    3.053320559353713,
+                    3.075146571047155,
+                    0.0
+                  ]
+                ]
+              }
+            },
+            {
+              "cell_index": 3,
+              "geometry_fidelity": "resolved-planar-moc",
+              "physical_closure": "closed",
+              "continuation_boundary_kind": "centerline-trace",
+              "mesh_x_extent_m": [
+                2.4514843948728195,
+                4.218133646037481
+              ],
+              "mesh_y_extent_m": [
+                0.0,
+                0.5348032041208858
+              ],
+              "boundary_geometry": {
+                "incoming_handoff_points_m": [
+                  [
+                    1.9516793833513655,
+                    0.0
+                  ],
+                  [
+                    1.959252925032549,
+                    0.0
+                  ],
+                  [
+                    2.1077439585287014,
+                    0.0
+                  ],
+                  [
+                    2.2520160199786843,
+                    0.0
+                  ],
+                  [
+                    2.393181123891879,
+                    0.0
+                  ],
+                  [
+                    2.5320600012856027,
+                    0.0
+                  ],
+                  [
+                    2.6691790193206564,
+                    0.0
+                  ],
+                  [
+                    2.805049145666545,
+                    0.0
+                  ],
+                  [
+                    2.9401938759555932,
+                    0.0
+                  ],
+                  [
+                    3.075146571047155,
+                    0.0
+                  ]
+                ],
+                "shock_boundary_points_m": [
+                  [
+                    2.4514843948728195,
+                    0.5099107910362327
+                  ],
+                  [
+                    2.528682215703519,
+                    0.44617194215670364
+                  ],
+                  [
+                    2.6051057163018227,
+                    0.38243309327717456
+                  ],
+                  [
+                    2.6809473386091756,
+                    0.31869424439764543
+                  ],
+                  [
+                    2.756479220215933,
+                    0.25495539551811636
+                  ],
+                  [
+                    2.831999569255819,
+                    0.19121654663858728
+                  ],
+                  [
+                    2.9078372167388973,
+                    0.12747769775905815
+                  ],
+                  [
+                    2.984355077643345,
+                    0.06373884887952908
+                  ],
+                  [
+                    3.061951683055794,
+                    0.0
+                  ]
+                ],
+                "ambient_boundary_points_m": [
+                  [
+                    2.4514843948728195,
+                    0.5099107910362327
+                  ],
+                  [
+                    2.5998360483462224,
+                    0.5170367946352357
+                  ],
+                  [
+                    2.7485253952000757,
+                    0.5234443457362782
+                  ],
+                  [
+                    2.898512109181318,
+                    0.5287951194365006
+                  ],
+                  [
+                    3.0508194038024476,
+                    0.53272057776127
+                  ],
+                  [
+                    3.2064648955868043,
+                    0.5348032041208858
+                  ],
+                  [
+                    3.366450107242213,
+                    0.534561021183926
+                  ],
+                  [
+                    3.531746496971429,
+                    0.5314326788901307
+                  ],
+                  [
+                    3.7032782141405205,
+                    0.5247636554170413
+                  ]
+                ],
+                "centerline_boundary_points_m": [
+                  [
+                    3.061951683055794,
+                    0.0
+                  ],
+                  [
+                    3.075146571047155,
+                    0.0
+                  ],
+                  [
+                    3.2274645386635763,
+                    0.0
+                  ],
+                  [
+                    3.3759356051468017,
+                    0.0
+                  ],
+                  [
+                    3.5210686262929527,
+                    0.0
+                  ],
+                  [
+                    3.6634686314354132,
+                    0.0
+                  ],
+                  [
+                    3.803760411514439,
+                    0.0
+                  ],
+                  [
+                    3.942571127011103,
+                    0.0
+                  ],
+                  [
+                    4.080508737622934,
+                    0.0
+                  ],
+                  [
+                    4.218133646037481,
                     0.0
                   ]
                 ]
@@ -25978,14 +26233,14 @@
             }
           ],
           "geometry_fidelity_counts": {
-            "resolved-planar-moc": 2
+            "resolved-planar-moc": 3
           },
           "diagnostics": {
             "continuation_model": "solver-generated-terminal-reflection-patch-ambient-closure-chain-reference",
-            "next_cell_index": 3,
+            "next_cell_index": 4,
             "termination_model": "configured-cell-count"
           },
-          "message": "terminal-reflection-patch ambient-closure chain reference exhausted its 2-cell research configuration"
+          "message": "terminal-reflection-patch ambient-closure chain reference exhausted its 3-cell research configuration"
         },
         "diagnostics": {
           "terminal_reflection_patch_ambient_closure_chain_reference": {
@@ -25993,7 +26248,7 @@
             "planning_only": true,
             "production_claim_allowed": false,
             "physical_chain_promotion_allowed": true,
-            "total_cell_count_including_seed": 2,
+            "total_cell_count_including_seed": 3,
             "target_centerline_y_m": 0.0,
             "target_centerline_flow_angle_rad": 0.0,
             "outer_downstream_flow_angle_bracket": [
@@ -26002,7 +26257,7 @@
             ],
             "sample_count": 9,
             "branch": "weak",
-            "trace_position_tolerance_m": 0.0004,
+            "trace_position_tolerance_m": 0.001,
             "trace_forward_tolerance_m": 0.0001,
             "seam_position_tolerance_m": 0.005,
             "position_tolerance_m": 1e-09,
@@ -26012,13 +26267,15 @@
             "tangent_tolerance": 1e-08,
             "shock_angle_tolerance_rad": 0.01,
             "allow_zero_strength_attachment": true,
-            "downstream_condition_model": "bounded-terminal-reflection-patch-plus-ambient-attachment-and-centerline-reflection",
+            "polarity_aware": true,
+            "compression_amplitude_rad": 0.01,
+            "downstream_condition_model": "bounded-terminal-reflection-patch-plus-ambient-attachment-and-centerline-reflection-with-reflected-trace-compression-envelope",
             "upstream_source_model": "accepted-field-derived-terminal-reflection-patch",
             "claim_status": "solver-generated-terminal-reflection-patch-ambient-closure-chain; canonical-reflected-free-boundary-and-external-validation-pending"
           },
           "upstream_field_replacement_policy": "replace-only-after-complete-ambient-closed-physical-field-solve",
           "endpoint_policy": "use-next-field-ambient-boundary-endpoint; requested-end-x-is-an-axial-limit; no fabricated interface",
-          "requested_end_x_m": 3.472094211207191,
+          "requested_end_x_m": 7.472094211207191,
           "seed_interface_end_x_m": 1.472094211207191,
           "fidelity_boundary": "research-only-solver-owned-planar-MOC; no basic/reduced-provider-promotion"
         }
@@ -26221,6 +26478,118 @@
         "minimum_forward_margin_m": 0.025673413010309787,
         "message": "terminal shock-sourced C+ trace reflected to a centerline-compatible patch; outgoing C- characteristic front remains open for the next shock/boundary solve"
       },
+      "terminal_reflection_patch_trace_polarity": {
+        "status": "compression-required",
+        "converged": true,
+        "source_flow_angles_rad": [
+          -0.050707662114035434,
+          -0.046786736296105524,
+          -0.04389735374760434,
+          -0.041003103486756676,
+          -0.038104042962560314,
+          -0.035200226312616545,
+          -0.03229170473063786,
+          -0.029378526793853332,
+          -0.026460738766908687,
+          -0.023538384880910423,
+          -0.020611507582838695,
+          -0.01768014776495247,
+          -0.014744344976549584,
+          -0.01180413762160637,
+          -0.00885956313078673,
+          -0.005910658131644153,
+          -0.00295745860018809,
+          0.0
+        ],
+        "reference_flow_angles_rad": [
+          -0.050707662114035434,
+          -0.0400230007560427,
+          -0.03791520097476918,
+          -0.03575581080557428,
+          -0.033544772256988244,
+          -0.031281986994385926,
+          -0.028967316182455467,
+          -0.02660058021460926,
+          -0.02418155833720883,
+          -0.021709988181932923,
+          -0.01918556522001576,
+          -0.016607942153573398,
+          -0.013976728263328301,
+          -0.011291488737763249,
+          -0.008551744016227892,
+          -0.005756969185419906,
+          -0.002906593485915269,
+          0.0
+        ],
+        "reference_turns_rad": [
+          0.0,
+          0.006763735540062828,
+          0.0059821527728351614,
+          0.005247292681182396,
+          0.00455927070557207,
+          0.003918239318230619,
+          0.003324388548182393,
+          0.0027779465792440727,
+          0.0022791804296998577,
+          0.0018283966989775004,
+          0.0014259423628229344,
+          0.001072205611379072,
+          0.0007676167132212829,
+          0.0005126488838431212,
+          0.0003078191145588372,
+          0.0001536889462242473,
+          5.0865114272821005e-05,
+          0.0
+        ],
+        "minimum_interior_turn_rad": 5.0865114272821005e-05,
+        "maximum_interior_turn_rad": 0.006763735540062828,
+        "compression_sample_count": 16,
+        "expansion_sample_count": 0,
+        "neutral_sample_count": 0,
+        "requires_trace_referenced_profile": false,
+        "reference_law": "linear-endpoint-flow-angle-reference",
+        "message": "reflected trace is compression-compatible with the affine reference law"
+      },
+      "terminal_reflection_patch_trace_profile": {
+        "model": "reflected-trace-referenced-compression-envelope",
+        "source_trace_sample_count": 18,
+        "source_trace_start_m": [
+          1.4720719054145763,
+          0.4979922117641763
+        ],
+        "source_trace_end_m": [
+          1.9592114806116385,
+          0.0
+        ],
+        "target_centerline_y_m": 0.0,
+        "target_centerline_flow_angle_rad": 0.0,
+        "compression_amplitude_rad": 0.01,
+        "baseline_flow_angles_rad": [
+          -0.050707662114035434,
+          -0.0400230007560427,
+          -0.03791520097476918,
+          -0.03575581080557428,
+          -0.033544772256988244,
+          -0.031281986994385926,
+          -0.028967316182455467,
+          -0.02660058021460926,
+          -0.02418155833720883,
+          -0.021709988181932923,
+          -0.01918556522001576,
+          -0.016607942153573398,
+          -0.013976728263328301,
+          -0.011291488737763249,
+          -0.008551744016227892,
+          -0.005756969185419906,
+          -0.002906593485915269,
+          0.0
+        ],
+        "endpoint_turns_are_zero": true,
+        "interior_turn_envelope": "4*s*(1-s)",
+        "canonical_expansion_remesh_solved": false,
+        "production_claim_allowed": false
+      },
+      "terminal_reflection_patch_trace_profile_accepted": true,
       "terminal_reflection_patch_shock_probe": {
         "status": "subsonic_terminal_required",
         "converged": false,
@@ -40794,6 +41163,9 @@
       "attachment_pressure_residual": 4.1152443091797246e-16,
       "shooting_iterations": 1,
       "zero_strength_attachment": false,
+      "continuation_law": "linear-centerline-reference",
+      "continuation_polarity": null,
+      "compression_amplitude_rad": null,
       "shock": {
         "status": "converged_free_boundary_field",
         "converged": true,
@@ -41121,6 +41493,9 @@
         "attachment_pressure_residual": 4.1152443091797246e-16,
         "shooting_iterations": 1,
         "zero_strength_attachment": false,
+        "continuation_law": "linear-centerline-reference",
+        "continuation_polarity": null,
+        "compression_amplitude_rad": null,
         "shock": {
           "status": "converged_free_boundary_field",
           "converged": true,

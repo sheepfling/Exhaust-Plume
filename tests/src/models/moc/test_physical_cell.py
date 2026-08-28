@@ -21,6 +21,7 @@ from exhaust_plume.models.moc import (
   MocPhysicalPostShockFieldResult,
   MocPhysicalPostShockFieldStatus,
   MocPhysicalPostShockFieldContinuationSolve,
+  MocReflectedTracePolarity,
   MocPhysicalPostShockTerminalPatchTransitionResult,
   MocTerminalReflectionPatchAmbientClosureChainReference,
   MocTerminalReflectionPatchPhysicalFieldStatus,
@@ -37,9 +38,11 @@ from exhaust_plume.models.moc import (
   assemble_ambient_boundary_post_shock_field,
   assemble_ambient_boundary_post_shock_field_with_centerline_reflection,
   assemble_terminal_trace_centerline_patch,
+  build_reflected_trace_compression_profile,
   build_terminal_reflection_patch_upstream_source,
   centerline_characteristic_point,
   continue_ambient_closed_post_shock_chain,
+  classify_reflected_trace_polarity,
   march_post_shock_ambient_boundary,
   plan_ambient_closed_post_shock_chain,
   plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closure,
@@ -52,6 +55,7 @@ from exhaust_plume.models.moc import (
   solve_marched_attached_shock_field,
   solve_marched_attached_shock_with_ambient_centerline_physical_field,
   solve_marched_attached_shock_with_ambient_centerline_physical_field_from_terminal_reflection_patch,
+  solve_marched_attached_shock_with_ambient_centerline_physical_field_from_terminal_reflection_patch_trace_profile,
   solve_attached_compression_to_turn,
   solve_uniform_attached_shock_field,
   solve_ambient_closed_post_shock_chain_cell_from_physical_field_terminal_patch_or_termination,
@@ -540,6 +544,100 @@ def test_terminal_reflection_patch_ambient_closure_planner_carries_a_second_cell
   assert report['diagnostics']['endpoint_policy'].startswith(
     'use-next-field-ambient-boundary-endpoint'
   )
+
+
+def test_terminal_reflection_patch_trace_profile_records_polarity_and_closes_a_field() -> None:
+  field = _canonical_ambient_closed_field()
+  patch = assemble_terminal_trace_centerline_patch(
+    field.as_open_shock_ambient_strip()
+  )
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+
+  polarity = classify_reflected_trace_polarity(
+    patch.outgoing_trace_samples,
+    position_tolerance_m=1.0e-3,
+    forward_position_tolerance_m=1.0e-4,
+  )
+  assert polarity.status is MocReflectedTracePolarity.COMPRESSION
+  assert polarity.compression_sample_count == len(patch.outgoing_trace_samples) - 2
+  assert polarity.expansion_sample_count == 0
+
+  profile = build_reflected_trace_compression_profile(
+    patch.outgoing_trace_samples,
+    1.0e-2,
+  )
+  middle_index = len(patch.outgoing_trace_points_m) // 2
+  middle_point = patch.outgoing_trace_points_m[middle_index]
+  assert profile.flow_angle_at(middle_index, middle_point) > (
+    profile.baseline_flow_angles_rad[middle_index]
+  )
+  assert profile.flow_angle_at(0, patch.outgoing_trace_points_m[0]) == pytest.approx(
+    patch.outgoing_trace_states[0].theta_rad
+  )
+  assert profile.flow_angle_at(
+    len(patch.outgoing_trace_points_m) - 1,
+    patch.outgoing_trace_points_m[-1],
+  ) == pytest.approx(0.0)
+
+  result = solve_marched_attached_shock_with_ambient_centerline_physical_field_from_terminal_reflection_patch_trace_profile(
+    patch,
+    ambient_pressure,
+    1.0e-2,
+    sample_count=9,
+  )
+
+  assert result.converged
+  assert result.reflected_trace_polarity is not None
+  assert result.reflected_trace_polarity.status is MocReflectedTracePolarity.COMPRESSION
+  assert result.continuation_law == profile.model
+  assert result.compression_amplitude_rad == pytest.approx(1.0e-2)
+  assert result.field is not None
+  assert result.field.physical_closure_verified
+  assert result.field_result is not None
+  assert result.field_result.ambient_attachment is not None
+  assert result.field_result.ambient_attachment.as_report()['downstream_condition_status'] == profile.model
+  next_patch = assemble_terminal_trace_centerline_patch(
+    result.field.as_open_shock_ambient_strip()
+  )
+  next_polarity = classify_reflected_trace_polarity(
+    next_patch.outgoing_trace_samples,
+    position_tolerance_m=1.0e-3,
+    forward_position_tolerance_m=1.0e-4,
+  )
+  assert next_polarity.status is MocReflectedTracePolarity.MIXED
+  assert next_polarity.expansion_sample_count > 0
+
+
+def test_terminal_reflection_patch_ambient_closure_planner_carries_three_cells_with_polarity_aware_closure() -> None:
+  field = _canonical_ambient_closed_field()
+
+  planner = plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closure(
+    field,
+    start_x_m=0.5,
+    end_x_m=8.0,
+    reference=MocTerminalReflectionPatchAmbientClosureChainReference(
+      total_cell_count=3,
+    ),
+    policy=MocChainContinuationPolicy(max_cells=5, require_state_carry=True),
+  )
+
+  assert planner.chain.resolved
+  assert planner.chain.cell_count == 3
+  assert planner.chain.termination_reason is (
+    MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL
+  )
+  assert planner.handoff_links_verified is True
+  assert [step.result_kind for step in planner.steps] == [
+    'physical-field-solve-returned',
+    'physical-field-solve-returned',
+    'termination-returned',
+  ]
+  reference_report = planner.diagnostics[
+    'terminal_reflection_patch_ambient_closure_chain_reference'
+  ]
+  assert reference_report['polarity_aware'] is True
+  assert reference_report['trace_position_tolerance_m'] == pytest.approx(1.0e-3)
 
 
 def test_terminal_reflection_patch_physical_field_rejects_a_mismatched_handoff() -> None:

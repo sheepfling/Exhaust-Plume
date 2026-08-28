@@ -61,7 +61,12 @@ from exhaust_plume.models.moc.primitives import (
 )
 from exhaust_plume.models.moc.source_strip import MocSourceCharacteristicStripResult
 from exhaust_plume.models.moc.terminal_patch import (
+  MocReflectedTracePolarity,
+  MocReflectedTracePolarityResult,
+  MocReflectedTraceCompressionProfile,
   MocTerminalReflectionPatchResult,
+  build_reflected_trace_compression_profile,
+  classify_reflected_trace_polarity,
 )
 from exhaust_plume.util.aero.shock_validity import ShockBranch
 
@@ -73,6 +78,7 @@ __all__ = (
   'MocAmbientAttachmentResult',
   'solve_marched_attached_shock_with_ambient_attachment_closure',
   'solve_marched_attached_shock_with_ambient_centerline_physical_field',
+  'solve_marched_attached_shock_with_ambient_centerline_physical_field_from_terminal_reflection_patch_trace_profile',
   'MocTerminalReflectionPatchPhysicalFieldStatus',
   'MocTerminalReflectionPatchPhysicalFieldResult',
   'solve_marched_attached_shock_with_ambient_centerline_physical_field_from_terminal_reflection_patch',
@@ -285,6 +291,9 @@ class MocAmbientAttachmentResult:
   shooting_iterations: int
   message: str = ''
   zero_strength_attachment: bool = False
+  continuation_law: str = 'linear-centerline-reference'
+  continuation_polarity: MocReflectedTracePolarity | None = None
+  compression_amplitude_rad: float | None = None
 
   @property
   def converged(self) -> bool:
@@ -313,12 +322,19 @@ class MocAmbientAttachmentResult:
       'attachment_pressure_residual': self.attachment_pressure_residual,
       'shooting_iterations': self.shooting_iterations,
       'zero_strength_attachment': self.zero_strength_attachment,
+      'continuation_law': self.continuation_law,
+      'continuation_polarity': (
+        None
+        if self.continuation_polarity is None
+        else self.continuation_polarity.value
+      ),
+      'compression_amplitude_rad': self.compression_amplitude_rad,
       'shock': None if self.shock is None else self.shock.as_report(),
       'ambient_march': (
         None if self.ambient_march is None else self.ambient_march.as_report()
       ),
       'strip': None if self.strip is None else self.strip.as_report(),
-      'downstream_condition_status': 'linear-centerline-reference',
+      'downstream_condition_status': self.continuation_law,
       'message': self.message,
     }
   ####
@@ -726,6 +742,9 @@ def _ambient_attachment_failure(
   ambient_march: MocAmbientShockBoundaryMarchResult | None = None,
   strip: MocAmbientShockStripResult | None = None,
   zero_strength_attachment: bool = False,
+  continuation_law: str = 'linear-centerline-reference',
+  continuation_polarity: MocReflectedTracePolarity | None = None,
+  compression_amplitude_rad: float | None = None,
   message: str,
 ) -> MocAmbientAttachmentResult:
   return MocAmbientAttachmentResult(
@@ -740,6 +759,9 @@ def _ambient_attachment_failure(
     shooting_iterations=shooting_iterations,
     message=message,
     zero_strength_attachment=zero_strength_attachment,
+    continuation_law=continuation_law,
+    continuation_polarity=continuation_polarity,
+    compression_amplitude_rad=compression_amplitude_rad,
   )
 ####
 
@@ -769,6 +791,10 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
   allow_zero_strength_attachment: bool = False,
   zero_strength_start_trace: Sequence[MocChainBoundarySample] | None = None,
   allow_zero_strength_endpoints: bool = False,
+  downstream_flow_angle_at: Callable[[int, tuple[float, float]], float] | None = None,
+  continuation_law: str = 'linear-centerline-reference',
+  continuation_polarity: MocReflectedTracePolarity | None = None,
+  compression_amplitude_rad: float | None = None,
 ) -> MocAmbientAttachmentResult:
   """Close the shock/ambient attachment before assembling an open strip.
 
@@ -797,6 +823,24 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
     raise ValueError('allow_zero_strength_attachment must be a bool')
   if not isinstance(allow_zero_strength_endpoints, bool):
     raise ValueError('allow_zero_strength_endpoints must be a bool')
+  if downstream_flow_angle_at is not None and not callable(downstream_flow_angle_at):
+    raise ValueError('downstream_flow_angle_at must be callable when supplied')
+  continuation_law = str(continuation_law)
+  if not continuation_law:
+    raise ValueError('continuation_law must be a non-empty string')
+  if continuation_polarity is not None and not isinstance(
+    continuation_polarity,
+    MocReflectedTracePolarity,
+  ):
+    raise ValueError(
+      'continuation_polarity must be a MocReflectedTracePolarity when supplied'
+    )
+  if compression_amplitude_rad is not None:
+    compression_amplitude_rad = float(compression_amplitude_rad)
+    if not isfinite(compression_amplitude_rad) or compression_amplitude_rad <= 0.0:
+      raise ValueError(
+        'compression_amplitude_rad must be finite and positive when supplied'
+      )
   try:
     start = (float(start_point_m[0]), float(start_point_m[1]))
     ambient_pressure = float(ambient_pressure_Pa)
@@ -922,6 +966,21 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
     and lower_angle <= upstream_state.theta_rad <= upper_angle
   )
 
+  if downstream_flow_angle_at is not None and not zero_strength_attachment:
+    return _ambient_attachment_failure(
+      MocAmbientAttachmentStatus.SHOCK_FAILURE,
+      ambient_pressure_Pa=ambient_pressure,
+      outer_flow_angle_bracket=bracket,
+      zero_strength_attachment=False,
+      continuation_law=continuation_law,
+      continuation_polarity=continuation_polarity,
+      compression_amplitude_rad=compression_amplitude_rad,
+      message=(
+        'custom reflected-trace downstream angle laws require an '
+        'ambient-matched zero-strength attachment at the trace start'
+      ),
+    )
+
   def attachment_residual(angle_rad: float) -> tuple[float | None, str]:
     turn = angle_rad - upstream_state.theta_rad
     if turn <= 0.0:
@@ -1033,7 +1092,12 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
   assert selected_residual is not None
   denominator = start[1] - target_y
 
-  def downstream_angle_at(_index: int, point_m: tuple[float, float]) -> float:
+  def downstream_angle_at_for_solver(
+    index: int,
+    point_m: tuple[float, float],
+  ) -> float:
+    if downstream_flow_angle_at is not None:
+      return float(downstream_flow_angle_at(index, point_m))
     fraction = (point_m[1] - target_y) / denominator
     fraction = max(0.0, min(1.0, fraction))
     return target_angle + (selected_angle - target_angle) * fraction
@@ -1044,7 +1108,7 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
       upstream_pressure_at,
       start,
       target_centerline_y_m=target_y,
-      downstream_flow_angle_at=downstream_angle_at,
+      downstream_flow_angle_at=downstream_angle_at_for_solver,
       incoming_handoff=incoming_handoff,
       sample_count=sample_count,
       branch=branch,
@@ -1163,6 +1227,9 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
     attachment_pressure_residual=selected_residual,
     shooting_iterations=shooting_iterations,
     zero_strength_attachment=zero_strength_attachment,
+    continuation_law=continuation_law,
+    continuation_polarity=continuation_polarity,
+    compression_amplitude_rad=compression_amplitude_rad,
     message=(
       'ambient shock attachment converged and produced a physical open '
       'shock/ambient strip; terminal centerline closure remains pending'
@@ -1196,6 +1263,10 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field(
   allow_zero_strength_attachment: bool = False,
   zero_strength_start_trace: Sequence[MocChainBoundarySample] | None = None,
   allow_zero_strength_endpoints: bool = False,
+  downstream_flow_angle_at: Callable[[int, tuple[float, float]], float] | None = None,
+  continuation_law: str = 'linear-centerline-reference',
+  continuation_polarity: MocReflectedTracePolarity | None = None,
+  compression_amplitude_rad: float | None = None,
 ) -> MocAmbientPhysicalFieldResult:
   """Assemble the solver-owned ambient-closed reflected physical field.
 
@@ -1270,6 +1341,10 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field(
       allow_zero_strength_attachment=allow_zero_strength_attachment,
       zero_strength_start_trace=zero_strength_start_trace,
       allow_zero_strength_endpoints=allow_zero_strength_endpoints,
+      downstream_flow_angle_at=downstream_flow_angle_at,
+      continuation_law=continuation_law,
+      continuation_polarity=continuation_polarity,
+      compression_amplitude_rad=compression_amplitude_rad,
     )
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return MocAmbientPhysicalFieldResult(
@@ -1407,6 +1482,9 @@ class MocTerminalReflectionPatchPhysicalFieldResult:
   incoming_handoff: tuple[MocChainBoundarySample, ...] = ()
   patch_handoff: tuple[MocChainBoundarySample, ...] = ()
   message: str = ''
+  continuation_law: str = 'linear-centerline-reference'
+  reflected_trace_polarity: MocReflectedTracePolarityResult | None = None
+  compression_amplitude_rad: float | None = None
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -1460,7 +1538,24 @@ class MocTerminalReflectionPatchPhysicalFieldResult:
     ):
       raise TypeError(
         'patch_handoff must contain MocChainBoundarySample values'
+    )
+    if not isinstance(self.continuation_law, str) or not self.continuation_law:
+      raise ValueError('continuation_law must be a non-empty string')
+    if self.reflected_trace_polarity is not None and not isinstance(
+      self.reflected_trace_polarity,
+      MocReflectedTracePolarityResult,
+    ):
+      raise TypeError(
+        'reflected_trace_polarity must be a MocReflectedTracePolarityResult '
+        'or None'
       )
+    if self.compression_amplitude_rad is not None:
+      amplitude = float(self.compression_amplitude_rad)
+      if not isfinite(amplitude) or amplitude <= 0.0:
+        raise ValueError(
+          'compression_amplitude_rad must be finite and positive when supplied'
+        )
+      object.__setattr__(self, 'compression_amplitude_rad', amplitude)
     object.__setattr__(self, 'incoming_handoff', tuple(self.incoming_handoff))
     object.__setattr__(self, 'patch_handoff', tuple(self.patch_handoff))
   ####
@@ -1551,6 +1646,13 @@ class MocTerminalReflectionPatchPhysicalFieldResult:
       'start_point_m': self.start_point_m,
       'incoming_handoff_sample_count': len(self.incoming_handoff),
       'patch_handoff_sample_count': len(self.patch_handoff),
+      'continuation_law': self.continuation_law,
+      'reflected_trace_polarity': (
+        None
+        if self.reflected_trace_polarity is None
+        else self.reflected_trace_polarity.as_report()
+      ),
+      'compression_amplitude_rad': self.compression_amplitude_rad,
       'patch': None if self.patch is None else self.patch.as_report(),
       'field_result': (
         None if self.field_result is None else self.field_result.as_report()
@@ -1583,6 +1685,10 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field_from_ter
   maximum_boundary_iterations: int = 16,
   maximum_shooting_iterations: int = 40,
   allow_zero_strength_attachment: bool = True,
+  downstream_flow_angle_at: Callable[[int, tuple[float, float]], float] | None = None,
+  continuation_law: str = 'linear-centerline-reference',
+  reflected_trace_polarity: MocReflectedTracePolarityResult | None = None,
+  compression_amplitude_rad: float | None = None,
 ) -> MocTerminalReflectionPatchPhysicalFieldResult:
   """Close a finite reflected patch into the next physical MOC field.
 
@@ -1762,6 +1868,14 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field_from_ter
       allow_zero_strength_attachment=allow_zero_strength_attachment,
       allow_zero_strength_endpoints=allow_zero_strength_attachment,
       zero_strength_start_trace=patch.outgoing_trace_samples,
+      downstream_flow_angle_at=downstream_flow_angle_at,
+      continuation_law=continuation_law,
+      continuation_polarity=(
+        None
+        if reflected_trace_polarity is None
+        else reflected_trace_polarity.status
+      ),
+      compression_amplitude_rad=compression_amplitude_rad,
     )
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return MocTerminalReflectionPatchPhysicalFieldResult(
@@ -1773,6 +1887,9 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field_from_ter
       start_point_m=start,
       incoming_handoff=handoff,
       patch_handoff=source_handoff,
+      continuation_law=continuation_law,
+      reflected_trace_polarity=reflected_trace_polarity,
+      compression_amplitude_rad=compression_amplitude_rad,
       message=f'terminal-patch physical-field solve raised: {error}',
     )
   status = (
@@ -1793,6 +1910,9 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field_from_ter
     start_point_m=start,
     incoming_handoff=handoff,
     patch_handoff=source_handoff,
+    continuation_law=continuation_law,
+    reflected_trace_polarity=reflected_trace_polarity,
+    compression_amplitude_rad=compression_amplitude_rad,
     message=(
       'bounded terminal-reflection patch produced a state-carrying '
       'ambient-closed physical field; production and external validation '
@@ -1802,6 +1922,146 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field_from_ter
     ),
   )
 ####
+
+
+def solve_marched_attached_shock_with_ambient_centerline_physical_field_from_terminal_reflection_patch_trace_profile(
+  patch: MocTerminalReflectionPatchResult,
+  ambient_pressure_Pa: float,
+  compression_amplitude_rad: float,
+  *,
+  start_point_m: tuple[float, float] | None = None,
+  target_centerline_y_m: float = 0.0,
+  target_centerline_flow_angle_rad: float = 0.0,
+  incoming_handoff: Sequence[MocChainBoundarySample] | None = None,
+  patch_handoff: Sequence[MocChainBoundarySample] | None = None,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  trace_position_tolerance_m: float = 1.0e-3,
+  trace_forward_tolerance_m: float = 1.0e-4,
+  position_tolerance_m: float = 1.0e-9,
+  invariant_tolerance: float = 1.0e-10,
+  attachment_pressure_tolerance: float = 1.0e-8,
+  pressure_tolerance: float = 1.0e-8,
+  tangent_tolerance: float = 1.0e-8,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  maximum_boundary_iterations: int = 16,
+  maximum_shooting_iterations: int = 40,
+) -> MocTerminalReflectionPatchPhysicalFieldResult:
+  """Close a reflected patch with a polarity-aware trace profile.
+
+  The exact outgoing ``C-`` trace supplies the endpoint-law baseline.  A
+  positive interior envelope then keeps the fitted shock compressive even
+  when the old affine endpoint law would request an expansion.  The result is
+  intentionally a bounded research continuation: it records the expansion or
+  mixed-polarity evidence and does not claim to solve the canonical
+  expansion/remeshing problem.
+  """
+
+  if not isinstance(patch, MocTerminalReflectionPatchResult):
+    return MocTerminalReflectionPatchPhysicalFieldResult(
+      status=MocTerminalReflectionPatchPhysicalFieldStatus.INVALID_INPUT,
+      patch=None,
+      field_result=None,
+      ambient_pressure_Pa=None,
+      outer_flow_angle_bracket=None,
+      start_point_m=None,
+      message='patch must be a MocTerminalReflectionPatchResult',
+      continuation_law='reflected-trace-referenced-compression-envelope',
+      compression_amplitude_rad=None,
+    )
+  try:
+    polarity = classify_reflected_trace_polarity(
+      patch.outgoing_trace_samples,
+      target_centerline_y_m=target_centerline_y_m,
+      target_centerline_flow_angle_rad=target_centerline_flow_angle_rad,
+      position_tolerance_m=trace_position_tolerance_m,
+      forward_position_tolerance_m=trace_forward_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return MocTerminalReflectionPatchPhysicalFieldResult(
+      status=MocTerminalReflectionPatchPhysicalFieldStatus.INVALID_INPUT,
+      patch=patch,
+      field_result=None,
+      ambient_pressure_Pa=None,
+      outer_flow_angle_bracket=None,
+      start_point_m=None,
+      message=f'reflected trace polarity classification raised: {error}',
+      continuation_law='reflected-trace-referenced-compression-envelope',
+      compression_amplitude_rad=None,
+    )
+  if not polarity.converged:
+    return MocTerminalReflectionPatchPhysicalFieldResult(
+      status=MocTerminalReflectionPatchPhysicalFieldStatus.PATCH_FAILURE,
+      patch=patch,
+      field_result=None,
+      ambient_pressure_Pa=None,
+      outer_flow_angle_bracket=None,
+      start_point_m=None,
+      message=f'reflected trace polarity did not converge: {polarity.message}',
+      continuation_law='reflected-trace-referenced-compression-envelope',
+      reflected_trace_polarity=polarity,
+      compression_amplitude_rad=None,
+    )
+  try:
+    profile: MocReflectedTraceCompressionProfile = build_reflected_trace_compression_profile(
+      patch.outgoing_trace_samples,
+      compression_amplitude_rad,
+      target_centerline_y_m=target_centerline_y_m,
+      target_centerline_flow_angle_rad=target_centerline_flow_angle_rad,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    try:
+      amplitude = float(compression_amplitude_rad)
+    except (TypeError, ValueError):
+      amplitude = None
+    return MocTerminalReflectionPatchPhysicalFieldResult(
+      status=MocTerminalReflectionPatchPhysicalFieldStatus.INVALID_INPUT,
+      patch=patch,
+      field_result=None,
+      ambient_pressure_Pa=None,
+      outer_flow_angle_bracket=None,
+      start_point_m=None,
+      message=f'reflected trace compression profile is invalid: {error}',
+      continuation_law='reflected-trace-referenced-compression-envelope',
+      reflected_trace_polarity=polarity,
+      compression_amplitude_rad=amplitude,
+    )
+  result = solve_marched_attached_shock_with_ambient_centerline_physical_field_from_terminal_reflection_patch(
+    patch,
+    ambient_pressure_Pa,
+    patch.outgoing_trace_states[0].theta_rad - 1.0e-6,
+    patch.outgoing_trace_states[0].theta_rad + 1.0e-6,
+    start_point_m=start_point_m,
+    target_centerline_y_m=target_centerline_y_m,
+    target_centerline_flow_angle_rad=target_centerline_flow_angle_rad,
+    incoming_handoff=incoming_handoff,
+    patch_handoff=patch_handoff,
+    sample_count=sample_count,
+    branch=branch,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+    attachment_pressure_tolerance=attachment_pressure_tolerance,
+    pressure_tolerance=pressure_tolerance,
+    tangent_tolerance=tangent_tolerance,
+    shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+    maximum_segment_iterations=maximum_segment_iterations,
+    maximum_boundary_iterations=maximum_boundary_iterations,
+    maximum_shooting_iterations=maximum_shooting_iterations,
+    allow_zero_strength_attachment=True,
+    downstream_flow_angle_at=profile.flow_angle_at,
+    continuation_law=profile.model,
+    reflected_trace_polarity=polarity,
+    compression_amplitude_rad=profile.compression_amplitude_rad,
+  )
+  return replace(
+    result,
+    continuation_law=profile.model,
+    reflected_trace_polarity=polarity,
+    compression_amplitude_rad=profile.compression_amplitude_rad,
+  )
+  ####
 
 
 def _ambient_axis_shoot_failure(

@@ -3159,7 +3159,7 @@ def solve_ambient_closed_post_shock_chain_cell_from_terminal_reflection_patch_am
   target_centerline_flow_angle_rad: float = 0.0,
   sample_count: int = 17,
   branch: ShockBranch = ShockBranch.WEAK,
-  trace_position_tolerance_m: float = 4.0e-4,
+  trace_position_tolerance_m: float = 1.0e-3,
   trace_forward_tolerance_m: float = 1.0e-4,
   seam_position_tolerance_m: float = 5.0e-3,
   position_tolerance_m: float = 1.0e-9,
@@ -3172,6 +3172,8 @@ def solve_ambient_closed_post_shock_chain_cell_from_terminal_reflection_patch_am
   maximum_boundary_iterations: int = 16,
   maximum_shooting_iterations: int = 40,
   allow_zero_strength_attachment: bool = True,
+  polarity_aware: bool = False,
+  compression_amplitude_rad: float = 1.0e-2,
 ) -> MocPhysicalPostShockFieldContinuationSolve | MocChainTerminationDecision:
   """Solve one next physical cell from a reflected terminal patch.
 
@@ -3304,6 +3306,23 @@ def solve_ambient_closed_post_shock_chain_cell_from_terminal_reflection_patch_am
       MocChainTerminationReason.INVALID_INPUT,
       'allow_zero_strength_attachment must be a bool',
     )
+  if not isinstance(polarity_aware, bool):
+    return decision(
+      MocChainTerminationReason.INVALID_INPUT,
+      'polarity_aware must be a bool',
+    )
+  try:
+    compression_amplitude = float(compression_amplitude_rad)
+  except (TypeError, ValueError):
+    return decision(
+      MocChainTerminationReason.INVALID_INPUT,
+      'compression_amplitude_rad must be numeric',
+    )
+  if not isfinite(compression_amplitude) or compression_amplitude <= 0.0:
+    return decision(
+      MocChainTerminationReason.INVALID_INPUT,
+      'compression_amplitude_rad must be finite and positive',
+    )
   if (
     isinstance(sample_count, bool)
     or not isinstance(sample_count, int)
@@ -3435,6 +3454,8 @@ def solve_ambient_closed_post_shock_chain_cell_from_terminal_reflection_patch_am
     'tangent_tolerance': tangent_tolerance,
     'shock_angle_tolerance_rad': shock_angle_tolerance,
     'allow_zero_strength_attachment': allow_zero_strength_attachment,
+    'polarity_aware': polarity_aware,
+    'compression_amplitude_rad': compression_amplitude,
     'incoming_handoff_sample_count': len(handoff),
     'ambient_pressure_Pa': float(ambient_pressure),
     'production_claim_allowed': False,
@@ -3550,32 +3571,58 @@ def solve_ambient_closed_post_shock_chain_cell_from_terminal_reflection_patch_am
   from exhaust_plume.models.moc.coupled import (
     MocTerminalReflectionPatchPhysicalFieldStatus,
     solve_marched_attached_shock_with_ambient_centerline_physical_field_from_terminal_reflection_patch,
+    solve_marched_attached_shock_with_ambient_centerline_physical_field_from_terminal_reflection_patch_trace_profile,
   )
 
   try:
-    field_result = solve_marched_attached_shock_with_ambient_centerline_physical_field_from_terminal_reflection_patch(
-      reflection_patch,
-      float(ambient_pressure),
-      lower_angle,
-      upper_angle,
-      start_point_m=patch_start,
-      target_centerline_y_m=target_y,
-      target_centerline_flow_angle_rad=target_angle,
-      incoming_handoff=handoff,
-      patch_handoff=reflection_patch.outgoing_trace_samples,
-      sample_count=sample_count,
-      branch=branch,
-      position_tolerance_m=position_tolerance,
-      invariant_tolerance=float(invariant_tolerance),
-      attachment_pressure_tolerance=float(attachment_pressure_tolerance),
-      pressure_tolerance=float(pressure_tolerance),
-      tangent_tolerance=float(tangent_tolerance),
-      shock_angle_tolerance_rad=shock_angle_tolerance,
-      maximum_segment_iterations=maximum_segment_iterations,
-      maximum_boundary_iterations=maximum_boundary_iterations,
-      maximum_shooting_iterations=maximum_shooting_iterations,
-      allow_zero_strength_attachment=allow_zero_strength_attachment,
-    )
+    if polarity_aware:
+      field_result = solve_marched_attached_shock_with_ambient_centerline_physical_field_from_terminal_reflection_patch_trace_profile(
+        reflection_patch,
+        float(ambient_pressure),
+        compression_amplitude,
+        start_point_m=patch_start,
+        target_centerline_y_m=target_y,
+        target_centerline_flow_angle_rad=target_angle,
+        incoming_handoff=handoff,
+        patch_handoff=reflection_patch.outgoing_trace_samples,
+        sample_count=sample_count,
+        branch=branch,
+        trace_position_tolerance_m=trace_position_tolerance,
+        trace_forward_tolerance_m=trace_forward_tolerance,
+        position_tolerance_m=position_tolerance,
+        invariant_tolerance=float(invariant_tolerance),
+        attachment_pressure_tolerance=float(attachment_pressure_tolerance),
+        pressure_tolerance=float(pressure_tolerance),
+        tangent_tolerance=float(tangent_tolerance),
+        shock_angle_tolerance_rad=shock_angle_tolerance,
+        maximum_segment_iterations=maximum_segment_iterations,
+        maximum_boundary_iterations=maximum_boundary_iterations,
+        maximum_shooting_iterations=maximum_shooting_iterations,
+      )
+    else:
+      field_result = solve_marched_attached_shock_with_ambient_centerline_physical_field_from_terminal_reflection_patch(
+        reflection_patch,
+        float(ambient_pressure),
+        lower_angle,
+        upper_angle,
+        start_point_m=patch_start,
+        target_centerline_y_m=target_y,
+        target_centerline_flow_angle_rad=target_angle,
+        incoming_handoff=handoff,
+        patch_handoff=reflection_patch.outgoing_trace_samples,
+        sample_count=sample_count,
+        branch=branch,
+        position_tolerance_m=position_tolerance,
+        invariant_tolerance=float(invariant_tolerance),
+        attachment_pressure_tolerance=float(attachment_pressure_tolerance),
+        pressure_tolerance=float(pressure_tolerance),
+        tangent_tolerance=float(tangent_tolerance),
+        shock_angle_tolerance_rad=shock_angle_tolerance,
+        maximum_segment_iterations=maximum_segment_iterations,
+        maximum_boundary_iterations=maximum_boundary_iterations,
+        maximum_shooting_iterations=maximum_shooting_iterations,
+        allow_zero_strength_attachment=allow_zero_strength_attachment,
+      )
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     common_diagnostics.update({
       'terminal_patch_physical_field_status': 'solve-failure',

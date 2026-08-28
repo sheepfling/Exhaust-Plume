@@ -607,7 +607,7 @@ while the reflected patch's outgoing characteristic trace is its separate
 retained upstream shock data, and exact handoff identity may cross into the
 resolved planar-MOC chain. The
 ``MocTerminalReflectionPatchAmbientClosureChainReference`` planner is
-research-only and, on the canonical bounded fixture, produces a two-cell
+research-only and, on the canonical bounded fixture, produces a three-cell
 resolved prefix followed by an explicit configured solver stop. Its endpoint
 is taken from the next field's actual ambient boundary rather than from a
 caller-supplied fabricated interface.
@@ -619,3 +619,28 @@ mixed-regime field, refinement and conservation evidence, and external
 validation observations. The basic visual, reduced-order, signature, ray,
 and focal-plane-array providers remain unchanged and cannot consume this
 research result by implication.
+
+## Trace-polarity continuation checkpoint
+
+The research lane now classifies every reflected outgoing `C-` trace against
+the declared affine endpoint-angle reference. The result distinguishes
+compression-compatible, expansion-required, mixed-polarity, and neutral
+interior turns and retains the sample-level evidence. This makes the
+alternating character of later shock-cell attempts visible rather than hiding
+it behind a failed scalar turn law.
+
+For an opt-in continued-chain experiment, the named
+`reflected-trace-referenced-compression-envelope` profile uses the exact
+source trace as its endpoint baseline and adds a bounded positive
+`4*s*(1-s)` interior compression envelope. It is useful for deterministic
+handoff and stability testing, but it does not solve the canonical expansion
+fan or reflected-domain remeshing problem. Its report therefore sets
+`canonical_expansion_remesh_solved=false` and `production_claim_allowed=false`.
+
+The corresponding planner carries a three-cell resolved research prefix on
+the bounded fixture, verifies exact handoff links, uses actual ambient-boundary
+endpoints, and stops at an explicit configured solver boundary. This evidence
+does not change the fidelity tier or authorize promotion into any basic,
+reduced-order, signature, ray, or focal-plane-array provider. Canonical
+reflected-domain closure, mixed-regime continuation, refinement, and external
+validation remain required.

@@ -3693,7 +3693,7 @@ class MocTerminalReflectionPatchAmbientClosureChainReference:
   outer_downstream_flow_angle_upper_rad: float = 0.2
   sample_count: int = 9
   branch: ShockBranch = ShockBranch.WEAK
-  trace_position_tolerance_m: float = 4.0e-4
+  trace_position_tolerance_m: float = 1.0e-3
   trace_forward_tolerance_m: float = 1.0e-4
   seam_position_tolerance_m: float = 5.0e-3
   position_tolerance_m: float = 1.0e-9
@@ -3706,6 +3706,8 @@ class MocTerminalReflectionPatchAmbientClosureChainReference:
   maximum_boundary_iterations: int = 16
   maximum_shooting_iterations: int = 40
   allow_zero_strength_attachment: bool = True
+  polarity_aware: bool = True
+  compression_amplitude_rad: float = 1.0e-2
   model: str = (
     'solver-generated-terminal-reflection-patch-ambient-closure-chain-reference'
   )
@@ -3727,6 +3729,8 @@ class MocTerminalReflectionPatchAmbientClosureChainReference:
       raise TypeError('branch must be a ShockBranch')
     if not isinstance(self.allow_zero_strength_attachment, bool):
       raise TypeError('allow_zero_strength_attachment must be a bool')
+    if not isinstance(self.polarity_aware, bool):
+      raise TypeError('polarity_aware must be a bool')
     for name in (
       'target_centerline_y_m',
       'target_centerline_flow_angle_rad',
@@ -3766,6 +3770,12 @@ class MocTerminalReflectionPatchAmbientClosureChainReference:
     ):
       if getattr(self, name) <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+    amplitude = float(self.compression_amplitude_rad)
+    if not isfinite(amplitude) or amplitude <= 0.0:
+      raise ValueError(
+        'compression_amplitude_rad must be finite and positive'
+      )
+    object.__setattr__(self, 'compression_amplitude_rad', amplitude)
     for name in (
       'maximum_segment_iterations',
       'maximum_boundary_iterations',
@@ -3805,9 +3815,15 @@ class MocTerminalReflectionPatchAmbientClosureChainReference:
       'tangent_tolerance': self.tangent_tolerance,
       'shock_angle_tolerance_rad': self.shock_angle_tolerance_rad,
       'allow_zero_strength_attachment': self.allow_zero_strength_attachment,
+      'polarity_aware': self.polarity_aware,
+      'compression_amplitude_rad': self.compression_amplitude_rad,
       'downstream_condition_model': (
         'bounded-terminal-reflection-patch-plus-ambient-attachment-and-'
         'centerline-reflection'
+        + (
+          '-with-reflected-trace-compression-envelope'
+          if self.polarity_aware else ''
+        )
       ),
       'upstream_source_model': 'accepted-field-derived-terminal-reflection-patch',
       'claim_status': (
@@ -3869,6 +3885,8 @@ class MocTerminalReflectionPatchAmbientClosureChainReference:
       maximum_boundary_iterations=self.maximum_boundary_iterations,
       maximum_shooting_iterations=self.maximum_shooting_iterations,
       allow_zero_strength_attachment=self.allow_zero_strength_attachment,
+      polarity_aware=self.polarity_aware,
+      compression_amplitude_rad=self.compression_amplitude_rad,
     )
   ####
 

@@ -16,6 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 from math import isfinite
+from typing import Sequence
 
 from exhaust_plume.models.moc.ambient_shock_strip import (
   MocAmbientShockStripResult,
@@ -39,10 +40,356 @@ from exhaust_plume.models.moc.topology import MocTopologyResult, validate_moc_me
 from exhaust_plume.models.moc.zone import MocCharacteristicCell, MocCharacteristicNode
 
 __all__ = (
+  'MocReflectedTracePolarity',
+  'MocReflectedTracePolarityResult',
+  'MocReflectedTraceCompressionProfile',
+  'classify_reflected_trace_polarity',
+  'build_reflected_trace_compression_profile',
   'MocTerminalReflectionPatchStatus',
   'MocTerminalReflectionPatchResult',
   'assemble_terminal_trace_centerline_patch',
 )
+
+
+class MocReflectedTracePolarity(str, Enum):
+  """Turn character required by a reflected trace's reference law."""
+
+  COMPRESSION = 'compression-required'
+  EXPANSION = 'expansion-required'
+  MIXED = 'mixed-polarity'
+  NEUTRAL = 'neutral'
+  INVALID_INPUT = 'invalid-input'
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedTracePolarityResult:
+  """Polarity evidence for an exact reflected characteristic trace.
+
+  The reference turn is the difference between a linearly interpolated
+  downstream angle and the carried trace angle at the same ordinate.  It is
+  a classification of the selected reference law, not a claim that the
+  canonical plume has a linear downstream boundary.
+  """
+
+  status: MocReflectedTracePolarity
+  source_flow_angles_rad: tuple[float, ...] = ()
+  reference_flow_angles_rad: tuple[float, ...] = ()
+  reference_turns_rad: tuple[float, ...] = ()
+  minimum_interior_turn_rad: float | None = None
+  maximum_interior_turn_rad: float | None = None
+  compression_sample_count: int = 0
+  expansion_sample_count: int = 0
+  neutral_sample_count: int = 0
+  message: str = ''
+
+  @property
+  def converged(self) -> bool:
+    """Whether the trace supplied enough finite evidence to classify."""
+
+    return self.status is not MocReflectedTracePolarity.INVALID_INPUT
+  ####
+
+  @property
+  def requires_trace_referenced_profile(self) -> bool:
+    """Whether the old affine law would request an expansion or mix signs."""
+
+    return self.status in (
+      MocReflectedTracePolarity.EXPANSION,
+      MocReflectedTracePolarity.MIXED,
+    )
+  ####
+
+  def as_report(self) -> dict[str, object]:
+    return {
+      'status': self.status.value,
+      'converged': self.converged,
+      'source_flow_angles_rad': list(self.source_flow_angles_rad),
+      'reference_flow_angles_rad': list(self.reference_flow_angles_rad),
+      'reference_turns_rad': list(self.reference_turns_rad),
+      'minimum_interior_turn_rad': self.minimum_interior_turn_rad,
+      'maximum_interior_turn_rad': self.maximum_interior_turn_rad,
+      'compression_sample_count': self.compression_sample_count,
+      'expansion_sample_count': self.expansion_sample_count,
+      'neutral_sample_count': self.neutral_sample_count,
+      'requires_trace_referenced_profile': self.requires_trace_referenced_profile,
+      'reference_law': 'linear-endpoint-flow-angle-reference',
+      'message': self.message,
+    }
+  ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedTraceCompressionProfile:
+  """A bounded, trace-referenced compression turn law.
+
+  The affine endpoint law is used only as a baseline.  A non-negative
+  ``4*s*(1-s)`` envelope supplies a strictly positive interior compression
+  while retaining zero-strength Mach-wave endpoints.  This is an explicit
+  research closure for a continued-chain experiment; it is not the missing
+  canonical expansion/remeshing solution.
+  """
+
+  source_trace: tuple[MocChainBoundarySample, ...]
+  target_centerline_y_m: float
+  target_centerline_flow_angle_rad: float
+  compression_amplitude_rad: float
+  baseline_flow_angles_rad: tuple[float, ...]
+
+  def __post_init__(self) -> None:
+    if len(self.source_trace) < 3:
+      raise ValueError('compression profile requires at least three trace samples')
+    if len(self.baseline_flow_angles_rad) != len(self.source_trace):
+      raise ValueError('compression profile baseline must match the source trace')
+    if not all(isfinite(float(value)) for value in (
+      self.target_centerline_y_m,
+      self.target_centerline_flow_angle_rad,
+      self.compression_amplitude_rad,
+      *self.baseline_flow_angles_rad,
+    )):
+      raise ValueError('compression profile values must be finite')
+    if self.compression_amplitude_rad <= 0.0:
+      raise ValueError('compression_amplitude_rad must be finite and positive')
+    if any(
+      not isinstance(sample, MocChainBoundarySample)
+      for sample in self.source_trace
+    ):
+      raise TypeError('source_trace must contain MocChainBoundarySample values')
+  ####
+
+  @property
+  def model(self) -> str:
+    return 'reflected-trace-referenced-compression-envelope'
+  ####
+
+  @property
+  def start_y_m(self) -> float:
+    return float(self.source_trace[0].state.y_m)
+  ####
+
+  @property
+  def end_y_m(self) -> float:
+    return float(self.source_trace[-1].state.y_m)
+  ####
+
+  def flow_angle_at(
+    self,
+    _index: int,
+    point_m: tuple[float, float],
+  ) -> float:
+    """Evaluate the bounded target angle at a marched shock point."""
+
+    if len(point_m) != 2 or not all(isfinite(float(value)) for value in point_m):
+      raise ValueError('point_m must contain two finite coordinates')
+    denominator = self.start_y_m - self.target_centerline_y_m
+    if denominator <= 0.0:
+      raise ValueError('compression profile source must lie above its target centerline')
+    ordinate = float(point_m[1])
+    fraction = (self.start_y_m - ordinate) / denominator
+    if fraction < -1.0e-8 or fraction > 1.0 + 1.0e-8:
+      raise ValueError('shock point ordinate lies outside the reflected trace profile')
+    fraction = max(0.0, min(1.0, fraction))
+    baseline = self.target_centerline_flow_angle_rad + (
+      self.source_trace[0].state.theta_rad
+      - self.target_centerline_flow_angle_rad
+    ) * (1.0 - fraction)
+    envelope = 4.0 * fraction * (1.0 - fraction)
+    return float(baseline + self.compression_amplitude_rad * envelope)
+  ####
+
+  def as_report(self) -> dict[str, object]:
+    return {
+      'model': self.model,
+      'source_trace_sample_count': len(self.source_trace),
+      'source_trace_start_m': self.source_trace[0].point_m,
+      'source_trace_end_m': self.source_trace[-1].point_m,
+      'target_centerline_y_m': self.target_centerline_y_m,
+      'target_centerline_flow_angle_rad': self.target_centerline_flow_angle_rad,
+      'compression_amplitude_rad': self.compression_amplitude_rad,
+      'baseline_flow_angles_rad': list(self.baseline_flow_angles_rad),
+      'endpoint_turns_are_zero': True,
+      'interior_turn_envelope': '4*s*(1-s)',
+      'canonical_expansion_remesh_solved': False,
+      'production_claim_allowed': False,
+    }
+  ####
+
+
+def _polarity_failure(message: str) -> MocReflectedTracePolarityResult:
+  return MocReflectedTracePolarityResult(
+    status=MocReflectedTracePolarity.INVALID_INPUT,
+    message=message,
+  )
+
+
+def classify_reflected_trace_polarity(
+  samples: Sequence[MocChainBoundarySample],
+  *,
+  target_centerline_y_m: float = 0.0,
+  target_centerline_flow_angle_rad: float = 0.0,
+  position_tolerance_m: float = 1.0e-10,
+  forward_position_tolerance_m: float = 1.0e-12,
+  invariant_tolerance: float = 1.0e-10,
+  polarity_tolerance_rad: float = 1.0e-8,
+) -> MocReflectedTracePolarityResult:
+  """Classify an outgoing ``C-`` trace against an affine endpoint law."""
+
+  try:
+    trace = tuple(samples)
+  except TypeError:
+    return _polarity_failure('samples must be an iterable of chain samples')
+  if len(trace) < 3:
+    return _polarity_failure('reflected trace polarity requires at least three samples')
+  if any(not isinstance(sample, MocChainBoundarySample) for sample in trace):
+    return _polarity_failure('reflected trace polarity requires typed chain samples')
+  for name, value in (
+    ('target_centerline_y_m', target_centerline_y_m),
+    ('target_centerline_flow_angle_rad', target_centerline_flow_angle_rad),
+    ('position_tolerance_m', position_tolerance_m),
+    ('forward_position_tolerance_m', forward_position_tolerance_m),
+    ('invariant_tolerance', invariant_tolerance),
+    ('polarity_tolerance_rad', polarity_tolerance_rad),
+  ):
+    try:
+      numeric_value = float(value)
+    except (TypeError, ValueError):
+      return _polarity_failure(f'{name} must be numeric')
+    if not isfinite(numeric_value) or (
+      numeric_value <= 0.0
+      and name in (
+        'position_tolerance_m',
+        'forward_position_tolerance_m',
+        'invariant_tolerance',
+        'polarity_tolerance_rad',
+      )
+    ):
+      return _polarity_failure(f'{name} must be finite and valid')
+  target_y = float(target_centerline_y_m)
+  target_angle = float(target_centerline_flow_angle_rad)
+  position_tolerance = float(position_tolerance_m)
+  forward_tolerance = float(forward_position_tolerance_m)
+  invariant_tolerance = float(invariant_tolerance)
+  polarity_tolerance = float(polarity_tolerance_rad)
+  first = trace[0].state
+  last = trace[-1].state
+  if first.y_m <= target_y + position_tolerance:
+    return _polarity_failure('reflected trace source must lie above the target centerline')
+  if abs(last.y_m - target_y) > position_tolerance:
+    return _polarity_failure('reflected trace endpoint must lie on the target centerline')
+  if abs(last.theta_rad - target_angle) > polarity_tolerance:
+    return _polarity_failure(
+      'reflected trace endpoint flow angle must match the target centerline angle'
+    )
+  reference_invariant = first.k_minus
+  for index, (left, right) in enumerate(zip(trace, trace[1:])):
+    if right.state.x_m <= left.state.x_m + forward_tolerance:
+      return _polarity_failure(
+        f'reflected trace sample {index + 1} is not strictly downstream'
+      )
+    if right.state.y_m >= left.state.y_m - forward_tolerance:
+      return _polarity_failure(
+        f'reflected trace sample {index + 1} is not strictly toward the centerline'
+      )
+    if abs(right.state.gamma - first.gamma) > invariant_tolerance:
+      return _polarity_failure(
+        f'reflected trace sample {index + 1} uses a different gamma'
+      )
+    if abs(right.state.k_minus - reference_invariant) > invariant_tolerance:
+      return _polarity_failure(
+        f'reflected trace sample {index + 1} does not preserve the C- invariant'
+      )
+  source_angles = tuple(float(sample.state.theta_rad) for sample in trace)
+  reference_angles = tuple(
+    target_angle + (source_angles[0] - target_angle) * (
+      (sample.state.y_m - target_y) / (first.y_m - target_y)
+    )
+    for sample in trace
+  )
+  turns = tuple(
+    reference - source
+    for reference, source in zip(reference_angles, source_angles, strict=True)
+  )
+  interior_turns = turns[1:-1]
+  compression_count = sum(turn > polarity_tolerance for turn in interior_turns)
+  expansion_count = sum(turn < -polarity_tolerance for turn in interior_turns)
+  neutral_count = len(interior_turns) - compression_count - expansion_count
+  if compression_count and expansion_count:
+    status = MocReflectedTracePolarity.MIXED
+  elif compression_count:
+    status = MocReflectedTracePolarity.COMPRESSION
+  elif expansion_count:
+    status = MocReflectedTracePolarity.EXPANSION
+  else:
+    status = MocReflectedTracePolarity.NEUTRAL
+  return MocReflectedTracePolarityResult(
+    status=status,
+    source_flow_angles_rad=source_angles,
+    reference_flow_angles_rad=reference_angles,
+    reference_turns_rad=turns,
+    minimum_interior_turn_rad=min(interior_turns, default=None),
+    maximum_interior_turn_rad=max(interior_turns, default=None),
+    compression_sample_count=compression_count,
+    expansion_sample_count=expansion_count,
+    neutral_sample_count=neutral_count,
+    message=(
+      'reflected trace is compression-compatible with the affine reference law'
+      if status is MocReflectedTracePolarity.COMPRESSION
+      else (
+        'reflected trace requires a trace-referenced or canonical expansion '
+        'treatment; the affine law requests a non-compressive turn'
+        if status in (
+          MocReflectedTracePolarity.EXPANSION,
+          MocReflectedTracePolarity.MIXED,
+        )
+        else 'reflected trace is neutral relative to the affine reference law'
+      )
+    ),
+  )
+  ####
+
+
+def build_reflected_trace_compression_profile(
+  samples: Sequence[MocChainBoundarySample],
+  compression_amplitude_rad: float,
+  *,
+  target_centerline_y_m: float = 0.0,
+  target_centerline_flow_angle_rad: float = 0.0,
+) -> MocReflectedTraceCompressionProfile:
+  """Build the explicit positive-turn profile used by the research lane."""
+
+  trace = tuple(samples)
+  amplitude = float(compression_amplitude_rad)
+  if len(trace) < 3:
+    raise ValueError('reflected trace profile requires at least three samples')
+  if any(not isinstance(sample, MocChainBoundarySample) for sample in trace):
+    raise TypeError('samples must contain MocChainBoundarySample values')
+  target_y = float(target_centerline_y_m)
+  target_angle = float(target_centerline_flow_angle_rad)
+  if not all(isfinite(value) for value in (target_y, target_angle, amplitude)):
+    raise ValueError('reflected trace profile inputs must be finite')
+  if amplitude <= 0.0:
+    raise ValueError('compression_amplitude_rad must be finite and positive')
+  start_y = trace[0].state.y_m
+  if start_y <= target_y:
+    raise ValueError('reflected trace source must lie above the target centerline')
+  if abs(trace[-1].state.y_m - target_y) > 1.0e-8:
+    raise ValueError('reflected trace endpoint must lie on the target centerline')
+  if abs(trace[-1].state.theta_rad - target_angle) > 1.0e-8:
+    raise ValueError(
+      'reflected trace endpoint flow angle must match the target centerline angle'
+    )
+  baseline = tuple(
+    target_angle + (trace[0].state.theta_rad - target_angle) * (
+      (sample.state.y_m - target_y) / (start_y - target_y)
+    )
+    for sample in trace
+  )
+  return MocReflectedTraceCompressionProfile(
+    source_trace=trace,
+    target_centerline_y_m=target_y,
+    target_centerline_flow_angle_rad=target_angle,
+    compression_amplitude_rad=amplitude,
+    baseline_flow_angles_rad=baseline,
+  )
 
 
 class MocTerminalReflectionPatchStatus(str, Enum):

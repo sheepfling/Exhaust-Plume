@@ -39,6 +39,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocPostShockBoundaryState,
   MocPostShockChainCellSolve,
   MocPostShockCharacteristicFieldResult,
+  MocReflectedTracePolarity,
   MocPrescribedMixedRegimeClosureMock,
   MocPrescribedPostShockChainMock,
   MocPrescribedAmbientClosedPostShockChainMock,
@@ -102,7 +103,9 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_attached_shock_to_centerline,
   solve_terminal_compression_candidate,
   assemble_terminal_trace_centerline_patch,
+  build_reflected_trace_compression_profile,
   assemble_first_cell_composite,
+  classify_reflected_trace_polarity,
   assemble_first_cell_terminal_shock_field,
   solve_marched_attached_shock_from_terminal_reflection_patch,
   solve_marched_attached_shock_from_caustic_family_band,
@@ -1080,12 +1083,12 @@ def _ambient_shock_strip_probe(
     )
     terminal_patch_ambient_closure_reference = (
       MocTerminalReflectionPatchAmbientClosureChainReference(
-        total_cell_count=2,
+        total_cell_count=3,
       )
     )
     terminal_patch_ambient_closure_end_x_m = max(
       seed_end_x_m,
-      physical_field.ambient_boundary_points_m[-1][0] + 2.0,
+      physical_field.ambient_boundary_points_m[-1][0] + 6.0,
     )
     terminal_patch_ambient_closure_planner = (
       plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closure(
@@ -1107,7 +1110,7 @@ def _ambient_shock_strip_probe(
       is MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
       and terminal_patch_ambient_closure_planner.production_claim_allowed is False
       and terminal_patch_ambient_closure_planner.chain.resolved
-      and terminal_patch_ambient_closure_planner.chain.cell_count == 2
+      and terminal_patch_ambient_closure_planner.chain.cell_count == 3
       and terminal_patch_ambient_closure_planner.chain.physical_termination is False
       and terminal_patch_ambient_closure_planner.chain.termination_reason
       is MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL
@@ -1117,11 +1120,18 @@ def _ambient_shock_strip_probe(
         for step in terminal_patch_ambient_closure_planner.steps
       ] == [
         'physical-field-solve-returned',
+        'physical-field-solve-returned',
         'termination-returned',
       ]
       and terminal_patch_ambient_closure_planner.diagnostics[
         'terminal_reflection_patch_ambient_closure_chain_reference'
       ]['physical_chain_promotion_allowed'] is True
+      and terminal_patch_ambient_closure_planner.diagnostics[
+        'terminal_reflection_patch_ambient_closure_chain_reference'
+      ]['polarity_aware'] is True
+      and terminal_patch_ambient_closure_planner.diagnostics[
+        'terminal_reflection_patch_ambient_closure_chain_reference'
+      ]['trace_position_tolerance_m'] == 1.0e-3
       and terminal_patch_ambient_closure_planner.diagnostics[
         'requested_end_x_m'
       ] == terminal_patch_ambient_closure_end_x_m
@@ -1212,6 +1222,39 @@ def _ambient_shock_strip_probe(
     strip,
     trace_position_tolerance_m=2.0e-4,
   )
+  terminal_patch_trace_polarity = None
+  terminal_patch_trace_profile = None
+  terminal_patch_trace_profile_accepted = False
+  if terminal_patch.converged:
+    terminal_patch_trace_polarity = classify_reflected_trace_polarity(
+      terminal_patch.outgoing_trace_samples,
+      position_tolerance_m=1.0e-3,
+      forward_position_tolerance_m=1.0e-4,
+    )
+    if terminal_patch_trace_polarity.converged:
+      try:
+        terminal_patch_trace_profile = build_reflected_trace_compression_profile(
+          terminal_patch.outgoing_trace_samples,
+          1.0e-2,
+        )
+      except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+        terminal_patch_trace_profile = None
+    terminal_patch_trace_profile_accepted = (
+      terminal_patch_trace_polarity.status is MocReflectedTracePolarity.COMPRESSION
+      and terminal_patch_trace_profile is not None
+      and abs(
+        terminal_patch_trace_profile.flow_angle_at(
+          0,
+          terminal_patch.outgoing_trace_points_m[0],
+        ) - terminal_patch.outgoing_trace_states[0].theta_rad
+      ) <= 1.0e-14
+      and abs(
+        terminal_patch_trace_profile.flow_angle_at(
+          len(terminal_patch.outgoing_trace_points_m) - 1,
+          terminal_patch.outgoing_trace_points_m[-1],
+        )
+      ) <= 1.0e-14
+    )
   terminal_patch_shock_probe = None
   terminal_patch_chain_probe = None
   terminal_patch_chain_planner = None
@@ -1505,6 +1548,19 @@ def _ambient_shock_strip_probe(
       trace_position_tolerance_m=2.0e-4,
     ).as_report(),
     'terminal_reflection_patch': terminal_patch.as_report(),
+    'terminal_reflection_patch_trace_polarity': (
+      None
+      if terminal_patch_trace_polarity is None
+      else terminal_patch_trace_polarity.as_report()
+    ),
+    'terminal_reflection_patch_trace_profile': (
+      None
+      if terminal_patch_trace_profile is None
+      else terminal_patch_trace_profile.as_report()
+    ),
+    'terminal_reflection_patch_trace_profile_accepted': (
+      terminal_patch_trace_profile_accepted
+    ),
     'terminal_reflection_patch_shock_probe': (
       None
       if terminal_patch_shock_probe is None
@@ -6719,6 +6775,12 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or terminal_patch_chain_probe.get('expected_physical_termination') is not True
     or terminal_patch_chain_probe.get('planner_expected_physical_termination') is not True
   )
+  terminal_patch_trace_profile_failure = (
+    ambient_shock_strip_probe.get('accepted') is True
+    and ambient_shock_strip_probe.get(
+      'terminal_reflection_patch_trace_profile_accepted'
+    ) is not True
+  )
   first_cell_composite_probe = ambient_shock_strip_probe.get(
     'first_cell_composite',
   )
@@ -8367,6 +8429,18 @@ def build_moc_primitive_report() -> dict[str, Any]:
         ),
       }
     ] if ambient_centerline_physical_terminal_patch_ambient_closure_chain_failure else []),
+    *([
+      {
+        'case': 'solver_generated_terminal_reflection_patch_trace_profile',
+        'status': 'trace-profile-gate-failed',
+        'message': str(
+          ambient_shock_strip_probe.get(
+            'terminal_reflection_patch_trace_polarity',
+            {},
+          ).get('message', '')
+        ),
+      }
+    ] if terminal_patch_trace_profile_failure else []),
     *([
       {
         'case': 'solver_generated_ambient_centerline_physical_terminal_patch_refinement',

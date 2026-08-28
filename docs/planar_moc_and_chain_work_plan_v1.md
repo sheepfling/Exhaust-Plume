@@ -1616,8 +1616,8 @@ The new
 ``MocTerminalReflectionPatchAmbientClosureChainReference`` and
 ``plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closure``
 planner provide a deterministic continued-chain experiment. On the
-canonical bounded fixture it carries one newly solved planar-MOC field, so
-the chain contains two resolved cells, then returns a configured
+canonical bounded fixture it now carries two newly solved planar-MOC fields,
+so the chain contains three resolved cells, then returns a configured
 ``SOLVER_RETURNED_NO_NEXT_CELL`` stop. The continuation endpoint is the
 actual next ambient-boundary endpoint and the requested axial coordinate is
 only a limit; no interface is fabricated. This is a research planner, not a
@@ -1631,3 +1631,27 @@ tolerances. This preserves the strict downstream ordering check without
 rejecting a geometrically valid characteristic because one endpoint step is
 smaller than the mesh-residual tolerance. That tolerance split is diagnostic
 infrastructure only and does not relax the physical closure gates.
+
+The continued-chain experiment now has an explicit trace-polarity checkpoint.
+`classify_reflected_trace_polarity()` compares each exact outgoing `C-` trace
+with the affine endpoint-angle reference and records compression, expansion,
+mixed, or neutral interior evidence. When the affine law would request an
+expansion, the opt-in research profile
+`reflected-trace-referenced-compression-envelope` preserves the exact trace
+endpoints and adds a bounded positive interior compression envelope. This is
+an honest numerical continuation profile for exercising handoff and solver
+stability; it is not a canonical expansion fan, reflected-domain remesh, or
+free-boundary solution.
+
+`MocTerminalReflectionPatchAmbientClosureChainReference` now enables that
+profile explicitly and carries a three-cell resolved research prefix on the
+canonical bounded fixture. The planner records the polarity-aware setting,
+compression amplitude, exact handoff links, and actual downstream ambient
+endpoints, then stops at the configured `SOLVER_RETURNED_NO_NEXT_CELL`
+boundary. The trace projection uses a mesh-scale `1e-3 m` geometry tolerance
+and a separate `1e-4 m` forward-order tolerance; this accommodates the
+retained characteristic sampling without weakening the shock loss or field
+closure gates. The prefix remains below canonical reflected expansion/
+remeshing, mixed-regime, refinement, and external validation acceptance, and
+it cannot promote or mutate the basic, reduced-order, signature, ray, or FPA
+providers.

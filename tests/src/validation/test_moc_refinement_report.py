@@ -1076,6 +1076,12 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert ambient_transition['reflection_patch']['physical_closure_verified'] is False
   terminal_candidate = ambient_strip['terminal_compression_candidate']
   terminal_patch = ambient_strip['terminal_reflection_patch']
+  terminal_trace_polarity = ambient_strip[
+    'terminal_reflection_patch_trace_polarity'
+  ]
+  terminal_trace_profile = ambient_strip[
+    'terminal_reflection_patch_trace_profile'
+  ]
   terminal_patch_shock_probe = ambient_strip['terminal_reflection_patch_shock_probe']
   terminal_patch_chain_probe = ambient_strip['terminal_reflection_patch_chain_probe']
   assert ambient_strip['terminal_trace_acceptance_tolerance_m'] == pytest.approx(2.0e-4)
@@ -1091,6 +1097,15 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert terminal_patch['combined_topology_forms_closed_zone'] is True
   assert terminal_patch['combined_topology_nonmanifold_edge_count'] == 0
   assert terminal_patch['physical_closure_verified'] is False
+  assert ambient_strip['terminal_reflection_patch_trace_profile_accepted'] is True
+  assert terminal_trace_polarity['status'] == 'compression-required'
+  assert terminal_trace_polarity['compression_sample_count'] == 16
+  assert terminal_trace_polarity['expansion_sample_count'] == 0
+  assert terminal_trace_profile['model'] == (
+    'reflected-trace-referenced-compression-envelope'
+  )
+  assert terminal_trace_profile['canonical_expansion_remesh_solved'] is False
+  assert terminal_trace_profile['production_claim_allowed'] is False
   assert terminal_patch_shock_probe['status'] == 'subsonic_terminal_required'
   assert terminal_patch_shock_probe['converged'] is False
   assert terminal_patch_shock_probe['upstream_coupling_verified'] is False
@@ -1112,6 +1127,23 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
     terminal_patch_chain_probe['planner_measurement'],
     physical_termination=True,
   )
+  terminal_patch_ambient_closure_chain = ambient_strip[
+    'ambient_centerline_physical_terminal_patch_ambient_closure_chain'
+  ]
+  assert terminal_patch_ambient_closure_chain['chain']['cell_count'] == 3
+  assert terminal_patch_ambient_closure_chain['step_count'] == 3
+  assert terminal_patch_ambient_closure_chain['handoff_links_verified'] is True
+  assert [
+    step['result_kind']
+    for step in terminal_patch_ambient_closure_chain['steps']
+  ] == [
+    'physical-field-solve-returned',
+    'physical-field-solve-returned',
+    'termination-returned',
+  ]
+  assert terminal_patch_ambient_closure_chain['diagnostics'][
+    'terminal_reflection_patch_ambient_closure_chain_reference'
+  ]['polarity_aware'] is True
   first_cell = ambient_strip['first_cell_composite']
   assert first_cell['chain_termination_decision']['physical_termination'] is False
   assert first_cell['chain_termination_decision']['reason'] == 'open-physical-closure'
