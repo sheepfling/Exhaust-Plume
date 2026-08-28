@@ -132,6 +132,15 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   positive_outflow_condition = mixed_regime_boundary[
     'downstream_condition_positive_outflow_fixture'
   ]
+  frozen_profile_reference = mixed_regime_boundary[
+    'planar_frozen_profile_reference'
+  ]
+  frozen_profile_configuration = mixed_regime_boundary[
+    'planar_frozen_profile_reference_configuration'
+  ]
+  frozen_profile_measurement = mixed_regime_boundary[
+    'planar_frozen_profile_reference_measurement'
+  ]
 
   assert generated['status'] == 'converged_free_boundary_field'
   assert generated['field_status'] == 'converged_closed'
@@ -755,6 +764,39 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert positive_outflow_condition['tangent_sample_count'] == 0
   assert positive_outflow_condition['pressure_condition_verified'] is True
   assert positive_outflow_condition['chain_promotion_blocked'] is True
+  assert frozen_profile_configuration['model'] == (
+    'control-section-frozen-profile-compressible-potential-reference'
+  )
+  assert frozen_profile_configuration['projection_model'] == (
+    'piecewise-linear-frozen-transverse-profile'
+  )
+  assert frozen_profile_configuration['normal_profile_policy'] == (
+    'constant-normal-component-required'
+  )
+  assert frozen_profile_configuration['extrapolation_allowed'] is False
+  assert frozen_profile_configuration['production_claim_allowed'] is False
+  assert frozen_profile_reference['status'] == (
+    'converged-planar-downstream-handoff'
+  )
+  assert frozen_profile_reference['handoff_verified'] is True
+  assert frozen_profile_reference['section_is_varying'] is True
+  assert frozen_profile_reference['control_section_projection_verified'] is True
+  assert frozen_profile_reference['projection_model'] == (
+    'piecewise-linear-frozen-transverse-profile'
+  )
+  assert frozen_profile_reference['physical_closure_verified'] is False
+  assert frozen_profile_reference['canonical_free_boundary_verified'] is False
+  assert frozen_profile_reference['chain_promotion_blocked'] is True
+  assert frozen_profile_reference['production_claim_allowed'] is False
+  assert frozen_profile_measurement['status'] == (
+    'converged_reference_measurement'
+  )
+  assert frozen_profile_measurement['checks']['reference_model_verified'] is True
+  assert frozen_profile_measurement['checks']['boundary_verified'] is True
+  assert frozen_profile_measurement['checks']['potential_layout_verified'] is True
+  assert frozen_profile_measurement['checks']['downstream_condition_verified'] is True
+  assert frozen_profile_measurement['physical_closure_verified'] is False
+  assert frozen_profile_measurement['chain_promotion_blocked'] is True
   assert mixed_regime_boundary['physical_closure_verified'] is False
   assert mixed_regime_boundary['chain_promotion_blocked'] is True
   assert mixed_regime_boundary['missing_scalar_field']['status'] == 'subsonic_field_failure'

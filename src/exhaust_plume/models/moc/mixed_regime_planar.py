@@ -43,7 +43,9 @@ __all__ = (
   'MocMixedRegimePlanarSolveStatus',
   'MocMixedRegimePlanarSolveResult',
   'MocMixedRegimePlanarPotentialReference',
+  'MocMixedRegimePlanarFrozenProfileReference',
   'solve_mixed_regime_planar_potential_reference',
+  'solve_mixed_regime_planar_frozen_profile_reference',
   'run_mixed_regime_planar_field_solver',
 )
 
@@ -398,6 +400,136 @@ class MocMixedRegimePlanarPotentialReference:
     }
 
 
+@dataclass(frozen=True, slots=True)
+class MocMixedRegimePlanarFrozenProfileReference:
+  """Research reference that preserves a non-affine section profile.
+
+  The reference converts the supplied section samples into local normal and
+  tangential velocity components, requires the normal component to be
+  constant, and linearly interpolates the tangential component across the
+  measured section span.  That profile is frozen in the section-normal
+  direction and evaluated only inside the supplied transverse span before it
+  is passed to the nonlinear compressible potential reference.
+
+  This is a distinct model from :class:`MocMixedRegimePlanarPotentialReference`:
+  it can retain piecewise-linear, non-affine transverse data, but it still
+  does not solve the reflected characteristic field or infer a free boundary.
+  The span check is intentional; a point outside the measured section is a
+  missing field sample, not permission to extrapolate it.
+  """
+
+  radial_divisions: int = 2
+  profile_tolerance: float = 1.0e-8
+  position_tolerance_m: float = 1.0e-10
+  state_tolerance: float = 1.0e-8
+  pressure_tolerance: float = 1.0e-8
+  tangent_tolerance_rad: float = 1.0e-8
+  normal_flux_tolerance: float = 1.0e-8
+  thermodynamic_tolerance: float = 1.0e-8
+  potential_tolerance: float = 1.0e-10
+  residual_tolerance: float = 1.0e-10
+  velocity_tolerance: float = 1.0e-8
+  subsonic_margin: float = 1.0e-6
+  maximum_iterations: int = 80
+  model: str = (
+    'control-section-frozen-profile-compressible-potential-reference'
+  )
+
+  def __post_init__(self) -> None:
+    if (
+      isinstance(self.radial_divisions, bool)
+      or not isinstance(self.radial_divisions, int)
+      or self.radial_divisions < 1
+    ):
+      raise ValueError('radial_divisions must be a positive integer')
+    if (
+      isinstance(self.maximum_iterations, bool)
+      or not isinstance(self.maximum_iterations, int)
+      or self.maximum_iterations < 1
+    ):
+      raise ValueError('maximum_iterations must be a positive integer')
+    for name, value in (
+      ('profile_tolerance', self.profile_tolerance),
+      ('position_tolerance_m', self.position_tolerance_m),
+      ('state_tolerance', self.state_tolerance),
+      ('pressure_tolerance', self.pressure_tolerance),
+      ('tangent_tolerance_rad', self.tangent_tolerance_rad),
+      ('normal_flux_tolerance', self.normal_flux_tolerance),
+      ('thermodynamic_tolerance', self.thermodynamic_tolerance),
+      ('potential_tolerance', self.potential_tolerance),
+      ('residual_tolerance', self.residual_tolerance),
+      ('velocity_tolerance', self.velocity_tolerance),
+      ('subsonic_margin', self.subsonic_margin),
+    ):
+      if not isfinite(float(value)) or float(value) <= 0.0:
+        raise ValueError(f'{name} must be finite and positive')
+    if self.subsonic_margin >= 1.0:
+      raise ValueError('subsonic_margin must be less than one')
+    model = str(self.model)
+    if not model:
+      raise ValueError('model must be a non-empty string')
+    object.__setattr__(self, 'model', model)
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    return False
+
+  def solve(
+    self,
+    request: MocMixedRegimePerimeterRequest,
+    control_section: MocMixedRegimeControlSection,
+    perimeter_spec: MocMixedRegimeDownstreamPerimeterSpec,
+  ) -> MocMixedRegimePlanarSolveResult:
+    """Solve one exact request through the frozen-profile reference lane."""
+
+    return solve_mixed_regime_planar_frozen_profile_reference(
+      request,
+      control_section,
+      perimeter_spec,
+      radial_divisions=self.radial_divisions,
+      profile_tolerance=self.profile_tolerance,
+      position_tolerance_m=self.position_tolerance_m,
+      state_tolerance=self.state_tolerance,
+      pressure_tolerance=self.pressure_tolerance,
+      tangent_tolerance_rad=self.tangent_tolerance_rad,
+      normal_flux_tolerance=self.normal_flux_tolerance,
+      thermodynamic_tolerance=self.thermodynamic_tolerance,
+      potential_tolerance=self.potential_tolerance,
+      residual_tolerance=self.residual_tolerance,
+      velocity_tolerance=self.velocity_tolerance,
+      subsonic_margin=self.subsonic_margin,
+      maximum_iterations=self.maximum_iterations,
+      solver_model=self.model,
+    )
+
+  def as_report(self) -> dict[str, object]:
+    return {
+      'model': self.model,
+      'planning_only': True,
+      'production_claim_allowed': self.production_claim_allowed,
+      'radial_divisions': self.radial_divisions,
+      'profile_tolerance': self.profile_tolerance,
+      'position_tolerance_m': self.position_tolerance_m,
+      'state_tolerance': self.state_tolerance,
+      'pressure_tolerance': self.pressure_tolerance,
+      'tangent_tolerance_rad': self.tangent_tolerance_rad,
+      'normal_flux_tolerance': self.normal_flux_tolerance,
+      'thermodynamic_tolerance': self.thermodynamic_tolerance,
+      'potential_tolerance': self.potential_tolerance,
+      'residual_tolerance': self.residual_tolerance,
+      'velocity_tolerance': self.velocity_tolerance,
+      'subsonic_margin': self.subsonic_margin,
+      'maximum_iterations': self.maximum_iterations,
+      'projection_model': 'piecewise-linear-frozen-transverse-profile',
+      'normal_profile_policy': 'constant-normal-component-required',
+      'extrapolation_allowed': False,
+      'claim_status': (
+        'control-section-frozen-profile-compressible-potential-reference; '
+        'canonical-reflected-moc-free-boundary-and-external-validation-pending'
+      ),
+    }
+
+
 def _same_points(
   first: tuple[tuple[float, float], ...],
   second: tuple[tuple[float, float], ...],
@@ -588,6 +720,165 @@ def _project_control_section_to_perimeter(
       )
     )
   return tuple(samples), projection_residual
+
+
+def _piecewise_linear_profile_value(
+  coordinates: tuple[float, ...],
+  values: tuple[float, ...],
+  coordinate: float,
+  *,
+  tolerance: float,
+) -> float:
+  """Evaluate a measured profile without permitting transverse extrapolation."""
+
+  if len(coordinates) != len(values) or len(coordinates) < 2:
+    raise ValueError('a profile requires at least two paired samples')
+  if coordinate < coordinates[0] - tolerance or coordinate > coordinates[-1] + tolerance:
+    raise ValueError(
+      'perimeter transverse coordinate lies outside the control-section span; '
+      'extrapolation is disabled'
+    )
+  if coordinate <= coordinates[0]:
+    return values[0]
+  if coordinate >= coordinates[-1]:
+    return values[-1]
+  for first_coordinate, second_coordinate, first_value, second_value in zip(
+    coordinates,
+    coordinates[1:],
+    values,
+    values[1:],
+    strict=True,
+  ):
+    if coordinate <= second_coordinate:
+      fraction = (
+        coordinate - first_coordinate
+      ) / (second_coordinate - first_coordinate)
+      return first_value + fraction * (second_value - first_value)
+  return values[-1]
+
+
+def _project_control_section_to_frozen_profile(
+  request: MocMixedRegimePerimeterRequest,
+  control_section: MocMixedRegimeControlSection,
+  perimeter_spec: MocMixedRegimeDownstreamPerimeterSpec,
+  *,
+  profile_tolerance: float,
+  position_tolerance_m: float,
+  thermodynamic_tolerance: float,
+  subsonic_margin: float,
+) -> tuple[tuple[MocMixedRegimeFieldSample, ...], float]:
+  """Build a no-extrapolation, piecewise-linear transverse profile.
+
+  The frozen profile is a potential-compatible reference only when its normal
+  velocity is constant.  The measured tangential component may be
+  non-affine, so the profile is interpolated segment by segment rather than
+  fitted to one global line.  The same local profile is used at every normal
+  offset; this is an explicit model assumption, not a recovered downstream
+  characteristic field.
+  """
+
+  terminal_upstream_state = request.terminal.upstream_state
+  if terminal_upstream_state is None:
+    raise ValueError('terminal request does not expose its upstream state')
+  tangent = (
+    -sin(control_section.normal_angle_rad),
+    cos(control_section.normal_angle_rad),
+  )
+  normal = (
+    cos(control_section.normal_angle_rad),
+    sin(control_section.normal_angle_rad),
+  )
+  origin = control_section.points_m[0]
+  section_coordinates = tuple(
+    (point[0] - origin[0]) * tangent[0]
+    + (point[1] - origin[1]) * tangent[1]
+    for point in control_section.points_m
+  )
+  gamma = terminal_upstream_state.gamma
+  sonic_factor = 0.5 * (gamma - 1.0)
+  tangential_velocities: list[float] = []
+  normal_velocities: list[float] = []
+  for sample in control_section.samples:
+    speed = sample.mach / sqrt(
+      1.0 + sonic_factor * sample.mach * sample.mach
+    )
+    velocity = (
+      speed * cos(sample.flow_angle_rad),
+      speed * sin(sample.flow_angle_rad),
+    )
+    tangential_velocities.append(
+      velocity[0] * tangent[0] + velocity[1] * tangent[1]
+    )
+    normal_velocities.append(
+      velocity[0] * normal[0] + velocity[1] * normal[1]
+    )
+  normal_reference = sum(normal_velocities) / len(normal_velocities)
+  normal_residual = max(
+    abs(value - normal_reference) for value in normal_velocities
+  )
+  if normal_residual > profile_tolerance:
+    raise ValueError(
+      'frozen transverse profile requires a constant normal velocity; '
+      f'residual={normal_residual}'
+    )
+  reference_total_pressure = control_section.samples[0].total_pressure_Pa
+  total_pressure_residual = max(
+    abs(sample.total_pressure_Pa - reference_total_pressure)
+    / max(1.0, abs(sample.total_pressure_Pa), abs(reference_total_pressure))
+    for sample in control_section.samples
+  )
+  gamma_residual = max(
+    abs(sample.gamma - gamma) / max(1.0, abs(sample.gamma), abs(gamma))
+    for sample in control_section.samples
+  )
+  if max(total_pressure_residual, gamma_residual) > thermodynamic_tolerance:
+    raise ValueError(
+      'frozen transverse profile requires uniform total pressure and gamma: '
+      f'total_pressure_residual={total_pressure_residual}, '
+      f'gamma_residual={gamma_residual}'
+    )
+
+  samples: list[MocMixedRegimeFieldSample] = []
+  for point in perimeter_spec.perimeter_points_m:
+    displacement = (point[0] - origin[0], point[1] - origin[1])
+    coordinate = displacement[0] * tangent[0] + displacement[1] * tangent[1]
+    tangential_velocity = _piecewise_linear_profile_value(
+      section_coordinates,
+      tuple(tangential_velocities),
+      coordinate,
+      tolerance=position_tolerance_m,
+    )
+    velocity = (
+      tangential_velocity * tangent[0] + normal_reference * normal[0],
+      tangential_velocity * tangent[1] + normal_reference * normal[1],
+    )
+    speed_squared = velocity[0] * velocity[0] + velocity[1] * velocity[1]
+    enthalpy_factor = 1.0 - sonic_factor * speed_squared
+    if enthalpy_factor <= 0.0:
+      raise ValueError(
+        'frozen transverse profile crossed its finite enthalpy limit at the '
+        'declared perimeter'
+      )
+    mach = sqrt(speed_squared / enthalpy_factor)
+    if mach <= 0.0 or mach >= 1.0 - subsonic_margin:
+      raise ValueError(
+        'frozen transverse profile is not strictly subsonic at perimeter '
+        f'point {point}: mach={mach}'
+      )
+    static_pressure = request.terminal_downstream_total_pressure_Pa / (
+      1.0 + sonic_factor * mach * mach
+    ) ** (gamma / (gamma - 1.0))
+    samples.append(
+      MocMixedRegimeFieldSample(
+        point_m=point,
+        mach=mach,
+        flow_angle_rad=atan2(velocity[1], velocity[0]),
+        static_pressure_Pa=static_pressure,
+        total_pressure_Pa=request.terminal_downstream_total_pressure_Pa,
+        gamma=gamma,
+      )
+    )
+  return tuple(samples), normal_residual
 
 
 def solve_mixed_regime_planar_potential_reference(
@@ -812,6 +1103,289 @@ def solve_mixed_regime_planar_potential_reference(
     control_section_projection_verified=True,
     maximum_control_section_projection_residual=projection_residual,
     projection_model='affine-control-section-potential-extension',
+  )
+
+
+def _solve_planar_potential_from_projected_samples(
+  request: MocMixedRegimePerimeterRequest,
+  control_section: MocMixedRegimeControlSection,
+  perimeter_spec: MocMixedRegimeDownstreamPerimeterSpec,
+  samples: tuple[MocMixedRegimeFieldSample, ...],
+  projection_residual: float,
+  *,
+  projection_model: str,
+  projection_description: str,
+  solver_model: str,
+  radial_divisions: int,
+  position_tolerance_m: float,
+  state_tolerance: float,
+  pressure_tolerance: float,
+  tangent_tolerance_rad: float,
+  normal_flux_tolerance: float,
+  thermodynamic_tolerance: float,
+  potential_tolerance: float,
+  residual_tolerance: float,
+  velocity_tolerance: float,
+  subsonic_margin: float,
+  maximum_iterations: int,
+) -> MocMixedRegimePlanarSolveResult:
+  """Run the common exact seam and nonlinear field gates."""
+
+  boundary = validate_mixed_regime_boundary(
+    request.terminal,
+    request.supersonic_patch,
+    supersonic_patch_converged=True,
+    subsonic_samples=samples,
+    perimeter_points_m=perimeter_spec.perimeter_points_m,
+    position_tolerance_m=position_tolerance_m,
+    state_tolerance=state_tolerance,
+    pressure_tolerance=pressure_tolerance,
+  )
+  if not boundary.converged:
+    return _failure(
+      MocMixedRegimePlanarSolveStatus.SEAM_FAILURE,
+      request,
+      control_section=control_section,
+      perimeter_spec=perimeter_spec,
+      solver_model=solver_model,
+      control_section_projection_verified=True,
+      maximum_control_section_projection_residual=projection_residual,
+      projection_model=projection_model,
+      message=(
+        'projected perimeter failed the exact terminal/patch scalar seam: '
+        f'{boundary.message}'
+      ),
+    )
+  condition = validate_mixed_regime_downstream_condition(
+    boundary,
+    perimeter_spec.condition_kind,
+    ambient_pressure_Pa=perimeter_spec.ambient_pressure_Pa,
+    condition_edge_indices=(
+      None
+      if not perimeter_spec.condition_edge_indices
+      else perimeter_spec.condition_edge_indices
+    ),
+    condition_sample_indices=(
+      None
+      if not perimeter_spec.condition_sample_indices
+      else perimeter_spec.condition_sample_indices
+    ),
+    position_tolerance_m=position_tolerance_m,
+    tangent_tolerance_rad=tangent_tolerance_rad,
+    pressure_tolerance=pressure_tolerance,
+  )
+  if not condition.converged:
+    return _failure(
+      MocMixedRegimePlanarSolveStatus.FIELD_FAILURE,
+      request,
+      control_section=control_section,
+      perimeter_spec=perimeter_spec,
+      control_section_validation=None,
+      solver_model=solver_model,
+      control_section_projection_verified=True,
+      maximum_control_section_projection_residual=projection_residual,
+      projection_model=projection_model,
+      message=(
+        'projected perimeter failed its declared downstream condition: '
+        f'{condition.message}'
+      ),
+    )
+  field = solve_mixed_regime_compressible_potential_field(
+    boundary,
+    position_tolerance_m=position_tolerance_m,
+    thermodynamic_tolerance=thermodynamic_tolerance,
+    potential_tolerance=potential_tolerance,
+    residual_tolerance=residual_tolerance,
+    velocity_tolerance=velocity_tolerance,
+    subsonic_margin=subsonic_margin,
+    radial_divisions=radial_divisions,
+    maximum_iterations=maximum_iterations,
+    downstream_condition=condition,
+  )
+  if not field.converged:
+    return _failure(
+      MocMixedRegimePlanarSolveStatus.FIELD_FAILURE,
+      request,
+      control_section=control_section,
+      perimeter_spec=perimeter_spec,
+      field=field,
+      solver_model=solver_model,
+      control_section_projection_verified=True,
+      maximum_control_section_projection_residual=projection_residual,
+      projection_model=projection_model,
+      message=(
+        f'{projection_description} field failed its gates: {field.message}'
+      ),
+    )
+  field = replace(
+    field,
+    control_section=control_section,
+    message=(
+      f'{projection_description} and nonlinear isentropic field converged '
+      'on the explicitly supplied perimeter'
+    ),
+  )
+  result = run_mixed_regime_planar_field_solver(
+    request,
+    control_section,
+    perimeter_spec,
+    lambda _request, _section, _specification: field,
+    position_tolerance_m=position_tolerance_m,
+    state_tolerance=state_tolerance,
+    pressure_tolerance=pressure_tolerance,
+    normal_flux_tolerance=normal_flux_tolerance,
+    solver_model=solver_model,
+  )
+  return replace(
+    result,
+    control_section_projection_verified=True,
+    maximum_control_section_projection_residual=projection_residual,
+    projection_model=projection_model,
+  )
+
+
+def solve_mixed_regime_planar_frozen_profile_reference(
+  request: MocMixedRegimePerimeterRequest,
+  control_section: MocMixedRegimeControlSection,
+  perimeter_spec: MocMixedRegimeDownstreamPerimeterSpec,
+  *,
+  radial_divisions: int = 2,
+  profile_tolerance: float = 1.0e-8,
+  position_tolerance_m: float = 1.0e-10,
+  state_tolerance: float = 1.0e-8,
+  pressure_tolerance: float = 1.0e-8,
+  tangent_tolerance_rad: float = 1.0e-8,
+  normal_flux_tolerance: float = 1.0e-8,
+  thermodynamic_tolerance: float = 1.0e-8,
+  potential_tolerance: float = 1.0e-10,
+  residual_tolerance: float = 1.0e-10,
+  velocity_tolerance: float = 1.0e-8,
+  subsonic_margin: float = 1.0e-6,
+  maximum_iterations: int = 80,
+  solver_model: str = (
+    'control-section-frozen-profile-compressible-potential-reference'
+  ),
+) -> MocMixedRegimePlanarSolveResult:
+  """Solve a non-affine section profile on an explicit planar perimeter.
+
+  The caller still owns the perimeter geometry and downstream condition.  The
+  solver only reconstructs scalar boundary samples from the measured section;
+  it refuses a perimeter transverse coordinate outside that measured span and
+  refuses a varying normal velocity because that data cannot be represented by
+  the declared frozen potential profile.  The resulting nonlinear field is a
+  research reference and remains below canonical reflected-MOC closure.
+  """
+
+  if not isinstance(request, MocMixedRegimePerimeterRequest):
+    raise TypeError('request must be a MocMixedRegimePerimeterRequest')
+  if not isinstance(control_section, MocMixedRegimeControlSection):
+    raise TypeError('control_section must be a MocMixedRegimeControlSection')
+  if not isinstance(
+    perimeter_spec,
+    MocMixedRegimeDownstreamPerimeterSpec,
+  ):
+    raise TypeError(
+      'perimeter_spec must be a MocMixedRegimeDownstreamPerimeterSpec'
+    )
+  for name, value in (
+    ('profile_tolerance', profile_tolerance),
+    ('position_tolerance_m', position_tolerance_m),
+    ('state_tolerance', state_tolerance),
+    ('pressure_tolerance', pressure_tolerance),
+    ('tangent_tolerance_rad', tangent_tolerance_rad),
+    ('normal_flux_tolerance', normal_flux_tolerance),
+    ('thermodynamic_tolerance', thermodynamic_tolerance),
+    ('potential_tolerance', potential_tolerance),
+    ('residual_tolerance', residual_tolerance),
+    ('velocity_tolerance', velocity_tolerance),
+    ('subsonic_margin', subsonic_margin),
+  ):
+    if not isfinite(float(value)) or float(value) <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+  if subsonic_margin >= 1.0:
+    raise ValueError('subsonic_margin must be less than one')
+  if (
+    isinstance(radial_divisions, bool)
+    or not isinstance(radial_divisions, int)
+    or radial_divisions < 1
+  ):
+    raise ValueError('radial_divisions must be a positive integer')
+  if (
+    isinstance(maximum_iterations, bool)
+    or not isinstance(maximum_iterations, int)
+    or maximum_iterations < 1
+  ):
+    raise ValueError('maximum_iterations must be a positive integer')
+  solver_model = str(solver_model)
+  if not solver_model:
+    raise ValueError('solver_model must be a non-empty string')
+  section_validation = validate_mixed_regime_control_section(
+    request,
+    control_section,
+    position_tolerance_m=position_tolerance_m,
+    state_tolerance=state_tolerance,
+    pressure_tolerance=pressure_tolerance,
+    normal_flux_tolerance=normal_flux_tolerance,
+  )
+  if not section_validation.converged:
+    return _failure(
+      MocMixedRegimePlanarSolveStatus.CONTROL_SECTION_FAILURE,
+      request,
+      control_section=control_section,
+      perimeter_spec=perimeter_spec,
+      control_section_validation=section_validation,
+      solver_model=solver_model,
+      message=(
+        'frozen-profile planar reference requires a valid control section: '
+        f'{section_validation.message}'
+      ),
+    )
+  try:
+    samples, projection_residual = _project_control_section_to_frozen_profile(
+      request,
+      control_section,
+      perimeter_spec,
+      profile_tolerance=profile_tolerance,
+      position_tolerance_m=position_tolerance_m,
+      thermodynamic_tolerance=thermodynamic_tolerance,
+      subsonic_margin=subsonic_margin,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return _failure(
+      MocMixedRegimePlanarSolveStatus.CONTROL_SECTION_FAILURE,
+      request,
+      control_section=control_section,
+      perimeter_spec=perimeter_spec,
+      control_section_validation=section_validation,
+      solver_model=solver_model,
+      projection_model='piecewise-linear-frozen-transverse-profile',
+      message=f'control-section frozen-profile projection failed: {error}',
+    )
+  result = _solve_planar_potential_from_projected_samples(
+    request,
+    control_section,
+    perimeter_spec,
+    samples,
+    projection_residual,
+    projection_model='piecewise-linear-frozen-transverse-profile',
+    projection_description='control-section frozen transverse profile',
+    solver_model=solver_model,
+    radial_divisions=radial_divisions,
+    position_tolerance_m=position_tolerance_m,
+    state_tolerance=state_tolerance,
+    pressure_tolerance=pressure_tolerance,
+    tangent_tolerance_rad=tangent_tolerance_rad,
+    normal_flux_tolerance=normal_flux_tolerance,
+    thermodynamic_tolerance=thermodynamic_tolerance,
+    potential_tolerance=potential_tolerance,
+    residual_tolerance=residual_tolerance,
+    velocity_tolerance=velocity_tolerance,
+    subsonic_margin=subsonic_margin,
+    maximum_iterations=maximum_iterations,
+  )
+  return replace(
+    result,
+    control_section_validation=section_validation,
   )
 
 

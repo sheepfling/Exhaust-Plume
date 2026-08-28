@@ -570,3 +570,11 @@ its callbacks retain one-sided branch selection and return no state across a
 bridge gap. This makes the new-family corridor consumable by the generic
 planner for diagnostics, while its unresolved caustic/shock and downstream
 closure gates continue to block cell promotion.
+
+The planar reference lane also exposes a separately named frozen-profile
+variant. It retains piecewise-linear, non-affine tangential data from an
+explicit control section, requires a constant normal component for its
+potential extension, and refuses perimeter points outside the measured
+transverse span. This is a higher-resolution scalar research lane for planner
+and visualization work; it remains below canonical reflected-MOC free-boundary
+closure and cannot promote a continued shock cell.

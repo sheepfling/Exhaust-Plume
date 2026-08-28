@@ -1570,3 +1570,13 @@ contract and intentionally rejected as a new source lattice because their
 geometry is degenerate for that handoff. A future continuation must therefore
 provide a genuinely remeshed reflected-domain source rather than relabeling
 the bounded patch.
+
+The planar reference lane now also has a separately named frozen-profile
+variant. It preserves piecewise-linear, non-affine tangential data from an
+explicit control section while requiring a constant normal component for the
+declared potential extension. Every perimeter query must remain inside the
+measured transverse span; out-of-span samples are typed projection failures,
+not extrapolated states. The resulting nonlinear field and independent
+measurement are useful for higher-resolution planning and visualization, but
+the lane remains a scalar research reference with no canonical free-boundary
+or continued-chain promotion claim.

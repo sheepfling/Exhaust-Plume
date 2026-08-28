@@ -44517,6 +44517,1303 @@
         "claim_status": "independent-explicit-perimeter-potential-reference-measurement; not-canonical-free-boundary-validation",
         "message": "independent compressible potential measurement passed the explicit perimeter, radial layout, nonlinear mass, circulation, and subsonic gates; it remains a non-canonical scalar reference"
       },
+      "planar_frozen_profile_reference_configuration": {
+        "model": "control-section-frozen-profile-compressible-potential-reference",
+        "planning_only": true,
+        "production_claim_allowed": false,
+        "radial_divisions": 2,
+        "profile_tolerance": 1e-08,
+        "position_tolerance_m": 1e-10,
+        "state_tolerance": 1e-08,
+        "pressure_tolerance": 1e-08,
+        "tangent_tolerance_rad": 1e-08,
+        "normal_flux_tolerance": 1e-08,
+        "thermodynamic_tolerance": 1e-08,
+        "potential_tolerance": 1e-10,
+        "residual_tolerance": 1e-10,
+        "velocity_tolerance": 1e-08,
+        "subsonic_margin": 1e-06,
+        "maximum_iterations": 80,
+        "projection_model": "piecewise-linear-frozen-transverse-profile",
+        "normal_profile_policy": "constant-normal-component-required",
+        "extrapolation_allowed": false,
+        "claim_status": "control-section-frozen-profile-compressible-potential-reference; canonical-reflected-moc-free-boundary-and-external-validation-pending"
+      },
+      "planar_frozen_profile_reference": {
+        "status": "converged-planar-downstream-handoff",
+        "converged": true,
+        "handoff_verified": true,
+        "field_physical_closure_verified": true,
+        "physical_closure_verified": false,
+        "canonical_free_boundary_verified": false,
+        "chain_promotion_blocked": true,
+        "production_claim_allowed": false,
+        "solver_model": "control-section-frozen-profile-compressible-potential-reference",
+        "request": {
+          "status": "mixed-regime-perimeter-required",
+          "source": "solver-owned-terminal-shock-mixed-regime-handoff",
+          "terminal": {
+            "status": "converged",
+            "converged": true,
+            "subsonic": true,
+            "shock_point_m": [
+              1.932441612053076,
+              0.0
+            ],
+            "shock_normal_angle_rad": 1.5707963267948966,
+            "downstream_flow_angle_rad": 0.0,
+            "downstream_mach": 0.7425533106434078,
+            "downstream_pressure_Pa": 508788.91048239,
+            "static_pressure_ratio": 2.0981236964211574,
+            "total_pressure_ratio": 0.9598519734029278,
+            "message": ""
+          },
+          "perimeter_supplied": false,
+          "open_supersonic_zone_is_a_perimeter": false,
+          "terminal_point_m": [
+            1.932441612053076,
+            0.0
+          ],
+          "terminal_downstream_mach": 0.7425533106434078,
+          "terminal_downstream_flow_angle_rad": 0.0,
+          "terminal_downstream_pressure_Pa": 508788.91048239,
+          "terminal_downstream_total_pressure_Pa": 733748.8829156398,
+          "terminal_total_pressure_ratio": 0.9598519734029278,
+          "supersonic_patch_sample_count": 16,
+          "supersonic_patch_points_m": [
+            [
+              1.4720719054145763,
+              0.4979922117641763
+            ],
+            [
+              1.4996068085862775,
+              0.4668676985289153
+            ],
+            [
+              1.5272295918096628,
+              0.43574318529365424
+            ],
+            [
+              1.5549396105016047,
+              0.40461867205839325
+            ],
+            [
+              1.582772502676111,
+              0.3734941588231322
+            ],
+            [
+              1.610802196382813,
+              0.3423696455878712
+            ],
+            [
+              1.6390615894207616,
+              0.3112451323526102
+            ],
+            [
+              1.6675417948509283,
+              0.2801206191173492
+            ],
+            [
+              1.6962349706311752,
+              0.24899610588208815
+            ],
+            [
+              1.7251328199038731,
+              0.21787159264682715
+            ],
+            [
+              1.75422722428391,
+              0.1867470794115661
+            ],
+            [
+              1.7835111080485049,
+              0.1556225661763051
+            ],
+            [
+              1.8129774887248693,
+              0.1244980529410441
+            ],
+            [
+              1.8426186835645062,
+              0.09337353970578305
+            ],
+            [
+              1.8724270249165245,
+              0.06224902647052205
+            ],
+            [
+              1.9023953791872266,
+              0.031124513235260998
+            ]
+          ],
+          "supersonic_patch_mach": [
+            1.3873081874514017,
+            1.3879682992261135,
+            1.388610721526895,
+            1.3892371001564174,
+            1.3898972068968936,
+            1.39049993577011,
+            1.3910289055305394,
+            1.3915058719696394,
+            1.3919349105726766,
+            1.3922913028132464,
+            1.3925922926864867,
+            1.3928544268942171,
+            1.3930605756881138,
+            1.393197344252279,
+            1.3932772642084215,
+            1.393301951360956
+          ],
+          "supersonic_patch_downstream_total_pressure_Pa": [
+            764594.8356011483,
+            764568.7972805209,
+            764542.997326121,
+            764517.3604239817,
+            764504.3468409266,
+            764506.0382517744,
+            764503.7468650525,
+            764497.614637443,
+            764488.5649155134,
+            764479.2994515008,
+            764469.6532186522,
+            764459.3341287981,
+            764450.196310926,
+            764443.7561734468,
+            764439.7527586711,
+            764438.5752867921
+          ],
+          "required_boundary_conditions": [
+            "explicitly closed downstream perimeter",
+            "terminal scalar seam continuity",
+            "no total-pressure gain over the terminal shock"
+          ],
+          "message": "the mixed-regime solver must provide the closed downstream perimeter; no geometry was inferred from the open supersonic zone"
+        },
+        "control_section_projection_verified": true,
+        "maximum_control_section_projection_residual": 1.1102230246251565e-16,
+        "projection_model": "piecewise-linear-frozen-transverse-profile",
+        "section_is_varying": true,
+        "control_section": {
+          "source": "solver-owned-mixed-regime-control-section",
+          "points_m": [
+            [
+              1.952441612053076,
+              -0.01
+            ],
+            [
+              1.952441612053076,
+              0.0
+            ],
+            [
+              1.952441612053076,
+              0.01
+            ]
+          ],
+          "sample_count": 3,
+          "normal_angle_rad": 0.0,
+          "section_measure_m": 0.02,
+          "normal_flux_factors": [
+            0.9999959727974723,
+            1.0,
+            0.9999959727974723
+          ],
+          "mass_flux_proxy": 7961.78557552327,
+          "mach": [
+            0.7425566308455378,
+            0.7425533106434077,
+            0.7425566308455378
+          ],
+          "flow_angle_rad": [
+            0.0028380293271134337,
+            0.0,
+            0.0028380293271134337
+          ],
+          "static_pressure_Pa": [
+            508787.3287734765,
+            508788.91048238997,
+            508787.3287734765
+          ],
+          "total_pressure_Pa": [
+            733748.8829156398,
+            733748.8829156398,
+            733748.8829156398
+          ],
+          "claim_status": "explicit-scalar-mixed-regime-control-section; not-a-characteristic-chain-boundary"
+        },
+        "control_section_validation": {
+          "status": "converged-subsonic-control-section",
+          "converged": true,
+          "physical_closure_verified": false,
+          "chain_promotion_blocked": true,
+          "request_terminal_point_m": [
+            1.932441612053076,
+            0.0
+          ],
+          "section": {
+            "source": "solver-owned-mixed-regime-control-section",
+            "points_m": [
+              [
+                1.952441612053076,
+                -0.01
+              ],
+              [
+                1.952441612053076,
+                0.0
+              ],
+              [
+                1.952441612053076,
+                0.01
+              ]
+            ],
+            "sample_count": 3,
+            "normal_angle_rad": 0.0,
+            "section_measure_m": 0.02,
+            "normal_flux_factors": [
+              0.9999959727974723,
+              1.0,
+              0.9999959727974723
+            ],
+            "mass_flux_proxy": 7961.78557552327,
+            "mach": [
+              0.7425566308455378,
+              0.7425533106434077,
+              0.7425566308455378
+            ],
+            "flow_angle_rad": [
+              0.0028380293271134337,
+              0.0,
+              0.0028380293271134337
+            ],
+            "static_pressure_Pa": [
+              508787.3287734765,
+              508788.91048238997,
+              508787.3287734765
+            ],
+            "total_pressure_Pa": [
+              733748.8829156398,
+              733748.8829156398,
+              733748.8829156398
+            ],
+            "claim_status": "explicit-scalar-mixed-regime-control-section; not-a-characteristic-chain-boundary"
+          },
+          "section_measure_m": 0.02,
+          "mass_flux_proxy": 7961.78557552327,
+          "minimum_normal_flux_factor": 0.9999959727974723,
+          "maximum_total_pressure_gain_Pa": 0.0,
+          "maximum_isentropic_residual": 0.0,
+          "minimum_downstream_terminal_margin_m": 0.020000000000000018,
+          "maximum_terminal_state_residual": 0.0028380293271134337,
+          "claim_status": "control-section-input-audit-only; downstream-2d-mixed-regime-solve-pending",
+          "message": "explicit scalar subsonic control section passed geometry, terminal placement, state, pressure-lineage, and positive-flux checks; it is ready as input to a declared downstream reference solver"
+        },
+        "perimeter_spec": {
+          "model": "prescribed-pressure-outflow-mixed-regime-closure-mock",
+          "perimeter_points_m": [
+            [
+              1.932441612053076,
+              0.0
+            ],
+            [
+              1.952441612053076,
+              0.0
+            ],
+            [
+              1.952441612053076,
+              0.01
+            ],
+            [
+              1.932441612053076,
+              0.01
+            ],
+            [
+              1.932441612053076,
+              0.0
+            ]
+          ],
+          "sample_count": 5,
+          "condition_kind": "prescribed-pressure-outflow-section",
+          "ambient_pressure_Pa": 508788.91048239,
+          "condition_edge_indices": [
+            0
+          ],
+          "condition_sample_indices": [
+            0,
+            1
+          ],
+          "claim_status": "explicit-downstream-perimeter-reference; canonical-free-boundary-perimeter-not-inferred"
+        },
+        "field": {
+          "status": "converged_compressible_potential_subsonic_field",
+          "converged": true,
+          "model_closure_verified": true,
+          "downstream_condition_verified": true,
+          "physical_closure_verified": true,
+          "mixed_regime_field_complete": true,
+          "chain_promotion_blocked": true,
+          "model": "compressible-isentropic-potential-reference",
+          "radial_divisions": 2,
+          "node_count": 9,
+          "cell_count": 12,
+          "topology_status": "open",
+          "topology_connected": true,
+          "topology_forms_closed_zone": true,
+          "topology_nonmanifold_edge_count": 0,
+          "interior_point_m": [
+            1.942441612053076,
+            0.005
+          ],
+          "maximum_thermodynamic_residual": 3.17316522144046e-16,
+          "maximum_harmonic_residual": 6.938893903907228e-18,
+          "maximum_velocity_divergence_residual": 4.018324301774401e-18,
+          "minimum_mach": 0.7425533106434077,
+          "maximum_mach": 0.7425566308455378,
+          "maximum_mass_conservation_residual": 4.018324301774401e-18,
+          "maximum_boundary_velocity_residual": 2.1467203015212988e-16,
+          "potential_circulation_residual": 2.146381488342397e-18,
+          "nonlinear_iteration_count": 0,
+          "nonlinear_update_residual": 0.0,
+          "velocity_potential_sample_count": 9,
+          "free_boundary_pressure_residual_Pa": null,
+          "free_boundary_tangent_residual_rad": null,
+          "centerline_tangent_residual_rad": null,
+          "outlet_pressure_residual_Pa": null,
+          "free_boundary_geometry_residual_m": null,
+          "control_section": {
+            "source": "solver-owned-mixed-regime-control-section",
+            "points_m": [
+              [
+                1.952441612053076,
+                -0.01
+              ],
+              [
+                1.952441612053076,
+                0.0
+              ],
+              [
+                1.952441612053076,
+                0.01
+              ]
+            ],
+            "sample_count": 3,
+            "normal_angle_rad": 0.0,
+            "section_measure_m": 0.02,
+            "normal_flux_factors": [
+              0.9999959727974723,
+              1.0,
+              0.9999959727974723
+            ],
+            "mass_flux_proxy": 7961.78557552327,
+            "mach": [
+              0.7425566308455378,
+              0.7425533106434077,
+              0.7425566308455378
+            ],
+            "flow_angle_rad": [
+              0.0028380293271134337,
+              0.0,
+              0.0028380293271134337
+            ],
+            "static_pressure_Pa": [
+              508787.3287734765,
+              508788.91048238997,
+              508787.3287734765
+            ],
+            "total_pressure_Pa": [
+              733748.8829156398,
+              733748.8829156398,
+              733748.8829156398
+            ],
+            "claim_status": "explicit-scalar-mixed-regime-control-section; not-a-characteristic-chain-boundary"
+          },
+          "boundary": {
+            "status": "converged_subsonic_boundary_handoff",
+            "converged": true,
+            "physical_closure_verified": false,
+            "mixed_regime_field_complete": false,
+            "chain_promotion_blocked": true,
+            "supersonic_patch_sample_count": 16,
+            "subsonic_sample_count": 5,
+            "perimeter_sample_count": 5,
+            "supersonic_patch_verified": true,
+            "subsonic_state_samples_verified": true,
+            "terminal_continuity_verified": true,
+            "perimeter_geometry_verified": true,
+            "total_pressure_lineage_verified": true,
+            "maximum_terminal_mach_residual": 1.1102230246251565e-16,
+            "maximum_terminal_flow_angle_residual_rad": 0.0,
+            "maximum_terminal_static_pressure_residual_Pa": 5.820766091346741e-11,
+            "maximum_terminal_total_pressure_residual_Pa": 0.0,
+            "maximum_total_pressure_gain_Pa": 0.0,
+            "supersonic_patch_points_m": [
+              [
+                1.4720719054145763,
+                0.4979922117641763
+              ],
+              [
+                1.4996068085862775,
+                0.4668676985289153
+              ],
+              [
+                1.5272295918096628,
+                0.43574318529365424
+              ],
+              [
+                1.5549396105016047,
+                0.40461867205839325
+              ],
+              [
+                1.582772502676111,
+                0.3734941588231322
+              ],
+              [
+                1.610802196382813,
+                0.3423696455878712
+              ],
+              [
+                1.6390615894207616,
+                0.3112451323526102
+              ],
+              [
+                1.6675417948509283,
+                0.2801206191173492
+              ],
+              [
+                1.6962349706311752,
+                0.24899610588208815
+              ],
+              [
+                1.7251328199038731,
+                0.21787159264682715
+              ],
+              [
+                1.75422722428391,
+                0.1867470794115661
+              ],
+              [
+                1.7835111080485049,
+                0.1556225661763051
+              ],
+              [
+                1.8129774887248693,
+                0.1244980529410441
+              ],
+              [
+                1.8426186835645062,
+                0.09337353970578305
+              ],
+              [
+                1.8724270249165245,
+                0.06224902647052205
+              ],
+              [
+                1.9023953791872266,
+                0.031124513235260998
+              ]
+            ],
+            "terminal": {
+              "status": "converged",
+              "converged": true,
+              "subsonic": true,
+              "shock_point_m": [
+                1.932441612053076,
+                0.0
+              ],
+              "shock_normal_angle_rad": 1.5707963267948966,
+              "downstream_flow_angle_rad": 0.0,
+              "downstream_mach": 0.7425533106434078,
+              "downstream_pressure_Pa": 508788.91048239,
+              "static_pressure_ratio": 2.0981236964211574,
+              "total_pressure_ratio": 0.9598519734029278,
+              "message": ""
+            },
+            "message": "scalar subsonic perimeter handoff passed shock-seam, open-supersonic-patch, geometry, and total-pressure lineage checks; a subsonic field mesh is still pending"
+          },
+          "downstream_condition": {
+            "status": "converged-downstream-condition",
+            "converged": true,
+            "physical_condition_verified": true,
+            "chain_promotion_blocked": true,
+            "condition_kind": "prescribed-pressure-outflow-section",
+            "tangent_sample_count": 0,
+            "pressure_sample_count": 2,
+            "maximum_tangent_residual_rad": null,
+            "maximum_pressure_residual_Pa": 5.820766091346741e-11,
+            "tangency_condition_applicable": false,
+            "tangency_condition_verified": true,
+            "pressure_condition_verified": true,
+            "condition_edge_indices": [
+              0
+            ],
+            "condition_sample_indices": [
+              0,
+              1
+            ],
+            "boundary": {
+              "status": "converged_subsonic_boundary_handoff",
+              "converged": true,
+              "physical_closure_verified": false,
+              "mixed_regime_field_complete": false,
+              "chain_promotion_blocked": true,
+              "supersonic_patch_sample_count": 16,
+              "subsonic_sample_count": 5,
+              "perimeter_sample_count": 5,
+              "supersonic_patch_verified": true,
+              "subsonic_state_samples_verified": true,
+              "terminal_continuity_verified": true,
+              "perimeter_geometry_verified": true,
+              "total_pressure_lineage_verified": true,
+              "maximum_terminal_mach_residual": 1.1102230246251565e-16,
+              "maximum_terminal_flow_angle_residual_rad": 0.0,
+              "maximum_terminal_static_pressure_residual_Pa": 5.820766091346741e-11,
+              "maximum_terminal_total_pressure_residual_Pa": 0.0,
+              "maximum_total_pressure_gain_Pa": 0.0,
+              "supersonic_patch_points_m": [
+                [
+                  1.4720719054145763,
+                  0.4979922117641763
+                ],
+                [
+                  1.4996068085862775,
+                  0.4668676985289153
+                ],
+                [
+                  1.5272295918096628,
+                  0.43574318529365424
+                ],
+                [
+                  1.5549396105016047,
+                  0.40461867205839325
+                ],
+                [
+                  1.582772502676111,
+                  0.3734941588231322
+                ],
+                [
+                  1.610802196382813,
+                  0.3423696455878712
+                ],
+                [
+                  1.6390615894207616,
+                  0.3112451323526102
+                ],
+                [
+                  1.6675417948509283,
+                  0.2801206191173492
+                ],
+                [
+                  1.6962349706311752,
+                  0.24899610588208815
+                ],
+                [
+                  1.7251328199038731,
+                  0.21787159264682715
+                ],
+                [
+                  1.75422722428391,
+                  0.1867470794115661
+                ],
+                [
+                  1.7835111080485049,
+                  0.1556225661763051
+                ],
+                [
+                  1.8129774887248693,
+                  0.1244980529410441
+                ],
+                [
+                  1.8426186835645062,
+                  0.09337353970578305
+                ],
+                [
+                  1.8724270249165245,
+                  0.06224902647052205
+                ],
+                [
+                  1.9023953791872266,
+                  0.031124513235260998
+                ]
+              ],
+              "terminal": {
+                "status": "converged",
+                "converged": true,
+                "subsonic": true,
+                "shock_point_m": [
+                  1.932441612053076,
+                  0.0
+                ],
+                "shock_normal_angle_rad": 1.5707963267948966,
+                "downstream_flow_angle_rad": 0.0,
+                "downstream_mach": 0.7425533106434078,
+                "downstream_pressure_Pa": 508788.91048239,
+                "static_pressure_ratio": 2.0981236964211574,
+                "total_pressure_ratio": 0.9598519734029278,
+                "message": ""
+              },
+              "message": "scalar subsonic perimeter handoff passed shock-seam, open-supersonic-patch, geometry, and total-pressure lineage checks; a subsonic field mesh is still pending"
+            },
+            "message": "subsonic downstream perimeter passed scalar seam and its declared pressure-outflow condition without a tangency claim"
+          },
+          "message": "control-section frozen transverse profile and nonlinear isentropic field converged on the explicitly supplied perimeter"
+        },
+        "closure": {
+          "status": "converged_mixed_regime_closure",
+          "converged": true,
+          "physical_closure_verified": true,
+          "chain_promotion_blocked": true,
+          "field": {
+            "status": "converged_compressible_potential_subsonic_field",
+            "converged": true,
+            "model_closure_verified": true,
+            "downstream_condition_verified": true,
+            "physical_closure_verified": true,
+            "mixed_regime_field_complete": true,
+            "chain_promotion_blocked": true,
+            "model": "compressible-isentropic-potential-reference",
+            "radial_divisions": 2,
+            "node_count": 9,
+            "cell_count": 12,
+            "topology_status": "open",
+            "topology_connected": true,
+            "topology_forms_closed_zone": true,
+            "topology_nonmanifold_edge_count": 0,
+            "interior_point_m": [
+              1.942441612053076,
+              0.005
+            ],
+            "maximum_thermodynamic_residual": 3.17316522144046e-16,
+            "maximum_harmonic_residual": 6.938893903907228e-18,
+            "maximum_velocity_divergence_residual": 4.018324301774401e-18,
+            "minimum_mach": 0.7425533106434077,
+            "maximum_mach": 0.7425566308455378,
+            "maximum_mass_conservation_residual": 4.018324301774401e-18,
+            "maximum_boundary_velocity_residual": 2.1467203015212988e-16,
+            "potential_circulation_residual": 2.146381488342397e-18,
+            "nonlinear_iteration_count": 0,
+            "nonlinear_update_residual": 0.0,
+            "velocity_potential_sample_count": 9,
+            "free_boundary_pressure_residual_Pa": null,
+            "free_boundary_tangent_residual_rad": null,
+            "centerline_tangent_residual_rad": null,
+            "outlet_pressure_residual_Pa": null,
+            "free_boundary_geometry_residual_m": null,
+            "control_section": {
+              "source": "solver-owned-mixed-regime-control-section",
+              "points_m": [
+                [
+                  1.952441612053076,
+                  -0.01
+                ],
+                [
+                  1.952441612053076,
+                  0.0
+                ],
+                [
+                  1.952441612053076,
+                  0.01
+                ]
+              ],
+              "sample_count": 3,
+              "normal_angle_rad": 0.0,
+              "section_measure_m": 0.02,
+              "normal_flux_factors": [
+                0.9999959727974723,
+                1.0,
+                0.9999959727974723
+              ],
+              "mass_flux_proxy": 7961.78557552327,
+              "mach": [
+                0.7425566308455378,
+                0.7425533106434077,
+                0.7425566308455378
+              ],
+              "flow_angle_rad": [
+                0.0028380293271134337,
+                0.0,
+                0.0028380293271134337
+              ],
+              "static_pressure_Pa": [
+                508787.3287734765,
+                508788.91048238997,
+                508787.3287734765
+              ],
+              "total_pressure_Pa": [
+                733748.8829156398,
+                733748.8829156398,
+                733748.8829156398
+              ],
+              "claim_status": "explicit-scalar-mixed-regime-control-section; not-a-characteristic-chain-boundary"
+            },
+            "boundary": {
+              "status": "converged_subsonic_boundary_handoff",
+              "converged": true,
+              "physical_closure_verified": false,
+              "mixed_regime_field_complete": false,
+              "chain_promotion_blocked": true,
+              "supersonic_patch_sample_count": 16,
+              "subsonic_sample_count": 5,
+              "perimeter_sample_count": 5,
+              "supersonic_patch_verified": true,
+              "subsonic_state_samples_verified": true,
+              "terminal_continuity_verified": true,
+              "perimeter_geometry_verified": true,
+              "total_pressure_lineage_verified": true,
+              "maximum_terminal_mach_residual": 1.1102230246251565e-16,
+              "maximum_terminal_flow_angle_residual_rad": 0.0,
+              "maximum_terminal_static_pressure_residual_Pa": 5.820766091346741e-11,
+              "maximum_terminal_total_pressure_residual_Pa": 0.0,
+              "maximum_total_pressure_gain_Pa": 0.0,
+              "supersonic_patch_points_m": [
+                [
+                  1.4720719054145763,
+                  0.4979922117641763
+                ],
+                [
+                  1.4996068085862775,
+                  0.4668676985289153
+                ],
+                [
+                  1.5272295918096628,
+                  0.43574318529365424
+                ],
+                [
+                  1.5549396105016047,
+                  0.40461867205839325
+                ],
+                [
+                  1.582772502676111,
+                  0.3734941588231322
+                ],
+                [
+                  1.610802196382813,
+                  0.3423696455878712
+                ],
+                [
+                  1.6390615894207616,
+                  0.3112451323526102
+                ],
+                [
+                  1.6675417948509283,
+                  0.2801206191173492
+                ],
+                [
+                  1.6962349706311752,
+                  0.24899610588208815
+                ],
+                [
+                  1.7251328199038731,
+                  0.21787159264682715
+                ],
+                [
+                  1.75422722428391,
+                  0.1867470794115661
+                ],
+                [
+                  1.7835111080485049,
+                  0.1556225661763051
+                ],
+                [
+                  1.8129774887248693,
+                  0.1244980529410441
+                ],
+                [
+                  1.8426186835645062,
+                  0.09337353970578305
+                ],
+                [
+                  1.8724270249165245,
+                  0.06224902647052205
+                ],
+                [
+                  1.9023953791872266,
+                  0.031124513235260998
+                ]
+              ],
+              "terminal": {
+                "status": "converged",
+                "converged": true,
+                "subsonic": true,
+                "shock_point_m": [
+                  1.932441612053076,
+                  0.0
+                ],
+                "shock_normal_angle_rad": 1.5707963267948966,
+                "downstream_flow_angle_rad": 0.0,
+                "downstream_mach": 0.7425533106434078,
+                "downstream_pressure_Pa": 508788.91048239,
+                "static_pressure_ratio": 2.0981236964211574,
+                "total_pressure_ratio": 0.9598519734029278,
+                "message": ""
+              },
+              "message": "scalar subsonic perimeter handoff passed shock-seam, open-supersonic-patch, geometry, and total-pressure lineage checks; a subsonic field mesh is still pending"
+            },
+            "downstream_condition": {
+              "status": "converged-downstream-condition",
+              "converged": true,
+              "physical_condition_verified": true,
+              "chain_promotion_blocked": true,
+              "condition_kind": "prescribed-pressure-outflow-section",
+              "tangent_sample_count": 0,
+              "pressure_sample_count": 2,
+              "maximum_tangent_residual_rad": null,
+              "maximum_pressure_residual_Pa": 5.820766091346741e-11,
+              "tangency_condition_applicable": false,
+              "tangency_condition_verified": true,
+              "pressure_condition_verified": true,
+              "condition_edge_indices": [
+                0
+              ],
+              "condition_sample_indices": [
+                0,
+                1
+              ],
+              "boundary": {
+                "status": "converged_subsonic_boundary_handoff",
+                "converged": true,
+                "physical_closure_verified": false,
+                "mixed_regime_field_complete": false,
+                "chain_promotion_blocked": true,
+                "supersonic_patch_sample_count": 16,
+                "subsonic_sample_count": 5,
+                "perimeter_sample_count": 5,
+                "supersonic_patch_verified": true,
+                "subsonic_state_samples_verified": true,
+                "terminal_continuity_verified": true,
+                "perimeter_geometry_verified": true,
+                "total_pressure_lineage_verified": true,
+                "maximum_terminal_mach_residual": 1.1102230246251565e-16,
+                "maximum_terminal_flow_angle_residual_rad": 0.0,
+                "maximum_terminal_static_pressure_residual_Pa": 5.820766091346741e-11,
+                "maximum_terminal_total_pressure_residual_Pa": 0.0,
+                "maximum_total_pressure_gain_Pa": 0.0,
+                "supersonic_patch_points_m": [
+                  [
+                    1.4720719054145763,
+                    0.4979922117641763
+                  ],
+                  [
+                    1.4996068085862775,
+                    0.4668676985289153
+                  ],
+                  [
+                    1.5272295918096628,
+                    0.43574318529365424
+                  ],
+                  [
+                    1.5549396105016047,
+                    0.40461867205839325
+                  ],
+                  [
+                    1.582772502676111,
+                    0.3734941588231322
+                  ],
+                  [
+                    1.610802196382813,
+                    0.3423696455878712
+                  ],
+                  [
+                    1.6390615894207616,
+                    0.3112451323526102
+                  ],
+                  [
+                    1.6675417948509283,
+                    0.2801206191173492
+                  ],
+                  [
+                    1.6962349706311752,
+                    0.24899610588208815
+                  ],
+                  [
+                    1.7251328199038731,
+                    0.21787159264682715
+                  ],
+                  [
+                    1.75422722428391,
+                    0.1867470794115661
+                  ],
+                  [
+                    1.7835111080485049,
+                    0.1556225661763051
+                  ],
+                  [
+                    1.8129774887248693,
+                    0.1244980529410441
+                  ],
+                  [
+                    1.8426186835645062,
+                    0.09337353970578305
+                  ],
+                  [
+                    1.8724270249165245,
+                    0.06224902647052205
+                  ],
+                  [
+                    1.9023953791872266,
+                    0.031124513235260998
+                  ]
+                ],
+                "terminal": {
+                  "status": "converged",
+                  "converged": true,
+                  "subsonic": true,
+                  "shock_point_m": [
+                    1.932441612053076,
+                    0.0
+                  ],
+                  "shock_normal_angle_rad": 1.5707963267948966,
+                  "downstream_flow_angle_rad": 0.0,
+                  "downstream_mach": 0.7425533106434078,
+                  "downstream_pressure_Pa": 508788.91048239,
+                  "static_pressure_ratio": 2.0981236964211574,
+                  "total_pressure_ratio": 0.9598519734029278,
+                  "message": ""
+                },
+                "message": "scalar subsonic perimeter handoff passed shock-seam, open-supersonic-patch, geometry, and total-pressure lineage checks; a subsonic field mesh is still pending"
+              },
+              "message": "subsonic downstream perimeter passed scalar seam and its declared pressure-outflow condition without a tangency claim"
+            },
+            "message": "control-section frozen transverse profile and nonlinear isentropic field converged on the explicitly supplied perimeter"
+          },
+          "request": {
+            "status": "mixed-regime-perimeter-required",
+            "source": "solver-owned-terminal-shock-mixed-regime-handoff",
+            "terminal": {
+              "status": "converged",
+              "converged": true,
+              "subsonic": true,
+              "shock_point_m": [
+                1.932441612053076,
+                0.0
+              ],
+              "shock_normal_angle_rad": 1.5707963267948966,
+              "downstream_flow_angle_rad": 0.0,
+              "downstream_mach": 0.7425533106434078,
+              "downstream_pressure_Pa": 508788.91048239,
+              "static_pressure_ratio": 2.0981236964211574,
+              "total_pressure_ratio": 0.9598519734029278,
+              "message": ""
+            },
+            "perimeter_supplied": false,
+            "open_supersonic_zone_is_a_perimeter": false,
+            "terminal_point_m": [
+              1.932441612053076,
+              0.0
+            ],
+            "terminal_downstream_mach": 0.7425533106434078,
+            "terminal_downstream_flow_angle_rad": 0.0,
+            "terminal_downstream_pressure_Pa": 508788.91048239,
+            "terminal_downstream_total_pressure_Pa": 733748.8829156398,
+            "terminal_total_pressure_ratio": 0.9598519734029278,
+            "supersonic_patch_sample_count": 16,
+            "supersonic_patch_points_m": [
+              [
+                1.4720719054145763,
+                0.4979922117641763
+              ],
+              [
+                1.4996068085862775,
+                0.4668676985289153
+              ],
+              [
+                1.5272295918096628,
+                0.43574318529365424
+              ],
+              [
+                1.5549396105016047,
+                0.40461867205839325
+              ],
+              [
+                1.582772502676111,
+                0.3734941588231322
+              ],
+              [
+                1.610802196382813,
+                0.3423696455878712
+              ],
+              [
+                1.6390615894207616,
+                0.3112451323526102
+              ],
+              [
+                1.6675417948509283,
+                0.2801206191173492
+              ],
+              [
+                1.6962349706311752,
+                0.24899610588208815
+              ],
+              [
+                1.7251328199038731,
+                0.21787159264682715
+              ],
+              [
+                1.75422722428391,
+                0.1867470794115661
+              ],
+              [
+                1.7835111080485049,
+                0.1556225661763051
+              ],
+              [
+                1.8129774887248693,
+                0.1244980529410441
+              ],
+              [
+                1.8426186835645062,
+                0.09337353970578305
+              ],
+              [
+                1.8724270249165245,
+                0.06224902647052205
+              ],
+              [
+                1.9023953791872266,
+                0.031124513235260998
+              ]
+            ],
+            "supersonic_patch_mach": [
+              1.3873081874514017,
+              1.3879682992261135,
+              1.388610721526895,
+              1.3892371001564174,
+              1.3898972068968936,
+              1.39049993577011,
+              1.3910289055305394,
+              1.3915058719696394,
+              1.3919349105726766,
+              1.3922913028132464,
+              1.3925922926864867,
+              1.3928544268942171,
+              1.3930605756881138,
+              1.393197344252279,
+              1.3932772642084215,
+              1.393301951360956
+            ],
+            "supersonic_patch_downstream_total_pressure_Pa": [
+              764594.8356011483,
+              764568.7972805209,
+              764542.997326121,
+              764517.3604239817,
+              764504.3468409266,
+              764506.0382517744,
+              764503.7468650525,
+              764497.614637443,
+              764488.5649155134,
+              764479.2994515008,
+              764469.6532186522,
+              764459.3341287981,
+              764450.196310926,
+              764443.7561734468,
+              764439.7527586711,
+              764438.5752867921
+            ],
+            "required_boundary_conditions": [
+              "explicitly closed downstream perimeter",
+              "terminal scalar seam continuity",
+              "no total-pressure gain over the terminal shock"
+            ],
+            "message": "the mixed-regime solver must provide the closed downstream perimeter; no geometry was inferred from the open supersonic zone"
+          },
+          "downstream_condition": {
+            "status": "converged-downstream-condition",
+            "converged": true,
+            "physical_condition_verified": true,
+            "chain_promotion_blocked": true,
+            "condition_kind": "prescribed-pressure-outflow-section",
+            "tangent_sample_count": 0,
+            "pressure_sample_count": 2,
+            "maximum_tangent_residual_rad": null,
+            "maximum_pressure_residual_Pa": 5.820766091346741e-11,
+            "tangency_condition_applicable": false,
+            "tangency_condition_verified": true,
+            "pressure_condition_verified": true,
+            "condition_edge_indices": [
+              0
+            ],
+            "condition_sample_indices": [
+              0,
+              1
+            ],
+            "boundary": {
+              "status": "converged_subsonic_boundary_handoff",
+              "converged": true,
+              "physical_closure_verified": false,
+              "mixed_regime_field_complete": false,
+              "chain_promotion_blocked": true,
+              "supersonic_patch_sample_count": 16,
+              "subsonic_sample_count": 5,
+              "perimeter_sample_count": 5,
+              "supersonic_patch_verified": true,
+              "subsonic_state_samples_verified": true,
+              "terminal_continuity_verified": true,
+              "perimeter_geometry_verified": true,
+              "total_pressure_lineage_verified": true,
+              "maximum_terminal_mach_residual": 1.1102230246251565e-16,
+              "maximum_terminal_flow_angle_residual_rad": 0.0,
+              "maximum_terminal_static_pressure_residual_Pa": 5.820766091346741e-11,
+              "maximum_terminal_total_pressure_residual_Pa": 0.0,
+              "maximum_total_pressure_gain_Pa": 0.0,
+              "supersonic_patch_points_m": [
+                [
+                  1.4720719054145763,
+                  0.4979922117641763
+                ],
+                [
+                  1.4996068085862775,
+                  0.4668676985289153
+                ],
+                [
+                  1.5272295918096628,
+                  0.43574318529365424
+                ],
+                [
+                  1.5549396105016047,
+                  0.40461867205839325
+                ],
+                [
+                  1.582772502676111,
+                  0.3734941588231322
+                ],
+                [
+                  1.610802196382813,
+                  0.3423696455878712
+                ],
+                [
+                  1.6390615894207616,
+                  0.3112451323526102
+                ],
+                [
+                  1.6675417948509283,
+                  0.2801206191173492
+                ],
+                [
+                  1.6962349706311752,
+                  0.24899610588208815
+                ],
+                [
+                  1.7251328199038731,
+                  0.21787159264682715
+                ],
+                [
+                  1.75422722428391,
+                  0.1867470794115661
+                ],
+                [
+                  1.7835111080485049,
+                  0.1556225661763051
+                ],
+                [
+                  1.8129774887248693,
+                  0.1244980529410441
+                ],
+                [
+                  1.8426186835645062,
+                  0.09337353970578305
+                ],
+                [
+                  1.8724270249165245,
+                  0.06224902647052205
+                ],
+                [
+                  1.9023953791872266,
+                  0.031124513235260998
+                ]
+              ],
+              "terminal": {
+                "status": "converged",
+                "converged": true,
+                "subsonic": true,
+                "shock_point_m": [
+                  1.932441612053076,
+                  0.0
+                ],
+                "shock_normal_angle_rad": 1.5707963267948966,
+                "downstream_flow_angle_rad": 0.0,
+                "downstream_mach": 0.7425533106434078,
+                "downstream_pressure_Pa": 508788.91048239,
+                "static_pressure_ratio": 2.0981236964211574,
+                "total_pressure_ratio": 0.9598519734029278,
+                "message": ""
+              },
+              "message": "scalar subsonic perimeter handoff passed shock-seam, open-supersonic-patch, geometry, and total-pressure lineage checks; a subsonic field mesh is still pending"
+            },
+            "message": "subsonic downstream perimeter passed scalar seam and its declared pressure-outflow condition without a tangency claim"
+          },
+          "perimeter_spec": {
+            "model": "prescribed-pressure-outflow-mixed-regime-closure-mock",
+            "perimeter_points_m": [
+              [
+                1.932441612053076,
+                0.0
+              ],
+              [
+                1.952441612053076,
+                0.0
+              ],
+              [
+                1.952441612053076,
+                0.01
+              ],
+              [
+                1.932441612053076,
+                0.01
+              ],
+              [
+                1.932441612053076,
+                0.0
+              ]
+            ],
+            "sample_count": 5,
+            "condition_kind": "prescribed-pressure-outflow-section",
+            "ambient_pressure_Pa": 508788.91048239,
+            "condition_edge_indices": [
+              0
+            ],
+            "condition_sample_indices": [
+              0,
+              1
+            ],
+            "claim_status": "explicit-downstream-perimeter-reference; canonical-free-boundary-perimeter-not-inferred"
+          },
+          "message": "callback-supplied planar field retained the exact terminal, patch, perimeter, and downstream-condition seams; promotion remains blocked"
+        },
+        "claim_status": "explicit-planar-downstream-handoff-only; canonical-reflected-moc-free-boundary-and-external-validation-pending",
+        "message": "explicit control section and perimeter reached the callback-owned planar handoff; canonical reflected-MOC free-boundary closure and external validation remain pending"
+      },
+      "planar_frozen_profile_reference_measurement": {
+        "status": "converged_reference_measurement",
+        "operator_id": "op.moc.mixed-regime-compressible-potential",
+        "converged": true,
+        "model": "compressible-isentropic-potential-reference",
+        "radial_divisions": 2,
+        "node_count": 9,
+        "cell_count": 12,
+        "topology": {
+          "status": "open",
+          "connected": true,
+          "forms_closed_zone": true,
+          "boundary_edge_count": 4,
+          "boundary_component_count": 1,
+          "nonmanifold_edge_count": 0
+        },
+        "checks": {
+          "boundary_verified": true,
+          "potential_layout_verified": true,
+          "reference_model_verified": true,
+          "downstream_condition_verified": true
+        },
+        "physical_closure_verified": false,
+        "chain_promotion_blocked": true,
+        "residuals": {
+          "maximum_thermodynamic_residual": 3.17316522144046e-16,
+          "maximum_mass_conservation_residual": 3.469446951953614e-18,
+          "maximum_boundary_velocity_residual": 2.1467203015212988e-16,
+          "potential_circulation_residual": 2.146381488342397e-18
+        },
+        "maximum_mach": 0.7425541406947798,
+        "nonlinear_iteration_count": 0,
+        "claim_status": "independent-explicit-perimeter-potential-reference-measurement; not-canonical-free-boundary-validation",
+        "message": "independent compressible potential measurement passed the explicit perimeter, radial layout, nonlinear mass, circulation, and subsonic gates; it remains a non-canonical scalar reference"
+      },
       "mixed_regime_closure_mock": {
         "model": "prescribed-pressure-outflow-mixed-regime-closure-mock",
         "planning_only": true,

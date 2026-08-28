@@ -31,6 +31,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocMixedRegimeFieldSample,
   MocMixedRegimePlanarSolveStatus,
   MocMixedRegimePlanarPotentialReference,
+  MocMixedRegimePlanarFrozenProfileReference,
   MocSolverGeneratedMixedRegimeClosureReference,
   MocInvariantClosureFamily,
   MocFreeBoundaryShockResult,
@@ -2279,6 +2280,59 @@ def _mixed_regime_boundary_probe(
       planar_potential_handoff.field,
     )
   )
+  planar_frozen_profile_tangential_speeds = (0.002, 0.0, 0.002)
+
+  def planar_frozen_profile_sample(
+    point: tuple[float, float],
+    tangential_speed: float,
+  ) -> MocMixedRegimeFieldSample:
+    speed_squared = (
+      planar_reference_terminal_speed * planar_reference_terminal_speed
+      + tangential_speed * tangential_speed
+    )
+    mach = sqrt(
+      speed_squared
+      / (1.0 - planar_reference_sonic_factor * speed_squared)
+    )
+    static_pressure = terminal.downstream_total_pressure_Pa / (
+      1.0 + planar_reference_sonic_factor * mach * mach
+    ) ** (terminal.upstream_state.gamma / (terminal.upstream_state.gamma - 1.0))
+    return MocMixedRegimeFieldSample(
+      point_m=point,
+      mach=mach,
+      flow_angle_rad=atan2(tangential_speed, planar_reference_terminal_speed),
+      static_pressure_Pa=static_pressure,
+      total_pressure_Pa=terminal.downstream_total_pressure_Pa,
+      gamma=terminal.upstream_state.gamma,
+    )
+
+  planar_frozen_profile_control_section = MocMixedRegimeControlSection(
+    points_m=planar_section_points,
+    samples=tuple(
+      planar_frozen_profile_sample(point, tangential_speed)
+      for point, tangential_speed in zip(
+        planar_section_points,
+        planar_frozen_profile_tangential_speeds,
+        strict=True,
+      )
+    ),
+    normal_angle_rad=0.0,
+  )
+  planar_frozen_profile_reference = MocMixedRegimePlanarFrozenProfileReference(
+    radial_divisions=2,
+  )
+  planar_frozen_profile_handoff = planar_frozen_profile_reference.solve(
+    perimeter_request,
+    planar_frozen_profile_control_section,
+    planar_reference_specification,
+  )
+  planar_frozen_profile_measurement = (
+    None
+    if planar_frozen_profile_handoff.field is None
+    else measure_mixed_regime_compressible_potential_field(
+      planar_frozen_profile_handoff.field,
+    )
+  )
   contract_condition = validate_mixed_regime_downstream_condition(
     contract_fixture,
     MocMixedRegimeDownstreamConditionKind.SLIP_WALL,
@@ -2502,6 +2556,29 @@ def _mixed_regime_boundary_probe(
       and planar_potential_measurement.reference_model_verified
       and planar_potential_measurement.physical_closure_verified is False
       and planar_potential_measurement.chain_promotion_blocked
+      and planar_frozen_profile_handoff.status is MocMixedRegimePlanarSolveStatus.CONVERGED_HANDOFF
+      and planar_frozen_profile_handoff.handoff_verified
+      and planar_frozen_profile_handoff.section_is_varying
+      and planar_frozen_profile_handoff.control_section_projection_verified
+      and planar_frozen_profile_handoff.maximum_control_section_projection_residual is not None
+      and planar_frozen_profile_handoff.maximum_control_section_projection_residual <= 1.0e-8
+      and planar_frozen_profile_handoff.projection_model == (
+        'piecewise-linear-frozen-transverse-profile'
+      )
+      and planar_frozen_profile_handoff.field_physical_closure_verified
+      and planar_frozen_profile_handoff.physical_closure_verified is False
+      and planar_frozen_profile_handoff.canonical_free_boundary_verified is False
+      and planar_frozen_profile_handoff.chain_promotion_blocked
+      and planar_frozen_profile_handoff.production_claim_allowed is False
+      and planar_frozen_profile_handoff.field is not None
+      and planar_frozen_profile_handoff.field.model == (
+        'compressible-isentropic-potential-reference'
+      )
+      and planar_frozen_profile_measurement is not None
+      and planar_frozen_profile_measurement.converged
+      and planar_frozen_profile_measurement.reference_model_verified
+      and planar_frozen_profile_measurement.physical_closure_verified is False
+      and planar_frozen_profile_measurement.chain_promotion_blocked
       and contract_condition.status.value == 'downstream-tangency-failure'
       and wall_condition.converged
       and wall_condition.chain_promotion_blocked
@@ -2519,6 +2596,17 @@ def _mixed_regime_boundary_probe(
       None
       if planar_potential_measurement is None
       else planar_potential_measurement.as_report()
+    ),
+    'planar_frozen_profile_reference_configuration': (
+      planar_frozen_profile_reference.as_report()
+    ),
+    'planar_frozen_profile_reference': (
+      planar_frozen_profile_handoff.as_report()
+    ),
+    'planar_frozen_profile_reference_measurement': (
+      None
+      if planar_frozen_profile_measurement is None
+      else planar_frozen_profile_measurement.as_report()
     ),
     'mixed_regime_closure_mock': perimeter_mock.as_report(),
     'scalar_perimeter_contract_fixture': contract_fixture.as_report(),

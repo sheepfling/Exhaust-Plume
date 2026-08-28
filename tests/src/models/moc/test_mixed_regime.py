@@ -18,12 +18,14 @@ from exhaust_plume.models.moc import (
   MocMixedRegimeFreeBoundaryStatus,
   MocMixedRegimePlanarSolveStatus,
   MocMixedRegimePlanarPotentialReference,
+  MocMixedRegimePlanarFrozenProfileReference,
   MocMixedRegimePerimeterRequest,
   MocPrescribedMixedRegimeClosureMock,
   MocPostShockBoundaryState,
   run_mixed_regime_closure_solver,
   run_mixed_regime_planar_field_solver,
   solve_mixed_regime_planar_potential_reference,
+  solve_mixed_regime_planar_frozen_profile_reference,
   solve_normal_shock_terminal,
   solve_mixed_regime_compressible_potential_field,
   solve_mixed_regime_downstream_condition,
@@ -1520,6 +1522,124 @@ def test_planar_potential_reference_projects_a_varying_section_into_a_nonlinear_
   assert not rejected.converged
   assert not rejected.control_section_projection_verified
   assert 'affine' in rejected.message
+
+
+def test_planar_frozen_profile_reference_preserves_non_affine_data_without_extrapolation() -> None:
+  terminal = _terminal()
+  request = MocMixedRegimePerimeterRequest(
+    terminal=terminal,
+    terminal_point_m=terminal.shock_point_m,
+    terminal_downstream_mach=terminal.downstream_mach,
+    terminal_downstream_flow_angle_rad=terminal.downstream_flow_angle_rad,
+    terminal_downstream_pressure_Pa=terminal.downstream_pressure_Pa,
+    terminal_downstream_total_pressure_Pa=terminal.downstream_total_pressure_Pa,
+    terminal_total_pressure_ratio=terminal.total_pressure_ratio,
+    supersonic_patch=_supersonic_patch(),
+  )
+  terminal_x, terminal_y = request.terminal_point_m
+  gamma = request.terminal.upstream_state.gamma
+  sonic_factor = 0.5 * (gamma - 1.0)
+  terminal_speed = request.terminal_downstream_mach / sqrt(
+    1.0 + sonic_factor * request.terminal_downstream_mach ** 2
+  )
+
+  def sample_at(
+    point: tuple[float, float],
+    tangential_speed: float,
+  ) -> MocMixedRegimeFieldSample:
+    speed_squared = terminal_speed ** 2 + tangential_speed ** 2
+    mach = sqrt(speed_squared / (1.0 - sonic_factor * speed_squared))
+    return MocMixedRegimeFieldSample(
+      point_m=point,
+      mach=mach,
+      flow_angle_rad=atan2(tangential_speed, terminal_speed),
+      static_pressure_Pa=request.terminal_downstream_total_pressure_Pa / (
+        1.0 + sonic_factor * mach * mach
+      ) ** (gamma / (gamma - 1.0)),
+      total_pressure_Pa=request.terminal_downstream_total_pressure_Pa,
+      gamma=gamma,
+    )
+
+  section_points = (
+    (terminal_x + 0.02, terminal_y - 0.01),
+    (terminal_x + 0.02, terminal_y),
+    (terminal_x + 0.02, terminal_y + 0.01),
+  )
+  section = MocMixedRegimeControlSection(
+    points_m=section_points,
+    samples=tuple(
+      sample_at(point, tangential_speed)
+      for point, tangential_speed in zip(
+        section_points,
+        (0.002, 0.0, 0.002),
+        strict=True,
+      )
+    ),
+    normal_angle_rad=0.0,
+  )
+  perimeter_spec = MocMixedRegimeDownstreamPerimeterSpec(
+    perimeter_points_m=(
+      (terminal_x, terminal_y),
+      (terminal_x + 0.1, terminal_y),
+      (terminal_x + 0.1, terminal_y + 0.01),
+      (terminal_x, terminal_y + 0.01),
+      (terminal_x, terminal_y),
+    ),
+    condition_kind=MocMixedRegimeDownstreamConditionKind.PRESSURE_OUTFLOW_SECTION,
+    ambient_pressure_Pa=terminal.downstream_pressure_Pa,
+    condition_edge_indices=(0,),
+    condition_sample_indices=(0, 1),
+  )
+
+  reference = MocMixedRegimePlanarFrozenProfileReference(radial_divisions=2)
+  result = reference.solve(request, section, perimeter_spec)
+
+  assert result.status is MocMixedRegimePlanarSolveStatus.CONVERGED_HANDOFF
+  assert result.converged
+  assert result.handoff_verified
+  assert result.section_is_varying
+  assert result.control_section_projection_verified
+  assert result.maximum_control_section_projection_residual is not None
+  assert result.maximum_control_section_projection_residual <= 1.0e-8
+  assert result.projection_model == (
+    'piecewise-linear-frozen-transverse-profile'
+  )
+  assert result.field is not None
+  assert result.field.model == 'compressible-isentropic-potential-reference'
+  assert result.field.control_section is section
+  assert result.field.model_closure_verified
+  assert result.field_physical_closure_verified
+  assert result.physical_closure_verified is False
+  assert result.canonical_free_boundary_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  measurement = measure_mixed_regime_compressible_potential_field(result.field)
+  assert measurement.converged
+  assert measurement.reference_model_verified
+  assert measurement.physical_closure_verified is False
+  assert measurement.chain_promotion_blocked
+  assert reference.as_report()['extrapolation_allowed'] is False
+
+  outside_span_spec = replace(
+    perimeter_spec,
+    perimeter_points_m=(
+      (terminal_x, terminal_y),
+      (terminal_x + 0.1, terminal_y),
+      (terminal_x + 0.1, terminal_y + 0.02),
+      (terminal_x, terminal_y + 0.02),
+      (terminal_x, terminal_y),
+    ),
+  )
+  outside_span = solve_mixed_regime_planar_frozen_profile_reference(
+    request,
+    section,
+    outside_span_spec,
+    radial_divisions=2,
+  )
+  assert outside_span.status is MocMixedRegimePlanarSolveStatus.CONTROL_SECTION_FAILURE
+  assert not outside_span.converged
+  assert not outside_span.control_section_projection_verified
+  assert 'extrapolation is disabled' in outside_span.message
 
 
 def test_solver_owned_free_boundary_reference_shoots_height_and_closes_scalar_field() -> None:
