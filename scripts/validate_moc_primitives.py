@@ -58,9 +58,9 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocCausticUpstreamContinuationStatus,
   build_caustic_upstream_bridge,
   sample_caustic_upstream_bridge,
-  solve_caustic_upstream_continuation,
   plan_caustic_family_band_chain,
   plan_caustic_family_band_invariant_chain,
+  plan_caustic_upstream_continuation,
   plan_caustic_upstream_bridge_chain,
   plan_caustic_upstream_bridge_invariant_chain,
   plan_ambient_pressure_field_chain,
@@ -3946,17 +3946,11 @@ def _caustic_upstream_continuation_probe(
       'accepted': False,
       'branch_audit': None,
       'continuation': None,
+      'planner': None,
       'claim_status': 'caustic-upstream-continuation-pending',
-    }
+  }
   try:
-    branch_audit = solve_caustic_upstream_continuation(
-      old_family,
-      seed,
-      total_pressure_Pa,
-      ambient_pressure_Pa,
-      sample_count=6,
-    )
-    continuation = solve_caustic_upstream_continuation(
+    planner = plan_caustic_upstream_continuation(
       old_family,
       seed,
       total_pressure_Pa,
@@ -3964,6 +3958,8 @@ def _caustic_upstream_continuation_probe(
       anchor_edge_index=0,
       sample_count=6,
     )
+    branch_audit = planner.branch_audit
+    continuation = planner.continuation
     event_point = continuation.event_point_m
     event_sample_available = bool(
       event_point is not None
@@ -3994,6 +3990,12 @@ def _caustic_upstream_continuation_probe(
       and event_sample_available
       and continuation.physical_closure_verified is False
       and continuation.chain_promotion_blocked
+      and planner.branch_audit_verified
+      and planner.resolved
+      and planner.termination.reason is MocChainTerminationReason.CHARACTERISTIC_CAUSTIC
+      and planner.termination.physical_termination is False
+      and planner.physical_closure_verified is False
+      and planner.chain_promotion_blocked
     )
     return {
       'status': 'solver-owned-bounded-caustic-upstream-continuation',
@@ -4002,6 +4004,7 @@ def _caustic_upstream_continuation_probe(
       'event_sample_available': event_sample_available,
       'branch_audit': branch_audit.as_report(),
       'continuation': continuation.as_report(),
+      'planner': planner.as_report(),
       'claim_status': (
         'bounded-solver-owned-caustic-upstream-continuation; '
         'shock-branch-physics-and-physical-closure-pending'
@@ -4013,6 +4016,7 @@ def _caustic_upstream_continuation_probe(
       'accepted': False,
       'branch_audit': None,
       'continuation': None,
+      'planner': None,
       'message': str(error),
       'claim_status': 'caustic-upstream-continuation-pending',
     }

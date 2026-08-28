@@ -345,7 +345,10 @@ bridge when no branch is selected, and for an explicit anchor edge verifies
 the event point, state, pressure, and total-pressure lineage before exposing
 an x-split bounded bridge. This makes the continuation usable as a solver
 interface for later shock-cell work while keeping the unresolved shock curve,
-mixed-regime closure, and chain promotion explicitly blocked.
+mixed-regime closure, and chain promotion explicitly blocked. The planner
+wrapper records that branch audit and the typed non-physical caustic stop; it
+does not append the bounded bridge as a chain cell or change the basic/reduced
+provider lanes.
 
 ## What is done for the basic solver
 

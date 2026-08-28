@@ -438,6 +438,15 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert continuation['chain_termination_decision']['reason'] == (
     'characteristic-caustic'
   )
+  continuation_planner = caustic_upstream_continuation['planner']
+  assert continuation_planner['planner_kind'] == 'upstream-coupled-research'
+  assert continuation_planner['branch_audit_verified'] is True
+  assert continuation_planner['resolved'] is True
+  assert continuation_planner['physical_closure_verified'] is False
+  assert continuation_planner['chain_promotion_blocked'] is True
+  assert continuation_planner['termination']['reason'] == (
+    'characteristic-caustic'
+  )
   assert caustic_remesh['accepted'] is True
   assert caustic_remesh['status'] == 'diagnostic-coupled-caustic-remesh-execution'
   assert caustic_remesh['direct']['status'] == (

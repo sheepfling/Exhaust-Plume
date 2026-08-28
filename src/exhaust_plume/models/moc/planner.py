@@ -30,7 +30,16 @@ from exhaust_plume.models.moc.chain import (
   continue_moc_cell_chain,
 )
 from exhaust_plume.models.moc.caustic_restart import MocCausticFamilyBandResult
-from exhaust_plume.models.moc.caustic_bridge import MocCausticBridgeStatus, MocCausticUpstreamBridge
+from exhaust_plume.models.moc.caustic_bridge import (
+  MocCausticBridgeSide,
+  MocCausticBridgeStatus,
+  MocCausticUpstreamBridge,
+)
+from exhaust_plume.models.moc.caustic_continuation import (
+  MocCausticUpstreamContinuationResult,
+  MocCausticUpstreamContinuationStatus,
+  solve_caustic_upstream_continuation,
+)
 from exhaust_plume.models.moc.caustic_remesh import (
   MocCausticShockRemeshRequest,
   MocCausticShockRemeshResult,
@@ -76,7 +85,11 @@ from exhaust_plume.models.moc.mixed_regime_planar import (
   run_mixed_regime_planar_field_solver,
 )
 from exhaust_plume.models.moc.primitives import CharacteristicFamily, CharacteristicState
-from exhaust_plume.models.moc.source_strip import MocSourceStripContinuationResult
+from exhaust_plume.models.moc.source_strip import (
+  MocSourceCharacteristicStripResult,
+  MocSourceStripCausticShockSeedResult,
+  MocSourceStripContinuationResult,
+)
 from exhaust_plume.models.moc.terminal_patch import MocTerminalReflectionPatchResult
 from exhaust_plume.models.moc.terminal_patch_solver import (
   solve_marched_attached_shock_chain_cell_from_terminal_reflection_patch_or_termination,
@@ -106,6 +119,7 @@ __all__ = (
   'MocChainPlannerStep',
   'MocChainPlannerResult',
   'MocFirstCellTerminalClosurePlannerResult',
+  'MocCausticUpstreamContinuationPlannerResult',
   'MocPrescribedMixedRegimeClosureMock',
   'MocSolverGeneratedMixedRegimeClosureReference',
   'MocPrescribedPostShockChainMock',
@@ -127,6 +141,7 @@ __all__ = (
   'plan_caustic_origin_envelope_chain',
   'plan_caustic_upstream_bridge_chain',
   'plan_caustic_upstream_bridge_invariant_chain',
+  'plan_caustic_upstream_continuation',
   'plan_caustic_shock_remesh_chain',
   'plan_caustic_shock_remesh_chain_from_upstream_bridge',
   'plan_caustic_simple_wave_terminal_chain',
@@ -1009,6 +1024,115 @@ class MocFirstCellTerminalClosurePlannerResult:
         if self.mixed_regime_planar_handoff is None
         else self.mixed_regime_planar_handoff.as_report()
       ),
+      'diagnostics': dict(self.diagnostics),
+    }
+  ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocCausticUpstreamContinuationPlannerResult:
+  """Planner/audit result for a branch-explicit caustic continuation.
+
+  A caustic continuation is an upstream research boundary, not a resolved
+  shock-cell chain cell.  The planner therefore keeps the two-sided restart
+  audit beside the optionally selected one-sided bridge and always retains a
+  non-physical chain stop.  This makes a caller's branch choice observable
+  without allowing the bounded bridge to raise its fidelity claim.
+  """
+
+  branch_audit: MocCausticUpstreamContinuationResult
+  continuation: MocCausticUpstreamContinuationResult
+  termination: MocChainTerminationDecision
+  planner_kind: MocChainPlannerKind
+  claim_status: str
+  diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.branch_audit,
+      MocCausticUpstreamContinuationResult,
+    ):
+      raise TypeError(
+        'branch_audit must be a MocCausticUpstreamContinuationResult'
+      )
+    if not isinstance(
+      self.continuation,
+      MocCausticUpstreamContinuationResult,
+    ):
+      raise TypeError(
+        'continuation must be a MocCausticUpstreamContinuationResult'
+      )
+    if not isinstance(self.termination, MocChainTerminationDecision):
+      raise TypeError(
+        'termination must be a MocChainTerminationDecision'
+      )
+    if not isinstance(self.planner_kind, MocChainPlannerKind):
+      raise TypeError('planner_kind must be a MocChainPlannerKind')
+    object.__setattr__(self, 'claim_status', str(self.claim_status))
+    object.__setattr__(self, 'diagnostics', MappingProxyType(dict(self.diagnostics)))
+
+  @property
+  def branch_audit_verified(self) -> bool:
+    """Whether both one-sided restart candidates passed their local gates."""
+
+    return bool(
+      self.branch_audit.status is (
+        MocCausticUpstreamContinuationStatus.BRANCH_SELECTION_REQUIRED
+      )
+      and len(self.branch_audit.restart_results) == 2
+      and all(
+        restart.converged
+        and restart.caustic_handoff_verified
+        and restart.family_band is not None
+        and restart.family_band.converged
+        for restart in self.branch_audit.restart_results
+      )
+    )
+
+  @property
+  def resolved(self) -> bool:
+    """Whether the selected bounded continuation itself converged."""
+
+    return self.continuation.converged
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    """The upstream bridge has no shock or downstream physical closure."""
+
+    return False
+
+  @property
+  def physical_termination(self) -> bool:
+    """Whether the retained decision is a verified physical chain stop."""
+
+    return self.termination.physical_termination
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    """Prevent the bounded caustic bridge from becoming a chain cell."""
+
+    return True
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    """Planner and research continuation results cannot support product claims."""
+
+    return False
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'planner_kind': self.planner_kind.value,
+      'planning_only': True,
+      'production_claim_allowed': self.production_claim_allowed,
+      'claim_status': self.claim_status,
+      'resolved': self.resolved,
+      'branch_audit_verified': self.branch_audit_verified,
+      'physical_closure_verified': self.physical_closure_verified,
+      'physical_termination': self.physical_termination,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'termination': self.termination.as_report(),
+      'branch_audit': self.branch_audit.as_report(),
+      'continuation': self.continuation.as_report(),
       'diagnostics': dict(self.diagnostics),
     }
   ####
@@ -2842,6 +2966,102 @@ def plan_caustic_family_band_invariant_chain(
       'invariant-conditioned-caustic-band-shock-planner; '
       'one-sided-upstream-domain-and-physical-remesh-pending'
     ),
+  )
+
+
+def plan_caustic_upstream_continuation(
+  old_family: MocSourceCharacteristicStripResult,
+  seed: MocSourceStripCausticShockSeedResult,
+  total_pressure_Pa: float,
+  ambient_pressure_Pa: float,
+  *,
+  anchor_edge_index: int | None = None,
+  sample_count: int = 6,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  pressure_tolerance: float = 1.0e-10,
+  maximum_iterations: int = 16,
+  side_at: Callable[[tuple[float, float]], MocCausticBridgeSide] | None = None,
+  claim_status: str | None = None,
+) -> MocCausticUpstreamContinuationPlannerResult:
+  """Plan a branch-explicit upstream continuation at a caustic.
+
+  The planner always audits both one-sided restart candidates.  Supplying an
+  ``anchor_edge_index`` then runs the selected branch through the exact event
+  seam; omitting it leaves the result at ``BRANCH_SELECTION_REQUIRED``.  In
+  either case the returned termination is non-physical and no chain cell is
+  appended.  A later shock-cell planner may consume the selected bounded
+  bridge only after a separate, explicit solver contract accepts it.
+  """
+
+  if anchor_edge_index is None and side_at is not None:
+    raise ValueError(
+      'side_at requires an explicit anchor_edge_index'
+    )
+  branch_audit = solve_caustic_upstream_continuation(
+    old_family,
+    seed,
+    total_pressure_Pa,
+    ambient_pressure_Pa,
+    sample_count=sample_count,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+    pressure_tolerance=pressure_tolerance,
+    maximum_iterations=maximum_iterations,
+  )
+  continuation = branch_audit
+  if anchor_edge_index is not None:
+    continuation = solve_caustic_upstream_continuation(
+      old_family,
+      seed,
+      total_pressure_Pa,
+      ambient_pressure_Pa,
+      anchor_edge_index=anchor_edge_index,
+      sample_count=sample_count,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+      pressure_tolerance=pressure_tolerance,
+      maximum_iterations=maximum_iterations,
+      side_at=side_at,
+    )
+
+  termination = continuation.as_chain_termination_decision()
+  return MocCausticUpstreamContinuationPlannerResult(
+    branch_audit=branch_audit,
+    continuation=continuation,
+    termination=termination,
+    planner_kind=MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH,
+    claim_status=(
+      'solver-owned-caustic-upstream-continuation-planner; '
+      'bounded-bridge-only; shock-remesh-and-physical-closure-pending'
+      if claim_status is None
+      else claim_status
+    ),
+    diagnostics={
+      'continuation_model': 'branch-explicit-caustic-upstream-continuation',
+      'branch_audit_status': branch_audit.status.value,
+      'branch_candidate_count': len(branch_audit.restart_results),
+      'branch_audit_verified': (
+        branch_audit.status is (
+          MocCausticUpstreamContinuationStatus.BRANCH_SELECTION_REQUIRED
+        )
+        and len(branch_audit.restart_results) == 2
+        and all(
+          restart.converged
+          and restart.caustic_handoff_verified
+          and restart.family_band is not None
+          and restart.family_band.converged
+          for restart in branch_audit.restart_results
+        )
+      ),
+      'selected_anchor_edge_index': continuation.selected_anchor_edge_index,
+      'continuation_status': continuation.status.value,
+      'seam_verified': continuation.seam_verified,
+      'state_sampling_available': continuation.state_sampling_available,
+      'physical_closure_verified': False,
+      'chain_promotion_blocked': True,
+      'chain_cell_appended': False,
+    },
   )
 
 

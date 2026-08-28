@@ -7,12 +7,14 @@ from exhaust_plume.models.moc import (
   MocCausticBridgeSide,
   MocCausticBridgeStatus,
   MocCausticFamilyBandStatus,
+  MocCausticUpstreamContinuationPlannerResult,
   MocCausticUpstreamContinuationStatus,
   MocChainTerminationReason,
   build_caustic_upstream_bridge,
   extend_source_characteristic_strip_centerline_reflection,
   plan_caustic_upstream_bridge_chain,
   plan_caustic_upstream_bridge_invariant_chain,
+  plan_caustic_upstream_continuation,
   restart_characteristic_family_from_caustic,
   sample_caustic_upstream_bridge,
   solve_caustic_upstream_continuation,
@@ -159,6 +161,55 @@ def test_caustic_continuation_builds_exact_selected_branch_seam() -> None:
   assert result.as_chain_termination_decision().reason is (
     MocChainTerminationReason.CHARACTERISTIC_CAUSTIC
   )
+
+
+def test_caustic_continuation_planner_audits_and_retains_nonphysical_stop() -> None:
+  old_family, _restarted_family, seed = _caustic_bridge_fixture()
+
+  planner = plan_caustic_upstream_continuation(
+    old_family,
+    seed,
+    old_family.total_pressure_Pa,
+    101325.0,
+    anchor_edge_index=0,
+    sample_count=6,
+  )
+
+  assert isinstance(planner, MocCausticUpstreamContinuationPlannerResult)
+  assert planner.planner_kind.value == 'upstream-coupled-research'
+  assert planner.branch_audit_verified
+  assert planner.branch_audit.status is (
+    MocCausticUpstreamContinuationStatus.BRANCH_SELECTION_REQUIRED
+  )
+  assert planner.resolved
+  assert planner.continuation.selected_anchor_edge_index == 0
+  assert planner.continuation.seam_verified
+  assert planner.termination.reason is MocChainTerminationReason.CHARACTERISTIC_CAUSTIC
+  assert planner.termination.physical_termination is False
+  assert planner.physical_closure_verified is False
+  assert planner.chain_promotion_blocked
+  assert planner.production_claim_allowed is False
+  assert planner.diagnostics['chain_cell_appended'] is False
+  assert planner.as_report()['branch_audit_verified'] is True
+
+
+def test_caustic_continuation_planner_requires_branch_before_bridge() -> None:
+  old_family, _restarted_family, seed = _caustic_bridge_fixture()
+
+  planner = plan_caustic_upstream_continuation(
+    old_family,
+    seed,
+    old_family.total_pressure_Pa,
+    101325.0,
+    sample_count=6,
+  )
+
+  assert planner.continuation is planner.branch_audit
+  assert planner.branch_audit_verified
+  assert planner.resolved is False
+  assert planner.continuation.bridge is None
+  assert planner.termination.reason is MocChainTerminationReason.CHARACTERISTIC_CAUSTIC
+  assert planner.diagnostics['selected_anchor_edge_index'] is None
 
 
 def test_caustic_continuation_does_not_hide_an_invalid_side_selector() -> None:

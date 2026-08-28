@@ -1389,6 +1389,11 @@ Only after MOC-1 through MOC-5 pass:
   The bridge is usable for research-only upstream sampling, but shock-curve
   physics, downstream mixed-regime closure, and continued-cell promotion
   remain blocked.
+- Added the matching planner seam for that controller. It records the
+  two-sided branch audit, the optional selected branch, and the typed
+  non-physical caustic termination without appending a chain cell. This keeps
+  continuation orchestration auditable while the first physical post-caustic
+  shock-cell solve remains a separate gate.
 
 These blockers are intentionally represented as structured statuses in code;
 they are not reasons to weaken the fidelity boundary.
