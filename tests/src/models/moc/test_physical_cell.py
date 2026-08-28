@@ -23,12 +23,14 @@ from exhaust_plume.models.moc import (
   MocPhysicalPostShockFieldContinuationSolve,
   MocReflectedTracePolarity,
   MocPhysicalPostShockTerminalPatchTransitionResult,
+  MocAmbientClosedPostShockChainTerminalPlannerResult,
   MocTerminalReflectionPatchAmbientClosureChainReference,
   MocTerminalReflectionPatchPhysicalFieldStatus,
   MocMixedRegimeControlSection,
   MocMixedRegimeFieldSample,
   MocPrescribedMixedRegimeClosureMock,
   MocPrescribedAmbientClosedPostShockChainMock,
+  MocSolverGeneratedMixedRegimeClosureReference,
   MocSolverGeneratedAmbientClosedPostShockChainReference,
   MocPostShockBoundaryState,
   MocPrimitiveStatus,
@@ -46,6 +48,7 @@ from exhaust_plume.models.moc import (
   march_post_shock_ambient_boundary,
   plan_ambient_closed_post_shock_chain,
   plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closure,
+  plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closure_with_mixed_regime,
   plan_solver_generated_ambient_closed_post_shock_chain_reference,
   plan_prescribed_ambient_closed_post_shock_chain_mock,
   plan_ambient_closed_post_shock_chain_terminal_patch,
@@ -638,6 +641,132 @@ def test_terminal_reflection_patch_ambient_closure_planner_carries_three_cells_w
   ]
   assert reference_report['polarity_aware'] is True
   assert reference_report['trace_position_tolerance_m'] == pytest.approx(1.0e-3)
+
+
+def test_continued_chain_planner_runs_one_terminal_mock_from_final_physical_cell() -> None:
+  field = _canonical_ambient_closed_field()
+
+  planner = (
+    plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closure_with_mixed_regime(
+      field,
+      start_x_m=0.5,
+      end_x_m=8.0,
+      terminal_end_x_m=5.0,
+      reference=MocTerminalReflectionPatchAmbientClosureChainReference(
+        total_cell_count=3,
+      ),
+      policy=MocChainContinuationPolicy(max_cells=5, require_state_carry=True),
+      terminal_policy=MocChainContinuationPolicy(
+        max_cells=2,
+        require_state_carry=True,
+      ),
+      mock=MocPrescribedMixedRegimeClosureMock(
+        streamwise_length_m=0.02,
+        transverse_length_m=0.01,
+        radial_divisions=2,
+      ),
+    )
+  )
+
+  assert isinstance(
+    planner,
+    MocAmbientClosedPostShockChainTerminalPlannerResult,
+  )
+  assert planner.planner_kind is MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
+  assert planner.cell_count == 3
+  assert planner.chain_planner.chain.resolved
+  assert planner.chain_planner.chain.termination_reason is (
+    MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL
+  )
+  assert planner.terminal_planner is not None
+  assert planner.terminal_planner.planner_kind is (
+    MocChainPlannerKind.PRESCRIBED_BOUNDARY_MOCK
+  )
+  assert planner.terminal_planner.chain_planner.chain.cell_count == 1
+  assert planner.resolved
+  assert planner.physical_termination
+  assert planner.physical_closure_verified is False
+  assert planner.mixed_regime_model_closure_verified
+  assert planner.chain_promotion_blocked
+  assert planner.production_claim_allowed is False
+  assert planner.diagnostics['terminal_attempted'] is True
+  assert planner.diagnostics['terminal_input_cell_index'] == 3
+  assert planner.diagnostics['terminal_resolved'] is True
+  assert planner.diagnostics['terminal_physical_termination'] is True
+  assert planner.diagnostics['terminal_mixed_regime_model_closure_verified'] is True
+  assert planner.terminal_planner.diagnostics[
+    'terminal_closure_audit_accepted'
+  ] is True
+  report = planner.as_report()
+  assert report['cell_count'] == 3
+  assert report['chain_promotion_blocked'] is True
+  assert report['terminal_planner']['chain_planner']['chain']['cell_count'] == 1
+  assert report['production_claim_allowed'] is False
+
+
+def test_continued_chain_planner_keeps_scalar_terminal_reference_separate() -> None:
+  field = _canonical_ambient_closed_field()
+
+  planner = (
+    plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closure_with_mixed_regime(
+      field,
+      start_x_m=0.5,
+      end_x_m=8.0,
+      terminal_end_x_m=5.0,
+      reference=MocTerminalReflectionPatchAmbientClosureChainReference(
+        total_cell_count=3,
+      ),
+      policy=MocChainContinuationPolicy(max_cells=5, require_state_carry=True),
+      solver=MocSolverGeneratedMixedRegimeClosureReference(),
+      free_boundary_refinement_sample_counts=(5, 7, 9),
+    )
+  )
+
+  assert planner.resolved
+  assert planner.physical_termination
+  assert planner.physical_closure_verified is False
+  assert planner.mixed_regime_model_closure_verified is False
+  assert planner.terminal_planner is not None
+  assert planner.terminal_planner.mixed_regime_reference is not None
+  assert planner.terminal_planner.diagnostics[
+    'free_boundary_reference_audit_accepted'
+  ] is False
+  assert planner.terminal_planner.diagnostics[
+    'free_boundary_refinement_accepted'
+  ] is False
+  assert planner.terminal_planner.diagnostics['free_boundary_refinement'][
+    'resolutions'
+  ] == [5, 7, 9]
+  assert planner.production_claim_allowed is False
+
+
+def test_continued_chain_planner_does_not_fabricate_terminal_after_prefix_stop() -> None:
+  field = _canonical_ambient_closed_field()
+
+  planner = (
+    plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closure_with_mixed_regime(
+      field,
+      start_x_m=0.5,
+      end_x_m=8.0,
+      terminal_end_x_m=5.0,
+      reference=MocTerminalReflectionPatchAmbientClosureChainReference(
+        total_cell_count=1,
+      ),
+      policy=MocChainContinuationPolicy(max_cells=3, require_state_carry=True),
+    )
+  )
+
+  assert planner.cell_count == 1
+  assert planner.chain_planner.chain.resolved
+  assert planner.terminal_planner is None
+  assert planner.resolved is False
+  assert planner.physical_termination is False
+  assert planner.diagnostics['terminal_attempted'] is False
+  assert 'did not accept a new physical field' in (
+    planner.diagnostics['terminal_attempt_message']
+  )
+  assert planner.chain_promotion_blocked
+  assert planner.production_claim_allowed is False
 
 
 def test_terminal_reflection_patch_physical_field_rejects_a_mismatched_handoff() -> None:

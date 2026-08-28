@@ -1895,3 +1895,24 @@ for the free-boundary reference, its specialized audit too. Both outcomes
 remain terminal, non-promotable research evidence: the reflected two-
 dimensional free-boundary solve, refinement, and external observations are
 still open, and no product/provider lane consumes them.
+
+## Continued-chain terminal orchestration checkpoint
+
+`plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closure_with_mixed_regime`
+now composes the bounded reflected-patch chain with one terminal handoff. It
+retains the accepted multi-cell supersonic prefix, captures only the final
+field that actually entered that prefix, and invokes the terminal planner from
+that field. A prefix that stops before accepting a new physical field does not
+fabricate a terminal transition. The mixed-regime result is reported beside
+the prefix and is never counted as another shock cell.
+
+The combined planner can exercise the prescribed mixed-regime mock or the
+solver-owned scalar free-boundary reference, including the latter's optional
+resolution sweep. The mock path is a deterministic orchestration fixture; the
+scalar reference can still fail its independent outlet-height or geometry
+gates for a continued-cell seam, and that failure remains visible rather than
+being converted into a resolved closure. Both modes retain the research-only
+claim ceiling, block chain promotion at the mixed-regime boundary, and leave
+the fast visualization, signature, ray, and focal-plane-array providers
+unchanged. Canonical reflected-domain/free-boundary physics and external
+validation remain release gates.
