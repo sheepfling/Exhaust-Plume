@@ -124,6 +124,9 @@ fast visualization/reference providers.
 Later remesh requests must now also echo the exact incoming state/total-pressure
 handoff; absent or changed provenance is rejected before a source domain can
 be reused.
+The committed validation report now records a three-cell research-only
+sequence audit with two accepted remesh domains and a typed reuse stop; it does
+not claim a physical caustic shock chain or provider readiness.
 The same validation report now exercises a bounded scalar ambient-pressure
 shoot against the actual post-shock outer perimeter. Its synthetic pressure
 coordinate reaches a candidate root but the independent streamline-tangency

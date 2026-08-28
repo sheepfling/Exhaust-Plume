@@ -1430,6 +1430,10 @@ Only after MOC-1 through MOC-5 pass:
   attempt audit before checking remesh/source-strip freshness; a missing or
   mismatched provenance record is a typed upstream-field boundary rather than
   an inferred coupling.
+- Added the corresponding validation-report probe. It drives a three-cell
+  research-only sequence with solver-assembled remesh domains, verifies the
+  exact later handoffs independently, and confirms that a reused source strip
+  stops at a typed upstream-field boundary without enabling a production claim.
 - Added the matching planner seam for that controller. It records the
   two-sided branch audit, the optional selected branch, and the typed
   non-physical caustic termination without appending a chain cell. This keeps

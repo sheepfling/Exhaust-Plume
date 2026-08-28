@@ -9,6 +9,7 @@ from math import atan2, cos, isfinite, log, pi, sin, sqrt
 from pathlib import Path
 import sys
 from typing import Any
+from unittest.mock import patch
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT / 'src') not in sys.path:
@@ -145,6 +146,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   plan_caustic_shock_remesh_chain,
   plan_caustic_shock_remesh_chain_from_upstream_bridge,
   plan_caustic_upstream_remesh_shock_chain,
+  plan_caustic_upstream_remesh_shock_chain_sequence,
   plan_caustic_simple_wave_terminal_chain,
   plan_caustic_remesh_downstream_field_chain,
   plan_caustic_remesh_downstream_field_invariant_chain,
@@ -3441,6 +3443,97 @@ def _caustic_shock_bridge_probe(seed: Any) -> dict[str, Any]:
   }
 
 
+def _build_diagnostic_caustic_upstream_request(
+  seed: Any,
+  total_pressure_Pa: float,
+  *,
+  invariant_step: float = 0.004,
+  theta_step: float = -0.006,
+) -> MocCausticUpstreamRemeshRequest:
+  """Build the deterministic two-trace fixture used by caustic probes."""
+
+  selected = seed.edge_states[0].state
+  if selected is None or seed.event is None or seed.event.caustic_point_m is None:
+    raise ValueError('caustic request fixture requires a selected seed event')
+  event = seed.event.caustic_point_m
+  centerline_states: list[CharacteristicState] = []
+  outer_states: list[CharacteristicState] = []
+  for index in range(6):
+    k_plus = selected.k_plus + invariant_step * index
+    theta = selected.theta_rad + theta_step * index
+    centerline_inverse = inverse_prandtl_meyer_angle_rad(
+      -k_plus,
+      selected.gamma,
+    )
+    outer_inverse = inverse_prandtl_meyer_angle_rad(
+      theta - k_plus,
+      selected.gamma,
+    )
+    if centerline_inverse.value is None or outer_inverse.value is None:
+      raise ValueError(
+        'deterministic caustic Cauchy trace inversion did not converge'
+      )
+    centerline_probe = CharacteristicState(
+      x_m=0.0,
+      y_m=0.0,
+      theta_rad=0.0,
+      mach=centerline_inverse.value,
+      gamma=selected.gamma,
+    )
+    outer_probe = CharacteristicState(
+      x_m=0.0,
+      y_m=0.0,
+      theta_rad=theta,
+      mach=outer_inverse.value,
+      gamma=selected.gamma,
+    )
+    characteristic_angle = 0.5 * (
+      centerline_probe.theta_rad
+      + centerline_probe.mu_rad
+      + outer_probe.theta_rad
+      + outer_probe.mu_rad
+    )
+    sine = sin(characteristic_angle)
+    if abs(sine) <= 1.0e-12:
+      raise ValueError(
+        'deterministic caustic Cauchy trace has a degenerate characteristic'
+      )
+    y = event[1] * (1.0 - 0.12 * index)
+    if index == 0:
+      centerline_x = event[0] - event[1] * cos(characteristic_angle) / sine
+    else:
+      centerline_x = 0.5191348811250018 + 0.027 * index
+    centerline_states.append(
+      CharacteristicState(
+        x_m=centerline_x,
+        y_m=0.0,
+        theta_rad=0.0,
+        mach=centerline_inverse.value,
+        gamma=selected.gamma,
+      )
+    )
+    if index == 0:
+      outer_states.append(selected)
+    else:
+      distance = y / sine
+      outer_states.append(
+        CharacteristicState(
+          x_m=centerline_x + distance * cos(characteristic_angle),
+          y_m=y,
+          theta_rad=theta,
+          mach=outer_inverse.value,
+          gamma=selected.gamma,
+        )
+      )
+  return MocCausticUpstreamRemeshRequest(
+    seed=seed,
+    upstream_edge_index=0,
+    centerline_source_states=tuple(centerline_states),
+    outer_source_states=tuple(outer_states),
+    total_pressure_Pa=total_pressure_Pa,
+  )
+
+
 def _caustic_upstream_cauchy_remesh_probe(
   seed: Any,
   total_pressure_Pa: float,
@@ -3479,88 +3572,9 @@ def _caustic_upstream_cauchy_remesh_probe(
     )
 
   try:
-    selected = seed.edge_states[0].state
-    assert selected is not None
-    event = seed.event.caustic_point_m
-    assert event is not None
-    centerline_states: list[CharacteristicState] = []
-    outer_states: list[CharacteristicState] = []
-    for index in range(6):
-      k_plus = selected.k_plus + 0.004 * index
-      theta = selected.theta_rad - 0.006 * index
-      centerline_inverse = inverse_prandtl_meyer_angle_rad(
-        -k_plus,
-        selected.gamma,
-      )
-      outer_inverse = inverse_prandtl_meyer_angle_rad(
-        theta - k_plus,
-        selected.gamma,
-      )
-      if centerline_inverse.value is None or outer_inverse.value is None:
-        return failure(
-          'trace_inversion_failure',
-          'deterministic caustic Cauchy trace inversion did not converge',
-        )
-      centerline_probe = CharacteristicState(
-        x_m=0.0,
-        y_m=0.0,
-        theta_rad=0.0,
-        mach=centerline_inverse.value,
-        gamma=selected.gamma,
-      )
-      outer_probe = CharacteristicState(
-        x_m=0.0,
-        y_m=0.0,
-        theta_rad=theta,
-        mach=outer_inverse.value,
-        gamma=selected.gamma,
-      )
-      characteristic_angle = 0.5 * (
-        centerline_probe.theta_rad
-        + centerline_probe.mu_rad
-        + outer_probe.theta_rad
-        + outer_probe.mu_rad
-      )
-      sine = sin(characteristic_angle)
-      if abs(sine) <= 1.0e-12:
-        return failure(
-          'trace_geometry_failure',
-          'deterministic caustic Cauchy trace has a degenerate characteristic',
-        )
-      y = event[1] * (1.0 - 0.12 * index)
-      if index == 0:
-        centerline_x = event[0] - event[1] * cos(characteristic_angle) / sine
-      else:
-        centerline_x = 0.5191348811250018 + 0.027 * index
-      centerline_states.append(
-        CharacteristicState(
-          x_m=centerline_x,
-          y_m=0.0,
-          theta_rad=0.0,
-          mach=centerline_inverse.value,
-          gamma=selected.gamma,
-        )
-      )
-      if index == 0:
-        outer_states.append(selected)
-      else:
-        distance = y / sine
-        outer_states.append(
-          CharacteristicState(
-            x_m=centerline_x + distance * cos(characteristic_angle),
-            y_m=y,
-            theta_rad=theta,
-            mach=outer_inverse.value,
-            gamma=selected.gamma,
-          )
-        )
-
-    request = MocCausticUpstreamRemeshRequest(
-      seed=seed,
-      upstream_edge_index=0,
-      centerline_source_states=tuple(centerline_states),
-      outer_source_states=tuple(outer_states),
-      total_pressure_Pa=total_pressure_Pa,
+    request = _build_diagnostic_caustic_upstream_request(
+      seed,
+      total_pressure_Pa,
     )
     remesh = solve_caustic_upstream_remesh(request)
     direct_shock = None
@@ -3652,6 +3666,185 @@ def _caustic_upstream_cauchy_remesh_probe(
     }
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return failure('caustic-upstream-cauchy-remesh-failure', str(error))
+
+
+def _caustic_upstream_remesh_chain_sequence_probe(
+  seed: Any,
+  total_pressure_Pa: float,
+  field: MocPostShockCharacteristicFieldResult | None,
+) -> dict[str, Any]:
+  """Audit repeated caustic remesh orchestration and its fidelity ceiling.
+
+  The remesh domains are solver-assembled two-trace fixtures.  A prescribed
+  local cell solver is patched only inside this report probe so the sequence
+  planner can reach the later provider seam deterministically.  The report
+  therefore validates handoff provenance and fresh-domain enforcement, not a
+  production shock-cell or free-boundary solution.
+  """
+
+  def failure(status: str, message: str) -> dict[str, Any]:
+    return {
+      'status': status,
+      'accepted': False,
+      'initial_remesh': None,
+      'replacement_remesh': None,
+      'planner': None,
+      'planner_measurement': None,
+      'provider_attempts': [],
+      'provider_calls': [],
+      'prescribed_cell_solver': None,
+      'message': message,
+      'claim_status': 'caustic-upstream-remesh-chain-sequence-pending',
+    }
+
+  if (
+    seed is None
+    or field is None
+    or not field.converged
+    or not field.upstream_shock_coupling_verified
+  ):
+    return failure(
+      'missing_seed_or_post_shock_field',
+      'caustic remesh sequence requires a seed event and coupled post-shock field',
+    )
+
+  try:
+    initial_request = _build_diagnostic_caustic_upstream_request(
+      seed,
+      total_pressure_Pa,
+    )
+    replacement_request = _build_diagnostic_caustic_upstream_request(
+      seed,
+      total_pressure_Pa,
+      invariant_step=0.005,
+      theta_step=-0.005,
+    )
+    initial = solve_caustic_upstream_remesh(initial_request)
+    replacement = solve_caustic_upstream_remesh(replacement_request)
+    if (
+      not initial.converged
+      or initial.strip is None
+      or not replacement.converged
+      or replacement.strip is None
+      or initial.strip is replacement.strip
+    ):
+      return failure(
+        'remesh_fixture_failure',
+        'caustic remesh sequence fixtures did not produce distinct bounded source strips',
+      )
+
+    cell_solver_fixture = MocPrescribedPostShockChainMock(
+      total_cell_count=3,
+      cell_axial_length_m=0.10,
+      shock_start_offset_m=0.005,
+      shock_sample_spacing_m=0.02,
+    )
+    provider_calls: list[dict[str, Any]] = []
+
+    def solve_cell(
+      current,
+      next_cell_index,
+      incoming_handoff,
+      source_strip,
+      **kwargs,
+    ):
+      del source_strip, kwargs
+      return cell_solver_fixture.solve_next(
+        current,
+        next_cell_index,
+        incoming_handoff,
+      )
+
+    def remesh_at(current, next_cell_index, incoming_handoff):
+      provider_calls.append({
+        'current_cell_index': current.cell_index,
+        'next_cell_index': next_cell_index,
+        'incoming_handoff_sample_count': len(incoming_handoff),
+      })
+      if replacement.request is None:
+        return None
+      return replace(
+        replacement,
+        request=replace(
+          replacement.request,
+          incoming_handoff=tuple(incoming_handoff),
+        ),
+      )
+
+    with patch(
+      'exhaust_plume.models.moc.planner.solve_marched_attached_shock_chain_cell_from_source_strip_or_termination',
+      solve_cell,
+    ):
+      planner = plan_caustic_upstream_remesh_shock_chain_sequence(
+        field,
+        initial,
+        remesh_at,
+        start_point_at=lambda current, _index, _remesh: (
+          current.end_x_m + 0.01,
+          0.25,
+        ),
+        start_x_m=0.3,
+        end_x_m=0.4,
+        downstream_flow_angle_rad=0.05,
+        sample_count=9,
+        policy=MocChainContinuationPolicy(
+          max_cells=4,
+          require_state_carry=True,
+        ),
+      )
+    planner = replace(
+      planner,
+      diagnostics={
+        **planner.diagnostics,
+        'prescribed_cell_solver_mock': cell_solver_fixture.as_report(),
+      },
+    )
+    planner_measurement = measure_moc_chain_planner(planner)
+    planner_report = planner.as_report()
+    attempts = planner.diagnostics['upstream_remesh_domain_attempts']
+    chain = planner.chain
+    accepted = bool(
+      planner.planner_kind is MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
+      and planner.production_claim_allowed is False
+      and planner_report['planning_only'] is True
+      and chain.status is MocChainStatus.SOLVER_TERMINATED
+      and chain.cell_count == 3
+      and chain.termination_reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+      and chain.physical_termination is False
+      and planner.handoff_links_verified is True
+      and len(planner.steps) == 3
+      and len(provider_calls) == 2
+      and len(attempts) == 3
+      and attempts[1]['incoming_handoff_verified'] is True
+      and attempts[2]['incoming_handoff_verified'] is True
+      and attempts[2]['fresh_remesh'] is False
+      and attempts[2]['fresh_strip'] is False
+      and planner.diagnostics['one_step_domain'] is False
+      and planner.diagnostics['upstream_remesh_domain_count'] == 2
+      and planner.diagnostics['upstream_remesh_domain_attempt_count'] == 3
+      and planner_measurement.converged
+      and planner_measurement.termination_verified
+      and planner_measurement.fidelity_isolation_verified
+      and planner_measurement.physical_termination is False
+      and planner_measurement.production_claim_allowed is False
+    )
+    return {
+      'status': 'diagnostic-caustic-upstream-remesh-chain-sequence',
+      'accepted': accepted,
+      'initial_remesh': initial.as_report(),
+      'replacement_remesh': replacement.as_report(),
+      'planner': planner_report,
+      'planner_measurement': planner_measurement.as_report(),
+      'provider_attempts': attempts,
+      'provider_calls': provider_calls,
+      'prescribed_cell_solver': cell_solver_fixture.as_report(),
+      'claim_status': (
+        'solver-assembled-remesh-and-prescribed-cell-sequence-audit; '
+        'canonical-outer-trace-mixed-regime-closure-and-production-provider-pending'
+      ),
+    }
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return failure('caustic-upstream-remesh-chain-sequence-failure', str(error))
 
 
 def _caustic_shock_remesh_execution_probe(
@@ -5886,6 +6079,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
     solver_generated_chain_measurement = measure_moc_shock_cell_chain(
       solver_generated_chain_measurement_observations,
     )
+  caustic_upstream_remesh_chain_sequence = (
+    _caustic_upstream_remesh_chain_sequence_probe(
+      caustic_shock_seed,
+      fan_exit.total_pressure_Pa,
+      solver_generated_shock.field,
+    )
+  )
   solver_generated_chain_terminal_probe = _solver_generated_chain_terminal_probe(
     solver_generated_shock.field
     if solver_generated_shock.field is not None
@@ -6144,6 +6344,9 @@ def build_moc_primitive_report() -> dict[str, Any]:
   )
   source_strip_chain_sequence_planner_failure = (
     source_strip_chain_sequence_planner.get('accepted') is not True
+  )
+  caustic_upstream_remesh_chain_sequence_failure = (
+    caustic_upstream_remesh_chain_sequence.get('accepted') is not True
   )
   mixed_regime_boundary_failure = (
     mixed_regime_boundary_probe.get('accepted') is not True
@@ -6862,6 +7065,9 @@ def build_moc_primitive_report() -> dict[str, Any]:
     'solver_generated_source_strip_chain_planner': source_strip_chain_planner,
     'solver_generated_source_strip_chain_sequence_planner': (
       source_strip_chain_sequence_planner
+    ),
+    'caustic_upstream_remesh_chain_sequence': (
+      caustic_upstream_remesh_chain_sequence
     ),
     'solver_generated_attached_shock_field': {
       'status': solver_generated_shock.status.value,
@@ -8120,6 +8326,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'message': str(source_strip_chain_sequence_planner.get('message', '')),
       }
     ] if source_strip_chain_sequence_planner_failure else []),
+    *([
+      {
+        'case': 'caustic_upstream_remesh_chain_sequence',
+        'status': str(caustic_upstream_remesh_chain_sequence.get('status', 'missing')),
+        'message': str(caustic_upstream_remesh_chain_sequence.get('message', '')),
+      }
+    ] if caustic_upstream_remesh_chain_sequence_failure else []),
     *([
       {
         'case': 'shock_cell_chain_planner_mock',

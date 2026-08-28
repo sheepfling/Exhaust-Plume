@@ -394,6 +394,10 @@ For later remeshes, the returned request must also echo the exact incoming
 state/total-pressure handoff supplied to the provider. A remesh that omits or
 changes that provenance is stopped before source-strip reuse is considered;
 standalone Cauchy requests may leave the optional provenance empty.
+The standalone validation report exercises this contract through a three-cell
+research sequence: the first two domains are distinct and handoff-annotated,
+while the third attempt reuses the source strip and is typed as an upstream
+field boundary. This verifies orchestration and fidelity isolation only.
 
 ## What is done for the basic solver
 

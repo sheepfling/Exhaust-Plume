@@ -116,6 +116,9 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   source_strip_chain_sequence_planner = report['geometry_cases'][
     'solver_generated_source_strip_chain_sequence_planner'
   ]
+  caustic_upstream_remesh_chain_sequence = report['geometry_cases'][
+    'caustic_upstream_remesh_chain_sequence'
+  ]
   downstream_condition = mixed_regime_boundary['downstream_condition_contract']
   positive_wall_condition = mixed_regime_boundary[
     'downstream_condition_positive_wall_fixture'
@@ -558,6 +561,67 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   )
   _assert_chain_planner_measurement(
     upstream_cauchy['planner_measurement'],
+    physical_termination=False,
+  )
+  assert caustic_upstream_remesh_chain_sequence['status'] == (
+    'diagnostic-caustic-upstream-remesh-chain-sequence'
+  )
+  assert caustic_upstream_remesh_chain_sequence['accepted'] is True
+  caustic_remesh_sequence_planner = caustic_upstream_remesh_chain_sequence[
+    'planner'
+  ]
+  assert caustic_remesh_sequence_planner['planner_kind'] == (
+    'upstream-coupled-research'
+  )
+  assert caustic_remesh_sequence_planner['planning_only'] is True
+  assert caustic_remesh_sequence_planner['production_claim_allowed'] is False
+  assert caustic_remesh_sequence_planner['step_count'] == 3
+  assert caustic_remesh_sequence_planner['chain']['cell_count'] == 3
+  assert caustic_remesh_sequence_planner['chain']['physical_termination'] is False
+  assert caustic_remesh_sequence_planner['chain']['termination_reason'] == (
+    'upstream-field-boundary'
+  )
+  assert caustic_remesh_sequence_planner['handoff_links_verified'] is True
+  sequence_attempts = caustic_upstream_remesh_chain_sequence[
+    'provider_attempts'
+  ]
+  assert len(sequence_attempts) == 3
+  assert sequence_attempts[1]['incoming_handoff_verified'] is True
+  assert sequence_attempts[2]['incoming_handoff_verified'] is True
+  assert sequence_attempts[2]['fresh_remesh'] is False
+  assert sequence_attempts[2]['fresh_strip'] is False
+  assert caustic_upstream_remesh_chain_sequence['provider_calls'] == [
+    {
+      'current_cell_index': 2,
+      'next_cell_index': 3,
+      'incoming_handoff_sample_count': 6,
+    },
+    {
+      'current_cell_index': 3,
+      'next_cell_index': 4,
+      'incoming_handoff_sample_count': 6,
+    },
+  ]
+  assert caustic_remesh_sequence_planner['diagnostics'][
+    'one_step_domain'
+  ] is False
+  assert caustic_remesh_sequence_planner['diagnostics'][
+    'upstream_remesh_domain_count'
+  ] == 2
+  assert caustic_remesh_sequence_planner['diagnostics'][
+    'upstream_remesh_domain_attempt_count'
+  ] == 3
+  assert caustic_remesh_sequence_planner['diagnostics'][
+    'upstream_remesh_reuse_policy'
+  ] == 'fresh-bounded-caustic-remesh-required-per-cell'
+  assert caustic_upstream_remesh_chain_sequence['prescribed_cell_solver'][
+    'free_boundary_verified'
+  ] is False
+  assert caustic_upstream_remesh_chain_sequence['prescribed_cell_solver'][
+    'physical_chain_promotion_allowed'
+  ] is False
+  _assert_chain_planner_measurement(
+    caustic_upstream_remesh_chain_sequence['planner_measurement'],
     physical_termination=False,
   )
   assert caustic_remesh['bridge_coupled_remesh']['status'] == (

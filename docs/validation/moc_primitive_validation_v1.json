@@ -2329,6 +2329,9 @@
               "centerline_source_count": 6,
               "outer_source_count": 6,
               "total_pressure_Pa": 2000000.0,
+              "incoming_handoff_sample_count": 0,
+              "incoming_handoff_points_m": [],
+              "incoming_handoff_total_pressure_Pa": [],
               "centerline_y_m": 0.0,
               "outer_boundary_kind": "caustic-conditioned-pre-shock-boundary",
               "position_tolerance_m": 1e-10,
@@ -2620,6 +2623,9 @@
                   "centerline_source_count": 6,
                   "outer_source_count": 6,
                   "total_pressure_Pa": 2000000.0,
+                  "incoming_handoff_sample_count": 0,
+                  "incoming_handoff_points_m": [],
+                  "incoming_handoff_total_pressure_Pa": [],
                   "centerline_y_m": 0.0,
                   "outer_boundary_kind": "caustic-conditioned-pre-shock-boundary",
                   "position_tolerance_m": 1e-10,
@@ -14105,6 +14111,1714 @@
       },
       "claim_status": "solver-generated-source-strip-shock-chain-sequence; fresh-bounded-upstream-domain-per-cell; physical-closure-pending",
       "message": "source-strip continuation reached a characteristic caustic; a new characteristic family or shock boundary is required before another resolved MOC cell can be solved"
+    },
+    "caustic_upstream_remesh_chain_sequence": {
+      "status": "diagnostic-caustic-upstream-remesh-chain-sequence",
+      "accepted": true,
+      "initial_remesh": {
+        "status": "converged_bounded_caustic_upstream_field",
+        "converged": true,
+        "state_sampling_available": true,
+        "event_seam_verified": true,
+        "centerline_trace_verified": true,
+        "outer_trace_verified": true,
+        "source_field_verified": true,
+        "physical_closure_verified": false,
+        "chain_promotion_blocked": true,
+        "request": {
+          "event_point_m": [
+            0.6584201957653014,
+            0.056970655192732075
+          ],
+          "upstream_edge_index": 0,
+          "centerline_source_count": 6,
+          "outer_source_count": 6,
+          "total_pressure_Pa": 2000000.0,
+          "incoming_handoff_sample_count": 0,
+          "incoming_handoff_points_m": [],
+          "incoming_handoff_total_pressure_Pa": [],
+          "centerline_y_m": 0.0,
+          "outer_boundary_kind": "caustic-conditioned-pre-shock-boundary",
+          "position_tolerance_m": 1e-10,
+          "invariant_tolerance": 1e-10,
+          "source_data_model": "explicit-centerline-c-plus-and-outer-pre-shock-c-minus-traces",
+          "outer_trace_generation": "caller-supplied-coupled-remesher-data"
+        },
+        "strip": {
+          "status": "converged_open_source_strip",
+          "converged": true,
+          "plus_source_count": 6,
+          "minus_source_count": 6,
+          "source_window_start_index": 0,
+          "source_window_count": 6,
+          "source_window_total_count": 6,
+          "source_window_kind": "full-source-strip",
+          "node_count": 21,
+          "cell_count": 20,
+          "topology_forms_closed_zone": true,
+          "nonmanifold_edge_count": 0,
+          "maximum_geometry_residual_m": 1.1123893155135927e-16,
+          "maximum_absolute_invariant_residual": 1.8105517085587053e-12,
+          "total_pressure_Pa": 2000000.0,
+          "message": "triangular source-boundary characteristic strip converged; shock and downstream closure remain separate"
+        },
+        "chain_termination_decision": {
+          "physical_termination": false,
+          "reason": "open-physical-closure",
+          "message": "solver-owned caustic upstream Cauchy remesh converged as a bounded source-characteristic field; shock, entropy, and ambient closure remain separate gates",
+          "diagnostics": {
+            "termination_model": "caustic-upstream-cauchy-remesh",
+            "remesh_status": "converged_bounded_caustic_upstream_field",
+            "event_point_m": [
+              0.6584201957653014,
+              0.056970655192732075
+            ],
+            "event_seam_verified": true,
+            "centerline_trace_verified": true,
+            "outer_trace_verified": true,
+            "source_field_verified": true,
+            "state_sampling_available": true,
+            "physical_closure_verified": false,
+            "chain_promotion_blocked": true
+          }
+        },
+        "message": "solver-owned caustic upstream Cauchy remesh converged as a bounded source-characteristic field; shock, entropy, and ambient closure remain separate gates"
+      },
+      "replacement_remesh": {
+        "status": "converged_bounded_caustic_upstream_field",
+        "converged": true,
+        "state_sampling_available": true,
+        "event_seam_verified": true,
+        "centerline_trace_verified": true,
+        "outer_trace_verified": true,
+        "source_field_verified": true,
+        "physical_closure_verified": false,
+        "chain_promotion_blocked": true,
+        "request": {
+          "event_point_m": [
+            0.6584201957653014,
+            0.056970655192732075
+          ],
+          "upstream_edge_index": 0,
+          "centerline_source_count": 6,
+          "outer_source_count": 6,
+          "total_pressure_Pa": 2000000.0,
+          "incoming_handoff_sample_count": 0,
+          "incoming_handoff_points_m": [],
+          "incoming_handoff_total_pressure_Pa": [],
+          "centerline_y_m": 0.0,
+          "outer_boundary_kind": "caustic-conditioned-pre-shock-boundary",
+          "position_tolerance_m": 1e-10,
+          "invariant_tolerance": 1e-10,
+          "source_data_model": "explicit-centerline-c-plus-and-outer-pre-shock-c-minus-traces",
+          "outer_trace_generation": "caller-supplied-coupled-remesher-data"
+        },
+        "strip": {
+          "status": "converged_open_source_strip",
+          "converged": true,
+          "plus_source_count": 6,
+          "minus_source_count": 6,
+          "source_window_start_index": 0,
+          "source_window_count": 6,
+          "source_window_total_count": 6,
+          "source_window_kind": "full-source-strip",
+          "node_count": 21,
+          "cell_count": 20,
+          "topology_forms_closed_zone": true,
+          "nonmanifold_edge_count": 0,
+          "maximum_geometry_residual_m": 1.1123893155135927e-16,
+          "maximum_absolute_invariant_residual": 1.8103296639537803e-12,
+          "total_pressure_Pa": 2000000.0,
+          "message": "triangular source-boundary characteristic strip converged; shock and downstream closure remain separate"
+        },
+        "chain_termination_decision": {
+          "physical_termination": false,
+          "reason": "open-physical-closure",
+          "message": "solver-owned caustic upstream Cauchy remesh converged as a bounded source-characteristic field; shock, entropy, and ambient closure remain separate gates",
+          "diagnostics": {
+            "termination_model": "caustic-upstream-cauchy-remesh",
+            "remesh_status": "converged_bounded_caustic_upstream_field",
+            "event_point_m": [
+              0.6584201957653014,
+              0.056970655192732075
+            ],
+            "event_seam_verified": true,
+            "centerline_trace_verified": true,
+            "outer_trace_verified": true,
+            "source_field_verified": true,
+            "state_sampling_available": true,
+            "physical_closure_verified": false,
+            "chain_promotion_blocked": true
+          }
+        },
+        "message": "solver-owned caustic upstream Cauchy remesh converged as a bounded source-characteristic field; shock, entropy, and ambient closure remain separate gates"
+      },
+      "planner": {
+        "planner_kind": "upstream-coupled-research",
+        "planning_only": true,
+        "production_claim_allowed": false,
+        "claim_status": "caustic-upstream-cauchy-remesh-shock-chain-sequence; fresh-bounded-domain-per-cell; physical-closure-pending",
+        "step_count": 3,
+        "handoff_links_verified": true,
+        "steps": [
+          {
+            "current_cell_index": 1,
+            "next_cell_index": 2,
+            "current_end_x_m": 0.4,
+            "boundary_kind": "post-shock-field-perimeter",
+            "incoming_handoff_sample_count": 18,
+            "incoming_total_pressure_range_Pa": [
+              749635.1347251647,
+              764819.179280032
+            ],
+            "incoming_handoff_fingerprint": "d0c3cfd5c26535d39ff1ee5d6c0ce16797ff445aaf2d3130e41244d662347b9b",
+            "incoming_handoff_link_verified": null,
+            "result_kind": "field-solve-returned",
+            "result_status": "converged_closed",
+            "result_end_x_m": 0.5,
+            "result_geometry_fidelity": "resolved-planar-moc",
+            "result_physical_closure": "closed",
+            "result_termination_reason": null,
+            "result_physical_termination": null,
+            "result_boundary_kind": "post-shock-field-perimeter",
+            "result_handoff_sample_count": 6,
+            "result_total_pressure_range_Pa": [
+              742830.2121774815,
+              764196.0788999454
+            ],
+            "result_handoff_fingerprint": "53390f98a452ffaa44c860ec967d871f62fc9fe9133671029ac94c2d30085038"
+          },
+          {
+            "current_cell_index": 2,
+            "next_cell_index": 3,
+            "current_end_x_m": 0.5,
+            "boundary_kind": "post-shock-field-perimeter",
+            "incoming_handoff_sample_count": 6,
+            "incoming_total_pressure_range_Pa": [
+              742830.2121774815,
+              764196.0788999454
+            ],
+            "incoming_handoff_fingerprint": "53390f98a452ffaa44c860ec967d871f62fc9fe9133671029ac94c2d30085038",
+            "incoming_handoff_link_verified": true,
+            "result_kind": "field-solve-returned",
+            "result_status": "converged_closed",
+            "result_end_x_m": 0.6,
+            "result_geometry_fidelity": "resolved-planar-moc",
+            "result_physical_closure": "closed",
+            "result_termination_reason": null,
+            "result_physical_termination": null,
+            "result_boundary_kind": "post-shock-field-perimeter",
+            "result_handoff_sample_count": 6,
+            "result_total_pressure_range_Pa": [
+              742225.0262719931,
+              758586.3742372202
+            ],
+            "result_handoff_fingerprint": "f12feb3f06a1251c346707e4a83b8b66482b4e59b6e18239fdd4f5dc2d4fdc34"
+          },
+          {
+            "current_cell_index": 3,
+            "next_cell_index": 4,
+            "current_end_x_m": 0.6,
+            "boundary_kind": "post-shock-field-perimeter",
+            "incoming_handoff_sample_count": 6,
+            "incoming_total_pressure_range_Pa": [
+              742225.0262719931,
+              758586.3742372202
+            ],
+            "incoming_handoff_fingerprint": "f12feb3f06a1251c346707e4a83b8b66482b4e59b6e18239fdd4f5dc2d4fdc34",
+            "incoming_handoff_link_verified": true,
+            "result_kind": "termination-returned",
+            "result_status": "upstream-field-boundary",
+            "result_end_x_m": null,
+            "result_geometry_fidelity": null,
+            "result_physical_closure": null,
+            "result_termination_reason": "upstream-field-boundary",
+            "result_physical_termination": false,
+            "result_boundary_kind": null,
+            "result_handoff_sample_count": null,
+            "result_total_pressure_range_Pa": null,
+            "result_handoff_fingerprint": null
+          }
+        ],
+        "chain": {
+          "status": "solver-terminated",
+          "termination_reason": "upstream-field-boundary",
+          "physical_termination": false,
+          "cell_count": 3,
+          "end_x_m": 0.6,
+          "resolved": true,
+          "state_carry_count": 3,
+          "continuation_boundary_kinds": [
+            "post-shock-field-perimeter"
+          ],
+          "continuation_total_pressure_ranges_Pa": [
+            {
+              "cell_index": 1,
+              "minimum_Pa": 749635.1347251647,
+              "maximum_Pa": 764819.179280032
+            },
+            {
+              "cell_index": 2,
+              "minimum_Pa": 742830.2121774815,
+              "maximum_Pa": 764196.0788999454
+            },
+            {
+              "cell_index": 3,
+              "minimum_Pa": 742225.0262719931,
+              "maximum_Pa": 758586.3742372202
+            }
+          ],
+          "continuation_boundary_maxima_nonincreasing": true,
+          "cell_axial_domains_m": [
+            {
+              "cell_index": 1,
+              "start_x_m": 0.3,
+              "end_x_m": 0.4,
+              "mesh_x_extent_m": [
+                0.5,
+                1.103791576924278
+              ],
+              "mesh_y_extent_m": [
+                0.0,
+                0.5
+              ],
+              "continuation_boundary_x_extent_m": [
+                0.8618481573724419,
+                1.103791576924278
+              ]
+            },
+            {
+              "cell_index": 2,
+              "start_x_m": 0.4,
+              "end_x_m": 0.5,
+              "mesh_x_extent_m": [
+                0.405,
+                0.5012001844904914
+              ],
+              "mesh_y_extent_m": [
+                0.0,
+                0.08237108456402913
+              ],
+              "continuation_boundary_x_extent_m": [
+                0.48500000000000004,
+                0.5012001844904914
+              ]
+            },
+            {
+              "cell_index": 3,
+              "start_x_m": 0.5,
+              "end_x_m": 0.6,
+              "mesh_x_extent_m": [
+                0.505,
+                0.6012001844904914
+              ],
+              "mesh_y_extent_m": [
+                0.0,
+                0.08237108456402913
+              ],
+              "continuation_boundary_x_extent_m": [
+                0.585,
+                0.6012001844904914
+              ]
+            }
+          ],
+          "cell_geometry": [
+            {
+              "cell_index": 1,
+              "geometry_fidelity": "resolved-planar-moc",
+              "physical_closure": "closed",
+              "continuation_boundary_kind": "post-shock-field-perimeter",
+              "mesh_x_extent_m": [
+                0.5,
+                1.103791576924278
+              ],
+              "mesh_y_extent_m": [
+                0.0,
+                0.5
+              ],
+              "boundary_geometry": {
+                "incoming_handoff_points_m": [],
+                "shock_boundary_points_m": [
+                  [
+                    0.5,
+                    0.5
+                  ],
+                  [
+                    0.5212452677859558,
+                    0.46875
+                  ],
+                  [
+                    0.5426755075602299,
+                    0.4375
+                  ],
+                  [
+                    0.5642901483430549,
+                    0.40625
+                  ],
+                  [
+                    0.5860886480282168,
+                    0.375
+                  ],
+                  [
+                    0.6080704919546165,
+                    0.34375
+                  ],
+                  [
+                    0.6302351915719314,
+                    0.3125
+                  ],
+                  [
+                    0.6525822831924747,
+                    0.28125
+                  ],
+                  [
+                    0.675111326822149,
+                    0.25
+                  ],
+                  [
+                    0.697821905064088,
+                    0.21875
+                  ],
+                  [
+                    0.7207136220892011,
+                    0.1875
+                  ],
+                  [
+                    0.743786102668393,
+                    0.15625
+                  ],
+                  [
+                    0.7670389912617126,
+                    0.125
+                  ],
+                  [
+                    0.7904719511601284,
+                    0.09375
+                  ],
+                  [
+                    0.8140846636760156,
+                    0.0625
+                  ],
+                  [
+                    0.8378768273787909,
+                    0.03125
+                  ],
+                  [
+                    0.8618481573724419,
+                    0.0
+                  ]
+                ],
+                "centerline_boundary_points_m": [
+                  [
+                    0.8618481573724419,
+                    0.0
+                  ],
+                  [
+                    1.103791576924278,
+                    0.0
+                  ]
+                ],
+                "continuation_boundary_points_m": [
+                  [
+                    0.8618481573724419,
+                    0.0
+                  ],
+                  [
+                    0.869080583145396,
+                    0.005876431871500816
+                  ],
+                  [
+                    0.8763764390015866,
+                    0.011804384193471365
+                  ],
+                  [
+                    0.8837334201787748,
+                    0.017781985132775596
+                  ],
+                  [
+                    0.8911491727122696,
+                    0.023807323065895065
+                  ],
+                  [
+                    0.8986212918596524,
+                    0.02987844530997697
+                  ],
+                  [
+                    0.9061473204048667,
+                    0.035993356755968445
+                  ],
+                  [
+                    0.9137247468315548,
+                    0.04215001839560091
+                  ],
+                  [
+                    0.9213510033566492,
+                    0.04834634573487788
+                  ],
+                  [
+                    0.9290234638102163,
+                    0.054580207082625884
+                  ],
+                  [
+                    0.9367394413413606,
+                    0.06084942169766612
+                  ],
+                  [
+                    0.9444961859513294,
+                    0.06715175779549967
+                  ],
+                  [
+                    0.9522908818234963,
+                    0.07348493038982161
+                  ],
+                  [
+                    0.9601206444256841,
+                    0.07984659894878893
+                  ],
+                  [
+                    0.9679825173876718,
+                    0.08623436486834657
+                  ],
+                  [
+                    0.9758734691064148,
+                    0.09264576872394455
+                  ],
+                  [
+                    0.9837903890625009,
+                    0.09907828728710512
+                  ],
+                  [
+                    1.103791576924278,
+                    0.0
+                  ]
+                ]
+              }
+            },
+            {
+              "cell_index": 2,
+              "geometry_fidelity": "resolved-planar-moc",
+              "physical_closure": "closed",
+              "continuation_boundary_kind": "post-shock-field-perimeter",
+              "mesh_x_extent_m": [
+                0.405,
+                0.5012001844904914
+              ],
+              "mesh_y_extent_m": [
+                0.0,
+                0.08237108456402913
+              ],
+              "boundary_geometry": {
+                "incoming_handoff_points_m": [
+                  [
+                    0.8618481573724419,
+                    0.0
+                  ],
+                  [
+                    0.869080583145396,
+                    0.005876431871500816
+                  ],
+                  [
+                    0.8763764390015866,
+                    0.011804384193471365
+                  ],
+                  [
+                    0.8837334201787748,
+                    0.017781985132775596
+                  ],
+                  [
+                    0.8911491727122696,
+                    0.023807323065895065
+                  ],
+                  [
+                    0.8986212918596524,
+                    0.02987844530997697
+                  ],
+                  [
+                    0.9061473204048667,
+                    0.035993356755968445
+                  ],
+                  [
+                    0.9137247468315548,
+                    0.04215001839560091
+                  ],
+                  [
+                    0.9213510033566492,
+                    0.04834634573487788
+                  ],
+                  [
+                    0.9290234638102163,
+                    0.054580207082625884
+                  ],
+                  [
+                    0.9367394413413606,
+                    0.06084942169766612
+                  ],
+                  [
+                    0.9444961859513294,
+                    0.06715175779549967
+                  ],
+                  [
+                    0.9522908818234963,
+                    0.07348493038982161
+                  ],
+                  [
+                    0.9601206444256841,
+                    0.07984659894878893
+                  ],
+                  [
+                    0.9679825173876718,
+                    0.08623436486834657
+                  ],
+                  [
+                    0.9758734691064148,
+                    0.09264576872394455
+                  ],
+                  [
+                    0.9837903890625009,
+                    0.09907828728710512
+                  ],
+                  [
+                    1.103791576924278,
+                    0.0
+                  ]
+                ],
+                "shock_boundary_points_m": [
+                  [
+                    0.405,
+                    0.08237108456402913
+                  ],
+                  [
+                    0.42500000000000004,
+                    0.06177831342302184
+                  ],
+                  [
+                    0.445,
+                    0.04118554228201456
+                  ],
+                  [
+                    0.465,
+                    0.020592771141007285
+                  ],
+                  [
+                    0.48500000000000004,
+                    0.0
+                  ]
+                ],
+                "centerline_boundary_points_m": [
+                  [
+                    0.48500000000000004,
+                    0.0
+                  ],
+                  [
+                    0.5012001844904914,
+                    0.0
+                  ]
+                ],
+                "continuation_boundary_points_m": [
+                  [
+                    0.48500000000000004,
+                    0.0
+                  ],
+                  [
+                    0.4886794964548582,
+                    0.002666240088339847
+                  ],
+                  [
+                    0.49135287960183954,
+                    0.004597801756534078
+                  ],
+                  [
+                    0.4930242734063659,
+                    0.005802455821286357
+                  ],
+                  [
+                    0.49370193606827395,
+                    0.006289920308815435
+                  ],
+                  [
+                    0.5012001844904914,
+                    0.0
+                  ]
+                ]
+              }
+            },
+            {
+              "cell_index": 3,
+              "geometry_fidelity": "resolved-planar-moc",
+              "physical_closure": "closed",
+              "continuation_boundary_kind": "post-shock-field-perimeter",
+              "mesh_x_extent_m": [
+                0.505,
+                0.6012001844904914
+              ],
+              "mesh_y_extent_m": [
+                0.0,
+                0.08237108456402913
+              ],
+              "boundary_geometry": {
+                "incoming_handoff_points_m": [
+                  [
+                    0.48500000000000004,
+                    0.0
+                  ],
+                  [
+                    0.4886794964548582,
+                    0.002666240088339847
+                  ],
+                  [
+                    0.49135287960183954,
+                    0.004597801756534078
+                  ],
+                  [
+                    0.4930242734063659,
+                    0.005802455821286357
+                  ],
+                  [
+                    0.49370193606827395,
+                    0.006289920308815435
+                  ],
+                  [
+                    0.5012001844904914,
+                    0.0
+                  ]
+                ],
+                "shock_boundary_points_m": [
+                  [
+                    0.505,
+                    0.08237108456402913
+                  ],
+                  [
+                    0.525,
+                    0.06177831342302184
+                  ],
+                  [
+                    0.545,
+                    0.04118554228201456
+                  ],
+                  [
+                    0.565,
+                    0.020592771141007285
+                  ],
+                  [
+                    0.585,
+                    0.0
+                  ]
+                ],
+                "centerline_boundary_points_m": [
+                  [
+                    0.585,
+                    0.0
+                  ],
+                  [
+                    0.6012001844904914,
+                    0.0
+                  ]
+                ],
+                "continuation_boundary_points_m": [
+                  [
+                    0.585,
+                    0.0
+                  ],
+                  [
+                    0.5886794964548582,
+                    0.002666240088339847
+                  ],
+                  [
+                    0.5913528796018396,
+                    0.004597801756534096
+                  ],
+                  [
+                    0.5930242734063659,
+                    0.005802455821286331
+                  ],
+                  [
+                    0.5937019360682739,
+                    0.0062899203088154325
+                  ],
+                  [
+                    0.6012001844904914,
+                    0.0
+                  ]
+                ]
+              }
+            }
+          ],
+          "geometry_fidelity_counts": {
+            "resolved-planar-moc": 3
+          },
+          "diagnostics": {
+            "termination_model": "caustic-upstream-remesh-sequence",
+            "next_cell_index": 4,
+            "remesh_reuse_policy": "reject-reused-caustic-remesh-or-source-strip",
+            "caustic_upstream_remesh": {
+              "status": "converged_bounded_caustic_upstream_field",
+              "converged": true,
+              "state_sampling_available": true,
+              "event_seam_verified": true,
+              "centerline_trace_verified": true,
+              "outer_trace_verified": true,
+              "source_field_verified": true,
+              "physical_closure_verified": false,
+              "chain_promotion_blocked": true,
+              "request": {
+                "event_point_m": [
+                  0.6584201957653014,
+                  0.056970655192732075
+                ],
+                "upstream_edge_index": 0,
+                "centerline_source_count": 6,
+                "outer_source_count": 6,
+                "total_pressure_Pa": 2000000.0,
+                "incoming_handoff_sample_count": 6,
+                "incoming_handoff_points_m": [
+                  [
+                    0.585,
+                    0.0
+                  ],
+                  [
+                    0.5886794964548582,
+                    0.002666240088339847
+                  ],
+                  [
+                    0.5913528796018396,
+                    0.004597801756534096
+                  ],
+                  [
+                    0.5930242734063659,
+                    0.005802455821286331
+                  ],
+                  [
+                    0.5937019360682739,
+                    0.0062899203088154325
+                  ],
+                  [
+                    0.6012001844904914,
+                    0.0
+                  ]
+                ],
+                "incoming_handoff_total_pressure_Pa": [
+                  757258.9772524034,
+                  758586.3742372202,
+                  754636.7395932944,
+                  748815.3946143239,
+                  742225.0262719931,
+                  742225.0262719931
+                ],
+                "centerline_y_m": 0.0,
+                "outer_boundary_kind": "caustic-conditioned-pre-shock-boundary",
+                "position_tolerance_m": 1e-10,
+                "invariant_tolerance": 1e-10,
+                "source_data_model": "explicit-centerline-c-plus-and-outer-pre-shock-c-minus-traces",
+                "outer_trace_generation": "caller-supplied-coupled-remesher-data"
+              },
+              "strip": {
+                "status": "converged_open_source_strip",
+                "converged": true,
+                "plus_source_count": 6,
+                "minus_source_count": 6,
+                "source_window_start_index": 0,
+                "source_window_count": 6,
+                "source_window_total_count": 6,
+                "source_window_kind": "full-source-strip",
+                "node_count": 21,
+                "cell_count": 20,
+                "topology_forms_closed_zone": true,
+                "nonmanifold_edge_count": 0,
+                "maximum_geometry_residual_m": 1.1123893155135927e-16,
+                "maximum_absolute_invariant_residual": 1.8103296639537803e-12,
+                "total_pressure_Pa": 2000000.0,
+                "message": "triangular source-boundary characteristic strip converged; shock and downstream closure remain separate"
+              },
+              "chain_termination_decision": {
+                "physical_termination": false,
+                "reason": "open-physical-closure",
+                "message": "solver-owned caustic upstream Cauchy remesh converged as a bounded source-characteristic field; shock, entropy, and ambient closure remain separate gates",
+                "diagnostics": {
+                  "termination_model": "caustic-upstream-cauchy-remesh",
+                  "remesh_status": "converged_bounded_caustic_upstream_field",
+                  "event_point_m": [
+                    0.6584201957653014,
+                    0.056970655192732075
+                  ],
+                  "event_seam_verified": true,
+                  "centerline_trace_verified": true,
+                  "outer_trace_verified": true,
+                  "source_field_verified": true,
+                  "state_sampling_available": true,
+                  "physical_closure_verified": false,
+                  "chain_promotion_blocked": true
+                }
+              },
+              "message": "solver-owned caustic upstream Cauchy remesh converged as a bounded source-characteristic field; shock, entropy, and ambient closure remain separate gates"
+            }
+          },
+          "message": "caustic remesh provider reused a prior remesh or source strip; a fresh bounded upstream domain is required for each continued shock cell"
+        },
+        "diagnostics": {
+          "caustic_upstream_remesh_chain_model": "fresh-bounded-caustic-upstream-remesh-per-cell",
+          "caustic_upstream_remesh": {
+            "status": "converged_bounded_caustic_upstream_field",
+            "converged": true,
+            "state_sampling_available": true,
+            "event_seam_verified": true,
+            "centerline_trace_verified": true,
+            "outer_trace_verified": true,
+            "source_field_verified": true,
+            "physical_closure_verified": false,
+            "chain_promotion_blocked": true,
+            "request": {
+              "event_point_m": [
+                0.6584201957653014,
+                0.056970655192732075
+              ],
+              "upstream_edge_index": 0,
+              "centerline_source_count": 6,
+              "outer_source_count": 6,
+              "total_pressure_Pa": 2000000.0,
+              "incoming_handoff_sample_count": 0,
+              "incoming_handoff_points_m": [],
+              "incoming_handoff_total_pressure_Pa": [],
+              "centerline_y_m": 0.0,
+              "outer_boundary_kind": "caustic-conditioned-pre-shock-boundary",
+              "position_tolerance_m": 1e-10,
+              "invariant_tolerance": 1e-10,
+              "source_data_model": "explicit-centerline-c-plus-and-outer-pre-shock-c-minus-traces",
+              "outer_trace_generation": "caller-supplied-coupled-remesher-data"
+            },
+            "strip": {
+              "status": "converged_open_source_strip",
+              "converged": true,
+              "plus_source_count": 6,
+              "minus_source_count": 6,
+              "source_window_start_index": 0,
+              "source_window_count": 6,
+              "source_window_total_count": 6,
+              "source_window_kind": "full-source-strip",
+              "node_count": 21,
+              "cell_count": 20,
+              "topology_forms_closed_zone": true,
+              "nonmanifold_edge_count": 0,
+              "maximum_geometry_residual_m": 1.1123893155135927e-16,
+              "maximum_absolute_invariant_residual": 1.8105517085587053e-12,
+              "total_pressure_Pa": 2000000.0,
+              "message": "triangular source-boundary characteristic strip converged; shock and downstream closure remain separate"
+            },
+            "chain_termination_decision": {
+              "physical_termination": false,
+              "reason": "open-physical-closure",
+              "message": "solver-owned caustic upstream Cauchy remesh converged as a bounded source-characteristic field; shock, entropy, and ambient closure remain separate gates",
+              "diagnostics": {
+                "termination_model": "caustic-upstream-cauchy-remesh",
+                "remesh_status": "converged_bounded_caustic_upstream_field",
+                "event_point_m": [
+                  0.6584201957653014,
+                  0.056970655192732075
+                ],
+                "event_seam_verified": true,
+                "centerline_trace_verified": true,
+                "outer_trace_verified": true,
+                "source_field_verified": true,
+                "state_sampling_available": true,
+                "physical_closure_verified": false,
+                "chain_promotion_blocked": true
+              }
+            },
+            "message": "solver-owned caustic upstream Cauchy remesh converged as a bounded source-characteristic field; shock, entropy, and ambient closure remain separate gates"
+          },
+          "one_step_domain": false,
+          "upstream_remesh_reuse_policy": "fresh-bounded-caustic-remesh-required-per-cell",
+          "upstream_remesh_domain_count": 2,
+          "upstream_remesh_domain_attempt_count": 3,
+          "upstream_remesh_domain_attempts": [
+            {
+              "current_cell_index": 1,
+              "next_cell_index": 2,
+              "role": "initial-caustic-upstream-remesh",
+              "remesh": {
+                "status": "converged_bounded_caustic_upstream_field",
+                "converged": true,
+                "state_sampling_available": true,
+                "event_seam_verified": true,
+                "centerline_trace_verified": true,
+                "outer_trace_verified": true,
+                "source_field_verified": true,
+                "physical_closure_verified": false,
+                "chain_promotion_blocked": true,
+                "request": {
+                  "event_point_m": [
+                    0.6584201957653014,
+                    0.056970655192732075
+                  ],
+                  "upstream_edge_index": 0,
+                  "centerline_source_count": 6,
+                  "outer_source_count": 6,
+                  "total_pressure_Pa": 2000000.0,
+                  "incoming_handoff_sample_count": 0,
+                  "incoming_handoff_points_m": [],
+                  "incoming_handoff_total_pressure_Pa": [],
+                  "centerline_y_m": 0.0,
+                  "outer_boundary_kind": "caustic-conditioned-pre-shock-boundary",
+                  "position_tolerance_m": 1e-10,
+                  "invariant_tolerance": 1e-10,
+                  "source_data_model": "explicit-centerline-c-plus-and-outer-pre-shock-c-minus-traces",
+                  "outer_trace_generation": "caller-supplied-coupled-remesher-data"
+                },
+                "strip": {
+                  "status": "converged_open_source_strip",
+                  "converged": true,
+                  "plus_source_count": 6,
+                  "minus_source_count": 6,
+                  "source_window_start_index": 0,
+                  "source_window_count": 6,
+                  "source_window_total_count": 6,
+                  "source_window_kind": "full-source-strip",
+                  "node_count": 21,
+                  "cell_count": 20,
+                  "topology_forms_closed_zone": true,
+                  "nonmanifold_edge_count": 0,
+                  "maximum_geometry_residual_m": 1.1123893155135927e-16,
+                  "maximum_absolute_invariant_residual": 1.8105517085587053e-12,
+                  "total_pressure_Pa": 2000000.0,
+                  "message": "triangular source-boundary characteristic strip converged; shock and downstream closure remain separate"
+                },
+                "chain_termination_decision": {
+                  "physical_termination": false,
+                  "reason": "open-physical-closure",
+                  "message": "solver-owned caustic upstream Cauchy remesh converged as a bounded source-characteristic field; shock, entropy, and ambient closure remain separate gates",
+                  "diagnostics": {
+                    "termination_model": "caustic-upstream-cauchy-remesh",
+                    "remesh_status": "converged_bounded_caustic_upstream_field",
+                    "event_point_m": [
+                      0.6584201957653014,
+                      0.056970655192732075
+                    ],
+                    "event_seam_verified": true,
+                    "centerline_trace_verified": true,
+                    "outer_trace_verified": true,
+                    "source_field_verified": true,
+                    "state_sampling_available": true,
+                    "physical_closure_verified": false,
+                    "chain_promotion_blocked": true
+                  }
+                },
+                "message": "solver-owned caustic upstream Cauchy remesh converged as a bounded source-characteristic field; shock, entropy, and ambient closure remain separate gates"
+              },
+              "fresh_remesh": true,
+              "fresh_strip": true,
+              "remesh_fingerprint": "415f9e02365c740df8158fed95f56cd05bc41a72c41fd4b0014fc8279a32b6dc"
+            },
+            {
+              "current_cell_index": 2,
+              "next_cell_index": 3,
+              "role": "remesh-provider",
+              "remesh": {
+                "status": "converged_bounded_caustic_upstream_field",
+                "converged": true,
+                "state_sampling_available": true,
+                "event_seam_verified": true,
+                "centerline_trace_verified": true,
+                "outer_trace_verified": true,
+                "source_field_verified": true,
+                "physical_closure_verified": false,
+                "chain_promotion_blocked": true,
+                "request": {
+                  "event_point_m": [
+                    0.6584201957653014,
+                    0.056970655192732075
+                  ],
+                  "upstream_edge_index": 0,
+                  "centerline_source_count": 6,
+                  "outer_source_count": 6,
+                  "total_pressure_Pa": 2000000.0,
+                  "incoming_handoff_sample_count": 6,
+                  "incoming_handoff_points_m": [
+                    [
+                      0.48500000000000004,
+                      0.0
+                    ],
+                    [
+                      0.4886794964548582,
+                      0.002666240088339847
+                    ],
+                    [
+                      0.49135287960183954,
+                      0.004597801756534078
+                    ],
+                    [
+                      0.4930242734063659,
+                      0.005802455821286357
+                    ],
+                    [
+                      0.49370193606827395,
+                      0.006289920308815435
+                    ],
+                    [
+                      0.5012001844904914,
+                      0.0
+                    ]
+                  ],
+                  "incoming_handoff_total_pressure_Pa": [
+                    742830.2121774815,
+                    748717.7288259764,
+                    754772.5022279881,
+                    759908.2169586746,
+                    764196.0788999454,
+                    764196.0788999454
+                  ],
+                  "centerline_y_m": 0.0,
+                  "outer_boundary_kind": "caustic-conditioned-pre-shock-boundary",
+                  "position_tolerance_m": 1e-10,
+                  "invariant_tolerance": 1e-10,
+                  "source_data_model": "explicit-centerline-c-plus-and-outer-pre-shock-c-minus-traces",
+                  "outer_trace_generation": "caller-supplied-coupled-remesher-data"
+                },
+                "strip": {
+                  "status": "converged_open_source_strip",
+                  "converged": true,
+                  "plus_source_count": 6,
+                  "minus_source_count": 6,
+                  "source_window_start_index": 0,
+                  "source_window_count": 6,
+                  "source_window_total_count": 6,
+                  "source_window_kind": "full-source-strip",
+                  "node_count": 21,
+                  "cell_count": 20,
+                  "topology_forms_closed_zone": true,
+                  "nonmanifold_edge_count": 0,
+                  "maximum_geometry_residual_m": 1.1123893155135927e-16,
+                  "maximum_absolute_invariant_residual": 1.8103296639537803e-12,
+                  "total_pressure_Pa": 2000000.0,
+                  "message": "triangular source-boundary characteristic strip converged; shock and downstream closure remain separate"
+                },
+                "chain_termination_decision": {
+                  "physical_termination": false,
+                  "reason": "open-physical-closure",
+                  "message": "solver-owned caustic upstream Cauchy remesh converged as a bounded source-characteristic field; shock, entropy, and ambient closure remain separate gates",
+                  "diagnostics": {
+                    "termination_model": "caustic-upstream-cauchy-remesh",
+                    "remesh_status": "converged_bounded_caustic_upstream_field",
+                    "event_point_m": [
+                      0.6584201957653014,
+                      0.056970655192732075
+                    ],
+                    "event_seam_verified": true,
+                    "centerline_trace_verified": true,
+                    "outer_trace_verified": true,
+                    "source_field_verified": true,
+                    "state_sampling_available": true,
+                    "physical_closure_verified": false,
+                    "chain_promotion_blocked": true
+                  }
+                },
+                "message": "solver-owned caustic upstream Cauchy remesh converged as a bounded source-characteristic field; shock, entropy, and ambient closure remain separate gates"
+              },
+              "fresh_remesh": true,
+              "fresh_strip": true,
+              "remesh_fingerprint": "7d293754c1c1da29de9a32a1fd230a23679ccd8dd6651bf06a5dafda9c6b1511",
+              "incoming_handoff_sample_count": 6,
+              "incoming_handoff_verified": true
+            },
+            {
+              "current_cell_index": 3,
+              "next_cell_index": 4,
+              "role": "remesh-provider",
+              "remesh": {
+                "status": "converged_bounded_caustic_upstream_field",
+                "converged": true,
+                "state_sampling_available": true,
+                "event_seam_verified": true,
+                "centerline_trace_verified": true,
+                "outer_trace_verified": true,
+                "source_field_verified": true,
+                "physical_closure_verified": false,
+                "chain_promotion_blocked": true,
+                "request": {
+                  "event_point_m": [
+                    0.6584201957653014,
+                    0.056970655192732075
+                  ],
+                  "upstream_edge_index": 0,
+                  "centerline_source_count": 6,
+                  "outer_source_count": 6,
+                  "total_pressure_Pa": 2000000.0,
+                  "incoming_handoff_sample_count": 6,
+                  "incoming_handoff_points_m": [
+                    [
+                      0.585,
+                      0.0
+                    ],
+                    [
+                      0.5886794964548582,
+                      0.002666240088339847
+                    ],
+                    [
+                      0.5913528796018396,
+                      0.004597801756534096
+                    ],
+                    [
+                      0.5930242734063659,
+                      0.005802455821286331
+                    ],
+                    [
+                      0.5937019360682739,
+                      0.0062899203088154325
+                    ],
+                    [
+                      0.6012001844904914,
+                      0.0
+                    ]
+                  ],
+                  "incoming_handoff_total_pressure_Pa": [
+                    757258.9772524034,
+                    758586.3742372202,
+                    754636.7395932944,
+                    748815.3946143239,
+                    742225.0262719931,
+                    742225.0262719931
+                  ],
+                  "centerline_y_m": 0.0,
+                  "outer_boundary_kind": "caustic-conditioned-pre-shock-boundary",
+                  "position_tolerance_m": 1e-10,
+                  "invariant_tolerance": 1e-10,
+                  "source_data_model": "explicit-centerline-c-plus-and-outer-pre-shock-c-minus-traces",
+                  "outer_trace_generation": "caller-supplied-coupled-remesher-data"
+                },
+                "strip": {
+                  "status": "converged_open_source_strip",
+                  "converged": true,
+                  "plus_source_count": 6,
+                  "minus_source_count": 6,
+                  "source_window_start_index": 0,
+                  "source_window_count": 6,
+                  "source_window_total_count": 6,
+                  "source_window_kind": "full-source-strip",
+                  "node_count": 21,
+                  "cell_count": 20,
+                  "topology_forms_closed_zone": true,
+                  "nonmanifold_edge_count": 0,
+                  "maximum_geometry_residual_m": 1.1123893155135927e-16,
+                  "maximum_absolute_invariant_residual": 1.8103296639537803e-12,
+                  "total_pressure_Pa": 2000000.0,
+                  "message": "triangular source-boundary characteristic strip converged; shock and downstream closure remain separate"
+                },
+                "chain_termination_decision": {
+                  "physical_termination": false,
+                  "reason": "open-physical-closure",
+                  "message": "solver-owned caustic upstream Cauchy remesh converged as a bounded source-characteristic field; shock, entropy, and ambient closure remain separate gates",
+                  "diagnostics": {
+                    "termination_model": "caustic-upstream-cauchy-remesh",
+                    "remesh_status": "converged_bounded_caustic_upstream_field",
+                    "event_point_m": [
+                      0.6584201957653014,
+                      0.056970655192732075
+                    ],
+                    "event_seam_verified": true,
+                    "centerline_trace_verified": true,
+                    "outer_trace_verified": true,
+                    "source_field_verified": true,
+                    "state_sampling_available": true,
+                    "physical_closure_verified": false,
+                    "chain_promotion_blocked": true
+                  }
+                },
+                "message": "solver-owned caustic upstream Cauchy remesh converged as a bounded source-characteristic field; shock, entropy, and ambient closure remain separate gates"
+              },
+              "fresh_remesh": false,
+              "fresh_strip": false,
+              "remesh_fingerprint": "7d293754c1c1da29de9a32a1fd230a23679ccd8dd6651bf06a5dafda9c6b1511",
+              "incoming_handoff_sample_count": 6,
+              "incoming_handoff_verified": true
+            }
+          ],
+          "physical_closure_pending": true,
+          "prescribed_cell_solver_mock": {
+            "model": "prescribed-post-shock-chain-planner-mock",
+            "planning_only": true,
+            "production_claim_allowed": false,
+            "claim_fidelity_ceiling": "prescribed-boundary-diagnostic",
+            "boundary_provenance": "prescribed-shock-ordinates-and-downstream-flow-angle-samples",
+            "local_field_assembly": "solver-backed-attached-shock-fit-and-post-shock-characteristic-field",
+            "free_boundary_verified": false,
+            "physical_chain_promotion_allowed": false,
+            "total_cell_count_including_seed": 3,
+            "cell_axial_length_m": 0.1,
+            "shock_start_offset_m": 0.005,
+            "shock_sample_spacing_m": 0.02,
+            "shock_geometry_scale_per_cell": 0.0,
+            "shock_geometry_scale_schedule": [
+              {
+                "cell_index": 2,
+                "scale": 1.0
+              },
+              {
+                "cell_index": 3,
+                "scale": 1.0
+              }
+            ],
+            "cell_axial_lengths_m": null,
+            "shock_start_offsets_m": null,
+            "shock_geometry_scales_per_cell": null,
+            "per_cell_geometry_schedule": [
+              {
+                "cell_index": 2,
+                "axial_length_m": 0.1,
+                "shock_start_offset_m": 0.005,
+                "shock_geometry_scale": 1.0
+              },
+              {
+                "cell_index": 3,
+                "axial_length_m": 0.1,
+                "shock_start_offset_m": 0.005,
+                "shock_geometry_scale": 1.0
+              }
+            ],
+            "geometry_schedule_model": "global-values-with-linear-scale",
+            "shock_ordinates_m": [
+              0.08237108456402913,
+              0.06177831342302184,
+              0.04118554228201456,
+              0.020592771141007285,
+              0.0
+            ],
+            "downstream_flow_angles_rad": [
+              -0.16,
+              -0.12,
+              -0.08,
+              -0.04,
+              0.0
+            ],
+            "upstream_flow_angle_start_rad": -0.22316537247754467,
+            "upstream_flow_angle_step_rad": 0.01953284223794056,
+            "upstream_flow_angles_rad": [
+              -0.22316537247754467,
+              -0.204175961115758,
+              -0.18482733549527713,
+              -0.16511536988179235,
+              -0.14503421352578244
+            ],
+            "mach": 2.0,
+            "gamma": 1.4,
+            "pressure_loss_ratio": null,
+            "pressure_loss_ratio_role": "optional expected total-pressure ratio; never used to fabricate post-shock states",
+            "upstream_pressure_model": "normalized-index-resampling-of-exact-incoming-handoff",
+            "claim_status": "prescribed-next-shock-geometry-fixture; not-free-boundary-chain-evidence"
+          }
+        }
+      },
+      "planner_measurement": {
+        "status": "converged",
+        "operator_id": "op.moc.chain-planner",
+        "converged": true,
+        "planner_kind": "upstream-coupled-research",
+        "chain_status": "solver-terminated",
+        "termination_reason": "upstream-field-boundary",
+        "counts": {
+          "steps": 3,
+          "chain_cells": 3,
+          "handoff_links": 2
+        },
+        "checks": {
+          "chain_cells_contiguous": true,
+          "chain_topology_verified": true,
+          "domain_freshness_verified": true,
+          "step_sequence_verified": true,
+          "incoming_handoffs_verified": true,
+          "returned_handoffs_verified": true,
+          "handoff_links_verified": true,
+          "termination_verified": true,
+          "fidelity_isolation_verified": true
+        },
+        "physical_termination": false,
+        "production_claim_allowed": false,
+        "claim_status": "independent-planner-trace-audit; not-accepted",
+        "message": "planner cell sequence, exact state/pressure handoffs, typed solver termination, and fidelity isolation independently verified; physical free-boundary closure remains unestablished"
+      },
+      "provider_attempts": [
+        {
+          "current_cell_index": 1,
+          "next_cell_index": 2,
+          "role": "initial-caustic-upstream-remesh",
+          "remesh": {
+            "status": "converged_bounded_caustic_upstream_field",
+            "converged": true,
+            "state_sampling_available": true,
+            "event_seam_verified": true,
+            "centerline_trace_verified": true,
+            "outer_trace_verified": true,
+            "source_field_verified": true,
+            "physical_closure_verified": false,
+            "chain_promotion_blocked": true,
+            "request": {
+              "event_point_m": [
+                0.6584201957653014,
+                0.056970655192732075
+              ],
+              "upstream_edge_index": 0,
+              "centerline_source_count": 6,
+              "outer_source_count": 6,
+              "total_pressure_Pa": 2000000.0,
+              "incoming_handoff_sample_count": 0,
+              "incoming_handoff_points_m": [],
+              "incoming_handoff_total_pressure_Pa": [],
+              "centerline_y_m": 0.0,
+              "outer_boundary_kind": "caustic-conditioned-pre-shock-boundary",
+              "position_tolerance_m": 1e-10,
+              "invariant_tolerance": 1e-10,
+              "source_data_model": "explicit-centerline-c-plus-and-outer-pre-shock-c-minus-traces",
+              "outer_trace_generation": "caller-supplied-coupled-remesher-data"
+            },
+            "strip": {
+              "status": "converged_open_source_strip",
+              "converged": true,
+              "plus_source_count": 6,
+              "minus_source_count": 6,
+              "source_window_start_index": 0,
+              "source_window_count": 6,
+              "source_window_total_count": 6,
+              "source_window_kind": "full-source-strip",
+              "node_count": 21,
+              "cell_count": 20,
+              "topology_forms_closed_zone": true,
+              "nonmanifold_edge_count": 0,
+              "maximum_geometry_residual_m": 1.1123893155135927e-16,
+              "maximum_absolute_invariant_residual": 1.8105517085587053e-12,
+              "total_pressure_Pa": 2000000.0,
+              "message": "triangular source-boundary characteristic strip converged; shock and downstream closure remain separate"
+            },
+            "chain_termination_decision": {
+              "physical_termination": false,
+              "reason": "open-physical-closure",
+              "message": "solver-owned caustic upstream Cauchy remesh converged as a bounded source-characteristic field; shock, entropy, and ambient closure remain separate gates",
+              "diagnostics": {
+                "termination_model": "caustic-upstream-cauchy-remesh",
+                "remesh_status": "converged_bounded_caustic_upstream_field",
+                "event_point_m": [
+                  0.6584201957653014,
+                  0.056970655192732075
+                ],
+                "event_seam_verified": true,
+                "centerline_trace_verified": true,
+                "outer_trace_verified": true,
+                "source_field_verified": true,
+                "state_sampling_available": true,
+                "physical_closure_verified": false,
+                "chain_promotion_blocked": true
+              }
+            },
+            "message": "solver-owned caustic upstream Cauchy remesh converged as a bounded source-characteristic field; shock, entropy, and ambient closure remain separate gates"
+          },
+          "fresh_remesh": true,
+          "fresh_strip": true,
+          "remesh_fingerprint": "415f9e02365c740df8158fed95f56cd05bc41a72c41fd4b0014fc8279a32b6dc"
+        },
+        {
+          "current_cell_index": 2,
+          "next_cell_index": 3,
+          "role": "remesh-provider",
+          "remesh": {
+            "status": "converged_bounded_caustic_upstream_field",
+            "converged": true,
+            "state_sampling_available": true,
+            "event_seam_verified": true,
+            "centerline_trace_verified": true,
+            "outer_trace_verified": true,
+            "source_field_verified": true,
+            "physical_closure_verified": false,
+            "chain_promotion_blocked": true,
+            "request": {
+              "event_point_m": [
+                0.6584201957653014,
+                0.056970655192732075
+              ],
+              "upstream_edge_index": 0,
+              "centerline_source_count": 6,
+              "outer_source_count": 6,
+              "total_pressure_Pa": 2000000.0,
+              "incoming_handoff_sample_count": 6,
+              "incoming_handoff_points_m": [
+                [
+                  0.48500000000000004,
+                  0.0
+                ],
+                [
+                  0.4886794964548582,
+                  0.002666240088339847
+                ],
+                [
+                  0.49135287960183954,
+                  0.004597801756534078
+                ],
+                [
+                  0.4930242734063659,
+                  0.005802455821286357
+                ],
+                [
+                  0.49370193606827395,
+                  0.006289920308815435
+                ],
+                [
+                  0.5012001844904914,
+                  0.0
+                ]
+              ],
+              "incoming_handoff_total_pressure_Pa": [
+                742830.2121774815,
+                748717.7288259764,
+                754772.5022279881,
+                759908.2169586746,
+                764196.0788999454,
+                764196.0788999454
+              ],
+              "centerline_y_m": 0.0,
+              "outer_boundary_kind": "caustic-conditioned-pre-shock-boundary",
+              "position_tolerance_m": 1e-10,
+              "invariant_tolerance": 1e-10,
+              "source_data_model": "explicit-centerline-c-plus-and-outer-pre-shock-c-minus-traces",
+              "outer_trace_generation": "caller-supplied-coupled-remesher-data"
+            },
+            "strip": {
+              "status": "converged_open_source_strip",
+              "converged": true,
+              "plus_source_count": 6,
+              "minus_source_count": 6,
+              "source_window_start_index": 0,
+              "source_window_count": 6,
+              "source_window_total_count": 6,
+              "source_window_kind": "full-source-strip",
+              "node_count": 21,
+              "cell_count": 20,
+              "topology_forms_closed_zone": true,
+              "nonmanifold_edge_count": 0,
+              "maximum_geometry_residual_m": 1.1123893155135927e-16,
+              "maximum_absolute_invariant_residual": 1.8103296639537803e-12,
+              "total_pressure_Pa": 2000000.0,
+              "message": "triangular source-boundary characteristic strip converged; shock and downstream closure remain separate"
+            },
+            "chain_termination_decision": {
+              "physical_termination": false,
+              "reason": "open-physical-closure",
+              "message": "solver-owned caustic upstream Cauchy remesh converged as a bounded source-characteristic field; shock, entropy, and ambient closure remain separate gates",
+              "diagnostics": {
+                "termination_model": "caustic-upstream-cauchy-remesh",
+                "remesh_status": "converged_bounded_caustic_upstream_field",
+                "event_point_m": [
+                  0.6584201957653014,
+                  0.056970655192732075
+                ],
+                "event_seam_verified": true,
+                "centerline_trace_verified": true,
+                "outer_trace_verified": true,
+                "source_field_verified": true,
+                "state_sampling_available": true,
+                "physical_closure_verified": false,
+                "chain_promotion_blocked": true
+              }
+            },
+            "message": "solver-owned caustic upstream Cauchy remesh converged as a bounded source-characteristic field; shock, entropy, and ambient closure remain separate gates"
+          },
+          "fresh_remesh": true,
+          "fresh_strip": true,
+          "remesh_fingerprint": "7d293754c1c1da29de9a32a1fd230a23679ccd8dd6651bf06a5dafda9c6b1511",
+          "incoming_handoff_sample_count": 6,
+          "incoming_handoff_verified": true
+        },
+        {
+          "current_cell_index": 3,
+          "next_cell_index": 4,
+          "role": "remesh-provider",
+          "remesh": {
+            "status": "converged_bounded_caustic_upstream_field",
+            "converged": true,
+            "state_sampling_available": true,
+            "event_seam_verified": true,
+            "centerline_trace_verified": true,
+            "outer_trace_verified": true,
+            "source_field_verified": true,
+            "physical_closure_verified": false,
+            "chain_promotion_blocked": true,
+            "request": {
+              "event_point_m": [
+                0.6584201957653014,
+                0.056970655192732075
+              ],
+              "upstream_edge_index": 0,
+              "centerline_source_count": 6,
+              "outer_source_count": 6,
+              "total_pressure_Pa": 2000000.0,
+              "incoming_handoff_sample_count": 6,
+              "incoming_handoff_points_m": [
+                [
+                  0.585,
+                  0.0
+                ],
+                [
+                  0.5886794964548582,
+                  0.002666240088339847
+                ],
+                [
+                  0.5913528796018396,
+                  0.004597801756534096
+                ],
+                [
+                  0.5930242734063659,
+                  0.005802455821286331
+                ],
+                [
+                  0.5937019360682739,
+                  0.0062899203088154325
+                ],
+                [
+                  0.6012001844904914,
+                  0.0
+                ]
+              ],
+              "incoming_handoff_total_pressure_Pa": [
+                757258.9772524034,
+                758586.3742372202,
+                754636.7395932944,
+                748815.3946143239,
+                742225.0262719931,
+                742225.0262719931
+              ],
+              "centerline_y_m": 0.0,
+              "outer_boundary_kind": "caustic-conditioned-pre-shock-boundary",
+              "position_tolerance_m": 1e-10,
+              "invariant_tolerance": 1e-10,
+              "source_data_model": "explicit-centerline-c-plus-and-outer-pre-shock-c-minus-traces",
+              "outer_trace_generation": "caller-supplied-coupled-remesher-data"
+            },
+            "strip": {
+              "status": "converged_open_source_strip",
+              "converged": true,
+              "plus_source_count": 6,
+              "minus_source_count": 6,
+              "source_window_start_index": 0,
+              "source_window_count": 6,
+              "source_window_total_count": 6,
+              "source_window_kind": "full-source-strip",
+              "node_count": 21,
+              "cell_count": 20,
+              "topology_forms_closed_zone": true,
+              "nonmanifold_edge_count": 0,
+              "maximum_geometry_residual_m": 1.1123893155135927e-16,
+              "maximum_absolute_invariant_residual": 1.8103296639537803e-12,
+              "total_pressure_Pa": 2000000.0,
+              "message": "triangular source-boundary characteristic strip converged; shock and downstream closure remain separate"
+            },
+            "chain_termination_decision": {
+              "physical_termination": false,
+              "reason": "open-physical-closure",
+              "message": "solver-owned caustic upstream Cauchy remesh converged as a bounded source-characteristic field; shock, entropy, and ambient closure remain separate gates",
+              "diagnostics": {
+                "termination_model": "caustic-upstream-cauchy-remesh",
+                "remesh_status": "converged_bounded_caustic_upstream_field",
+                "event_point_m": [
+                  0.6584201957653014,
+                  0.056970655192732075
+                ],
+                "event_seam_verified": true,
+                "centerline_trace_verified": true,
+                "outer_trace_verified": true,
+                "source_field_verified": true,
+                "state_sampling_available": true,
+                "physical_closure_verified": false,
+                "chain_promotion_blocked": true
+              }
+            },
+            "message": "solver-owned caustic upstream Cauchy remesh converged as a bounded source-characteristic field; shock, entropy, and ambient closure remain separate gates"
+          },
+          "fresh_remesh": false,
+          "fresh_strip": false,
+          "remesh_fingerprint": "7d293754c1c1da29de9a32a1fd230a23679ccd8dd6651bf06a5dafda9c6b1511",
+          "incoming_handoff_sample_count": 6,
+          "incoming_handoff_verified": true
+        }
+      ],
+      "provider_calls": [
+        {
+          "current_cell_index": 2,
+          "next_cell_index": 3,
+          "incoming_handoff_sample_count": 6
+        },
+        {
+          "current_cell_index": 3,
+          "next_cell_index": 4,
+          "incoming_handoff_sample_count": 6
+        }
+      ],
+      "prescribed_cell_solver": {
+        "model": "prescribed-post-shock-chain-planner-mock",
+        "planning_only": true,
+        "production_claim_allowed": false,
+        "claim_fidelity_ceiling": "prescribed-boundary-diagnostic",
+        "boundary_provenance": "prescribed-shock-ordinates-and-downstream-flow-angle-samples",
+        "local_field_assembly": "solver-backed-attached-shock-fit-and-post-shock-characteristic-field",
+        "free_boundary_verified": false,
+        "physical_chain_promotion_allowed": false,
+        "total_cell_count_including_seed": 3,
+        "cell_axial_length_m": 0.1,
+        "shock_start_offset_m": 0.005,
+        "shock_sample_spacing_m": 0.02,
+        "shock_geometry_scale_per_cell": 0.0,
+        "shock_geometry_scale_schedule": [
+          {
+            "cell_index": 2,
+            "scale": 1.0
+          },
+          {
+            "cell_index": 3,
+            "scale": 1.0
+          }
+        ],
+        "cell_axial_lengths_m": null,
+        "shock_start_offsets_m": null,
+        "shock_geometry_scales_per_cell": null,
+        "per_cell_geometry_schedule": [
+          {
+            "cell_index": 2,
+            "axial_length_m": 0.1,
+            "shock_start_offset_m": 0.005,
+            "shock_geometry_scale": 1.0
+          },
+          {
+            "cell_index": 3,
+            "axial_length_m": 0.1,
+            "shock_start_offset_m": 0.005,
+            "shock_geometry_scale": 1.0
+          }
+        ],
+        "geometry_schedule_model": "global-values-with-linear-scale",
+        "shock_ordinates_m": [
+          0.08237108456402913,
+          0.06177831342302184,
+          0.04118554228201456,
+          0.020592771141007285,
+          0.0
+        ],
+        "downstream_flow_angles_rad": [
+          -0.16,
+          -0.12,
+          -0.08,
+          -0.04,
+          0.0
+        ],
+        "upstream_flow_angle_start_rad": -0.22316537247754467,
+        "upstream_flow_angle_step_rad": 0.01953284223794056,
+        "upstream_flow_angles_rad": [
+          -0.22316537247754467,
+          -0.204175961115758,
+          -0.18482733549527713,
+          -0.16511536988179235,
+          -0.14503421352578244
+        ],
+        "mach": 2.0,
+        "gamma": 1.4,
+        "pressure_loss_ratio": null,
+        "pressure_loss_ratio_role": "optional expected total-pressure ratio; never used to fabricate post-shock states",
+        "upstream_pressure_model": "normalized-index-resampling-of-exact-incoming-handoff",
+        "claim_status": "prescribed-next-shock-geometry-fixture; not-free-boundary-chain-evidence"
+      },
+      "claim_status": "solver-assembled-remesh-and-prescribed-cell-sequence-audit; canonical-outer-trace-mixed-regime-closure-and-production-provider-pending"
     },
     "solver_generated_attached_shock_field": {
       "status": "converged_free_boundary_field",
