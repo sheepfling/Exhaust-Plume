@@ -55,6 +55,8 @@ def test_reflected_characteristic_zone_assembles_one_open_topological_perimeter(
   assert result.coverage_area_m2 is not None
   assert result.coverage_area_residual_m2 == pytest.approx(0.0, abs=1.0e-12)
   assert result.physical_closure_status == 'open'
+  assert result.physical_closure_verified is False
+  assert result.chain_promotion_blocked
   assert result.shock_closure_status == 'not_assembled'
   assert result.total_pressure_Pa == pytest.approx(exit_state.total_pressure_Pa)
   assert result.state_sampling_available
@@ -64,6 +66,9 @@ def test_reflected_characteristic_zone_assembles_one_open_topological_perimeter(
   assert result.domain_y_extent_m[0] == pytest.approx(0.0, abs=1.0e-12)
   assert result.domain_y_extent_m[1] > result.domain_y_extent_m[0]
   report = result.as_report()
+  assert report['physical_closure_verified'] is False
+  assert report['chain_promotion_blocked'] is True
+  assert report['claim_fidelity_ceiling'] == 'open-planar-moc'
   assert report['state_sampling_available'] is True
   assert report['state_sampling_model'] == 'bounded-cell-barycentric-no-extrapolation'
   assert report['domain_x_extent_m'] == pytest.approx(result.domain_x_extent_m)

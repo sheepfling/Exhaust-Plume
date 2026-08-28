@@ -1340,6 +1340,11 @@ Only after MOC-1 through MOC-5 pass:
   closure adapters stop with a typed upstream-field failure when the caller
   provides geometry without total-pressure lineage; they no longer let a
   geometry-only zone reach a pressure callback.
+- The reflected-zone report now carries the same explicit promotion flags as
+  the other MOC lanes: its topological perimeter can be closed while
+  ``physical_closure_verified=false`` and ``chain_promotion_blocked=true``.
+  This keeps the planner and validation artifact from interpreting an open
+  reflected lattice as a completed shock cell.
 - Routed the standalone reflected-zone artifact through that canonical report
   and added a regression for the geometry-only handoff. The canonical case
   still reports a pressure-capable open domain, while the continued shock-cell

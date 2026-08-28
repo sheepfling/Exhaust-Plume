@@ -4944,6 +4944,12 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or mixed_regime_boundary_probe.get('physical_closure_verified') is not False
     or mixed_regime_boundary_probe.get('chain_promotion_blocked') is not True
   )
+  reflected_zone_assembly_failure = (
+    not reflected_zone.converged
+    or reflected_zone.state_sampling_available is not True
+    or reflected_zone.physical_closure_verified is not False
+    or reflected_zone.chain_promotion_blocked is not True
+  )
   reflected_zone_chain_boundary_failure = (
     reflected_zone_chain_boundary_probe.get('accepted') is not True
     or reflected_zone_chain_boundary_probe.get('physical_termination') is not False
@@ -6207,7 +6213,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'status': reflected_zone.status.value,
         'message': reflected_zone.message,
       }
-    ] if not reflected_zone.converged else []),
+    ] if reflected_zone_assembly_failure else []),
     *([
       {
         'case': 'reflected_source_characteristic_strip',

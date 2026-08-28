@@ -218,6 +218,20 @@ class MocReflectedCharacteristicZoneResult:
   ####
 
   @property
+  def physical_closure_verified(self) -> bool:
+    """Whether this reflected zone has a physical shock/downstream closure."""
+
+    return False
+  ####
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    """Whether this open zone must remain outside a physical chain cell."""
+
+    return True
+  ####
+
+  @property
   def node_count(self) -> int:
     return len(self.nodes)
   ####
@@ -295,7 +309,10 @@ class MocReflectedCharacteristicZoneResult:
       'coverage_area_m2': self.coverage_area_m2,
       'coverage_area_residual_m2': self.coverage_area_residual_m2,
       'physical_closure_status': self.physical_closure_status,
+      'physical_closure_verified': self.physical_closure_verified,
       'shock_closure_status': self.shock_closure_status,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'claim_fidelity_ceiling': 'open-planar-moc',
       'state_sampling_available': self.state_sampling_available,
       'state_sampling_model': 'bounded-cell-barycentric-no-extrapolation',
       'domain_x_extent_m': self.domain_x_extent_m,
