@@ -3133,12 +3133,29 @@ class MocSolverGeneratedAmbientClosedPostShockChainReference:
         {'source_provider_returned_type': type(source).__name__},
       )
     diagnostics['upstream_source'] = source.as_report()
+    preferred_start = source.preferred_start_point_m
     start = (
       self.start_point_at(current, next_cell_index)
-      if source.preferred_start_point_m is None
-      else source.preferred_start_point_m
+      if preferred_start is None
+      else preferred_start
+    )
+    diagnostics['start_point_provenance'] = (
+      'reference-offset' if preferred_start is None else 'bounded-source-preferred'
     )
     diagnostics['start_point_m'] = start
+    if preferred_start is not None and (
+      preferred_start[0] < current.end_x_m - self.position_tolerance_m
+    ):
+      return decision(
+        MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
+        'bounded upstream source preferred shock start is upstream of the current cell interface; no backtracking or extrapolation was performed',
+        {
+          'preferred_start_point_m': preferred_start,
+          'current_cell_end_x_m': current.end_x_m,
+          'start_point_downstream_of_current_cell': False,
+        },
+      )
+    diagnostics['start_point_downstream_of_current_cell'] = True
 
     try:
       start_state = source.state_at(start)

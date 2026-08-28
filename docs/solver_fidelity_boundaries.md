@@ -138,6 +138,9 @@ is recorded as a failed continuation, not as a resolved cell. An independent
 bounded uniform-source case exercises the other legal outcome: a verified
 subsonic normal shock becomes a typed physical termination while the
 mixed-regime downstream field remains outside the supersonic MOC chain.
+When a bounded source supplies a preferred shock-start point, the planner
+requires that point to be at or downstream of the current cell interface;
+stale upstream starts are rejected without callback sampling or backtracking.
 The first-cell-owned terminal closure bridge now consumes the composite's exact
 outgoing ``C-`` handoff, fits that terminal shock, and closes only the
 supersonic side. It reports ``converged_first_cell_supersonic_region`` while

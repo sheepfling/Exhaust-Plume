@@ -1497,3 +1497,8 @@ source is the preceding field and the planner stops at its boundary with
 `UPSTREAM_FIELD_BOUNDARY`. A uniform callback is only a labeled plumbing
 fixture for multi-cell regression; it does not constitute reflected upstream
 coupling, free-boundary closure, or a product-ready solver.
+When a source supplies a preferred shock-start point, the planner also checks
+that the point is at or downstream of the current cell interface before
+sampling it. A stale or backtracking preferred point is an explicit bounded
+upstream-field stop, with no callback evaluation; this keeps a valid source
+domain from being reused as a prior-cell source or silently backtracked.

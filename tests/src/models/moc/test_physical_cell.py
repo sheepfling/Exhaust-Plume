@@ -987,6 +987,115 @@ def test_generated_ambient_closed_chain_reference_preserves_bounded_field_stop()
   )
 
 
+def test_generated_chain_rejects_a_preferred_source_start_before_the_interface() -> None:
+  field = _canonical_ambient_closed_field()
+  current = field.as_coupled_chain_cell(
+    start_x_m=0.5,
+    end_x_m=field.ambient_boundary_points_m[-1][0],
+    cell_index=1,
+  )
+  callback_calls: list[tuple[str, tuple[float, float]]] = []
+
+  def state_at(point: tuple[float, float]) -> CharacteristicState:
+    callback_calls.append(('state', point))
+    return CharacteristicState(
+      x_m=point[0],
+      y_m=point[1],
+      theta_rad=0.0,
+      mach=2.0,
+      gamma=1.4,
+    )
+
+  def static_pressure_at(point: tuple[float, float]) -> float:
+    callback_calls.append(('pressure', point))
+    return 100000.0
+
+  preferred_start = (current.end_x_m - 0.1, 0.25)
+  source = MocBoundedUpstreamFieldSource(
+    state_at=state_at,
+    static_pressure_at=static_pressure_at,
+    model='upstream-preferred-start-contract-test-source',
+    preferred_start_point_m=preferred_start,
+  )
+  reference = MocSolverGeneratedAmbientClosedPostShockChainReference(
+    total_cell_count=2,
+    shock_start_y_m=0.5,
+    upstream_source_provider=lambda *_args, source=source: source,
+  )
+
+  decision = reference.solve_next(
+    current,
+    2,
+    current.continuation_boundary,
+    field,
+  )
+
+  assert isinstance(decision, MocChainTerminationDecision)
+  assert decision.reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+  assert decision.physical_termination is False
+  assert decision.diagnostics['start_point_provenance'] == (
+    'bounded-source-preferred'
+  )
+  assert decision.diagnostics['start_point_m'] == preferred_start
+  assert decision.diagnostics['current_cell_end_x_m'] == current.end_x_m
+  assert decision.diagnostics['start_point_downstream_of_current_cell'] is False
+  assert callback_calls == []
+
+
+def test_generated_chain_routes_the_reflection_patch_to_an_open_closure_stop() -> None:
+  field = _canonical_ambient_closed_field()
+  source = build_terminal_reflection_patch_upstream_source(
+    field,
+    trace_position_tolerance_m=1.0e-3,
+    trace_invariant_tolerance=1.0e-10,
+    sample_position_tolerance_m=1.0e-3,
+  )
+  assert isinstance(source, MocBoundedUpstreamFieldSource)
+
+  reference = MocSolverGeneratedAmbientClosedPostShockChainReference(
+    total_cell_count=2,
+    shock_start_y_m=0.5,
+    ambient_pressure_Pa=101325.0,
+    outer_downstream_flow_angle_lower_rad=0.02,
+    outer_downstream_flow_angle_upper_rad=0.12,
+    sample_count=9,
+    upstream_source_provider=lambda *_args, source=source: source,
+  )
+  planner = plan_solver_generated_ambient_closed_post_shock_chain_reference(
+    field,
+    start_x_m=0.5,
+    end_x_m=field.ambient_boundary_points_m[-1][0],
+    reference=reference,
+    policy=MocChainContinuationPolicy(
+      max_cells=2,
+      require_state_carry=True,
+    ),
+  )
+
+  assert planner.resolved
+  assert planner.chain.cell_count == 1
+  assert planner.chain.physical_termination is False
+  assert planner.chain.termination_reason is (
+    MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+  )
+  assert len(planner.steps) == 1
+  assert planner.steps[0].result_kind == 'termination-returned'
+  assert planner.steps[0].result_termination_reason is (
+    MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+  )
+  diagnostics = planner.chain.diagnostics
+  assert diagnostics['upstream_source']['model'] == (
+    'bounded-terminal-reflection-patch'
+  )
+  assert diagnostics['start_point_provenance'] == (
+    'bounded-source-preferred'
+  )
+  assert diagnostics['start_point_downstream_of_current_cell'] is True
+  assert diagnostics['ambient_physical_field_result']['status'] == (
+    'ambient_attachment_failure'
+  )
+
+
 def test_generated_ambient_closed_chain_reference_re_solves_explicit_reference_cells() -> None:
   seed = _canonical_ambient_closed_field()
   uniform_upstream = CharacteristicState(
