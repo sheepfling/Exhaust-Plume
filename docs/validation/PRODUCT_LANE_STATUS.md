@@ -132,6 +132,10 @@ be reused.
 The committed validation report now records a three-cell research-only
 sequence audit with two accepted remesh domains and a typed reuse stop; it does
 not claim a physical caustic shock chain or provider readiness.
+The latest report also exercises the explicit reflected-domain Cauchy remesh:
+the prior single ``C-`` front is retained only as a reflection anchor, a new
+outer source curve is required, exact handoff provenance is checked for the
+fresh-domain sequence, and the bounded result remains research-only.
 The same validation report now exercises a bounded scalar ambient-pressure
 shoot against the actual post-shock outer perimeter. Its synthetic pressure
 coordinate reaches a candidate root but the independent streamline-tangency

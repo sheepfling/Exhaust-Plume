@@ -644,3 +644,24 @@ does not change the fidelity tier or authorize promotion into any basic,
 reduced-order, signature, ray, or focal-plane-array provider. Canonical
 reflected-domain closure, mixed-regime continuation, refinement, and external
 validation remain required.
+
+## Reflected-domain remesh checkpoint
+
+The next continuation seam is now explicit rather than implicit. A
+`MocReflectedDomainRemeshRequest` treats the prior terminal-patch outgoing
+`C-` front as one exact reflection/alternating-family anchor. It requires a
+new centerline `C+` source row and a distinct outer `C-` source curve; reusing
+the single prior characteristic as the whole outer boundary is rejected as a
+degenerate domain. The solver validates the reflection endpoint, family
+polarity, source ordering, diagonal compatibility, and scalar total-pressure
+handoff before exposing a bounded source field.
+
+`plan_reflected_domain_remesh_shock_chain` adapts that field for one
+research-only shock attempt. Its sequence counterpart requires a fresh
+remesh/source field for each later cell and an exact echo of the preceding
+chain handoff. Both planners retain `physical_closure_verified=false` and
+`production_claim_allowed=false`. The scalar source strip does not solve
+nonuniform entropy transport, the canonical free boundary, the mixed-regime
+downstream field, or the physical shock-cell closure; those remain the next
+gates. The basic visual, reduced-order, signature, ray, and focal-plane-array
+providers remain untouched.

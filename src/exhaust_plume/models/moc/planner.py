@@ -30,6 +30,9 @@ from exhaust_plume.models.moc.chain import (
   continue_moc_cell_chain,
 )
 from exhaust_plume.models.moc.caustic_restart import MocCausticFamilyBandResult
+from exhaust_plume.models.moc.reflected_domain import (
+  MocReflectedDomainRemeshResult,
+)
 from exhaust_plume.models.moc.caustic_bridge import (
   MocCausticBridgeSide,
   MocCausticBridgeStatus,
@@ -100,6 +103,7 @@ from exhaust_plume.models.moc.source_strip import (
   MocSourceCharacteristicStripResult,
   MocSourceStripCausticShockSeedResult,
   MocSourceStripContinuationResult,
+  MocSourceStripContinuationStatus,
 )
 from exhaust_plume.models.moc.terminal_patch import (
   MocTerminalReflectionPatchResult,
@@ -173,6 +177,8 @@ __all__ = (
   'plan_caustic_shock_remesh_chain_from_upstream_bridge',
   'plan_caustic_upstream_remesh_shock_chain',
   'plan_caustic_upstream_remesh_shock_chain_sequence',
+  'plan_reflected_domain_remesh_shock_chain',
+  'plan_reflected_domain_remesh_shock_chain_sequence',
   'plan_caustic_simple_wave_terminal_chain',
   'plan_caustic_remesh_downstream_field_chain',
   'plan_caustic_remesh_downstream_field_invariant_chain',
@@ -6954,6 +6960,370 @@ def plan_source_strip_shock_chain_sequence(
     'source_domain_attempts': source_attempts,
   })
   return replace(planner, diagnostics=diagnostics)
+####
+
+
+def _reflected_domain_source_continuation(
+  remesh: MocReflectedDomainRemeshResult,
+) -> MocSourceStripContinuationResult:
+  """Adapt one reflected-domain result to the generic source-chain lane."""
+
+  if remesh.state_sampling_available:
+    return remesh.as_source_continuation()
+  request = remesh.request
+  plus = () if request is None else request.centerline_source_states
+  minus = () if request is None else request.outer_source_states
+  return MocSourceStripContinuationResult(
+    status=MocSourceStripContinuationStatus.BOUNDARY_FAILURE,
+    strip=None,
+    plus_source_states=plus,
+    minus_source_states=minus,
+    added_sample_count=0,
+    axis_step_m=None,
+    continuation_k_plus=None,
+    message=(
+      remesh.message
+      or 'reflected-domain remesh did not provide a converged bounded source field'
+    ),
+    continuation_law=(
+      'explicit-reflected-domain-cauchy-remesh'
+      if request is None
+      else request.source_model
+    ),
+  )
+####
+
+
+def plan_reflected_domain_remesh_shock_chain(
+  seed: MocPostShockCharacteristicFieldResult,
+  remesh: MocReflectedDomainRemeshResult,
+  *,
+  start_point_m: tuple[float, float],
+  start_x_m: float,
+  end_x_m: float,
+  target_centerline_y_m: float = 0.0,
+  downstream_flow_angle_at: Callable[[int, tuple[float, float]], float] | None = None,
+  downstream_flow_angle_rad: float | None = None,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  policy: MocChainContinuationPolicy | None = None,
+) -> MocChainPlannerResult:
+  """Plan one shock attempt from an explicit reflected-domain remesh.
+
+  The remesh is adapted to the existing bounded-source planner for one
+  attempt only.  A successful shock/field result may become a research cell;
+  it does not make the reflected-domain source field a canonical physical
+  closure and it cannot be reused for another cell.
+  """
+
+  if not isinstance(remesh, MocReflectedDomainRemeshResult):
+    raise TypeError('remesh must be a MocReflectedDomainRemeshResult')
+  continuation = _reflected_domain_source_continuation(remesh)
+  planner = plan_source_strip_shock_chain(
+    seed,
+    continuation,
+    start_point_m=start_point_m,
+    start_x_m=start_x_m,
+    end_x_m=end_x_m,
+    target_centerline_y_m=target_centerline_y_m,
+    downstream_flow_angle_at=downstream_flow_angle_at,
+    downstream_flow_angle_rad=downstream_flow_angle_rad,
+    sample_count=sample_count,
+    branch=branch,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+    shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+    maximum_segment_iterations=maximum_segment_iterations,
+    policy=policy,
+  )
+  diagnostics = dict(planner.diagnostics)
+  diagnostics.update({
+    'reflected_domain_remesh': remesh.as_report(),
+    'reflected_domain_chain_model': 'bounded-reflected-domain-remesh-one-step',
+    'one_step_domain': True,
+    'reflected_domain_reuse_policy': (
+      'never-reuse-after-one-next-cell-attempt'
+    ),
+    'canonical_reflected_domain_closed': False,
+    'physical_closure_pending': True,
+  })
+  return replace(
+    planner,
+    claim_status=(
+      'reflected-domain-remesh shock-chain planner; one-step bounded source; '
+      'canonical free-boundary and physical closure pending'
+    ),
+    diagnostics=diagnostics,
+  )
+####
+
+
+def plan_reflected_domain_remesh_shock_chain_sequence(
+  seed: MocPostShockCharacteristicFieldResult,
+  remesh: MocReflectedDomainRemeshResult,
+  remesh_at: Callable[
+    [MocChainCell, int, tuple[MocChainBoundarySample, ...]],
+    MocReflectedDomainRemeshResult | MocChainTerminationDecision | None,
+  ],
+  *,
+  start_point_at: Callable[
+    [MocChainCell, int, MocReflectedDomainRemeshResult],
+    tuple[float, float],
+  ],
+  start_x_m: float,
+  end_x_m: float,
+  end_x_at: Callable[
+    [MocChainCell, int, MocReflectedDomainRemeshResult],
+    float,
+  ] | None = None,
+  target_centerline_y_m: float = 0.0,
+  downstream_flow_angle_at: Callable[[int, tuple[float, float]], float] | None = None,
+  downstream_flow_angle_rad: float | None = None,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  policy: MocChainContinuationPolicy | None = None,
+) -> MocChainPlannerResult:
+  """Plan continued shocks with a fresh reflected remesh for each cell.
+
+  The callback must return a new reflected-domain result whose request records
+  the exact incoming handoff supplied by the prior chain cell.  The generic
+  source-strip sequence then enforces distinct result/field identities.  The
+  wrapper exists to expose the reflected-domain seam without allowing a
+  single-characteristic front or a reused source field to masquerade as a
+  continued physical chain.
+  """
+
+  if not isinstance(seed, MocPostShockCharacteristicFieldResult):
+    raise TypeError('seed must be a MocPostShockCharacteristicFieldResult')
+  if not isinstance(remesh, MocReflectedDomainRemeshResult):
+    raise TypeError('remesh must be a MocReflectedDomainRemeshResult')
+  if not callable(remesh_at):
+    raise TypeError('remesh_at must be callable')
+  if not callable(start_point_at):
+    raise TypeError('start_point_at must be callable')
+  if end_x_at is not None and not callable(end_x_at):
+    raise TypeError('end_x_at must be callable when supplied')
+
+  continuation_by_id: dict[int, MocReflectedDomainRemeshResult] = {}
+  initial_continuation = _reflected_domain_source_continuation(remesh)
+  continuation_by_id[id(initial_continuation)] = remesh
+  remesh_attempts: list[dict[str, Any]] = [{
+    'current_cell_index': 1,
+    'next_cell_index': 2,
+    'role': 'initial-reflected-domain-remesh',
+    'remesh': remesh.as_report(),
+    'fresh_remesh': True,
+    'fresh_source_field': remesh.source_strip is not None,
+  }]
+
+  def provider_failure(
+    next_cell_index: int,
+    message: str,
+    *,
+    reason: MocChainTerminationReason = MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
+    diagnostics: dict[str, Any] | None = None,
+  ) -> MocChainTerminationDecision:
+    payload: dict[str, Any] = {
+      'termination_model': 'reflected-domain-remesh-sequence',
+      'next_cell_index': next_cell_index,
+      'reflected_domain_reuse_policy': (
+        'fresh-reflected-domain-remesh-required-per-cell'
+      ),
+    }
+    if diagnostics is not None:
+      payload.update(diagnostics)
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=reason,
+      message=message,
+      diagnostics=payload,
+    )
+
+  def source_at(
+    current: MocChainCell,
+    next_cell_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+  ) -> MocSourceStripContinuationResult | MocChainTerminationDecision | None:
+    try:
+      candidate = remesh_at(current, next_cell_index, incoming_handoff)
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      remesh_attempts.append({
+        'current_cell_index': current.cell_index,
+        'next_cell_index': next_cell_index,
+        'role': 'reflected-domain-remesh-provider',
+        'provider_error': type(error).__name__,
+        'fresh_remesh': False,
+        'fresh_source_field': False,
+      })
+      return provider_failure(
+        next_cell_index,
+        f'reflected-domain remesh provider failed: {error}',
+        reason=MocChainTerminationReason.SOLVER_ERROR,
+      )
+    if candidate is None:
+      remesh_attempts.append({
+        'current_cell_index': current.cell_index,
+        'next_cell_index': next_cell_index,
+        'role': 'reflected-domain-remesh-provider',
+        'provider_result': None,
+        'fresh_remesh': False,
+        'fresh_source_field': False,
+      })
+      return provider_failure(
+        next_cell_index,
+        'reflected-domain remesh provider returned no bounded source field',
+      )
+    if isinstance(candidate, MocChainTerminationDecision):
+      remesh_attempts.append({
+        'current_cell_index': current.cell_index,
+        'next_cell_index': next_cell_index,
+        'role': 'reflected-domain-remesh-provider',
+        'provider_decision': candidate.as_report(),
+        'fresh_remesh': False,
+        'fresh_source_field': False,
+      })
+      if candidate.physical_termination:
+        return provider_failure(
+          next_cell_index,
+          'reflected-domain provider cannot declare physical termination '
+          'from an unresolved remesh boundary',
+        )
+      return candidate
+    if not isinstance(candidate, MocReflectedDomainRemeshResult):
+      remesh_attempts.append({
+        'current_cell_index': current.cell_index,
+        'next_cell_index': next_cell_index,
+        'role': 'reflected-domain-remesh-provider',
+        'provider_result_type': type(candidate).__name__,
+        'fresh_remesh': False,
+        'fresh_source_field': False,
+      })
+      return provider_failure(
+        next_cell_index,
+        'reflected-domain remesh provider must return a '
+        'MocReflectedDomainRemeshResult, MocChainTerminationDecision, or None',
+        reason=MocChainTerminationReason.INVALID_INPUT,
+      )
+    request = candidate.request
+    handoff_verified = bool(
+      request is not None and request.incoming_handoff == incoming_handoff
+    )
+    if not handoff_verified:
+      remesh_attempts.append({
+        'current_cell_index': current.cell_index,
+        'next_cell_index': next_cell_index,
+        'role': 'reflected-domain-remesh-handoff-seam',
+        'remesh': candidate.as_report(),
+        'incoming_handoff_sample_count': len(incoming_handoff),
+        'remesh_request_incoming_handoff_sample_count': (
+          None if request is None else len(request.incoming_handoff)
+        ),
+        'incoming_handoff_verified': False,
+        'fresh_remesh': False,
+        'fresh_source_field': False,
+      })
+      return provider_failure(
+        next_cell_index,
+        (
+          'reflected-domain remesh provider did not record the exact prior '
+          'chain handoff in its request'
+        ),
+        diagnostics={
+          'incoming_handoff_sample_count': len(incoming_handoff),
+          'remesh_request_incoming_handoff_sample_count': (
+            None if request is None else len(request.incoming_handoff)
+          ),
+          'incoming_handoff_verified': False,
+        },
+      )
+    continuation = _reflected_domain_source_continuation(candidate)
+    continuation_by_id[id(continuation)] = candidate
+    remesh_attempts.append({
+      'current_cell_index': current.cell_index,
+      'next_cell_index': next_cell_index,
+      'role': 'reflected-domain-remesh-provider',
+      'remesh': candidate.as_report(),
+      'incoming_handoff_sample_count': len(incoming_handoff),
+      'incoming_handoff_verified': True,
+      'fresh_remesh': True,
+      'fresh_source_field': candidate.source_strip is not None,
+    })
+    return continuation
+
+  def source_start(
+    current: MocChainCell,
+    next_cell_index: int,
+    continuation: MocSourceStripContinuationResult,
+  ) -> tuple[float, float]:
+    candidate = continuation_by_id.get(id(continuation))
+    if candidate is None:
+      raise ValueError(
+        'reflected-domain planner lost the source-remesh provenance mapping'
+      )
+    return start_point_at(current, next_cell_index, candidate)
+
+  def source_end(
+    current: MocChainCell,
+    next_cell_index: int,
+    continuation: MocSourceStripContinuationResult,
+  ) -> float:
+    candidate = continuation_by_id.get(id(continuation))
+    if candidate is None:
+      raise ValueError(
+        'reflected-domain planner lost the source-remesh provenance mapping'
+      )
+    assert end_x_at is not None
+    return end_x_at(current, next_cell_index, candidate)
+
+  planner = plan_source_strip_shock_chain_sequence(
+    seed,
+    initial_continuation,
+    source_at,
+    start_point_at=source_start,
+    start_x_m=start_x_m,
+    end_x_m=end_x_m,
+    end_x_at=(source_end if end_x_at is not None else None),
+    target_centerline_y_m=target_centerline_y_m,
+    downstream_flow_angle_at=downstream_flow_angle_at,
+    downstream_flow_angle_rad=downstream_flow_angle_rad,
+    sample_count=sample_count,
+    branch=branch,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+    shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+    maximum_segment_iterations=maximum_segment_iterations,
+    policy=policy,
+  )
+  diagnostics = dict(planner.diagnostics)
+  diagnostics.update({
+    'reflected_domain_chain_model': (
+      'bounded-reflected-domain-remesh-fresh-domain-sequence'
+    ),
+    'reflected_domain_remesh': remesh.as_report(),
+    'reflected_domain_remesh_attempt_count': len(remesh_attempts),
+    'reflected_domain_remesh_attempts': remesh_attempts,
+    'reflected_domain_reuse_policy': (
+      'fresh-reflected-domain-remesh-required-per-cell'
+    ),
+    'canonical_reflected_domain_closed': False,
+    'physical_closure_pending': True,
+  })
+  return replace(
+    planner,
+    claim_status=(
+      'reflected-domain-remesh shock-chain sequence; fresh bounded source per '
+      'cell; canonical free-boundary and physical closure pending'
+    ),
+    diagnostics=diagnostics,
+  )
 ####
 
 

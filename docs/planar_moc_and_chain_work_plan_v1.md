@@ -1655,3 +1655,16 @@ closure gates. The prefix remains below canonical reflected expansion/
 remeshing, mixed-regime, refinement, and external validation acceptance, and
 it cannot promote or mutate the basic, reduced-order, signature, ray, or FPA
 providers.
+
+The reflected-domain remesh seam is now implemented as a separate research
+lane. `MocReflectedDomainRemeshRequest` preserves the prior outgoing `C-`
+front as an exact reflection anchor and requires independently supplied
+centerline `C+` and new outer `C-` source data, so a one-characteristic front
+cannot be mistaken for a two-dimensional source boundary. The bounded field
+validates polarity, ordering, diagonal compatibility, and scalar total-
+pressure continuity; its one-step and fresh-domain sequence planners record
+the fidelity ceiling and exact incoming-handoff provenance. The validation
+report exercises both the accepted remesh and the typed rejection of front
+reuse. Canonical alternating-family/free-boundary remeshing, nonuniform
+entropy transport, mixed-regime closure, refinement, and external validation
+remain open, and no product/provider lane consumes this result.

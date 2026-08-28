@@ -218,6 +218,12 @@ from exhaust_plume.models.moc.caustic_restart import (
   MocCausticFamilyRestartStatus,
   restart_characteristic_family_from_caustic,
 )
+from exhaust_plume.models.moc.reflected_domain import (
+  MocReflectedDomainRemeshStatus,
+  MocReflectedDomainRemeshRequest,
+  MocReflectedDomainRemeshResult,
+  solve_reflected_domain_remesh,
+)
 from exhaust_plume.models.moc.family_band_solver import (
   MocCausticFamilyBandEnvelopeResult,
   MocCausticFamilyBandEnvelopeStatus,
@@ -383,6 +389,8 @@ from exhaust_plume.models.moc.planner import (
   plan_post_shock_field_chain,
   plan_source_strip_shock_chain,
   plan_source_strip_shock_chain_sequence,
+  plan_reflected_domain_remesh_shock_chain,
+  plan_reflected_domain_remesh_shock_chain_sequence,
   plan_post_shock_field_invariant_chain,
   plan_prescribed_post_shock_chain_mock,
   plan_solver_generated_post_shock_chain_reference,
@@ -503,6 +511,8 @@ __all__ = (
   'plan_post_shock_field_chain',
   'plan_source_strip_shock_chain',
   'plan_source_strip_shock_chain_sequence',
+  'plan_reflected_domain_remesh_shock_chain',
+  'plan_reflected_domain_remesh_shock_chain_sequence',
   'plan_post_shock_field_invariant_chain',
   'plan_prescribed_post_shock_chain_mock',
   'plan_solver_generated_post_shock_chain_reference',
@@ -582,6 +592,10 @@ __all__ = (
   'MocCausticFamilyRestartStatus',
   'MocCausticFamilyBandResult',
   'MocCausticFamilyBandStatus',
+  'MocReflectedDomainRemeshStatus',
+  'MocReflectedDomainRemeshRequest',
+  'MocReflectedDomainRemeshResult',
+  'solve_reflected_domain_remesh',
   'MocCausticFamilyBandShockResult',
   'MocCausticFamilyBandShockStatus',
   'MocCausticFamilyBandInvariantShockResult',

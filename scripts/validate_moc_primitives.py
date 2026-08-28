@@ -39,6 +39,8 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocPostShockBoundaryState,
   MocPostShockChainCellSolve,
   MocPostShockCharacteristicFieldResult,
+  MocReflectedDomainRemeshRequest,
+  MocReflectedDomainRemeshStatus,
   MocReflectedTracePolarity,
   MocPrescribedMixedRegimeClosureMock,
   MocPrescribedPostShockChainMock,
@@ -88,6 +90,9 @@ from exhaust_plume.models.moc import (  # noqa: E402
   plan_post_shock_zone_chain,
   plan_source_strip_shock_chain,
   plan_source_strip_shock_chain_sequence,
+  plan_reflected_domain_remesh_shock_chain,
+  plan_reflected_domain_remesh_shock_chain_sequence,
+  solve_reflected_domain_remesh,
   plan_terminal_reflection_patch_chain,
   MocShockBoundaryFitResult,
   MocShockBoundaryFitStatus,
@@ -445,6 +450,268 @@ def _solver_generated_shock_fixture() -> MocFreeBoundaryShockResult:
     outer_downstream_flow_angle_rad=0.05,
     sample_count=17,
   )
+
+
+def _reflected_domain_source_request(
+  reflection_patch: Any,
+  *,
+  incoming_handoff: tuple[MocChainBoundarySample, ...] = (),
+  variation_index: int = 0,
+) -> MocReflectedDomainRemeshRequest:
+  """Build explicit Cauchy data for the reflected-domain research lane."""
+
+  if not reflection_patch.converged:
+    raise ValueError('reflected-domain fixture requires a converged patch')
+  anchor = reflection_patch.outgoing_trace_states[-1]
+  total_pressure = reflection_patch.outgoing_trace_total_pressure_Pa[-1]
+  centerline: list[CharacteristicState] = []
+  outer: list[CharacteristicState] = []
+  k_plus_step = 0.002 + 0.0001 * variation_index
+  theta_step = 0.004 + 0.0002 * variation_index
+  axis_step = 0.015 + 0.001 * variation_index
+  ordinate_step = 0.012 + 0.001 * variation_index
+  for index in range(6):
+    k_plus = anchor.k_plus - k_plus_step * index
+    inversion = inverse_prandtl_meyer_angle_rad(-k_plus, anchor.gamma)
+    if inversion.value is None:
+      raise ValueError('reflected-domain axis fixture inversion failed')
+    axis_x = anchor.x_m + axis_step * index
+    axis_state = CharacteristicState(
+      x_m=axis_x,
+      y_m=0.0,
+      theta_rad=0.0,
+      mach=inversion.value,
+      gamma=anchor.gamma,
+    )
+    theta = 0.06 - theta_step * index
+    outer_inversion = inverse_prandtl_meyer_angle_rad(
+      theta - k_plus,
+      anchor.gamma,
+    )
+    if outer_inversion.value is None:
+      raise ValueError('reflected-domain outer fixture inversion failed')
+    outer_probe = CharacteristicState(
+      x_m=axis_x,
+      y_m=0.0,
+      theta_rad=theta,
+      mach=outer_inversion.value,
+      gamma=anchor.gamma,
+    )
+    characteristic_angle = 0.5 * (
+      axis_state.mu_rad
+      + outer_probe.theta_rad
+      + outer_probe.mu_rad
+    )
+    ordinate = 0.10 + ordinate_step * index
+    outer.append(
+      CharacteristicState(
+        x_m=axis_x + ordinate * cos(characteristic_angle) / sin(
+          characteristic_angle
+        ),
+        y_m=ordinate,
+        theta_rad=theta,
+        mach=outer_inversion.value,
+        gamma=anchor.gamma,
+      )
+    )
+    centerline.append(axis_state)
+  return MocReflectedDomainRemeshRequest(
+    reflection_patch=reflection_patch,
+    centerline_source_states=tuple(centerline),
+    outer_source_states=tuple(outer),
+    total_pressure_Pa=total_pressure,
+    incoming_handoff=incoming_handoff,
+  )
+
+
+def _reflected_domain_remesh_probe(
+  reflection_patch: Any,
+  seed_field: MocPostShockCharacteristicFieldResult | None,
+) -> dict[str, Any]:
+  """Audit reflected-domain remeshing and its fresh-domain chain adapters."""
+
+  if not reflection_patch.converged:
+    return {
+      'status': 'invalid_input',
+      'accepted': False,
+      'message': 'terminal reflection patch did not converge',
+      'claim_status': 'reflected-domain-remesh-pending',
+    }
+  try:
+    request = _reflected_domain_source_request(reflection_patch)
+    remesh = solve_reflected_domain_remesh(request)
+    reused_request = replace(
+      request,
+      outer_source_states=reflection_patch.outgoing_trace_states[
+        :len(request.outer_source_states)
+      ],
+    )
+    reused_front = solve_reflected_domain_remesh(reused_request)
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return {
+      'status': 'fixture_failure',
+      'accepted': False,
+      'message': f'reflected-domain fixture failed: {error}',
+      'claim_status': 'reflected-domain-remesh-pending',
+    }
+
+  one_step_planner = None
+  one_step_error = None
+  sequence_planner = None
+  sequence_error = None
+  sequence_calls: list[dict[str, Any]] = []
+  if seed_field is not None and seed_field.converged:
+    try:
+      one_step_planner = plan_reflected_domain_remesh_shock_chain(
+        seed_field,
+        remesh,
+        start_point_m=(
+          request.outer_source_states[0].x_m,
+          request.outer_source_states[0].y_m,
+        ),
+        start_x_m=0.5,
+        end_x_m=1.0,
+        downstream_flow_angle_rad=0.05,
+        sample_count=9,
+        policy=MocChainContinuationPolicy(
+          max_cells=2,
+          require_state_carry=True,
+        ),
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      one_step_error = f'{type(error).__name__}: {error}'
+
+    def fake_source_solver(
+      current,
+      _next_cell_index,
+      incoming_handoff,
+      _source_strip,
+      **kwargs,
+    ):
+      del kwargs
+      next_field_result = solve_uniform_attached_shock_field(
+        CharacteristicState(
+          current.end_x_m + 0.01,
+          0.25,
+          -0.2,
+          2.0,
+          1.4,
+        ),
+        100000.0,
+        (current.end_x_m + 0.01, 0.25),
+        outer_downstream_flow_angle_rad=0.05,
+        sample_count=9,
+      )
+      if next_field_result.field is None:
+        raise ValueError('sequence fixture could not build its next field')
+      incoming = tuple(incoming_handoff)
+      next_field = replace(
+        next_field_result.field,
+        incoming_handoff_states=tuple(sample.state for sample in incoming),
+        incoming_handoff_total_pressure_Pa=tuple(
+          sample.total_pressure_Pa for sample in incoming
+        ),
+        upstream_boundary_total_pressure_Pa=(
+          min(sample.total_pressure_Pa for sample in incoming),
+        ) * len(next_field_result.field.upstream_boundary_states),
+      )
+      return MocPostShockChainCellSolve(
+        field=next_field,
+        end_x_m=current.end_x_m + 0.2,
+      )
+
+    def remesh_at(current, next_cell_index, incoming_handoff):
+      sequence_calls.append({
+        'current_cell_index': current.cell_index,
+        'next_cell_index': next_cell_index,
+        'incoming_handoff_sample_count': len(incoming_handoff),
+      })
+      if len(sequence_calls) > 1:
+        return None
+      return solve_reflected_domain_remesh(
+        _reflected_domain_source_request(
+          reflection_patch,
+          incoming_handoff=incoming_handoff,
+          variation_index=1,
+        )
+      )
+
+    try:
+      with patch(
+        'exhaust_plume.models.moc.planner.'
+        'solve_marched_attached_shock_chain_cell_from_source_strip_or_termination'
+      ) as source_solver:
+        source_solver.side_effect = fake_source_solver
+        sequence_planner = plan_reflected_domain_remesh_shock_chain_sequence(
+          seed_field,
+          remesh,
+          remesh_at,
+          start_point_at=lambda _current, _index, candidate: (
+            candidate.request.outer_source_states[0].x_m,
+            candidate.request.outer_source_states[0].y_m,
+          ),
+          start_x_m=0.5,
+          end_x_m=0.9,
+          downstream_flow_angle_rad=0.05,
+          sample_count=9,
+          policy=MocChainContinuationPolicy(
+            max_cells=3,
+            require_state_carry=True,
+          ),
+        )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      sequence_error = f'{type(error).__name__}: {error}'
+
+  one_step_report = (
+    None if one_step_planner is None else one_step_planner.as_report()
+  )
+  sequence_report = (
+    None if sequence_planner is None else sequence_planner.as_report()
+  )
+  accepted = bool(
+    remesh.status is MocReflectedDomainRemeshStatus.CONVERGED_BOUNDED_FIELD
+    and remesh.state_sampling_available
+    and remesh.reflection_seam_verified
+    and remesh.centerline_source_verified
+    and remesh.outer_source_verified
+    and remesh.source_field_verified
+    and remesh.physical_closure_verified is False
+    and remesh.chain_promotion_blocked
+    and reused_front.status is MocReflectedDomainRemeshStatus.OUTER_SOURCE_FAILURE
+    and one_step_planner is not None
+    and one_step_planner.production_claim_allowed is False
+    and one_step_planner.diagnostics['one_step_domain'] is True
+    and one_step_planner.diagnostics['canonical_reflected_domain_closed'] is False
+    and one_step_planner.chain.physical_termination is False
+    and sequence_planner is not None
+    and sequence_planner.production_claim_allowed is False
+    and sequence_planner.diagnostics[
+      'reflected_domain_reuse_policy'
+    ] == 'fresh-reflected-domain-remesh-required-per-cell'
+    and sequence_planner.diagnostics[
+      'reflected_domain_remesh_attempt_count'
+    ] >= 2
+    and sequence_planner.diagnostics[
+      'reflected_domain_remesh_attempts'
+    ][1]['incoming_handoff_verified'] is True
+    and sequence_planner.chain.physical_termination is False
+    and len(sequence_calls) >= 1
+  )
+  return {
+    'status': remesh.status.value,
+    'accepted': accepted,
+    'remesh': remesh.as_report(),
+    'reused_single_front_rejection': reused_front.as_report(),
+    'one_step_planner': one_step_report,
+    'one_step_error': one_step_error,
+    'sequence_planner': sequence_report,
+    'sequence_error': sequence_error,
+    'sequence_provider_calls': sequence_calls,
+    'claim_status': (
+      'explicit-reflected-domain-cauchy-remesh-and-fresh-domain-sequence; '
+      'canonical-free-boundary-mixed-regime-and-physical-closure-pending'
+    ),
+  }
 
 
 def _ambient_shock_strip_probe(
@@ -1222,6 +1489,10 @@ def _ambient_shock_strip_probe(
     strip,
     trace_position_tolerance_m=2.0e-4,
   )
+  reflected_domain_remesh = _reflected_domain_remesh_probe(
+    terminal_patch,
+    solver_generated_shock.field,
+  )
   terminal_patch_trace_polarity = None
   terminal_patch_trace_profile = None
   terminal_patch_trace_profile_accepted = False
@@ -1548,6 +1819,7 @@ def _ambient_shock_strip_probe(
       trace_position_tolerance_m=2.0e-4,
     ).as_report(),
     'terminal_reflection_patch': terminal_patch.as_report(),
+    'reflected_domain_remesh': reflected_domain_remesh,
     'terminal_reflection_patch_trace_polarity': (
       None
       if terminal_patch_trace_polarity is None
@@ -6781,6 +7053,16 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'terminal_reflection_patch_trace_profile_accepted'
     ) is not True
   )
+  reflected_domain_remesh_probe = ambient_shock_strip_probe.get(
+    'reflected_domain_remesh',
+  )
+  reflected_domain_remesh_failure = (
+    ambient_shock_strip_probe.get('accepted') is True
+    and (
+      not isinstance(reflected_domain_remesh_probe, dict)
+      or reflected_domain_remesh_probe.get('accepted') is not True
+    )
+  )
   first_cell_composite_probe = ambient_shock_strip_probe.get(
     'first_cell_composite',
   )
@@ -7468,6 +7750,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'claim_status': 'solver-generated-boundary-conditioned-field; upstream-field-coupling-pending',
     },
     'solver_generated_ambient_shock_strip': ambient_shock_strip_probe,
+    'solver_generated_reflected_domain_remesh': reflected_domain_remesh_probe,
     'solver_generated_terminal_patch_chain_probe': terminal_patch_chain_probe,
     'solver_generated_first_cell_composite': first_cell_composite_probe,
     'solver_generated_first_cell_terminal_closure': first_cell_terminal_closure_probe,
@@ -8443,6 +8726,22 @@ def build_moc_primitive_report() -> dict[str, Any]:
     ] if terminal_patch_trace_profile_failure else []),
     *([
       {
+        'case': 'solver_generated_reflected_domain_remesh',
+        'status': (
+          'missing'
+          if not isinstance(reflected_domain_remesh_probe, dict)
+          else str(reflected_domain_remesh_probe.get('status', 'missing'))
+        ),
+        'message': (
+          'explicit reflected-domain Cauchy remesh or its fresh-domain '
+          'chain adapter did not pass the research contract'
+          if not isinstance(reflected_domain_remesh_probe, dict)
+          else str(reflected_domain_remesh_probe.get('message', ''))
+        ),
+      }
+    ] if reflected_domain_remesh_failure else []),
+    *([
+      {
         'case': 'solver_generated_ambient_centerline_physical_terminal_patch_refinement',
         'status': 'refinement-gate-failed',
         'message': str(
@@ -8837,7 +9136,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
     'geometry_cases': geometry_results,
     'failures': failures,
     'next_gates': [
-      'replace the research terminal-patch downstream turn with a physically validated reflected-domain law for any further shock-cell transition',
+      'replace the bounded reflected-domain Cauchy fixture with a coupled canonical alternating-family/free-boundary remesher for any further shock-cell transition',
       'replace the provisional constant-invariant boundary with a physically validated downstream closure and a straddling canonical bracket',
       'complete and independently validate the canonical reflected-MOC mixed-regime downstream closure after the open oblique supersonic patch; the affine projected potential reference remains research-only',
       'production next-cell shock fitting that consumes the typed state/total-pressure handoff without a geometric template',
