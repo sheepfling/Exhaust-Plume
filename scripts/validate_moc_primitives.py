@@ -179,6 +179,7 @@ from exhaust_plume.validation.moc_measurements import (  # noqa: E402
   MocMixedRegimeFreeBoundaryMeasurementStatus,
   MocTerminalClosureObservation,
   MocShockCellObservation,
+  MocShockCellChainRefinementCase,
   measure_moc_caustic_remesh,
   measure_moc_chain_planner,
   measure_mixed_regime_control_section,
@@ -187,6 +188,7 @@ from exhaust_plume.validation.moc_measurements import (  # noqa: E402
   measure_moc_terminal_closure,
   measure_moc_shock_cell,
   measure_moc_shock_cell_chain,
+  measure_moc_shock_cell_chain_refinement,
 )
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput  # noqa: E402
 from exhaust_plume.models.nozzle.exit_state import derive_ambient_state, derive_uniform_nozzle_exit  # noqa: E402
@@ -2791,6 +2793,70 @@ def _solver_generated_chain_reference(
     },
   )
   return planner.chain, observations, measurement_observations, planner
+
+
+def _solver_generated_chain_refinement_probe() -> Any:
+  """Measure the generated continued-chain reference at three resolutions."""
+
+  cases: list[MocShockCellChainRefinementCase] = []
+  for sample_count in (9, 17, 33):
+    generated = solve_uniform_attached_shock_field(
+      CharacteristicState(
+        x_m=0.5,
+        y_m=0.5,
+        theta_rad=-0.2,
+        mach=2.0,
+        gamma=1.4,
+      ),
+      100000.0,
+      (0.5, 0.5),
+      outer_downstream_flow_angle_rad=0.05,
+      sample_count=sample_count,
+    )
+    field = generated.field
+    if field is None or not field.converged:
+      continue
+    reference = MocSolverGeneratedPostShockChainReference(
+      total_cell_count=5,
+      sample_count=sample_count,
+    )
+    returned_fields: list[MocPostShockCharacteristicFieldResult] = []
+
+    def solve_next(current, cell_index, handoff):
+      solved = reference.solve_next(current, cell_index, handoff)
+      if isinstance(solved, MocPostShockChainCellSolve):
+        returned_fields.append(solved.field)
+      return solved
+
+    planner = plan_post_shock_characteristic_chain(
+      field,
+      solve_next,
+      start_x_m=0.5,
+      end_x_m=1.0,
+      require_upstream_shock_coupling=True,
+      planner_kind=MocChainPlannerKind.SOLVER_GENERATED_REFERENCE,
+    )
+    observations = tuple(
+      [
+        _post_shock_field_measurement_observation(field, cell_index=1),
+      ]
+      + [
+        _post_shock_field_measurement_observation(
+          returned_field,
+          cell_index=index + 2,
+        )
+        for index, returned_field in enumerate(returned_fields)
+      ]
+    )
+    cases.append(
+      MocShockCellChainRefinementCase(
+        resolution=sample_count,
+        observations=observations,
+        termination_reason=planner.chain.termination_reason.value,
+        physical_termination=planner.chain.physical_termination,
+      )
+    )
+  return measure_moc_shock_cell_chain_refinement(cases)
 
 
 def _solver_generated_field_coupled_chain_planner(
@@ -6038,6 +6104,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
   solver_generated_chain_measurement = None
   solver_generated_chain_planner = None
   solver_generated_chain_planner_measurement = None
+  solver_generated_chain_refinement_measurement = None
   solver_generated_field_coupled_chain_planner = None
   solver_generated_field_coupled_chain_planner_measurement = None
   solver_generated_invariant_field_coupled_chain_planner = None
@@ -6054,6 +6121,9 @@ def build_moc_primitive_report() -> dict[str, Any]:
     )
     solver_generated_chain_planner_measurement = measure_moc_chain_planner(
       solver_generated_chain_planner,
+    )
+    solver_generated_chain_refinement_measurement = (
+      _solver_generated_chain_refinement_probe()
     )
     solver_generated_field_coupled_chain_planner = (
       _solver_generated_field_coupled_chain_planner(solver_generated_shock.field)
@@ -6290,6 +6360,12 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or not solver_generated_chain_planner_measurement.fidelity_isolation_verified
     or solver_generated_chain_planner_measurement.physical_termination is not False
     or solver_generated_chain_planner_measurement.production_claim_allowed
+    or solver_generated_chain_refinement_measurement is None
+    or not solver_generated_chain_refinement_measurement.converged
+    or not solver_generated_chain_refinement_measurement.pressure_loss_verified
+    or not solver_generated_chain_refinement_measurement.refinement_convergence_verified
+    or solver_generated_chain_refinement_measurement.termination_sensitivity_verified is not True
+    or solver_generated_chain_refinement_measurement.handoff_links_verified is not True
     or solver_generated_chain_measurement is None
     or not solver_generated_chain_measurement.converged
     or solver_generated_chain_measurement.handoff_links_verified is not True
@@ -7281,6 +7357,11 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'strict_upstream_coupling_mode': True,
       'claim_status': 'strict-upstream-coupled-chain-reference; reflected-field-coupling-pending',
     },
+    'solver_generated_chain_refinement': (
+      None
+      if solver_generated_chain_refinement_measurement is None
+      else solver_generated_chain_refinement_measurement.as_report()
+    ),
     'solver_generated_chain_planner': {
       'planner_kind': (
         None

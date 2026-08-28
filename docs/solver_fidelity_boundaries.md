@@ -208,8 +208,9 @@ continuation now records a valid local patch separately from a full-strip
 caustic, and a bracketed constant-invariant downstream shoot consumes that
 patch without extrapolation. The canonical shoot currently returns a
 no-bracket diagnostic, so the coupled upstream characteristic-strip/shock-path
-closure remains open. The independent `op.moc.shock-cell-geometry` and
-`op.moc.shock-cell-chain` operators now measure explicit shock-cell geometry,
+closure remains open. The independent `op.moc.shock-cell-geometry`,
+`op.moc.shock-cell-chain`, and `op.moc.shock-cell-chain-refinement` operators
+now measure explicit shock-cell geometry,
 perimeter topology, supplied shock-loss lineage, and exact adjacent
 state/total-pressure handoff identity for the reference and planner fixtures,
 while the separate `op.moc.chain-planner` operator independently audits the

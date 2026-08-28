@@ -1448,14 +1448,29 @@ def _convex_polygon(points: Sequence[tuple[float, float]], tolerance_m: float) -
     (*points[2:], points[0], points[1]),
     strict=True,
   ):
+    first_edge = (second[0] - first[0], second[1] - first[1])
+    second_edge = (third[0] - second[0], third[1] - second[1])
     cross = (
-      (second[0] - first[0]) * (third[1] - second[1])
-      - (second[1] - first[1]) * (third[0] - second[0])
+      first_edge[0] * second_edge[1]
+      - first_edge[1] * second_edge[0]
     )
-    if abs(cross) > tolerance_m * tolerance_m:
+    # ``cross`` has units of m².  Comparing it to tolerance² alone makes a
+    # mathematically collinear, long edge fail after coordinate construction
+    # leaves round-off on the order of ``edge_length * tolerance``.  Use the
+    # positional tolerance projected onto the local edge scale instead.  A
+    # genuine turn whose transverse displacement exceeds the requested
+    # tolerance still contributes a sign; only numerically collinear turns
+    # are ignored.
+    cross_tolerance = tolerance_m * max(
+      tolerance_m,
+      hypot(*first_edge),
+      hypot(*second_edge),
+    )
+    if abs(cross) > cross_tolerance:
       signs.append(cross)
-  return bool(signs) and all(value > 0.0 for value in signs) or bool(signs) and all(
-    value < 0.0 for value in signs
+  return bool(signs) and (
+    all(value > 0.0 for value in signs)
+    or all(value < 0.0 for value in signs)
   )
 
 

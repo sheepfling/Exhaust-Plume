@@ -74,6 +74,9 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   generated = report['geometry_cases']['solver_generated_attached_shock_field']
   refinement = report['geometry_cases']['solver_generated_shock_refinement']
   generated_chain = report['geometry_cases']['solver_generated_chain_reference']
+  generated_chain_refinement = report['geometry_cases'][
+    'solver_generated_chain_refinement'
+  ]
   generated_chain_planner = report['geometry_cases']['solver_generated_chain_planner']
   generated_chain_terminal = report['geometry_cases']['solver_generated_chain_terminal_probe']
   field_coupled_chain_planner = report['geometry_cases'][
@@ -141,6 +144,14 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert generated_chain['claim_fidelity_ceiling'] == 'resolved-planar-moc'
   assert generated_chain['free_boundary_verified'] is False
   assert generated_chain['physical_chain_promotion_allowed'] is False
+  assert generated_chain_refinement['status'] == 'converged'
+  assert generated_chain_refinement['operator_id'] == (
+    'op.moc.shock-cell-chain-refinement'
+  )
+  assert generated_chain_refinement['resolutions'] == [9, 17, 33]
+  assert generated_chain_refinement['cell_count'] == 5
+  assert all(generated_chain_refinement['checks'].values())
+  assert generated_chain_refinement['claim_status'] == 'not_accepted'
   assert generated_chain_planner['planner_kind'] == 'solver-generated-reference'
   assert generated_chain_planner['planning_only'] is True
   assert generated_chain_planner['production_claim_allowed'] is False

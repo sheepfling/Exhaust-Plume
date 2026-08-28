@@ -25,9 +25,12 @@ from exhaust_plume.validation.moc_measurements import (
   MocTerminalClosureObservation,
   MocShockCellMeasurementStatus,
   MocShockCellObservation,
+  MocShockCellChainRefinementCase,
+  MocShockCellChainRefinementMeasurementStatus,
   measure_moc_terminal_closure,
   measure_moc_shock_cell,
   measure_moc_shock_cell_chain,
+  measure_moc_shock_cell_chain_refinement,
   measure_moc_chain_planner,
 )
 
@@ -286,6 +289,60 @@ def test_moc_chain_measurement_rejects_reordered_indices() -> None:
 
   assert result.status is MocShockCellMeasurementStatus.CHAIN_FAILURE
   assert 'contiguous' in result.message
+
+
+def test_moc_chain_refinement_measurement_compares_resolutions_without_promotion() -> None:
+  observations = (
+    _observation(cell_index=1, shock_start_x_m=0.0),
+    _observation(cell_index=2, shock_start_x_m=4.0),
+  )
+
+  result = measure_moc_shock_cell_chain_refinement(
+    tuple(
+      MocShockCellChainRefinementCase(
+        resolution=resolution,
+        observations=observations,
+        termination_reason='solver-returned-no-next-cell',
+        physical_termination=False,
+      )
+      for resolution in (9, 17, 33)
+    )
+  )
+
+  assert result.status is MocShockCellChainRefinementMeasurementStatus.CONVERGED
+  assert result.converged
+  assert result.resolutions == (9, 17, 33)
+  assert result.cell_count == 2
+  assert result.resolution_order_verified
+  assert result.cell_count_consistent
+  assert result.geometry_shape_verified
+  assert result.pressure_loss_verified
+  assert result.termination_sensitivity_verified
+  assert result.handoff_links_verified is None
+  assert result.axial_extent_residuals_m == pytest.approx((0.0, 0.0))
+  assert result.shock_spacing_residuals_m == pytest.approx((0.0, 0.0))
+  assert result.mesh_area_residuals_m2 == pytest.approx((0.0, 0.0))
+  assert result.refinement_convergence_verified
+  report = result.as_report()
+  assert report['operator_id'] == 'op.moc.shock-cell-chain-refinement'
+  assert report['claim_status'] == 'not_accepted'
+  assert report['checks']['handoff_metadata_complete'] is False
+  assert report['checks']['handoff_links_verified'] is None
+
+
+def test_moc_chain_refinement_measurement_requires_increasing_resolutions() -> None:
+  observation = _observation()
+
+  result = measure_moc_shock_cell_chain_refinement(
+    (
+      MocShockCellChainRefinementCase(17, (observation,)),
+      MocShockCellChainRefinementCase(9, (observation,)),
+    )
+  )
+
+  assert result.status is MocShockCellChainRefinementMeasurementStatus.RESOLUTION_FAILURE
+  assert not result.converged
+  assert result.resolution_order_verified is False
 
 
 def test_moc_chain_planner_measurement_recomputes_trace_handoffs() -> None:

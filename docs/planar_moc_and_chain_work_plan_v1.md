@@ -1016,10 +1016,13 @@ characteristic resolutions and record:
 - maximum invariant residual and minimum forward margin;
 - downstream cell spacing and chain termination sensitivity.
 
-The marched attached-shock reference and the terminal reflection transition
-now have 9/17/33-sample refinement evidence. This is numerical diagnostic
-evidence only until the upstream reflected field and downstream boundary
-condition are solved together.
+The marched attached-shock reference, terminal reflection transition, and
+the generated five-cell chain now have 9/17/33-sample refinement evidence.
+The chain operator independently confirms stable cell count, exact handoff
+links, pressure-loss lineage, typed non-physical truncation, and bounded
+geometry deltas. This is numerical diagnostic evidence only until the
+upstream reflected field and downstream boundary condition are solved
+together.
 
 Refinement evidence is diagnostic until the physical closure and external
 measurement comparison both pass.
@@ -1027,9 +1030,11 @@ measurement comparison both pass.
 ### MOC-5 — Independent validation
 
 Use a disjoint case and an explicit measurement operator. The local
-`op.moc.shock-cell-geometry` and `op.moc.shock-cell-chain` operators now
-provide the geometry/topology extraction layer for solver fields and planner
-fixtures, including optional shock total-pressure loss. Keep the current
+`op.moc.shock-cell-geometry`, `op.moc.shock-cell-chain`, and
+`op.moc.shock-cell-chain-refinement` operators now provide the
+geometry/topology and numerical-sensitivity extraction layer for solver
+fields and planner fixtures, including optional shock total-pressure loss.
+Keep the current
 CJ/UEJ component comparison as supporting, not accepted, evidence until the
 external measurement-space mapping, uncertainty/provenance, and closure
 domain are complete. The operator must not infer physical shock cells from a
@@ -1405,6 +1410,13 @@ Only after MOC-1 through MOC-5 pass:
   planner and visualization consumers can inspect expansion and pressure loss
   without reaching into solver internals. These traces are evidence surfaces,
   not an elevation of the chain's fidelity or closure claim.
+- Added an independent continued-chain refinement operator. It remeasures
+  coarse/medium/fine chain observations, checks stable cell count and
+  per-cell spacing, compares axial extent/shock-spacing/mesh-area deltas,
+  verifies strict shock total-pressure loss, and audits a planner's typed
+  termination across resolutions. The generated 9/17/33-sample five-cell
+  reference passes those numerical checks, while the result remains
+  ``not_accepted`` research evidence and does not establish physical closure.
 - The solver-generated continued-chain reference now carries the complete
   prior total-pressure trace into each local shock solve using an explicit
   normalized shock-height interpolation policy. This removes the old

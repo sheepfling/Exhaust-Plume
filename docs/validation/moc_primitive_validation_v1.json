@@ -46810,6 +46810,871 @@
       "strict_upstream_coupling_mode": true,
       "claim_status": "strict-upstream-coupled-chain-reference; reflected-field-coupling-pending"
     },
+    "solver_generated_chain_refinement": {
+      "status": "converged",
+      "operator_id": "op.moc.shock-cell-chain-refinement",
+      "converged": true,
+      "case_count": 3,
+      "resolutions": [
+        9,
+        17,
+        33
+      ],
+      "cell_count": 5,
+      "cases": [
+        {
+          "resolution": 9,
+          "termination_reason": "solver-returned-no-next-cell",
+          "physical_termination": false,
+          "measurement": {
+            "status": "converged",
+            "operator_id": "op.moc.shock-cell-chain",
+            "cell_count": 5,
+            "cells": [
+              {
+                "status": "converged",
+                "operator_id": "op.moc.shock-cell-geometry",
+                "cell_index": 1,
+                "cell_count": 44,
+                "topology": {
+                  "status": "open",
+                  "connected": true,
+                  "forms_closed_zone": true,
+                  "boundary_edge_count": 18,
+                  "boundary_component_count": 1,
+                  "nonmanifold_edge_count": 0
+                },
+                "boundary_point_counts": {
+                  "shock": 9,
+                  "centerline": 2
+                },
+                "shock_start_m": [
+                  0.5,
+                  0.5
+                ],
+                "shock_end_m": [
+                  0.8618464893920967,
+                  0.0
+                ],
+                "centerline_end_m": [
+                  1.1037794082834842,
+                  0.0
+                ],
+                "axial_extent_m": [
+                  0.5,
+                  1.1037794082834842
+                ],
+                "axial_length_m": 0.6037794082834842,
+                "shock_boundary_length_m": 0.6172919723968391,
+                "centerline_boundary_length_m": 0.24193291889138746,
+                "maximum_radius_m": 0.5,
+                "mesh_area_m2": 0.062119493514582146,
+                "perimeter_area_m2": 0.062119493514582146,
+                "area_closure_residual_m2": 0.0,
+                "pressure": {
+                  "sample_count": 9,
+                  "minimum_total_pressure_ratio": 0.9580676266390498,
+                  "maximum_total_pressure_ratio": 0.977473522728481,
+                  "pressure_loss_verified": true
+                },
+                "claim_status": "not_accepted",
+                "message": "shock-cell geometry and explicit perimeter topology measured; external comparison and physical-closure acceptance remain separate gates"
+              },
+              {
+                "status": "converged",
+                "operator_id": "op.moc.shock-cell-geometry",
+                "cell_index": 2,
+                "cell_count": 44,
+                "topology": {
+                  "status": "open",
+                  "connected": true,
+                  "forms_closed_zone": true,
+                  "boundary_edge_count": 18,
+                  "boundary_component_count": 1,
+                  "nonmanifold_edge_count": 0
+                },
+                "boundary_point_counts": {
+                  "shock": 9,
+                  "centerline": 2
+                },
+                "shock_start_m": [
+                  1.2,
+                  0.5
+                ],
+                "shock_end_m": [
+                  1.561846489392097,
+                  0.0
+                ],
+                "centerline_end_m": [
+                  1.8037794082834844,
+                  0.0
+                ],
+                "axial_extent_m": [
+                  1.2,
+                  1.8037794082834844
+                ],
+                "axial_length_m": 0.6037794082834844,
+                "shock_boundary_length_m": 0.6172919723968392,
+                "centerline_boundary_length_m": 0.24193291889138746,
+                "maximum_radius_m": 0.5,
+                "mesh_area_m2": 0.062119493514582194,
+                "perimeter_area_m2": 0.062119493514582194,
+                "area_closure_residual_m2": 0.0,
+                "pressure": {
+                  "sample_count": 9,
+                  "minimum_total_pressure_ratio": 0.9580676266390498,
+                  "maximum_total_pressure_ratio": 0.9774735227284813,
+                  "pressure_loss_verified": true
+                },
+                "claim_status": "not_accepted",
+                "message": "shock-cell geometry and explicit perimeter topology measured; external comparison and physical-closure acceptance remain separate gates"
+              },
+              {
+                "status": "converged",
+                "operator_id": "op.moc.shock-cell-geometry",
+                "cell_index": 3,
+                "cell_count": 44,
+                "topology": {
+                  "status": "open",
+                  "connected": true,
+                  "forms_closed_zone": true,
+                  "boundary_edge_count": 18,
+                  "boundary_component_count": 1,
+                  "nonmanifold_edge_count": 0
+                },
+                "boundary_point_counts": {
+                  "shock": 9,
+                  "centerline": 2
+                },
+                "shock_start_m": [
+                  2.0,
+                  0.5
+                ],
+                "shock_end_m": [
+                  2.361846489392097,
+                  0.0
+                ],
+                "centerline_end_m": [
+                  2.603779408283484,
+                  0.0
+                ],
+                "axial_extent_m": [
+                  2.0,
+                  2.603779408283484
+                ],
+                "axial_length_m": 0.6037794082834842,
+                "shock_boundary_length_m": 0.6172919723968392,
+                "centerline_boundary_length_m": 0.24193291889138724,
+                "maximum_radius_m": 0.5,
+                "mesh_area_m2": 0.06211949351458222,
+                "perimeter_area_m2": 0.06211949351458222,
+                "area_closure_residual_m2": 0.0,
+                "pressure": {
+                  "sample_count": 9,
+                  "minimum_total_pressure_ratio": 0.9580676266390499,
+                  "maximum_total_pressure_ratio": 0.9774735227284811,
+                  "pressure_loss_verified": true
+                },
+                "claim_status": "not_accepted",
+                "message": "shock-cell geometry and explicit perimeter topology measured; external comparison and physical-closure acceptance remain separate gates"
+              },
+              {
+                "status": "converged",
+                "operator_id": "op.moc.shock-cell-geometry",
+                "cell_index": 4,
+                "cell_count": 44,
+                "topology": {
+                  "status": "open",
+                  "connected": true,
+                  "forms_closed_zone": true,
+                  "boundary_edge_count": 18,
+                  "boundary_component_count": 1,
+                  "nonmanifold_edge_count": 0
+                },
+                "boundary_point_counts": {
+                  "shock": 9,
+                  "centerline": 2
+                },
+                "shock_start_m": [
+                  2.8000000000000003,
+                  0.5
+                ],
+                "shock_end_m": [
+                  3.1618464893920972,
+                  0.0
+                ],
+                "centerline_end_m": [
+                  3.4037794082834845,
+                  0.0
+                ],
+                "axial_extent_m": [
+                  2.8000000000000003,
+                  3.4037794082834845
+                ],
+                "axial_length_m": 0.6037794082834842,
+                "shock_boundary_length_m": 0.6172919723968392,
+                "centerline_boundary_length_m": 0.24193291889138724,
+                "maximum_radius_m": 0.5,
+                "mesh_area_m2": 0.062119493514582014,
+                "perimeter_area_m2": 0.062119493514582014,
+                "area_closure_residual_m2": 0.0,
+                "pressure": {
+                  "sample_count": 9,
+                  "minimum_total_pressure_ratio": 0.9580676266390498,
+                  "maximum_total_pressure_ratio": 0.9774735227284812,
+                  "pressure_loss_verified": true
+                },
+                "claim_status": "not_accepted",
+                "message": "shock-cell geometry and explicit perimeter topology measured; external comparison and physical-closure acceptance remain separate gates"
+              },
+              {
+                "status": "converged",
+                "operator_id": "op.moc.shock-cell-geometry",
+                "cell_index": 5,
+                "cell_count": 44,
+                "topology": {
+                  "status": "open",
+                  "connected": true,
+                  "forms_closed_zone": true,
+                  "boundary_edge_count": 18,
+                  "boundary_component_count": 1,
+                  "nonmanifold_edge_count": 0
+                },
+                "boundary_point_counts": {
+                  "shock": 9,
+                  "centerline": 2
+                },
+                "shock_start_m": [
+                  3.6000000000000005,
+                  0.5
+                ],
+                "shock_end_m": [
+                  3.9618464893920975,
+                  0.0
+                ],
+                "centerline_end_m": [
+                  4.203779408283485,
+                  0.0
+                ],
+                "axial_extent_m": [
+                  3.6000000000000005,
+                  4.203779408283485
+                ],
+                "axial_length_m": 0.6037794082834846,
+                "shock_boundary_length_m": 0.6172919723968392,
+                "centerline_boundary_length_m": 0.24193291889138768,
+                "maximum_radius_m": 0.5,
+                "mesh_area_m2": 0.0621194935145821,
+                "perimeter_area_m2": 0.0621194935145821,
+                "area_closure_residual_m2": 0.0,
+                "pressure": {
+                  "sample_count": 9,
+                  "minimum_total_pressure_ratio": 0.95806762663905,
+                  "maximum_total_pressure_ratio": 0.977473522728481,
+                  "pressure_loss_verified": true
+                },
+                "claim_status": "not_accepted",
+                "message": "shock-cell geometry and explicit perimeter topology measured; external comparison and physical-closure acceptance remain separate gates"
+              }
+            ],
+            "axial_extent_m": [
+              0.5,
+              4.203779408283485
+            ],
+            "shock_start_spacing_m": [
+              0.7,
+              0.8,
+              0.8000000000000003,
+              0.8000000000000003
+            ],
+            "total_mesh_area_m2": 0.3105974675729107,
+            "handoff": {
+              "link_count": 4,
+              "links_verified": true
+            },
+            "fresh_domain_verified": true,
+            "claim_status": "not_accepted",
+            "message": "continued shock-cell geometry measured with independent per-cell topology checks; this does not establish physical chain closure"
+          }
+        },
+        {
+          "resolution": 17,
+          "termination_reason": "solver-returned-no-next-cell",
+          "physical_termination": false,
+          "measurement": {
+            "status": "converged",
+            "operator_id": "op.moc.shock-cell-chain",
+            "cell_count": 5,
+            "cells": [
+              {
+                "status": "converged",
+                "operator_id": "op.moc.shock-cell-geometry",
+                "cell_index": 1,
+                "cell_count": 152,
+                "topology": {
+                  "status": "open",
+                  "connected": true,
+                  "forms_closed_zone": true,
+                  "boundary_edge_count": 34,
+                  "boundary_component_count": 1,
+                  "nonmanifold_edge_count": 0
+                },
+                "boundary_point_counts": {
+                  "shock": 17,
+                  "centerline": 2
+                },
+                "shock_start_m": [
+                  0.5,
+                  0.5
+                ],
+                "shock_end_m": [
+                  0.8618481573724419,
+                  0.0
+                ],
+                "centerline_end_m": [
+                  1.103791576924278,
+                  0.0
+                ],
+                "axial_extent_m": [
+                  0.5,
+                  1.103791576924278
+                ],
+                "axial_length_m": 0.6037915769242781,
+                "shock_boundary_length_m": 0.6172940698643222,
+                "centerline_boundary_length_m": 0.24194341955183618,
+                "maximum_radius_m": 0.5,
+                "mesh_area_m2": 0.0621434743455441,
+                "perimeter_area_m2": 0.06214347354640269,
+                "area_closure_residual_m2": 7.991414058272639e-10,
+                "pressure": {
+                  "sample_count": 17,
+                  "minimum_total_pressure_ratio": 0.9580676266390498,
+                  "maximum_total_pressure_ratio": 0.977473522728481,
+                  "pressure_loss_verified": true
+                },
+                "claim_status": "not_accepted",
+                "message": "shock-cell geometry and explicit perimeter topology measured; external comparison and physical-closure acceptance remain separate gates"
+              },
+              {
+                "status": "converged",
+                "operator_id": "op.moc.shock-cell-geometry",
+                "cell_index": 2,
+                "cell_count": 152,
+                "topology": {
+                  "status": "open",
+                  "connected": true,
+                  "forms_closed_zone": true,
+                  "boundary_edge_count": 34,
+                  "boundary_component_count": 1,
+                  "nonmanifold_edge_count": 0
+                },
+                "boundary_point_counts": {
+                  "shock": 17,
+                  "centerline": 2
+                },
+                "shock_start_m": [
+                  1.2,
+                  0.5
+                ],
+                "shock_end_m": [
+                  1.561848157372442,
+                  0.0
+                ],
+                "centerline_end_m": [
+                  1.803791576924278,
+                  0.0
+                ],
+                "axial_extent_m": [
+                  1.2,
+                  1.803791576924278
+                ],
+                "axial_length_m": 0.6037915769242781,
+                "shock_boundary_length_m": 0.6172940698643223,
+                "centerline_boundary_length_m": 0.24194341955183596,
+                "maximum_radius_m": 0.5,
+                "mesh_area_m2": 0.062143474345544084,
+                "perimeter_area_m2": 0.06214347354640269,
+                "area_closure_residual_m2": 7.991413919494761e-10,
+                "pressure": {
+                  "sample_count": 17,
+                  "minimum_total_pressure_ratio": 0.9580676266390498,
+                  "maximum_total_pressure_ratio": 0.9774735227284813,
+                  "pressure_loss_verified": true
+                },
+                "claim_status": "not_accepted",
+                "message": "shock-cell geometry and explicit perimeter topology measured; external comparison and physical-closure acceptance remain separate gates"
+              },
+              {
+                "status": "converged",
+                "operator_id": "op.moc.shock-cell-geometry",
+                "cell_index": 3,
+                "cell_count": 152,
+                "topology": {
+                  "status": "open",
+                  "connected": true,
+                  "forms_closed_zone": true,
+                  "boundary_edge_count": 34,
+                  "boundary_component_count": 1,
+                  "nonmanifold_edge_count": 0
+                },
+                "boundary_point_counts": {
+                  "shock": 17,
+                  "centerline": 2
+                },
+                "shock_start_m": [
+                  2.0,
+                  0.5
+                ],
+                "shock_end_m": [
+                  2.3618481573724406,
+                  0.0
+                ],
+                "centerline_end_m": [
+                  2.6037915769242783,
+                  0.0
+                ],
+                "axial_extent_m": [
+                  2.0,
+                  2.6037915769242783
+                ],
+                "axial_length_m": 0.6037915769242783,
+                "shock_boundary_length_m": 0.6172940698643214,
+                "centerline_boundary_length_m": 0.24194341955183774,
+                "maximum_radius_m": 0.5,
+                "mesh_area_m2": 0.062143474345544826,
+                "perimeter_area_m2": 0.062143473546403406,
+                "area_closure_residual_m2": 7.991414197050517e-10,
+                "pressure": {
+                  "sample_count": 17,
+                  "minimum_total_pressure_ratio": 0.9580676266390499,
+                  "maximum_total_pressure_ratio": 0.9774735227284811,
+                  "pressure_loss_verified": true
+                },
+                "claim_status": "not_accepted",
+                "message": "shock-cell geometry and explicit perimeter topology measured; external comparison and physical-closure acceptance remain separate gates"
+              },
+              {
+                "status": "converged",
+                "operator_id": "op.moc.shock-cell-geometry",
+                "cell_index": 4,
+                "cell_count": 152,
+                "topology": {
+                  "status": "open",
+                  "connected": true,
+                  "forms_closed_zone": true,
+                  "boundary_edge_count": 34,
+                  "boundary_component_count": 1,
+                  "nonmanifold_edge_count": 0
+                },
+                "boundary_point_counts": {
+                  "shock": 17,
+                  "centerline": 2
+                },
+                "shock_start_m": [
+                  2.8000000000000003,
+                  0.5
+                ],
+                "shock_end_m": [
+                  3.161848157372441,
+                  0.0
+                ],
+                "centerline_end_m": [
+                  3.4037915769242786,
+                  0.0
+                ],
+                "axial_extent_m": [
+                  2.8000000000000003,
+                  3.4037915769242786
+                ],
+                "axial_length_m": 0.6037915769242783,
+                "shock_boundary_length_m": 0.6172940698643214,
+                "centerline_boundary_length_m": 0.24194341955183774,
+                "maximum_radius_m": 0.5,
+                "mesh_area_m2": 0.06214347434554459,
+                "perimeter_area_m2": 0.06214347354640317,
+                "area_closure_residual_m2": 7.991414197050517e-10,
+                "pressure": {
+                  "sample_count": 17,
+                  "minimum_total_pressure_ratio": 0.9580676266390498,
+                  "maximum_total_pressure_ratio": 0.9774735227284812,
+                  "pressure_loss_verified": true
+                },
+                "claim_status": "not_accepted",
+                "message": "shock-cell geometry and explicit perimeter topology measured; external comparison and physical-closure acceptance remain separate gates"
+              },
+              {
+                "status": "converged",
+                "operator_id": "op.moc.shock-cell-geometry",
+                "cell_index": 5,
+                "cell_count": 152,
+                "topology": {
+                  "status": "open",
+                  "connected": true,
+                  "forms_closed_zone": true,
+                  "boundary_edge_count": 34,
+                  "boundary_component_count": 1,
+                  "nonmanifold_edge_count": 0
+                },
+                "boundary_point_counts": {
+                  "shock": 17,
+                  "centerline": 2
+                },
+                "shock_start_m": [
+                  3.6000000000000005,
+                  0.5
+                ],
+                "shock_end_m": [
+                  3.961848157372441,
+                  0.0
+                ],
+                "centerline_end_m": [
+                  4.20379157692428,
+                  0.0
+                ],
+                "axial_extent_m": [
+                  3.6000000000000005,
+                  4.20379157692428
+                ],
+                "axial_length_m": 0.6037915769242792,
+                "shock_boundary_length_m": 0.6172940698643214,
+                "centerline_boundary_length_m": 0.24194341955183862,
+                "maximum_radius_m": 0.5,
+                "mesh_area_m2": 0.062143474345545006,
+                "perimeter_area_m2": 0.06214347354640359,
+                "area_closure_residual_m2": 7.991414197050517e-10,
+                "pressure": {
+                  "sample_count": 17,
+                  "minimum_total_pressure_ratio": 0.95806762663905,
+                  "maximum_total_pressure_ratio": 0.977473522728481,
+                  "pressure_loss_verified": true
+                },
+                "claim_status": "not_accepted",
+                "message": "shock-cell geometry and explicit perimeter topology measured; external comparison and physical-closure acceptance remain separate gates"
+              }
+            ],
+            "axial_extent_m": [
+              0.5,
+              4.20379157692428
+            ],
+            "shock_start_spacing_m": [
+              0.7,
+              0.8,
+              0.8000000000000003,
+              0.8000000000000003
+            ],
+            "total_mesh_area_m2": 0.3107173717277226,
+            "handoff": {
+              "link_count": 4,
+              "links_verified": true
+            },
+            "fresh_domain_verified": true,
+            "claim_status": "not_accepted",
+            "message": "continued shock-cell geometry measured with independent per-cell topology checks; this does not establish physical chain closure"
+          }
+        },
+        {
+          "resolution": 33,
+          "termination_reason": "solver-returned-no-next-cell",
+          "physical_termination": false,
+          "measurement": {
+            "status": "converged",
+            "operator_id": "op.moc.shock-cell-chain",
+            "cell_count": 5,
+            "cells": [
+              {
+                "status": "converged",
+                "operator_id": "op.moc.shock-cell-geometry",
+                "cell_index": 1,
+                "cell_count": 560,
+                "topology": {
+                  "status": "open",
+                  "connected": true,
+                  "forms_closed_zone": true,
+                  "boundary_edge_count": 66,
+                  "boundary_component_count": 1,
+                  "nonmanifold_edge_count": 0
+                },
+                "boundary_point_counts": {
+                  "shock": 33,
+                  "centerline": 2
+                },
+                "shock_start_m": [
+                  0.5,
+                  0.5
+                ],
+                "shock_end_m": [
+                  0.861848574433198,
+                  0.0
+                ],
+                "centerline_end_m": [
+                  1.103794619300849,
+                  0.0
+                ],
+                "axial_extent_m": [
+                  0.5,
+                  1.103794619300849
+                ],
+                "axial_length_m": 0.603794619300849,
+                "shock_boundary_length_m": 0.6172945942554124,
+                "centerline_boundary_length_m": 0.24194604486765103,
+                "maximum_radius_m": 0.5,
+                "mesh_area_m2": 0.0621494701951378,
+                "perimeter_area_m2": 0.062149469391506236,
+                "area_closure_residual_m2": 8.036315640724823e-10,
+                "pressure": {
+                  "sample_count": 33,
+                  "minimum_total_pressure_ratio": 0.9580676266390498,
+                  "maximum_total_pressure_ratio": 0.977473522728481,
+                  "pressure_loss_verified": true
+                },
+                "claim_status": "not_accepted",
+                "message": "shock-cell geometry and explicit perimeter topology measured; external comparison and physical-closure acceptance remain separate gates"
+              },
+              {
+                "status": "converged",
+                "operator_id": "op.moc.shock-cell-geometry",
+                "cell_index": 2,
+                "cell_count": 560,
+                "topology": {
+                  "status": "open",
+                  "connected": true,
+                  "forms_closed_zone": true,
+                  "boundary_edge_count": 66,
+                  "boundary_component_count": 1,
+                  "nonmanifold_edge_count": 0
+                },
+                "boundary_point_counts": {
+                  "shock": 33,
+                  "centerline": 2
+                },
+                "shock_start_m": [
+                  1.2,
+                  0.5
+                ],
+                "shock_end_m": [
+                  1.561848574433198,
+                  0.0
+                ],
+                "centerline_end_m": [
+                  1.8037946193008485,
+                  0.0
+                ],
+                "axial_extent_m": [
+                  1.2,
+                  1.8037946193008485
+                ],
+                "axial_length_m": 0.6037946193008485,
+                "shock_boundary_length_m": 0.6172945942554124,
+                "centerline_boundary_length_m": 0.24194604486765048,
+                "maximum_radius_m": 0.5,
+                "mesh_area_m2": 0.06214947019513761,
+                "perimeter_area_m2": 0.06214946939150606,
+                "area_closure_residual_m2": 8.036315501946945e-10,
+                "pressure": {
+                  "sample_count": 33,
+                  "minimum_total_pressure_ratio": 0.9580676266390498,
+                  "maximum_total_pressure_ratio": 0.9774735227284813,
+                  "pressure_loss_verified": true
+                },
+                "claim_status": "not_accepted",
+                "message": "shock-cell geometry and explicit perimeter topology measured; external comparison and physical-closure acceptance remain separate gates"
+              },
+              {
+                "status": "converged",
+                "operator_id": "op.moc.shock-cell-geometry",
+                "cell_index": 3,
+                "cell_count": 560,
+                "topology": {
+                  "status": "open",
+                  "connected": true,
+                  "forms_closed_zone": true,
+                  "boundary_edge_count": 66,
+                  "boundary_component_count": 1,
+                  "nonmanifold_edge_count": 0
+                },
+                "boundary_point_counts": {
+                  "shock": 33,
+                  "centerline": 2
+                },
+                "shock_start_m": [
+                  2.0,
+                  0.5
+                ],
+                "shock_end_m": [
+                  2.3618485744331976,
+                  0.0
+                ],
+                "centerline_end_m": [
+                  2.603794619300849,
+                  0.0
+                ],
+                "axial_extent_m": [
+                  2.0,
+                  2.603794619300849
+                ],
+                "axial_length_m": 0.603794619300849,
+                "shock_boundary_length_m": 0.6172945942554122,
+                "centerline_boundary_length_m": 0.24194604486765137,
+                "maximum_radius_m": 0.5,
+                "mesh_area_m2": 0.062149470195137516,
+                "perimeter_area_m2": 0.06214946939150594,
+                "area_closure_residual_m2": 8.036315779502701e-10,
+                "pressure": {
+                  "sample_count": 33,
+                  "minimum_total_pressure_ratio": 0.9580676266390499,
+                  "maximum_total_pressure_ratio": 0.9774735227284811,
+                  "pressure_loss_verified": true
+                },
+                "claim_status": "not_accepted",
+                "message": "shock-cell geometry and explicit perimeter topology measured; external comparison and physical-closure acceptance remain separate gates"
+              },
+              {
+                "status": "converged",
+                "operator_id": "op.moc.shock-cell-geometry",
+                "cell_index": 4,
+                "cell_count": 560,
+                "topology": {
+                  "status": "open",
+                  "connected": true,
+                  "forms_closed_zone": true,
+                  "boundary_edge_count": 66,
+                  "boundary_component_count": 1,
+                  "nonmanifold_edge_count": 0
+                },
+                "boundary_point_counts": {
+                  "shock": 33,
+                  "centerline": 2
+                },
+                "shock_start_m": [
+                  2.8000000000000003,
+                  0.5
+                ],
+                "shock_end_m": [
+                  3.161848574433198,
+                  0.0
+                ],
+                "centerline_end_m": [
+                  3.4037946193008493,
+                  0.0
+                ],
+                "axial_extent_m": [
+                  2.8000000000000003,
+                  3.4037946193008493
+                ],
+                "axial_length_m": 0.603794619300849,
+                "shock_boundary_length_m": 0.6172945942554122,
+                "centerline_boundary_length_m": 0.24194604486765137,
+                "maximum_radius_m": 0.5,
+                "mesh_area_m2": 0.06214947019513756,
+                "perimeter_area_m2": 0.06214946939150601,
+                "area_closure_residual_m2": 8.036315501946945e-10,
+                "pressure": {
+                  "sample_count": 33,
+                  "minimum_total_pressure_ratio": 0.9580676266390498,
+                  "maximum_total_pressure_ratio": 0.9774735227284812,
+                  "pressure_loss_verified": true
+                },
+                "claim_status": "not_accepted",
+                "message": "shock-cell geometry and explicit perimeter topology measured; external comparison and physical-closure acceptance remain separate gates"
+              },
+              {
+                "status": "converged",
+                "operator_id": "op.moc.shock-cell-geometry",
+                "cell_index": 5,
+                "cell_count": 560,
+                "topology": {
+                  "status": "open",
+                  "connected": true,
+                  "forms_closed_zone": true,
+                  "boundary_edge_count": 66,
+                  "boundary_component_count": 1,
+                  "nonmanifold_edge_count": 0
+                },
+                "boundary_point_counts": {
+                  "shock": 33,
+                  "centerline": 2
+                },
+                "shock_start_m": [
+                  3.6000000000000005,
+                  0.5
+                ],
+                "shock_end_m": [
+                  3.961848574433198,
+                  0.0
+                ],
+                "centerline_end_m": [
+                  4.203794619300848,
+                  0.0
+                ],
+                "axial_extent_m": [
+                  3.6000000000000005,
+                  4.203794619300848
+                ],
+                "axial_length_m": 0.6037946193008477,
+                "shock_boundary_length_m": 0.6172945942554122,
+                "centerline_boundary_length_m": 0.24194604486765003,
+                "maximum_radius_m": 0.5,
+                "mesh_area_m2": 0.062149470195137474,
+                "perimeter_area_m2": 0.06214946939150587,
+                "area_closure_residual_m2": 8.036316057058457e-10,
+                "pressure": {
+                  "sample_count": 33,
+                  "minimum_total_pressure_ratio": 0.95806762663905,
+                  "maximum_total_pressure_ratio": 0.977473522728481,
+                  "pressure_loss_verified": true
+                },
+                "claim_status": "not_accepted",
+                "message": "shock-cell geometry and explicit perimeter topology measured; external comparison and physical-closure acceptance remain separate gates"
+              }
+            ],
+            "axial_extent_m": [
+              0.5,
+              4.203794619300848
+            ],
+            "shock_start_spacing_m": [
+              0.7,
+              0.8,
+              0.8000000000000003,
+              0.8000000000000003
+            ],
+            "total_mesh_area_m2": 0.31074735097568795,
+            "handoff": {
+              "link_count": 4,
+              "links_verified": true
+            },
+            "fresh_domain_verified": true,
+            "claim_status": "not_accepted",
+            "message": "continued shock-cell geometry measured with independent per-cell topology checks; this does not establish physical chain closure"
+          }
+        }
+      ],
+      "checks": {
+        "resolution_order_verified": true,
+        "cell_count_consistent": true,
+        "geometry_shape_verified": true,
+        "pressure_loss_verified": true,
+        "handoff_metadata_complete": true,
+        "handoff_links_verified": true,
+        "termination_sensitivity_verified": true,
+        "refinement_convergence_verified": true
+      },
+      "residuals": {
+        "axial_extent_residuals_m": [
+          1.2168640794563146e-05,
+          3.0423765684517434e-06
+        ],
+        "shock_spacing_residuals_m": [
+          0.0,
+          0.0
+        ],
+        "mesh_area_residuals_m2": [
+          0.00011990415481194505,
+          2.997924796532825e-05
+        ]
+      },
+      "claim_status": "not_accepted",
+      "message": "independent continued shock-cell geometry is stable across the declared resolutions; this remains numerical research evidence and does not establish physical chain closure"
+    },
     "solver_generated_chain_planner": {
       "planner_kind": "solver-generated-reference",
       "planning_only": true,

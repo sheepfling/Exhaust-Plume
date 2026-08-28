@@ -680,6 +680,60 @@ def test_compressible_potential_reference_reports_nonlinear_iterations() -> None
   assert field.maximum_mass_conservation_residual <= 1.0e-8
 
 
+def test_compressible_potential_reference_tolerates_roundoff_on_collinear_edges() -> None:
+  terminal = _terminal()
+  assert terminal.shock_point_m is not None
+  assert terminal.downstream_mach is not None
+  assert terminal.downstream_flow_angle_rad is not None
+  assert terminal.downstream_pressure_Pa is not None
+  assert terminal.downstream_total_pressure_Pa is not None
+  gamma = terminal.upstream_state.gamma
+  x_terminal, y_terminal = terminal.shock_point_m
+  # The second point is intended to lie on the bottom edge.  Its tiny
+  # positive ordinate creates a negative cross product at the first vertex
+  # after floating-point coordinate construction, but is far below the
+  # declared positional tolerance.
+  points = (
+    (x_terminal, y_terminal),
+    (x_terminal + 0.1, y_terminal + 1.0e-12),
+    (x_terminal + 0.2, y_terminal),
+    (x_terminal + 0.2, y_terminal + 0.1),
+    (x_terminal + 0.1, y_terminal + 0.1),
+    (x_terminal, y_terminal + 0.1),
+    (x_terminal, y_terminal),
+  )
+  samples = tuple(
+    MocMixedRegimeFieldSample(
+      point_m=point,
+      mach=terminal.downstream_mach,
+      flow_angle_rad=terminal.downstream_flow_angle_rad,
+      static_pressure_Pa=terminal.downstream_pressure_Pa,
+      total_pressure_Pa=terminal.downstream_total_pressure_Pa,
+      gamma=gamma,
+    )
+    for point in points
+  )
+  boundary = validate_mixed_regime_boundary(
+    terminal,
+    _supersonic_patch(),
+    supersonic_patch_converged=True,
+    subsonic_samples=samples,
+    position_tolerance_m=1.0e-10,
+  )
+
+  assert boundary.converged
+  field = solve_mixed_regime_compressible_potential_field(
+    boundary,
+    position_tolerance_m=1.0e-10,
+  )
+
+  assert field.status is MocMixedRegimeFieldStatus.CONVERGED_COMPRESSIBLE_POTENTIAL_FIELD
+  assert field.converged
+  assert field.model_closure_verified
+  assert field.potential_circulation_residual is not None
+  assert field.potential_circulation_residual <= 1.0e-8
+
+
 def test_compressible_potential_reference_rejects_incompatible_boundary_circulation() -> None:
   terminal = _terminal()
   samples = list(_samples(terminal))
