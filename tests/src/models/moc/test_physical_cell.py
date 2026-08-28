@@ -939,6 +939,7 @@ def test_terminal_patch_planner_reference_keeps_scalar_result_separate() -> None
     sample_count=9,
     trace_position_tolerance_m=1.0e-3,
     position_tolerance_m=1.0e-3,
+    free_boundary_refinement_sample_counts=(5, 7, 9),
     policy=MocChainContinuationPolicy(
       max_cells=2,
       require_state_carry=True,
@@ -956,6 +957,25 @@ def test_terminal_patch_planner_reference_keeps_scalar_result_separate() -> None
   assert planner.diagnostics['free_boundary_reference_audit']['status'] == (
     'converged_solver_owned_free_boundary_measurement'
   )
+  assert planner.diagnostics['free_boundary_refinement_accepted'] is True
+  assert planner.diagnostics['free_boundary_refinement']['resolutions'] == [
+    5,
+    7,
+    9,
+  ]
+  assert planner.diagnostics['free_boundary_refinement']['checks'] == {
+    'resolution_order_verified': True,
+    'request_consistent': True,
+    'solver_parameters_consistent': True,
+    'perimeter_resolution_verified': True,
+    'radial_divisions_consistent': True,
+    'case_measurements_verified': True,
+    'scalar_root_verified': True,
+    'mass_flow_verified': True,
+    'geometry_verified': True,
+    'local_reference_closure_verified': True,
+    'refinement_convergence_verified': True,
+  }
   assert planner.chain_promotion_blocked
   assert planner.diagnostics['mixed_regime_closure_attached'] is False
 

@@ -14,7 +14,7 @@ from enum import Enum
 from hashlib import sha256
 from math import isfinite
 from types import MappingProxyType
-from typing import Any, Callable
+from typing import Any, Callable, Sequence
 
 from exhaust_plume.models.moc.chain import (
   MocChainBoundaryKind,
@@ -9168,6 +9168,7 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
     MocMixedRegimeFieldResult | None,
   ] | None = None,
   attach_mixed_regime_field: bool = False,
+  free_boundary_refinement_sample_counts: Sequence[int] | None = None,
   claim_status: str | None = None,
 ) -> MocPhysicalPostShockTerminalPatchPlannerResult:
   """Plan the terminal transition and exercise its exact mixed-regime seam.
@@ -9181,6 +9182,9 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
   explicitly set ``attach_mixed_regime_field`` to retain a field on the
   terminal transition after the exact seam checks pass; that still never
   creates a new supersonic cell or raises the production claim ceiling.
+  ``free_boundary_refinement_sample_counts`` optionally reruns the
+  solver-owned reference at increasing perimeter resolutions and records the
+  independent refinement measurement; it is valid only with ``solver``.
   """
 
   if not isinstance(seed, MocPhysicalPostShockFieldResult):
@@ -9203,6 +9207,39 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
     raise TypeError('solve_field must be callable when supplied')
   if not isinstance(attach_mixed_regime_field, bool):
     raise TypeError('attach_mixed_regime_field must be a bool')
+  refinement_counts: tuple[int, ...] = ()
+  if free_boundary_refinement_sample_counts is not None:
+    if solver is None:
+      raise ValueError(
+        'free-boundary refinement sample counts require the solver-owned '
+        'mixed-regime reference'
+      )
+    try:
+      refinement_counts = tuple(free_boundary_refinement_sample_counts)
+    except TypeError as error:
+      raise TypeError(
+        'free_boundary_refinement_sample_counts must be an iterable of '
+        'integers'
+      ) from error
+    if len(refinement_counts) < 2:
+      raise ValueError(
+        'free_boundary refinement requires at least two sample counts'
+      )
+    if any(
+      isinstance(count, bool) or not isinstance(count, int) or count < 3
+      for count in refinement_counts
+    ):
+      raise ValueError(
+        'free boundary refinement sample counts must be integers of at least '
+        'three'
+      )
+    if any(
+      right <= left
+      for left, right in zip(refinement_counts, refinement_counts[1:])
+    ):
+      raise ValueError(
+        'free boundary refinement sample counts must increase strictly'
+      )
   supplied_modes = sum(
     value is not None for value in (mock, solver, solve_field)
   )
@@ -9272,6 +9309,11 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
     'terminal_supersonic_audit_accepted': False,
     'free_boundary_reference_audit': None,
     'free_boundary_reference_audit_accepted': False,
+    'free_boundary_refinement_sample_counts': (
+      list(refinement_counts) if refinement_counts else None
+    ),
+    'free_boundary_refinement': None,
+    'free_boundary_refinement_accepted': False,
     'chain_promotion_blocked': True,
     'production_claim_allowed': False,
   }
@@ -9407,6 +9449,40 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
             terminal_supersonic_audit_accepted
             and free_boundary_reference_audit_accepted
           )
+          if refinement_counts:
+            try:
+              assert solver is not None
+              from exhaust_plume.validation.moc_measurements import (
+                MocMixedRegimeFreeBoundaryRefinementCase,
+                measure_mixed_regime_free_boundary_refinement,
+              )
+
+              refinement_cases = tuple(
+                MocMixedRegimeFreeBoundaryRefinementCase(
+                  resolution=count,
+                  result=replace(
+                    solver,
+                    free_boundary_sample_count=count,
+                  ).solve(request)
+                )
+                for count in refinement_counts
+              )
+              refinement_measurement = (
+                measure_mixed_regime_free_boundary_refinement(
+                  refinement_cases,
+                )
+              )
+            except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+              diagnostics['free_boundary_refinement_error'] = str(error)
+            else:
+              diagnostics['free_boundary_refinement'] = (
+                refinement_measurement.as_report()
+              )
+              diagnostics['free_boundary_refinement_accepted'] = bool(
+                refinement_measurement.converged
+                and refinement_measurement.chain_promotion_blocked
+                and not refinement_measurement.production_claim_allowed
+              )
       if (
         attach_mixed_regime_field
         and mixed_regime_closure is not None
