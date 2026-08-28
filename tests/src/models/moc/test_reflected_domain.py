@@ -28,6 +28,7 @@ from exhaust_plume.models.moc import (
   inverse_prandtl_meyer_angle_rad,
   plan_reflected_domain_remesh_ambient_closed_chain,
   plan_reflected_domain_alternating_source_chain,
+  plan_reflected_domain_alternating_source_chain_from_physical_field,
   plan_reflected_domain_alternating_source_chain_sequence,
   plan_reflected_domain_remesh_shock_chain,
   plan_reflected_domain_remesh_shock_chain_sequence,
@@ -612,6 +613,77 @@ def test_reflected_domain_alternating_source_couples_to_physical_shock_field():
   assert measurement.physical_closure_verified
   assert measurement.chain_promotion_blocked is True
   assert measurement.production_claim_allowed is False
+
+
+def test_reflected_domain_alternating_physical_field_can_attach_at_retained_outer_seed():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  source = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+  )
+
+  result = solve_reflected_domain_alternating_physical_field(
+    source,
+    compression_amplitude_rad=0.05,
+    use_outer_seed_attachment=True,
+  )
+
+  assert result.status is (
+    MocReflectedDomainAlternatingPhysicalFieldStatus.CONVERGED_AMBIENT_CLOSED
+  )
+  assert result.converged
+  assert result.field is not None
+  assert result.start_point_m == pytest.approx(
+    (source.outer_seed_state.x_m, source.outer_seed_state.y_m),
+  )
+  assert result.field.shock_boundary_points_m[0] == pytest.approx(
+    result.start_point_m,
+  )
+  assert result.as_report()['attachment_source'] == (
+    'outer-seed-reflection-interface'
+  )
+  measurement = measure_moc_reflected_domain_alternating_physical_field(result)
+  assert measurement.converged
+  assert measurement.attachment_point_verified
+  assert measurement.upstream_coupling_verified
+
+
+def test_reflected_domain_alternating_source_chain_projects_fresh_bands_automatically():
+  seed = _canonical_field()
+
+  planner = plan_reflected_domain_alternating_source_chain_from_physical_field(
+    seed,
+    start_x_m=0.5,
+    end_x_m=1.0,
+    compression_amplitude_rad=0.05,
+    policy=MocChainContinuationPolicy(max_cells=4, require_state_carry=True),
+  )
+
+  assert planner.chain.resolved
+  assert planner.chain.cell_count == 4
+  assert planner.chain.termination_reason is MocChainTerminationReason.MAX_CELL_LIMIT
+  assert planner.production_claim_allowed is False
+  assert planner.diagnostics['source_derivation_automatic'] is True
+  assert planner.diagnostics['use_outer_seed_attachment'] is True
+  assert planner.diagnostics[
+    'alternating_physical_field_chain_audit_accepted'
+  ] is True
+  assert planner.diagnostics['alternating_physical_field_chain_audit']['checks'] == {
+    'source_geometry_freshness_verified': True,
+    'handoff_links_verified': True,
+    'fresh_domain_verified': True,
+    'physical_closure_verified': True,
+  }
+  attempts = planner.diagnostics['alternating_source_attempts']
+  assert len(attempts) == 3
+  assert all(
+    attempt['incoming_handoff_verified'] is True
+    and attempt['fresh_source_band'] is True
+    and attempt['fresh_source_geometry'] is True
+    for attempt in attempts
+  )
 
 
 def test_reflected_domain_alternating_physical_field_rejects_unverified_source():

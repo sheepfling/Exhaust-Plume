@@ -37,6 +37,7 @@ from exhaust_plume.models.moc.reflected_domain import (
   MocReflectedDomainAlternatingSourceResult,
   MocReflectedDomainRemeshResult,
   solve_reflected_domain_alternating_physical_field,
+  solve_reflected_domain_alternating_source,
 )
 from exhaust_plume.models.moc.caustic_bridge import (
   MocCausticBridgeSide,
@@ -189,6 +190,7 @@ __all__ = (
   'plan_reflected_domain_remesh_shock_chain_sequence',
   'plan_reflected_domain_alternating_source_chain',
   'plan_reflected_domain_alternating_source_chain_sequence',
+  'plan_reflected_domain_alternating_source_chain_from_physical_field',
   'plan_caustic_simple_wave_terminal_chain',
   'plan_caustic_remesh_downstream_field_chain',
   'plan_caustic_remesh_downstream_field_invariant_chain',
@@ -7324,6 +7326,7 @@ def plan_reflected_domain_alternating_source_chain(
   end_x_m: float,
   compression_amplitude_rad: float,
   outer_source_index: int = 0,
+  use_outer_seed_attachment: bool = False,
   target_centerline_y_m: float = 0.0,
   target_centerline_flow_angle_rad: float = 0.0,
   attachment_angle_half_width_rad: float = 1.0e-6,
@@ -7349,6 +7352,12 @@ def plan_reflected_domain_alternating_source_chain(
   later cell needs a newly solved alternating source band rather than reuse of
   this finite band.
 
+  ``use_outer_seed_attachment`` opts into attaching the generated shock at
+  the retained outgoing reflection-interface seed.  It is intended for a
+  fresh reflected-domain continuation; the default attaches at the first
+  newly generated outer source row and preserves the original one-step
+  behavior.
+
   The generated shock field is eligible for the research chain lane only
   after its physical-field gates pass.  The planner remains non-production
   because the compression envelope is not the canonical reflected-plume
@@ -7368,6 +7377,8 @@ def plan_reflected_domain_alternating_source_chain(
     raise ValueError('start_x_m and end_x_m must be finite')
   if end_x_m <= start_x_m:
     raise ValueError('end_x_m must be strictly downstream of start_x_m')
+  if not isinstance(use_outer_seed_attachment, bool):
+    raise ValueError('use_outer_seed_attachment must be a bool')
   cell_axial_length_m = float(end_x_m) - float(start_x_m)
 
   initial_decision: MocChainTerminationDecision | None = None
@@ -7416,6 +7427,7 @@ def plan_reflected_domain_alternating_source_chain(
       source_band,
       compression_amplitude_rad,
       outer_source_index=outer_source_index,
+      use_outer_seed_attachment=use_outer_seed_attachment,
       target_centerline_y_m=target_centerline_y_m,
       target_centerline_flow_angle_rad=target_centerline_flow_angle_rad,
       attachment_angle_half_width_rad=attachment_angle_half_width_rad,
@@ -7484,6 +7496,7 @@ def plan_reflected_domain_alternating_source_chain(
       'bounded-alternating-source-one-step-physical-field'
     ),
     'one_step_domain': True,
+    'use_outer_seed_attachment': use_outer_seed_attachment,
     'alternating_source_reuse_policy': (
       'never-reuse-after-one-next-cell-attempt'
     ),
@@ -7514,6 +7527,7 @@ def plan_reflected_domain_alternating_source_chain_sequence(
   end_x_m: float,
   compression_amplitude_rad: float,
   outer_source_index: int = 0,
+  use_outer_seed_attachment: bool = False,
   target_centerline_y_m: float = 0.0,
   target_centerline_flow_angle_rad: float = 0.0,
   attachment_angle_half_width_rad: float = 1.0e-6,
@@ -7544,6 +7558,11 @@ def plan_reflected_domain_alternating_source_chain_sequence(
   fidelity boundary: the local physical field uses the explicit research
   compression envelope, and the canonical reflected free-boundary,
   mixed-regime, refinement, and external-validation gates remain pending.
+
+  ``use_outer_seed_attachment`` opts into attaching each generated shock at
+  the retained outgoing reflection-interface seed from its fresh source
+  patch.  The default keeps the existing first-outer-row attachment behavior
+  for callers that are not yet using a reflected-interface continuation.
   """
 
   if not isinstance(seed, MocPhysicalPostShockFieldResult):
@@ -7563,6 +7582,8 @@ def plan_reflected_domain_alternating_source_chain_sequence(
     raise ValueError('end_x_m must be strictly downstream of start_x_m')
   if not isfinite(float(compression_amplitude_rad)) or compression_amplitude_rad <= 0.0:
     raise ValueError('compression_amplitude_rad must be finite and positive')
+  if not isinstance(use_outer_seed_attachment, bool):
+    raise ValueError('use_outer_seed_attachment must be a bool')
   cell_axial_length_m = float(end_x_m) - float(start_x_m)
 
   active_field = seed
@@ -7801,6 +7822,7 @@ def plan_reflected_domain_alternating_source_chain_sequence(
         source,
         compression_amplitude_rad,
         outer_source_index=outer_source_index,
+        use_outer_seed_attachment=use_outer_seed_attachment,
         target_centerline_y_m=target_centerline_y_m,
         target_centerline_flow_angle_rad=target_centerline_flow_angle_rad,
         attachment_angle_half_width_rad=attachment_angle_half_width_rad,
@@ -7905,8 +7927,326 @@ def plan_reflected_domain_alternating_source_chain_sequence(
     'alternating_source_reuse_policy': (
       'fresh-alternating-source-band-and-exact-incoming-handoff-required-per-cell'
     ),
+    'use_outer_seed_attachment': use_outer_seed_attachment,
     'canonical_reflected_domain_closed': False,
     'physical_closure_pending': True,
+    'canonical_free_boundary_pending': True,
+    'external_validation_pending': True,
+  })
+  return replace(planner, diagnostics=diagnostics)
+####
+
+
+def plan_reflected_domain_alternating_source_chain_from_physical_field(
+  seed: MocPhysicalPostShockFieldResult,
+  *,
+  start_x_m: float,
+  end_x_m: float,
+  compression_amplitude_rad: float,
+  source_sample_count: int = 6,
+  outer_source_index: int = 0,
+  target_centerline_y_m: float = 0.0,
+  target_centerline_flow_angle_rad: float = 0.0,
+  attachment_angle_half_width_rad: float = 1.0e-6,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  trace_position_tolerance_m: float = 3.0e-3,
+  trace_forward_tolerance_m: float = 1.0e-4,
+  trace_invariant_tolerance: float = 1.0e-10,
+  source_position_tolerance_m: float = 3.0e-3,
+  source_invariant_tolerance: float = 1.0e-10,
+  source_pressure_tolerance: float = 1.0e-8,
+  position_tolerance_m: float = 1.0e-9,
+  invariant_tolerance: float = 1.0e-10,
+  attachment_pressure_tolerance: float = 1.0e-8,
+  pressure_tolerance: float = 1.0e-8,
+  tangent_tolerance: float = 1.0e-8,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  maximum_boundary_iterations: int = 16,
+  maximum_shooting_iterations: int = 40,
+  policy: MocChainContinuationPolicy | None = None,
+) -> MocChainPlannerResult:
+  """Plan a fresh-band alternating chain from accepted physical fields.
+
+  The first source band is projected from ``seed`` and each later band is
+  projected from the field accepted for the preceding chain cell.  The
+  projection preserves the exact centerline handoff, extracts the finite
+  shock/ambient strip, reflects its terminal ``C+`` trace, and then solves a
+  new alternating ``C-``/``C+`` source band.  A projection failure is kept as
+  a typed non-physical chain stop; no stale source band or extrapolated state
+  is substituted.
+
+  This wrapper makes the solver-owned continuation path usable without a
+  caller fabricating a fresh source callback.  It remains a research
+  reference: the local compression envelope, canonical reflected
+  free-boundary/mixed-regime closure, refinement, and external validation are
+  still separate gates, and no product provider consumes the result.
+  """
+
+  if not isinstance(seed, MocPhysicalPostShockFieldResult):
+    raise TypeError('seed must be a MocPhysicalPostShockFieldResult')
+
+  def field_handoff(
+    field: MocPhysicalPostShockFieldResult,
+  ) -> tuple[MocChainBoundarySample, ...]:
+    try:
+      states = tuple(field.centerline_boundary_states)
+      pressures = tuple(field.centerline_boundary_total_pressure_Pa)
+      if len(states) != len(pressures):
+        return ()
+      return tuple(
+        MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
+        for state, pressure in zip(states, pressures, strict=True)
+      )
+    except (TypeError, ValueError):
+      return ()
+
+  def decision(
+    reason: MocChainTerminationReason,
+    message: str,
+    *,
+    next_cell_index: int,
+    diagnostics: dict[str, Any] | None = None,
+  ) -> MocChainTerminationDecision:
+    payload: dict[str, Any] = {
+      'termination_model': (
+        'solver-generated-alternating-source-from-accepted-physical-field'
+      ),
+      'next_cell_index': next_cell_index,
+      'source_derivation_model': (
+        'accepted-field -> open-shock-ambient-strip -> '
+        'centerline-reflection-patch -> alternating-source-band'
+      ),
+    }
+    if diagnostics is not None:
+      payload.update(diagnostics)
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=reason,
+      message=message,
+      diagnostics=payload,
+    )
+
+  def invalid_source(
+    message: str,
+    handoff: tuple[MocChainBoundarySample, ...],
+    ambient_pressure: float | None = None,
+  ) -> MocReflectedDomainAlternatingSourceResult:
+    return MocReflectedDomainAlternatingSourceResult(
+      status=MocReflectedDomainAlternatingSourceStatus.INVALID_INPUT,
+      reflection_patch=None,
+      centerline_source_states=(),
+      outer_source_states=(),
+      centerline_total_pressure_Pa=(),
+      outer_total_pressure_Pa=(),
+      outer_seed_state=None,
+      outer_seed_total_pressure_Pa=None,
+      ambient_pressure_Pa=ambient_pressure,
+      incoming_trace_validation=None,
+      incoming_trace_polarity=None,
+      incoming_handoff=handoff,
+      message=message,
+    )
+
+  def source_for_field(
+    field: MocPhysicalPostShockFieldResult,
+    handoff: tuple[MocChainBoundarySample, ...],
+    *,
+    next_cell_index: int,
+    current_end_x_m: float,
+  ) -> (
+    MocReflectedDomainAlternatingSourceResult
+    | MocChainTerminationDecision
+  ):
+    if not isinstance(field, MocPhysicalPostShockFieldResult):
+      return decision(
+        MocChainTerminationReason.INVALID_INPUT,
+        'alternating source derivation received an invalid physical field',
+        next_cell_index=next_cell_index,
+      )
+    expected_handoff = field_handoff(field)
+    if handoff != expected_handoff:
+      return decision(
+        MocChainTerminationReason.STATE_NOT_CARRIED,
+        'alternating source derivation did not receive the exact field centerline handoff',
+        next_cell_index=next_cell_index,
+        diagnostics={
+          'incoming_handoff_sample_count': len(handoff),
+          'expected_handoff_sample_count': len(expected_handoff),
+          'incoming_handoff_fingerprint': _handoff_fingerprint(handoff),
+          'expected_handoff_fingerprint': _handoff_fingerprint(expected_handoff),
+        },
+      )
+    if not field.converged or not field.physical_closure_verified:
+      return decision(
+        MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
+        'alternating source derivation requires a converged ambient-closed physical field',
+        next_cell_index=next_cell_index,
+        diagnostics={'upstream_field_status': field.status.value},
+      )
+    if not field.state_sampling_available:
+      return decision(
+        MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
+        'alternating source derivation requires bounded field sampling',
+        next_cell_index=next_cell_index,
+        diagnostics={'upstream_field_status': field.status.value},
+      )
+    if not field.upstream_shock_coupling_verified:
+      return decision(
+        MocChainTerminationReason.STATE_NOT_CARRIED,
+        'alternating source derivation requires retained upstream shock coupling',
+        next_cell_index=next_cell_index,
+        diagnostics={'upstream_field_status': field.status.value},
+      )
+    ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+    if ambient_pressure is None:
+      return decision(
+        MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
+        'accepted physical field did not retain an ambient pressure for source derivation',
+        next_cell_index=next_cell_index,
+      )
+    try:
+      strip = field.as_open_shock_ambient_strip(
+        trace_position_tolerance_m=trace_position_tolerance_m,
+        trace_forward_tolerance_m=trace_forward_tolerance_m,
+        trace_invariant_tolerance=trace_invariant_tolerance,
+      )
+      patch = assemble_terminal_trace_centerline_patch(
+        strip,
+        trace_position_tolerance_m=trace_position_tolerance_m,
+        trace_forward_tolerance_m=trace_forward_tolerance_m,
+        invariant_tolerance=trace_invariant_tolerance,
+      )
+      source = solve_reflected_domain_alternating_source(
+        patch,
+        ambient_pressure,
+        source_sample_count=source_sample_count,
+        position_tolerance_m=source_position_tolerance_m,
+        trace_forward_tolerance_m=trace_forward_tolerance_m,
+        invariant_tolerance=source_invariant_tolerance,
+        pressure_tolerance=source_pressure_tolerance,
+        incoming_handoff=handoff,
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      return decision(
+        MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
+        'accepted physical field could not produce a fresh alternating source band',
+        next_cell_index=next_cell_index,
+        diagnostics={
+          'source_projection_error': str(error),
+          'source_projection_error_type': type(error).__name__,
+          'upstream_field_status': field.status.value,
+        },
+      )
+    if source.converged:
+      if (
+        not isinstance(outer_source_index, int)
+        or isinstance(outer_source_index, bool)
+        or outer_source_index < 0
+        or outer_source_index >= len(source.outer_source_states)
+      ):
+        return decision(
+          MocChainTerminationReason.INVALID_INPUT,
+          'outer_source_index did not select a generated alternating source point',
+          next_cell_index=next_cell_index,
+          diagnostics={'source_band': source.as_report()},
+        )
+      source_start = source.outer_source_states[outer_source_index]
+      if source_start.x_m <= float(current_end_x_m) + float(position_tolerance_m):
+        return decision(
+          MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
+          (
+            'fresh alternating source band begins at or upstream of the '
+            'current chain interface; no backtracking or source extrapolation '
+            'was used'
+          ),
+          next_cell_index=next_cell_index,
+          diagnostics={
+            'source_start_point_m': (source_start.x_m, source_start.y_m),
+            'current_end_x_m': float(current_end_x_m),
+            'source_band': source.as_report(),
+          },
+        )
+    return source
+
+  initial_handoff = field_handoff(seed)
+  initial_source_or_decision = source_for_field(
+    seed,
+    initial_handoff,
+    next_cell_index=2,
+    current_end_x_m=end_x_m,
+  )
+  if isinstance(initial_source_or_decision, MocChainTerminationDecision):
+    initial_source = invalid_source(
+      initial_source_or_decision.message,
+      initial_handoff,
+      seed.ambient_boundary.ambient_pressure_Pa,
+    )
+  else:
+    initial_source = initial_source_or_decision
+
+  def source_band_at(
+    field: MocPhysicalPostShockFieldResult,
+    _current: MocChainCell,
+    next_cell_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+  ) -> (
+    MocReflectedDomainAlternatingSourceResult
+    | MocChainTerminationDecision
+  ):
+    return source_for_field(
+      field,
+      incoming_handoff,
+      next_cell_index=next_cell_index,
+      current_end_x_m=_current.end_x_m,
+    )
+
+  planner = plan_reflected_domain_alternating_source_chain_sequence(
+    seed,
+    initial_source,
+    source_band_at,
+    start_x_m=start_x_m,
+    end_x_m=end_x_m,
+    compression_amplitude_rad=compression_amplitude_rad,
+    outer_source_index=outer_source_index,
+    use_outer_seed_attachment=True,
+    target_centerline_y_m=target_centerline_y_m,
+    target_centerline_flow_angle_rad=target_centerline_flow_angle_rad,
+    attachment_angle_half_width_rad=attachment_angle_half_width_rad,
+    sample_count=sample_count,
+    branch=branch,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+    attachment_pressure_tolerance=attachment_pressure_tolerance,
+    pressure_tolerance=pressure_tolerance,
+    tangent_tolerance=tangent_tolerance,
+    shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+    maximum_segment_iterations=maximum_segment_iterations,
+    maximum_boundary_iterations=maximum_boundary_iterations,
+    maximum_shooting_iterations=maximum_shooting_iterations,
+    policy=policy,
+  )
+  diagnostics = dict(planner.diagnostics)
+  diagnostics.update({
+    'source_derivation_model': (
+      'accepted-field -> open-shock-ambient-strip -> '
+      'centerline-reflection-patch -> alternating-source-band'
+    ),
+    'source_derivation_automatic': True,
+    'source_sample_count': source_sample_count,
+    'trace_position_tolerance_m': float(trace_position_tolerance_m),
+    'trace_forward_tolerance_m': float(trace_forward_tolerance_m),
+    'trace_invariant_tolerance': float(trace_invariant_tolerance),
+    'source_position_tolerance_m': float(source_position_tolerance_m),
+    'source_invariant_tolerance': float(source_invariant_tolerance),
+    'source_pressure_tolerance': float(source_pressure_tolerance),
+    'source_projection_failure_policy': (
+      'typed-open-physical-closure-or-upstream-field-stop; '
+      'never-reuse-or-extrapolate-a-prior-source-band'
+    ),
+    'use_outer_seed_attachment': True,
+    'canonical_reflected_domain_closed': False,
     'canonical_free_boundary_pending': True,
     'external_validation_pending': True,
   })

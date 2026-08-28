@@ -8547,6 +8547,7 @@ def measure_moc_reflected_domain_alternating_physical_field(
   source_index = result.outer_source_index
   source_state = None
   source_pressure = None
+  source_sampling_position_tolerance = result.position_tolerance_m
   attachment_point_verified = False
   attachment_pressure_verified = False
   zero_strength_attachment_verified = bool(
@@ -8556,16 +8557,21 @@ def measure_moc_reflected_domain_alternating_physical_field(
   upstream_coupling_verified = False
   incoming_handoff_verified = False
 
-  if (
+  if source_band is not None and result.attachment_source == (
+    'outer-seed-reflection-interface'
+  ):
+    source_state = source_band.outer_seed_state
+  elif (
     source_band is not None
     and isinstance(source_index, int)
     and not isinstance(source_index, bool)
     and 0 <= source_index < len(source_band.outer_source_states)
   ):
     source_state = source_band.outer_source_states[source_index]
+  if source_band is not None and source_state is not None:
     source_pressure = source_band.static_pressure_at(
       (source_state.x_m, source_state.y_m),
-      position_tolerance_m=source_band.position_tolerance_m,
+      position_tolerance_m=source_sampling_position_tolerance,
     )
 
   if (
@@ -8580,12 +8586,12 @@ def measure_moc_reflected_domain_alternating_physical_field(
       _caustic_points_match(
         (result.start_point_m,),
         (shock.shock_points_m[0],),
-        position_tolerance_m=source_band.position_tolerance_m,
+        position_tolerance_m=source_sampling_position_tolerance,
       )
       and _caustic_state_matches(
         shock.upstream_states[0],
         source_state,
-        position_tolerance_m=source_band.position_tolerance_m,
+        position_tolerance_m=source_sampling_position_tolerance,
         state_tolerance=source_band.invariant_tolerance,
       )
     )
@@ -8633,7 +8639,7 @@ def measure_moc_reflected_domain_alternating_physical_field(
         else:
           state = source_band.state_at(
             point,
-            position_tolerance_m=source_band.position_tolerance_m,
+            position_tolerance_m=source_sampling_position_tolerance,
           )
           if state is None:
             envelope_verified = False
@@ -8664,17 +8670,17 @@ def measure_moc_reflected_domain_alternating_physical_field(
     ):
       sampled_state = source_band.state_at(
         point,
-        position_tolerance_m=source_band.position_tolerance_m,
+        position_tolerance_m=source_sampling_position_tolerance,
       )
       sampled_pressure = source_band.static_pressure_at(
         point,
-        position_tolerance_m=source_band.position_tolerance_m,
+        position_tolerance_m=source_sampling_position_tolerance,
       )
       upstream_coupling_verified = upstream_coupling_verified and bool(
         _caustic_state_matches(
           sampled_state,
           state,
-          position_tolerance_m=source_band.position_tolerance_m,
+          position_tolerance_m=source_sampling_position_tolerance,
           state_tolerance=source_band.invariant_tolerance,
         )
         and _pressure_matches(

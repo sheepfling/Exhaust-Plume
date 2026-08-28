@@ -751,6 +751,17 @@ class MocReflectedDomainAlternatingSourceResult:
           for weight, sample in zip(weights, resolved, strict=True)
         ),
       )
+    if self.reflection_patch is not None:
+      patch_state = self.reflection_patch.state_at(
+        point,
+        position_tolerance_m=position_tolerance_m,
+      )
+      patch_pressure = self.reflection_patch.total_pressure_at(
+        point,
+        position_tolerance_m=position_tolerance_m,
+      )
+      if patch_state is not None and patch_pressure is not None:
+        return patch_state, patch_pressure
     return None
   ####
 
@@ -760,7 +771,7 @@ class MocReflectedDomainAlternatingSourceResult:
     *,
     position_tolerance_m: float = 1.0e-10,
   ) -> CharacteristicState | None:
-    """Sample a state inside the bounded alternating band only."""
+    """Sample the retained patch or alternating band without extrapolation."""
 
     sample = self._sample_at(
       point_m,
@@ -775,7 +786,7 @@ class MocReflectedDomainAlternatingSourceResult:
     *,
     position_tolerance_m: float = 1.0e-10,
   ) -> float | None:
-    """Sample carried total pressure inside the bounded band."""
+    """Sample carried pressure from the retained patch or source band."""
 
     sample = self._sample_at(
       point_m,
@@ -790,7 +801,7 @@ class MocReflectedDomainAlternatingSourceResult:
     *,
     position_tolerance_m: float = 1.0e-10,
   ) -> float | None:
-    """Sample isentropic static pressure inside the bounded band."""
+    """Sample isentropic static pressure without leaving retained domains."""
 
     sample = self._sample_at(
       point_m,
@@ -916,6 +927,8 @@ class MocReflectedDomainAlternatingPhysicalFieldResult:
   continuation_law: str = (
     'alternating-source-local-compression-envelope'
   )
+  attachment_source: str = 'alternating-outer-source-row'
+  position_tolerance_m: float = 1.0e-9
   shock_angle_tolerance_rad: float = 1.0e-2
   message: str = ''
 
@@ -999,6 +1012,12 @@ class MocReflectedDomainAlternatingPhysicalFieldResult:
     object.__setattr__(self, 'incoming_handoff', incoming_handoff)
     if not isinstance(self.continuation_law, str) or not self.continuation_law:
       raise ValueError('continuation_law must be a non-empty string')
+    if not isinstance(self.attachment_source, str) or not self.attachment_source:
+      raise ValueError('attachment_source must be a non-empty string')
+    position_tolerance = float(self.position_tolerance_m)
+    if not isfinite(position_tolerance) or position_tolerance <= 0.0:
+      raise ValueError('position_tolerance_m must be finite and positive')
+    object.__setattr__(self, 'position_tolerance_m', position_tolerance)
     shock_angle_tolerance = float(self.shock_angle_tolerance_rad)
     if not isfinite(shock_angle_tolerance) or shock_angle_tolerance <= 0.0:
       raise ValueError(
@@ -1134,6 +1153,8 @@ class MocReflectedDomainAlternatingPhysicalFieldResult:
       'outer_flow_angle_bracket': self.outer_flow_angle_bracket,
       'incoming_handoff_sample_count': len(self.incoming_handoff),
       'continuation_law': self.continuation_law,
+      'attachment_source': self.attachment_source,
+      'position_tolerance_m': self.position_tolerance_m,
       'shock_sample_count': (
         None if shock is None else len(shock.shock_points_m)
       ),
@@ -1680,6 +1701,7 @@ def solve_reflected_domain_alternating_physical_field(
   compression_amplitude_rad: float,
   *,
   outer_source_index: int = 0,
+  use_outer_seed_attachment: bool = False,
   target_centerline_y_m: float = 0.0,
   target_centerline_flow_angle_rad: float = 0.0,
   attachment_angle_half_width_rad: float = 1.0e-6,
@@ -1698,9 +1720,14 @@ def solve_reflected_domain_alternating_physical_field(
 ) -> MocReflectedDomainAlternatingPhysicalFieldResult:
   """Couple an alternating source band to one ambient-closed shock field.
 
-  The first outer source point is an ambient-pressure point, so the physical
-  shock starts as an explicit zero-strength Mach-wave attachment.  Interior
-  shock turns are obtained from the sampled alternating upstream state plus a
+  The default first outer source point is an ambient-pressure point, so the
+  physical shock starts as an explicit zero-strength Mach-wave attachment.
+  ``use_outer_seed_attachment`` instead starts at the retained outgoing trace
+  seed from the prior reflected patch.  That opt-in mode is the exact
+  reflected-interface seam needed by a continued chain; the source sampler
+  remains bounded because it can use the retained patch but never
+  extrapolates beyond it or the alternating source cells.  Interior shock
+  turns are obtained from the sampled alternating upstream state plus a
   non-negative ``4*s*(1-s)`` compression envelope.  The envelope is a
   bounded research boundary condition: it makes entropy production explicit
   and prevents the fast source band from being silently promoted as a
@@ -1743,6 +1770,16 @@ def solve_reflected_domain_alternating_physical_field(
     and outer_source_index >= 0
     else None
   )
+  resolved_seed_attachment = (
+    use_outer_seed_attachment
+    if isinstance(use_outer_seed_attachment, bool)
+    else False
+  )
+  attachment_source = (
+    'outer-seed-reflection-interface'
+    if resolved_seed_attachment
+    else 'alternating-outer-source-row'
+  )
   resolved_incoming_handoff: tuple[MocChainBoundarySample, ...] = ()
   incoming_handoff_error = False
   if incoming_handoff is not None:
@@ -1762,6 +1799,11 @@ def solve_reflected_domain_alternating_physical_field(
     resolved_shock_angle_tolerance = float(shock_angle_tolerance_rad)
   except (TypeError, ValueError):
     pass
+  if (
+    not isfinite(resolved_position_tolerance)
+    or resolved_position_tolerance <= 0.0
+  ):
+    resolved_position_tolerance = 1.0e-9
   bracket: tuple[float, float] | None = None
   start_point: tuple[float, float] | None = None
 
@@ -1784,6 +1826,8 @@ def solve_reflected_domain_alternating_physical_field(
       outer_flow_angle_bracket=bracket,
       incoming_handoff=resolved_incoming_handoff,
       continuation_law=continuation_law,
+      attachment_source=attachment_source,
+      position_tolerance_m=resolved_position_tolerance,
       shock_angle_tolerance_rad=(
         resolved_shock_angle_tolerance
         if isfinite(resolved_shock_angle_tolerance)
@@ -1802,6 +1846,11 @@ def solve_reflected_domain_alternating_physical_field(
     return failure(
       MocReflectedDomainAlternatingPhysicalFieldStatus.INVALID_INPUT,
       'incoming_handoff must contain MocChainBoundarySample values',
+    )
+  if not isinstance(use_outer_seed_attachment, bool):
+    return failure(
+      MocReflectedDomainAlternatingPhysicalFieldStatus.INVALID_INPUT,
+      'use_outer_seed_attachment must be a bool',
     )
   if not band.source_field_verified:
     return failure(
@@ -1879,7 +1928,16 @@ def solve_reflected_domain_alternating_physical_field(
       MocReflectedDomainAlternatingPhysicalFieldStatus.SOURCE_FIELD_FAILURE,
       'alternating source band does not retain a finite ambient pressure',
     )
-  source_state = band.outer_source_states[resolved_outer_index]
+  source_state = (
+    band.outer_seed_state
+    if resolved_seed_attachment
+    else band.outer_source_states[resolved_outer_index]
+  )
+  if source_state is None:
+    return failure(
+      MocReflectedDomainAlternatingPhysicalFieldStatus.SOURCE_FIELD_FAILURE,
+      'alternating source band does not retain an outer seed attachment state',
+    )
   start_point = (source_state.x_m, source_state.y_m)
   bracket = (
     source_state.theta_rad - half_width,
@@ -1974,6 +2032,11 @@ def solve_reflected_domain_alternating_physical_field(
         resolved_incoming_handoff if resolved_incoming_handoff else None
       ),
       allow_zero_strength_attachment=True,
+      zero_strength_start_trace=(
+        band.reflection_patch.outgoing_trace_samples
+        if resolved_seed_attachment and band.reflection_patch is not None
+        else None
+      ),
       allow_zero_strength_endpoints=True,
       downstream_flow_angle_at=downstream_flow_angle_at,
       continuation_law=continuation_law,
@@ -2005,6 +2068,8 @@ def solve_reflected_domain_alternating_physical_field(
       outer_flow_angle_bracket=bracket,
       incoming_handoff=resolved_incoming_handoff,
       continuation_law=continuation_law,
+      attachment_source=attachment_source,
+      position_tolerance_m=float(position_tolerance_m),
       shock_angle_tolerance_rad=float(shock_angle_tolerance_rad),
       message=(
         'alternating source band coupled to a state-carrying ambient-closed '

@@ -1924,3 +1924,25 @@ audit remeasures each retained raw field, shock loss, ambient closure, state
 sampling, exact handoff, and fresh downstream domain. These audits are
 diagnostics and remain non-promoting; they make a passing continued prefix
 distinguishable from a solver flag or a copied geometry.
+
+## Solver-derived reflected-interface attachment checkpoint
+
+The automatic alternating-source chain planner now derives each fresh source
+band from the accepted physical field that precedes it. The bounded source
+sampler retains the reflected patch as an upstream interface region, while
+the newly generated alternating cells remain the preferred samples wherever
+their domains overlap. An opt-in outer-seed attachment starts the next shock
+at the exact retained outgoing reflection-interface point and passes the
+zero-strength trace to the shock marcher; the existing first-new-outer-row
+attachment remains the default for one-step callers.
+
+The physical-field result records its attachment mode and numerical sampling
+tolerance separately from the looser projected-patch geometry tolerance. The
+independent alternating physical-field audit uses that sampling tolerance, so
+fresh multi-cell domains are checked against the same state field that the
+solver marched. The automatic planner now reports a passing fresh-domain,
+handoff, and physical-field-chain audit for the bounded canonical fixture.
+This remains a research continuation: the canonical reflected free-boundary
+law, mixed-regime downstream closure, refinement evidence, and external
+observations are still release gates, and no product/provider lane consumes
+the result.
