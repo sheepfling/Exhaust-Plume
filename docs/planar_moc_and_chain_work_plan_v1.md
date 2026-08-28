@@ -1502,3 +1502,11 @@ that the point is at or downstream of the current cell interface before
 sampling it. A stale or backtracking preferred point is an explicit bounded
 upstream-field stop, with no callback evaluation; this keeps a valid source
 domain from being reused as a prior-cell source or silently backtracked.
+The validation artifact now feeds the accepted physical first-cell field into
+this same planner through the canonical old-family/restarted-family caustic
+bridge. The exact caustic anchor is accepted as a downstream handoff, and the
+planner records one bounded research step before stopping at
+``OPEN_PHYSICAL_CLOSURE``; the independent planner measurement passes while
+``physical_termination`` and production promotion remain false. This proves
+the bridge-to-chain interface without treating the unresolved post-caustic
+field remesh as a continued physical cell.

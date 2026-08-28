@@ -141,6 +141,13 @@ mixed-regime downstream field remains outside the supersonic MOC chain.
 When a bounded source supplies a preferred shock-start point, the planner
 requires that point to be at or downstream of the current cell interface;
 stale upstream starts are rejected without callback sampling or backtracking.
+The standalone validation report also routes the accepted physical first-cell
+field through the canonical old-family/restarted-family caustic bridge and the
+generic continued-chain planner. The exact caustic anchor is accepted as a
+downstream handoff, then the bounded research lane stops at
+``open-physical-closure`` after one cell; its independent planner measurement
+passes, but physical termination and production promotion remain false until
+the post-caustic remesher and downstream closure exist.
 The first-cell-owned terminal closure bridge now consumes the composite's exact
 outgoing ``C-`` handoff, fits that terminal shock, and closes only the
 supersonic side. It reports ``converged_first_cell_supersonic_region`` while

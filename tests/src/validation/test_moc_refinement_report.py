@@ -417,6 +417,31 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
     caustic_upstream_bridge['invariant_planner_measurement'],
     physical_termination=False,
   )
+  assert caustic_upstream_bridge['physical_bridge_planner'] is not None
+  physical_bridge_planner = caustic_upstream_bridge['physical_bridge_planner']
+  assert physical_bridge_planner['planner_kind'] == 'upstream-coupled-research'
+  assert physical_bridge_planner['planning_only'] is True
+  assert physical_bridge_planner['production_claim_allowed'] is False
+  assert physical_bridge_planner['step_count'] == 1
+  assert physical_bridge_planner['chain']['status'] == 'solver-terminated'
+  assert physical_bridge_planner['chain']['termination_reason'] == (
+    'open-physical-closure'
+  )
+  assert physical_bridge_planner['chain']['cell_count'] == 1
+  assert physical_bridge_planner['chain']['physical_termination'] is False
+  assert physical_bridge_planner['chain']['diagnostics']['upstream_source'][
+    'model'
+  ] == 'bounded-caustic-upstream-bridge'
+  assert physical_bridge_planner['chain']['diagnostics'][
+    'start_point_provenance'
+  ] == 'bounded-source-preferred'
+  assert physical_bridge_planner['chain']['diagnostics'][
+    'start_point_downstream_of_current_cell'
+  ] is True
+  _assert_chain_planner_measurement(
+    caustic_upstream_bridge['physical_bridge_planner_measurement'],
+    physical_termination=False,
+  )
   assert caustic_upstream_continuation['status'] == (
     'solver-owned-bounded-caustic-upstream-continuation'
   )

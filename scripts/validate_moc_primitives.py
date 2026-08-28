@@ -4361,6 +4361,7 @@ def _caustic_upstream_bridge_probe(
   ambient_pressure_Pa: float,
   old_family: Any,
   current_field: MocPostShockCharacteristicFieldResult | None,
+  physical_seed: Any = None,
 ) -> dict[str, Any]:
   """Audit the explicit old-family/restarted-family upstream seam."""
 
@@ -4553,6 +4554,49 @@ def _caustic_upstream_bridge_probe(
       if invariant_planner is None
       else measure_moc_chain_planner(invariant_planner)
     )
+    physical_bridge_planner = None
+    if (
+      physical_seed is not None
+      and getattr(physical_seed, 'converged', False)
+      and getattr(physical_seed, 'physical_closure_verified', False)
+      and seed.event is not None
+      and seed.event.caustic_point_m is not None
+    ):
+      event_x_m = seed.event.caustic_point_m[0]
+      physical_start_x_m = physical_seed.shock_boundary_points_m[0][0]
+      physical_bridge_reference = (
+        MocSolverGeneratedAmbientClosedPostShockChainReference(
+          total_cell_count=2,
+          shock_start_y_m=0.5,
+          ambient_pressure_Pa=ambient_pressure_Pa,
+          outer_downstream_flow_angle_lower_rad=0.02,
+          outer_downstream_flow_angle_upper_rad=0.12,
+          sample_count=9,
+          upstream_source_provider=lambda *_args, source=bridge_source: source,
+        )
+      )
+      physical_bridge_planner = (
+        plan_solver_generated_ambient_closed_post_shock_chain_reference(
+          physical_seed,
+          start_x_m=physical_start_x_m,
+          end_x_m=event_x_m - 0.01,
+          reference=physical_bridge_reference,
+          policy=MocChainContinuationPolicy(
+            max_cells=2,
+            require_state_carry=True,
+          ),
+        )
+      )
+    physical_bridge_planner_report = (
+      None
+      if physical_bridge_planner is None
+      else physical_bridge_planner.as_report()
+    )
+    physical_bridge_planner_measurement = (
+      None
+      if physical_bridge_planner is None
+      else measure_moc_chain_planner(physical_bridge_planner)
+    )
     accepted = (
       bridge.fields_converged
       and bounded_source_audit['source']['model']
@@ -4646,6 +4690,30 @@ def _caustic_upstream_bridge_probe(
       and invariant_planner_measurement.fidelity_isolation_verified
       and invariant_planner_measurement.physical_termination is False
       and invariant_planner_measurement.production_claim_allowed is False
+      and physical_bridge_planner_report is not None
+      and physical_bridge_planner_report['planner_kind']
+      == MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH.value
+      and physical_bridge_planner_report['planning_only'] is True
+      and physical_bridge_planner_report['production_claim_allowed'] is False
+      and physical_bridge_planner_report['step_count'] == 1
+      and physical_bridge_planner_report['chain']['status']
+      == MocChainStatus.SOLVER_TERMINATED.value
+      and physical_bridge_planner_report['chain']['physical_termination'] is False
+      and physical_bridge_planner_report['chain']['cell_count'] == 1
+      and physical_bridge_planner_report['chain']['termination_reason']
+      in (
+        MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY.value,
+        MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE.value,
+      )
+      and physical_bridge_planner_report['chain']['diagnostics'][
+        'upstream_source'
+      ]['model'] == 'bounded-caustic-upstream-bridge'
+      and physical_bridge_planner_measurement is not None
+      and physical_bridge_planner_measurement.converged
+      and physical_bridge_planner_measurement.termination_verified
+      and physical_bridge_planner_measurement.fidelity_isolation_verified
+      and physical_bridge_planner_measurement.physical_termination is False
+      and physical_bridge_planner_measurement.production_claim_allowed is False
     )
     return {
       'status': 'diagnostic-bounded-caustic-upstream-bridge',
@@ -4673,6 +4741,12 @@ def _caustic_upstream_bridge_probe(
         None
         if invariant_planner_measurement is None
         else invariant_planner_measurement.as_report()
+      ),
+      'physical_bridge_planner': physical_bridge_planner_report,
+      'physical_bridge_planner_measurement': (
+        None
+        if physical_bridge_planner_measurement is None
+        else physical_bridge_planner_measurement.as_report()
       ),
       'claim_status': (
         'bounded-old-family-restarted-family-bridge-and-planner-audit; '
@@ -5470,12 +5544,47 @@ def build_moc_primitive_report() -> dict[str, Any]:
     fan_ambient.pressure_Pa,
     solver_generated_shock.field,
   )
+  caustic_bridge_physical_seed = None
+  if (
+    solver_generated_shock.shock_fit is not None
+    and solver_generated_shock.shock_fit.converged
+    and solver_generated_shock.shock_fit.boundary_states
+    and solver_generated_shock.upstream_states
+    and solver_generated_shock.upstream_pressure_Pa
+  ):
+    physical_shock_fit_first = solver_generated_shock.shock_fit.boundary_states[0]
+    physical_upstream = solver_generated_shock.upstream_states[0]
+    physical_upstream_pressure = solver_generated_shock.upstream_pressure_Pa[0]
+    physical_ambient_pressure = physical_shock_fit_first.downstream_total_pressure_Pa / (
+      1.0
+      + 0.5 * (physical_shock_fit_first.state.gamma - 1.0)
+      * physical_shock_fit_first.state.mach**2
+    ) ** (
+      physical_shock_fit_first.state.gamma
+      / (physical_shock_fit_first.state.gamma - 1.0)
+    )
+    caustic_bridge_physical_seed = (
+      solve_marched_attached_shock_with_ambient_centerline_physical_field(
+        lambda point: replace(
+          physical_upstream,
+          x_m=point[0],
+          y_m=point[1],
+        ),
+        lambda _point: physical_upstream_pressure,
+        physical_shock_fit_first.point_m,
+        physical_ambient_pressure,
+        0.02,
+        0.12,
+        sample_count=9,
+      ).field
+    )
   caustic_upstream_bridge = _caustic_upstream_bridge_probe(
     caustic_shock_seed,
     fan_exit.total_pressure_Pa,
     fan_ambient.pressure_Pa,
     reflected_source_strip,
     solver_generated_shock.field,
+    caustic_bridge_physical_seed,
   )
   caustic_upstream_continuation = _caustic_upstream_continuation_probe(
     caustic_shock_seed,
