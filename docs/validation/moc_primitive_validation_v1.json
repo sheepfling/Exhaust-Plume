@@ -23172,6 +23172,7 @@
         "resolved": true,
         "physical_termination": true,
         "physical_closure_verified": false,
+        "mixed_regime_field_complete": false,
         "mixed_regime_model_closure_verified": true,
         "chain_promotion_blocked": true,
         "chain_planner": {
@@ -23953,6 +23954,7 @@
           "converged": true,
           "physical_terminal_verified": true,
           "physical_closure_verified": false,
+          "mixed_regime_field_complete": false,
           "chain_promotion_blocked": true,
           "mixed_regime_seam_available": true,
           "decision": {
@@ -25043,7 +25045,8 @@
               "no total-pressure gain over the terminal shock"
             ],
             "message": "the mixed-regime solver must provide the closed downstream perimeter; no geometry was inferred from the open supersonic zone"
-          }
+          },
+          "mixed_regime_field": null
         },
         "mixed_regime_closure": {
           "status": "converged_mixed_regime_closure",
@@ -25503,6 +25506,7 @@
           "shock_angle_tolerance_rad": 0.01,
           "mixed_regime_solver_supplied": true,
           "mixed_regime_closure_attached": false,
+          "mixed_regime_field_attachment_requested": false,
           "chain_promotion_blocked": true,
           "production_claim_allowed": false,
           "mixed_regime_solver_mode": "prescribed-boundary-mock",

@@ -610,6 +610,88 @@ def test_terminal_patch_planner_mock_consumes_exact_retained_seam() -> None:
   assert planner.as_report()['production_claim_allowed'] is False
 
 
+def test_terminal_patch_can_explicitly_attach_an_exact_mixed_regime_field() -> None:
+  field = _canonical_ambient_closed_field()
+  planner = plan_ambient_closed_post_shock_chain_terminal_patch_mock(
+    field,
+    start_x_m=0.5,
+    end_x_m=field.ambient_boundary_points_m[-1][0],
+    terminal_end_x_m=2.2,
+    mock=MocPrescribedMixedRegimeClosureMock(
+      streamwise_length_m=0.02,
+      transverse_length_m=0.01,
+      radial_divisions=2,
+    ),
+    attach_mixed_regime_field=True,
+    sample_count=9,
+    trace_position_tolerance_m=1.0e-3,
+    position_tolerance_m=1.0e-3,
+    policy=MocChainContinuationPolicy(
+      max_cells=2,
+      require_state_carry=True,
+    ),
+  )
+
+  assert planner.resolved
+  assert planner.physical_termination
+  assert planner.physical_closure_verified
+  assert planner.mixed_regime_field_complete
+  assert planner.mixed_regime_model_closure_verified
+  assert planner.chain_promotion_blocked
+  assert planner.transition is not None
+  assert planner.transition.mixed_regime_field_complete
+  assert planner.transition.mixed_regime_field is not None
+  assert planner.diagnostics['mixed_regime_field_attachment_requested'] is True
+  assert planner.diagnostics['mixed_regime_closure_attached'] is True
+  assert planner.diagnostics['mixed_regime_field_attached'] is True
+  assert planner.as_report()['transition']['physical_closure_verified'] is True
+  assert planner.as_report()['mixed_regime_field_complete'] is True
+  assert planner.as_report()['production_claim_allowed'] is False
+
+
+def test_terminal_patch_rejects_a_mismatched_mixed_regime_field() -> None:
+  field = _canonical_ambient_closed_field()
+  planner = plan_ambient_closed_post_shock_chain_terminal_patch_mock(
+    field,
+    start_x_m=0.5,
+    end_x_m=field.ambient_boundary_points_m[-1][0],
+    terminal_end_x_m=2.2,
+    mock=MocPrescribedMixedRegimeClosureMock(
+      streamwise_length_m=0.02,
+      transverse_length_m=0.01,
+      radial_divisions=2,
+    ),
+    sample_count=9,
+    trace_position_tolerance_m=1.0e-3,
+    position_tolerance_m=1.0e-3,
+    policy=MocChainContinuationPolicy(
+      max_cells=2,
+      require_state_carry=True,
+    ),
+  )
+
+  assert planner.transition is not None
+  assert planner.mixed_regime_closure is not None
+  mixed_regime_field = planner.mixed_regime_closure.field
+  assert mixed_regime_field is not None
+  assert mixed_regime_field.downstream_condition is not None
+  mismatched_boundary = replace(
+    mixed_regime_field.boundary,
+    terminal=object(),
+  )
+  mismatched_field = replace(
+    mixed_regime_field,
+    boundary=mismatched_boundary,
+    downstream_condition=replace(
+      mixed_regime_field.downstream_condition,
+      boundary=mismatched_boundary,
+    ),
+  )
+
+  with pytest.raises(ValueError, match='exact terminal shock seam'):
+    planner.transition.with_mixed_regime_field(mismatched_field)
+
+
 def test_terminal_patch_planner_reference_keeps_scalar_result_separate() -> None:
   field = _canonical_ambient_closed_field()
   planner = plan_ambient_closed_post_shock_chain_terminal_patch_reference(

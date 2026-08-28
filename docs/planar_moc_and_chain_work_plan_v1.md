@@ -1586,3 +1586,12 @@ reference. It retains the exact terminal request, section, perimeter, profile
 policy, and independent handoff result as adjacent diagnostics. The wrapper
 keeps the terminal's mixed-regime field unattached and preserves the typed
 open-physical-closure chain stop.
+
+The continued terminal-patch result now has the matching explicit attachment
+seam. A caller may opt into attaching a converged mixed-regime field only
+after it retains the exact terminal shock and supersonic patch; the transition
+then reports its local physical closure while keeping terminal status,
+``chain_promotion_blocked``, and ``production_claim_allowed=false`` intact.
+The planner mock and scalar reference remain adjacent by default, so their
+local convergence cannot silently become a continued supersonic cell or a
+product claim.

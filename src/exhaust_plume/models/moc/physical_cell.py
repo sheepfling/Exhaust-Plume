@@ -12,7 +12,7 @@ existing topological fan.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from math import cos, hypot, isfinite, sin, sqrt
 from typing import TYPE_CHECKING, Any, Callable, Sequence
@@ -46,6 +46,8 @@ from exhaust_plume.models.moc.post_shock import (
   fit_attached_shock_boundary,
 )
 from exhaust_plume.models.moc.mixed_regime import (
+  MocMixedRegimeClosureResult,
+  MocMixedRegimeFieldResult,
   MocMixedRegimePerimeterRequest,
 )
 from exhaust_plume.models.moc.primitives import (
@@ -1148,6 +1150,7 @@ class MocPhysicalPostShockTerminalPatchTransitionResult:
   downstream_shock: MocTerminalReflectionPatchShockSolveResult | None = None
   terminal_field: 'MocTerminalShockCellFieldResult | None' = None
   mixed_regime_request: MocMixedRegimePerimeterRequest | None = None
+  mixed_regime_field: MocMixedRegimeFieldResult | None = None
 
   def __post_init__(self) -> None:
     if not isinstance(self.decision, MocChainTerminationDecision):
@@ -1209,7 +1212,46 @@ class MocPhysicalPostShockTerminalPatchTransitionResult:
       raise ValueError(
         'mixed_regime_request requires the retained terminal_field'
       )
+    if self.mixed_regime_field is not None:
+      if not isinstance(self.mixed_regime_field, MocMixedRegimeFieldResult):
+        raise TypeError(
+          'mixed_regime_field must be a MocMixedRegimeFieldResult or None'
+        )
+      if self.terminal_field is None:
+        raise ValueError(
+          'mixed_regime_field requires the retained terminal_field'
+        )
+      if self.mixed_regime_request is None:
+        raise ValueError(
+          'mixed_regime_field requires the retained mixed_regime_request'
+        )
+      if not self.mixed_regime_field.physical_closure_verified:
+        raise ValueError(
+          'only a physically closed mixed-regime field can be attached'
+        )
+      if self.mixed_regime_field.boundary.terminal != (
+        self.terminal_field.terminal_normal_shock
+      ):
+        raise ValueError(
+          'mixed_regime_field must retain the exact terminal shock seam'
+        )
+      if (
+        self.mixed_regime_field.boundary.supersonic_patch
+        != self.terminal_field.terminal_shock_supersonic_downstream_states
+      ):
+        raise ValueError(
+          'mixed_regime_field must retain the exact terminal supersonic patch'
+        )
+      if (
+        self.terminal_field.mixed_regime_field is not self.mixed_regime_field
+        and self.terminal_field.mixed_regime_field
+        != self.mixed_regime_field
+      ):
+        raise ValueError(
+          'terminal_field must retain the exact attached mixed-regime field'
+        )
     object.__setattr__(self, 'mixed_regime_request', self.mixed_regime_request)
+    object.__setattr__(self, 'mixed_regime_field', self.mixed_regime_field)
 
   @property
   def converged(self) -> bool:
@@ -1230,10 +1272,25 @@ class MocPhysicalPostShockTerminalPatchTransitionResult:
     return self.mixed_regime_request is not None
 
   @property
-  def physical_closure_verified(self) -> bool:
-    """The downstream mixed-regime field is intentionally not attached here."""
+  def mixed_regime_field_complete(self) -> bool:
+    """Whether the exact downstream field has been attached to the terminal."""
 
-    return False
+    return bool(
+      self.mixed_regime_field is not None
+      and self.mixed_regime_field.physical_closure_verified
+      and self.terminal_field is not None
+      and self.terminal_field.mixed_regime_field is self.mixed_regime_field
+    )
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    """Whether the retained supersonic and downstream fields both closed."""
+
+    return bool(
+      self.terminal_field is not None
+      and self.terminal_field.physical_closure_verified
+      and self.mixed_regime_field_complete
+    )
 
   @property
   def chain_promotion_blocked(self) -> bool:
@@ -1250,12 +1307,89 @@ class MocPhysicalPostShockTerminalPatchTransitionResult:
       )
     return self.mixed_regime_request
 
+  def with_mixed_regime_field(
+    self,
+    mixed_regime_field: MocMixedRegimeFieldResult,
+  ) -> 'MocPhysicalPostShockTerminalPatchTransitionResult':
+    """Attach an exact downstream field without promoting a chain cell.
+
+    The terminal transition owns the normal-shock and supersonic patch seam,
+    while the mixed-regime solver owns the downstream field.  Attachment is
+    therefore explicit and identity-checked.  A passing field can make the
+    transition physically closed at this result layer, but
+    ``chain_promotion_blocked`` remains true because this transition is a
+    terminal stop rather than a new supersonic cell.
+    """
+
+    if not isinstance(mixed_regime_field, MocMixedRegimeFieldResult):
+      raise TypeError(
+        'mixed_regime_field must be a MocMixedRegimeFieldResult'
+      )
+    if self.terminal_field is None or not self.converged:
+      raise ValueError(
+        'a mixed-regime field requires a converged terminal-patch field'
+      )
+    if self.mixed_regime_request is None:
+      raise ValueError(
+        'a mixed-regime field requires the exact mixed-regime request'
+      )
+    if not mixed_regime_field.physical_closure_verified:
+      raise ValueError(
+        'only a physically closed mixed-regime field can be attached'
+      )
+    if mixed_regime_field.boundary.terminal != self.terminal_field.terminal_normal_shock:
+      raise ValueError(
+        'mixed-regime field does not retain the exact terminal shock seam'
+      )
+    if mixed_regime_field.boundary.supersonic_patch != (
+      self.terminal_field.terminal_shock_supersonic_downstream_states
+    ):
+      raise ValueError(
+        'mixed-regime field does not retain the exact terminal supersonic patch'
+      )
+    if mixed_regime_field != self.mixed_regime_field:
+      updated_terminal_field = self.terminal_field.with_mixed_regime_field(
+        mixed_regime_field
+      )
+    else:
+      updated_terminal_field = self.terminal_field
+    return replace(
+      self,
+      terminal_field=updated_terminal_field,
+      mixed_regime_field=mixed_regime_field,
+    )
+
+  def attach_mixed_regime_closure(
+    self,
+    closure: MocMixedRegimeClosureResult,
+  ) -> 'MocPhysicalPostShockTerminalPatchTransitionResult':
+    """Attach one accepted closure while preserving the exact terminal seam."""
+
+    if not isinstance(closure, MocMixedRegimeClosureResult):
+      raise TypeError(
+        'closure must be a MocMixedRegimeClosureResult'
+      )
+    if self.mixed_regime_request is None:
+      raise ValueError(
+        'a mixed-regime closure requires the exact mixed-regime request'
+      )
+    if closure.request != self.mixed_regime_request:
+      raise ValueError(
+        'mixed-regime closure does not retain this terminal-patch seam'
+      )
+    if not closure.converged or closure.field is None:
+      raise ValueError(
+        'only a converged mixed-regime closure with an accepted field can be attached'
+      )
+    return self.with_mixed_regime_field(closure.field)
+
   def as_report(self) -> dict[str, Any]:
     return {
       'status': self.decision.reason.value,
       'converged': self.converged,
       'physical_terminal_verified': self.physical_terminal_verified,
       'physical_closure_verified': self.physical_closure_verified,
+      'mixed_regime_field_complete': self.mixed_regime_field_complete,
       'chain_promotion_blocked': self.chain_promotion_blocked,
       'mixed_regime_seam_available': self.mixed_regime_seam_available,
       'decision': self.decision.as_report(),
@@ -1281,6 +1415,11 @@ class MocPhysicalPostShockTerminalPatchTransitionResult:
         None
         if self.mixed_regime_request is None
         else self.mixed_regime_request.as_report()
+      ),
+      'mixed_regime_field': (
+        None
+        if self.mixed_regime_field is None
+        else self.mixed_regime_field.as_report()
       ),
     }
   ####

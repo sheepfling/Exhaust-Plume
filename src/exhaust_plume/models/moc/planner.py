@@ -1348,9 +1348,26 @@ class MocPhysicalPostShockTerminalPatchPlannerResult:
 
   @property
   def physical_closure_verified(self) -> bool:
-    """The canonical downstream field remains outside this planner seam."""
+    """Whether the retained transition has an attached closed field.
 
-    return False
+    The planner's production claim remains false and chain promotion remains
+    blocked even when a caller explicitly opts into attaching a field.  This
+    property only reports the result-layer closure gates.
+    """
+
+    return bool(
+      self.transition is not None
+      and self.transition.physical_closure_verified
+    )
+
+  @property
+  def mixed_regime_field_complete(self) -> bool:
+    """Whether the exact downstream field is retained on the transition."""
+
+    return bool(
+      self.transition is not None
+      and self.transition.mixed_regime_field_complete
+    )
 
   @property
   def chain_promotion_blocked(self) -> bool:
@@ -1373,6 +1390,7 @@ class MocPhysicalPostShockTerminalPatchPlannerResult:
       'resolved': self.resolved,
       'physical_termination': self.physical_termination,
       'physical_closure_verified': self.physical_closure_verified,
+      'mixed_regime_field_complete': self.mixed_regime_field_complete,
       'mixed_regime_model_closure_verified': (
         self.mixed_regime_model_closure_verified
       ),
@@ -7363,6 +7381,7 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
     [MocMixedRegimePerimeterRequest],
     MocMixedRegimeFieldResult | None,
   ] | None = None,
+  attach_mixed_regime_field: bool = False,
   claim_status: str | None = None,
 ) -> MocPhysicalPostShockTerminalPatchPlannerResult:
   """Plan the terminal transition and exercise its exact mixed-regime seam.
@@ -7372,8 +7391,10 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
   the retained request is sent to exactly one explicitly selected downstream
   mode: the default prescribed mock, the solver-owned scalar free-boundary
   reference, or a caller-supplied mixed-regime field callback.  The returned
-  mixed-regime result is evidence beside the chain; it is never attached as a
-  new supersonic cell and never raises the production claim ceiling.
+  mixed-regime result is evidence beside the chain by default.  Callers may
+  explicitly set ``attach_mixed_regime_field`` to retain a field on the
+  terminal transition after the exact seam checks pass; that still never
+  creates a new supersonic cell or raises the production claim ceiling.
   """
 
   if not isinstance(seed, MocPhysicalPostShockFieldResult):
@@ -7394,6 +7415,8 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
     )
   if solve_field is not None and not callable(solve_field):
     raise TypeError('solve_field must be callable when supplied')
+  if not isinstance(attach_mixed_regime_field, bool):
+    raise TypeError('attach_mixed_regime_field must be a bool')
   supplied_modes = sum(
     value is not None for value in (mock, solver, solve_field)
   )
@@ -7457,6 +7480,7 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
     'shock_angle_tolerance_rad': float(shock_angle_tolerance_rad),
     'mixed_regime_solver_supplied': supplied_modes == 1,
     'mixed_regime_closure_attached': False,
+    'mixed_regime_field_attachment_requested': attach_mixed_regime_field,
     'chain_promotion_blocked': True,
     'production_claim_allowed': False,
   }
@@ -7513,6 +7537,24 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
         diagnostics['mixed_regime_closure_message'] = (
           mixed_regime_closure.message
         )
+      if (
+        attach_mixed_regime_field
+        and mixed_regime_closure is not None
+        and mixed_regime_closure.converged
+        and mixed_regime_closure.field is not None
+      ):
+        try:
+          transition = transition.attach_mixed_regime_closure(
+            mixed_regime_closure
+          )
+        except (TypeError, ValueError) as error:
+          diagnostics['mixed_regime_field_attachment_error'] = str(error)
+        else:
+          diagnostics['mixed_regime_closure_attached'] = True
+          diagnostics['mixed_regime_field_attached'] = True
+          diagnostics['mixed_regime_field_complete'] = (
+            transition.mixed_regime_field_complete
+          )
 
   return MocPhysicalPostShockTerminalPatchPlannerResult(
     chain_planner=chain_planner,

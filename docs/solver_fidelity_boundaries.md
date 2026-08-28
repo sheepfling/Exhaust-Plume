@@ -584,3 +584,11 @@ non-affine profile evidence can be compared with the affine reference without
 merging their model assumptions. The wrapper records the exact terminal seam
 and leaves the scalar field beside the supersonic chain; it does not alter the
 chain termination or promotion gates.
+
+The continued terminal-patch result exposes the matching attachment boundary
+for an explicitly selected downstream field. Attachment requires exact
+terminal and supersonic-patch identity and a locally physically closed field;
+even a successful attachment remains a terminal result with chain promotion
+blocked and no production claim. The default planner mock/reference path does
+not attach, preserving the distinction between seam evidence and canonical
+downstream closure.
