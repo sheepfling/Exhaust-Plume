@@ -76,12 +76,14 @@ if TYPE_CHECKING:
 __all__ = (
   'MocPhysicalPostShockFieldStatus',
   'MocPhysicalPostShockFieldResult',
+  'MocAmbientClosedPostShockChainCandidate',
   'MocPhysicalPostShockFieldContinuationSolve',
   'MocPhysicalPostShockTerminalPatchTransitionResult',
   'assemble_ambient_boundary_post_shock_field',
   'assemble_ambient_boundary_post_shock_field_with_centerline_reflection',
   'solve_ambient_closed_post_shock_terminal_patch_transition',
   'solve_ambient_closed_post_shock_chain_cell_from_physical_field_terminal_patch_or_termination',
+  'solve_ambient_closed_post_shock_chain_cell_from_candidate_or_termination',
   'solve_ambient_closed_post_shock_chain_cell_from_physical_field_or_termination',
   'continue_ambient_closed_post_shock_chain',
 )
@@ -98,6 +100,156 @@ class MocPhysicalPostShockFieldStatus(str, Enum):
   INVARIANT_FAILURE = 'invariant_failure'
   AXIS_FAILURE = 'centerline_closure_failure'
   TOPOLOGY_FAILURE = 'topology_failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocAmbientClosedPostShockChainCandidate:
+  """One explicit next-shock/ambient boundary candidate.
+
+  The candidate owns geometry and the scalar ambient-boundary samples only.
+  Upstream states and pressures are deliberately absent: the continued-cell
+  solver must sample those from the currently accepted physical field.  This
+  makes the object useful for a prescribed-boundary planner fixture without
+  allowing the fixture to smuggle a synthetic upstream field into the chain.
+  """
+
+  shock_points_m: tuple[tuple[float, float], ...]
+  downstream_flow_angles_rad: tuple[float, ...]
+  ambient_boundary: tuple[MocAmbientBoundarySample, ...]
+  ambient_pressure_Pa: float
+  end_x_m: float
+  model: str = 'explicit-ambient-closed-next-shock-candidate'
+
+  def __post_init__(self) -> None:
+    try:
+      shock_points = tuple(
+        (float(point[0]), float(point[1]))
+        for point in self.shock_points_m
+      )
+      downstream_angles = tuple(
+        float(angle) for angle in self.downstream_flow_angles_rad
+      )
+      ambient_boundary = tuple(self.ambient_boundary)
+    except (IndexError, TypeError, ValueError) as error:
+      raise ValueError(
+        'shock points, downstream angles, and ambient boundary must be '
+        'finite sequences'
+      ) from error
+    if len(shock_points) < 3:
+      raise ValueError(
+        'an ambient-closed next-shock candidate requires at least three '
+        'shock points'
+      )
+    if len(shock_points) != len(downstream_angles):
+      raise ValueError(
+        'shock points and downstream flow angles must have equal lengths'
+      )
+    if len(ambient_boundary) != len(shock_points):
+      raise ValueError(
+        'ambient boundary must contain exactly one sample per shock point'
+      )
+    if any(
+      not all(isfinite(value) for value in point)
+      for point in shock_points
+    ):
+      raise ValueError('shock points must contain finite coordinates')
+    if any(not isfinite(angle) for angle in downstream_angles):
+      raise ValueError('downstream flow angles must be finite')
+    if any(
+      second[0] <= first[0] or second[1] > first[1]
+      for first, second in zip(shock_points, shock_points[1:])
+    ):
+      raise ValueError(
+        'shock points must be strictly downstream and nonincreasing in y'
+      )
+    if abs(shock_points[-1][1]) > 1.0e-10:
+      raise ValueError(
+        'the final candidate shock point must lie on the y=0 centerline'
+      )
+    if any(
+      not isinstance(sample, MocAmbientBoundarySample)
+      for sample in ambient_boundary
+    ):
+      raise TypeError(
+        'ambient boundary must contain MocAmbientBoundarySample values'
+      )
+    if (
+      abs(ambient_boundary[0].point_m[0] - shock_points[0][0]) > 1.0e-10
+      or abs(ambient_boundary[0].point_m[1] - shock_points[0][1]) > 1.0e-10
+    ):
+      raise ValueError(
+        'ambient boundary and candidate shock must share their attachment point'
+      )
+    try:
+      ambient_pressure = float(self.ambient_pressure_Pa)
+      end_x = float(self.end_x_m)
+    except (TypeError, ValueError) as error:
+      raise ValueError(
+        'ambient_pressure_Pa and end_x_m must be numeric'
+      ) from error
+    if not isfinite(ambient_pressure) or ambient_pressure <= 0.0:
+      raise ValueError('ambient_pressure_Pa must be finite and positive')
+    if not isfinite(end_x) or end_x <= shock_points[0][0]:
+      raise ValueError(
+        'end_x_m must be finite and downstream of the candidate shock start'
+      )
+    model = str(self.model)
+    if not model:
+      raise ValueError('model must be a non-empty string')
+    object.__setattr__(self, 'shock_points_m', shock_points)
+    object.__setattr__(self, 'downstream_flow_angles_rad', downstream_angles)
+    object.__setattr__(self, 'ambient_boundary', ambient_boundary)
+    object.__setattr__(self, 'ambient_pressure_Pa', ambient_pressure)
+    object.__setattr__(self, 'end_x_m', end_x)
+    object.__setattr__(self, 'model', model)
+  ####
+
+  @property
+  def sample_count(self) -> int:
+    """Number of paired shock and ambient-boundary samples."""
+
+    return len(self.shock_points_m)
+  ####
+
+  @property
+  def shock_start_point_m(self) -> tuple[float, float]:
+    """Return the explicit shock/ambient attachment point."""
+
+    return self.shock_points_m[0]
+  ####
+
+  @property
+  def shock_end_point_m(self) -> tuple[float, float]:
+    """Return the explicit centerline endpoint of the candidate shock."""
+
+    return self.shock_points_m[-1]
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    """Serialize geometry provenance without duplicating boundary states."""
+
+    return {
+      'model': self.model,
+      'planning_only': True,
+      'production_claim_allowed': False,
+      'sample_count': self.sample_count,
+      'shock_start_point_m': self.shock_start_point_m,
+      'shock_end_point_m': self.shock_end_point_m,
+      'shock_points_m': self.shock_points_m,
+      'downstream_flow_angles_rad': self.downstream_flow_angles_rad,
+      'ambient_boundary_points_m': tuple(
+        sample.point_m for sample in self.ambient_boundary
+      ),
+      'ambient_pressure_Pa': self.ambient_pressure_Pa,
+      'end_x_m': self.end_x_m,
+      'upstream_state_model': 'bounded-previous-ambient-closed-physical-field',
+      'boundary_provenance': 'explicit-prescribed-next-shock-and-ambient-samples',
+      'claim_status': (
+        'prescribed-ambient-closed-next-cell-candidate; '
+        'canonical-reflected-free-boundary-pending'
+      ),
+    }
 ####
 
 
@@ -3100,6 +3252,56 @@ def solve_ambient_closed_post_shock_chain_cell_from_physical_field_or_terminatio
   return MocPhysicalPostShockFieldContinuationSolve(
     field=field,
     end_x_m=float(end_x_m),
+  )
+
+
+def solve_ambient_closed_post_shock_chain_cell_from_candidate_or_termination(
+  current_cell: MocChainCell,
+  next_cell_index: int,
+  incoming_handoff: Sequence[MocChainBoundarySample],
+  upstream_field: MocPhysicalPostShockFieldResult,
+  candidate: MocAmbientClosedPostShockChainCandidate,
+  *,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  shock_angle_tolerance_rad: float = 1.0e-8,
+  pressure_tolerance: float = 1.0e-8,
+  tangent_tolerance: float = 1.0e-8,
+) -> MocPhysicalPostShockFieldContinuationSolve | MocChainTerminationDecision:
+  """Solve one structured candidate against the accepted physical field.
+
+  This is an adapter, not a new boundary model.  It makes the explicit
+  candidate seam difficult to misuse: all upstream state and pressure data
+  still come from ``upstream_field`` and the existing strict continuation
+  solver retains responsibility for handoff, shock-fit, ambient-boundary,
+  topology, and promotion gates.
+  """
+
+  if not isinstance(candidate, MocAmbientClosedPostShockChainCandidate):
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=MocChainTerminationReason.INVALID_INPUT,
+      message=(
+        'candidate must be a MocAmbientClosedPostShockChainCandidate'
+      ),
+    )
+  return solve_ambient_closed_post_shock_chain_cell_from_physical_field_or_termination(
+    current_cell,
+    next_cell_index,
+    incoming_handoff,
+    upstream_field,
+    shock_points_m=candidate.shock_points_m,
+    downstream_flow_angles_rad=candidate.downstream_flow_angles_rad,
+    ambient_boundary=candidate.ambient_boundary,
+    ambient_pressure_Pa=candidate.ambient_pressure_Pa,
+    end_x_m=candidate.end_x_m,
+    branch=branch,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+    shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+    pressure_tolerance=pressure_tolerance,
+    tangent_tolerance=tangent_tolerance,
   )
 
 

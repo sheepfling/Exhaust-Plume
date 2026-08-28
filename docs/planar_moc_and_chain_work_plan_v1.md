@@ -1455,3 +1455,15 @@ terminal result, including projection residuals and an independent field
 measurement, but does not attach it as a supersonic cell. It remains below
 canonical reflected-MOC/free-boundary closure and external validation, with
 chain promotion blocked.
+
+The physical continuation seam now has a typed explicit next-cell candidate
+bundle containing the candidate shock, downstream-angle schedule, paired
+ambient boundary samples, and terminal axial extent. A prescribed ambient-
+closed chain mock can drive one or more of these candidates through the strict
+solver-owned upstream sampler, attached-shock fit, ambient closure, and
+centerline state/pressure handoff. The planner replaces its upstream field only
+after a complete physical-field solve; missing upstream samples produce the
+typed `UPSTREAM_FIELD_BOUNDARY` stop and preserve the last valid prefix. This
+is orchestration and boundary-condition evidence at
+`prescribed-boundary-diagnostic` fidelity, not a free-boundary solver or a
+production provider, and it does not extrapolate the finite accepted field.

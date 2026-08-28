@@ -50,9 +50,11 @@ from exhaust_plume.models.moc.caustic_terminal import (
   solve_caustic_simple_wave_terminal_remesh,
 )
 from exhaust_plume.models.moc.physical_cell import (
+  MocAmbientClosedPostShockChainCandidate,
   MocPhysicalPostShockFieldContinuationSolve,
   MocPhysicalPostShockFieldResult,
   MocPhysicalPostShockTerminalPatchTransitionResult,
+  solve_ambient_closed_post_shock_chain_cell_from_candidate_or_termination,
   solve_ambient_closed_post_shock_chain_cell_from_physical_field_terminal_patch_or_termination,
   solve_ambient_closed_post_shock_terminal_patch_transition,
   continue_ambient_closed_post_shock_chain,
@@ -130,6 +132,7 @@ __all__ = (
   'MocPrescribedPostShockChainMock',
   'MocSolverGeneratedPostShockChainReference',
   'MocFieldCoupledPostShockChainReference',
+  'MocPrescribedAmbientClosedPostShockChainMock',
   'MocPhysicalPostShockTerminalPatchPlannerResult',
   'plan_moc_chain',
   'plan_post_shock_characteristic_chain',
@@ -140,6 +143,7 @@ __all__ = (
   'plan_prescribed_post_shock_chain_mock',
   'plan_solver_generated_post_shock_chain_reference',
   'plan_field_coupled_post_shock_chain_reference',
+  'plan_prescribed_ambient_closed_post_shock_chain_mock',
   'plan_terminal_reflection_patch_chain',
   'plan_post_shock_zone_chain',
   'plan_caustic_family_band_chain',
@@ -2541,6 +2545,182 @@ class MocFieldCoupledPostShockChainReference:
       sample_count=self.sample_count,
       branch=self.branch,
     )
+
+
+@dataclass(frozen=True, slots=True)
+class MocPrescribedAmbientClosedPostShockChainMock:
+  """Planner fixture for repeated bounded physical-field re-solves.
+
+  Each configured candidate supplies only a next-shock curve, its requested
+  downstream turns, an ambient-pressure boundary sample set, and an axial
+  endpoint.  The real physical continuation solver samples the upstream
+  state and pressure from the field accepted at the preceding step.  A
+  candidate that leaves that finite field therefore produces a typed stop;
+  it is never filled with a uniform state or extrapolated pressure.
+
+  The fixture is intentionally prescribed-boundary evidence.  It exercises
+  the multi-cell handoff and physical-field gates, but it is not a reflected
+  free-boundary solver and cannot support a product claim.
+  """
+
+  candidates: tuple[MocAmbientClosedPostShockChainCandidate, ...] = ()
+  branch: ShockBranch = ShockBranch.WEAK
+  position_tolerance_m: float = 1.0e-10
+  invariant_tolerance: float = 1.0e-10
+  shock_angle_tolerance_rad: float = 1.0e-8
+  pressure_tolerance: float = 1.0e-8
+  tangent_tolerance: float = 1.0e-8
+  model: str = 'prescribed-ambient-closed-post-shock-chain-mock'
+
+  def __post_init__(self) -> None:
+    try:
+      candidates = tuple(self.candidates)
+    except TypeError as error:
+      raise TypeError(
+        'candidates must be an iterable of '
+        'MocAmbientClosedPostShockChainCandidate values'
+      ) from error
+    if any(
+      not isinstance(candidate, MocAmbientClosedPostShockChainCandidate)
+      for candidate in candidates
+    ):
+      raise TypeError(
+        'candidates must contain '
+        'MocAmbientClosedPostShockChainCandidate values'
+      )
+    if not isinstance(self.branch, ShockBranch):
+      raise TypeError('branch must be a ShockBranch')
+    for name, value in (
+      ('position_tolerance_m', self.position_tolerance_m),
+      ('invariant_tolerance', self.invariant_tolerance),
+      ('shock_angle_tolerance_rad', self.shock_angle_tolerance_rad),
+      ('pressure_tolerance', self.pressure_tolerance),
+      ('tangent_tolerance', self.tangent_tolerance),
+    ):
+      numeric_value = float(value)
+      if not isfinite(numeric_value) or numeric_value <= 0.0:
+        raise ValueError(f'{name} must be finite and positive')
+      object.__setattr__(self, name, numeric_value)
+    model = str(self.model)
+    if not model:
+      raise ValueError('model must be a non-empty string')
+    object.__setattr__(self, 'candidates', candidates)
+    object.__setattr__(self, 'model', model)
+  ####
+
+  @property
+  def total_cell_count_including_seed(self) -> int:
+    """Return the number of accepted seed/candidate slots in the fixture."""
+
+    return len(self.candidates) + 1
+  ####
+
+  def candidate_for_cell(
+    self,
+    next_cell_index: int,
+  ) -> MocAmbientClosedPostShockChainCandidate | None:
+    """Return the candidate for a one-based continued-cell index."""
+
+    if (
+      isinstance(next_cell_index, bool)
+      or not isinstance(next_cell_index, int)
+      or next_cell_index < 2
+    ):
+      raise ValueError('next_cell_index must be an integer of at least two')
+    candidate_index = next_cell_index - 2
+    if candidate_index >= len(self.candidates):
+      return None
+    return self.candidates[candidate_index]
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    """Return fixture provenance and every explicit candidate schedule."""
+
+    return {
+      'model': self.model,
+      'planning_only': True,
+      'production_claim_allowed': False,
+      'claim_fidelity_ceiling': (
+        MocChainGeometryFidelity.PRESCRIBED_BOUNDARY_DIAGNOSTIC.value
+      ),
+      'free_boundary_verified': False,
+      'physical_chain_promotion_allowed': False,
+      'total_cell_count_including_seed': self.total_cell_count_including_seed,
+      'candidate_count': len(self.candidates),
+      'branch': self.branch.value,
+      'position_tolerance_m': self.position_tolerance_m,
+      'invariant_tolerance': self.invariant_tolerance,
+      'shock_angle_tolerance_rad': self.shock_angle_tolerance_rad,
+      'pressure_tolerance': self.pressure_tolerance,
+      'tangent_tolerance': self.tangent_tolerance,
+      'candidate_boundary_model': (
+        'explicit-shock-curve-and-ambient-pressure-samples'
+      ),
+      'upstream_state_model': (
+        'bounded-previous-ambient-closed-physical-field'
+      ),
+      'candidate_schedule': [
+        {
+          'next_cell_index': index + 2,
+          **candidate.as_report(),
+        }
+        for index, candidate in enumerate(self.candidates)
+      ],
+      'claim_status': (
+        'prescribed-ambient-closed-physical-field-chain-mock; '
+        'canonical-reflected-free-boundary-and-external-validation-pending'
+      ),
+    }
+  ####
+
+  def solve_next(
+    self,
+    current: MocChainCell,
+    next_cell_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+    upstream_field: MocPhysicalPostShockFieldResult,
+  ) -> MocPhysicalPostShockFieldContinuationSolve | MocChainTerminationDecision:
+    """Solve the configured candidate against the supplied bounded field."""
+
+    if not isinstance(current, MocChainCell):
+      raise TypeError('current must be a MocChainCell')
+    if (
+      isinstance(next_cell_index, bool)
+      or not isinstance(next_cell_index, int)
+      or next_cell_index != current.cell_index + 1
+    ):
+      raise ValueError('next_cell_index must immediately follow current.cell_index')
+    if not isinstance(upstream_field, MocPhysicalPostShockFieldResult):
+      raise TypeError('upstream_field must be a MocPhysicalPostShockFieldResult')
+    handoff = tuple(incoming_handoff)
+    if any(not isinstance(sample, MocChainBoundarySample) for sample in handoff):
+      raise TypeError('incoming_handoff must contain MocChainBoundarySample values')
+    if handoff != current.continuation_boundary:
+      raise ValueError('incoming_handoff must exactly match current.continuation_boundary')
+    candidate = self.candidate_for_cell(next_cell_index)
+    if candidate is None:
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
+        message=(
+          'prescribed ambient-closed physical-field chain mock exhausted '
+          f'its configured {self.total_cell_count_including_seed}-cell fixture'
+        ),
+      )
+    return solve_ambient_closed_post_shock_chain_cell_from_candidate_or_termination(
+      current,
+      next_cell_index,
+      handoff,
+      upstream_field,
+      candidate,
+      branch=self.branch,
+      position_tolerance_m=self.position_tolerance_m,
+      invariant_tolerance=self.invariant_tolerance,
+      shock_angle_tolerance_rad=self.shock_angle_tolerance_rad,
+      pressure_tolerance=self.pressure_tolerance,
+      tangent_tolerance=self.tangent_tolerance,
+    )
+  ####
 
 
 def plan_prescribed_post_shock_chain_mock(
@@ -5140,6 +5320,77 @@ def plan_ambient_closed_post_shock_chain(
       if claim_status is None
       else claim_status
     ),
+  )
+####
+
+
+def plan_prescribed_ambient_closed_post_shock_chain_mock(
+  seed: MocPhysicalPostShockFieldResult,
+  *,
+  start_x_m: float,
+  end_x_m: float,
+  mock: MocPrescribedAmbientClosedPostShockChainMock | None = None,
+  policy: MocChainContinuationPolicy | None = None,
+) -> MocChainPlannerResult:
+  """Run a prescribed multi-cell mock through the physical-field solver.
+
+  The mock is intentionally only a source of explicit candidate boundaries.
+  It never owns the upstream state model: after a candidate succeeds, the
+  returned physical field becomes the source for the next candidate.  A
+  failed or typed-stop candidate leaves that accepted field untouched and
+  the chain retains only its valid prefix.
+  """
+
+  fixture = (
+    MocPrescribedAmbientClosedPostShockChainMock()
+    if mock is None else mock
+  )
+  if not isinstance(fixture, MocPrescribedAmbientClosedPostShockChainMock):
+    raise TypeError(
+      'mock must be a MocPrescribedAmbientClosedPostShockChainMock'
+    )
+  current_field = seed
+
+  def solve_next(
+    current: MocChainCell,
+    next_cell_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+  ) -> MocPhysicalPostShockFieldContinuationSolve | MocChainTerminationDecision:
+    nonlocal current_field
+    solved = fixture.solve_next(
+      current,
+      next_cell_index,
+      incoming_handoff,
+      current_field,
+    )
+    if isinstance(solved, MocPhysicalPostShockFieldContinuationSolve):
+      current_field = solved.field
+    return solved
+
+  planner = plan_ambient_closed_post_shock_chain(
+    seed,
+    solve_next,
+    start_x_m=start_x_m,
+    end_x_m=end_x_m,
+    policy=policy,
+    require_upstream_shock_coupling=True,
+    claim_status=(
+      'prescribed-ambient-closed-physical-field-chain-mock; '
+      'canonical-reflected-free-boundary-and-external-validation-pending'
+    ),
+  )
+  return replace(
+    planner,
+    planner_kind=MocChainPlannerKind.PRESCRIBED_BOUNDARY_MOCK,
+    diagnostics={
+      'prescribed_ambient_closed_chain_mock': fixture.as_report(),
+      'upstream_field_replacement_policy': (
+        'replace-only-after-complete-ambient-closed-physical-field-solve'
+      ),
+      'candidate_failure_policy': (
+        'retain-valid-prefix-and-preserve-typed-upstream-boundary-stop'
+      ),
+    },
   )
 ####
 

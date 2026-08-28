@@ -8,6 +8,7 @@ import pytest
 from exhaust_plume.models.moc import (
   CharacteristicState,
   CharacteristicFamily,
+  MocAmbientClosedPostShockChainCandidate,
   MocAmbientBoundarySample,
   MocChainContinuationPolicy,
   MocChainPlannerKind,
@@ -20,6 +21,7 @@ from exhaust_plume.models.moc import (
   MocPhysicalPostShockFieldContinuationSolve,
   MocPhysicalPostShockTerminalPatchTransitionResult,
   MocPrescribedMixedRegimeClosureMock,
+  MocPrescribedAmbientClosedPostShockChainMock,
   MocPostShockBoundaryState,
   MocPrimitiveStatus,
   MocShockBoundaryFitResult,
@@ -32,12 +34,14 @@ from exhaust_plume.models.moc import (
   continue_ambient_closed_post_shock_chain,
   march_post_shock_ambient_boundary,
   plan_ambient_closed_post_shock_chain,
+  plan_prescribed_ambient_closed_post_shock_chain_mock,
   plan_ambient_closed_post_shock_chain_terminal_patch,
   plan_ambient_closed_post_shock_chain_terminal_patch_mock,
   plan_ambient_closed_post_shock_chain_terminal_patch_reference,
   solve_marched_attached_shock_field,
   solve_marched_attached_shock_with_ambient_centerline_physical_field,
   solve_ambient_closed_post_shock_chain_cell_from_physical_field_terminal_patch_or_termination,
+  solve_ambient_closed_post_shock_chain_cell_from_candidate_or_termination,
   solve_ambient_closed_post_shock_terminal_patch_transition,
   solve_ambient_closed_post_shock_chain_cell_from_physical_field_or_termination,
   validate_ambient_pressure_boundary,
@@ -750,6 +754,99 @@ def _manufactured_closed_physical_field(
       for point in shock_points
     ),
     post_shock_boundary_total_pressure_Pa=(1.8e6, 1.8e6, 1.8e6),
+  )
+
+
+def _prescribed_candidate_outside_manufactured_field() -> MocAmbientClosedPostShockChainCandidate:
+  """Return a validly typed candidate whose shock is outside the field."""
+
+  shock_points = ((2.5, 0.4), (2.7, 0.2), (2.9, 0.0))
+  ambient_pressure = 100000.0
+  gamma = 1.4
+  mach = 2.0
+  total_pressure = ambient_pressure * (
+    1.0 + 0.5 * (gamma - 1.0) * mach * mach
+  ) ** (gamma / (gamma - 1.0))
+  ambient_samples = tuple(
+    MocAmbientBoundarySample(
+      point_m=point,
+      state=CharacteristicState(
+        x_m=point[0],
+        y_m=point[1],
+        theta_rad=0.0,
+        mach=mach,
+        gamma=gamma,
+      ),
+      total_pressure_Pa=total_pressure,
+    )
+    for point in shock_points
+  )
+  return MocAmbientClosedPostShockChainCandidate(
+    shock_points_m=shock_points,
+    downstream_flow_angles_rad=(0.1, 0.1, 0.1),
+    ambient_boundary=ambient_samples,
+    ambient_pressure_Pa=ambient_pressure,
+    end_x_m=3.0,
+  )
+
+
+def test_structured_ambient_closed_candidate_preserves_bounded_upstream_stop() -> None:
+  field = _manufactured_closed_physical_field()
+  current = field.as_coupled_chain_cell(
+    start_x_m=0.0,
+    end_x_m=2.0,
+    cell_index=1,
+  )
+  candidate = _prescribed_candidate_outside_manufactured_field()
+
+  decision = solve_ambient_closed_post_shock_chain_cell_from_candidate_or_termination(
+    current,
+    2,
+    current.continuation_boundary,
+    field,
+    candidate,
+  )
+
+  assert isinstance(decision, MocChainTerminationDecision)
+  assert decision.reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+  assert decision.physical_termination is False
+  assert candidate.as_report()['boundary_provenance'] == (
+    'explicit-prescribed-next-shock-and-ambient-samples'
+  )
+
+
+def test_prescribed_ambient_closed_chain_mock_records_candidate_and_typed_stop() -> None:
+  field = _manufactured_closed_physical_field()
+  candidate = _prescribed_candidate_outside_manufactured_field()
+  planner = plan_prescribed_ambient_closed_post_shock_chain_mock(
+    field,
+    start_x_m=0.0,
+    end_x_m=2.0,
+    mock=MocPrescribedAmbientClosedPostShockChainMock(
+      candidates=(candidate,),
+    ),
+    policy=MocChainContinuationPolicy(
+      max_cells=2,
+      require_state_carry=True,
+    ),
+  )
+
+  assert planner.planner_kind is MocChainPlannerKind.PRESCRIBED_BOUNDARY_MOCK
+  assert planner.production_claim_allowed is False
+  assert planner.chain.resolved
+  assert planner.chain.cell_count == 1
+  assert planner.chain.termination_reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+  assert planner.steps[0].result_kind == 'termination-returned'
+  assert planner.steps[0].result_termination_reason is (
+    MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+  )
+  report = planner.as_report()
+  fixture_report = report['diagnostics']['prescribed_ambient_closed_chain_mock']
+  assert fixture_report['candidate_count'] == 1
+  assert fixture_report['total_cell_count_including_seed'] == 2
+  assert fixture_report['physical_chain_promotion_allowed'] is False
+  assert report['diagnostics']['upstream_field_replacement_policy'] == (
+    'replace-only-after-complete-ambient-closed-physical-field-solve'
   )
 
 

@@ -480,3 +480,13 @@ profile assumption, projection residual, perimeter condition, field residuals,
 and independent measurement are all reported. This is useful for planner and
 visualization work, but it is not a canonical reflected-MOC free-boundary
 solve, does not infer geometry, and cannot seed a continued shock-cell chain.
+
+The physical chain lane additionally exposes an explicit next-cell candidate
+contract and a planner mock for repeated candidates. Each candidate carries
+its own shock geometry, downstream angles, ambient samples, and axial extent;
+the mock delegates to the strict ambient-closed physical-field continuation
+solver and advances only after a complete field is accepted. The bounded
+upstream sampler therefore returns a typed boundary stop instead of inventing
+or extrapolating states. This remains a prescribed-boundary diagnostic fixture
+with no canonical free-boundary, product-provider, or external-validation
+claim.

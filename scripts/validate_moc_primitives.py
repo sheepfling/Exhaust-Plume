@@ -37,6 +37,8 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocPostShockCharacteristicFieldResult,
   MocPrescribedMixedRegimeClosureMock,
   MocPrescribedPostShockChainMock,
+  MocPrescribedAmbientClosedPostShockChainMock,
+  MocAmbientClosedPostShockChainCandidate,
   MocSolverGeneratedPostShockChainReference,
   MocFieldCoupledPostShockChainReference,
   MocReflectedCharacteristicZoneResult,
@@ -66,6 +68,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   plan_caustic_upstream_bridge_invariant_chain,
   plan_ambient_pressure_field_chain,
   plan_ambient_closed_post_shock_chain,
+  plan_prescribed_ambient_closed_post_shock_chain_mock,
   plan_ambient_closed_post_shock_chain_terminal_patch,
   plan_ambient_closed_post_shock_chain_terminal_patch_mock,
   plan_post_shock_characteristic_chain,
@@ -675,6 +678,8 @@ def _ambient_shock_strip_probe(
   )
   ambient_centerline_physical_chain_probe = None
   ambient_centerline_physical_chain_probe_accepted = False
+  ambient_centerline_physical_chain_mock = None
+  ambient_centerline_physical_chain_mock_accepted = False
   ambient_centerline_physical_terminal_patch_planner = None
   ambient_centerline_physical_terminal_patch_planner_accepted = False
   ambient_centerline_physical_terminal_patch_mixed_regime_planner = None
@@ -745,6 +750,52 @@ def _ambient_shock_strip_probe(
       and physical_chain_planner.steps[0].result_kind == 'termination-returned'
       and physical_chain_planner.steps[0].result_termination_reason
       == MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY.value
+    )
+    prescribed_physical_chain_candidate = MocAmbientClosedPostShockChainCandidate(
+      shock_points_m=candidate_points,
+      downstream_flow_angles_rad=(0.03, 0.015, 0.0),
+      ambient_boundary=candidate_ambient_samples,
+      ambient_pressure_Pa=ambient_pressure,
+      end_x_m=2.6,
+    )
+    prescribed_physical_chain_mock = MocPrescribedAmbientClosedPostShockChainMock(
+      candidates=(prescribed_physical_chain_candidate,),
+    )
+    prescribed_physical_chain_planner = (
+      plan_prescribed_ambient_closed_post_shock_chain_mock(
+        physical_field,
+        start_x_m=shock_fit.boundary_states[0].point_m[0],
+        end_x_m=seed_end_x_m,
+        mock=prescribed_physical_chain_mock,
+        policy=MocChainContinuationPolicy(
+          max_cells=2,
+          require_state_carry=True,
+        ),
+      )
+    )
+    ambient_centerline_physical_chain_mock = (
+      prescribed_physical_chain_planner.as_report()
+    )
+    ambient_centerline_physical_chain_mock_accepted = (
+      prescribed_physical_chain_planner.planner_kind
+      is MocChainPlannerKind.PRESCRIBED_BOUNDARY_MOCK
+      and prescribed_physical_chain_planner.production_claim_allowed is False
+      and prescribed_physical_chain_planner.chain.resolved
+      and prescribed_physical_chain_planner.chain.cell_count == 1
+      and prescribed_physical_chain_planner.chain.termination_reason
+      is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+      and prescribed_physical_chain_planner.chain.physical_termination is False
+      and len(prescribed_physical_chain_planner.steps) == 1
+      and prescribed_physical_chain_planner.steps[0].result_kind
+      == 'termination-returned'
+      and prescribed_physical_chain_planner.steps[0].result_termination_reason
+      == MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+      and prescribed_physical_chain_planner.diagnostics[
+        'prescribed_ambient_closed_chain_mock'
+      ]['candidate_count'] == 1
+      and prescribed_physical_chain_planner.diagnostics[
+        'prescribed_ambient_closed_chain_mock'
+      ]['physical_chain_promotion_allowed'] is False
     )
     terminal_patch_planner = plan_ambient_closed_post_shock_chain_terminal_patch(
       physical_field,
@@ -1123,6 +1174,12 @@ def _ambient_shock_strip_probe(
     ),
     'ambient_centerline_physical_chain_probe_accepted': (
       ambient_centerline_physical_chain_probe_accepted
+    ),
+    'ambient_centerline_physical_chain_mock': (
+      ambient_centerline_physical_chain_mock
+    ),
+    'ambient_centerline_physical_chain_mock_accepted': (
+      ambient_centerline_physical_chain_mock_accepted
     ),
     'ambient_centerline_physical_terminal_patch_planner': (
       ambient_centerline_physical_terminal_patch_planner
@@ -5541,6 +5598,12 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'ambient_centerline_physical_chain_probe_accepted'
     ) is not True
   )
+  ambient_centerline_physical_chain_mock_failure = (
+    ambient_shock_strip_probe.get('accepted') is True
+    and ambient_shock_strip_probe.get(
+      'ambient_centerline_physical_chain_mock_accepted'
+    ) is not True
+  )
   ambient_centerline_physical_terminal_patch_failure = (
     ambient_shock_strip_probe.get('accepted') is True
     and ambient_shock_strip_probe.get(
@@ -7046,6 +7109,23 @@ def build_moc_primitive_report() -> dict[str, Any]:
         ),
       }
     ] if ambient_centerline_physical_chain_failure else []),
+    *([
+      {
+        'case': 'prescribed_ambient_centerline_physical_chain_mock',
+        'status': str(
+          ambient_shock_strip_probe.get(
+            'ambient_centerline_physical_chain_mock',
+            {},
+          ).get('chain', {}).get('termination_reason', 'missing')
+        ),
+        'message': str(
+          ambient_shock_strip_probe.get(
+            'ambient_centerline_physical_chain_mock',
+            {},
+          ).get('chain', {}).get('message', '')
+        ),
+      }
+    ] if ambient_centerline_physical_chain_mock_failure else []),
     *([
       {
         'case': 'solver_generated_ambient_centerline_physical_terminal_patch',
