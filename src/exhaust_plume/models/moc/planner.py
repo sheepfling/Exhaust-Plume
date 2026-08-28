@@ -31,7 +31,10 @@ from exhaust_plume.models.moc.chain import (
 )
 from exhaust_plume.models.moc.caustic_restart import MocCausticFamilyBandResult
 from exhaust_plume.models.moc.reflected_domain import (
+  MocReflectedDomainAlternatingPhysicalFieldStatus,
+  MocReflectedDomainAlternatingSourceResult,
   MocReflectedDomainRemeshResult,
+  solve_reflected_domain_alternating_physical_field,
 )
 from exhaust_plume.models.moc.caustic_bridge import (
   MocCausticBridgeSide,
@@ -180,6 +183,7 @@ __all__ = (
   'plan_caustic_upstream_remesh_shock_chain_sequence',
   'plan_reflected_domain_remesh_shock_chain',
   'plan_reflected_domain_remesh_shock_chain_sequence',
+  'plan_reflected_domain_alternating_source_chain',
   'plan_caustic_simple_wave_terminal_chain',
   'plan_caustic_remesh_downstream_field_chain',
   'plan_caustic_remesh_downstream_field_invariant_chain',
@@ -7142,6 +7146,185 @@ def plan_reflected_domain_remesh_shock_chain(
     ),
     diagnostics=diagnostics,
   )
+####
+
+
+def plan_reflected_domain_alternating_source_chain(
+  seed: MocPhysicalPostShockFieldResult,
+  source_band: MocReflectedDomainAlternatingSourceResult,
+  *,
+  start_x_m: float,
+  end_x_m: float,
+  compression_amplitude_rad: float,
+  outer_source_index: int = 0,
+  target_centerline_y_m: float = 0.0,
+  target_centerline_flow_angle_rad: float = 0.0,
+  attachment_angle_half_width_rad: float = 1.0e-6,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-9,
+  invariant_tolerance: float = 1.0e-10,
+  attachment_pressure_tolerance: float = 1.0e-8,
+  pressure_tolerance: float = 1.0e-8,
+  tangent_tolerance: float = 1.0e-8,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  maximum_boundary_iterations: int = 16,
+  maximum_shooting_iterations: int = 40,
+  policy: MocChainContinuationPolicy | None = None,
+) -> MocChainPlannerResult:
+  """Plan one continued cell from an alternating reflected source band.
+
+  The source band is consumed once as a bounded upstream domain.  The local
+  physical-field solve receives the exact prior cell handoff and records it
+  on the returned field before the ambient-closed physical chain contract
+  checks the new cell.  A second callback is an explicit non-physical stop: a
+  later cell needs a newly solved alternating source band rather than reuse of
+  this finite band.
+
+  The generated shock field is eligible for the research chain lane only
+  after its physical-field gates pass.  The planner remains non-production
+  because the compression envelope is not the canonical reflected-plume
+  free-boundary law.
+  """
+
+  if not isinstance(seed, MocPhysicalPostShockFieldResult):
+    raise TypeError('seed must be a MocPhysicalPostShockFieldResult')
+  if not isinstance(
+    source_band,
+    MocReflectedDomainAlternatingSourceResult,
+  ):
+    raise TypeError(
+      'source_band must be a MocReflectedDomainAlternatingSourceResult'
+    )
+  if not isfinite(float(start_x_m)) or not isfinite(float(end_x_m)):
+    raise ValueError('start_x_m and end_x_m must be finite')
+  if end_x_m <= start_x_m:
+    raise ValueError('end_x_m must be strictly downstream of start_x_m')
+  cell_axial_length_m = float(end_x_m) - float(start_x_m)
+
+  initial_decision: MocChainTerminationDecision | None = None
+  if not source_band.source_field_verified:
+    initial_decision = MocChainTerminationDecision(
+      physical_termination=False,
+      reason=MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
+      message=(
+        'alternating reflected source band is not a verified bounded upstream '
+        'field; no physical shock-cell attempt was made'
+      ),
+      diagnostics={
+        'termination_model': 'alternating-reflected-source-band',
+        'source_band_status': source_band.status.value,
+        'source_band': source_band.as_report(),
+      },
+    )
+
+  attempted = False
+
+  def solve_next(
+    current: MocChainCell,
+    next_cell_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+  ) -> MocPhysicalPostShockFieldContinuationSolve | MocChainTerminationDecision:
+    nonlocal attempted
+    if attempted:
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
+        message=(
+          'alternating reflected source planner consumed its bounded source '
+          'band for one next cell; a later cell requires a fresh source solve'
+        ),
+        diagnostics={
+          'termination_model': 'alternating-reflected-source-one-step-domain',
+          'source_reuse_policy': 'never-reuse-after-one-next-cell-attempt',
+          'next_cell_index': next_cell_index,
+        },
+      )
+    attempted = True
+    if initial_decision is not None:
+      return initial_decision
+
+    solved = solve_reflected_domain_alternating_physical_field(
+      source_band,
+      compression_amplitude_rad,
+      outer_source_index=outer_source_index,
+      target_centerline_y_m=target_centerline_y_m,
+      target_centerline_flow_angle_rad=target_centerline_flow_angle_rad,
+      attachment_angle_half_width_rad=attachment_angle_half_width_rad,
+      sample_count=sample_count,
+      branch=branch,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+      attachment_pressure_tolerance=attachment_pressure_tolerance,
+      pressure_tolerance=pressure_tolerance,
+      tangent_tolerance=tangent_tolerance,
+      shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+      maximum_segment_iterations=maximum_segment_iterations,
+      maximum_boundary_iterations=maximum_boundary_iterations,
+      maximum_shooting_iterations=maximum_shooting_iterations,
+      incoming_handoff=incoming_handoff,
+    )
+    if (
+      solved.converged
+      and solved.field is not None
+      and solved.field.converged
+      and solved.field.upstream_shock_coupling_verified
+    ):
+      return MocPhysicalPostShockFieldContinuationSolve(
+        field=solved.field,
+        end_x_m=current.end_x_m + cell_axial_length_m,
+      )
+
+    if solved.status is MocReflectedDomainAlternatingPhysicalFieldStatus.INVALID_INPUT:
+      reason = MocChainTerminationReason.INVALID_INPUT
+    elif solved.status is MocReflectedDomainAlternatingPhysicalFieldStatus.SOURCE_FIELD_FAILURE:
+      reason = MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+    else:
+      reason = MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=reason,
+      message=(
+        'alternating reflected source physical-field solve did not produce '
+        f'a chain cell: {solved.message}'
+      ),
+      diagnostics={
+        'termination_model': 'alternating-reflected-source-physical-field',
+        'source_band': source_band.as_report(),
+        'physical_field': solved.as_report(),
+        'next_cell_index': next_cell_index,
+      },
+    )
+
+  planner = plan_ambient_closed_post_shock_chain(
+    seed,
+    solve_next,
+    start_x_m=start_x_m,
+    end_x_m=end_x_m,
+    policy=policy,
+    require_upstream_shock_coupling=True,
+    claim_status=(
+      'alternating-reflected-source physical shock-chain planner; bounded '
+      'one-step research continuation; canonical free-boundary validation '
+      'and production promotion pending'
+    ),
+  )
+  diagnostics = dict(planner.diagnostics)
+  diagnostics.update({
+    'alternating_source_band': source_band.as_report(),
+    'alternating_source_chain_model': (
+      'bounded-alternating-source-one-step-physical-field'
+    ),
+    'one_step_domain': True,
+    'alternating_source_reuse_policy': (
+      'never-reuse-after-one-next-cell-attempt'
+    ),
+    'canonical_reflected_domain_closed': False,
+    'physical_closure_pending': True,
+    'canonical_free_boundary_pending': True,
+  })
+  return replace(planner, diagnostics=diagnostics)
 ####
 
 

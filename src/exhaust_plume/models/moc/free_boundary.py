@@ -945,14 +945,17 @@ def solve_marched_attached_shock_field(
     zero_strength_start = (
       allow_zero_strength_start
       and index == 0
-      and turn == 0.0
+      and abs(turn) <= invariant_tolerance
     )
     zero_strength_end = (
       allow_zero_strength_endpoints
       and index == sample_count - 1
-      and turn == 0.0
+      and abs(turn) <= invariant_tolerance
     )
-    if turn < 0.0 or (turn == 0.0 and not (zero_strength_start or zero_strength_end)):
+    if (
+      (turn < 0.0 or turn == 0.0)
+      and not (zero_strength_start or zero_strength_end)
+    ):
       if (
         abs(turn) <= position_tolerance_m
         and (
@@ -1217,8 +1220,10 @@ def solve_marched_attached_shock_field(
       allow_zero_strength_endpoints
       and len(upstream_states) >= 3
       and len(downstream_angles) == len(upstream_states)
-      and downstream_angles[0] == upstream_states[0].theta_rad
-      and downstream_angles[-1] == upstream_states[-1].theta_rad
+      and abs(downstream_angles[0] - upstream_states[0].theta_rad)
+      <= invariant_tolerance
+      and abs(downstream_angles[-1] - upstream_states[-1].theta_rad)
+      <= invariant_tolerance
     )
     if endpoint_turns_are_zero:
       return MocFreeBoundaryShockResult(

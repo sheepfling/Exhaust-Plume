@@ -747,3 +747,23 @@ shock entropy production, canonical reflected free-boundary/mixed-regime
 closure, refinement, external observations, and chain promotion are still
 open, and the lower-fidelity visualization, reduced-order, signature, ray,
 and focal-plane-array providers remain untouched.
+
+## Alternating-source physical-field checkpoint
+
+`solve_reflected_domain_alternating_physical_field` couples the finite
+alternating Cauchy band to the existing ambient-closed physical MOC field.
+Its attachment point is an explicit ambient-matched zero-strength seam; its
+interior shock turns use a positive, solver-owned local compression envelope;
+and its final centerline endpoint may be zero-strength only under the explicit
+endpoint allowance. The bridge retains fitted shock loss, field sampling, and
+the exact incoming state/total-pressure handoff. The independent
+`op.moc.reflected-domain-alternating-physical-field` measurement repeats those
+checks from raw outputs.
+
+`plan_reflected_domain_alternating_source_chain` accepts that result for one
+state-carrying research cell and then emits a typed no-next-cell decision,
+never reusing the bounded source band. This is a validated local seam, not a
+production provider: the local envelope must still be replaced by a canonical
+reflected free-boundary/mixed-regime closure and compared against refinement
+and external observations. Basic/visual, reduced-order, signature, ray, and
+focal-plane-array providers remain isolated.

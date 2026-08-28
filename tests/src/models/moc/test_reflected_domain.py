@@ -17,6 +17,7 @@ from exhaust_plume.models.moc import (
   MocPostShockChainCellSolve,
   MocReflectedDomainRemeshRequest,
   MocReflectedDomainAlternatingSourceStatus,
+  MocReflectedDomainAlternatingPhysicalFieldStatus,
   MocReflectedDomainOuterSourceStatus,
   MocReflectedDomainRemeshStatus,
   MocSolverGeneratedAmbientClosedPostShockChainReference,
@@ -26,12 +27,14 @@ from exhaust_plume.models.moc import (
   build_reflected_domain_remesh_request_from_outer_source,
   inverse_prandtl_meyer_angle_rad,
   plan_reflected_domain_remesh_ambient_closed_chain,
+  plan_reflected_domain_alternating_source_chain,
   plan_reflected_domain_remesh_shock_chain,
   plan_reflected_domain_remesh_shock_chain_sequence,
   solve_marched_attached_shock_field,
   solve_marched_attached_shock_with_ambient_centerline_physical_field,
   solve_reflected_domain_remesh,
   solve_reflected_domain_alternating_source,
+  solve_reflected_domain_alternating_physical_field,
   solve_reflected_domain_outer_source_curve,
   solve_underexpanded_expansion_fan,
   solve_uniform_attached_shock_field,
@@ -47,6 +50,7 @@ from exhaust_plume.validation.moc_measurements import (
   MocReflectedDomainOuterSourceMeasurementStatus,
   MocReflectedDomainRemeshMeasurementStatus,
   measure_moc_reflected_domain_alternating_source,
+  measure_moc_reflected_domain_alternating_physical_field,
   measure_moc_reflected_domain_outer_source_curve,
   measure_moc_reflected_domain_remesh,
 )
@@ -545,6 +549,141 @@ def test_reflected_domain_alternating_source_measurement_rejects_changed_raw_row
   assert measurement.boundary_recomputed_verified is False
   assert measurement.physical_closure_verified is False
   assert measurement.chain_promotion_blocked is True
+
+
+def test_reflected_domain_alternating_source_couples_to_physical_shock_field():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  source = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+  )
+
+  result = solve_reflected_domain_alternating_physical_field(
+    source,
+    compression_amplitude_rad=0.05,
+  )
+
+  assert result.status is (
+    MocReflectedDomainAlternatingPhysicalFieldStatus.CONVERGED_AMBIENT_CLOSED
+  )
+  assert result.converged
+  assert result.source_field_verified
+  assert result.shock_curve_verified
+  assert result.physical_closure_verified
+  assert result.state_sampling_available
+  assert result.upstream_coupling_verified
+  assert result.chain_promotion_blocked is False
+  assert result.production_claim_allowed is False
+  assert result.field is not None
+  assert result.field.shock_boundary_points_m[0][0] == pytest.approx(
+    source.outer_source_states[0].x_m,
+  )
+  assert result.field.shock_boundary_points_m[0][1] == pytest.approx(
+    source.outer_source_states[0].y_m,
+  )
+  assert result.field.shock_boundary_points_m[-1][1] == pytest.approx(0.0)
+  assert result.field.physical_closure_verified
+  report = result.as_report()
+  assert report['continuation_law'] == (
+    'alternating-source-local-compression-envelope'
+  )
+  assert report['canonical_reflected_domain_closed'] is False
+  assert report['production_claim_allowed'] is False
+
+  measurement = measure_moc_reflected_domain_alternating_physical_field(result)
+
+  assert measurement.converged
+  assert measurement.source_field_verified
+  assert measurement.attachment_point_verified
+  assert measurement.attachment_pressure_verified
+  assert measurement.zero_strength_attachment_verified
+  assert measurement.envelope_verified
+  assert measurement.shock_curve_verified
+  assert measurement.physical_field_verified
+  assert measurement.state_sampling_verified
+  assert measurement.upstream_coupling_verified
+  assert measurement.incoming_handoff_verified
+  assert measurement.bounded_physical_field_verified
+  assert measurement.physical_closure_verified
+  assert measurement.chain_promotion_blocked is True
+  assert measurement.production_claim_allowed is False
+
+
+def test_reflected_domain_alternating_physical_field_rejects_unverified_source():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  source = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+  )
+  corrupted = replace(
+    source,
+    status=MocReflectedDomainAlternatingSourceStatus.FIELD_FAILURE,
+  )
+
+  result = solve_reflected_domain_alternating_physical_field(
+    corrupted,
+    compression_amplitude_rad=0.05,
+  )
+
+  assert result.status is (
+    MocReflectedDomainAlternatingPhysicalFieldStatus.SOURCE_FIELD_FAILURE
+  )
+  assert result.converged is False
+  assert result.physical_closure_verified is False
+  assert result.chain_promotion_blocked is True
+
+  measurement = measure_moc_reflected_domain_alternating_physical_field(result)
+  assert measurement.converged is False
+  assert measurement.source_field_verified is False
+  assert measurement.physical_closure_verified is False
+  assert measurement.chain_promotion_blocked is True
+
+
+def test_reflected_domain_alternating_source_planner_carries_one_cell_handoff():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  source = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+  )
+  seed = _canonical_field()
+
+  planner = plan_reflected_domain_alternating_source_chain(
+    seed,
+    source,
+    start_x_m=0.5,
+    end_x_m=2.0,
+    compression_amplitude_rad=0.05,
+  )
+
+  assert planner.planner_kind.value == 'upstream-coupled-research'
+  assert planner.production_claim_allowed is False
+  assert planner.chain.resolved
+  assert planner.chain.cell_count == 2
+  assert planner.chain.physical_termination is False
+  assert planner.chain.termination_reason is (
+    MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL
+  )
+  assert len(planner.steps) == 2
+  assert planner.steps[0].result_kind == 'physical-field-solve-returned'
+  assert planner.steps[0].incoming_handoff_link_verified is None
+  assert planner.steps[1].result_kind == 'termination-returned'
+  assert planner.handoff_links_verified is True
+  assert planner.diagnostics['one_step_domain'] is True
+  assert planner.diagnostics['canonical_reflected_domain_closed'] is False
+  assert planner.diagnostics['physical_closure_pending'] is True
+  incoming_points = planner.chain.cells[1].diagnostics['boundary_geometry'][
+    'incoming_handoff_points_m'
+  ]
+  assert incoming_points == [
+    [sample.state.x_m, sample.state.y_m]
+    for sample in planner.chain.cells[0].continuation_boundary
+  ]
 
 
 def test_reflected_domain_alternating_source_band_carries_explicit_pressure_row():

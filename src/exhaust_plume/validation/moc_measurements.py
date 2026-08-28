@@ -71,6 +71,7 @@ from exhaust_plume.models.moc.physical_cell import (
 from exhaust_plume.models.moc.reflected_domain import (
   MocReflectedDomainAlternatingSourceResult,
   MocReflectedDomainAlternatingSourceStatus,
+  MocReflectedDomainAlternatingPhysicalFieldResult,
   MocReflectedDomainOuterSourceResult,
   MocReflectedDomainOuterSourceStatus,
   MocReflectedDomainRemeshResult,
@@ -103,6 +104,7 @@ __all__ = (
   'MOC_REFLECTED_DOMAIN_REMESH_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_OUTER_SOURCE_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_ALTERNATING_SOURCE_OPERATOR_ID',
+  'MOC_REFLECTED_DOMAIN_ALTERNATING_PHYSICAL_FIELD_OPERATOR_ID',
   'MOC_MIXED_REGIME_FREE_BOUNDARY_OPERATOR_ID',
   'MOC_MIXED_REGIME_FREE_BOUNDARY_REFINEMENT_OPERATOR_ID',
   'MOC_MIXED_REGIME_CONTROL_SECTION_OPERATOR_ID',
@@ -123,6 +125,8 @@ __all__ = (
   'MocReflectedDomainOuterSourceMeasurementStatus',
   'MocReflectedDomainAlternatingSourceMeasurement',
   'MocReflectedDomainAlternatingSourceMeasurementStatus',
+  'MocReflectedDomainAlternatingPhysicalFieldMeasurement',
+  'MocReflectedDomainAlternatingPhysicalFieldMeasurementStatus',
   'MocMixedRegimePotentialMeasurement',
   'MocMixedRegimePotentialMeasurementStatus',
   'MocMixedRegimeFreeBoundaryMeasurement',
@@ -178,6 +182,9 @@ MOC_REFLECTED_DOMAIN_OUTER_SOURCE_OPERATOR_ID = (
 )
 MOC_REFLECTED_DOMAIN_ALTERNATING_SOURCE_OPERATOR_ID = (
   'op.moc.reflected-domain-alternating-source'
+)
+MOC_REFLECTED_DOMAIN_ALTERNATING_PHYSICAL_FIELD_OPERATOR_ID = (
+  'op.moc.reflected-domain-alternating-physical-field'
 )
 MOC_MIXED_REGIME_FREE_BOUNDARY_OPERATOR_ID = (
   'op.moc.mixed-regime-free-boundary-reference'
@@ -1588,6 +1595,100 @@ class MocReflectedDomainAlternatingSourceMeasurement:
       'physical_closure_verified': self.physical_closure_verified,
       'chain_promotion_blocked': self.chain_promotion_blocked,
       'production_claim_allowed': self.production_claim_allowed,
+      'claim_status': self.claim_status,
+      'message': self.message,
+    }
+  ####
+
+
+class MocReflectedDomainAlternatingPhysicalFieldMeasurementStatus(str, Enum):
+  """Outcome of independently auditing an alternating-source shock field."""
+
+  CONVERGED = 'converged'
+  INVALID_INPUT = 'invalid_input'
+  SOURCE_FAILURE = 'source_failure'
+  SHOCK_FAILURE = 'shock_failure'
+  FIELD_FAILURE = 'field_failure'
+  ENVELOPE_FAILURE = 'envelope_failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainAlternatingPhysicalFieldMeasurement:
+  """Independent evidence for one alternating-source physical field.
+
+  The source-band audit and the physical-field audit are kept separate in the
+  report.  The envelope is recomputed from the stored amplitude and raw shock
+  samples; a successful physical field therefore cannot hide a changed
+  upstream band or a changed downstream turn law.  This measurement remains
+  non-promotable because the local envelope is a research boundary condition,
+  not the canonical reflected-plume free-boundary law.
+  """
+
+  status: MocReflectedDomainAlternatingPhysicalFieldMeasurementStatus
+  operator_id: str
+  solver_status: str | None
+  source_measurement: MocReflectedDomainAlternatingSourceMeasurement | None
+  field_measurement: MocPhysicalFieldChainMeasurement | None
+  source_field_verified: bool
+  attachment_point_verified: bool
+  attachment_pressure_verified: bool
+  zero_strength_attachment_verified: bool
+  envelope_verified: bool
+  shock_curve_verified: bool
+  physical_field_verified: bool
+  state_sampling_verified: bool
+  upstream_coupling_verified: bool
+  incoming_handoff_verified: bool
+  bounded_physical_field_verified: bool
+  physical_closure_verified: bool
+  chain_promotion_blocked: bool
+  production_claim_allowed: bool
+  compression_amplitude_rad: float | None
+  shock_sample_count: int
+  claim_status: str
+  message: str
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocReflectedDomainAlternatingPhysicalFieldMeasurementStatus.CONVERGED
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'operator_id': self.operator_id,
+      'converged': self.converged,
+      'solver_status': self.solver_status,
+      'source_measurement': (
+        None
+        if self.source_measurement is None
+        else self.source_measurement.as_report()
+      ),
+      'field_measurement': (
+        None
+        if self.field_measurement is None
+        else self.field_measurement.as_report()
+      ),
+      'checks': {
+        'source_field_verified': self.source_field_verified,
+        'attachment_point_verified': self.attachment_point_verified,
+        'attachment_pressure_verified': self.attachment_pressure_verified,
+        'zero_strength_attachment_verified': self.zero_strength_attachment_verified,
+        'envelope_verified': self.envelope_verified,
+        'shock_curve_verified': self.shock_curve_verified,
+        'physical_field_verified': self.physical_field_verified,
+        'state_sampling_verified': self.state_sampling_verified,
+        'upstream_coupling_verified': self.upstream_coupling_verified,
+        'incoming_handoff_verified': self.incoming_handoff_verified,
+        'bounded_physical_field_verified': self.bounded_physical_field_verified,
+      },
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'compression_amplitude_rad': self.compression_amplitude_rad,
+      'shock_sample_count': self.shock_sample_count,
+      'canonical_reflected_domain_closed': False,
       'claim_status': self.claim_status,
       'message': self.message,
     }
@@ -7946,6 +8047,339 @@ def measure_moc_reflected_domain_alternating_source(
     bounded_source_verified=bounded_source_verified,
     message=message,
   )
+####
+
+
+def _reflected_domain_alternating_physical_field_measurement_failure(
+  status: MocReflectedDomainAlternatingPhysicalFieldMeasurementStatus,
+  *,
+  solver_status: str | None = None,
+  source_measurement: MocReflectedDomainAlternatingSourceMeasurement | None = None,
+  field_measurement: MocPhysicalFieldChainMeasurement | None = None,
+  source_field_verified: bool = False,
+  attachment_point_verified: bool = False,
+  attachment_pressure_verified: bool = False,
+  zero_strength_attachment_verified: bool = False,
+  envelope_verified: bool = False,
+  shock_curve_verified: bool = False,
+  physical_field_verified: bool = False,
+  state_sampling_verified: bool = False,
+  upstream_coupling_verified: bool = False,
+  incoming_handoff_verified: bool = False,
+  bounded_physical_field_verified: bool = False,
+  compression_amplitude_rad: float | None = None,
+  shock_sample_count: int = 0,
+  message: str,
+) -> MocReflectedDomainAlternatingPhysicalFieldMeasurement:
+  return MocReflectedDomainAlternatingPhysicalFieldMeasurement(
+    status=status,
+    operator_id=MOC_REFLECTED_DOMAIN_ALTERNATING_PHYSICAL_FIELD_OPERATOR_ID,
+    solver_status=solver_status,
+    source_measurement=source_measurement,
+    field_measurement=field_measurement,
+    source_field_verified=source_field_verified,
+    attachment_point_verified=attachment_point_verified,
+    attachment_pressure_verified=attachment_pressure_verified,
+    zero_strength_attachment_verified=zero_strength_attachment_verified,
+    envelope_verified=envelope_verified,
+    shock_curve_verified=shock_curve_verified,
+    physical_field_verified=physical_field_verified,
+    state_sampling_verified=state_sampling_verified,
+    upstream_coupling_verified=upstream_coupling_verified,
+    incoming_handoff_verified=incoming_handoff_verified,
+    bounded_physical_field_verified=bounded_physical_field_verified,
+    physical_closure_verified=False,
+    chain_promotion_blocked=True,
+    production_claim_allowed=False,
+    compression_amplitude_rad=compression_amplitude_rad,
+    shock_sample_count=shock_sample_count,
+    claim_status=(
+      'independent-alternating-source-physical-field-audit; '
+      'canonical-reflected-free-boundary-not-accepted'
+    ),
+    message=message,
+  )
+####
+
+
+def measure_moc_reflected_domain_alternating_physical_field(
+  result: MocReflectedDomainAlternatingPhysicalFieldResult,
+) -> MocReflectedDomainAlternatingPhysicalFieldMeasurement:
+  """Independently audit an alternating source band and its shock field.
+
+  The source band is remeasured first.  The physical field is then passed
+  through the raw ambient-closed-field measurement, while the shock's
+  upstream samples and local compression envelope are re-evaluated directly
+  from the source band.  Solver status flags are reported but never used as
+  proof.  A successful measurement is research evidence only.
+  """
+
+  if not isinstance(
+    result,
+    MocReflectedDomainAlternatingPhysicalFieldResult,
+  ):
+    return _reflected_domain_alternating_physical_field_measurement_failure(
+      MocReflectedDomainAlternatingPhysicalFieldMeasurementStatus.INVALID_INPUT,
+      message=(
+        'result must be a '
+        'MocReflectedDomainAlternatingPhysicalFieldResult'
+      ),
+    )
+
+  solver_status = getattr(result.status, 'value', str(result.status))
+  source_band = result.source_band
+  source_measurement = (
+    None
+    if source_band is None
+    else measure_moc_reflected_domain_alternating_source(source_band)
+  )
+  source_field_verified = bool(
+    source_measurement is not None and source_measurement.converged
+  )
+  field_result = result.field_result
+  physical_field = None if field_result is None else field_result.field
+  field_measurement = None
+  if isinstance(physical_field, MocPhysicalPostShockFieldResult):
+    field_measurement = measure_moc_ambient_closed_physical_field_chain(
+      (physical_field,),
+    )
+
+  attachment = None if field_result is None else field_result.ambient_attachment
+  shock = None if attachment is None else attachment.shock
+  shock_sample_count = 0 if shock is None else len(shock.shock_points_m)
+  source_index = result.outer_source_index
+  source_state = None
+  source_pressure = None
+  attachment_point_verified = False
+  attachment_pressure_verified = False
+  zero_strength_attachment_verified = bool(
+    attachment is not None and attachment.zero_strength_attachment
+  )
+  envelope_verified = False
+  upstream_coupling_verified = False
+  incoming_handoff_verified = False
+
+  if (
+    source_band is not None
+    and isinstance(source_index, int)
+    and not isinstance(source_index, bool)
+    and 0 <= source_index < len(source_band.outer_source_states)
+  ):
+    source_state = source_band.outer_source_states[source_index]
+    source_pressure = source_band.static_pressure_at(
+      (source_state.x_m, source_state.y_m),
+      position_tolerance_m=source_band.position_tolerance_m,
+    )
+
+  if (
+    source_band is not None
+    and source_state is not None
+    and result.start_point_m is not None
+    and shock is not None
+    and shock.shock_points_m
+    and shock.upstream_states
+  ):
+    attachment_point_verified = bool(
+      _caustic_points_match(
+        (result.start_point_m,),
+        (shock.shock_points_m[0],),
+        position_tolerance_m=source_band.position_tolerance_m,
+      )
+      and _caustic_state_matches(
+        shock.upstream_states[0],
+        source_state,
+        position_tolerance_m=source_band.position_tolerance_m,
+        state_tolerance=source_band.invariant_tolerance,
+      )
+    )
+    attachment_pressure_verified = bool(
+      source_pressure is not None
+      and source_band.ambient_pressure_Pa is not None
+      and _pressure_matches(
+        source_pressure,
+        source_band.ambient_pressure_Pa,
+        pressure_tolerance=source_band.pressure_tolerance,
+      )
+      and shock.upstream_pressure_Pa
+      and _pressure_matches(
+        shock.upstream_pressure_Pa[0],
+        source_pressure,
+        pressure_tolerance=source_band.pressure_tolerance,
+      )
+    )
+
+  if (
+    source_band is not None
+    and source_state is not None
+    and result.compression_amplitude_rad is not None
+    and shock is not None
+    and len(shock.shock_points_m) == len(shock.upstream_states)
+    and len(shock.shock_points_m) == len(shock.downstream_flow_angles_rad)
+  ):
+    denominator = source_state.y_m - source_band.target_centerline_y_m
+    if denominator > source_band.position_tolerance_m:
+      envelope_verified = True
+      for index, (point, target_angle) in enumerate(zip(
+        shock.shock_points_m,
+        shock.downstream_flow_angles_rad,
+        strict=True,
+      )):
+        fraction = (
+          point[1] - source_band.target_centerline_y_m
+        ) / denominator
+        if fraction < -1.0e-8 or fraction > 1.0 + 1.0e-8:
+          envelope_verified = False
+          break
+        fraction = max(0.0, min(1.0, fraction))
+        if index == len(shock.shock_points_m) - 1:
+          expected_angle = source_band.target_centerline_flow_angle_rad
+        else:
+          state = source_band.state_at(
+            point,
+            position_tolerance_m=source_band.position_tolerance_m,
+          )
+          if state is None:
+            envelope_verified = False
+            break
+          expected_angle = state.theta_rad + float(
+            result.compression_amplitude_rad
+          ) * 4.0 * fraction * (1.0 - fraction)
+        if abs(float(target_angle) - expected_angle) > source_band.invariant_tolerance * max(
+          1.0,
+          abs(float(target_angle)),
+          abs(expected_angle),
+        ):
+          envelope_verified = False
+          break
+
+  if (
+    source_band is not None
+    and shock is not None
+    and len(shock.shock_points_m) == len(shock.upstream_states)
+    and len(shock.shock_points_m) == len(shock.upstream_pressure_Pa)
+  ):
+    upstream_coupling_verified = True
+    for point, state, pressure in zip(
+      shock.shock_points_m,
+      shock.upstream_states,
+      shock.upstream_pressure_Pa,
+      strict=True,
+    ):
+      sampled_state = source_band.state_at(
+        point,
+        position_tolerance_m=source_band.position_tolerance_m,
+      )
+      sampled_pressure = source_band.static_pressure_at(
+        point,
+        position_tolerance_m=source_band.position_tolerance_m,
+      )
+      upstream_coupling_verified = upstream_coupling_verified and bool(
+        _caustic_state_matches(
+          sampled_state,
+          state,
+          position_tolerance_m=source_band.position_tolerance_m,
+          state_tolerance=source_band.invariant_tolerance,
+        )
+        and _pressure_matches(
+          sampled_pressure,
+          pressure,
+          pressure_tolerance=source_band.pressure_tolerance,
+        )
+      )
+
+  shock_curve_verified = bool(
+    shock is not None
+    and shock.converged
+    and shock.shock_fit is not None
+    and shock.shock_fit.converged
+    and len(shock.shock_points_m) >= 3
+  )
+  if field_result is not None and physical_field is not None:
+    expected_incoming_states = tuple(
+      sample.state for sample in result.incoming_handoff
+    )
+    expected_incoming_pressures = tuple(
+      sample.total_pressure_Pa for sample in result.incoming_handoff
+    )
+    incoming_handoff_verified = bool(
+      physical_field.incoming_handoff_states == expected_incoming_states
+      and physical_field.incoming_handoff_total_pressure_Pa
+      == expected_incoming_pressures
+    )
+  physical_field_verified = bool(
+    field_measurement is not None and field_measurement.converged
+  )
+  state_sampling_verified = bool(
+    field_measurement is not None
+    and field_measurement.field_state_sampling_verified == (True,)
+  )
+  bounded_physical_field_verified = bool(
+    source_field_verified
+    and attachment_point_verified
+    and attachment_pressure_verified
+    and zero_strength_attachment_verified
+    and envelope_verified
+    and shock_curve_verified
+    and physical_field_verified
+    and state_sampling_verified
+    and upstream_coupling_verified
+    and incoming_handoff_verified
+  )
+
+  if not source_field_verified:
+    status = MocReflectedDomainAlternatingPhysicalFieldMeasurementStatus.SOURCE_FAILURE
+    message = 'alternating source band failed its independent measurement'
+  elif not attachment_point_verified or not attachment_pressure_verified:
+    status = MocReflectedDomainAlternatingPhysicalFieldMeasurementStatus.SHOCK_FAILURE
+    message = 'shock attachment did not reproduce the independent source-band seam'
+  elif not zero_strength_attachment_verified:
+    status = MocReflectedDomainAlternatingPhysicalFieldMeasurementStatus.SHOCK_FAILURE
+    message = 'shock attachment did not retain the explicit zero-strength ambient seam'
+  elif not envelope_verified:
+    status = MocReflectedDomainAlternatingPhysicalFieldMeasurementStatus.ENVELOPE_FAILURE
+    message = 'shock downstream angles do not reproduce the stored local compression envelope'
+  elif not shock_curve_verified:
+    status = MocReflectedDomainAlternatingPhysicalFieldMeasurementStatus.SHOCK_FAILURE
+    message = 'shock curve did not pass the independent attached-shock seam checks'
+  elif not physical_field_verified or not state_sampling_verified:
+    status = MocReflectedDomainAlternatingPhysicalFieldMeasurementStatus.FIELD_FAILURE
+    message = 'ambient-closed physical field failed its independent raw-field measurement'
+  elif not upstream_coupling_verified:
+    status = MocReflectedDomainAlternatingPhysicalFieldMeasurementStatus.FIELD_FAILURE
+    message = 'physical shock field did not preserve the bounded alternating upstream samples'
+  elif not incoming_handoff_verified:
+    status = MocReflectedDomainAlternatingPhysicalFieldMeasurementStatus.FIELD_FAILURE
+    message = 'physical shock field did not retain the exact incoming chain handoff'
+  else:
+    status = MocReflectedDomainAlternatingPhysicalFieldMeasurementStatus.CONVERGED
+    message = (
+      'alternating source band, zero-strength attachment, compression envelope, '
+      'shock curve, ambient-closed field, and upstream coupling passed independent '
+      'measurement; canonical free-boundary validation and promotion remain pending'
+    )
+  measurement = _reflected_domain_alternating_physical_field_measurement_failure(
+    status,
+    solver_status=solver_status,
+    source_measurement=source_measurement,
+    field_measurement=field_measurement,
+    source_field_verified=source_field_verified,
+    attachment_point_verified=attachment_point_verified,
+    attachment_pressure_verified=attachment_pressure_verified,
+    zero_strength_attachment_verified=zero_strength_attachment_verified,
+    envelope_verified=envelope_verified,
+    shock_curve_verified=shock_curve_verified,
+    physical_field_verified=physical_field_verified,
+    state_sampling_verified=state_sampling_verified,
+    upstream_coupling_verified=upstream_coupling_verified,
+    incoming_handoff_verified=incoming_handoff_verified,
+    bounded_physical_field_verified=bounded_physical_field_verified,
+    compression_amplitude_rad=result.compression_amplitude_rad,
+    shock_sample_count=shock_sample_count,
+    message=message,
+  )
+  if bounded_physical_field_verified:
+    object.__setattr__(measurement, 'physical_closure_verified', True)
+  return measurement
 ####
 
 

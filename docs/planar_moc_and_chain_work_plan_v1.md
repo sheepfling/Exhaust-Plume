@@ -1747,3 +1747,22 @@ are coupling this band to a canonical reflected free-boundary/shock remesher,
 mixed-regime closure, refinement, and external observations; all basic,
 reduced-order, signature, ray, and focal-plane-array providers remain
 unchanged.
+
+## Alternating-source physical-field checkpoint
+
+The bounded alternating source band now feeds the actual ambient/centerline
+physical MOC assembler through
+`solve_reflected_domain_alternating_physical_field`. The bridge starts at the
+ambient-matched source point, records shock entropy for the positive interior
+turn envelope, permits only the explicitly declared zero-strength endpoints,
+and retains the exact incoming chain handoff. The independent
+`op.moc.reflected-domain-alternating-physical-field` audit remeasures the
+source, attachment, envelope, shock curve, raw field, sampling, and upstream
+coupling rather than trusting solver flags.
+
+`plan_reflected_domain_alternating_source_chain` now carries one resolved
+state-bearing research cell and then returns a typed no-next-cell stop so the
+finite source band cannot be reused. This closes the local physical-field
+bridge but remains non-canonical: the provisional compression envelope,
+reflected free-boundary remesher, mixed-regime closure, refinement, and
+external validation are still open, and no product/provider lane consumes it.

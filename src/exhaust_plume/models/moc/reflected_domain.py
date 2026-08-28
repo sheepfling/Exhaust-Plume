@@ -19,7 +19,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 from math import isfinite
-from typing import Sequence
+from typing import TYPE_CHECKING, Sequence
+
+if TYPE_CHECKING:
+  from exhaust_plume.models.moc.coupled import MocAmbientPhysicalFieldResult
 
 from exhaust_plume.models.moc.ambient_boundary import (
   MocAmbientBoundarySample,
@@ -32,6 +35,7 @@ from exhaust_plume.models.moc.boundary import (
 )
 from exhaust_plume.models.moc.chain import (
   MocChainBoundarySample,
+  MocChainCell,
   MocChainTerminationDecision,
   MocChainTerminationReason,
   MocCharacteristicTraceResult,
@@ -59,17 +63,21 @@ from exhaust_plume.models.moc.terminal_patch import (
 )
 from exhaust_plume.models.moc.topology import MocTopologyResult, validate_moc_mesh
 from exhaust_plume.models.moc.zone import MocCharacteristicCell
+from exhaust_plume.util.aero.shock_validity import ShockBranch
 
 __all__ = (
   'MocReflectedDomainOuterSourceStatus',
   'MocReflectedDomainOuterSourceResult',
   'MocReflectedDomainAlternatingSourceStatus',
   'MocReflectedDomainAlternatingSourceResult',
+  'MocReflectedDomainAlternatingPhysicalFieldStatus',
+  'MocReflectedDomainAlternatingPhysicalFieldResult',
   'MocReflectedDomainRemeshStatus',
   'MocReflectedDomainRemeshRequest',
   'MocReflectedDomainRemeshResult',
   'build_reflected_domain_remesh_request_from_outer_source',
   'solve_reflected_domain_alternating_source',
+  'solve_reflected_domain_alternating_physical_field',
   'solve_reflected_domain_outer_source_curve',
   'solve_reflected_domain_remesh',
 )
@@ -139,6 +147,18 @@ class MocReflectedDomainAlternatingSourceStatus(str, Enum):
   CENTERLINE_FAILURE = 'alternating_source_centerline_failure'
   BOUNDARY_FAILURE = 'alternating_source_ambient_boundary_failure'
   FIELD_FAILURE = 'alternating_source_field_failure'
+
+
+class MocReflectedDomainAlternatingPhysicalFieldStatus(str, Enum):
+  """Outcome of coupling an alternating source band to a shock field."""
+
+  CONVERGED_AMBIENT_CLOSED = (
+    'converged_alternating_source_ambient_closed_physical_field'
+  )
+  INVALID_INPUT = 'invalid_input'
+  SOURCE_FIELD_FAILURE = 'alternating_physical_source_field_failure'
+  SHOCK_FAILURE = 'alternating_physical_shock_failure'
+  FIELD_FAILURE = 'alternating_physical_field_failure'
 ####
 
 
@@ -857,6 +877,257 @@ class MocReflectedDomainAlternatingSourceResult:
   ####
 
 
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainAlternatingPhysicalFieldResult:
+  """A bounded alternating source band coupled to one physical shock field.
+
+  The source band supplies the non-extrapolating upstream state and pressure
+  callbacks.  The downstream shock turn is a solver-owned, local positive
+  compression envelope that is zero at the ambient attachment and at the
+  symmetry endpoint.  This creates a useful physical-field research seam
+  without claiming that the envelope is the canonical reflected-plume
+  free-boundary law.
+  """
+
+  status: MocReflectedDomainAlternatingPhysicalFieldStatus
+  source_band: MocReflectedDomainAlternatingSourceResult | None
+  field_result: MocAmbientPhysicalFieldResult | None
+  start_point_m: tuple[float, float] | None
+  outer_source_index: int | None
+  compression_amplitude_rad: float | None
+  sample_count: int
+  outer_flow_angle_bracket: tuple[float, float] | None
+  incoming_handoff: tuple[MocChainBoundarySample, ...] = ()
+  continuation_law: str = (
+    'alternating-source-local-compression-envelope'
+  )
+  shock_angle_tolerance_rad: float = 1.0e-2
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocReflectedDomainAlternatingPhysicalFieldStatus,
+    ):
+      raise TypeError(
+        'status must be a MocReflectedDomainAlternatingPhysicalFieldStatus'
+      )
+    if self.source_band is not None and not isinstance(
+      self.source_band,
+      MocReflectedDomainAlternatingSourceResult,
+    ):
+      raise TypeError(
+        'source_band must be a MocReflectedDomainAlternatingSourceResult or None'
+      )
+    if self.field_result is not None:
+      from exhaust_plume.models.moc.coupled import MocAmbientPhysicalFieldResult
+
+      if not isinstance(self.field_result, MocAmbientPhysicalFieldResult):
+        raise TypeError(
+          'field_result must be a MocAmbientPhysicalFieldResult or None'
+        )
+    if self.start_point_m is not None:
+      if len(self.start_point_m) != 2 or not all(
+        isfinite(float(value)) for value in self.start_point_m
+      ):
+        raise ValueError('start_point_m must contain two finite coordinates')
+      object.__setattr__(
+        self,
+        'start_point_m',
+        (float(self.start_point_m[0]), float(self.start_point_m[1])),
+      )
+    if self.outer_source_index is not None:
+      if (
+        isinstance(self.outer_source_index, bool)
+        or not isinstance(self.outer_source_index, int)
+        or self.outer_source_index < 0
+      ):
+        raise ValueError(
+          'outer_source_index must be a nonnegative integer or None'
+        )
+    if self.compression_amplitude_rad is not None:
+      amplitude = float(self.compression_amplitude_rad)
+      if not isfinite(amplitude) or amplitude <= 0.0:
+        raise ValueError(
+          'compression_amplitude_rad must be finite and positive when supplied'
+        )
+      object.__setattr__(self, 'compression_amplitude_rad', amplitude)
+    if (
+      isinstance(self.sample_count, bool)
+      or not isinstance(self.sample_count, int)
+      or self.sample_count < 0
+    ):
+      raise ValueError('sample_count must be a nonnegative integer')
+    if self.outer_flow_angle_bracket is not None:
+      if len(self.outer_flow_angle_bracket) != 2 or not all(
+        isfinite(float(value)) for value in self.outer_flow_angle_bracket
+      ):
+        raise ValueError(
+          'outer_flow_angle_bracket must contain two finite values'
+        )
+      object.__setattr__(
+        self,
+        'outer_flow_angle_bracket',
+        (
+          float(self.outer_flow_angle_bracket[0]),
+          float(self.outer_flow_angle_bracket[1]),
+        ),
+      )
+    incoming_handoff = tuple(self.incoming_handoff)
+    if any(
+      not isinstance(sample, MocChainBoundarySample)
+      for sample in incoming_handoff
+    ):
+      raise TypeError(
+        'incoming_handoff must contain MocChainBoundarySample values'
+      )
+    object.__setattr__(self, 'incoming_handoff', incoming_handoff)
+    if not isinstance(self.continuation_law, str) or not self.continuation_law:
+      raise ValueError('continuation_law must be a non-empty string')
+    shock_angle_tolerance = float(self.shock_angle_tolerance_rad)
+    if not isfinite(shock_angle_tolerance) or shock_angle_tolerance <= 0.0:
+      raise ValueError(
+        'shock_angle_tolerance_rad must be finite and positive'
+      )
+    object.__setattr__(self, 'shock_angle_tolerance_rad', shock_angle_tolerance)
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def source_field_verified(self) -> bool:
+    return bool(
+      self.source_band is not None
+      and self.source_band.source_field_verified
+    )
+  ####
+
+  @property
+  def shock_curve_verified(self) -> bool:
+    if self.field_result is None or not self.field_result.converged:
+      return False
+    attachment = self.field_result.ambient_attachment
+    shock = None if attachment is None else attachment.shock
+    return bool(
+      shock is not None
+      and shock.converged
+      and shock.shock_fit is not None
+      and shock.shock_fit.converged
+      and len(shock.shock_points_m) >= 3
+    )
+  ####
+
+  @property
+  def field(self):
+    return None if self.field_result is None else self.field_result.field
+  ####
+
+  @property
+  def converged(self) -> bool:
+    return bool(
+      self.status
+      is MocReflectedDomainAlternatingPhysicalFieldStatus.CONVERGED_AMBIENT_CLOSED
+      and self.source_field_verified
+      and self.shock_curve_verified
+      and self.physical_closure_verified
+    )
+  ####
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    return bool(
+      self.field_result is not None
+      and self.field_result.physical_closure_verified
+    )
+  ####
+
+  @property
+  def state_sampling_available(self) -> bool:
+    return bool(
+      self.field_result is not None
+      and self.field_result.state_sampling_available
+    )
+  ####
+
+  @property
+  def upstream_coupling_verified(self) -> bool:
+    return bool(
+      self.field_result is not None
+      and self.field_result.upstream_coupling_verified
+    )
+  ####
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    return not (
+      self.physical_closure_verified
+      and self.state_sampling_available
+      and self.upstream_coupling_verified
+    )
+  ####
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    return False
+  ####
+
+  def as_coupled_chain_cell(
+    self,
+    *,
+    start_x_m: float,
+    end_x_m: float,
+    cell_index: int = 1,
+  ) -> MocChainCell:
+    if self.chain_promotion_blocked or self.field_result is None:
+      raise ValueError(
+        'alternating-source physical field is not eligible for chain promotion'
+      )
+    return self.field_result.as_coupled_chain_cell(
+      start_x_m=start_x_m,
+      end_x_m=end_x_m,
+      cell_index=cell_index,
+    )
+  ####
+
+  def as_report(self) -> dict[str, object]:
+    attachment = (
+      None
+      if self.field_result is None
+      else self.field_result.ambient_attachment
+    )
+    shock = None if attachment is None else attachment.shock
+    return {
+      'status': self.status.value,
+      'converged': self.converged,
+      'source_field_verified': self.source_field_verified,
+      'shock_curve_verified': self.shock_curve_verified,
+      'physical_closure_verified': self.physical_closure_verified,
+      'state_sampling_available': self.state_sampling_available,
+      'upstream_coupling_verified': self.upstream_coupling_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'canonical_reflected_domain_closed': False,
+      'source_model': (
+        None if self.source_band is None else self.source_band.as_report()
+      ),
+      'field_result': (
+        None if self.field_result is None else self.field_result.as_report()
+      ),
+      'start_point_m': self.start_point_m,
+      'outer_source_index': self.outer_source_index,
+      'compression_amplitude_rad': self.compression_amplitude_rad,
+      'sample_count': self.sample_count,
+      'outer_flow_angle_bracket': self.outer_flow_angle_bracket,
+      'incoming_handoff_sample_count': len(self.incoming_handoff),
+      'continuation_law': self.continuation_law,
+      'shock_sample_count': (
+        None if shock is None else len(shock.shock_points_m)
+      ),
+      'shock_angle_tolerance_rad': self.shock_angle_tolerance_rad,
+      'message': self.message,
+    }
+  ####
+
+
 def _static_pressure_from_total_pressure(
   state: CharacteristicState,
   total_pressure_Pa: float,
@@ -1367,6 +1638,351 @@ def solve_reflected_domain_alternating_source(
     trace_forward_tolerance_m=resolved_trace_forward_tolerance,
     invariant_tolerance=resolved_invariant_tolerance,
     pressure_tolerance=resolved_pressure_tolerance,
+  )
+####
+
+
+def solve_reflected_domain_alternating_physical_field(
+  source_band: MocReflectedDomainAlternatingSourceResult,
+  compression_amplitude_rad: float,
+  *,
+  outer_source_index: int = 0,
+  target_centerline_y_m: float = 0.0,
+  target_centerline_flow_angle_rad: float = 0.0,
+  attachment_angle_half_width_rad: float = 1.0e-6,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-9,
+  invariant_tolerance: float = 1.0e-10,
+  attachment_pressure_tolerance: float = 1.0e-8,
+  pressure_tolerance: float = 1.0e-8,
+  tangent_tolerance: float = 1.0e-8,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  maximum_boundary_iterations: int = 16,
+  maximum_shooting_iterations: int = 40,
+  incoming_handoff: Sequence[MocChainBoundarySample] | None = None,
+) -> MocReflectedDomainAlternatingPhysicalFieldResult:
+  """Couple an alternating source band to one ambient-closed shock field.
+
+  The first outer source point is an ambient-pressure point, so the physical
+  shock starts as an explicit zero-strength Mach-wave attachment.  Interior
+  shock turns are obtained from the sampled alternating upstream state plus a
+  non-negative ``4*s*(1-s)`` compression envelope.  The envelope is a
+  bounded research boundary condition: it makes entropy production explicit
+  and prevents the fast source band from being silently promoted as a
+  canonical reflected-plume shock law.
+
+  The source callbacks remain bounded by ``source_band``.  If a candidate
+  shock leaves that finite source domain, the underlying physical solver
+  returns a typed upstream-field failure; no extrapolated state is inserted.
+  """
+
+  continuation_law = 'alternating-source-local-compression-envelope'
+  band = (
+    source_band
+    if isinstance(source_band, MocReflectedDomainAlternatingSourceResult)
+    else None
+  )
+  try:
+    amplitude = float(compression_amplitude_rad)
+  except (TypeError, ValueError):
+    amplitude = float('nan')
+  try:
+    target_y = float(target_centerline_y_m)
+    target_theta = float(target_centerline_flow_angle_rad)
+    half_width = float(attachment_angle_half_width_rad)
+  except (TypeError, ValueError):
+    target_y = float('nan')
+    target_theta = float('nan')
+    half_width = float('nan')
+  resolved_sample_count = (
+    sample_count
+    if isinstance(sample_count, int)
+    and not isinstance(sample_count, bool)
+    and sample_count >= 0
+    else 0
+  )
+  resolved_outer_index = (
+    outer_source_index
+    if isinstance(outer_source_index, int)
+    and not isinstance(outer_source_index, bool)
+    and outer_source_index >= 0
+    else None
+  )
+  resolved_incoming_handoff: tuple[MocChainBoundarySample, ...] = ()
+  incoming_handoff_error = False
+  if incoming_handoff is not None:
+    try:
+      resolved_incoming_handoff = tuple(incoming_handoff)
+    except TypeError:
+      incoming_handoff_error = True
+    else:
+      incoming_handoff_error = any(
+        not isinstance(sample, MocChainBoundarySample)
+        for sample in resolved_incoming_handoff
+      )
+  resolved_position_tolerance = 1.0e-9
+  resolved_shock_angle_tolerance = 1.0e-2
+  try:
+    resolved_position_tolerance = float(position_tolerance_m)
+    resolved_shock_angle_tolerance = float(shock_angle_tolerance_rad)
+  except (TypeError, ValueError):
+    pass
+  bracket: tuple[float, float] | None = None
+  start_point: tuple[float, float] | None = None
+
+  def failure(
+    status: MocReflectedDomainAlternatingPhysicalFieldStatus,
+    message: str,
+    *,
+    field_result: MocAmbientPhysicalFieldResult | None = None,
+  ) -> MocReflectedDomainAlternatingPhysicalFieldResult:
+    return MocReflectedDomainAlternatingPhysicalFieldResult(
+      status=status,
+      source_band=band,
+      field_result=field_result,
+      start_point_m=start_point,
+      outer_source_index=resolved_outer_index,
+      compression_amplitude_rad=(
+        amplitude if isfinite(amplitude) and amplitude > 0.0 else None
+      ),
+      sample_count=resolved_sample_count,
+      outer_flow_angle_bracket=bracket,
+      incoming_handoff=resolved_incoming_handoff,
+      continuation_law=continuation_law,
+      shock_angle_tolerance_rad=(
+        resolved_shock_angle_tolerance
+        if isfinite(resolved_shock_angle_tolerance)
+        and resolved_shock_angle_tolerance > 0.0
+        else 1.0e-2
+      ),
+      message=message,
+    )
+
+  if band is None:
+    return failure(
+      MocReflectedDomainAlternatingPhysicalFieldStatus.INVALID_INPUT,
+      'source_band must be a MocReflectedDomainAlternatingSourceResult',
+    )
+  if incoming_handoff_error:
+    return failure(
+      MocReflectedDomainAlternatingPhysicalFieldStatus.INVALID_INPUT,
+      'incoming_handoff must contain MocChainBoundarySample values',
+    )
+  if not band.source_field_verified:
+    return failure(
+      MocReflectedDomainAlternatingPhysicalFieldStatus.SOURCE_FIELD_FAILURE,
+      'alternating source band is not a verified bounded source field',
+    )
+  if (
+    not isfinite(amplitude)
+    or amplitude <= 0.0
+    or not isfinite(target_y)
+    or not isfinite(target_theta)
+    or not isfinite(half_width)
+    or half_width <= 0.0
+  ):
+    return failure(
+      MocReflectedDomainAlternatingPhysicalFieldStatus.INVALID_INPUT,
+      'compression amplitude, centerline target, and attachment bracket must be finite and valid',
+    )
+  if (
+    abs(target_y) > resolved_position_tolerance
+    or abs(target_theta) > float(tangent_tolerance)
+  ):
+    return failure(
+      MocReflectedDomainAlternatingPhysicalFieldStatus.INVALID_INPUT,
+      'alternating physical coupling currently supports only y=0, theta=0 symmetry closure',
+    )
+  if (
+    not isinstance(resolved_outer_index, int)
+    or resolved_outer_index >= len(band.outer_source_states)
+  ):
+    return failure(
+      MocReflectedDomainAlternatingPhysicalFieldStatus.INVALID_INPUT,
+      'outer_source_index must select a state in the alternating outer source row',
+    )
+  if resolved_sample_count < 3:
+    return failure(
+      MocReflectedDomainAlternatingPhysicalFieldStatus.INVALID_INPUT,
+      'sample_count must be an integer of at least three',
+    )
+  if not isinstance(branch, ShockBranch):
+    return failure(
+      MocReflectedDomainAlternatingPhysicalFieldStatus.INVALID_INPUT,
+      'branch must be a ShockBranch',
+    )
+  for name, value in (
+    ('position_tolerance_m', position_tolerance_m),
+    ('invariant_tolerance', invariant_tolerance),
+    ('attachment_pressure_tolerance', attachment_pressure_tolerance),
+    ('pressure_tolerance', pressure_tolerance),
+    ('tangent_tolerance', tangent_tolerance),
+    ('shock_angle_tolerance_rad', shock_angle_tolerance_rad),
+  ):
+    try:
+      numeric_value = float(value)
+    except (TypeError, ValueError):
+      numeric_value = float('nan')
+    if not isfinite(numeric_value) or numeric_value <= 0.0:
+      return failure(
+        MocReflectedDomainAlternatingPhysicalFieldStatus.INVALID_INPUT,
+        f'{name} must be finite and positive',
+      )
+  for name, value in (
+    ('maximum_segment_iterations', maximum_segment_iterations),
+    ('maximum_boundary_iterations', maximum_boundary_iterations),
+    ('maximum_shooting_iterations', maximum_shooting_iterations),
+  ):
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+      return failure(
+        MocReflectedDomainAlternatingPhysicalFieldStatus.INVALID_INPUT,
+        f'{name} must be a positive integer',
+      )
+  ambient_pressure = band.ambient_pressure_Pa
+  if ambient_pressure is None or not isfinite(float(ambient_pressure)) or ambient_pressure <= 0.0:
+    return failure(
+      MocReflectedDomainAlternatingPhysicalFieldStatus.SOURCE_FIELD_FAILURE,
+      'alternating source band does not retain a finite ambient pressure',
+    )
+  source_state = band.outer_source_states[resolved_outer_index]
+  start_point = (source_state.x_m, source_state.y_m)
+  bracket = (
+    source_state.theta_rad - half_width,
+    source_state.theta_rad + half_width,
+  )
+  sampled_start = band.state_at(
+    start_point,
+    position_tolerance_m=float(position_tolerance_m),
+  )
+  start_pressure = band.static_pressure_at(
+    start_point,
+    position_tolerance_m=float(position_tolerance_m),
+  )
+  if (
+    sampled_start is None
+    or not _state_matches(
+      sampled_start,
+      source_state,
+      position_tolerance_m=float(position_tolerance_m),
+      state_tolerance=float(invariant_tolerance),
+    )
+    or start_pressure is None
+    or not isfinite(float(start_pressure))
+    or abs(float(start_pressure) - float(ambient_pressure)) / float(ambient_pressure)
+    > float(pressure_tolerance)
+  ):
+    return failure(
+      MocReflectedDomainAlternatingPhysicalFieldStatus.SOURCE_FIELD_FAILURE,
+      'alternating source attachment point does not reproduce its ambient-matched state and pressure',
+    )
+  denominator = source_state.y_m - target_y
+  if denominator <= float(position_tolerance_m):
+    return failure(
+      MocReflectedDomainAlternatingPhysicalFieldStatus.SOURCE_FIELD_FAILURE,
+      'alternating source attachment point must lie above the target centerline',
+    )
+
+  def downstream_flow_angle_at(
+    _index: int,
+    point_m: tuple[float, float],
+  ) -> float:
+    ordinate = float(point_m[1])
+    fraction = (ordinate - target_y) / denominator
+    if fraction < -1.0e-8 or fraction > 1.0 + 1.0e-8:
+      raise ValueError(
+        'alternating physical shock point lies outside the bounded source ordinate'
+      )
+    fraction = max(0.0, min(1.0, fraction))
+    if abs(ordinate - target_y) <= max(
+      float(position_tolerance_m),
+      float(invariant_tolerance),
+    ):
+      return target_theta
+    state = band.state_at(
+      point_m,
+      position_tolerance_m=float(position_tolerance_m),
+    )
+    if state is None:
+      raise ValueError(
+        'alternating physical shock point is outside the bounded source band'
+      )
+    envelope = 4.0 * fraction * (1.0 - fraction)
+    return float(state.theta_rad + amplitude * envelope)
+
+  try:
+    from exhaust_plume.models.moc.coupled import (
+      MocAmbientPhysicalFieldResult,
+      solve_marched_attached_shock_with_ambient_centerline_physical_field,
+    )
+
+    field_result = solve_marched_attached_shock_with_ambient_centerline_physical_field(
+      band.state_at,
+      band.static_pressure_at,
+      start_point,
+      float(ambient_pressure),
+      bracket[0],
+      bracket[1],
+      target_centerline_y_m=target_y,
+      target_centerline_flow_angle_rad=target_theta,
+      sample_count=resolved_sample_count,
+      branch=branch,
+      position_tolerance_m=float(position_tolerance_m),
+      invariant_tolerance=float(invariant_tolerance),
+      attachment_pressure_tolerance=float(attachment_pressure_tolerance),
+      pressure_tolerance=float(pressure_tolerance),
+      tangent_tolerance=float(tangent_tolerance),
+      shock_angle_tolerance_rad=float(shock_angle_tolerance_rad),
+      maximum_segment_iterations=maximum_segment_iterations,
+      maximum_boundary_iterations=maximum_boundary_iterations,
+      maximum_shooting_iterations=maximum_shooting_iterations,
+      incoming_handoff=(
+        resolved_incoming_handoff if resolved_incoming_handoff else None
+      ),
+      allow_zero_strength_attachment=True,
+      allow_zero_strength_endpoints=True,
+      downstream_flow_angle_at=downstream_flow_angle_at,
+      continuation_law=continuation_law,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return failure(
+      MocReflectedDomainAlternatingPhysicalFieldStatus.SHOCK_FAILURE,
+      f'alternating source physical shock solve raised: {error}',
+    )
+  if not isinstance(field_result, MocAmbientPhysicalFieldResult):
+    return failure(
+      MocReflectedDomainAlternatingPhysicalFieldStatus.SHOCK_FAILURE,
+      'alternating source physical shock solve returned an invalid field result',
+    )
+  if (
+    field_result.converged
+    and field_result.physical_closure_verified
+    and field_result.state_sampling_available
+    and field_result.upstream_coupling_verified
+  ):
+    return MocReflectedDomainAlternatingPhysicalFieldResult(
+      status=MocReflectedDomainAlternatingPhysicalFieldStatus.CONVERGED_AMBIENT_CLOSED,
+      source_band=band,
+      field_result=field_result,
+      start_point_m=start_point,
+      outer_source_index=resolved_outer_index,
+      compression_amplitude_rad=amplitude,
+      sample_count=resolved_sample_count,
+      outer_flow_angle_bracket=bracket,
+      incoming_handoff=resolved_incoming_handoff,
+      continuation_law=continuation_law,
+      shock_angle_tolerance_rad=float(shock_angle_tolerance_rad),
+      message=(
+        'alternating source band coupled to a state-carrying ambient-closed '
+        'shock field through an explicit local compression envelope; canonical '
+        'reflected free-boundary validation remains pending'
+      ),
+    )
+  return failure(
+    MocReflectedDomainAlternatingPhysicalFieldStatus.FIELD_FAILURE,
+    f'alternating source physical field did not pass closure gates: {field_result.message}',
+    field_result=field_result,
   )
 ####
 
