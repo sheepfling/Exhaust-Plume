@@ -592,3 +592,30 @@ even a successful attachment remains a terminal result with chain promotion
 blocked and no production claim. The default planner mock/reference path does
 not attach, preserving the distinction between seam evidence and canonical
 downstream closure.
+
+The current downstream continuation checkpoint is the named
+``terminal-reflection-patch-ambient-closure`` research lane. It consumes a
+bounded reflected patch, permits an explicit ambient-matched Mach-wave start
+and centerline endpoint, and requires strict shock total-pressure loss at
+interior samples. The default attached-shock solver remains strict; the
+zero-strength exception is never a global relaxation.
+
+The lane keeps the chain contract and the internal source contract separate:
+the prior cell's centerline trace is the next field's ``incoming_handoff``,
+while the reflected patch's outgoing characteristic trace is its separate
+``patch_handoff``. Only a complete ambient-closed field with state sampling,
+retained upstream shock data, and exact handoff identity may cross into the
+resolved planar-MOC chain. The
+``MocTerminalReflectionPatchAmbientClosureChainReference`` planner is
+research-only and, on the canonical bounded fixture, produces a two-cell
+resolved prefix followed by an explicit configured solver stop. Its endpoint
+is taken from the next field's actual ambient boundary rather than from a
+caller-supplied fabricated interface.
+
+This does not close the canonical reflected plume. Further cells need a
+reflected-domain/remeshing method that handles the alternating compression /
+expansion character of the chain, a coupled downstream free-boundary and
+mixed-regime field, refinement and conservation evidence, and external
+validation observations. The basic visual, reduced-order, signature, ray,
+and focal-plane-array providers remain unchanged and cannot consume this
+research result by implication.

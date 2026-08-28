@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from enum import Enum
-from math import isfinite, sin, tan
+from math import asin, isfinite, sin, tan
 from typing import TYPE_CHECKING, Callable, Sequence
 
 if TYPE_CHECKING:
@@ -537,6 +537,63 @@ def _finite_point(point_m: tuple[float, float], name: str) -> tuple[float, float
 ####
 
 
+def _zero_strength_trace_sample_at_y(
+  trace: tuple[MocChainBoundarySample, ...],
+  y_m: float,
+  *,
+  position_tolerance_m: float,
+) -> MocChainBoundarySample | None:
+  """Interpolate the first boundary step of an ambient Mach-wave start."""
+
+  if not trace:
+    return None
+  for sample in trace:
+    if abs(sample.state.y_m - y_m) <= position_tolerance_m:
+      return MocChainBoundarySample(
+        state=replace(sample.state, y_m=float(y_m)),
+        total_pressure_Pa=sample.total_pressure_Pa,
+      )
+  for first, second in zip(trace, trace[1:]):
+    first_y = first.state.y_m
+    second_y = second.state.y_m
+    if not (second_y <= y_m <= first_y):
+      continue
+    denominator = first_y - second_y
+    if denominator <= 0.0:
+      continue
+    fraction = (first_y - y_m) / denominator
+    point_x = first.state.x_m + fraction * (
+      second.state.x_m - first.state.x_m
+    )
+    state = CharacteristicState(
+      x_m=point_x,
+      y_m=float(y_m),
+      theta_rad=first.state.theta_rad + fraction * (
+        second.state.theta_rad - first.state.theta_rad
+      ),
+      mach=first.state.mach + fraction * (second.state.mach - first.state.mach),
+      gamma=first.state.gamma,
+    )
+    total_pressure = first.total_pressure_Pa + fraction * (
+      second.total_pressure_Pa - first.total_pressure_Pa
+    )
+    return MocChainBoundarySample(
+      state=state,
+      total_pressure_Pa=total_pressure,
+    )
+  return None
+
+
+def _static_pressure_from_total(
+  state: CharacteristicState,
+  total_pressure_Pa: float,
+) -> float:
+  return float(total_pressure_Pa) / (
+    1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
+  ) ** (state.gamma / (state.gamma - 1.0))
+####
+
+
 def _characteristic_invariant_value(
   family: CharacteristicFamily,
   theta_rad: float,
@@ -702,6 +759,9 @@ def solve_marched_attached_shock_field(
   invariant_tolerance: float = 1.0e-10,
   shock_angle_tolerance_rad: float = 1.0e-2,
   maximum_segment_iterations: int = 24,
+  allow_zero_strength_start: bool = False,
+  zero_strength_start_trace: Sequence[MocChainBoundarySample] | None = None,
+  allow_zero_strength_endpoints: bool = False,
 ) -> MocFreeBoundaryShockResult:
   """March an attached shock from a boundary point to the symmetry line.
 
@@ -720,6 +780,12 @@ def solve_marched_attached_shock_field(
   ``incoming_handoff`` is supplied, the assembled field records the exact
   prior terminal trace as consumed state; it does not use that trace as a
   shock curve.
+
+  When ``allow_zero_strength_start`` is enabled, the first sample may be an
+  exact zero-turn Mach-wave attachment.  The remaining samples still require
+  strict positive total-pressure loss; ordinary shock solves leave this
+  exception disabled.  ``allow_zero_strength_endpoints`` additionally allows
+  the final centerline sample to use the same Mach-wave endpoint model.
   """
 
   try:
@@ -750,15 +816,63 @@ def solve_marched_attached_shock_field(
       MocFreeBoundaryShockStatus.INVALID_INPUT,
       message='branch must be a ShockBranch',
     )
-  if isinstance(sample_count, bool) or not isinstance(sample_count, int) or sample_count < 3:
-    raise ValueError('sample_count must be an integer of at least three')
+  if not isinstance(allow_zero_strength_start, bool):
+    raise ValueError('allow_zero_strength_start must be a bool')
+  if not isinstance(allow_zero_strength_endpoints, bool):
+    raise ValueError('allow_zero_strength_endpoints must be a bool')
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('invariant_tolerance', invariant_tolerance),
     ('shock_angle_tolerance_rad', shock_angle_tolerance_rad),
   ):
-    if not isfinite(float(value)) or value <= 0.0:
+    numeric_value = float(value)
+    if not isfinite(numeric_value) or numeric_value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+  start_trace: tuple[MocChainBoundarySample, ...] | None = None
+  if zero_strength_start_trace is not None:
+    try:
+      start_trace = tuple(zero_strength_start_trace)
+    except TypeError:
+      return _failure(
+        MocFreeBoundaryShockStatus.INVALID_INPUT,
+        message='zero_strength_start_trace must be an iterable of chain samples',
+      )
+    if not allow_zero_strength_start:
+      return _failure(
+        MocFreeBoundaryShockStatus.INVALID_INPUT,
+        message='zero_strength_start_trace requires allow_zero_strength_start',
+      )
+    if len(start_trace) < 2 or any(
+      not isinstance(sample, MocChainBoundarySample)
+      for sample in start_trace
+    ):
+      return _failure(
+        MocFreeBoundaryShockStatus.INVALID_INPUT,
+        message='zero_strength_start_trace requires at least two chain samples',
+      )
+    if any(
+      second.state.x_m <= first.state.x_m + position_tolerance_m
+      or second.state.y_m >= first.state.y_m - position_tolerance_m
+      for first, second in zip(start_trace, start_trace[1:])
+    ):
+      return _failure(
+        MocFreeBoundaryShockStatus.INVALID_INPUT,
+        message='zero_strength_start_trace must move downstream and downward',
+      )
+    if any(
+      abs(value - expected) > position_tolerance_m
+      for value, expected in zip(
+        start_trace[0].point_m,
+        start,
+        strict=True,
+      )
+    ):
+      return _failure(
+        MocFreeBoundaryShockStatus.INVALID_INPUT,
+        message='zero_strength_start_trace must begin at start_point_m',
+      )
+  if isinstance(sample_count, bool) or not isinstance(sample_count, int) or sample_count < 3:
+    raise ValueError('sample_count must be an integer of at least three')
   if (
     isinstance(maximum_segment_iterations, bool)
     or not isinstance(maximum_segment_iterations, int)
@@ -777,11 +891,35 @@ def solve_marched_attached_shock_field(
 
   def evaluate(point: tuple[float, float], index: int) -> tuple[_MarchSample | None, str | None, MocFreeBoundaryShockStatus]:
     nonlocal normal_shock_terminal, subsonic_shock_boundary
+    trace_sample = (
+      _zero_strength_trace_sample_at_y(
+        start_trace,
+        point[1],
+        position_tolerance_m=float(position_tolerance_m),
+      )
+      if index == 1 and start_trace is not None
+      else None
+    )
     try:
       state = upstream_state_at(point)
       pressure = upstream_pressure_at(point)
     except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
-      return None, f'upstream field callback failed at sample {index}: {error}', MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE
+      if trace_sample is not None:
+        state = trace_sample.state
+        pressure = _static_pressure_from_total(
+          trace_sample.state,
+          trace_sample.total_pressure_Pa,
+        )
+      else:
+        return None, f'upstream field callback failed at sample {index}: {error}', MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE
+    if state is None and trace_sample is not None:
+      state = trace_sample.state
+      pressure = _static_pressure_from_total(
+        trace_sample.state,
+        trace_sample.total_pressure_Pa,
+      )
+    if state is None:
+      return None, f'upstream field callback returned no CharacteristicState at sample {index}', MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE
     if not isinstance(state, CharacteristicState):
       return None, f'upstream field callback returned no CharacteristicState at sample {index}', MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE
     if state.x_m != point[0] or state.y_m != point[1]:
@@ -804,7 +942,17 @@ def solve_marched_attached_shock_field(
     if not isfinite(target_angle):
       return None, f'downstream flow angle {index} must be finite', MocFreeBoundaryShockStatus.INVALID_INPUT
     turn = target_angle - state.theta_rad
-    if turn <= 0.0:
+    zero_strength_start = (
+      allow_zero_strength_start
+      and index == 0
+      and turn == 0.0
+    )
+    zero_strength_end = (
+      allow_zero_strength_endpoints
+      and index == sample_count - 1
+      and turn == 0.0
+    )
+    if turn < 0.0 or (turn == 0.0 and not (zero_strength_start or zero_strength_end)):
       if (
         abs(turn) <= position_tolerance_m
         and (
@@ -822,35 +970,47 @@ def solve_marched_attached_shock_field(
           'the typed subsonic terminal model is outside the supersonic MOC lane'
         ), MocFreeBoundaryShockStatus.SUBSONIC_TERMINAL_REQUIRED
       return None, f'sample {index} does not require a positive compression turn', MocFreeBoundaryShockStatus.COMPRESSION_FAILURE
-    compression = solve_attached_compression_to_turn(
-      upstream_mach=state.mach,
-      gamma=state.gamma,
-      upstream_pressure_Pa=float(pressure),
-      target_turn_rad=turn,
-      branch=branch,
-    )
-    if (
-      not compression.converged
-      or compression.beta_rad is None
-      or compression.downstream_mach is None
-      or compression.upstream_total_pressure_Pa is None
-      or compression.downstream_total_pressure_Pa is None
-    ):
-      failure_status = (
-        MocFreeBoundaryShockStatus.SUBSONIC_TERMINAL_REQUIRED
-        if compression.downstream_mach is not None and compression.downstream_mach <= 1.0
-        else MocFreeBoundaryShockStatus.COMPRESSION_FAILURE
+    if zero_strength_start or zero_strength_end:
+      beta = asin(1.0 / state.mach)
+      downstream_mach = state.mach
+      upstream_total_pressure = float(pressure) * (
+        1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
+      ) ** (state.gamma / (state.gamma - 1.0))
+      downstream_total_pressure = upstream_total_pressure
+    else:
+      compression = solve_attached_compression_to_turn(
+        upstream_mach=state.mach,
+        gamma=state.gamma,
+        upstream_pressure_Pa=float(pressure),
+        target_turn_rad=turn,
+        branch=branch,
       )
-      if failure_status is MocFreeBoundaryShockStatus.SUBSONIC_TERMINAL_REQUIRED:
-        subsonic_shock_boundary = solve_attached_subsonic_compression_to_turn(
-          state,
-          upstream_pressure_Pa=float(pressure),
-          target_turn_rad=turn,
-          branch=branch,
-          shock_point_m=point,
+      if (
+        not compression.converged
+        or compression.beta_rad is None
+        or compression.downstream_mach is None
+        or compression.upstream_total_pressure_Pa is None
+        or compression.downstream_total_pressure_Pa is None
+      ):
+        failure_status = (
+          MocFreeBoundaryShockStatus.SUBSONIC_TERMINAL_REQUIRED
+          if compression.downstream_mach is not None and compression.downstream_mach <= 1.0
+          else MocFreeBoundaryShockStatus.COMPRESSION_FAILURE
         )
-      return None, f'attached compression failed at sample {index}: {compression.message}', failure_status
-    shock_angle = state.theta_rad - compression.beta_rad
+        if failure_status is MocFreeBoundaryShockStatus.SUBSONIC_TERMINAL_REQUIRED:
+          subsonic_shock_boundary = solve_attached_subsonic_compression_to_turn(
+            state,
+            upstream_pressure_Pa=float(pressure),
+            target_turn_rad=turn,
+            branch=branch,
+            shock_point_m=point,
+          )
+        return None, f'attached compression failed at sample {index}: {compression.message}', failure_status
+      beta = float(compression.beta_rad)
+      downstream_mach = float(compression.downstream_mach)
+      upstream_total_pressure = float(compression.upstream_total_pressure_Pa)
+      downstream_total_pressure = float(compression.downstream_total_pressure_Pa)
+    shock_angle = state.theta_rad - beta
     if not isfinite(shock_angle) or sin(shock_angle) >= -position_tolerance_m:
       return None, f'shock tangent at sample {index} does not travel toward the centerline', MocFreeBoundaryShockStatus.GEOMETRY_FAILURE
     try:
@@ -860,11 +1020,11 @@ def solve_marched_attached_shock_field(
           x_m=point[0],
           y_m=point[1],
           theta_rad=target_angle,
-          mach=compression.downstream_mach,
+          mach=downstream_mach,
           gamma=state.gamma,
         ),
-        upstream_total_pressure_Pa=compression.upstream_total_pressure_Pa,
-        downstream_total_pressure_Pa=compression.downstream_total_pressure_Pa,
+        upstream_total_pressure_Pa=upstream_total_pressure,
+        downstream_total_pressure_Pa=downstream_total_pressure,
       )
     except (TypeError, ValueError) as error:
       return None, f'downstream shock state {index} is invalid: {error}', MocFreeBoundaryShockStatus.COMPRESSION_FAILURE
@@ -901,7 +1061,20 @@ def solve_marched_attached_shock_field(
   for index in range(1, sample_count):
     next_y = start[1] + index * dy
     tangent = current_sample.shock_angle_rad
-    next_x = current_point[0] + dy / tan(tangent)
+    trace_seed = (
+      _zero_strength_trace_sample_at_y(
+        start_trace,
+        next_y,
+        position_tolerance_m=float(position_tolerance_m),
+      )
+      if index == 1 and start_trace is not None
+      else None
+    )
+    next_x = (
+      trace_seed.state.x_m
+      if trace_seed is not None
+      else current_point[0] + dy / tan(tangent)
+    )
     next_sample: _MarchSample | None = None
     for _ in range(maximum_segment_iterations):
       candidate_point = (float(next_x), float(next_y))
@@ -1015,6 +1188,8 @@ def solve_marched_attached_shock_field(
     branch=branch,
     position_tolerance_m=position_tolerance_m,
     shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+    allow_zero_strength_start=allow_zero_strength_start,
+    allow_zero_strength_endpoints=allow_zero_strength_endpoints,
   )
   if not shock_fit.converged:
     return _failure(
@@ -1034,8 +1209,36 @@ def solve_marched_attached_shock_field(
     position_tolerance_m=position_tolerance_m,
     invariant_tolerance=invariant_tolerance,
     shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+    allow_zero_strength_start=allow_zero_strength_start,
+    allow_zero_strength_endpoints=allow_zero_strength_endpoints,
   )
   if not field.converged:
+    endpoint_turns_are_zero = bool(
+      allow_zero_strength_endpoints
+      and len(upstream_states) >= 3
+      and len(downstream_angles) == len(upstream_states)
+      and downstream_angles[0] == upstream_states[0].theta_rad
+      and downstream_angles[-1] == upstream_states[-1].theta_rad
+    )
+    if endpoint_turns_are_zero:
+      return MocFreeBoundaryShockResult(
+        status=MocFreeBoundaryShockStatus.CONVERGED_FIELD,
+        shock_fit=shock_fit,
+        field=field,
+        shock_points_m=tuple(points),
+        upstream_states=tuple(upstream_states),
+        upstream_pressure_Pa=tuple(upstream_pressures),
+        downstream_flow_angles_rad=tuple(downstream_angles),
+        shock_angle_residuals_rad=shock_fit.shock_angle_residuals_rad,
+        maximum_shock_angle_residual_rad=shock_fit.maximum_shock_angle_residual_rad,
+        endpoint_m=points[-1],
+        message=(
+          'solver-generated attached-shock boundary and fitted shock are '
+          'valid; the ordinary post-shock fan is degenerate at its explicit '
+          'Mach-wave endpoints and physical ambient closure owns the field '
+          'assembly'
+        ),
+      )
     return _failure(
       MocFreeBoundaryShockStatus.FIELD_FAILURE,
       shock_fit=shock_fit,

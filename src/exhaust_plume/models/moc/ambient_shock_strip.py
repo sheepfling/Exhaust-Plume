@@ -1109,6 +1109,8 @@ def assemble_ambient_shock_characteristic_strip(
   invariant_tolerance: float = 1.0e-10,
   pressure_tolerance: float = 1.0e-8,
   tangent_tolerance: float = 1.0e-8,
+  allow_zero_strength_start: bool = False,
+  allow_zero_strength_endpoints: bool = False,
 ) -> MocAmbientShockStripResult:
   """Assemble the correctly oriented shock/ambient characteristic strip.
 
@@ -1116,6 +1118,8 @@ def assemble_ambient_shock_characteristic_strip(
   acceptance.  The diagonal condition is that shock ``C+`` rays arrive at the
   corresponding ambient samples.  The final polygon edge is retained as a
   typed terminal characteristic trace; it is not relabeled as a centerline.
+  The optional zero-strength endpoint flags are reserved for a Mach-wave
+  bounded continuation; interior shock samples must still carry strict loss.
   """
 
   if not isinstance(shock_fit, MocShockBoundaryFitResult):
@@ -1125,6 +1129,10 @@ def assemble_ambient_shock_characteristic_strip(
       ambient_boundary=ambient,
       message='shock_fit must be a MocShockBoundaryFitResult',
     )
+  if not isinstance(allow_zero_strength_start, bool):
+    raise TypeError('allow_zero_strength_start must be a bool')
+  if not isinstance(allow_zero_strength_endpoints, bool):
+    raise TypeError('allow_zero_strength_endpoints must be a bool')
   try:
     ambient_pressure = float(ambient_pressure_Pa)
     target_y = float(target_centerline_y_m)
@@ -1255,7 +1263,21 @@ def assemble_ambient_shock_characteristic_strip(
     sample.downstream_total_pressure_Pa / sample.upstream_total_pressure_Pa
     for sample in shock_samples
   )
-  if any(ratio <= 0.0 or ratio >= 1.0 for ratio in pressure_ratios):
+  zero_strength_start = bool(
+    allow_zero_strength_start
+    and abs(pressure_ratios[0] - 1.0) <= 1.0e-10
+    and all(0.0 < ratio < 1.0 for ratio in pressure_ratios[1:])
+  )
+  zero_strength_endpoints = bool(
+    allow_zero_strength_endpoints
+    and abs(pressure_ratios[0] - 1.0) <= 1.0e-10
+    and abs(pressure_ratios[-1] - 1.0) <= 1.0e-10
+    and all(0.0 < ratio < 1.0 for ratio in pressure_ratios[1:-1])
+  )
+  if (
+    any(ratio <= 0.0 or ratio >= 1.0 for ratio in pressure_ratios)
+    and not (zero_strength_start or zero_strength_endpoints)
+  ):
     return _strip_failure(
       MocAmbientShockStripStatus.SHOCK_FAILURE,
       ambient_boundary=ambient,

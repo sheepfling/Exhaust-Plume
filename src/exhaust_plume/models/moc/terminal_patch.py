@@ -434,6 +434,7 @@ def assemble_terminal_trace_centerline_patch(
   strip: MocAmbientShockStripResult,
   *,
   trace_position_tolerance_m: float | None = None,
+  trace_forward_tolerance_m: float | None = None,
   invariant_tolerance: float = 1.0e-10,
 ) -> MocTerminalReflectionPatchResult:
   """Reflect an open shock/ambient ``C+`` trace into a centerline patch.
@@ -464,8 +465,17 @@ def assemble_terminal_trace_centerline_patch(
     ('trace_position_tolerance_m', trace_position_tolerance_m),
     ('invariant_tolerance', invariant_tolerance),
   ):
-    if not isfinite(float(value)) or value <= 0.0:
+    numeric_value = float(value)
+    if not isfinite(numeric_value) or numeric_value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+  trace_position_tolerance_m = float(trace_position_tolerance_m)
+  invariant_tolerance = float(invariant_tolerance)
+  if trace_forward_tolerance_m is None:
+    trace_forward_tolerance = float(trace_position_tolerance_m)
+  else:
+    trace_forward_tolerance = float(trace_forward_tolerance_m)
+    if not isfinite(trace_forward_tolerance) or trace_forward_tolerance <= 0.0:
+      raise ValueError('trace_forward_tolerance_m must be finite and positive')
   if (
     strip.status is not MocAmbientShockStripStatus.CONVERGED_OPEN
     or not strip.topology.connected
@@ -485,6 +495,7 @@ def assemble_terminal_trace_centerline_patch(
     strip.terminal_trace_samples,
     CharacteristicFamily.PLUS,
     position_tolerance_m=trace_position_tolerance_m,
+    forward_position_tolerance_m=trace_forward_tolerance,
     invariant_tolerance=invariant_tolerance,
   )
   if not input_trace.converged:
@@ -703,6 +714,7 @@ def assemble_terminal_trace_centerline_patch(
     ),
     CharacteristicFamily.MINUS,
     position_tolerance_m=trace_position_tolerance_m,
+    forward_position_tolerance_m=trace_forward_tolerance,
     invariant_tolerance=invariant_tolerance,
   )
   maximum_geometry, maximum_invariant = _residual_maxima(nodes)

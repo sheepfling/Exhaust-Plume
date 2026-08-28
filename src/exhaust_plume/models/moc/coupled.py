@@ -60,6 +60,9 @@ from exhaust_plume.models.moc.primitives import (
   prandtl_meyer_angle_rad,
 )
 from exhaust_plume.models.moc.source_strip import MocSourceCharacteristicStripResult
+from exhaust_plume.models.moc.terminal_patch import (
+  MocTerminalReflectionPatchResult,
+)
 from exhaust_plume.util.aero.shock_validity import ShockBranch
 
 __all__ = (
@@ -70,6 +73,9 @@ __all__ = (
   'MocAmbientAttachmentResult',
   'solve_marched_attached_shock_with_ambient_attachment_closure',
   'solve_marched_attached_shock_with_ambient_centerline_physical_field',
+  'MocTerminalReflectionPatchPhysicalFieldStatus',
+  'MocTerminalReflectionPatchPhysicalFieldResult',
+  'solve_marched_attached_shock_with_ambient_centerline_physical_field_from_terminal_reflection_patch',
   'MocAmbientAxisClosureShootStatus',
   'MocAmbientAxisClosureShootTrial',
   'MocAmbientAxisClosureShootResult',
@@ -278,6 +284,7 @@ class MocAmbientAttachmentResult:
   attachment_pressure_residual: float | None
   shooting_iterations: int
   message: str = ''
+  zero_strength_attachment: bool = False
 
   @property
   def converged(self) -> bool:
@@ -305,6 +312,7 @@ class MocAmbientAttachmentResult:
       'outer_flow_angle_bracket': self.outer_flow_angle_bracket,
       'attachment_pressure_residual': self.attachment_pressure_residual,
       'shooting_iterations': self.shooting_iterations,
+      'zero_strength_attachment': self.zero_strength_attachment,
       'shock': None if self.shock is None else self.shock.as_report(),
       'ambient_march': (
         None if self.ambient_march is None else self.ambient_march.as_report()
@@ -717,6 +725,7 @@ def _ambient_attachment_failure(
   shock: MocFreeBoundaryShockResult | None = None,
   ambient_march: MocAmbientShockBoundaryMarchResult | None = None,
   strip: MocAmbientShockStripResult | None = None,
+  zero_strength_attachment: bool = False,
   message: str,
 ) -> MocAmbientAttachmentResult:
   return MocAmbientAttachmentResult(
@@ -730,6 +739,7 @@ def _ambient_attachment_failure(
     attachment_pressure_residual=attachment_pressure_residual,
     shooting_iterations=shooting_iterations,
     message=message,
+    zero_strength_attachment=zero_strength_attachment,
   )
 ####
 
@@ -756,6 +766,9 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
   maximum_segment_iterations: int = 24,
   maximum_boundary_iterations: int = 16,
   maximum_shooting_iterations: int = 40,
+  allow_zero_strength_attachment: bool = False,
+  zero_strength_start_trace: Sequence[MocChainBoundarySample] | None = None,
+  allow_zero_strength_endpoints: bool = False,
 ) -> MocAmbientAttachmentResult:
   """Close the shock/ambient attachment before assembling an open strip.
 
@@ -769,7 +782,10 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
   This removes the attachment angle from the caller's fixed input, but it does
   not close the downstream terminal trace.  The returned strip is therefore a
   physical-boundary continuation seam, not a resolved first cell or a chain
-  promotion result.
+  promotion result.  With ``allow_zero_strength_attachment`` enabled, an
+  ambient-matched upstream point may use its exact local flow angle as a
+  zero-strength Mach-wave attachment; the downstream march must still develop
+  strict shock loss after that first point.
   """
 
   if not callable(upstream_state_at) or not callable(upstream_pressure_at):
@@ -777,6 +793,10 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
       MocAmbientAttachmentStatus.INVALID_INPUT,
       message='upstream state and pressure providers must be callable',
     )
+  if not isinstance(allow_zero_strength_attachment, bool):
+    raise ValueError('allow_zero_strength_attachment must be a bool')
+  if not isinstance(allow_zero_strength_endpoints, bool):
+    raise ValueError('allow_zero_strength_endpoints must be a bool')
   try:
     start = (float(start_point_m[0]), float(start_point_m[1]))
     ambient_pressure = float(ambient_pressure_Pa)
@@ -895,6 +915,13 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
     )
   upstream_pressure_value = float(upstream_pressure)
 
+  zero_strength_attachment = bool(
+    allow_zero_strength_attachment
+    and abs(upstream_pressure_value - ambient_pressure) / ambient_pressure
+    <= attachment_pressure_tolerance
+    and lower_angle <= upstream_state.theta_rad <= upper_angle
+  )
+
   def attachment_residual(angle_rad: float) -> tuple[float | None, str]:
     turn = angle_rad - upstream_state.theta_rad
     if turn <= 0.0:
@@ -918,22 +945,33 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
       return None, 'attachment pressure residual is not finite'
     return float(residual), ''
 
-  lower_residual, lower_error = attachment_residual(lower_angle)
-  upper_residual, upper_error = attachment_residual(upper_angle)
-  if lower_residual is None or upper_residual is None:
-    return _ambient_attachment_failure(
-      MocAmbientAttachmentStatus.SHOCK_FAILURE,
-      ambient_pressure_Pa=ambient_pressure,
-      outer_flow_angle_bracket=bracket,
-      message=(
-        'ambient attachment requires both angle endpoints to produce an '
-        f'attached compression; lower={lower_error}; upper={upper_error}'
-      ),
-    )
+  if zero_strength_attachment:
+    lower_residual = None
+    upper_residual = None
+    lower_error = ''
+    upper_error = ''
+  else:
+    lower_residual, lower_error = attachment_residual(lower_angle)
+    upper_residual, upper_error = attachment_residual(upper_angle)
+    if lower_residual is None or upper_residual is None:
+      return _ambient_attachment_failure(
+        MocAmbientAttachmentStatus.SHOCK_FAILURE,
+        ambient_pressure_Pa=ambient_pressure,
+        outer_flow_angle_bracket=bracket,
+        message=(
+          'ambient attachment requires both angle endpoints to produce an '
+          f'attached compression; lower={lower_error}; upper={upper_error}'
+        ),
+      )
   selected_angle: float | None = None
   selected_residual: float | None = None
   shooting_iterations = 0
-  if abs(lower_residual) <= attachment_pressure_tolerance:
+  if zero_strength_attachment:
+    selected_angle = upstream_state.theta_rad
+    selected_residual = (
+      upstream_pressure_value - ambient_pressure
+    ) / ambient_pressure
+  elif abs(lower_residual) <= attachment_pressure_tolerance:
     selected_angle = lower_angle
     selected_residual = lower_residual
   elif abs(upper_residual) <= attachment_pressure_tolerance:
@@ -1014,6 +1052,11 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
       invariant_tolerance=invariant_tolerance,
       shock_angle_tolerance_rad=shock_angle_tolerance_rad,
       maximum_segment_iterations=maximum_segment_iterations,
+      allow_zero_strength_start=zero_strength_attachment,
+      zero_strength_start_trace=zero_strength_start_trace,
+      allow_zero_strength_endpoints=(
+        allow_zero_strength_attachment and allow_zero_strength_endpoints
+      ),
     )
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _ambient_attachment_failure(
@@ -1079,6 +1122,10 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
       invariant_tolerance=invariant_tolerance,
       pressure_tolerance=pressure_tolerance,
       tangent_tolerance=tangent_tolerance,
+      allow_zero_strength_start=zero_strength_attachment,
+      allow_zero_strength_endpoints=(
+        zero_strength_attachment and allow_zero_strength_endpoints
+      ),
     )
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _ambient_attachment_failure(
@@ -1115,6 +1162,7 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
     outer_flow_angle_bracket=bracket,
     attachment_pressure_residual=selected_residual,
     shooting_iterations=shooting_iterations,
+    zero_strength_attachment=zero_strength_attachment,
     message=(
       'ambient shock attachment converged and produced a physical open '
       'shock/ambient strip; terminal centerline closure remains pending'
@@ -1145,6 +1193,9 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field(
   maximum_segment_iterations: int = 24,
   maximum_boundary_iterations: int = 16,
   maximum_shooting_iterations: int = 40,
+  allow_zero_strength_attachment: bool = False,
+  zero_strength_start_trace: Sequence[MocChainBoundarySample] | None = None,
+  allow_zero_strength_endpoints: bool = False,
 ) -> MocAmbientPhysicalFieldResult:
   """Assemble the solver-owned ambient-closed reflected physical field.
 
@@ -1161,6 +1212,9 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field(
   symmetry line.  Consequently this entry point only accepts the canonical
   planar centerline target ``y=0, theta=0``; a nonzero target would describe
   a different boundary-value problem and must use another closure lane.
+  ``allow_zero_strength_attachment`` is passed only by the explicit
+  terminal-reflection continuation lane; the default path remains a strict
+  positive-shock solve.
   """
 
   try:
@@ -1213,6 +1267,9 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field(
       maximum_segment_iterations=maximum_segment_iterations,
       maximum_boundary_iterations=maximum_boundary_iterations,
       maximum_shooting_iterations=maximum_shooting_iterations,
+      allow_zero_strength_attachment=allow_zero_strength_attachment,
+      zero_strength_start_trace=zero_strength_start_trace,
+      allow_zero_strength_endpoints=allow_zero_strength_endpoints,
     )
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return MocAmbientPhysicalFieldResult(
@@ -1271,6 +1328,10 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field(
       invariant_tolerance=invariant_tolerance,
       pressure_tolerance=pressure_tolerance,
       tangent_tolerance=tangent_tolerance,
+      allow_zero_strength_shock_start=allow_zero_strength_attachment,
+      allow_zero_strength_endpoints=(
+        allow_zero_strength_attachment and allow_zero_strength_endpoints
+      ),
     )
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return MocAmbientPhysicalFieldResult(
@@ -1312,6 +1373,432 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field(
       'ambient attachment and explicit C- centerline reflection produced a '
       'state-carrying ambient-closed physical MOC field; production claim '
       'and external reflected-domain validation remain pending'
+    ),
+  )
+####
+
+
+class MocTerminalReflectionPatchPhysicalFieldStatus(str, Enum):
+  """Outcome for closing a reflected patch into an ambient physical field."""
+
+  CONVERGED_AMBIENT_CLOSED = 'converged_terminal-patch_ambient-closed-field'
+  INVALID_INPUT = 'invalid_input'
+  PATCH_FAILURE = 'terminal_reflection_patch_failure'
+  FIELD_FAILURE = 'terminal_reflection_patch_field_failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocTerminalReflectionPatchPhysicalFieldResult:
+  """A bounded reflected-patch input coupled to a closed physical field.
+
+  The patch is retained as an explicit finite upstream domain.  The generated
+  field is accepted only when the existing ambient, centerline, topology,
+  state-sampling, and upstream-shock-coupling gates all pass.  This result is
+  still a research-lane handoff: it does not authorize a product provider.
+  """
+
+  status: MocTerminalReflectionPatchPhysicalFieldStatus
+  patch: MocTerminalReflectionPatchResult | None
+  field_result: MocAmbientPhysicalFieldResult | None
+  ambient_pressure_Pa: float | None
+  outer_flow_angle_bracket: tuple[float, float] | None
+  start_point_m: tuple[float, float] | None
+  incoming_handoff: tuple[MocChainBoundarySample, ...] = ()
+  patch_handoff: tuple[MocChainBoundarySample, ...] = ()
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocTerminalReflectionPatchPhysicalFieldStatus,
+    ):
+      raise TypeError(
+        'status must be a MocTerminalReflectionPatchPhysicalFieldStatus'
+      )
+    if self.patch is not None and not isinstance(
+      self.patch,
+      MocTerminalReflectionPatchResult,
+    ):
+      raise TypeError(
+        'patch must be a MocTerminalReflectionPatchResult or None'
+      )
+    if self.field_result is not None and not isinstance(
+      self.field_result,
+      MocAmbientPhysicalFieldResult,
+    ):
+      raise TypeError(
+        'field_result must be a MocAmbientPhysicalFieldResult or None'
+      )
+    if self.ambient_pressure_Pa is not None and (
+      not isfinite(float(self.ambient_pressure_Pa))
+      or self.ambient_pressure_Pa <= 0.0
+    ):
+      raise ValueError('ambient_pressure_Pa must be finite and positive')
+    if self.outer_flow_angle_bracket is not None:
+      if len(self.outer_flow_angle_bracket) != 2 or not all(
+        isfinite(float(value)) for value in self.outer_flow_angle_bracket
+      ):
+        raise ValueError(
+          'outer_flow_angle_bracket must contain two finite values'
+        )
+    if self.start_point_m is not None:
+      if len(self.start_point_m) != 2 or not all(
+        isfinite(float(value)) for value in self.start_point_m
+      ):
+        raise ValueError('start_point_m must contain two finite coordinates')
+    if any(
+      not isinstance(sample, MocChainBoundarySample)
+      for sample in self.incoming_handoff
+    ):
+      raise TypeError(
+        'incoming_handoff must contain MocChainBoundarySample values'
+      )
+    if any(
+      not isinstance(sample, MocChainBoundarySample)
+      for sample in self.patch_handoff
+    ):
+      raise TypeError(
+        'patch_handoff must contain MocChainBoundarySample values'
+      )
+    object.__setattr__(self, 'incoming_handoff', tuple(self.incoming_handoff))
+    object.__setattr__(self, 'patch_handoff', tuple(self.patch_handoff))
+  ####
+
+  @property
+  def field(self) -> MocPhysicalPostShockFieldResult | None:
+    """Return the retained field without hiding the patch coupling result."""
+
+    return None if self.field_result is None else self.field_result.field
+  ####
+
+  @property
+  def converged(self) -> bool:
+    return bool(
+      self.status
+      is MocTerminalReflectionPatchPhysicalFieldStatus.CONVERGED_AMBIENT_CLOSED
+      and self.physical_closure_verified
+    )
+  ####
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    return bool(
+      self.field_result is not None
+      and self.field_result.physical_closure_verified
+    )
+  ####
+
+  @property
+  def state_sampling_available(self) -> bool:
+    return bool(
+      self.field_result is not None
+      and self.field_result.state_sampling_available
+    )
+  ####
+
+  @property
+  def upstream_coupling_verified(self) -> bool:
+    return bool(
+      self.field_result is not None
+      and self.field_result.upstream_coupling_verified
+    )
+  ####
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    return not (
+      self.physical_closure_verified
+      and self.state_sampling_available
+      and self.upstream_coupling_verified
+    )
+  ####
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    return False
+  ####
+
+  def as_coupled_chain_cell(
+    self,
+    *,
+    start_x_m: float,
+    end_x_m: float,
+    cell_index: int = 1,
+  ) -> MocChainCell:
+    if self.chain_promotion_blocked or self.field_result is None:
+      raise ValueError(
+        'terminal-reflection-patch physical field is not eligible for chain promotion'
+      )
+    return self.field_result.as_coupled_chain_cell(
+      start_x_m=start_x_m,
+      end_x_m=end_x_m,
+      cell_index=cell_index,
+    )
+  ####
+
+  def as_report(self) -> dict[str, object]:
+    return {
+      'status': self.status.value,
+      'converged': self.converged,
+      'physical_closure_verified': self.physical_closure_verified,
+      'state_sampling_available': self.state_sampling_available,
+      'upstream_coupling_verified': self.upstream_coupling_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'ambient_pressure_Pa': self.ambient_pressure_Pa,
+      'outer_flow_angle_bracket': self.outer_flow_angle_bracket,
+      'start_point_m': self.start_point_m,
+      'incoming_handoff_sample_count': len(self.incoming_handoff),
+      'patch_handoff_sample_count': len(self.patch_handoff),
+      'patch': None if self.patch is None else self.patch.as_report(),
+      'field_result': (
+        None if self.field_result is None else self.field_result.as_report()
+      ),
+      'message': self.message,
+    }
+  ####
+
+
+def solve_marched_attached_shock_with_ambient_centerline_physical_field_from_terminal_reflection_patch(
+  patch: MocTerminalReflectionPatchResult,
+  ambient_pressure_Pa: float,
+  outer_downstream_flow_angle_lower_rad: float,
+  outer_downstream_flow_angle_upper_rad: float,
+  *,
+  start_point_m: tuple[float, float] | None = None,
+  target_centerline_y_m: float = 0.0,
+  target_centerline_flow_angle_rad: float = 0.0,
+  incoming_handoff: Sequence[MocChainBoundarySample] | None = None,
+  patch_handoff: Sequence[MocChainBoundarySample] | None = None,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-9,
+  invariant_tolerance: float = 1.0e-10,
+  attachment_pressure_tolerance: float = 1.0e-8,
+  pressure_tolerance: float = 1.0e-8,
+  tangent_tolerance: float = 1.0e-8,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  maximum_boundary_iterations: int = 16,
+  maximum_shooting_iterations: int = 40,
+  allow_zero_strength_attachment: bool = True,
+) -> MocTerminalReflectionPatchPhysicalFieldResult:
+  """Close a finite reflected patch into the next physical MOC field.
+
+  The patch's first outgoing point is the physical attachment location.  For
+  the common ambient-matched case that point has zero compression turn, so
+  this entry point enables the explicit Mach-wave start contract by default.
+  The patch remains bounded: every upstream state and pressure sample is
+  taken through its non-extrapolating samplers.  The returned field is a
+  solver-owned research result and can be offered to the continued-chain
+  adapter only after its independent gates pass.  ``incoming_handoff`` is
+  the prior chain-cell boundary recorded by the resulting field.  The
+  separate ``patch_handoff`` is the internal source trace consumed by this
+  shock solve; when omitted it defaults to the patch's exact outgoing trace.
+  """
+
+  if not isinstance(patch, MocTerminalReflectionPatchResult):
+    return MocTerminalReflectionPatchPhysicalFieldResult(
+      status=MocTerminalReflectionPatchPhysicalFieldStatus.INVALID_INPUT,
+      patch=None,
+      field_result=None,
+      ambient_pressure_Pa=None,
+      outer_flow_angle_bracket=None,
+      start_point_m=None,
+      message='patch must be a MocTerminalReflectionPatchResult',
+    )
+  if not patch.converged or len(patch.outgoing_trace_points_m) < 3:
+    return MocTerminalReflectionPatchPhysicalFieldResult(
+      status=MocTerminalReflectionPatchPhysicalFieldStatus.PATCH_FAILURE,
+      patch=patch,
+      field_result=None,
+      ambient_pressure_Pa=None,
+      outer_flow_angle_bracket=None,
+      start_point_m=None,
+      message=f'terminal reflection patch is not usable: {patch.message}',
+    )
+  try:
+    ambient_pressure = float(ambient_pressure_Pa)
+    lower_angle = float(outer_downstream_flow_angle_lower_rad)
+    upper_angle = float(outer_downstream_flow_angle_upper_rad)
+  except (TypeError, ValueError):
+    return MocTerminalReflectionPatchPhysicalFieldResult(
+      status=MocTerminalReflectionPatchPhysicalFieldStatus.INVALID_INPUT,
+      patch=patch,
+      field_result=None,
+      ambient_pressure_Pa=None,
+      outer_flow_angle_bracket=None,
+      start_point_m=None,
+      message='ambient pressure and outer flow-angle bracket must be numeric',
+    )
+  bracket = (lower_angle, upper_angle)
+  if (
+    not all(isfinite(value) for value in (*bracket, ambient_pressure))
+    or ambient_pressure <= 0.0
+    or lower_angle >= upper_angle
+  ):
+    return MocTerminalReflectionPatchPhysicalFieldResult(
+      status=MocTerminalReflectionPatchPhysicalFieldStatus.INVALID_INPUT,
+      patch=patch,
+      field_result=None,
+      ambient_pressure_Pa=ambient_pressure,
+      outer_flow_angle_bracket=bracket,
+      start_point_m=None,
+      message='ambient pressure and outer flow-angle bracket must be finite and valid',
+    )
+  if not isinstance(allow_zero_strength_attachment, bool):
+    return MocTerminalReflectionPatchPhysicalFieldResult(
+      status=MocTerminalReflectionPatchPhysicalFieldStatus.INVALID_INPUT,
+      patch=patch,
+      field_result=None,
+      ambient_pressure_Pa=ambient_pressure,
+      outer_flow_angle_bracket=bracket,
+      start_point_m=None,
+      message='allow_zero_strength_attachment must be a bool',
+    )
+  expected_start = patch.outgoing_trace_points_m[0]
+  if start_point_m is None:
+    start = expected_start
+  else:
+    try:
+      start = (float(start_point_m[0]), float(start_point_m[1]))
+    except (IndexError, TypeError, ValueError):
+      return MocTerminalReflectionPatchPhysicalFieldResult(
+        status=MocTerminalReflectionPatchPhysicalFieldStatus.INVALID_INPUT,
+        patch=patch,
+        field_result=None,
+        ambient_pressure_Pa=ambient_pressure,
+        outer_flow_angle_bracket=bracket,
+        start_point_m=None,
+        message='start_point_m must contain two finite coordinates',
+      )
+    if not all(isfinite(value) for value in start):
+      raise ValueError('start_point_m must contain two finite coordinates')
+    if any(
+      abs(first - second) > position_tolerance_m
+      for first, second in zip(start, expected_start, strict=True)
+    ):
+      return MocTerminalReflectionPatchPhysicalFieldResult(
+        status=MocTerminalReflectionPatchPhysicalFieldStatus.INVALID_INPUT,
+        patch=patch,
+        field_result=None,
+        ambient_pressure_Pa=ambient_pressure,
+        outer_flow_angle_bracket=bracket,
+        start_point_m=start,
+        message='start_point_m must equal the first outgoing patch point',
+      )
+  expected_patch_handoff = patch.outgoing_trace_samples
+  handoff = (
+    expected_patch_handoff
+    if incoming_handoff is None
+    else tuple(incoming_handoff)
+  )
+  if any(not isinstance(sample, MocChainBoundarySample) for sample in handoff):
+    return MocTerminalReflectionPatchPhysicalFieldResult(
+      status=MocTerminalReflectionPatchPhysicalFieldStatus.INVALID_INPUT,
+      patch=patch,
+      field_result=None,
+      ambient_pressure_Pa=ambient_pressure,
+      outer_flow_angle_bracket=bracket,
+      start_point_m=start,
+      message='incoming_handoff must contain MocChainBoundarySample values',
+    )
+  source_handoff = (
+    expected_patch_handoff
+    if patch_handoff is None
+    else tuple(patch_handoff)
+  )
+  if any(
+    not isinstance(sample, MocChainBoundarySample)
+    for sample in source_handoff
+  ):
+    return MocTerminalReflectionPatchPhysicalFieldResult(
+      status=MocTerminalReflectionPatchPhysicalFieldStatus.INVALID_INPUT,
+      patch=patch,
+      field_result=None,
+      ambient_pressure_Pa=ambient_pressure,
+      outer_flow_angle_bracket=bracket,
+      start_point_m=start,
+      incoming_handoff=handoff,
+      patch_handoff=source_handoff,
+      message='patch_handoff must contain MocChainBoundarySample values',
+    )
+  if source_handoff != expected_patch_handoff:
+    return MocTerminalReflectionPatchPhysicalFieldResult(
+      status=MocTerminalReflectionPatchPhysicalFieldStatus.INVALID_INPUT,
+      patch=patch,
+      field_result=None,
+      ambient_pressure_Pa=ambient_pressure,
+      outer_flow_angle_bracket=bracket,
+      start_point_m=start,
+      incoming_handoff=handoff,
+      patch_handoff=source_handoff,
+      message='patch_handoff must exactly match the outgoing patch trace',
+    )
+
+  try:
+    field_result = solve_marched_attached_shock_with_ambient_centerline_physical_field(
+      patch.state_at,
+      patch.static_pressure_at,
+      start,
+      ambient_pressure,
+      lower_angle,
+      upper_angle,
+      target_centerline_y_m=target_centerline_y_m,
+      target_centerline_flow_angle_rad=target_centerline_flow_angle_rad,
+      incoming_handoff=handoff,
+      sample_count=sample_count,
+      branch=branch,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+      attachment_pressure_tolerance=attachment_pressure_tolerance,
+      pressure_tolerance=pressure_tolerance,
+      tangent_tolerance=tangent_tolerance,
+      shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+      maximum_segment_iterations=maximum_segment_iterations,
+      maximum_boundary_iterations=maximum_boundary_iterations,
+      maximum_shooting_iterations=maximum_shooting_iterations,
+      allow_zero_strength_attachment=allow_zero_strength_attachment,
+      allow_zero_strength_endpoints=allow_zero_strength_attachment,
+      zero_strength_start_trace=patch.outgoing_trace_samples,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return MocTerminalReflectionPatchPhysicalFieldResult(
+      status=MocTerminalReflectionPatchPhysicalFieldStatus.FIELD_FAILURE,
+      patch=patch,
+      field_result=None,
+      ambient_pressure_Pa=ambient_pressure,
+      outer_flow_angle_bracket=bracket,
+      start_point_m=start,
+      incoming_handoff=handoff,
+      patch_handoff=source_handoff,
+      message=f'terminal-patch physical-field solve raised: {error}',
+    )
+  status = (
+    MocTerminalReflectionPatchPhysicalFieldStatus.CONVERGED_AMBIENT_CLOSED
+    if (
+      field_result.physical_closure_verified
+      and field_result.state_sampling_available
+      and field_result.upstream_coupling_verified
+    )
+    else MocTerminalReflectionPatchPhysicalFieldStatus.FIELD_FAILURE
+  )
+  return MocTerminalReflectionPatchPhysicalFieldResult(
+    status=status,
+    patch=patch,
+    field_result=field_result,
+    ambient_pressure_Pa=ambient_pressure,
+    outer_flow_angle_bracket=bracket,
+    start_point_m=start,
+    incoming_handoff=handoff,
+    patch_handoff=source_handoff,
+    message=(
+      'bounded terminal-reflection patch produced a state-carrying '
+      'ambient-closed physical field; production and external validation '
+      'remain pending'
+      if status is MocTerminalReflectionPatchPhysicalFieldStatus.CONVERGED_AMBIENT_CLOSED
+      else field_result.message
     ),
   )
 ####

@@ -1595,3 +1595,39 @@ then reports its local physical closure while keeping terminal status,
 The planner mock and scalar reference remain adjacent by default, so their
 local convergence cannot silently become a continued supersonic cell or a
 product claim.
+
+The next solver-owned continuation checkpoint is now explicit. A bounded
+terminal-reflection patch can be coupled to a new ambient-closed physical
+field through an opt-in Mach-wave endpoint contract: an ambient-matched patch
+seam may begin at zero shock strength, and the centerline endpoint may also
+be a zero-strength Mach wave, while every interior fitted sample must retain
+strict total-pressure loss. The ordinary attached-shock path keeps both
+exceptions disabled.
+
+The patch-to-field result records two different handoffs. The prior cell's
+centerline trace is retained as the next field's ``incoming_handoff``; the
+patch's outgoing ``C-`` trace is retained separately as the internal
+``patch_handoff`` consumed by the shock solve. This prevents a reflected
+source trace from being mistaken for the adjacent-cell seam. The accepted
+field must still pass the ambient, centerline, topology, state-sampling, and
+upstream-shock-coupling gates.
+
+The new
+``MocTerminalReflectionPatchAmbientClosureChainReference`` and
+``plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closure``
+planner provide a deterministic continued-chain experiment. On the
+canonical bounded fixture it carries one newly solved planar-MOC field, so
+the chain contains two resolved cells, then returns a configured
+``SOLVER_RETURNED_NO_NEXT_CELL`` stop. The continuation endpoint is the
+actual next ambient-boundary endpoint and the requested axial coordinate is
+only a limit; no interface is fabricated. This is a research planner, not a
+production provider. Continuing beyond that prefix still requires the
+canonical reflected-domain/remeshing solve, a polarity-aware expansion or
+compression treatment, a genuine downstream free-boundary/mixed-regime
+closure, refinement evidence, and independent validation data.
+
+Short near-Mach-wave trace segments now use separate forward and geometry
+tolerances. This preserves the strict downstream ordering check without
+rejecting a geometrically valid characteristic because one endpoint step is
+smaller than the mesh-residual tolerance. That tolerance split is diagnostic
+infrastructure only and does not relax the physical closure gates.

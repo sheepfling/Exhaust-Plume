@@ -183,15 +183,18 @@ def validate_characteristic_trace(
   family: CharacteristicFamily,
   *,
   position_tolerance_m: float = 1.0e-10,
+  forward_position_tolerance_m: float | None = None,
   invariant_tolerance: float = 1.0e-10,
 ) -> MocCharacteristicTraceResult:
   """Validate a downstream, state-carrying ``C+`` or ``C-`` trace.
 
   Compatibility is checked against the first sample and geometry is checked
   with the averaged characteristic direction for each segment.  The
-  downstream-x requirement matches the chain handoff contract.  This helper
-  does not infer an axis or any other physical closure from a successful
-  trace.
+  downstream-x requirement matches the chain handoff contract.  A separate
+  ``forward_position_tolerance_m`` may be supplied for very short, nearly
+  Mach-wave segments; the ordinary ``position_tolerance_m`` remains the
+  geometry-residual tolerance.  This helper does not infer an axis or any
+  other physical closure from a successful trace.
   """
 
   if not isinstance(family, CharacteristicFamily):
@@ -208,8 +211,19 @@ def validate_characteristic_trace(
     ('position_tolerance_m', position_tolerance_m),
     ('invariant_tolerance', invariant_tolerance),
   ):
-    if not isfinite(float(value)) or value <= 0.0:
+    numeric_value = float(value)
+    if not isfinite(numeric_value) or numeric_value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+  position_tolerance_m = float(position_tolerance_m)
+  invariant_tolerance = float(invariant_tolerance)
+  if forward_position_tolerance_m is None:
+    forward_tolerance = float(position_tolerance_m)
+  else:
+    forward_tolerance = float(forward_position_tolerance_m)
+    if not isfinite(forward_tolerance) or forward_tolerance <= 0.0:
+      raise ValueError(
+        'forward_position_tolerance_m must be finite and positive'
+      )
   try:
     trace = tuple(samples)
   except TypeError:
@@ -285,7 +299,7 @@ def validate_characteristic_trace(
       second_state.x_m - first_state.x_m,
       second_state.y_m - first_state.y_m,
     )
-    if displacement[0] <= position_tolerance_m:
+    if displacement[0] <= forward_tolerance:
       return MocCharacteristicTraceResult(
         status=MocCharacteristicTraceStatus.GEOMETRY_FAILURE,
         family=family,
@@ -306,7 +320,7 @@ def validate_characteristic_trace(
     direction_norm = sqrt(
       averaged_direction[0] ** 2 + averaged_direction[1] ** 2
     )
-    if direction_norm <= position_tolerance_m:
+    if direction_norm <= forward_tolerance:
       return MocCharacteristicTraceResult(
         status=MocCharacteristicTraceStatus.GEOMETRY_FAILURE,
         family=family,
@@ -330,7 +344,7 @@ def validate_characteristic_trace(
     )
     geometry_residuals.append(geometry_residual)
     forward_margins.append(forward_margin)
-    if forward_margin <= position_tolerance_m or geometry_residual > position_tolerance_m:
+    if forward_margin <= forward_tolerance or geometry_residual > position_tolerance_m:
       return MocCharacteristicTraceResult(
         status=MocCharacteristicTraceStatus.GEOMETRY_FAILURE,
         family=family,

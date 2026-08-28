@@ -426,6 +426,49 @@ def test_characteristic_trace_validator_accepts_a_forward_c_plus_trace() -> None
   assert result.maximum_geometry_residual_m < 1.0e-12
 
 
+def test_characteristic_trace_can_split_short_segment_forward_and_geometry_tolerances() -> None:
+  base = CharacteristicState(
+    x_m=0.0,
+    y_m=0.0,
+    theta_rad=0.08,
+    mach=2.2,
+    gamma=1.4,
+  )
+  direction = base.direction(CharacteristicFamily.PLUS)
+  samples = tuple(
+    MocChainBoundarySample(
+      state=CharacteristicState(
+        x_m=distance * direction[0],
+        y_m=distance * direction[1],
+        theta_rad=base.theta_rad,
+        mach=base.mach,
+        gamma=base.gamma,
+      ),
+      total_pressure_Pa=1.0e6,
+    )
+    for distance in (0.0, 5.0e-5, 1.0e-4)
+  )
+
+  shared_tolerance_result = validate_characteristic_trace(
+    samples,
+    CharacteristicFamily.PLUS,
+    position_tolerance_m=1.0e-3,
+  )
+  split_tolerance_result = validate_characteristic_trace(
+    samples,
+    CharacteristicFamily.PLUS,
+    position_tolerance_m=1.0e-3,
+    forward_position_tolerance_m=1.0e-6,
+  )
+
+  assert shared_tolerance_result.status is MocCharacteristicTraceStatus.GEOMETRY_FAILURE
+  assert 'strictly downstream' in shared_tolerance_result.message
+  assert split_tolerance_result.status is MocCharacteristicTraceStatus.CONVERGED
+  assert split_tolerance_result.converged
+  assert split_tolerance_result.maximum_geometry_residual_m is not None
+  assert split_tolerance_result.maximum_geometry_residual_m < 1.0e-12
+
+
 def test_characteristic_trace_validator_does_not_hide_a_family_invariant_break() -> None:
   base = CharacteristicState(
     x_m=0.0,

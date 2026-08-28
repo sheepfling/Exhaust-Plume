@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from math import atan2, hypot, isfinite, pi
+from math import asin, atan2, hypot, isfinite, pi
 from typing import Any, Callable, Sequence
 
 from exhaust_plume.models.moc.primitives import (
@@ -1574,6 +1574,8 @@ def fit_attached_shock_boundary(
     branch: ShockBranch = ShockBranch.WEAK,
     position_tolerance_m: float = 1.0e-10,
     shock_angle_tolerance_rad: float = 1.0e-8,
+    allow_zero_strength_start: bool = False,
+    allow_zero_strength_endpoints: bool = False,
 ) -> MocShockBoundaryFitResult:
   """Fit downstream attached states to an explicitly sampled shock curve.
 
@@ -1581,7 +1583,11 @@ def fit_attached_shock_boundary(
   located on its corresponding shock sample, and the local tangent must agree
   with the attached oblique-shock angle returned for the requested downstream
   turn.  This is the deterministic boundary contract needed by the post-shock
-  field assembler; it is not an automatic free-boundary shock finder.
+  field assembler; it is not an automatic free-boundary shock finder.  When
+  ``allow_zero_strength_start`` is enabled, the first sample may be an exact
+  zero-turn Mach-wave attachment.  If ``allow_zero_strength_endpoints`` is
+  also enabled, the final centerline sample may use the same endpoint model;
+  all interior samples still require strict positive total-pressure loss.
   """
 
   samples = tuple(upstream_states)
@@ -1603,6 +1609,10 @@ def fit_attached_shock_boundary(
       MocShockBoundaryFitStatus.INVALID_INPUT,
       message='branch must be a ShockBranch',
     )
+  if not isinstance(allow_zero_strength_start, bool):
+    raise TypeError('allow_zero_strength_start must be a bool')
+  if not isinstance(allow_zero_strength_endpoints, bool):
+    raise TypeError('allow_zero_strength_endpoints must be a bool')
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('shock_angle_tolerance_rad', shock_angle_tolerance_rad),
@@ -1665,38 +1675,60 @@ def fit_attached_shock_boundary(
       zip(samples, pressures, points, target_angles, strict=True)
   ):
     target_turn = float(target_angle) - state.theta_rad
-    if target_turn <= 0.0:
+    zero_strength_start = (
+      (
+        (allow_zero_strength_start and index == 0)
+        or (
+          allow_zero_strength_endpoints
+          and index == len(samples) - 1
+        )
+      )
+      and target_turn == 0.0
+    )
+    if target_turn < 0.0 or (target_turn == 0.0 and not zero_strength_start):
       return _shock_fit_failure(
         MocShockBoundaryFitStatus.OUTSIDE_DOMAIN,
         boundary_states=tuple(fitted),
         residuals=tuple(angle_residuals),
         message=f'shock sample {index} does not require a positive compression turn',
       )
-    compression = solve_attached_compression_to_turn(
-      upstream_mach=state.mach,
-      gamma=state.gamma,
-      upstream_pressure_Pa=float(pressure),
-      target_turn_rad=target_turn,
-      branch=branch,
-    )
-    if (
-      not compression.converged
-      or compression.beta_rad is None
-      or compression.downstream_mach is None
-      or compression.upstream_total_pressure_Pa is None
-      or compression.downstream_total_pressure_Pa is None
-    ):
-      status = (
-        MocShockBoundaryFitStatus.INVARIANT_FAILURE
-        if compression.status is MocPrimitiveStatus.INVARIANT_FAILURE
-        else MocShockBoundaryFitStatus.OUTSIDE_DOMAIN
+    if zero_strength_start:
+      beta = asin(1.0 / state.mach)
+      downstream_mach = state.mach
+      upstream_total_pressure = float(pressure) * (
+        1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
+      ) ** (state.gamma / (state.gamma - 1.0))
+      downstream_total_pressure = upstream_total_pressure
+    else:
+      compression = solve_attached_compression_to_turn(
+        upstream_mach=state.mach,
+        gamma=state.gamma,
+        upstream_pressure_Pa=float(pressure),
+        target_turn_rad=target_turn,
+        branch=branch,
       )
-      return _shock_fit_failure(
-        status,
-        boundary_states=tuple(fitted),
-        residuals=tuple(angle_residuals),
-        message=f'shock sample {index} failed attached compression: {compression.message}',
-      )
+      if (
+        not compression.converged
+        or compression.beta_rad is None
+        or compression.downstream_mach is None
+        or compression.upstream_total_pressure_Pa is None
+        or compression.downstream_total_pressure_Pa is None
+      ):
+        status = (
+          MocShockBoundaryFitStatus.INVARIANT_FAILURE
+          if compression.status is MocPrimitiveStatus.INVARIANT_FAILURE
+          else MocShockBoundaryFitStatus.OUTSIDE_DOMAIN
+        )
+        return _shock_fit_failure(
+          status,
+          boundary_states=tuple(fitted),
+          residuals=tuple(angle_residuals),
+          message=f'shock sample {index} failed attached compression: {compression.message}',
+        )
+      beta = float(compression.beta_rad)
+      downstream_mach = float(compression.downstream_mach)
+      upstream_total_pressure = float(compression.upstream_total_pressure_Pa)
+      downstream_total_pressure = float(compression.downstream_total_pressure_Pa)
     if index == 0:
       tangent_dx = points[1][0] - points[0][0]
       tangent_dy = points[1][1] - points[0][1]
@@ -1707,7 +1739,7 @@ def fit_attached_shock_boundary(
       tangent_dx = points[index + 1][0] - points[index - 1][0]
       tangent_dy = points[index + 1][1] - points[index - 1][1]
     tangent_angle = atan2(tangent_dy, tangent_dx)
-    shock_angle = state.theta_rad - compression.beta_rad
+    shock_angle = state.theta_rad - beta
     angle_residual = _wrapped_angle_difference(tangent_angle, shock_angle)
     angle_residuals.append(angle_residual)
     if abs(angle_residual) > shock_angle_tolerance_rad:
@@ -1727,16 +1759,14 @@ def fit_attached_shock_boundary(
           x_m=float(point[0]),
           y_m=float(point[1]),
           theta_rad=float(target_angle),
-          mach=float(compression.downstream_mach),
+          mach=downstream_mach,
           gamma=state.gamma,
         ),
-        upstream_total_pressure_Pa=float(compression.upstream_total_pressure_Pa),
-        downstream_total_pressure_Pa=float(compression.downstream_total_pressure_Pa),
+        upstream_total_pressure_Pa=upstream_total_pressure,
+        downstream_total_pressure_Pa=downstream_total_pressure,
       )
     )
-    fitted_upstream_total_pressures.append(
-      float(compression.upstream_total_pressure_Pa)
-    )
+    fitted_upstream_total_pressures.append(upstream_total_pressure)
   ####
 
   return MocShockBoundaryFitResult(
@@ -1817,6 +1847,8 @@ def assemble_post_shock_characteristic_field(
   position_tolerance_m: float = 1.0e-10,
   invariant_tolerance: float = 1.0e-10,
   shock_angle_tolerance_rad: float = 1.0e-8,
+  allow_zero_strength_start: bool = False,
+  allow_zero_strength_endpoints: bool = False,
 ) -> MocPostShockCharacteristicFieldResult:
   """Generate a closed shock-seeded downstream planar characteristic field.
 
@@ -1832,7 +1864,12 @@ def assemble_post_shock_characteristic_field(
   the caller supplies the prior cell's typed carried boundary and the returned
   field records that boundary as consumed.  It is not assumed to be an axial
   section and is not reused as the next shock geometry; a local continuation
-  solver must propagate it to its own shock boundary first.
+  solver must propagate it to its own shock boundary first.  When
+  ``allow_zero_strength_start`` is enabled, the first shock sample may be an
+  exact Mach-wave attachment with unit total-pressure ratio.  With
+  ``allow_zero_strength_endpoints`` enabled, the final centerline sample may
+  use the same endpoint model; every interior sample must still carry strict
+  positive entropy-producing loss.
   """
 
   if not isinstance(shock_fit, MocShockBoundaryFitResult):
@@ -1840,6 +1877,10 @@ def assemble_post_shock_characteristic_field(
       MocPostShockFieldStatus.INVALID_INPUT,
       message='shock_fit must be a MocShockBoundaryFitResult',
     )
+  if not isinstance(allow_zero_strength_start, bool):
+    raise TypeError('allow_zero_strength_start must be a bool')
+  if not isinstance(allow_zero_strength_endpoints, bool):
+    raise TypeError('allow_zero_strength_endpoints must be a bool')
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('invariant_tolerance', invariant_tolerance),
@@ -1917,7 +1958,21 @@ def assemble_post_shock_characteristic_field(
       pressure_ratios=pressure_ratios,
       message='shock-fit upstream total-pressure carry disagrees with its shock samples',
     )
-  if any(ratio <= 0.0 or ratio >= 1.0 for ratio in pressure_ratios):
+  zero_strength_endpoints = bool(
+    allow_zero_strength_endpoints
+    and abs(pressure_ratios[0] - 1.0) <= 1.0e-10
+    and abs(pressure_ratios[-1] - 1.0) <= 1.0e-10
+    and all(0.0 < ratio < 1.0 for ratio in pressure_ratios[1:-1])
+  )
+  zero_strength_start = bool(
+    allow_zero_strength_start
+    and abs(pressure_ratios[0] - 1.0) <= 1.0e-10
+    and all(0.0 < ratio < 1.0 for ratio in pressure_ratios[1:])
+  )
+  if (
+    any(ratio <= 0.0 or ratio >= 1.0 for ratio in pressure_ratios)
+    and not (zero_strength_start or zero_strength_endpoints)
+  ):
     return _post_shock_field_failure(
       MocPostShockFieldStatus.PRESSURE_FAILURE,
       shock_boundary_points=shock_points,

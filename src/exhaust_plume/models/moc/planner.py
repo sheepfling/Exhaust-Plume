@@ -58,6 +58,7 @@ from exhaust_plume.models.moc.physical_cell import (
   MocPhysicalPostShockFieldResult,
   MocPhysicalPostShockTerminalPatchTransitionResult,
   solve_ambient_closed_post_shock_chain_cell_from_candidate_or_termination,
+  solve_ambient_closed_post_shock_chain_cell_from_terminal_reflection_patch_ambient_closure_or_termination,
   solve_ambient_closed_post_shock_terminal_patch_transition,
   continue_ambient_closed_post_shock_chain,
 )
@@ -145,6 +146,7 @@ __all__ = (
   'MocBoundedUpstreamFieldSource',
   'build_terminal_reflection_patch_upstream_source',
   'MocSolverGeneratedAmbientClosedPostShockChainReference',
+  'MocTerminalReflectionPatchAmbientClosureChainReference',
   'MocPrescribedAmbientClosedPostShockChainMock',
   'MocPhysicalPostShockTerminalPatchPlannerResult',
   'plan_moc_chain',
@@ -157,6 +159,7 @@ __all__ = (
   'plan_solver_generated_post_shock_chain_reference',
   'plan_field_coupled_post_shock_chain_reference',
   'plan_solver_generated_ambient_closed_post_shock_chain_reference',
+  'plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closure',
   'plan_prescribed_ambient_closed_post_shock_chain_mock',
   'plan_terminal_reflection_patch_chain',
   'plan_post_shock_zone_chain',
@@ -3671,6 +3674,206 @@ class MocSolverGeneratedAmbientClosedPostShockChainReference:
 
 
 @dataclass(frozen=True, slots=True)
+class MocTerminalReflectionPatchAmbientClosureChainReference:
+  """Configuration for the solver-owned reflected-patch chain lane.
+
+  This reference deliberately has a smaller claim ceiling than the basic
+  ambient-closed chain reference.  It derives each next upstream domain from
+  the accepted field's terminal shock/ambient trace, reflects that trace to
+  the centerline, and asks the ambient-closed physical-field solver to close
+  the next cell.  It is therefore useful for a continued shock-cell-chain
+  experiment while the canonical reflected free-boundary/remeshing problem
+  and external validation remain open.
+  """
+
+  total_cell_count: int = 2
+  target_centerline_y_m: float = 0.0
+  target_centerline_flow_angle_rad: float = 0.0
+  outer_downstream_flow_angle_lower_rad: float = -0.2
+  outer_downstream_flow_angle_upper_rad: float = 0.2
+  sample_count: int = 9
+  branch: ShockBranch = ShockBranch.WEAK
+  trace_position_tolerance_m: float = 4.0e-4
+  trace_forward_tolerance_m: float = 1.0e-4
+  seam_position_tolerance_m: float = 5.0e-3
+  position_tolerance_m: float = 1.0e-9
+  invariant_tolerance: float = 1.0e-10
+  attachment_pressure_tolerance: float = 1.0e-8
+  pressure_tolerance: float = 1.0e-8
+  tangent_tolerance: float = 1.0e-8
+  shock_angle_tolerance_rad: float = 1.0e-2
+  maximum_segment_iterations: int = 24
+  maximum_boundary_iterations: int = 16
+  maximum_shooting_iterations: int = 40
+  allow_zero_strength_attachment: bool = True
+  model: str = (
+    'solver-generated-terminal-reflection-patch-ambient-closure-chain-reference'
+  )
+
+  def __post_init__(self) -> None:
+    if (
+      isinstance(self.total_cell_count, bool)
+      or not isinstance(self.total_cell_count, int)
+      or self.total_cell_count < 1
+    ):
+      raise ValueError('total_cell_count must be a positive integer')
+    if (
+      isinstance(self.sample_count, bool)
+      or not isinstance(self.sample_count, int)
+      or self.sample_count < 3
+    ):
+      raise ValueError('sample_count must be an integer of at least three')
+    if not isinstance(self.branch, ShockBranch):
+      raise TypeError('branch must be a ShockBranch')
+    if not isinstance(self.allow_zero_strength_attachment, bool):
+      raise TypeError('allow_zero_strength_attachment must be a bool')
+    for name in (
+      'target_centerline_y_m',
+      'target_centerline_flow_angle_rad',
+      'outer_downstream_flow_angle_lower_rad',
+      'outer_downstream_flow_angle_upper_rad',
+      'trace_position_tolerance_m',
+      'trace_forward_tolerance_m',
+      'seam_position_tolerance_m',
+      'position_tolerance_m',
+      'invariant_tolerance',
+      'attachment_pressure_tolerance',
+      'pressure_tolerance',
+      'tangent_tolerance',
+      'shock_angle_tolerance_rad',
+    ):
+      value = float(getattr(self, name))
+      if not isfinite(value):
+        raise ValueError(f'{name} must be finite')
+      object.__setattr__(self, name, value)
+    if (
+      self.outer_downstream_flow_angle_lower_rad
+      >= self.outer_downstream_flow_angle_upper_rad
+    ):
+      raise ValueError(
+        'outer downstream flow-angle lower bound must be below its upper bound'
+      )
+    for name in (
+      'trace_position_tolerance_m',
+      'trace_forward_tolerance_m',
+      'seam_position_tolerance_m',
+      'position_tolerance_m',
+      'invariant_tolerance',
+      'attachment_pressure_tolerance',
+      'pressure_tolerance',
+      'tangent_tolerance',
+      'shock_angle_tolerance_rad',
+    ):
+      if getattr(self, name) <= 0.0:
+        raise ValueError(f'{name} must be finite and positive')
+    for name in (
+      'maximum_segment_iterations',
+      'maximum_boundary_iterations',
+      'maximum_shooting_iterations',
+    ):
+      value = getattr(self, name)
+      if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError(f'{name} must be a positive integer')
+    model = str(self.model)
+    if not model:
+      raise ValueError('model must be a non-empty string')
+    object.__setattr__(self, 'model', model)
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'model': self.model,
+      'planning_only': True,
+      'production_claim_allowed': False,
+      'physical_chain_promotion_allowed': True,
+      'total_cell_count_including_seed': self.total_cell_count,
+      'target_centerline_y_m': self.target_centerline_y_m,
+      'target_centerline_flow_angle_rad': self.target_centerline_flow_angle_rad,
+      'outer_downstream_flow_angle_bracket': (
+        self.outer_downstream_flow_angle_lower_rad,
+        self.outer_downstream_flow_angle_upper_rad,
+      ),
+      'sample_count': self.sample_count,
+      'branch': self.branch.value,
+      'trace_position_tolerance_m': self.trace_position_tolerance_m,
+      'trace_forward_tolerance_m': self.trace_forward_tolerance_m,
+      'seam_position_tolerance_m': self.seam_position_tolerance_m,
+      'position_tolerance_m': self.position_tolerance_m,
+      'invariant_tolerance': self.invariant_tolerance,
+      'attachment_pressure_tolerance': self.attachment_pressure_tolerance,
+      'pressure_tolerance': self.pressure_tolerance,
+      'tangent_tolerance': self.tangent_tolerance,
+      'shock_angle_tolerance_rad': self.shock_angle_tolerance_rad,
+      'allow_zero_strength_attachment': self.allow_zero_strength_attachment,
+      'downstream_condition_model': (
+        'bounded-terminal-reflection-patch-plus-ambient-attachment-and-'
+        'centerline-reflection'
+      ),
+      'upstream_source_model': 'accepted-field-derived-terminal-reflection-patch',
+      'claim_status': (
+        'solver-generated-terminal-reflection-patch-ambient-closure-chain; '
+        'canonical-reflected-free-boundary-and-external-validation-pending'
+      ),
+    }
+  ####
+
+  def solve_next(
+    self,
+    current: MocChainCell,
+    next_cell_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+    current_field: MocPhysicalPostShockFieldResult,
+    *,
+    end_x_m: float,
+  ) -> MocPhysicalPostShockFieldContinuationSolve | MocChainTerminationDecision:
+    if next_cell_index > self.total_cell_count:
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
+        message=(
+          'terminal-reflection-patch ambient-closure chain reference exhausted '
+          f'its {self.total_cell_count}-cell research configuration'
+        ),
+        diagnostics={
+          'continuation_model': self.model,
+          'next_cell_index': next_cell_index,
+          'termination_model': 'configured-cell-count',
+        },
+      )
+    return solve_ambient_closed_post_shock_chain_cell_from_terminal_reflection_patch_ambient_closure_or_termination(
+      current,
+      next_cell_index,
+      incoming_handoff,
+      current_field,
+      end_x_m=end_x_m,
+      outer_downstream_flow_angle_lower_rad=(
+        self.outer_downstream_flow_angle_lower_rad
+      ),
+      outer_downstream_flow_angle_upper_rad=(
+        self.outer_downstream_flow_angle_upper_rad
+      ),
+      target_centerline_y_m=self.target_centerline_y_m,
+      target_centerline_flow_angle_rad=self.target_centerline_flow_angle_rad,
+      sample_count=self.sample_count,
+      branch=self.branch,
+      trace_position_tolerance_m=self.trace_position_tolerance_m,
+      trace_forward_tolerance_m=self.trace_forward_tolerance_m,
+      seam_position_tolerance_m=self.seam_position_tolerance_m,
+      position_tolerance_m=self.position_tolerance_m,
+      invariant_tolerance=self.invariant_tolerance,
+      attachment_pressure_tolerance=self.attachment_pressure_tolerance,
+      pressure_tolerance=self.pressure_tolerance,
+      tangent_tolerance=self.tangent_tolerance,
+      shock_angle_tolerance_rad=self.shock_angle_tolerance_rad,
+      maximum_segment_iterations=self.maximum_segment_iterations,
+      maximum_boundary_iterations=self.maximum_boundary_iterations,
+      maximum_shooting_iterations=self.maximum_shooting_iterations,
+      allow_zero_strength_attachment=self.allow_zero_strength_attachment,
+    )
+  ####
+
+
+@dataclass(frozen=True, slots=True)
 class MocPrescribedAmbientClosedPostShockChainMock:
   """Planner fixture for repeated bounded physical-field re-solves.
 
@@ -7111,6 +7314,116 @@ def plan_solver_generated_ambient_closed_post_shock_chain_reference(
       ),
       'source_provider_policy': (
         'bounded-callback-source-or-previous-field; no extrapolation'
+      ),
+    },
+  )
+####
+
+
+def plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closure(
+  seed: MocPhysicalPostShockFieldResult,
+  *,
+  start_x_m: float,
+  end_x_m: float,
+  reference: MocTerminalReflectionPatchAmbientClosureChainReference | None = None,
+  policy: MocChainContinuationPolicy | None = None,
+) -> MocChainPlannerResult:
+  """Plan a bounded continued chain from reflected terminal patches.
+
+  Each accepted continuation replaces the active upstream field.  The
+  configured cell count is a research stop, so a partial prefix plus a typed
+  downstream closure/boundary decision is expected while the reflected
+  free-boundary lane is still being developed.
+  """
+
+  fixture = (
+    MocTerminalReflectionPatchAmbientClosureChainReference()
+    if reference is None
+    else reference
+  )
+  if not isinstance(
+    fixture,
+    MocTerminalReflectionPatchAmbientClosureChainReference,
+  ):
+    raise TypeError(
+      'reference must be a '
+      'MocTerminalReflectionPatchAmbientClosureChainReference'
+    )
+  if not isinstance(seed, MocPhysicalPostShockFieldResult):
+    raise TypeError('seed must be a MocPhysicalPostShockFieldResult')
+  try:
+    requested_end_x = float(end_x_m)
+  except (TypeError, ValueError) as error:
+    raise ValueError('end_x_m must be numeric') from error
+  if not isfinite(requested_end_x):
+    raise ValueError('end_x_m must be finite')
+  if not seed.ambient_boundary_points_m:
+    raise ValueError(
+      'seed must retain a downstream ambient boundary endpoint for the '
+      'shared first-cell interface'
+    )
+  seed_end_x = float(seed.ambient_boundary_points_m[-1][0])
+  if not isfinite(seed_end_x) or seed_end_x <= float(start_x_m):
+    raise ValueError(
+      'seed ambient boundary endpoint must be finite and downstream of '
+      'start_x_m'
+    )
+  if requested_end_x <= seed_end_x:
+    raise ValueError(
+      'end_x_m must be downstream of the seed ambient boundary endpoint'
+    )
+  current_field = seed
+
+  def solve_next(
+    current: MocChainCell,
+    next_cell_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+  ) -> MocPhysicalPostShockFieldContinuationSolve | MocChainTerminationDecision:
+    nonlocal current_field
+    solved = fixture.solve_next(
+      current,
+      next_cell_index,
+      incoming_handoff,
+      current_field,
+      end_x_m=requested_end_x,
+    )
+    if isinstance(solved, MocPhysicalPostShockFieldContinuationSolve):
+      current_field = solved.field
+    return solved
+
+  planner = plan_ambient_closed_post_shock_chain(
+    seed,
+    solve_next,
+    start_x_m=start_x_m,
+    # The seed's actual ambient endpoint is the shared interface.  The
+    # caller's end_x_m is retained as the continuation solver's axial limit
+    # and is passed through fixture.solve_next above.
+    end_x_m=seed_end_x,
+    policy=policy,
+    require_upstream_shock_coupling=True,
+    claim_status=(
+      'solver-generated-terminal-reflection-patch-ambient-closure-chain; '
+      'canonical-reflected-free-boundary-and-external-validation-pending'
+    ),
+  )
+  return replace(
+    planner,
+    diagnostics={
+      'terminal_reflection_patch_ambient_closure_chain_reference': (
+        fixture.as_report()
+      ),
+      'upstream_field_replacement_policy': (
+        'replace-only-after-complete-ambient-closed-physical-field-solve'
+      ),
+      'endpoint_policy': (
+        'use-next-field-ambient-boundary-endpoint; requested-end-x-is-an-'
+        'axial-limit; no fabricated interface'
+      ),
+      'requested_end_x_m': requested_end_x,
+      'seed_interface_end_x_m': seed_end_x,
+      'fidelity_boundary': (
+        'research-only-solver-owned-planar-MOC; no basic/reduced-provider-'
+        'promotion'
       ),
     },
   )
