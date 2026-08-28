@@ -16,6 +16,7 @@ from exhaust_plume.models.moc import (
   MocChainTerminationReason,
   MocPostShockChainCellSolve,
   MocReflectedDomainRemeshRequest,
+  MocReflectedDomainAlternatingSourceStatus,
   MocReflectedDomainOuterSourceStatus,
   MocReflectedDomainRemeshStatus,
   MocSolverGeneratedAmbientClosedPostShockChainReference,
@@ -30,6 +31,7 @@ from exhaust_plume.models.moc import (
   solve_marched_attached_shock_field,
   solve_marched_attached_shock_with_ambient_centerline_physical_field,
   solve_reflected_domain_remesh,
+  solve_reflected_domain_alternating_source,
   solve_reflected_domain_outer_source_curve,
   solve_underexpanded_expansion_fan,
   solve_uniform_attached_shock_field,
@@ -41,8 +43,10 @@ from exhaust_plume.models.nozzle.exit_state import (
   derive_uniform_nozzle_exit,
 )
 from exhaust_plume.validation.moc_measurements import (
+  MocReflectedDomainAlternatingSourceMeasurementStatus,
   MocReflectedDomainOuterSourceMeasurementStatus,
   MocReflectedDomainRemeshMeasurementStatus,
+  measure_moc_reflected_domain_alternating_source,
   measure_moc_reflected_domain_outer_source_curve,
   measure_moc_reflected_domain_remesh,
 )
@@ -452,6 +456,140 @@ def test_reflected_domain_outer_source_curve_is_solved_and_assembled():
   assert measurement.physical_closure_verified is False
   assert measurement.chain_promotion_blocked
   assert measurement.production_claim_allowed is False
+
+
+def test_reflected_domain_alternating_source_band_closes_local_neighbor_seams():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+
+  result = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+  )
+
+  assert result.status is MocReflectedDomainAlternatingSourceStatus.CONVERGED
+  assert result.converged
+  assert result.source_field_verified
+  assert result.reflection_anchor_verified
+  assert result.alternating_seam_verified
+  assert len(result.centerline_source_states) == 6
+  assert len(result.outer_source_states) == 6
+  assert len(result.centerline_results) == 6
+  assert len(result.point_results) == 6
+  assert all(item.converged for item in result.centerline_results)
+  assert all(item.converged for item in result.point_results)
+  assert result.node_count == 12
+  assert result.cell_count == 10
+  assert result.topology is not None
+  assert result.topology.connected
+  assert result.topology.forms_closed_zone
+  assert result.topology.nonmanifold_edge_count == 0
+  assert result.centerline_source_states[0] == pytest.approx(
+    patch.outgoing_trace_states[-1]
+  )
+  assert result.outer_seed_state == patch.outgoing_trace_states[0]
+  assert result.outer_source_states[0].x_m > result.centerline_source_states[0].x_m
+  sample = result.state_at((2.2, 0.1))
+  assert sample is not None
+  assert result.total_pressure_at((2.2, 0.1)) == pytest.approx(
+    patch.outgoing_trace_total_pressure_Pa[0]
+  )
+  assert result.state_at((1.0, -0.1)) is None
+  report = result.as_report()
+  assert report['source_model'] == (
+    'solver-owned-alternating-family-ambient-pressure-remesh'
+  )
+  assert report['canonical_alternating_remesh_solved'] is False
+  assert report['physical_closure_verified'] is False
+  assert report['chain_promotion_blocked'] is True
+  assert report['production_claim_allowed'] is False
+  measurement = measure_moc_reflected_domain_alternating_source(result)
+  assert measurement.status is (
+    MocReflectedDomainAlternatingSourceMeasurementStatus.CONVERGED
+  )
+  assert measurement.converged
+  assert measurement.bounded_source_verified
+  assert measurement.incoming_trace_verified
+  assert measurement.reflection_anchor_verified
+  assert measurement.centerline_recomputed_verified
+  assert measurement.boundary_recomputed_verified
+  assert measurement.alternating_seam_verified
+  assert measurement.source_topology_verified
+  assert measurement.source_sampling_verified
+  assert measurement.physical_closure_verified is False
+  assert measurement.chain_promotion_blocked is True
+  assert measurement.production_claim_allowed is False
+
+
+def test_reflected_domain_alternating_source_measurement_rejects_changed_raw_row():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  result = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+  )
+  corrupted = replace(
+    result,
+    outer_source_states=(
+      replace(result.outer_source_states[0], y_m=0.45),
+      *result.outer_source_states[1:],
+    ),
+  )
+
+  measurement = measure_moc_reflected_domain_alternating_source(corrupted)
+
+  assert measurement.converged is False
+  assert measurement.bounded_source_verified is False
+  assert measurement.boundary_recomputed_verified is False
+  assert measurement.physical_closure_verified is False
+  assert measurement.chain_promotion_blocked is True
+
+
+def test_reflected_domain_alternating_source_band_carries_explicit_pressure_row():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  pressure = patch.outgoing_trace_total_pressure_Pa[0]
+  pressure_row = tuple(pressure * (1.0 - 0.005 * index) for index in range(6))
+
+  result = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+    pressure,
+    centerline_total_pressure_Pa=pressure_row,
+  )
+
+  assert result.converged
+  assert result.source_field_verified
+  assert result.centerline_total_pressure_Pa == pytest.approx(pressure_row)
+  assert result.outer_total_pressure_Pa == pytest.approx(pressure_row)
+  assert result.total_pressure_at(
+    (
+      result.outer_source_states[3].x_m,
+      result.outer_source_states[3].y_m,
+    )
+  ) == pytest.approx(pressure_row[3])
+  assert result.as_report()['total_pressure_range_Pa'][0] == pytest.approx(
+    pressure_row[-1]
+  )
+
+
+def test_reflected_domain_alternating_source_band_rejects_a_nonexact_seed():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+
+  result = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+    outer_seed_state=replace(patch.outgoing_trace_states[0], x_m=1.4),
+  )
+
+  assert result.status is MocReflectedDomainAlternatingSourceStatus.SEED_FAILURE
+  assert result.source_field_verified is False
+  assert result.physical_closure_verified is False
 
 
 def test_reflected_domain_outer_source_curve_carries_explicit_pressure_rows():

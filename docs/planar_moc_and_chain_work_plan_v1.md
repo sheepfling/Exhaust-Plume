@@ -1720,3 +1720,30 @@ curve can be bound into a fresh reflected-remesh request, so a future planner
 callback has a real boundary-solving seam rather than only a prescribed outer
 trace. The centerline source, prior seed, shock entropy production, downstream
 perimeter, and physical chain-cell promotion remain explicit unresolved gates.
+
+## Alternating-family reflected remesh checkpoint
+
+The first solver-owned alternating continuation is now executable as
+`solve_reflected_domain_alternating_source`. It consumes the exact outgoing
+`C-` front from the terminal reflection patch, verifies that its first
+centerline reflection reproduces the prior patch anchor, and then repeats the
+local sequence
+
+`outer seed -> C- centerline anchor -> C+ ambient/tangent outer point`.
+
+The result is represented as a connected band of local two-triangle cells.
+This is deliberately a separate mesh contract: the older triangular source
+strip requires every centerline/outer cross-pair to remain forward, while the
+alternating continuation only claims the neighboring `C-`/`C+` seams it
+actually solves. It carries explicit total-pressure rows and provides a
+bounded state/pressure sampler, but it does not infer shock entropy, solve the
+mixed-regime downstream perimeter, or promote a physical shock cell.
+
+The independent `op.moc.reflected-domain-alternating-source` operator
+recomputes the incoming trace, polarity, seed, centerline reflections, ambient
+boundary points, alternating compatibility seams, topology, and bounded
+sampling. The canonical fixture passes this local audit. The remaining gates
+are coupling this band to a canonical reflected free-boundary/shock remesher,
+mixed-regime closure, refinement, and external observations; all basic,
+reduced-order, signature, ray, and focal-plane-array providers remain
+unchanged.

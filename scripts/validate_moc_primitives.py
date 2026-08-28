@@ -41,6 +41,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocPostShockCharacteristicFieldResult,
   MocPhysicalPostShockFieldContinuationSolve,
   MocReflectedDomainRemeshRequest,
+  MocReflectedDomainAlternatingSourceStatus,
   MocReflectedDomainRemeshStatus,
   build_reflected_domain_remesh_request_from_outer_source,
   MocReflectedTracePolarity,
@@ -95,6 +96,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   plan_reflected_domain_remesh_shock_chain,
   plan_reflected_domain_remesh_shock_chain_sequence,
   solve_reflected_domain_remesh,
+  solve_reflected_domain_alternating_source,
   solve_reflected_domain_outer_source_curve,
   plan_terminal_reflection_patch_chain,
   MocShockBoundaryFitResult,
@@ -188,6 +190,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   validate_moc_mesh,
 )
 from exhaust_plume.validation.moc_measurements import (  # noqa: E402
+  MocReflectedDomainAlternatingSourceMeasurementStatus,
   MocCausticRemeshMeasurementStatus,
   MocCausticRemeshObservation,
   MocMixedRegimeFreeBoundaryMeasurementStatus,
@@ -202,6 +205,7 @@ from exhaust_plume.validation.moc_measurements import (  # noqa: E402
   measure_moc_ambient_closed_physical_field_chain,
   measure_moc_chain_planner,
   measure_moc_reflected_domain_remesh,
+  measure_moc_reflected_domain_alternating_source,
   measure_moc_reflected_domain_outer_source_curve,
   measure_mixed_regime_control_section,
   measure_mixed_regime_free_boundary_reference,
@@ -599,6 +603,28 @@ def _reflected_domain_remesh_probe(
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     outer_source_error = f'{type(error).__name__}: {error}'
 
+  alternating_source = None
+  alternating_source_measurement = None
+  alternating_source_error = None
+  try:
+    alternating_seed = reflection_patch.outgoing_trace_states[0]
+    alternating_pressure = reflection_patch.outgoing_trace_total_pressure_Pa[0]
+    alternating_ambient = alternating_pressure / (
+      1.0
+      + 0.5 * (alternating_seed.gamma - 1.0) * alternating_seed.mach**2
+    ) ** (alternating_seed.gamma / (alternating_seed.gamma - 1.0))
+    alternating_source = solve_reflected_domain_alternating_source(
+      reflection_patch,
+      alternating_ambient,
+      alternating_pressure,
+      source_sample_count=6,
+    )
+    alternating_source_measurement = (
+      measure_moc_reflected_domain_alternating_source(alternating_source)
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    alternating_source_error = f'{type(error).__name__}: {error}'
+
   one_step_planner = None
   one_step_error = None
   sequence_planner = None
@@ -739,6 +765,21 @@ def _reflected_domain_remesh_probe(
     and outer_source_remesh.converged
     and outer_source_remesh_measurement is not None
     and outer_source_remesh_measurement.converged
+    and alternating_source is not None
+    and alternating_source.status is (
+      MocReflectedDomainAlternatingSourceStatus.CONVERGED
+    )
+    and alternating_source.source_field_verified
+    and alternating_source.physical_closure_verified is False
+    and alternating_source.chain_promotion_blocked
+    and alternating_source_measurement is not None
+    and alternating_source_measurement.status is (
+      MocReflectedDomainAlternatingSourceMeasurementStatus.CONVERGED
+    )
+    and alternating_source_measurement.bounded_source_verified
+    and alternating_source_measurement.physical_closure_verified is False
+    and alternating_source_measurement.chain_promotion_blocked
+    and alternating_source_measurement.production_claim_allowed is False
     and reused_front.status is MocReflectedDomainRemeshStatus.OUTER_SOURCE_FAILURE
     and reused_front_measurement.converged is False
     and reused_front_measurement.outer_source_verified is False
@@ -783,6 +824,15 @@ def _reflected_domain_remesh_probe(
       else outer_source_remesh_measurement.as_report()
     ),
     'outer_source_error': outer_source_error,
+    'solver_generated_alternating_source': (
+      None if alternating_source is None else alternating_source.as_report()
+    ),
+    'alternating_source_independent_measurement': (
+      None
+      if alternating_source_measurement is None
+      else alternating_source_measurement.as_report()
+    ),
+    'alternating_source_error': alternating_source_error,
     'reused_single_front_rejection': reused_front.as_report(),
     'reused_single_front_measurement': reused_front_measurement.as_report(),
     'one_step_planner': one_step_report,
@@ -7218,6 +7268,36 @@ def build_moc_primitive_report() -> dict[str, Any]:
       or reflected_domain_remesh_probe.get('accepted') is not True
     )
   )
+  reflected_domain_alternating_source_failure = (
+    ambient_shock_strip_probe.get('accepted') is True
+    and (
+      not isinstance(reflected_domain_remesh_probe, dict)
+      or not isinstance(
+        reflected_domain_remesh_probe.get('solver_generated_alternating_source'),
+        dict,
+      )
+      or reflected_domain_remesh_probe[
+        'solver_generated_alternating_source'
+      ].get('status')
+      != MocReflectedDomainAlternatingSourceStatus.CONVERGED.value
+      or reflected_domain_remesh_probe[
+        'solver_generated_alternating_source'
+      ].get('source_field_verified') is not True
+      or not isinstance(
+        reflected_domain_remesh_probe.get(
+          'alternating_source_independent_measurement'
+        ),
+        dict,
+      )
+      or reflected_domain_remesh_probe[
+        'alternating_source_independent_measurement'
+      ].get('status')
+      != MocReflectedDomainAlternatingSourceMeasurementStatus.CONVERGED.value
+      or reflected_domain_remesh_probe[
+        'alternating_source_independent_measurement'
+      ].get('checks', {}).get('bounded_source_verified') is not True
+    )
+  )
   first_cell_composite_probe = ambient_shock_strip_probe.get(
     'first_cell_composite',
   )
@@ -8914,6 +8994,27 @@ def build_moc_primitive_report() -> dict[str, Any]:
     ] if reflected_domain_remesh_failure else []),
     *([
       {
+        'case': 'solver_generated_reflected_domain_alternating_source',
+        'status': str(
+          reflected_domain_remesh_probe.get(
+            'solver_generated_alternating_source',
+            {},
+          ).get('status', 'missing')
+          if isinstance(reflected_domain_remesh_probe, dict)
+          else 'missing'
+        ),
+        'message': str(
+          reflected_domain_remesh_probe.get(
+            'alternating_source_error',
+            '',
+          )
+          if isinstance(reflected_domain_remesh_probe, dict)
+          else 'alternating source probe missing'
+        ),
+      }
+    ] if reflected_domain_alternating_source_failure else []),
+    *([
+      {
         'case': 'solver_generated_ambient_centerline_physical_terminal_patch_refinement',
         'status': 'refinement-gate-failed',
         'message': str(
@@ -9308,7 +9409,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
     'geometry_cases': geometry_results,
     'failures': failures,
     'next_gates': [
-      'replace the bounded reflected-domain Cauchy fixture with a coupled canonical alternating-family/free-boundary remesher for any further shock-cell transition',
+      'couple the bounded alternating-family source band to a canonical reflected free-boundary remesher before any further shock-cell transition',
       'replace the provisional constant-invariant boundary with a physically validated downstream closure and a straddling canonical bracket',
       'complete and independently validate the canonical reflected-MOC mixed-regime downstream closure after the open oblique supersonic patch; the affine projected potential reference remains research-only',
       'production next-cell shock fitting that consumes the typed state/total-pressure handoff without a geometric template',

@@ -729,3 +729,21 @@ ambient residuals, topology, and source sampling. The result can be bound into
 a fresh reflected-remesh request, but it remains a source-domain result: the
 centerline source, entropy production across shocks, downstream perimeter,
 canonical free-boundary closure, and product promotion are still blocked.
+
+The next local continuation checkpoint is now implemented separately as
+`solve_reflected_domain_alternating_source`. It starts with the exact first
+state of the outgoing reflected `C-` front, independently verifies its `C-`
+reflection against the prior patch's centerline anchor, and marches repeated
+`C-` centerline / ambient-pressure `C+` outer-point pairs. Its two-triangle
+band contract records only the neighboring characteristic seams actually
+solved; it does not reuse the old front as a full source curve or claim every
+cross-pair in the triangular source-strip lattice.
+
+The independent `op.moc.reflected-domain-alternating-source` measurement
+recomputes the trace, polarity, seed, characteristic steps, ambient pressure
+and tangency, alternating seams, topology, and bounded state sampling. The
+canonical bounded fixture passes this audit. The lane remains research-only:
+shock entropy production, canonical reflected free-boundary/mixed-regime
+closure, refinement, external observations, and chain promotion are still
+open, and the lower-fidelity visualization, reduced-order, signature, ray,
+and focal-plane-array providers remain untouched.
