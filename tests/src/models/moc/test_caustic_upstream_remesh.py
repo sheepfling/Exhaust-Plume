@@ -168,6 +168,28 @@ def _request(*, invariant_step=0.004, theta_step=-0.006):
   )
 
 
+def test_caustic_upstream_remesh_request_preserves_legacy_positional_defaults():
+  request = _request()
+
+  legacy = MocCausticUpstreamRemeshRequest(
+    request.seed,
+    request.upstream_edge_index,
+    request.centerline_source_states,
+    request.outer_source_states,
+    request.total_pressure_Pa,
+    request.centerline_y_m,
+    request.outer_boundary_kind,
+    request.position_tolerance_m,
+    request.invariant_tolerance,
+  )
+
+  assert legacy.centerline_y_m == request.centerline_y_m
+  assert legacy.outer_boundary_kind == request.outer_boundary_kind
+  assert legacy.position_tolerance_m == request.position_tolerance_m
+  assert legacy.invariant_tolerance == request.invariant_tolerance
+  assert legacy.incoming_handoff == ()
+
+
 def test_caustic_upstream_remesh_assembles_an_explicit_bounded_cauchy_field():
   request = _request()
 

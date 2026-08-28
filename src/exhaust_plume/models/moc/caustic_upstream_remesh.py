@@ -87,15 +87,16 @@ class MocCausticUpstreamRemeshRequest:
   centerline_source_states: tuple[CharacteristicState, ...]
   outer_source_states: tuple[CharacteristicState, ...]
   total_pressure_Pa: float
-  # Standalone Cauchy remeshes may omit this provenance.  A continued-cell
-  # sequence requires later provider results to echo the exact prior chain
-  # handoff so the upstream-domain solve cannot be detached from the cell
-  # being continued.
-  incoming_handoff: tuple[MocChainBoundarySample, ...] = ()
   centerline_y_m: float = 0.0
   outer_boundary_kind: str = 'caustic-conditioned-pre-shock-boundary'
   position_tolerance_m: float = 1.0e-10
   invariant_tolerance: float = 1.0e-10
+  # Keep this optional provenance field after the established defaulted
+  # arguments so existing positional request construction remains compatible.
+  # Continued-cell sequences require later provider results to echo the exact
+  # prior chain handoff so the upstream-domain solve cannot be detached from
+  # the cell being continued.
+  incoming_handoff: tuple[MocChainBoundarySample, ...] = ()
 
   def __post_init__(self) -> None:
     if not isinstance(self.seed, MocSourceStripCausticShockSeedResult):
