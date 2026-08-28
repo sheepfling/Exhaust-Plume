@@ -9096,6 +9096,7 @@ def plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closu
     raise TypeError('attach_mixed_regime_field must be a bool')
 
   captured_field: MocPhysicalPostShockFieldResult | None = None
+  captured_fields: list[MocPhysicalPostShockFieldResult] = [seed]
   captured_cell_index: int | None = None
 
   def observe(
@@ -9104,6 +9105,7 @@ def plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closu
   ) -> None:
     nonlocal captured_cell_index, captured_field
     captured_field = solved.field
+    captured_fields.append(solved.field)
     captured_cell_index = current.cell_index + 1
 
   prefix = (
@@ -9128,7 +9130,12 @@ def plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closu
       'mixed-regime'
     ),
     'prefix_cell_count': prefix.chain.cell_count,
+    'prefix_field_count': len(captured_fields),
     'prefix_planner_kind': prefix.planner_kind.value,
+    'prefix_planner_audit': None,
+    'prefix_planner_audit_accepted': False,
+    'prefix_physical_field_audit': None,
+    'prefix_physical_field_audit_accepted': False,
     'terminal_attempted': False,
     'terminal_input_cell_index': (
       None if prefix_cell is None else prefix_cell.cell_index
@@ -9145,6 +9152,37 @@ def plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closu
     'chain_promotion_blocked': True,
     'production_claim_allowed': False,
   }
+  try:
+    # Keep validation imports local: validation imports the model package while
+    # this planner is imported during package startup.
+    from exhaust_plume.validation.moc_measurements import (
+      measure_moc_ambient_closed_physical_field_chain,
+      measure_moc_chain_planner,
+    )
+
+    prefix_planner_measurement = measure_moc_chain_planner(prefix)
+    prefix_physical_field_measurement = (
+      measure_moc_ambient_closed_physical_field_chain(captured_fields)
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    diagnostics['prefix_audit_error'] = str(error)
+  else:
+    diagnostics['prefix_planner_audit'] = prefix_planner_measurement.as_report()
+    diagnostics['prefix_planner_audit_accepted'] = bool(
+      prefix_planner_measurement.converged
+      and prefix_planner_measurement.termination_verified
+      and prefix_planner_measurement.fidelity_isolation_verified
+      and not prefix_planner_measurement.production_claim_allowed
+    )
+    diagnostics['prefix_physical_field_audit'] = (
+      prefix_physical_field_measurement.as_report()
+    )
+    diagnostics['prefix_physical_field_audit_accepted'] = bool(
+      prefix_physical_field_measurement.converged
+      and prefix_physical_field_measurement.physical_closure_verified
+      and prefix_physical_field_measurement.chain_promotion_blocked
+      and not prefix_physical_field_measurement.production_claim_allowed
+    )
   if (
     prefix_cell is None
     or captured_field is None

@@ -678,6 +678,9 @@ def test_continued_chain_planner_runs_one_terminal_mock_from_final_physical_cell
   assert planner.chain_planner.chain.termination_reason is (
     MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL
   )
+  assert planner.diagnostics['prefix_planner_audit_accepted'] is True
+  assert planner.diagnostics['prefix_physical_field_audit_accepted'] is True
+  assert planner.diagnostics['prefix_field_count'] == 3
   assert planner.terminal_planner is not None
   assert planner.terminal_planner.planner_kind is (
     MocChainPlannerKind.PRESCRIBED_BOUNDARY_MOCK
@@ -728,6 +731,8 @@ def test_continued_chain_planner_keeps_scalar_terminal_reference_separate() -> N
   assert planner.physical_termination
   assert planner.physical_closure_verified is False
   assert planner.mixed_regime_model_closure_verified
+  assert planner.diagnostics['prefix_planner_audit_accepted'] is True
+  assert planner.diagnostics['prefix_physical_field_audit_accepted'] is True
   assert planner.terminal_planner is not None
   assert planner.terminal_planner.mixed_regime_reference is not None
   assert planner.terminal_planner.diagnostics[
@@ -763,6 +768,8 @@ def test_continued_chain_planner_does_not_fabricate_terminal_after_prefix_stop()
   assert planner.terminal_planner is None
   assert planner.resolved is False
   assert planner.physical_termination is False
+  assert planner.diagnostics['prefix_planner_audit_accepted'] is True
+  assert planner.diagnostics['prefix_physical_field_audit_accepted'] is True
   assert planner.diagnostics['terminal_attempted'] is False
   assert 'did not accept a new physical field' in (
     planner.diagnostics['terminal_attempt_message']

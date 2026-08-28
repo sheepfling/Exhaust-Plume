@@ -1916,3 +1916,11 @@ claim ceiling, block chain promotion at the mixed-regime boundary, and leave
 the fast visualization, signature, ray, and focal-plane-array providers
 unchanged. Canonical reflected-domain/free-boundary physics and external
 validation remain release gates.
+
+The composite planner also carries independent measurements of the prefix:
+the planner-trace audit rechecks cell order, topology, handoff fingerprints,
+typed termination, and fidelity isolation, while the physical-field-chain
+audit remeasures each retained raw field, shock loss, ambient closure, state
+sampling, exact handoff, and fresh downstream domain. These audits are
+diagnostics and remain non-promoting; they make a passing continued prefix
+distinguishable from a solver flag or a copied geometry.
