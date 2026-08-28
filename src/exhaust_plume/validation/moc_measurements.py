@@ -6715,6 +6715,11 @@ def measure_moc_reflected_domain_remesh(
   centerline_source_verified = bool(
     len(centerline) >= 3
     and all(isinstance(state, CharacteristicState) for state in centerline)
+    and len(request.centerline_total_pressure_Pa) == len(centerline)
+    and all(
+      isfinite(float(pressure)) and float(pressure) > 0.0
+      for pressure in request.centerline_total_pressure_Pa
+    )
     and all(
       abs(state.gamma - centerline[0].gamma) <= request.invariant_tolerance
       and abs(state.y_m - request.target_centerline_y_m)
@@ -6756,10 +6761,15 @@ def measure_moc_reflected_domain_remesh(
   incoming_pressure_verified = bool(
     incoming
     and all(
-      _pressure_matches(
-        sample.total_pressure_Pa,
-        request.total_pressure_Pa,
-        pressure_tolerance=request.pressure_tolerance,
+      isfinite(float(sample.total_pressure_Pa))
+      and sample.total_pressure_Pa > 0.0
+      and (
+        request.variable_total_pressure
+        or _pressure_matches(
+          sample.total_pressure_Pa,
+          request.total_pressure_Pa,
+          pressure_tolerance=request.pressure_tolerance,
+        )
       )
       for sample in incoming
     )
@@ -6785,13 +6795,27 @@ def measure_moc_reflected_domain_remesh(
       and source_topology.forms_closed_zone
       and source_topology.nonmanifold_edge_count == 0
     )
-    source_samples = (*centerline, *outer)
+    source_samples = tuple(
+      (state, pressure)
+      for state, pressure in zip(
+        centerline,
+        request.centerline_total_pressure_Pa,
+        strict=True,
+      )
+    ) + tuple(
+      (state, pressure)
+      for state, pressure in zip(
+        outer,
+        request.outer_total_pressure_Pa,
+        strict=True,
+      )
+    )
     sampled_states_verified = True
     sampled_pressures_verified = True
     if not source_samples:
       sampled_states_verified = False
       sampled_pressures_verified = False
-    for state in source_samples:
+    for state, expected_total_pressure in source_samples:
       try:
         sampled_state = source_strip.state_at(
           (state.x_m, state.y_m),
@@ -6801,9 +6825,14 @@ def measure_moc_reflected_domain_remesh(
           (state.x_m, state.y_m),
           position_tolerance_m=request.position_tolerance_m,
         )
+        sampled_total_pressure = source_strip.total_pressure_at(
+          (state.x_m, state.y_m),
+          position_tolerance_m=request.position_tolerance_m,
+        )
       except (ArithmeticError, FloatingPointError, TypeError, ValueError):
         sampled_state = None
         sampled_pressure = None
+        sampled_total_pressure = None
       sampled_states_verified = sampled_states_verified and bool(
         _caustic_state_matches(
           sampled_state,
@@ -6816,16 +6845,46 @@ def measure_moc_reflected_domain_remesh(
         sampled_pressure is not None
         and isfinite(float(sampled_pressure))
         and float(sampled_pressure) > 0.0
+        and sampled_total_pressure is not None
+        and isfinite(float(sampled_total_pressure))
+        and float(sampled_total_pressure) > 0.0
+        and _pressure_matches(
+          sampled_total_pressure,
+          expected_total_pressure,
+          pressure_tolerance=request.pressure_tolerance,
+        )
       )
     source_sampling_verified = bool(
       source_strip.converged
       and sampled_states_verified
       and sampled_pressures_verified
     )
-    source_pressure_verified = _pressure_matches(
-      source_strip.total_pressure_Pa,
-      request.total_pressure_Pa,
-      pressure_tolerance=request.pressure_tolerance,
+    source_pressure_verified = bool(
+      _pressure_matches(
+        source_strip.total_pressure_Pa,
+        request.centerline_total_pressure_Pa[0],
+        pressure_tolerance=request.pressure_tolerance,
+      )
+      and len(source_strip.plus_source_total_pressure_Pa)
+      == len(request.centerline_total_pressure_Pa)
+      and len(source_strip.minus_source_total_pressure_Pa)
+      == len(request.outer_total_pressure_Pa)
+      and all(
+        _pressure_matches(actual, expected, pressure_tolerance=request.pressure_tolerance)
+        for actual, expected in zip(
+          source_strip.plus_source_total_pressure_Pa,
+          request.centerline_total_pressure_Pa,
+          strict=True,
+        )
+      )
+      and all(
+        _pressure_matches(actual, expected, pressure_tolerance=request.pressure_tolerance)
+        for actual, expected in zip(
+          source_strip.minus_source_total_pressure_Pa,
+          request.outer_total_pressure_Pa,
+          strict=True,
+        )
+      )
     )
   total_pressure_verified = bool(
     incoming_pressure_verified and source_pressure_verified
@@ -6861,7 +6920,7 @@ def measure_moc_reflected_domain_remesh(
   ):
     status = MocReflectedDomainRemeshMeasurementStatus.SOURCE_FAILURE
     message = (
-      'reflected-domain centerline/outer source rows or scalar pressure '
+      'reflected-domain centerline/outer source rows or source-row pressure '
       'lineage failed independent measurement'
     )
   elif not source_topology_verified or not source_sampling_verified:

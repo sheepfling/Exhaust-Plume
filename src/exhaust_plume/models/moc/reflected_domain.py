@@ -10,9 +10,8 @@ different pieces of data:
 * a newly solved centerline ``C+`` source row and outer source curve.
 
 This module validates that seam and assembles the bounded source field from
-the explicit Cauchy data.  It does not invent the free boundary, carry a
-nonuniform entropy field through the scalar source-strip model, fit a shock,
-or promote an open field to a physical chain cell.
+the explicit Cauchy data.  It does not invent the free boundary, infer entropy
+losses, fit a shock, or promote an open field to a physical chain cell.
 """
 
 from __future__ import annotations
@@ -37,6 +36,7 @@ from exhaust_plume.models.moc.source_strip import (
   MocSourceStripContinuationResult,
   MocSourceStripContinuationStatus,
   assemble_source_characteristic_strip,
+  assemble_source_characteristic_strip_with_source_pressures,
 )
 from exhaust_plume.models.moc.terminal_patch import (
   MocReflectedTracePolarity,
@@ -106,10 +106,11 @@ class MocReflectedDomainRemeshRequest:
   when that incoming line reaches the target centerline.  The remaining
   centerline row and the outer source curve are the coupled remesher's inputs.
 
-  The scalar source-strip assembler currently represents one isentropic total
-  pressure.  The request therefore requires the reflected anchor trace to
-  carry one consistent total pressure; nonuniform entropy transport is a
-  separate solver gate rather than silently discarded data.
+  The legacy scalar source-strip path uses one uniform total pressure.  The
+  optional source-row pressure arrays preserve a nonuniform entropy lineage
+  through the bounded remesh: a node receives the pressure carried by its
+  ``C-`` source family.  Those arrays are explicit solver inputs; this request
+  still does not infer shock loss or solve an ambient free boundary.
   """
 
   reflection_patch: MocTerminalReflectionPatchResult
@@ -124,6 +125,8 @@ class MocReflectedDomainRemeshRequest:
   trace_forward_tolerance_m: float = 1.0e-4
   invariant_tolerance: float = 1.0e-10
   pressure_tolerance: float = 1.0e-10
+  centerline_total_pressure_Pa: tuple[float, ...] = ()
+  outer_total_pressure_Pa: tuple[float, ...] = ()
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -169,6 +172,36 @@ class MocReflectedDomainRemeshRequest:
     pressure = float(self.total_pressure_Pa)
     if not isfinite(pressure) or pressure <= 0.0:
       raise ValueError('total_pressure_Pa must be finite and positive')
+    try:
+      centerline_pressures = tuple(
+        float(value) for value in self.centerline_total_pressure_Pa
+      )
+      outer_pressures = tuple(
+        float(value) for value in self.outer_total_pressure_Pa
+      )
+    except (TypeError, ValueError) as error:
+      raise ValueError(
+        'source-row total pressures must contain finite positive values'
+      ) from error
+    if not centerline_pressures:
+      centerline_pressures = (pressure,) * len(centerline)
+    if not outer_pressures:
+      outer_pressures = (pressure,) * len(outer)
+    if len(centerline_pressures) != len(centerline):
+      raise ValueError(
+        'centerline_total_pressure_Pa must match centerline_source_states'
+      )
+    if len(outer_pressures) != len(outer):
+      raise ValueError(
+        'outer_total_pressure_Pa must match outer_source_states'
+      )
+    if any(
+      not isfinite(value) or value <= 0.0
+      for value in (*centerline_pressures, *outer_pressures)
+    ):
+      raise ValueError(
+        'source-row total pressures must contain finite positive values'
+      )
     for name in (
       'target_centerline_y_m',
       'target_centerline_flow_angle_rad',
@@ -199,6 +232,12 @@ class MocReflectedDomainRemeshRequest:
     object.__setattr__(self, 'outer_source_states', outer)
     object.__setattr__(self, 'incoming_handoff', handoff)
     object.__setattr__(self, 'total_pressure_Pa', pressure)
+    object.__setattr__(
+      self,
+      'centerline_total_pressure_Pa',
+      centerline_pressures,
+    )
+    object.__setattr__(self, 'outer_total_pressure_Pa', outer_pressures)
     for name in (
       'target_centerline_y_m',
       'target_centerline_flow_angle_rad',
@@ -226,7 +265,25 @@ class MocReflectedDomainRemeshRequest:
 
   @property
   def source_model(self) -> str:
-    return 'explicit-reflected-domain-cauchy-remesh'
+    return (
+      'explicit-reflected-domain-variable-entropy-cauchy-remesh'
+      if self.variable_total_pressure
+      else 'explicit-reflected-domain-cauchy-remesh'
+    )
+  ####
+
+  @property
+  def variable_total_pressure(self) -> bool:
+    """Whether source-family pressure differs from the legacy scalar value."""
+
+    values = (
+      *self.centerline_total_pressure_Pa,
+      *self.outer_total_pressure_Pa,
+    )
+    return any(
+      not _pressure_matches(value, self.total_pressure_Pa, self.pressure_tolerance)
+      for value in values
+    )
   ####
 
   def as_report(self) -> dict[str, object]:
@@ -255,6 +312,9 @@ class MocReflectedDomainRemeshRequest:
       'outer_source_is_new_curve': True,
       'incoming_trace_reused_as_outer_source': False,
       'total_pressure_Pa': self.total_pressure_Pa,
+      'centerline_total_pressure_Pa': list(self.centerline_total_pressure_Pa),
+      'outer_total_pressure_Pa': list(self.outer_total_pressure_Pa),
+      'variable_total_pressure': self.variable_total_pressure,
       'incoming_handoff_sample_count': len(self.incoming_handoff),
       'target_centerline_y_m': self.target_centerline_y_m,
       'target_centerline_flow_angle_rad': self.target_centerline_flow_angle_rad,
@@ -265,7 +325,12 @@ class MocReflectedDomainRemeshRequest:
       'trace_forward_tolerance_m': self.trace_forward_tolerance_m,
       'invariant_tolerance': self.invariant_tolerance,
       'pressure_tolerance': self.pressure_tolerance,
-      'entropy_model': 'single-uniform-total-pressure-source-strip',
+      'entropy_model': (
+        'source-family-carried-total-pressure'
+        if self.variable_total_pressure
+        else 'single-uniform-total-pressure-source-strip'
+      ),
+      'nonuniform_entropy_data_carried': self.variable_total_pressure,
       'nonuniform_entropy_remesh_solved': False,
     }
   ####
@@ -595,6 +660,11 @@ def solve_reflected_domain_remesh(
       <= request.invariant_tolerance
       for state in centerline
     )
+    and _pressure_matches(
+      request.centerline_total_pressure_Pa[0],
+      anchor.total_pressure_Pa,
+      request.pressure_tolerance,
+    )
     and all(
       next_state.x_m > state.x_m + request.position_tolerance_m
       for state, next_state in zip(centerline, centerline[1:])
@@ -651,7 +721,7 @@ def solve_reflected_domain_remesh(
     )
     for sample in incoming
   )
-  if not incoming_pressure_uniform:
+  if not incoming_pressure_uniform and not request.variable_total_pressure:
     return _failure(
       MocReflectedDomainRemeshStatus.FIELD_FAILURE,
       request=request,
@@ -661,18 +731,28 @@ def solve_reflected_domain_remesh(
       centerline_source_verified=centerline_source_verified,
       outer_source_verified=outer_source_verified,
       message=(
-        'the scalar source-strip remesh requires one uniform total pressure; '
-        'nonuniform entropy transport needs a separate remesher'
+        'the uniform source-strip remesh requires one uniform total pressure; '
+        'provide source-row pressure data for variable-entropy transport'
       ),
     )
 
-  strip = assemble_source_characteristic_strip(
-    centerline,
-    outer,
-    request.total_pressure_Pa,
-    position_tolerance_m=request.position_tolerance_m,
-    invariant_tolerance=request.invariant_tolerance,
-  )
+  if request.variable_total_pressure:
+    strip = assemble_source_characteristic_strip_with_source_pressures(
+      centerline,
+      outer,
+      request.centerline_total_pressure_Pa,
+      request.outer_total_pressure_Pa,
+      position_tolerance_m=request.position_tolerance_m,
+      invariant_tolerance=request.invariant_tolerance,
+    )
+  else:
+    strip = assemble_source_characteristic_strip(
+      centerline,
+      outer,
+      request.total_pressure_Pa,
+      position_tolerance_m=request.position_tolerance_m,
+      invariant_tolerance=request.invariant_tolerance,
+    )
   if not strip.converged:
     return _failure(
       MocReflectedDomainRemeshStatus.FIELD_FAILURE,
@@ -693,6 +773,10 @@ def solve_reflected_domain_remesh(
     (first_centerline.x_m, first_centerline.y_m),
     position_tolerance_m=request.position_tolerance_m,
   )
+  sampled_total_pressure = strip.total_pressure_at(
+    (first_centerline.x_m, first_centerline.y_m),
+    position_tolerance_m=request.position_tolerance_m,
+  )
   source_field_verified = bool(
     isinstance(sampled_anchor, CharacteristicState)
     and _state_matches(
@@ -704,9 +788,12 @@ def solve_reflected_domain_remesh(
     and sampled_static_pressure is not None
     and isfinite(float(sampled_static_pressure))
     and sampled_static_pressure > 0.0
+    and sampled_total_pressure is not None
+    and isfinite(float(sampled_total_pressure))
+    and sampled_total_pressure > 0.0
     and _pressure_matches(
-      strip.total_pressure_Pa,
-      request.total_pressure_Pa,
+      sampled_total_pressure,
+      request.centerline_total_pressure_Pa[0],
       request.pressure_tolerance,
     )
   )
@@ -737,7 +824,7 @@ def solve_reflected_domain_remesh(
     source_field_verified=True,
     message=(
       'explicit reflected-domain Cauchy remesh converged as a bounded source '
-      'field; shock, nonuniform entropy, ambient closure, and promotion remain '
+      'field; shock-loss inference, ambient closure, and promotion remain '
       'separate gates'
     ),
   )

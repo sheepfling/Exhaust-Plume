@@ -325,6 +325,53 @@ def test_reflected_domain_remesh_exposes_a_bounded_physical_solver_source():
   assert report['upstream_coupling_verified'] is False
 
 
+def test_reflected_domain_remesh_carries_source_family_total_pressure():
+  _field, _patch, request = _request()
+  total_pressure = request.total_pressure_Pa
+  centerline_pressures = tuple(
+    total_pressure * (1.0 - 0.002 * index)
+    for index in range(len(request.centerline_source_states))
+  )
+  outer_pressures = tuple(
+    total_pressure * (0.99 - 0.0015 * index)
+    for index in range(len(request.outer_source_states))
+  )
+  variable_request = replace(
+    request,
+    centerline_total_pressure_Pa=centerline_pressures,
+    outer_total_pressure_Pa=outer_pressures,
+  )
+
+  result = solve_reflected_domain_remesh(variable_request)
+
+  assert result.converged
+  assert result.source_strip is not None
+  assert variable_request.variable_total_pressure
+  assert result.source_strip.total_pressure_model == 'source-family-carried-total-pressure'
+  assert result.source_strip.total_pressure_at(
+    (
+      variable_request.outer_source_states[3].x_m,
+      variable_request.outer_source_states[3].y_m,
+    )
+  ) == pytest.approx(outer_pressures[3])
+  assert all(
+    node.total_pressure_Pa == pytest.approx(
+      outer_pressures[node.boundary_index]
+    )
+    for node in result.source_strip.nodes
+  )
+  report = result.as_report()
+  assert report['request']['variable_total_pressure'] is True
+  assert report['request']['nonuniform_entropy_data_carried'] is True
+  assert report['request']['nonuniform_entropy_remesh_solved'] is False
+  assert report['physical_closure_verified'] is False
+  measurement = measure_moc_reflected_domain_remesh(result)
+  assert measurement.converged
+  assert measurement.total_pressure_verified
+  assert measurement.source_sampling_verified
+  assert measurement.production_claim_allowed is False
+
+
 def test_reflected_domain_ambient_closed_planner_connects_fresh_remeshes_to_physical_solver(
   monkeypatch: pytest.MonkeyPatch,
 ):

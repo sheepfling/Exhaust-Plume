@@ -1661,19 +1661,20 @@ lane. `MocReflectedDomainRemeshRequest` preserves the prior outgoing `C-`
 front as an exact reflection anchor and requires independently supplied
 centerline `C+` and new outer `C-` source data, so a one-characteristic front
 cannot be mistaken for a two-dimensional source boundary. The bounded field
-validates polarity, ordering, diagonal compatibility, and scalar total-
+validates polarity, ordering, diagonal compatibility, and source-row total-
 pressure continuity; its one-step and fresh-domain sequence planners record
 the fidelity ceiling and exact incoming-handoff provenance. The validation
 report exercises both the accepted remesh and the typed rejection of front
-reuse. Canonical alternating-family/free-boundary remeshing, nonuniform
-entropy transport, mixed-regime closure, refinement, and external validation
-remain open, and no product/provider lane consumes this result.
-An independent `op.moc.reflected-domain-remesh` measurement now rechecks the
-raw trace, polarity, reflection seam, source rows, scalar pressure lineage,
-mesh topology, and bounded state sampling. This strengthens the local audit
-without changing the result's research-only ceiling: physical closure,
-canonical mixed-regime continuation, and external validation are still the
-next gates.
+reuse. The bounded source field can now carry explicit, family-specific total
+pressure rows, but it still does not compute their shock/free-boundary source
+values. Canonical alternating-family/free-boundary remeshing, mixed-regime
+closure, refinement, and external validation remain open, and no
+product/provider lane consumes this result. An independent
+`op.moc.reflected-domain-remesh` measurement now rechecks the raw trace,
+polarity, reflection seam, source rows, source-family pressure lineage, mesh
+topology, and bounded state sampling. This strengthens the local audit without
+changing the result's research-only ceiling: physical closure, canonical
+mixed-regime continuation, and external validation are still the next gates.
 
 The same evidence artifact now includes an independent physical-field-chain
 audit, `op.moc.ambient-closed-physical-field-chain`. It remeasures each
@@ -1694,7 +1695,16 @@ exact prior centerline handoff in every remesh request and rejects reused
 remesh/source-strip identities before invoking the ambient-closed physical
 field solver. This is a stronger continued-shock-cell orchestration seam than
 the source-strip-only sequence, but it is still a research reference: the
-outer curve is caller-supplied Cauchy data, uniform total pressure is retained,
-and canonical reflected free-boundary closure, refinement, and external
-validation remain open. The existing basic visualization, reduced-order,
-signature, ray, and focal-plane-array providers remain untouched.
+outer curve is caller-supplied Cauchy data, source-row pressure data is
+explicitly supplied, and canonical reflected free-boundary closure,
+refinement, and external validation remain open. The existing basic
+visualization, reduced-order, signature, ray, and focal-plane-array providers
+remain untouched.
+
+The remesh also supports a variable-total-pressure source contract. Separate
+centerline `C+` and outer `C-` pressure rows are validated and carried into
+the bounded characteristic cells by `C-` family, preserving a nonuniform
+entropy lineage for later shock/ambient coupling. This is transport of
+solver-supplied pressure data, not a shock-loss or ambient free-boundary
+solve; the remesh remains open and non-promotable until those coupled
+conditions are solved and independently validated.

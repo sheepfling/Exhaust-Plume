@@ -707,5 +707,13 @@ remesh object, and a fresh source-strip fingerprint. Accepted remeshes are then
 passed to the ambient-pressure/centerline-reflection field solver, not the
 source-strip-only shock adapter. The planner records each remesh and solver
 attempt, but remains research-only: the outer curve is explicit Cauchy data,
-the remesh still uses a uniform-total-pressure model, canonical free-boundary
+the remesh requires explicit source-row pressure data, canonical free-boundary
 closure is false, and product providers are unchanged.
+
+The remesh now has a bounded variable-entropy transport path. Optional
+centerline and outer source total-pressure rows are retained at source samples
+and carried to each interior node by its `C-` family; the bounded sampler
+interpolates those values alongside the compatible state, and independent
+measurement rechecks the rows and samples. This closes pressure lineage inside
+an explicit Cauchy patch, but it does not compute shock entropy loss, infer the
+outer ambient curve, or authorize a canonical continued cell.

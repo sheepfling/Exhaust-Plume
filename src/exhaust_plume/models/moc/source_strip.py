@@ -13,7 +13,7 @@ does not infer a downstream boundary or physical termination.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from math import ceil, floor, isfinite, sqrt
 from collections.abc import Mapping, Sequence
@@ -50,6 +50,7 @@ __all__ = (
   'MocSourceCharacteristicStripResult',
   'MocSourceStripContinuationResult',
   'assemble_source_characteristic_strip',
+  'assemble_source_characteristic_strip_with_source_pressures',
   'assemble_source_characteristic_strip_window',
   'probe_source_strip_frontier',
   'remesh_source_strip_frontier',
@@ -475,7 +476,14 @@ class MocSourceStripContinuationStatus(str, Enum):
 
 @dataclass(frozen=True, slots=True)
 class MocSourceCharacteristicStripResult:
-  """A domain-bounded triangular source-boundary MOC field."""
+  """A domain-bounded triangular source-boundary MOC field.
+
+  ``total_pressure_Pa`` remains the legacy/reference pressure for callers
+  that provide a uniform isentropic strip.  The optional source-family arrays
+  carry a pressure lineage when the two source rows have different entropy.
+  They are propagated through the strip by the ``C-`` source family; they are
+  not inferred from an ambient boundary or a shock.
+  """
 
   status: MocSourceStripStatus
   plus_source_states: tuple[CharacteristicState, ...]
@@ -489,6 +497,9 @@ class MocSourceCharacteristicStripResult:
   message: str = ''
   source_window_start_index: int = 0
   source_window_total_count: int | None = None
+  plus_source_total_pressure_Pa: tuple[float, ...] = ()
+  minus_source_total_pressure_Pa: tuple[float, ...] = ()
+  node_total_pressure_Pa: tuple[float, ...] = ()
   _node_by_key: MappingProxyType = field(init=False, repr=False)
   _cell_bounds_m: tuple[tuple[float, float, float, float], ...] = field(
     init=False,
@@ -502,6 +513,35 @@ class MocSourceCharacteristicStripResult:
   def __post_init__(self) -> None:
     if not isfinite(float(self.total_pressure_Pa)) or self.total_pressure_Pa <= 0.0:
       raise ValueError('total_pressure_Pa must be finite and positive')
+    plus_pressures = _normalize_source_pressure_values(
+      self.plus_source_total_pressure_Pa,
+      len(self.plus_source_states),
+      self.total_pressure_Pa,
+      'plus_source_total_pressure_Pa',
+    )
+    minus_pressures = _normalize_source_pressure_values(
+      self.minus_source_total_pressure_Pa,
+      len(self.minus_source_states),
+      self.total_pressure_Pa,
+      'minus_source_total_pressure_Pa',
+    )
+    if self.node_total_pressure_Pa:
+      node_pressures = _normalize_source_pressure_values(
+        self.node_total_pressure_Pa,
+        len(self.nodes),
+        self.total_pressure_Pa,
+        'node_total_pressure_Pa',
+      )
+    else:
+      node_pressures = tuple(
+        minus_pressures[node.boundary_index]
+        if 0 <= node.boundary_index < len(minus_pressures)
+        else self.total_pressure_Pa
+        for node in self.nodes
+      )
+    object.__setattr__(self, 'plus_source_total_pressure_Pa', plus_pressures)
+    object.__setattr__(self, 'minus_source_total_pressure_Pa', minus_pressures)
+    object.__setattr__(self, 'node_total_pressure_Pa', node_pressures)
     if (
       isinstance(self.source_window_start_index, bool)
       or not isinstance(self.source_window_start_index, int)
@@ -622,6 +662,20 @@ class MocSourceCharacteristicStripResult:
     return self.source_window_start_index > 0
   ####
 
+  @property
+  def total_pressure_model(self) -> str:
+    """Describe whether the strip carries one or multiple pressure families."""
+
+    return (
+      'uniform-isentropic-source-strip'
+      if _source_pressures_are_uniform(
+        self.plus_source_total_pressure_Pa,
+        self.minus_source_total_pressure_Pa,
+      )
+      else 'source-family-carried-total-pressure'
+    )
+  ####
+
   def state_at(
     self,
     point_m: tuple[float, float],
@@ -705,12 +759,82 @@ class MocSourceCharacteristicStripResult:
     """Return the isentropic static pressure for a sampled strip state."""
 
     state = self.state_at(point_m, position_tolerance_m=position_tolerance_m)
-    if state is None:
+    total_pressure = self.total_pressure_at(
+      point_m,
+      position_tolerance_m=position_tolerance_m,
+    )
+    if state is None or total_pressure is None:
       return None
     pressure_ratio = (
       1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
     ) ** (state.gamma / (state.gamma - 1.0))
-    return self.total_pressure_Pa / pressure_ratio
+    return total_pressure / pressure_ratio
+  ####
+
+  def total_pressure_at(
+    self,
+    point_m: tuple[float, float],
+    *,
+    position_tolerance_m: float = 1.0e-10,
+  ) -> float | None:
+    """Return bounded total pressure carried by the source-family field."""
+
+    point = _finite_point(point_m, 'point_m')
+    if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
+      raise ValueError('position_tolerance_m must be finite and positive')
+    for state, pressure in zip(
+      self.plus_source_states,
+      self.plus_source_total_pressure_Pa,
+      strict=True,
+    ):
+      if _distance(point, (state.x_m, state.y_m)) <= position_tolerance_m:
+        return pressure
+    for state, pressure in zip(
+      self.minus_source_states,
+      self.minus_source_total_pressure_Pa,
+      strict=True,
+    ):
+      if _distance(point, (state.x_m, state.y_m)) <= position_tolerance_m:
+        return pressure
+    if not self._cell_bounds_m:
+      return None
+    bin_x = floor(
+      (point[0] - self._spatial_origin_m[0]) / self._spatial_bin_size_m
+    )
+    bin_y = floor(
+      (point[1] - self._spatial_origin_m[1]) / self._spatial_bin_size_m
+    )
+    candidate_indices: set[int] = set()
+    for candidate_x in range(bin_x - 1, bin_x + 2):
+      for candidate_y in range(bin_y - 1, bin_y + 2):
+        candidate_indices.update(self._cell_bins.get((candidate_x, candidate_y), ()))
+    for index in sorted(candidate_indices):
+      bounds = self._cell_bounds_m[index]
+      if (
+        point[0] < bounds[0] - position_tolerance_m
+        or point[0] > bounds[1] + position_tolerance_m
+        or point[1] < bounds[2] - position_tolerance_m
+        or point[1] > bounds[3] + position_tolerance_m
+      ):
+        continue
+      cell = self.cells[index]
+      samples = _cell_samples(self, cell, self._node_by_key)
+      pressures = _cell_pressure_samples(self, cell, self._node_by_key)
+      if samples is None or pressures is None:
+        continue
+      vertices, _states = samples
+      weights = _polygon_interpolation_weights(
+        point,
+        vertices,
+        tolerance_m=position_tolerance_m,
+      )
+      if weights is None:
+        continue
+      return sum(
+        weight * pressure
+        for weight, pressure in zip(weights, pressures, strict=True)
+      )
+    return None
   ####
 
   def as_report(self) -> dict[str, object]:
@@ -734,6 +858,17 @@ class MocSourceCharacteristicStripResult:
       'maximum_geometry_residual_m': self.maximum_geometry_residual_m,
       'maximum_absolute_invariant_residual': self.maximum_absolute_invariant_residual,
       'total_pressure_Pa': self.total_pressure_Pa,
+      'plus_source_total_pressure_Pa': list(self.plus_source_total_pressure_Pa),
+      'minus_source_total_pressure_Pa': list(self.minus_source_total_pressure_Pa),
+      'node_total_pressure_range_Pa': (
+        None
+        if not self.node_total_pressure_Pa
+        else (
+          min(self.node_total_pressure_Pa),
+          max(self.node_total_pressure_Pa),
+        )
+      ),
+      'total_pressure_model': self.total_pressure_model,
       'message': self.message,
     }
 ####
@@ -801,6 +936,37 @@ def _finite_point(point_m: tuple[float, float], name: str) -> tuple[float, float
   if len(point_m) != 2 or not all(isfinite(float(value)) for value in point_m):
     raise ValueError(f'{name} must contain two finite coordinates')
   return float(point_m[0]), float(point_m[1])
+
+
+def _normalize_source_pressure_values(
+  values: Sequence[float],
+  expected_count: int,
+  fallback: float,
+  name: str,
+) -> tuple[float, ...]:
+  """Normalize optional source pressure data without dropping its lineage."""
+
+  try:
+    normalized = tuple(float(value) for value in values)
+  except (TypeError, ValueError) as error:
+    raise ValueError(f'{name} must contain finite positive values') from error
+  if not normalized:
+    normalized = (float(fallback),) * expected_count
+  if len(normalized) != expected_count:
+    raise ValueError(
+      f'{name} must contain exactly {expected_count} values'
+    )
+  if any(not isfinite(value) or value <= 0.0 for value in normalized):
+    raise ValueError(f'{name} must contain finite positive values')
+  return normalized
+
+
+def _source_pressures_are_uniform(
+  plus_pressures: Sequence[float],
+  minus_pressures: Sequence[float],
+) -> bool:
+  values = tuple(float(value) for value in (*plus_pressures, *minus_pressures))
+  return not values or all(value == values[0] for value in values[1:])
 
 
 def _distance(first: tuple[float, float], second: tuple[float, float]) -> float:
@@ -2122,6 +2288,98 @@ def assemble_source_characteristic_strip(
 ####
 
 
+def assemble_source_characteristic_strip_with_source_pressures(
+  plus_source_states: Sequence[CharacteristicState],
+  minus_source_states: Sequence[CharacteristicState],
+  plus_source_total_pressure_Pa: Sequence[float],
+  minus_source_total_pressure_Pa: Sequence[float],
+  *,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  source_window_start_index: int = 0,
+  source_window_total_count: int | None = None,
+) -> MocSourceCharacteristicStripResult:
+  """Assemble a source strip while carrying family-specific total pressure.
+
+  Geometry and compatibility are solved by the same characteristic lattice as
+  :func:`assemble_source_characteristic_strip`.  The supplied ``C+`` and
+  ``C-`` pressure rows are then attached to the corresponding source samples;
+  each interior node inherits the pressure of its ``C-`` source family.  This
+  is the bounded isentropic transport step needed before a future shock or
+  ambient free-boundary solve can carry entropy through a continued cell.
+
+  The pressure rows are inputs, not a pressure-loss or free-boundary solve.
+  In particular, this function does not infer entropy from a shock, and a
+  result remains an open source field rather than a promotable physical cell.
+  """
+
+  plus = tuple(plus_source_states)
+  minus = tuple(minus_source_states)
+  try:
+    plus_pressures = _normalize_source_pressure_values(
+      plus_source_total_pressure_Pa,
+      len(plus),
+      1.0,
+      'plus_source_total_pressure_Pa',
+    )
+    minus_pressures = _normalize_source_pressure_values(
+      minus_source_total_pressure_Pa,
+      len(minus),
+      1.0,
+      'minus_source_total_pressure_Pa',
+    )
+  except ValueError as error:
+    return _failure(
+      MocSourceStripStatus.INVALID_INPUT,
+      plus,
+      minus,
+      total_pressure_Pa=1.0,
+      message=str(error),
+    )
+  base = assemble_source_characteristic_strip(
+    plus,
+    minus,
+    plus_pressures[0] if plus_pressures else 1.0,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+    source_window_start_index=source_window_start_index,
+    source_window_total_count=source_window_total_count,
+  )
+  if not base.converged:
+    return base
+  try:
+    node_pressures = tuple(
+      minus_pressures[node.boundary_index]
+      for node in base.nodes
+    )
+  except IndexError:
+    return _failure(
+      MocSourceStripStatus.INVALID_INPUT,
+      plus,
+      minus,
+      nodes=base.nodes,
+      cells=base.cells,
+      topology=base.topology,
+      maximum_geometry_residual_m=base.maximum_geometry_residual_m,
+      maximum_absolute_invariant_residual=base.maximum_absolute_invariant_residual,
+      total_pressure_Pa=plus_pressures[0],
+      message='source node boundary indices do not match the C- pressure row',
+    )
+  nodes = tuple(
+    replace(node, total_pressure_Pa=pressure)
+    for node, pressure in zip(base.nodes, node_pressures, strict=True)
+  )
+  return replace(
+    base,
+    nodes=nodes,
+    total_pressure_Pa=plus_pressures[0],
+    plus_source_total_pressure_Pa=plus_pressures,
+    minus_source_total_pressure_Pa=minus_pressures,
+    node_total_pressure_Pa=node_pressures,
+  )
+####
+
+
 def assemble_source_characteristic_strip_window(
   plus_source_states: Sequence[CharacteristicState],
   minus_source_states: Sequence[CharacteristicState],
@@ -2905,6 +3163,66 @@ def _cell_samples(
     return None
   resolved = tuple(sample for sample in samples if sample is not None)
   return tuple(cell.vertices_xr_m), tuple(sample[1] for sample in resolved)
+
+
+def _cell_pressure_samples(
+  strip: MocSourceCharacteristicStripResult,
+  cell: MocCharacteristicCell,
+  node_by_key: Mapping[tuple[int, int], MocCharacteristicNode],
+) -> tuple[float, ...] | None:
+  """Return total-pressure samples in the same order as ``_cell_samples``."""
+
+  def node_pressure(key: tuple[int, int]) -> float | None:
+    node = node_by_key.get(key)
+    if node is None:
+      return None
+    if node.total_pressure_Pa is not None:
+      return float(node.total_pressure_Pa)
+    for index, candidate in enumerate(strip.nodes):
+      if candidate is node or (
+        candidate.centerline_index == key[0]
+        and candidate.boundary_index == key[1]
+      ):
+        if index < len(strip.node_total_pressure_Pa):
+          return strip.node_total_pressure_Pa[index]
+        break
+    return None
+
+  if cell.cell_kind == 'source-axis-strip':
+    first, second = cell.centerline_indices
+    pressures = (
+      strip.plus_source_total_pressure_Pa[first]
+      if 0 <= first < len(strip.plus_source_total_pressure_Pa)
+      else None,
+      strip.plus_source_total_pressure_Pa[second]
+      if 0 <= second < len(strip.plus_source_total_pressure_Pa)
+      else None,
+      node_pressure((second, 0)),
+      node_pressure((first, 0)),
+    )
+  elif cell.cell_kind == 'source-interior':
+    row, next_row = cell.centerline_indices
+    column, next_column = cell.boundary_indices
+    pressures = (
+      node_pressure((row, column)),
+      node_pressure((next_row, column)),
+      node_pressure((next_row, next_column)),
+      node_pressure((row, next_column)),
+    )
+  elif cell.cell_kind == 'source-boundary-strip':
+    first, second = cell.boundary_indices
+    pressures = (
+      node_pressure((first, first)),
+      node_pressure((second, first)),
+      strip.minus_source_total_pressure_Pa[second]
+      if 0 <= second < len(strip.minus_source_total_pressure_Pa)
+      else None,
+    )
+  else:
+    return None
+  if any(pressure is None for pressure in pressures):
+    return None
+  return tuple(float(pressure) for pressure in pressures if pressure is not None)
 
 
 def _triangle_weights(
