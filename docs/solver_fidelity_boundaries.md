@@ -490,3 +490,14 @@ upstream sampler therefore returns a typed boundary stop instead of inventing
 or extrapolating states. This remains a prescribed-boundary diagnostic fixture
 with no canonical free-boundary, product-provider, or external-validation
 claim.
+
+The solver-generated reference lane adds the same boundary discipline to a
+repeated-cell planner. `MocBoundedUpstreamFieldSource` requires bounded,
+non-extrapolating state and static-pressure callbacks, while
+`MocSolverGeneratedAmbientClosedPostShockChainReference` advances only after
+the existing attached-shock/ambient/centerline physical field is completely
+accepted. The default source wraps the preceding finite field and therefore
+ends with `UPSTREAM_FIELD_BOUNDARY`; a uniform source callback is a named
+multi-cell plumbing fixture, not reflected upstream coupling. This lane stays
+research-only until a reflected/free-boundary remesher, mixed-regime handoff,
+refinement evidence, and independent external validation are available.

@@ -22,6 +22,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocAmbientAxisClosureStatus,
   MocAmbientAxisClosureShootStatus,
   MocAmbientPhysicalFieldStatus,
+  MocBoundedUpstreamFieldSource,
   MocMixedRegimeBoundaryStatus,
   MocMixedRegimeControlSection,
   MocMixedRegimeDownstreamConditionKind,
@@ -40,6 +41,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocPrescribedAmbientClosedPostShockChainMock,
   MocAmbientClosedPostShockChainCandidate,
   MocSolverGeneratedPostShockChainReference,
+  MocSolverGeneratedAmbientClosedPostShockChainReference,
   MocFieldCoupledPostShockChainReference,
   MocReflectedCharacteristicZoneResult,
   MocChainBoundaryKind,
@@ -73,6 +75,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   plan_ambient_closed_post_shock_chain_terminal_patch_mock,
   plan_post_shock_characteristic_chain,
   plan_field_coupled_post_shock_chain_reference,
+  plan_solver_generated_ambient_closed_post_shock_chain_reference,
   plan_post_shock_field_invariant_chain,
   plan_post_shock_zone_chain,
   plan_source_strip_shock_chain,
@@ -680,6 +683,8 @@ def _ambient_shock_strip_probe(
   ambient_centerline_physical_chain_probe_accepted = False
   ambient_centerline_physical_chain_mock = None
   ambient_centerline_physical_chain_mock_accepted = False
+  ambient_centerline_physical_generated_chain = None
+  ambient_centerline_physical_generated_chain_accepted = False
   ambient_centerline_physical_terminal_patch_planner = None
   ambient_centerline_physical_terminal_patch_planner_accepted = False
   ambient_centerline_physical_terminal_patch_mixed_regime_planner = None
@@ -796,6 +801,65 @@ def _ambient_shock_strip_probe(
       and prescribed_physical_chain_planner.diagnostics[
         'prescribed_ambient_closed_chain_mock'
       ]['physical_chain_promotion_allowed'] is False
+    )
+    generated_chain_source = MocBoundedUpstreamFieldSource(
+      state_at=lambda point: replace(
+        upstream_reference,
+        x_m=point[0],
+        y_m=point[1],
+      ),
+      static_pressure_at=lambda _point: upstream_reference_pressure,
+      model='uniform-upstream-reference-source',
+      domain_x_extent_m=(0.0, 10.0),
+      domain_y_extent_m=(0.0, shock_start_y_m),
+    )
+    generated_chain_reference = (
+      MocSolverGeneratedAmbientClosedPostShockChainReference(
+        total_cell_count=3,
+        cell_axial_length_m=0.4,
+        shock_start_offset_m=0.02,
+        shock_start_y_m=shock_start_y_m,
+        ambient_pressure_Pa=ambient_pressure,
+        outer_downstream_flow_angle_lower_rad=0.02,
+        outer_downstream_flow_angle_upper_rad=0.12,
+        sample_count=9,
+        upstream_source_provider=lambda *_args: generated_chain_source,
+      )
+    )
+    generated_chain_planner = (
+      plan_solver_generated_ambient_closed_post_shock_chain_reference(
+        physical_field,
+        start_x_m=shock_fit.boundary_states[0].point_m[0],
+        end_x_m=seed_end_x_m,
+        reference=generated_chain_reference,
+        policy=MocChainContinuationPolicy(
+          max_cells=4,
+          require_state_carry=True,
+        ),
+      )
+    )
+    ambient_centerline_physical_generated_chain = generated_chain_planner.as_report()
+    ambient_centerline_physical_generated_chain_accepted = (
+      generated_chain_planner.planner_kind
+      is MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
+      and generated_chain_planner.production_claim_allowed is False
+      and generated_chain_planner.chain.resolved
+      and generated_chain_planner.chain.cell_count == 3
+      and generated_chain_planner.chain.termination_reason
+      is MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL
+      and generated_chain_planner.chain.physical_termination is False
+      and generated_chain_planner.handoff_links_verified is True
+      and [step.result_kind for step in generated_chain_planner.steps] == [
+        'physical-field-solve-returned',
+        'physical-field-solve-returned',
+        'termination-returned',
+      ]
+      and generated_chain_planner.diagnostics[
+        'solver_generated_ambient_closed_chain_reference'
+      ]['physical_chain_promotion_allowed'] is False
+      and generated_chain_planner.diagnostics[
+        'solver_generated_ambient_closed_chain_reference'
+      ]['upstream_source_model'] == 'callback-supplied-bounded-source'
     )
     terminal_patch_planner = plan_ambient_closed_post_shock_chain_terminal_patch(
       physical_field,
@@ -1180,6 +1244,12 @@ def _ambient_shock_strip_probe(
     ),
     'ambient_centerline_physical_chain_mock_accepted': (
       ambient_centerline_physical_chain_mock_accepted
+    ),
+    'ambient_centerline_physical_generated_chain': (
+      ambient_centerline_physical_generated_chain
+    ),
+    'ambient_centerline_physical_generated_chain_accepted': (
+      ambient_centerline_physical_generated_chain_accepted
     ),
     'ambient_centerline_physical_terminal_patch_planner': (
       ambient_centerline_physical_terminal_patch_planner
@@ -5604,6 +5674,12 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'ambient_centerline_physical_chain_mock_accepted'
     ) is not True
   )
+  ambient_centerline_physical_generated_chain_failure = (
+    ambient_shock_strip_probe.get('accepted') is True
+    and ambient_shock_strip_probe.get(
+      'ambient_centerline_physical_generated_chain_accepted'
+    ) is not True
+  )
   ambient_centerline_physical_terminal_patch_failure = (
     ambient_shock_strip_probe.get('accepted') is True
     and ambient_shock_strip_probe.get(
@@ -7126,6 +7202,23 @@ def build_moc_primitive_report() -> dict[str, Any]:
         ),
       }
     ] if ambient_centerline_physical_chain_mock_failure else []),
+    *([
+      {
+        'case': 'solver_generated_ambient_centerline_physical_chain_reference',
+        'status': str(
+          ambient_shock_strip_probe.get(
+            'ambient_centerline_physical_generated_chain',
+            {},
+          ).get('chain', {}).get('termination_reason', 'missing')
+        ),
+        'message': str(
+          ambient_shock_strip_probe.get(
+            'ambient_centerline_physical_generated_chain',
+            {},
+          ).get('chain', {}).get('message', '')
+        ),
+      }
+    ] if ambient_centerline_physical_generated_chain_failure else []),
     *([
       {
         'case': 'solver_generated_ambient_centerline_physical_terminal_patch',

@@ -10,6 +10,7 @@ from exhaust_plume.models.moc import (
   CharacteristicFamily,
   MocAmbientClosedPostShockChainCandidate,
   MocAmbientBoundarySample,
+  MocBoundedUpstreamFieldSource,
   MocChainContinuationPolicy,
   MocChainPlannerKind,
   MocChainTerminationDecision,
@@ -22,6 +23,7 @@ from exhaust_plume.models.moc import (
   MocPhysicalPostShockTerminalPatchTransitionResult,
   MocPrescribedMixedRegimeClosureMock,
   MocPrescribedAmbientClosedPostShockChainMock,
+  MocSolverGeneratedAmbientClosedPostShockChainReference,
   MocPostShockBoundaryState,
   MocPrimitiveStatus,
   MocShockBoundaryFitResult,
@@ -34,12 +36,14 @@ from exhaust_plume.models.moc import (
   continue_ambient_closed_post_shock_chain,
   march_post_shock_ambient_boundary,
   plan_ambient_closed_post_shock_chain,
+  plan_solver_generated_ambient_closed_post_shock_chain_reference,
   plan_prescribed_ambient_closed_post_shock_chain_mock,
   plan_ambient_closed_post_shock_chain_terminal_patch,
   plan_ambient_closed_post_shock_chain_terminal_patch_mock,
   plan_ambient_closed_post_shock_chain_terminal_patch_reference,
   solve_marched_attached_shock_field,
   solve_marched_attached_shock_with_ambient_centerline_physical_field,
+  solve_uniform_attached_shock_field,
   solve_ambient_closed_post_shock_chain_cell_from_physical_field_terminal_patch_or_termination,
   solve_ambient_closed_post_shock_chain_cell_from_candidate_or_termination,
   solve_ambient_closed_post_shock_terminal_patch_transition,
@@ -848,6 +852,131 @@ def test_prescribed_ambient_closed_chain_mock_records_candidate_and_typed_stop()
   assert report['diagnostics']['upstream_field_replacement_policy'] == (
     'replace-only-after-complete-ambient-closed-physical-field-solve'
   )
+
+
+def test_generated_ambient_closed_chain_reference_preserves_bounded_field_stop() -> None:
+  field = _canonical_ambient_closed_field()
+  mesh_points = tuple(
+    point
+    for cell in field.cells
+    for point in cell.vertices_xr_m
+  )
+  field_end_x_m = max(point[0] for point in mesh_points)
+  reference = MocSolverGeneratedAmbientClosedPostShockChainReference(
+    total_cell_count=2,
+    shock_start_y_m=0.5,
+    ambient_pressure_Pa=101325.0,
+  )
+
+  planner = plan_solver_generated_ambient_closed_post_shock_chain_reference(
+    field,
+    start_x_m=0.5,
+    end_x_m=field_end_x_m,
+    reference=reference,
+    policy=MocChainContinuationPolicy(max_cells=2),
+  )
+
+  assert planner.planner_kind is MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
+  assert planner.production_claim_allowed is False
+  assert planner.chain.resolved
+  assert planner.chain.cell_count == 1
+  assert planner.chain.termination_reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+  assert planner.steps[0].result_kind == 'termination-returned'
+  assert planner.steps[0].result_termination_reason is (
+    MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+  )
+  diagnostics = planner.chain.diagnostics
+  assert diagnostics['first_missing_sample_index'] == 0
+  source = diagnostics['upstream_source']
+  assert source['model'] == 'bounded-ambient-closed-physical-field'
+  assert source['extrapolation_allowed'] is False
+  assert planner.diagnostics['source_provider_policy'] == (
+    'bounded-callback-source-or-previous-field; no extrapolation'
+  )
+
+
+def test_generated_ambient_closed_chain_reference_re_solves_explicit_reference_cells() -> None:
+  seed = _canonical_ambient_closed_field()
+  uniform_upstream = CharacteristicState(
+    x_m=0.5,
+    y_m=0.5,
+    theta_rad=-0.2,
+    mach=2.0,
+    gamma=1.4,
+  )
+  uniform_shock = solve_uniform_attached_shock_field(
+    uniform_upstream,
+    100000.0,
+    (0.5, 0.5),
+    outer_downstream_flow_angle_rad=0.05,
+    sample_count=17,
+  )
+  assert uniform_shock.shock_fit is not None
+  first = uniform_shock.shock_fit.boundary_states[0]
+  ambient_pressure = first.downstream_total_pressure_Pa / (
+    1.0 + 0.5 * (first.state.gamma - 1.0) * first.state.mach**2
+  ) ** (first.state.gamma / (first.state.gamma - 1.0))
+  source = MocBoundedUpstreamFieldSource(
+    state_at=lambda point: replace(
+      uniform_upstream,
+      x_m=point[0],
+      y_m=point[1],
+    ),
+    static_pressure_at=lambda _point: 100000.0,
+    model='uniform-reference-upstream-source',
+    domain_x_extent_m=(0.0, 10.0),
+    domain_y_extent_m=(0.0, 0.5),
+  )
+  seen_sources = []
+
+  def source_provider(current_field, current, next_index, incoming_handoff):
+    seen_sources.append((current_field, current.cell_index, next_index, incoming_handoff))
+    return source
+
+  reference = MocSolverGeneratedAmbientClosedPostShockChainReference(
+    total_cell_count=3,
+    cell_axial_length_m=0.4,
+    shock_start_offset_m=0.02,
+    shock_start_y_m=0.5,
+    ambient_pressure_Pa=ambient_pressure,
+    outer_downstream_flow_angle_lower_rad=0.02,
+    outer_downstream_flow_angle_upper_rad=0.12,
+    sample_count=9,
+    upstream_source_provider=source_provider,
+  )
+  planner = plan_solver_generated_ambient_closed_post_shock_chain_reference(
+    seed,
+    start_x_m=0.5,
+    end_x_m=0.51,
+    reference=reference,
+    policy=MocChainContinuationPolicy(max_cells=4),
+  )
+
+  assert planner.resolved
+  assert planner.chain.cell_count == 3
+  assert planner.chain.termination_reason is MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL
+  assert [step.result_kind for step in planner.steps] == [
+    'physical-field-solve-returned',
+    'physical-field-solve-returned',
+    'termination-returned',
+  ]
+  assert planner.handoff_links_verified is True
+  assert len(seen_sources) == 2
+  assert seen_sources[0][0] is seed
+  assert seen_sources[1][0] is not seed
+  assert all(cell.resolved for cell in planner.chain.cells)
+  assert all(
+    cell.physical_closure.value == 'closed'
+    and cell.geometry_fidelity.value == 'resolved-planar-moc'
+    for cell in planner.chain.cells
+  )
+  reference_report = planner.diagnostics[
+    'solver_generated_ambient_closed_chain_reference'
+  ]
+  assert reference_report['upstream_source_model'] == (
+    'callback-supplied-bounded-source'
+  )
+  assert reference_report['physical_chain_promotion_allowed'] is False
 
 
 def test_ambient_closed_physical_field_sampling_is_bounded_and_state_carrying() -> None:

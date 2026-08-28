@@ -102,9 +102,12 @@ from exhaust_plume.models.moc.terminal_patch_solver import (
   solve_marched_attached_shock_chain_cell_from_terminal_reflection_patch_or_termination,
 )
 from exhaust_plume.models.moc.coupled import (
+  MocAmbientPhysicalFieldStatus,
+  solve_marched_attached_shock_with_ambient_centerline_physical_field,
   solve_marched_attached_shock_chain_cell_with_ambient_pressure_closure_or_termination,
 )
 from exhaust_plume.models.moc.free_boundary import (
+  MocFreeBoundaryShockStatus,
   solve_marched_attached_shock_chain_cell,
   solve_marched_attached_shock_from_caustic_upstream_bridge,
   solve_marched_attached_shock_from_caustic_upstream_bridge_with_invariant_boundary,
@@ -132,6 +135,8 @@ __all__ = (
   'MocPrescribedPostShockChainMock',
   'MocSolverGeneratedPostShockChainReference',
   'MocFieldCoupledPostShockChainReference',
+  'MocBoundedUpstreamFieldSource',
+  'MocSolverGeneratedAmbientClosedPostShockChainReference',
   'MocPrescribedAmbientClosedPostShockChainMock',
   'MocPhysicalPostShockTerminalPatchPlannerResult',
   'plan_moc_chain',
@@ -143,6 +148,7 @@ __all__ = (
   'plan_prescribed_post_shock_chain_mock',
   'plan_solver_generated_post_shock_chain_reference',
   'plan_field_coupled_post_shock_chain_reference',
+  'plan_solver_generated_ambient_closed_post_shock_chain_reference',
   'plan_prescribed_ambient_closed_post_shock_chain_mock',
   'plan_terminal_reflection_patch_chain',
   'plan_post_shock_zone_chain',
@@ -2545,6 +2551,505 @@ class MocFieldCoupledPostShockChainReference:
       sample_count=self.sample_count,
       branch=self.branch,
     )
+
+
+@dataclass(frozen=True, slots=True)
+class MocBoundedUpstreamFieldSource:
+  """Bounded state/pressure callbacks for a solver-owned next-cell solve.
+
+  The source is deliberately smaller than a closed physical field.  A future
+  reflected-domain remesher or new-characteristic-family solver can expose its
+  finite state domain through this object without pretending that the source
+  is already a closed shock cell.  Every callback remains domain-bounded: it
+  must return ``None`` outside the solved source domain rather than extrapolate
+  a last state.
+  """
+
+  state_at: Callable[[tuple[float, float]], CharacteristicState | None]
+  static_pressure_at: Callable[[tuple[float, float]], float | None]
+  model: str
+  domain_x_extent_m: tuple[float, float] | None = None
+  domain_y_extent_m: tuple[float, float] | None = None
+  upstream_coupling_verified: bool = False
+
+  def __post_init__(self) -> None:
+    if not callable(self.state_at) or not callable(self.static_pressure_at):
+      raise TypeError('bounded upstream source callbacks must be callable')
+    model = str(self.model)
+    if not model:
+      raise ValueError('model must be a non-empty string')
+    object.__setattr__(self, 'model', model)
+    if not isinstance(self.upstream_coupling_verified, bool):
+      raise TypeError('upstream_coupling_verified must be a bool')
+    for name in ('domain_x_extent_m', 'domain_y_extent_m'):
+      extent = getattr(self, name)
+      if extent is None:
+        continue
+      try:
+        normalized = (float(extent[0]), float(extent[1]))
+      except (IndexError, TypeError, ValueError) as error:
+        raise ValueError(f'{name} must contain two finite coordinates') from error
+      if (
+        not all(isfinite(value) for value in normalized)
+        or normalized[1] < normalized[0]
+      ):
+        raise ValueError(f'{name} must contain an ordered finite extent')
+      object.__setattr__(self, name, normalized)
+  ####
+
+  @classmethod
+  def from_physical_field(
+    cls,
+    field: MocPhysicalPostShockFieldResult,
+  ) -> 'MocBoundedUpstreamFieldSource':
+    """Expose an accepted physical field as a finite source-domain adapter."""
+
+    if not isinstance(field, MocPhysicalPostShockFieldResult):
+      raise TypeError('field must be a MocPhysicalPostShockFieldResult')
+    points = tuple(
+      point
+      for cell in field.cells
+      for point in cell.vertices_xr_m
+    )
+    x_extent = None
+    y_extent = None
+    if points:
+      x_extent = (min(point[0] for point in points), max(point[0] for point in points))
+      y_extent = (min(point[1] for point in points), max(point[1] for point in points))
+    return cls(
+      state_at=lambda point, field=field: field.state_at(point),
+      static_pressure_at=lambda point, field=field: field.static_pressure_at(point),
+      model='bounded-ambient-closed-physical-field',
+      domain_x_extent_m=x_extent,
+      domain_y_extent_m=y_extent,
+      upstream_coupling_verified=field.upstream_shock_coupling_verified,
+    )
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    """Serialize source provenance without serializing callback objects."""
+
+    return {
+      'model': self.model,
+      'state_sampling_available': True,
+      'upstream_coupling_verified': self.upstream_coupling_verified,
+      'domain_x_extent_m': self.domain_x_extent_m,
+      'domain_y_extent_m': self.domain_y_extent_m,
+      'extrapolation_allowed': False,
+    }
+  ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocSolverGeneratedAmbientClosedPostShockChainReference:
+  """Research planner for repeated solver-generated physical cells.
+
+  The planner owns the repeated call to the ambient-attachment and explicit
+  centerline-reflection physical-field solver.  It does not own the missing
+  downstream upstream-domain solve: ``upstream_source_provider`` must return
+  a bounded source produced by a reflected-domain remesher, new-family
+  continuation, or an explicitly named reference fixture.  When omitted, the
+  prior closed field is used as the source, so a finite-domain miss becomes a
+  typed ``UPSTREAM_FIELD_BOUNDARY`` stop.
+
+  A returned field replaces the active chain source only after all physical
+  field gates and the exact incoming centerline handoff pass.  This is a
+  continuation/research lane and cannot authorize a product-provider claim.
+  """
+
+  total_cell_count: int = 3
+  cell_axial_length_m: float = 0.40
+  shock_start_offset_m: float = 0.02
+  shock_start_y_m: float = 0.50
+  target_centerline_y_m: float = 0.0
+  target_centerline_flow_angle_rad: float = 0.0
+  ambient_pressure_Pa: float = 101325.0
+  outer_downstream_flow_angle_lower_rad: float = 0.02
+  outer_downstream_flow_angle_upper_rad: float = 0.12
+  sample_count: int = 9
+  branch: ShockBranch = ShockBranch.WEAK
+  position_tolerance_m: float = 1.0e-10
+  invariant_tolerance: float = 1.0e-10
+  attachment_pressure_tolerance: float = 1.0e-8
+  pressure_tolerance: float = 1.0e-8
+  tangent_tolerance: float = 1.0e-8
+  shock_angle_tolerance_rad: float = 1.0e-2
+  maximum_segment_iterations: int = 24
+  maximum_boundary_iterations: int = 16
+  maximum_shooting_iterations: int = 40
+  upstream_source_provider: Callable[
+    [
+      MocPhysicalPostShockFieldResult,
+      MocChainCell,
+      int,
+      tuple[MocChainBoundarySample, ...],
+    ],
+    MocBoundedUpstreamFieldSource | MocChainTerminationDecision | None,
+  ] | None = None
+  model: str = 'solver-generated-ambient-closed-post-shock-chain-reference'
+
+  def __post_init__(self) -> None:
+    if (
+      isinstance(self.total_cell_count, bool)
+      or not isinstance(self.total_cell_count, int)
+      or self.total_cell_count < 1
+    ):
+      raise ValueError('total_cell_count must be a positive integer')
+    if (
+      isinstance(self.sample_count, bool)
+      or not isinstance(self.sample_count, int)
+      or self.sample_count < 3
+    ):
+      raise ValueError('sample_count must be an integer of at least three')
+    if not isinstance(self.branch, ShockBranch):
+      raise TypeError('branch must be a ShockBranch')
+    for name in (
+      'cell_axial_length_m',
+      'shock_start_offset_m',
+      'shock_start_y_m',
+      'target_centerline_y_m',
+      'target_centerline_flow_angle_rad',
+      'ambient_pressure_Pa',
+      'outer_downstream_flow_angle_lower_rad',
+      'outer_downstream_flow_angle_upper_rad',
+      'position_tolerance_m',
+      'invariant_tolerance',
+      'attachment_pressure_tolerance',
+      'pressure_tolerance',
+      'tangent_tolerance',
+      'shock_angle_tolerance_rad',
+    ):
+      value = float(getattr(self, name))
+      if not isfinite(value):
+        raise ValueError(f'{name} must be finite')
+      object.__setattr__(self, name, value)
+    if self.cell_axial_length_m <= 0.0:
+      raise ValueError('cell_axial_length_m must be finite and positive')
+    if self.shock_start_offset_m <= 0.0:
+      raise ValueError('shock_start_offset_m must be finite and positive')
+    if self.shock_start_y_m <= self.target_centerline_y_m:
+      raise ValueError('shock_start_y_m must be above target_centerline_y_m')
+    if self.ambient_pressure_Pa <= 0.0:
+      raise ValueError('ambient_pressure_Pa must be finite and positive')
+    if self.outer_downstream_flow_angle_lower_rad >= self.outer_downstream_flow_angle_upper_rad:
+      raise ValueError(
+        'outer downstream flow-angle lower bound must be below its upper bound'
+      )
+    for name in (
+      'position_tolerance_m',
+      'invariant_tolerance',
+      'attachment_pressure_tolerance',
+      'pressure_tolerance',
+      'tangent_tolerance',
+      'shock_angle_tolerance_rad',
+    ):
+      if getattr(self, name) <= 0.0:
+        raise ValueError(f'{name} must be finite and positive')
+    for name in (
+      'maximum_segment_iterations',
+      'maximum_boundary_iterations',
+      'maximum_shooting_iterations',
+    ):
+      value = getattr(self, name)
+      if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError(f'{name} must be a positive integer')
+    if self.upstream_source_provider is not None and not callable(
+      self.upstream_source_provider
+    ):
+      raise TypeError('upstream_source_provider must be callable when supplied')
+    model = str(self.model)
+    if not model:
+      raise ValueError('model must be a non-empty string')
+    object.__setattr__(self, 'model', model)
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    """Return the reference controls and its explicit fidelity ceiling."""
+
+    return {
+      'model': self.model,
+      'planning_only': True,
+      'production_claim_allowed': False,
+      'physical_chain_promotion_allowed': False,
+      'free_boundary_verified': False,
+      'total_cell_count_including_seed': self.total_cell_count,
+      'cell_axial_length_m': self.cell_axial_length_m,
+      'shock_start_offset_m': self.shock_start_offset_m,
+      'shock_start_y_m': self.shock_start_y_m,
+      'target_centerline_y_m': self.target_centerline_y_m,
+      'target_centerline_flow_angle_rad': self.target_centerline_flow_angle_rad,
+      'ambient_pressure_Pa': self.ambient_pressure_Pa,
+      'outer_downstream_flow_angle_bracket': (
+        self.outer_downstream_flow_angle_lower_rad,
+        self.outer_downstream_flow_angle_upper_rad,
+      ),
+      'sample_count': self.sample_count,
+      'branch': self.branch.value,
+      'position_tolerance_m': self.position_tolerance_m,
+      'invariant_tolerance': self.invariant_tolerance,
+      'attachment_pressure_tolerance': self.attachment_pressure_tolerance,
+      'pressure_tolerance': self.pressure_tolerance,
+      'tangent_tolerance': self.tangent_tolerance,
+      'shock_angle_tolerance_rad': self.shock_angle_tolerance_rad,
+      'upstream_source_model': (
+        'callback-supplied-bounded-source'
+        if self.upstream_source_provider is not None
+        else 'bounded-previous-ambient-closed-physical-field'
+      ),
+      'upstream_source_contract': (
+        'finite-state-pressure-callbacks; no extrapolation; exact handoff '
+        'provided to source provider'
+      ),
+      'downstream_condition_model': (
+        'ambient-attachment-shoot-plus-centerline-reflection'
+      ),
+      'claim_status': (
+        'solver-generated-ambient-closed-chain-reference; reflected-upstream-'
+        'remesher-and-external-validation-pending'
+      ),
+    }
+  ####
+
+  def start_point_at(
+    self,
+    current: MocChainCell,
+    _next_cell_index: int,
+  ) -> tuple[float, float]:
+    """Return the explicit local shock-start location for the next cell."""
+
+    return (
+      current.end_x_m + self.shock_start_offset_m,
+      self.shock_start_y_m,
+    )
+  ####
+
+  def end_x_at(
+    self,
+    current: MocChainCell,
+    _next_cell_index: int,
+  ) -> float:
+    """Return the bookkeeping endpoint for one generated reference cell."""
+
+    return current.end_x_m + self.cell_axial_length_m
+  ####
+
+  def _source_for(
+    self,
+    current_field: MocPhysicalPostShockFieldResult,
+    current: MocChainCell,
+    next_cell_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+  ) -> MocBoundedUpstreamFieldSource | MocChainTerminationDecision | None:
+    if self.upstream_source_provider is None:
+      return MocBoundedUpstreamFieldSource.from_physical_field(current_field)
+    return self.upstream_source_provider(
+      current_field,
+      current,
+      next_cell_index,
+      incoming_handoff,
+    )
+  ####
+
+  def solve_next(
+    self,
+    current: MocChainCell,
+    next_cell_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+    current_field: MocPhysicalPostShockFieldResult,
+  ) -> MocPhysicalPostShockFieldContinuationSolve | MocChainTerminationDecision:
+    """Solve one generated physical cell or return a typed non-physical stop."""
+
+    if not isinstance(current, MocChainCell):
+      raise TypeError('current must be a MocChainCell')
+    if (
+      isinstance(next_cell_index, bool)
+      or not isinstance(next_cell_index, int)
+      or next_cell_index != current.cell_index + 1
+    ):
+      raise ValueError('next_cell_index must immediately follow current.cell_index')
+    if not isinstance(current_field, MocPhysicalPostShockFieldResult):
+      raise TypeError(
+        'current_field must be a MocPhysicalPostShockFieldResult'
+      )
+    handoff = tuple(incoming_handoff)
+    if handoff != current.continuation_boundary:
+      raise ValueError(
+        'incoming_handoff must exactly match current.continuation_boundary'
+      )
+    if next_cell_index > self.total_cell_count:
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
+        message=(
+          'solver-generated ambient-closed chain reference exhausted its '
+          f'{self.total_cell_count}-cell fixture'
+        ),
+      )
+
+    start = self.start_point_at(current, next_cell_index)
+    end_x = self.end_x_at(current, next_cell_index)
+    diagnostics: dict[str, Any] = {
+      'continuation_model': self.model,
+      'next_cell_index': next_cell_index,
+      'start_point_m': start,
+      'end_x_m': end_x,
+      'incoming_handoff_sample_count': len(handoff),
+      'incoming_handoff_fingerprint': _handoff_fingerprint(handoff),
+    }
+
+    def decision(
+      reason: MocChainTerminationReason,
+      message: str,
+      extra: dict[str, Any] | None = None,
+    ) -> MocChainTerminationDecision:
+      payload = dict(diagnostics)
+      if extra is not None:
+        payload.update(extra)
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=reason,
+        message=message,
+        diagnostics=payload,
+      )
+
+    try:
+      source = self._source_for(
+        current_field,
+        current,
+        next_cell_index,
+        handoff,
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      return decision(
+        MocChainTerminationReason.SOLVER_ERROR,
+        f'bounded upstream source provider failed: {error}',
+        {'source_provider_error': type(error).__name__},
+      )
+    if isinstance(source, MocChainTerminationDecision):
+      return source
+    if source is None:
+      return decision(
+        MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
+        'upstream source provider returned no bounded next-cell field',
+        {'source_provider_returned': None},
+      )
+    if not isinstance(source, MocBoundedUpstreamFieldSource):
+      return decision(
+        MocChainTerminationReason.INVALID_INPUT,
+        'upstream source provider must return MocBoundedUpstreamFieldSource, '
+        'MocChainTerminationDecision, or None',
+        {'source_provider_returned_type': type(source).__name__},
+      )
+    diagnostics['upstream_source'] = source.as_report()
+
+    try:
+      start_state = source.state_at(start)
+      start_pressure = source.static_pressure_at(start)
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      return decision(
+        MocChainTerminationReason.SOLVER_ERROR,
+        f'bounded upstream source failed at shock start: {error}',
+        {'source_callback_error': type(error).__name__},
+      )
+    if start_state is None or start_pressure is None:
+      return decision(
+        MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
+        'next-cell shock start is outside the bounded upstream source; no extrapolation was performed',
+        {
+          'first_missing_sample_index': 0,
+          'candidate_point_m': start,
+        },
+      )
+    if (
+      not isinstance(start_state, CharacteristicState)
+      or abs(start_state.x_m - start[0]) > self.position_tolerance_m
+      or abs(start_state.y_m - start[1]) > self.position_tolerance_m
+      or not isfinite(float(start_pressure))
+      or float(start_pressure) <= 0.0
+    ):
+      return decision(
+        MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
+        'bounded upstream source returned an invalid shock-start state or pressure',
+        {'candidate_point_m': start},
+      )
+
+    try:
+      result = solve_marched_attached_shock_with_ambient_centerline_physical_field(
+        source.state_at,
+        source.static_pressure_at,
+        start,
+        self.ambient_pressure_Pa,
+        self.outer_downstream_flow_angle_lower_rad,
+        self.outer_downstream_flow_angle_upper_rad,
+        target_centerline_y_m=self.target_centerline_y_m,
+        target_centerline_flow_angle_rad=self.target_centerline_flow_angle_rad,
+        incoming_handoff=handoff,
+        sample_count=self.sample_count,
+        branch=self.branch,
+        position_tolerance_m=self.position_tolerance_m,
+        invariant_tolerance=self.invariant_tolerance,
+        attachment_pressure_tolerance=self.attachment_pressure_tolerance,
+        pressure_tolerance=self.pressure_tolerance,
+        tangent_tolerance=self.tangent_tolerance,
+        shock_angle_tolerance_rad=self.shock_angle_tolerance_rad,
+        maximum_segment_iterations=self.maximum_segment_iterations,
+        maximum_boundary_iterations=self.maximum_boundary_iterations,
+        maximum_shooting_iterations=self.maximum_shooting_iterations,
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      return decision(
+        MocChainTerminationReason.SOLVER_ERROR,
+        f'ambient-closed physical next-cell solve raised: {error}',
+        {'solver_error': type(error).__name__},
+      )
+    diagnostics['ambient_physical_field_result'] = result.as_report()
+    if (
+      result.converged
+      and result.physical_closure_verified
+      and result.state_sampling_available
+      and result.upstream_coupling_verified
+      and result.field is not None
+    ):
+      field = result.field
+      if field.incoming_handoff != handoff:
+        return decision(
+          MocChainTerminationReason.STATE_NOT_CARRIED,
+          'generated ambient-closed field did not retain the exact incoming handoff',
+        )
+      return MocPhysicalPostShockFieldContinuationSolve(
+        field=field,
+        end_x_m=end_x,
+      )
+
+    attachment = result.ambient_attachment
+    shock = None if attachment is None else attachment.shock
+    if shock is not None and shock.status is MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE:
+      return decision(
+        MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
+        'generated next-cell shock left the bounded upstream source; no extrapolation or endpoint was inferred',
+        {
+          'first_missing_sample_index': shock.failed_sample_index,
+          'failed_point_m': shock.failed_point_m,
+        },
+      )
+    if result.status is MocAmbientPhysicalFieldStatus.INVALID_INPUT:
+      return decision(
+        MocChainTerminationReason.INVALID_INPUT,
+        f'generated ambient-closed next-cell solve rejected its inputs: {result.message}',
+      )
+    if result.status in (
+      MocAmbientPhysicalFieldStatus.AMBIENT_ATTACHMENT_FAILURE,
+      MocAmbientPhysicalFieldStatus.FIELD_FAILURE,
+    ):
+      return decision(
+        MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
+        'generated next-cell shock/ambient/centerline solve did not pass the physical closure gates',
+      )
+    return decision(
+      MocChainTerminationReason.SOLVER_ERROR,
+      'generated ambient-closed next-cell solve did not produce a complete field',
+    )
+  ####
 
 
 @dataclass(frozen=True, slots=True)
@@ -5320,6 +5825,74 @@ def plan_ambient_closed_post_shock_chain(
       if claim_status is None
       else claim_status
     ),
+  )
+####
+
+
+def plan_solver_generated_ambient_closed_post_shock_chain_reference(
+  seed: MocPhysicalPostShockFieldResult,
+  *,
+  start_x_m: float,
+  end_x_m: float,
+  reference: MocSolverGeneratedAmbientClosedPostShockChainReference | None = None,
+  policy: MocChainContinuationPolicy | None = None,
+) -> MocChainPlannerResult:
+  """Run the solver-generated ambient-closed research chain reference."""
+
+  fixture = (
+    MocSolverGeneratedAmbientClosedPostShockChainReference()
+    if reference is None
+    else reference
+  )
+  if not isinstance(
+    fixture,
+    MocSolverGeneratedAmbientClosedPostShockChainReference,
+  ):
+    raise TypeError(
+      'reference must be a '
+      'MocSolverGeneratedAmbientClosedPostShockChainReference'
+    )
+  current_field = seed
+
+  def solve_next(
+    current: MocChainCell,
+    next_cell_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+  ) -> MocPhysicalPostShockFieldContinuationSolve | MocChainTerminationDecision:
+    nonlocal current_field
+    solved = fixture.solve_next(
+      current,
+      next_cell_index,
+      incoming_handoff,
+      current_field,
+    )
+    if isinstance(solved, MocPhysicalPostShockFieldContinuationSolve):
+      current_field = solved.field
+    return solved
+
+  planner = plan_ambient_closed_post_shock_chain(
+    seed,
+    solve_next,
+    start_x_m=start_x_m,
+    end_x_m=end_x_m,
+    policy=policy,
+    require_upstream_shock_coupling=True,
+    claim_status=(
+      'solver-generated-ambient-closed-physical-field-chain-reference; '
+      'reflected-upstream-remesher-and-external-validation-pending'
+    ),
+  )
+  return replace(
+    planner,
+    diagnostics={
+      'solver_generated_ambient_closed_chain_reference': fixture.as_report(),
+      'upstream_field_replacement_policy': (
+        'replace-only-after-complete-ambient-closed-physical-field-solve'
+      ),
+      'source_provider_policy': (
+        'bounded-callback-source-or-previous-field; no extrapolation'
+      ),
+    },
   )
 ####
 

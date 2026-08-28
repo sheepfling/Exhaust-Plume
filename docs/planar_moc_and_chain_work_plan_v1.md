@@ -1467,3 +1467,15 @@ typed `UPSTREAM_FIELD_BOUNDARY` stop and preserve the last valid prefix. This
 is orchestration and boundary-condition evidence at
 `prescribed-boundary-diagnostic` fidelity, not a free-boundary solver or a
 production provider, and it does not extrapolate the finite accepted field.
+
+The next reference lane is solver-generated rather than candidate-scheduled:
+`MocBoundedUpstreamFieldSource` supplies exact state and static-pressure
+callbacks over a declared finite domain, and
+`MocSolverGeneratedAmbientClosedPostShockChainReference` re-solves each cell
+through the attached-shock, ambient-closure, and centerline-reflection path.
+The active field is replaced only after a complete accepted physical solve.
+Without a new reflected-domain or characteristic-family source, the default
+source is the preceding field and the planner stops at its boundary with
+`UPSTREAM_FIELD_BOUNDARY`. A uniform callback is only a labeled plumbing
+fixture for multi-cell regression; it does not constitute reflected upstream
+coupling, free-boundary closure, or a product-ready solver.
