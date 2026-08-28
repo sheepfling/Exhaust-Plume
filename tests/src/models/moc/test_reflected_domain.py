@@ -47,10 +47,12 @@ from exhaust_plume.models.nozzle.exit_state import (
   derive_uniform_nozzle_exit,
 )
 from exhaust_plume.validation.moc_measurements import (
+  MocReflectedDomainAlternatingPhysicalFieldChainMeasurementStatus,
   MocReflectedDomainAlternatingSourceMeasurementStatus,
   MocReflectedDomainOuterSourceMeasurementStatus,
   MocReflectedDomainRemeshMeasurementStatus,
   measure_moc_reflected_domain_alternating_source,
+  measure_moc_reflected_domain_alternating_physical_field_chain,
   measure_moc_reflected_domain_alternating_physical_field,
   measure_moc_reflected_domain_outer_source_curve,
   measure_moc_reflected_domain_remesh,
@@ -642,6 +644,102 @@ def test_reflected_domain_alternating_physical_field_rejects_unverified_source()
   assert measurement.source_field_verified is False
   assert measurement.physical_closure_verified is False
   assert measurement.chain_promotion_blocked is True
+
+
+def test_reflected_domain_alternating_physical_field_chain_rejects_nonfresh_domain():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  first_source = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+    incoming_handoff=_handoff(field),
+  )
+  assert first_source.converged
+  first_result = solve_reflected_domain_alternating_physical_field(
+    first_source,
+    compression_amplitude_rad=0.05,
+    incoming_handoff=_handoff(field),
+  )
+  assert first_result.converged
+  assert first_result.field is not None
+
+  second_source = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+    source_sample_count=5,
+    incoming_handoff=_handoff(first_result.field),
+  )
+  assert second_source.converged
+  second_result = solve_reflected_domain_alternating_physical_field(
+    second_source,
+    compression_amplitude_rad=0.05,
+    incoming_handoff=_handoff(first_result.field),
+  )
+  assert second_result.converged
+  assert second_result.field is not None
+
+  measurement = measure_moc_reflected_domain_alternating_physical_field_chain(
+    (first_result, second_result),
+  )
+
+  assert measurement.status is (
+    MocReflectedDomainAlternatingPhysicalFieldChainMeasurementStatus.DOMAIN_FAILURE
+  )
+  assert measurement.converged is False
+  assert measurement.field_count == 2
+  assert len(measurement.field_measurements) == 2
+  assert measurement.source_geometry_freshness_verified
+  assert measurement.handoff_link_count == 1
+  assert measurement.handoff_links_verified is True
+  assert measurement.fresh_domain_verified is False
+  assert measurement.physical_closure_verified is False
+  assert measurement.physical_field_chain_measurement is not None
+  assert measurement.physical_field_chain_measurement.converged is False
+  assert measurement.physical_field_chain_measurement.status.value == 'domain_failure'
+  assert measurement.chain_promotion_blocked is True
+  assert measurement.production_claim_allowed is False
+
+
+def test_reflected_domain_alternating_physical_field_chain_rejects_copied_geometry():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  source = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+    incoming_handoff=_handoff(field),
+  )
+  assert source.converged
+  first_result = solve_reflected_domain_alternating_physical_field(
+    source,
+    compression_amplitude_rad=0.05,
+    incoming_handoff=_handoff(field),
+  )
+  assert first_result.converged
+  assert first_result.field is not None
+  copied_source = replace(
+    source,
+    incoming_handoff=_handoff(first_result.field),
+  )
+  copied_result = solve_reflected_domain_alternating_physical_field(
+    copied_source,
+    compression_amplitude_rad=0.05,
+    incoming_handoff=_handoff(first_result.field),
+  )
+  assert copied_result.converged
+
+  measurement = measure_moc_reflected_domain_alternating_physical_field_chain(
+    (first_result, copied_result),
+  )
+
+  assert measurement.status is (
+    MocReflectedDomainAlternatingPhysicalFieldChainMeasurementStatus.SOURCE_FRESHNESS_FAILURE
+  )
+  assert measurement.converged is False
+  assert measurement.source_geometry_freshness_verified is False
+  assert measurement.chain_promotion_blocked is True
+  assert measurement.production_claim_allowed is False
 
 
 def test_reflected_domain_alternating_source_planner_carries_one_cell_handoff():

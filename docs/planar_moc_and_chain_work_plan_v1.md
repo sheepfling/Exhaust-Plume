@@ -1847,3 +1847,22 @@ This closes an audit mismatch without changing the physical claim ceiling: the
 perimeter is still supplied by the caller, the terminal remains a stop, and
 the reflected-domain canonical free-boundary/mixed-regime solver, refinement
 evidence, and external observations are still required before any promotion.
+
+## Alternating physical-field chain audit checkpoint
+
+The continued alternating-source lane now has an independent multi-result
+audit, `op.moc.reflected-domain-alternating-physical-field-chain`. It remeasures
+each source/physical-field result, compares source-geometry fingerprints that
+exclude the incoming handoff, verifies exact centerline handoffs, and delegates
+raw mesh/domain checks to the physical-field chain operator. A copied source
+band is rejected even when wrapped in a new result, and a source band that
+produces another field at the original interface is rejected as a non-fresh
+domain. The current bounded fixture therefore records the correct research
+stop rather than accepting a geometrically repeated cell.
+
+This audit does not close the remaining physics: a solver-owned reflected
+terminal trace must still produce a valid downstream C− source and a fresh
+mixed-regime/free-boundary perimeter before an alternating result can pass the
+multi-cell domain gate. Refinement and external observations remain separate
+release gates, and no visualization, signature, ray, or focal-plane-array
+provider consumes this research lane.

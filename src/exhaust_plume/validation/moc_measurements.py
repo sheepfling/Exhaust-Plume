@@ -105,6 +105,7 @@ __all__ = (
   'MOC_REFLECTED_DOMAIN_OUTER_SOURCE_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_ALTERNATING_SOURCE_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_ALTERNATING_PHYSICAL_FIELD_OPERATOR_ID',
+  'MOC_REFLECTED_DOMAIN_ALTERNATING_PHYSICAL_FIELD_CHAIN_OPERATOR_ID',
   'MOC_MIXED_REGIME_FREE_BOUNDARY_OPERATOR_ID',
   'MOC_MIXED_REGIME_FREE_BOUNDARY_REFINEMENT_OPERATOR_ID',
   'MOC_MIXED_REGIME_CONTROL_SECTION_OPERATOR_ID',
@@ -127,6 +128,8 @@ __all__ = (
   'MocReflectedDomainAlternatingSourceMeasurementStatus',
   'MocReflectedDomainAlternatingPhysicalFieldMeasurement',
   'MocReflectedDomainAlternatingPhysicalFieldMeasurementStatus',
+  'MocReflectedDomainAlternatingPhysicalFieldChainMeasurement',
+  'MocReflectedDomainAlternatingPhysicalFieldChainMeasurementStatus',
   'MocMixedRegimePotentialMeasurement',
   'MocMixedRegimePotentialMeasurementStatus',
   'MocMixedRegimeFreeBoundaryMeasurement',
@@ -153,6 +156,7 @@ __all__ = (
   'measure_moc_reflected_domain_remesh',
   'measure_moc_reflected_domain_outer_source_curve',
   'measure_moc_reflected_domain_alternating_source',
+  'measure_moc_reflected_domain_alternating_physical_field_chain',
   'measure_mixed_regime_compressible_potential_field',
   'measure_mixed_regime_free_boundary_reference',
   'measure_mixed_regime_free_boundary_refinement',
@@ -185,6 +189,9 @@ MOC_REFLECTED_DOMAIN_ALTERNATING_SOURCE_OPERATOR_ID = (
 )
 MOC_REFLECTED_DOMAIN_ALTERNATING_PHYSICAL_FIELD_OPERATOR_ID = (
   'op.moc.reflected-domain-alternating-physical-field'
+)
+MOC_REFLECTED_DOMAIN_ALTERNATING_PHYSICAL_FIELD_CHAIN_OPERATOR_ID = (
+  'op.moc.reflected-domain-alternating-physical-field-chain'
 )
 MOC_MIXED_REGIME_FREE_BOUNDARY_OPERATOR_ID = (
   'op.moc.mixed-regime-free-boundary-reference'
@@ -2080,6 +2087,153 @@ class MocPhysicalFieldChainMeasurement:
       },
       'fresh_domain_verified': self.fresh_domain_verified,
       'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'claim_status': self.claim_status,
+      'message': self.message,
+    }
+  ####
+
+
+class MocReflectedDomainAlternatingPhysicalFieldChainMeasurementStatus(str, Enum):
+  """Outcome of independently auditing a continued alternating-source chain."""
+
+  CONVERGED = 'converged'
+  INVALID_INPUT = 'invalid_input'
+  SOURCE_FAILURE = 'source_failure'
+  FIELD_FAILURE = 'field_failure'
+  HANDOFF_FAILURE = 'handoff_failure'
+  DOMAIN_FAILURE = 'domain_failure'
+  SOURCE_FRESHNESS_FAILURE = 'source_freshness_failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainAlternatingPhysicalFieldChainMeasurement:
+  """Independent evidence for a sequence of alternating physical fields.
+
+  Each result is measured with the single-cell alternating-source operator,
+  then the retained physical fields are audited as one exact ambient-closed
+  chain.  The source geometry is fingerprinted independently of the incoming
+  handoff so a copied source band cannot pass merely because a new wrapper or
+  handoff was attached to it.  This remains research evidence: the local
+  compression envelope and canonical downstream free boundary are separate
+  gates.
+  """
+
+  status: MocReflectedDomainAlternatingPhysicalFieldChainMeasurementStatus
+  operator_id: str = (
+    MOC_REFLECTED_DOMAIN_ALTERNATING_PHYSICAL_FIELD_CHAIN_OPERATOR_ID
+  )
+  field_count: int = 0
+  field_measurements: tuple[
+    MocReflectedDomainAlternatingPhysicalFieldMeasurement, ...
+  ] = ()
+  physical_field_chain_measurement: MocPhysicalFieldChainMeasurement | None = None
+  source_geometry_fingerprints: tuple[str, ...] = ()
+  source_geometry_freshness_verified: bool = False
+  handoff_link_count: int = 0
+  handoff_links_verified: bool | None = None
+  fresh_domain_verified: bool = False
+  physical_closure_verified: bool = False
+  chain_promotion_blocked: bool = True
+  production_claim_allowed: bool = False
+  claim_status: str = (
+    'independent-alternating-physical-field-chain-audit; not-accepted'
+  )
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if (
+      isinstance(self.field_count, bool)
+      or not isinstance(self.field_count, int)
+      or self.field_count < 0
+    ):
+      raise ValueError('field_count must be a nonnegative integer')
+    measurements = tuple(self.field_measurements)
+    if len(measurements) > self.field_count:
+      raise ValueError('field_measurements cannot exceed field_count')
+    if any(
+      not isinstance(
+        measurement,
+        MocReflectedDomainAlternatingPhysicalFieldMeasurement,
+      )
+      for measurement in measurements
+    ):
+      raise TypeError(
+        'field_measurements must contain '
+        'MocReflectedDomainAlternatingPhysicalFieldMeasurement values'
+      )
+    object.__setattr__(self, 'field_measurements', measurements)
+    fingerprints = tuple(str(value) for value in self.source_geometry_fingerprints)
+    if len(fingerprints) > self.field_count:
+      raise ValueError('source_geometry_fingerprints cannot exceed field_count')
+    if any(not value for value in fingerprints):
+      raise ValueError('source_geometry_fingerprints must be non-empty')
+    object.__setattr__(self, 'source_geometry_fingerprints', fingerprints)
+    if (
+      isinstance(self.handoff_link_count, bool)
+      or not isinstance(self.handoff_link_count, int)
+      or self.handoff_link_count < 0
+    ):
+      raise ValueError('handoff_link_count must be a nonnegative integer')
+    if self.handoff_links_verified is not None and not isinstance(
+      self.handoff_links_verified,
+      bool,
+    ):
+      raise TypeError('handoff_links_verified must be a bool or None')
+    for name in (
+      'source_geometry_freshness_verified',
+      'fresh_domain_verified',
+      'physical_closure_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+    if self.physical_field_chain_measurement is not None and not isinstance(
+      self.physical_field_chain_measurement,
+      MocPhysicalFieldChainMeasurement,
+    ):
+      raise TypeError(
+        'physical_field_chain_measurement must be a '
+        'MocPhysicalFieldChainMeasurement or None'
+      )
+  ####
+
+  @property
+  def converged(self) -> bool:
+    return (
+      self.status
+      is MocReflectedDomainAlternatingPhysicalFieldChainMeasurementStatus.CONVERGED
+    )
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'operator_id': self.operator_id,
+      'converged': self.converged,
+      'field_count': self.field_count,
+      'fields': [measurement.as_report() for measurement in self.field_measurements],
+      'physical_field_chain_measurement': (
+        None
+        if self.physical_field_chain_measurement is None
+        else self.physical_field_chain_measurement.as_report()
+      ),
+      'source_geometry_fingerprints': list(self.source_geometry_fingerprints),
+      'checks': {
+        'source_geometry_freshness_verified': (
+          self.source_geometry_freshness_verified
+        ),
+        'handoff_links_verified': self.handoff_links_verified,
+        'fresh_domain_verified': self.fresh_domain_verified,
+        'physical_closure_verified': self.physical_closure_verified,
+      },
+      'handoff': {
+        'link_count': self.handoff_link_count,
+        'links_verified': self.handoff_links_verified,
+      },
       'chain_promotion_blocked': self.chain_promotion_blocked,
       'production_claim_allowed': self.production_claim_allowed,
       'claim_status': self.claim_status,
@@ -8593,6 +8747,278 @@ def measure_moc_reflected_domain_alternating_physical_field(
   if bounded_physical_field_verified:
     object.__setattr__(measurement, 'physical_closure_verified', True)
   return measurement
+####
+
+
+def _alternating_source_geometry_fingerprint(
+  source: MocReflectedDomainAlternatingSourceResult,
+) -> str:
+  """Fingerprint source geometry and state rows without the incoming handoff."""
+
+  def state_signature(state: CharacteristicState) -> tuple[float, ...]:
+    return (
+      state.x_m,
+      state.y_m,
+      state.theta_rad,
+      state.mach,
+      state.gamma,
+    )
+
+  seed_signature = (
+    None
+    if source.outer_seed_state is None
+    else state_signature(source.outer_seed_state)
+  )
+  payload = (
+    tuple(state_signature(state) for state in source.centerline_source_states),
+    tuple(state_signature(state) for state in source.outer_source_states),
+    source.centerline_total_pressure_Pa,
+    source.outer_total_pressure_Pa,
+    seed_signature,
+    source.outer_seed_total_pressure_Pa,
+    source.ambient_pressure_Pa,
+    source.target_centerline_y_m,
+    source.target_centerline_flow_angle_rad,
+    tuple(tuple(cell.vertices_xr_m) for cell in source.cells),
+  )
+  return sha256(repr(payload).encode('utf-8')).hexdigest()
+####
+
+
+def _alternating_physical_field_chain_measurement_failure(
+  status: MocReflectedDomainAlternatingPhysicalFieldChainMeasurementStatus,
+  message: str,
+  *,
+  field_count: int = 0,
+  field_measurements: Sequence[
+    MocReflectedDomainAlternatingPhysicalFieldMeasurement
+  ] = (),
+  physical_field_chain_measurement: MocPhysicalFieldChainMeasurement | None = None,
+  source_geometry_fingerprints: Sequence[str] = (),
+  source_geometry_freshness_verified: bool = False,
+  handoff_link_count: int = 0,
+  handoff_links_verified: bool | None = None,
+  fresh_domain_verified: bool = False,
+  physical_closure_verified: bool = False,
+) -> MocReflectedDomainAlternatingPhysicalFieldChainMeasurement:
+  return MocReflectedDomainAlternatingPhysicalFieldChainMeasurement(
+    status=status,
+    field_count=field_count,
+    field_measurements=tuple(field_measurements),
+    physical_field_chain_measurement=physical_field_chain_measurement,
+    source_geometry_fingerprints=tuple(source_geometry_fingerprints),
+    source_geometry_freshness_verified=source_geometry_freshness_verified,
+    handoff_link_count=handoff_link_count,
+    handoff_links_verified=handoff_links_verified,
+    fresh_domain_verified=fresh_domain_verified,
+    physical_closure_verified=physical_closure_verified,
+    message=message,
+  )
+####
+
+
+def measure_moc_reflected_domain_alternating_physical_field_chain(
+  results: Sequence[MocReflectedDomainAlternatingPhysicalFieldResult],
+  *,
+  position_tolerance_m: float = 1.0e-9,
+  state_tolerance: float = 1.0e-9,
+  invariant_tolerance: float = 1.0e-8,
+  pressure_tolerance: float = 1.0e-8,
+  tangent_tolerance: float = 1.0e-8,
+  area_tolerance_m2: float = 1.0e-9,
+  mesh_vertex_tolerance_m: float = 1.0e-12,
+) -> MocReflectedDomainAlternatingPhysicalFieldChainMeasurement:
+  """Independently audit a continued alternating-source physical chain.
+
+  Each item is first measured as a source-band/physical-field result.  The
+  retained physical fields are then audited together for exact centerline
+  handoff and strictly fresh downstream domains.  Source geometry fingerprints
+  are compared without including the incoming handoff, so a copied source
+  band cannot pass by wrapping it in a new result.  The result is still
+  research-only and does not close the canonical reflected free boundary.
+  """
+
+  for name, value in (
+    ('position_tolerance_m', position_tolerance_m),
+    ('state_tolerance', state_tolerance),
+    ('invariant_tolerance', invariant_tolerance),
+    ('pressure_tolerance', pressure_tolerance),
+    ('tangent_tolerance', tangent_tolerance),
+    ('area_tolerance_m2', area_tolerance_m2),
+    ('mesh_vertex_tolerance_m', mesh_vertex_tolerance_m),
+  ):
+    if not isfinite(float(value)) or float(value) <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+  try:
+    items = tuple(results)
+  except TypeError:
+    return _alternating_physical_field_chain_measurement_failure(
+      MocReflectedDomainAlternatingPhysicalFieldChainMeasurementStatus.INVALID_INPUT,
+      'results must be an iterable of alternating physical-field results',
+    )
+  if not items:
+    return _alternating_physical_field_chain_measurement_failure(
+      MocReflectedDomainAlternatingPhysicalFieldChainMeasurementStatus.INVALID_INPUT,
+      'at least one alternating physical-field result is required',
+    )
+  if any(
+    not isinstance(item, MocReflectedDomainAlternatingPhysicalFieldResult)
+    for item in items
+  ):
+    return _alternating_physical_field_chain_measurement_failure(
+      MocReflectedDomainAlternatingPhysicalFieldChainMeasurementStatus.INVALID_INPUT,
+      'results must contain only MocReflectedDomainAlternatingPhysicalFieldResult values',
+      field_count=len(items),
+    )
+
+  measurements = tuple(
+    measure_moc_reflected_domain_alternating_physical_field(item)
+    for item in items
+  )
+  source_fingerprints = tuple(
+    _alternating_source_geometry_fingerprint(item.source_band)
+    if item.source_band is not None
+    else 'unavailable'
+    for item in items
+  )
+  source_geometry_freshness_verified = bool(
+    all(source_fingerprints)
+    and len(set(source_fingerprints)) == len(source_fingerprints)
+  )
+  physical_fields = tuple(item.field for item in items)
+  if any(
+    not isinstance(field, MocPhysicalPostShockFieldResult)
+    for field in physical_fields
+  ):
+    return _alternating_physical_field_chain_measurement_failure(
+      MocReflectedDomainAlternatingPhysicalFieldChainMeasurementStatus.FIELD_FAILURE,
+      'every alternating result must retain a physical post-shock field',
+      field_count=len(items),
+      field_measurements=measurements,
+      source_geometry_fingerprints=source_fingerprints,
+      source_geometry_freshness_verified=source_geometry_freshness_verified,
+    )
+  resolved_fields = tuple(
+    field
+    for field in physical_fields
+    if isinstance(field, MocPhysicalPostShockFieldResult)
+  )
+
+  physical_field_chain_measurement = measure_moc_ambient_closed_physical_field_chain(
+    resolved_fields,
+    position_tolerance_m=position_tolerance_m,
+    state_tolerance=state_tolerance,
+    invariant_tolerance=invariant_tolerance,
+    pressure_tolerance=pressure_tolerance,
+    tangent_tolerance=tangent_tolerance,
+    area_tolerance_m2=area_tolerance_m2,
+    mesh_vertex_tolerance_m=mesh_vertex_tolerance_m,
+  )
+  handoff_link_count = max(0, len(items) - 1)
+  handoff_links_verified: bool | None = None
+  if handoff_link_count:
+    handoff_links_verified = True
+    for previous, current in zip(items[:-1], items[1:], strict=True):
+      previous_field = previous.field
+      assert isinstance(previous_field, MocPhysicalPostShockFieldResult)
+      expected_handoff = tuple(
+        MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
+        for state, pressure in zip(
+          previous_field.centerline_boundary_states,
+          previous_field.centerline_boundary_total_pressure_Pa,
+          strict=True,
+        )
+      )
+      handoff_links_verified = (
+        handoff_links_verified and current.incoming_handoff == expected_handoff
+      )
+
+  fresh_domain_verified = physical_field_chain_measurement.fresh_domain_verified
+  physical_closure_verified = bool(
+    source_geometry_freshness_verified
+    and handoff_links_verified is not False
+    and fresh_domain_verified
+    and all(measurement.physical_closure_verified for measurement in measurements)
+    and physical_field_chain_measurement.physical_closure_verified
+  )
+  if not all(measurement.converged for measurement in measurements):
+    return _alternating_physical_field_chain_measurement_failure(
+      MocReflectedDomainAlternatingPhysicalFieldChainMeasurementStatus.FIELD_FAILURE,
+      'one or more alternating physical-field results failed independent measurement',
+      field_count=len(items),
+      field_measurements=measurements,
+      physical_field_chain_measurement=physical_field_chain_measurement,
+      source_geometry_fingerprints=source_fingerprints,
+      source_geometry_freshness_verified=source_geometry_freshness_verified,
+      handoff_link_count=handoff_link_count,
+      handoff_links_verified=handoff_links_verified,
+      fresh_domain_verified=fresh_domain_verified,
+    )
+  if not source_geometry_freshness_verified:
+    return _alternating_physical_field_chain_measurement_failure(
+      MocReflectedDomainAlternatingPhysicalFieldChainMeasurementStatus.SOURCE_FRESHNESS_FAILURE,
+      'continued alternating cells must use fresh source-band state geometry',
+      field_count=len(items),
+      field_measurements=measurements,
+      physical_field_chain_measurement=physical_field_chain_measurement,
+      source_geometry_fingerprints=source_fingerprints,
+      source_geometry_freshness_verified=False,
+      handoff_link_count=handoff_link_count,
+      handoff_links_verified=handoff_links_verified,
+      fresh_domain_verified=fresh_domain_verified,
+    )
+  if handoff_links_verified is False:
+    return _alternating_physical_field_chain_measurement_failure(
+      MocReflectedDomainAlternatingPhysicalFieldChainMeasurementStatus.HANDOFF_FAILURE,
+      'continued alternating cells did not preserve the exact prior centerline handoff',
+      field_count=len(items),
+      field_measurements=measurements,
+      physical_field_chain_measurement=physical_field_chain_measurement,
+      source_geometry_fingerprints=source_fingerprints,
+      source_geometry_freshness_verified=True,
+      handoff_link_count=handoff_link_count,
+      handoff_links_verified=False,
+      fresh_domain_verified=fresh_domain_verified,
+    )
+  if not physical_field_chain_measurement.converged:
+    status = (
+      MocReflectedDomainAlternatingPhysicalFieldChainMeasurementStatus.DOMAIN_FAILURE
+      if physical_field_chain_measurement.status
+      is MocPhysicalFieldChainMeasurementStatus.DOMAIN_FAILURE
+      else MocReflectedDomainAlternatingPhysicalFieldChainMeasurementStatus.FIELD_FAILURE
+    )
+    return _alternating_physical_field_chain_measurement_failure(
+      status,
+      'retained alternating physical fields failed the independent chain audit: '
+      f'{physical_field_chain_measurement.message}',
+      field_count=len(items),
+      field_measurements=measurements,
+      physical_field_chain_measurement=physical_field_chain_measurement,
+      source_geometry_fingerprints=source_fingerprints,
+      source_geometry_freshness_verified=True,
+      handoff_link_count=handoff_link_count,
+      handoff_links_verified=handoff_links_verified,
+      fresh_domain_verified=fresh_domain_verified,
+    )
+  return MocReflectedDomainAlternatingPhysicalFieldChainMeasurement(
+    status=MocReflectedDomainAlternatingPhysicalFieldChainMeasurementStatus.CONVERGED,
+    field_count=len(items),
+    field_measurements=measurements,
+    physical_field_chain_measurement=physical_field_chain_measurement,
+    source_geometry_fingerprints=source_fingerprints,
+    source_geometry_freshness_verified=True,
+    handoff_link_count=handoff_link_count,
+    handoff_links_verified=handoff_links_verified,
+    fresh_domain_verified=True,
+    physical_closure_verified=physical_closure_verified,
+    chain_promotion_blocked=True,
+    production_claim_allowed=False,
+    message=(
+      'independent alternating-source physical-field chain audit passed fresh '
+      'source geometry, exact handoff, raw field, and fresh-domain checks; '
+      'canonical reflected free-boundary closure remains pending'
+    ),
+  )
 ####
 
 
