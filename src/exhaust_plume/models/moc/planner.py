@@ -58,7 +58,6 @@ from exhaust_plume.models.moc.physical_cell import (
   MocPhysicalPostShockFieldResult,
   MocPhysicalPostShockTerminalPatchTransitionResult,
   solve_ambient_closed_post_shock_chain_cell_from_candidate_or_termination,
-  solve_ambient_closed_post_shock_chain_cell_from_physical_field_terminal_patch_or_termination,
   solve_ambient_closed_post_shock_terminal_patch_transition,
   continue_ambient_closed_post_shock_chain,
 )
@@ -177,6 +176,7 @@ __all__ = (
   'plan_ambient_closed_post_shock_chain',
   'plan_ambient_closed_post_shock_chain_terminal_patch',
   'plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime',
+  'plan_ambient_closed_post_shock_chain_terminal_patch_with_planar_handoff',
   'plan_ambient_closed_post_shock_chain_terminal_patch_mock',
   'plan_ambient_closed_post_shock_chain_terminal_patch_reference',
   'plan_first_cell_terminal_closure',
@@ -717,6 +717,31 @@ def _result_consumed_handoff_fields(
   }
 
 
+def _with_chain_solver_context(
+  decision: MocChainTerminationDecision,
+  *,
+  model: str,
+  next_cell_index: int,
+  incoming_handoff: tuple[MocChainBoundarySample, ...],
+) -> MocChainTerminationDecision:
+  """Retain planner context when a nested solver returns a typed stop.
+
+  Source/remesh adapters are allowed to return their own termination decision,
+  but that decision still belongs to a specific continued-cell attempt.  The
+  outer planner must not discard that identity when it forwards the decision
+  to the chain contract.
+  """
+
+  diagnostics = dict(decision.diagnostics)
+  diagnostics.update({
+    'continuation_model': model,
+    'next_cell_index': next_cell_index,
+    'incoming_handoff_sample_count': len(incoming_handoff),
+    'incoming_handoff_fingerprint': _handoff_fingerprint(incoming_handoff),
+  })
+  return replace(decision, diagnostics=diagnostics)
+
+
 @dataclass(frozen=True, slots=True)
 class MocChainPlannerResult:
   """A chain result plus planner provenance and callback audit steps."""
@@ -1212,6 +1237,7 @@ class MocPhysicalPostShockTerminalPatchPlannerResult:
   planner_kind: MocChainPlannerKind
   claim_status: str
   diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+  mixed_regime_planar_handoff: MocMixedRegimePlanarSolveResult | None = None
 
   def __post_init__(self) -> None:
     if not isinstance(self.chain_planner, MocChainPlannerResult):
@@ -1261,6 +1287,27 @@ class MocPhysicalPostShockTerminalPatchPlannerResult:
         raise ValueError(
           'mixed_regime_reference must retain the exact transition seam'
         )
+    if self.mixed_regime_planar_handoff is not None:
+      if not isinstance(
+        self.mixed_regime_planar_handoff,
+        MocMixedRegimePlanarSolveResult,
+      ):
+        raise TypeError(
+          'mixed_regime_planar_handoff must be a '
+          'MocMixedRegimePlanarSolveResult or None'
+        )
+      if self.transition is not None:
+        if self.transition.mixed_regime_request is None:
+          raise ValueError(
+            'mixed_regime_planar_handoff requires a transition '
+            'mixed-regime seam'
+          )
+        if self.mixed_regime_planar_handoff.request != (
+          self.transition.mixed_regime_request
+        ):
+          raise ValueError(
+            'mixed_regime_planar_handoff must retain the exact transition seam'
+          )
     if not isinstance(self.planner_kind, MocChainPlannerKind):
       raise TypeError('planner_kind must be a MocChainPlannerKind')
     object.__setattr__(self, 'claim_status', str(self.claim_status))
@@ -1286,6 +1333,15 @@ class MocPhysicalPostShockTerminalPatchPlannerResult:
       self.mixed_regime_closure is not None
       and self.mixed_regime_closure.converged
       and self.mixed_regime_closure.physical_closure_verified
+    )
+
+  @property
+  def mixed_regime_planar_handoff_verified(self) -> bool:
+    """Whether the adjacent planar downstream seam passed its local gates."""
+
+    return bool(
+      self.mixed_regime_planar_handoff is not None
+      and self.mixed_regime_planar_handoff.handoff_verified
     )
 
   @property
@@ -1332,6 +1388,14 @@ class MocPhysicalPostShockTerminalPatchPlannerResult:
         None
         if self.mixed_regime_reference is None
         else self.mixed_regime_reference.as_report()
+      ),
+      'mixed_regime_planar_handoff': (
+        None
+        if self.mixed_regime_planar_handoff is None
+        else self.mixed_regime_planar_handoff.as_report()
+      ),
+      'mixed_regime_planar_handoff_verified': (
+        self.mixed_regime_planar_handoff_verified
       ),
       'diagnostics': dict(self.diagnostics),
     }
@@ -3260,6 +3324,11 @@ class MocSolverGeneratedAmbientClosedPostShockChainReference:
           'solver-generated ambient-closed chain reference exhausted its '
           f'{self.total_cell_count}-cell fixture'
         ),
+        diagnostics={
+          'continuation_model': self.model,
+          'next_cell_index': next_cell_index,
+          'termination_model': 'configured-cell-count',
+        },
       )
 
     end_x = self.end_x_at(current, next_cell_index)
@@ -3300,7 +3369,27 @@ class MocSolverGeneratedAmbientClosedPostShockChainReference:
         {'source_provider_error': type(error).__name__},
       )
     if isinstance(source, MocChainTerminationDecision):
-      return source
+      source_diagnostics = dict(source.diagnostics)
+      source_diagnostics.update({
+        'upstream_source_provider_reason': source.reason.value,
+        'upstream_source_provider_physical_termination': (
+          source.physical_termination
+        ),
+      })
+      if source.physical_termination:
+        return decision(
+          MocChainTerminationReason.INVALID_INPUT,
+          (
+            'upstream source provider returned a physical termination decision; '
+            'only the downstream shock solve may declare plume termination'
+          ),
+          {
+            **source_diagnostics,
+            'source_provider_returned_physical_termination': True,
+          },
+        )
+      source_diagnostics.update(diagnostics)
+      return replace(source, diagnostics=source_diagnostics)
     if source is None:
       return decision(
         MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
@@ -3642,8 +3731,13 @@ class MocPrescribedAmbientClosedPostShockChainMock:
           'prescribed ambient-closed physical-field chain mock exhausted '
           f'its configured {self.total_cell_count_including_seed}-cell fixture'
         ),
+        diagnostics={
+          'continuation_model': self.model,
+          'next_cell_index': next_cell_index,
+          'termination_model': 'configured-candidate-count',
+        },
       )
-    return solve_ambient_closed_post_shock_chain_cell_from_candidate_or_termination(
+    solved = solve_ambient_closed_post_shock_chain_cell_from_candidate_or_termination(
       current,
       next_cell_index,
       handoff,
@@ -3656,6 +3750,14 @@ class MocPrescribedAmbientClosedPostShockChainMock:
       pressure_tolerance=self.pressure_tolerance,
       tangent_tolerance=self.tangent_tolerance,
     )
+    if isinstance(solved, MocChainTerminationDecision):
+      return _with_chain_solver_context(
+        solved,
+        model=self.model,
+        next_cell_index=next_cell_index,
+        incoming_handoff=handoff,
+      )
+    return solved
   ####
 
 
@@ -6988,6 +7090,84 @@ def plan_prescribed_ambient_closed_post_shock_chain_mock(
 ####
 
 
+def _plan_ambient_closed_post_shock_terminal_patch_chain(
+  seed: MocPhysicalPostShockFieldResult,
+  *,
+  start_x_m: float,
+  end_x_m: float,
+  terminal_end_x_m: float,
+  target_centerline_y_m: float,
+  downstream_flow_angle_at: Callable[[int, tuple[float, float]], float] | None,
+  downstream_flow_angle_rad: float | None,
+  sample_count: int,
+  branch: ShockBranch,
+  trace_position_tolerance_m: float,
+  seam_position_tolerance_m: float,
+  position_tolerance_m: float,
+  invariant_tolerance: float,
+  shock_angle_tolerance_rad: float,
+  maximum_segment_iterations: int,
+  policy: MocChainContinuationPolicy | None,
+  claim_status: str,
+) -> tuple[
+  MocChainPlannerResult,
+  MocPhysicalPostShockTerminalPatchTransitionResult | None,
+]:
+  """Capture one terminal-patch transition while planning its chain prefix."""
+
+  transition: MocPhysicalPostShockTerminalPatchTransitionResult | None = None
+  invoked = False
+
+  def solve_next(
+    current: MocChainCell,
+    next_cell_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+  ) -> MocChainTerminationDecision:
+    nonlocal invoked, transition
+    if invoked:
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
+        message=(
+          'terminal-patch physical-field planner is intentionally limited to '
+          'one continued shock transition'
+        ),
+      )
+    invoked = True
+    transition = solve_ambient_closed_post_shock_terminal_patch_transition(
+      current,
+      next_cell_index,
+      incoming_handoff,
+      seed,
+      end_x_m=terminal_end_x_m,
+      target_centerline_y_m=target_centerline_y_m,
+      downstream_flow_angle_at=downstream_flow_angle_at,
+      downstream_flow_angle_rad=downstream_flow_angle_rad,
+      sample_count=sample_count,
+      branch=branch,
+      trace_position_tolerance_m=trace_position_tolerance_m,
+      seam_position_tolerance_m=seam_position_tolerance_m,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+      shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+      maximum_segment_iterations=maximum_segment_iterations,
+    )
+    return transition.decision
+
+  return (
+    plan_ambient_closed_post_shock_chain(
+      seed,
+      solve_next,
+      start_x_m=start_x_m,
+      end_x_m=end_x_m,
+      policy=policy,
+      require_upstream_shock_coupling=True,
+      claim_status=claim_status,
+    ),
+    transition,
+  )
+
+
 def plan_ambient_closed_post_shock_chain_terminal_patch(
   seed: MocPhysicalPostShockFieldResult,
   *,
@@ -7024,56 +7204,30 @@ def plan_ambient_closed_post_shock_chain_terminal_patch(
   is appended to the resolved chain.
   """
 
-  invoked = False
-
-  def solve_next(
-    current: MocChainCell,
-    next_cell_index: int,
-    incoming_handoff: tuple[MocChainBoundarySample, ...],
-  ) -> MocChainTerminationDecision:
-    nonlocal invoked
-    if invoked:
-      return MocChainTerminationDecision(
-        physical_termination=False,
-        reason=MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
-        message=(
-          'terminal-patch physical-field planner is intentionally limited to '
-          'one continued shock transition'
-        ),
-      )
-    invoked = True
-    return solve_ambient_closed_post_shock_chain_cell_from_physical_field_terminal_patch_or_termination(
-      current,
-      next_cell_index,
-      incoming_handoff,
-      seed,
-      end_x_m=terminal_end_x_m,
-      target_centerline_y_m=target_centerline_y_m,
-      downstream_flow_angle_at=downstream_flow_angle_at,
-      downstream_flow_angle_rad=downstream_flow_angle_rad,
-      sample_count=sample_count,
-      branch=branch,
-      trace_position_tolerance_m=trace_position_tolerance_m,
-      seam_position_tolerance_m=seam_position_tolerance_m,
-      position_tolerance_m=position_tolerance_m,
-      invariant_tolerance=invariant_tolerance,
-      shock_angle_tolerance_rad=shock_angle_tolerance_rad,
-      maximum_segment_iterations=maximum_segment_iterations,
-    )
-
-  planner = plan_ambient_closed_post_shock_chain(
+  resolved_claim_status = (
+    'ambient-closed-field-terminal-reflection-patch; '
+    'typed-normal-shock-stop; mixed-regime-cell-promotion-pending'
+    if claim_status is None
+    else claim_status
+  )
+  planner, _ = _plan_ambient_closed_post_shock_terminal_patch_chain(
     seed,
-    solve_next,
     start_x_m=start_x_m,
     end_x_m=end_x_m,
+    terminal_end_x_m=terminal_end_x_m,
+    target_centerline_y_m=target_centerline_y_m,
+    downstream_flow_angle_at=downstream_flow_angle_at,
+    downstream_flow_angle_rad=downstream_flow_angle_rad,
+    sample_count=sample_count,
+    branch=branch,
+    trace_position_tolerance_m=trace_position_tolerance_m,
+    seam_position_tolerance_m=seam_position_tolerance_m,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+    shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+    maximum_segment_iterations=maximum_segment_iterations,
     policy=policy,
-    require_upstream_shock_coupling=True,
-    claim_status=(
-      'ambient-closed-field-terminal-reflection-patch; '
-      'typed-normal-shock-stop; mixed-regime-cell-promotion-pending'
-      if claim_status is None
-      else claim_status
-    ),
+    claim_status=resolved_claim_status,
   )
   return replace(
     planner,
@@ -7173,56 +7327,27 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
     if mock is not None
     else MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
   )
-  transition: MocPhysicalPostShockTerminalPatchTransitionResult | None = None
-  invoked = False
-
-  def solve_next(
-    current: MocChainCell,
-    next_cell_index: int,
-    incoming_handoff: tuple[MocChainBoundarySample, ...],
-  ) -> MocChainTerminationDecision:
-    nonlocal invoked, transition
-    if invoked:
-      return MocChainTerminationDecision(
-        physical_termination=False,
-        reason=MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
-        message=(
-          'terminal-patch mixed-regime planner is intentionally limited to '
-          'one continued shock transition'
-        ),
-      )
-    invoked = True
-    transition = solve_ambient_closed_post_shock_terminal_patch_transition(
-      current,
-      next_cell_index,
-      incoming_handoff,
-      seed,
-      end_x_m=terminal_end_x_m,
-      target_centerline_y_m=target_centerline_y_m,
-      downstream_flow_angle_at=downstream_flow_angle_at,
-      downstream_flow_angle_rad=downstream_flow_angle_rad,
-      sample_count=sample_count,
-      branch=branch,
-      trace_position_tolerance_m=trace_position_tolerance_m,
-      seam_position_tolerance_m=seam_position_tolerance_m,
-      position_tolerance_m=position_tolerance_m,
-      invariant_tolerance=invariant_tolerance,
-      shock_angle_tolerance_rad=shock_angle_tolerance_rad,
-      maximum_segment_iterations=maximum_segment_iterations,
-    )
-    return transition.decision
-
   default_claim = (
     'continued-terminal-patch-planner-mixed-regime; '
     'typed-normal-shock-stop; canonical-mixed-regime-free-boundary-pending'
   )
-  chain_planner = plan_ambient_closed_post_shock_chain(
+  chain_planner, transition = _plan_ambient_closed_post_shock_terminal_patch_chain(
     seed,
-    solve_next,
     start_x_m=start_x_m,
     end_x_m=end_x_m,
+    terminal_end_x_m=terminal_end_x_m,
+    target_centerline_y_m=target_centerline_y_m,
+    downstream_flow_angle_at=downstream_flow_angle_at,
+    downstream_flow_angle_rad=downstream_flow_angle_rad,
+    sample_count=sample_count,
+    branch=branch,
+    trace_position_tolerance_m=trace_position_tolerance_m,
+    seam_position_tolerance_m=seam_position_tolerance_m,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+    shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+    maximum_segment_iterations=maximum_segment_iterations,
     policy=policy,
-    require_upstream_shock_coupling=True,
     claim_status=default_claim if claim_status is None else claim_status,
   )
 
@@ -7319,6 +7444,165 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
       default_claim if claim_status is None else claim_status
     ),
     diagnostics=diagnostics,
+  )
+####
+
+
+def plan_ambient_closed_post_shock_chain_terminal_patch_with_planar_handoff(
+  seed: MocPhysicalPostShockFieldResult,
+  *,
+  start_x_m: float,
+  end_x_m: float,
+  terminal_end_x_m: float,
+  control_section: MocMixedRegimeControlSection,
+  perimeter_spec: MocMixedRegimeDownstreamPerimeterSpec,
+  solve_field: MocMixedRegimePlanarFieldSolver,
+  target_centerline_y_m: float = 0.0,
+  downstream_flow_angle_at: Callable[[int, tuple[float, float]], float] | None = None,
+  downstream_flow_angle_rad: float | None = 0.0,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  trace_position_tolerance_m: float = 1.0e-3,
+  seam_position_tolerance_m: float = 3.0e-3,
+  position_tolerance_m: float = 1.0e-3,
+  invariant_tolerance: float = 1.0e-10,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  policy: MocChainContinuationPolicy | None = None,
+  planar_position_tolerance_m: float = 1.0e-10,
+  planar_state_tolerance: float = 1.0e-8,
+  planar_pressure_tolerance: float = 1.0e-8,
+  planar_normal_flux_tolerance: float = 1.0e-8,
+  solver_model: str = 'caller-supplied-planar-mixed-regime-solver',
+  claim_status: str | None = None,
+) -> MocPhysicalPostShockTerminalPatchPlannerResult:
+  """Audit a planar downstream callback after the terminal patch transition.
+
+  The terminal transition and the planar callback are deliberately separate
+  stages.  The callback receives the exact retained terminal request together
+  with caller-owned control-section and perimeter data; a passing handoff is
+  recorded beside the one-step chain and never attached as a supersonic cell.
+  This gives continued-chain orchestration the same explicit planar seam as
+  the first-cell planner without implying that the callback is the canonical
+  reflected-MOC/free-boundary solver.
+  """
+
+  if not isinstance(control_section, MocMixedRegimeControlSection):
+    raise TypeError(
+      'control_section must be a MocMixedRegimeControlSection'
+    )
+  if not isinstance(
+    perimeter_spec,
+    MocMixedRegimeDownstreamPerimeterSpec,
+  ):
+    raise TypeError(
+      'perimeter_spec must be a MocMixedRegimeDownstreamPerimeterSpec'
+    )
+  if not callable(solve_field):
+    raise TypeError('solve_field must be callable')
+
+  resolved_claim_status = (
+    'continued-terminal-patch-explicit-planar-handoff; canonical-reflected-moc-'
+    'free-boundary-and-external-validation-pending'
+    if claim_status is None
+    else claim_status
+  )
+  chain_planner, transition = _plan_ambient_closed_post_shock_terminal_patch_chain(
+    seed,
+    start_x_m=start_x_m,
+    end_x_m=end_x_m,
+    terminal_end_x_m=terminal_end_x_m,
+    target_centerline_y_m=target_centerline_y_m,
+    downstream_flow_angle_at=downstream_flow_angle_at,
+    downstream_flow_angle_rad=downstream_flow_angle_rad,
+    sample_count=sample_count,
+    branch=branch,
+    trace_position_tolerance_m=trace_position_tolerance_m,
+    seam_position_tolerance_m=seam_position_tolerance_m,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+    shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+    maximum_segment_iterations=maximum_segment_iterations,
+    policy=policy,
+    claim_status=resolved_claim_status,
+  )
+  diagnostics: dict[str, Any] = {
+    'planner_model': (
+      'ambient-closed-field-terminal-patch-planar-handoff'
+    ),
+    'transition_model': (
+      'accepted-ambient-closed-field -> open-shock-ambient-strip -> '
+      'centerline-reflection-patch -> attached-shock -> normal-shock-terminal'
+    ),
+    'terminal_patch_planner_depth': 1,
+    'terminal_end_x_m': float(terminal_end_x_m),
+    'target_centerline_y_m': float(target_centerline_y_m),
+    'downstream_flow_angle_model': (
+      'callback-supplied'
+      if downstream_flow_angle_at is not None
+      else 'constant-research-angle'
+    ),
+    'downstream_flow_angle_rad': downstream_flow_angle_rad,
+    'sample_count': sample_count,
+    'branch': branch.value,
+    'trace_position_tolerance_m': float(trace_position_tolerance_m),
+    'seam_position_tolerance_m': float(seam_position_tolerance_m),
+    'position_tolerance_m': float(position_tolerance_m),
+    'invariant_tolerance': float(invariant_tolerance),
+    'shock_angle_tolerance_rad': float(shock_angle_tolerance_rad),
+    'production_claim_allowed': False,
+    'physical_cell_promotion': 'blocked-at-mixed-regime-boundary',
+    'chain_promotion_blocked': True,
+  }
+  diagnostics.update({
+    'mixed_regime_planar_handoff_requested': True,
+    'mixed_regime_planar_handoff_attached': False,
+    'mixed_regime_planar_solver_model': solver_model,
+  })
+  if transition is None or transition.mixed_regime_request is None:
+    diagnostics['mixed_regime_planar_handoff_skipped'] = (
+      'terminal transition did not produce a complete mixed-regime seam'
+    )
+    return MocPhysicalPostShockTerminalPatchPlannerResult(
+      chain_planner=chain_planner,
+      transition=transition,
+      mixed_regime_closure=None,
+      mixed_regime_reference=None,
+      planner_kind=MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH,
+      claim_status=resolved_claim_status,
+      diagnostics=diagnostics,
+    )
+
+  handoff = run_mixed_regime_planar_field_solver(
+    transition.mixed_regime_request,
+    control_section,
+    perimeter_spec,
+    solve_field,
+    position_tolerance_m=planar_position_tolerance_m,
+    state_tolerance=planar_state_tolerance,
+    pressure_tolerance=planar_pressure_tolerance,
+    normal_flux_tolerance=planar_normal_flux_tolerance,
+    solver_model=solver_model,
+  )
+  diagnostics.update({
+    'mixed_regime_planar_handoff_verified': handoff.handoff_verified,
+    'mixed_regime_planar_handoff': handoff.as_report(),
+    'mixed_regime_planar_handoff_physical_closure_verified': (
+      handoff.physical_closure_verified
+    ),
+    'mixed_regime_planar_handoff_chain_promotion_blocked': (
+      handoff.chain_promotion_blocked
+    ),
+  })
+  return MocPhysicalPostShockTerminalPatchPlannerResult(
+    chain_planner=chain_planner,
+    transition=transition,
+    mixed_regime_closure=None,
+    mixed_regime_reference=None,
+    planner_kind=MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH,
+    claim_status=resolved_claim_status,
+    diagnostics=diagnostics,
+    mixed_regime_planar_handoff=handoff,
   )
 ####
 

@@ -22,6 +22,8 @@ from exhaust_plume.models.moc import (
   MocPhysicalPostShockFieldStatus,
   MocPhysicalPostShockFieldContinuationSolve,
   MocPhysicalPostShockTerminalPatchTransitionResult,
+  MocMixedRegimeControlSection,
+  MocMixedRegimeFieldSample,
   MocPrescribedMixedRegimeClosureMock,
   MocPrescribedAmbientClosedPostShockChainMock,
   MocSolverGeneratedAmbientClosedPostShockChainReference,
@@ -41,6 +43,7 @@ from exhaust_plume.models.moc import (
   plan_solver_generated_ambient_closed_post_shock_chain_reference,
   plan_prescribed_ambient_closed_post_shock_chain_mock,
   plan_ambient_closed_post_shock_chain_terminal_patch,
+  plan_ambient_closed_post_shock_chain_terminal_patch_with_planar_handoff,
   plan_ambient_closed_post_shock_chain_terminal_patch_mock,
   plan_ambient_closed_post_shock_chain_terminal_patch_reference,
   solve_marched_attached_shock_field,
@@ -633,6 +636,96 @@ def test_terminal_patch_planner_reference_keeps_scalar_result_separate() -> None
   assert planner.diagnostics['mixed_regime_closure_attached'] is False
 
 
+def test_terminal_patch_planner_records_explicit_planar_handoff_without_promotion() -> None:
+  field = _canonical_ambient_closed_field()
+  transition_probe = solve_ambient_closed_post_shock_terminal_patch_transition(
+    field.as_coupled_chain_cell(
+      start_x_m=0.5,
+      end_x_m=field.ambient_boundary_points_m[-1][0],
+      cell_index=1,
+    ),
+    2,
+    field.as_coupled_chain_cell(
+      start_x_m=0.5,
+      end_x_m=field.ambient_boundary_points_m[-1][0],
+      cell_index=1,
+    ).continuation_boundary,
+    field,
+    end_x_m=2.2,
+    sample_count=9,
+    trace_position_tolerance_m=1.0e-3,
+    position_tolerance_m=1.0e-3,
+  )
+  assert transition_probe.mixed_regime_request is not None
+  request = transition_probe.mixed_regime_request
+  mock = MocPrescribedMixedRegimeClosureMock(
+    streamwise_length_m=0.02,
+    transverse_length_m=0.01,
+    radial_divisions=2,
+  )
+  perimeter_spec = mock.specification(request)
+  terminal_x, terminal_y = request.terminal_point_m
+  section_points = (
+    (terminal_x + 0.02, terminal_y - 0.01),
+    (terminal_x + 0.02, terminal_y),
+    (terminal_x + 0.02, terminal_y + 0.01),
+  )
+  gamma = request.terminal.upstream_state.gamma
+  section = MocMixedRegimeControlSection(
+    points_m=section_points,
+    samples=tuple(
+      MocMixedRegimeFieldSample(
+        point_m=point,
+        mach=request.terminal_downstream_mach,
+        flow_angle_rad=request.terminal_downstream_flow_angle_rad,
+        static_pressure_Pa=request.terminal_downstream_pressure_Pa,
+        total_pressure_Pa=request.terminal_downstream_total_pressure_Pa,
+        gamma=gamma,
+      )
+      for point in section_points
+    ),
+    normal_angle_rad=0.0,
+  )
+
+  def solve_field(received_request, received_section, received_spec):
+    assert received_spec == perimeter_spec
+    closure = mock.solve(received_request)
+    assert closure.field is not None
+    return replace(closure.field, control_section=received_section)
+
+  planner = plan_ambient_closed_post_shock_chain_terminal_patch_with_planar_handoff(
+    field,
+    start_x_m=0.5,
+    end_x_m=field.ambient_boundary_points_m[-1][0],
+    terminal_end_x_m=2.2,
+    control_section=section,
+    perimeter_spec=perimeter_spec,
+    solve_field=solve_field,
+    sample_count=9,
+    trace_position_tolerance_m=1.0e-3,
+    position_tolerance_m=1.0e-3,
+    policy=MocChainContinuationPolicy(
+      max_cells=2,
+      require_state_carry=True,
+    ),
+  )
+
+  assert planner.resolved
+  assert planner.physical_termination
+  assert planner.physical_closure_verified is False
+  assert planner.chain_promotion_blocked
+  assert planner.mixed_regime_planar_handoff is not None
+  assert planner.mixed_regime_planar_handoff.converged
+  assert planner.mixed_regime_planar_handoff.handoff_verified
+  assert planner.mixed_regime_planar_handoff.physical_closure_verified is False
+  assert planner.mixed_regime_planar_handoff_verified
+  assert planner.diagnostics['mixed_regime_planar_handoff_attached'] is False
+  assert planner.diagnostics['mixed_regime_planar_handoff_verified'] is True
+  assert planner.as_report()['mixed_regime_planar_handoff']['request'] == (
+    planner.transition.mixed_regime_request.as_report()
+  )
+
+
 def test_terminal_patch_planner_records_one_seed_and_physical_stop() -> None:
   field = _canonical_ambient_closed_field()
   planner = plan_ambient_closed_post_shock_chain_terminal_patch(
@@ -945,6 +1038,11 @@ def test_prescribed_ambient_closed_chain_mock_records_candidate_and_typed_stop()
   assert report['diagnostics']['upstream_field_replacement_policy'] == (
     'replace-only-after-complete-ambient-closed-physical-field-solve'
   )
+  assert planner.chain.diagnostics['continuation_model'] == (
+    'prescribed-ambient-closed-post-shock-chain-mock'
+  )
+  assert planner.chain.diagnostics['next_cell_index'] == 2
+  assert planner.chain.diagnostics['incoming_handoff_fingerprint'] is not None
 
 
 def test_generated_ambient_closed_chain_reference_preserves_bounded_field_stop() -> None:
@@ -1153,6 +1251,73 @@ def test_generated_chain_rejects_mixed_callback_and_source_mode() -> None:
       upstream_source_mode=MocAmbientClosedChainSourceMode.TERMINAL_REFLECTION_PATCH,
       upstream_source_provider=lambda *_args: None,
     )
+
+
+def test_generated_chain_preserves_source_decision_context_and_blocks_physical_source_stop() -> None:
+  field = _canonical_ambient_closed_field()
+  current = field.as_coupled_chain_cell(
+    start_x_m=0.5,
+    end_x_m=field.ambient_boundary_points_m[-1][0],
+    cell_index=1,
+  )
+
+  source_boundary = MocChainTerminationDecision(
+    physical_termination=False,
+    reason=MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
+    message='source strip ended before the next shock',
+    diagnostics={'source_stage': 'reflected-strip-probe'},
+  )
+  reference = MocSolverGeneratedAmbientClosedPostShockChainReference(
+    total_cell_count=2,
+    upstream_source_provider=lambda *_args: source_boundary,
+  )
+
+  decision = reference.solve_next(
+    current,
+    2,
+    current.continuation_boundary,
+    field,
+  )
+
+  assert decision.reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+  assert decision.physical_termination is False
+  assert decision.diagnostics['source_stage'] == 'reflected-strip-probe'
+  assert decision.diagnostics['upstream_source_provider_reason'] == (
+    MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY.value
+  )
+  assert decision.diagnostics['upstream_source_provider_physical_termination'] is False
+  assert decision.diagnostics['continuation_model'] == reference.model
+  assert decision.diagnostics['next_cell_index'] == 2
+  assert decision.diagnostics['incoming_handoff_sample_count'] == len(
+    current.continuation_boundary
+  )
+  assert decision.diagnostics['incoming_handoff_fingerprint'] is not None
+
+  physical_source_stop = MocChainTerminationDecision(
+    physical_termination=True,
+    reason=MocChainTerminationReason.PHYSICAL_TERMINATION,
+    message='invalid upstream physical stop',
+  )
+  physical_stop_reference = MocSolverGeneratedAmbientClosedPostShockChainReference(
+    total_cell_count=2,
+    upstream_source_provider=lambda *_args: physical_source_stop,
+  )
+
+  rejected = physical_stop_reference.solve_next(
+    current,
+    2,
+    current.continuation_boundary,
+    field,
+  )
+
+  assert rejected.reason is MocChainTerminationReason.INVALID_INPUT
+  assert rejected.physical_termination is False
+  assert 'only the downstream shock solve' in rejected.message
+  assert rejected.diagnostics['source_provider_returned_physical_termination'] is True
+  assert rejected.diagnostics['upstream_source_provider_reason'] == (
+    MocChainTerminationReason.PHYSICAL_TERMINATION.value
+  )
+  assert rejected.diagnostics['continuation_model'] == physical_stop_reference.model
 
 
 def test_generated_ambient_closed_chain_reference_re_solves_explicit_reference_cells() -> None:

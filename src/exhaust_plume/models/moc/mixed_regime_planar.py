@@ -240,6 +240,7 @@ class MocMixedRegimePlanarSolveResult:
       'chain_promotion_blocked': self.chain_promotion_blocked,
       'production_claim_allowed': self.production_claim_allowed,
       'solver_model': self.solver_model,
+      'request': self.request.as_report(),
       'control_section_projection_verified': (
         self.control_section_projection_verified
       ),

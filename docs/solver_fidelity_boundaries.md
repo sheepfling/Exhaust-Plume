@@ -529,6 +529,16 @@ and independent measurement are all reported. This is useful for planner and
 visualization work, but it is not a canonical reflected-MOC free-boundary
 solve, does not infer geometry, and cannot seed a continued shock-cell chain.
 
+The continued terminal-patch planner now has the same explicit planar callback
+seam: it forwards the exact terminal request, caller-owned control section,
+and closed perimeter specification after the one-step reflected transition.
+The returned ``MocMixedRegimePlanarSolveResult`` retains the exact request in
+its report and is recorded beside—not attached to—the supersonic chain. This
+is a verified handoff only; canonical physical closure and chain promotion
+remain blocked. The bounded terminal patch was checked against the reusable
+source-characteristic-strip contract and is intentionally not promoted as a
+new source lattice because its axis/front geometry is degenerate there.
+
 The physical chain lane additionally exposes an explicit next-cell candidate
 contract and a planner mock for repeated candidates. Each candidate carries
 its own shock geometry, downstream angles, ambient samples, and axial extent;

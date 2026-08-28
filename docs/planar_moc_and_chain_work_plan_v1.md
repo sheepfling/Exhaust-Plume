@@ -1557,3 +1557,16 @@ planner records one bounded research step before stopping at
 ``physical_termination`` and production promotion remain false. This proves
 the bridge-to-chain interface without treating the unresolved post-caustic
 field remesh as a continued physical cell.
+
+The continued terminal-patch planner now also exposes an explicit planar
+downstream handoff. It captures the terminal transition once, forwards the
+exact ``MocMixedRegimePerimeterRequest`` to a caller-owned planar callback
+alongside an explicit control section and closed perimeter specification, and
+records the returned seam as adjacent evidence. The callback result is never
+attached to the supersonic chain; ``physical_closure_verified`` and
+``chain_promotion_blocked`` remain at their research-only values. The terminal
+patch's axis/front traces were also checked against the reusable source-strip
+contract and intentionally rejected as a new source lattice because their
+geometry is degenerate for that handoff. A future continuation must therefore
+provide a genuinely remeshed reflected-domain source rather than relabeling
+the bounded patch.
