@@ -31,6 +31,7 @@ from exhaust_plume.models.moc.chain import (
 )
 from exhaust_plume.models.moc.caustic_restart import MocCausticFamilyBandResult
 from exhaust_plume.models.moc.reflected_domain import (
+  MocReflectedDomainAlternatingSourceStatus,
   MocReflectedDomainAlternatingPhysicalFieldStatus,
   MocReflectedDomainAlternatingSourceResult,
   MocReflectedDomainRemeshResult,
@@ -184,6 +185,7 @@ __all__ = (
   'plan_reflected_domain_remesh_shock_chain',
   'plan_reflected_domain_remesh_shock_chain_sequence',
   'plan_reflected_domain_alternating_source_chain',
+  'plan_reflected_domain_alternating_source_chain_sequence',
   'plan_caustic_simple_wave_terminal_chain',
   'plan_caustic_remesh_downstream_field_chain',
   'plan_caustic_remesh_downstream_field_invariant_chain',
@@ -641,6 +643,47 @@ def _characteristic_strip_fingerprint(
     ),
     'minus:' + '\n'.join(
       state_payload(state) for state in strip.minus_source_states
+    ),
+  ))
+  return sha256(payload.encode('ascii')).hexdigest()
+
+
+def _alternating_source_band_fingerprint(
+  source_band: MocReflectedDomainAlternatingSourceResult,
+) -> str:
+  """Return a deterministic identity for a consumed alternating source band.
+
+  The incoming handoff is intentionally excluded.  A caller cannot make a
+  reused source domain fresh merely by attaching it to a different prior
+  cell; the geometric/state-bearing source rows must be independently solved.
+  """
+
+  def state_payload(state: CharacteristicState) -> str:
+    return '|'.join(
+      value.hex()
+      for value in (
+        state.x_m,
+        state.y_m,
+        state.theta_rad,
+        state.mach,
+        state.gamma,
+      )
+    )
+
+  payload = '\n'.join((
+    'centerline:' + '\n'.join(
+      state_payload(state)
+      for state in source_band.centerline_source_states
+    ),
+    'outer:' + '\n'.join(
+      state_payload(state)
+      for state in source_band.outer_source_states
+    ),
+    'centerline-pressure:' + '|'.join(
+      value.hex() for value in source_band.centerline_total_pressure_Pa
+    ),
+    'outer-pressure:' + '|'.join(
+      value.hex() for value in source_band.outer_total_pressure_Pa
     ),
   ))
   return sha256(payload.encode('ascii')).hexdigest()
@@ -7323,6 +7366,398 @@ def plan_reflected_domain_alternating_source_chain(
     'canonical_reflected_domain_closed': False,
     'physical_closure_pending': True,
     'canonical_free_boundary_pending': True,
+  })
+  return replace(planner, diagnostics=diagnostics)
+####
+
+
+def plan_reflected_domain_alternating_source_chain_sequence(
+  seed: MocPhysicalPostShockFieldResult,
+  initial_source_band: MocReflectedDomainAlternatingSourceResult,
+  source_band_at: Callable[
+    [
+      MocPhysicalPostShockFieldResult,
+      MocChainCell,
+      int,
+      tuple[MocChainBoundarySample, ...],
+    ],
+    MocReflectedDomainAlternatingSourceResult
+    | MocChainTerminationDecision
+    | None,
+  ],
+  *,
+  start_x_m: float,
+  end_x_m: float,
+  compression_amplitude_rad: float,
+  outer_source_index: int = 0,
+  target_centerline_y_m: float = 0.0,
+  target_centerline_flow_angle_rad: float = 0.0,
+  attachment_angle_half_width_rad: float = 1.0e-6,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-9,
+  invariant_tolerance: float = 1.0e-10,
+  attachment_pressure_tolerance: float = 1.0e-8,
+  pressure_tolerance: float = 1.0e-8,
+  tangent_tolerance: float = 1.0e-8,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  maximum_boundary_iterations: int = 16,
+  maximum_shooting_iterations: int = 40,
+  policy: MocChainContinuationPolicy | None = None,
+) -> MocChainPlannerResult:
+  """Plan a sequence of fresh alternating-source physical shock cells.
+
+  ``initial_source_band`` supplies the domain for the first continued cell.
+  Every later ``source_band_at`` call must return a newly solved alternating
+  source band whose ``incoming_handoff`` is exactly the centerline trace
+  supplied by the preceding accepted physical field.  A source band is never
+  reused, even when a caller attaches a different handoff to a copied result.
+
+  This is the multi-cell counterpart to
+  :func:`plan_reflected_domain_alternating_source_chain`.  It makes the
+  continued-chain orchestration seam executable while preserving the current
+  fidelity boundary: the local physical field uses the explicit research
+  compression envelope, and the canonical reflected free-boundary,
+  mixed-regime, refinement, and external-validation gates remain pending.
+  """
+
+  if not isinstance(seed, MocPhysicalPostShockFieldResult):
+    raise TypeError('seed must be a MocPhysicalPostShockFieldResult')
+  if not isinstance(
+    initial_source_band,
+    MocReflectedDomainAlternatingSourceResult,
+  ):
+    raise TypeError(
+      'initial_source_band must be a MocReflectedDomainAlternatingSourceResult'
+    )
+  if not callable(source_band_at):
+    raise TypeError('source_band_at must be callable')
+  if not isfinite(float(start_x_m)) or not isfinite(float(end_x_m)):
+    raise ValueError('start_x_m and end_x_m must be finite')
+  if end_x_m <= start_x_m:
+    raise ValueError('end_x_m must be strictly downstream of start_x_m')
+  if not isfinite(float(compression_amplitude_rad)) or compression_amplitude_rad <= 0.0:
+    raise ValueError('compression_amplitude_rad must be finite and positive')
+  cell_axial_length_m = float(end_x_m) - float(start_x_m)
+
+  active_field = seed
+  initial_attempt = True
+  used_source_ids: set[int] = set()
+  used_source_fingerprints: set[str] = set()
+  source_attempts: list[dict[str, Any]] = []
+
+  def provider_failure(
+    next_cell_index: int,
+    message: str,
+    *,
+    reason: MocChainTerminationReason = MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
+    diagnostics: dict[str, Any] | None = None,
+  ) -> MocChainTerminationDecision:
+    payload: dict[str, Any] = {
+      'termination_model': 'alternating-source-chain-sequence',
+      'next_cell_index': next_cell_index,
+      'alternating_source_reuse_policy': (
+        'fresh-alternating-source-band-and-exact-incoming-handoff-required-per-cell'
+      ),
+    }
+    if diagnostics is not None:
+      payload.update(diagnostics)
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=reason,
+      message=message,
+      diagnostics=payload,
+    )
+
+  def source_provider(
+    current: MocChainCell,
+    next_cell_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+  ) -> MocReflectedDomainAlternatingSourceResult | MocChainTerminationDecision:
+    nonlocal active_field, initial_attempt
+    if initial_attempt:
+      candidate: (
+        MocReflectedDomainAlternatingSourceResult
+        | MocChainTerminationDecision
+        | None
+      ) = initial_source_band
+      role = 'initial-alternating-source-band'
+      initial_attempt = False
+    else:
+      try:
+        candidate = source_band_at(
+          active_field,
+          current,
+          next_cell_index,
+          incoming_handoff,
+        )
+      except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+        source_attempts.append({
+          'current_cell_index': current.cell_index,
+          'next_cell_index': next_cell_index,
+          'role': 'alternating-source-band-provider',
+          'provider_error': type(error).__name__,
+          'fresh_source_band': False,
+          'incoming_handoff_verified': False,
+        })
+        return provider_failure(
+          next_cell_index,
+          f'alternating source-band provider failed: {error}',
+          reason=MocChainTerminationReason.SOLVER_ERROR,
+        )
+      role = 'alternating-source-band-provider'
+
+    if candidate is None:
+      source_attempts.append({
+        'current_cell_index': current.cell_index,
+        'next_cell_index': next_cell_index,
+        'role': role,
+        'provider_result': None,
+        'fresh_source_band': False,
+        'incoming_handoff_verified': False,
+      })
+      return provider_failure(
+        next_cell_index,
+        'alternating source-band provider returned no bounded source field',
+        reason=MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
+      )
+    if isinstance(candidate, MocChainTerminationDecision):
+      source_attempts.append({
+        'current_cell_index': current.cell_index,
+        'next_cell_index': next_cell_index,
+        'role': role,
+        'provider_decision': candidate.as_report(),
+        'fresh_source_band': False,
+        'incoming_handoff_verified': False,
+      })
+      if candidate.physical_termination:
+        return provider_failure(
+          next_cell_index,
+          (
+            'alternating source-band provider cannot declare physical '
+            'termination before a downstream shock solve'
+          ),
+          reason=MocChainTerminationReason.INVALID_INPUT,
+        )
+      return candidate
+    if not isinstance(
+      candidate,
+      MocReflectedDomainAlternatingSourceResult,
+    ):
+      source_attempts.append({
+        'current_cell_index': current.cell_index,
+        'next_cell_index': next_cell_index,
+        'role': role,
+        'provider_result_type': type(candidate).__name__,
+        'fresh_source_band': False,
+        'incoming_handoff_verified': False,
+      })
+      return provider_failure(
+        next_cell_index,
+        (
+          'alternating source-band provider must return a '
+          'MocReflectedDomainAlternatingSourceResult, '
+          'MocChainTerminationDecision, or None'
+        ),
+        reason=MocChainTerminationReason.INVALID_INPUT,
+      )
+
+    incoming_handoff_verified = candidate.incoming_handoff == incoming_handoff
+    fingerprint = _alternating_source_band_fingerprint(candidate)
+    source_is_fresh = id(candidate) not in used_source_ids
+    geometry_is_fresh = fingerprint not in used_source_fingerprints
+    if not incoming_handoff_verified:
+      source_attempts.append({
+        'current_cell_index': current.cell_index,
+        'next_cell_index': next_cell_index,
+        'role': 'alternating-source-band-handoff-seam',
+        'source_band': candidate.as_report(),
+        'incoming_handoff_sample_count': len(incoming_handoff),
+        'source_band_handoff_sample_count': len(candidate.incoming_handoff),
+        'incoming_handoff_verified': False,
+        'fresh_source_band': source_is_fresh,
+        'fresh_source_geometry': geometry_is_fresh,
+        'source_band_fingerprint': fingerprint,
+      })
+      return provider_failure(
+        next_cell_index,
+        (
+          'alternating source-band provider did not record the exact incoming '
+          'centerline handoff from the prior physical field'
+        ),
+        reason=MocChainTerminationReason.STATE_NOT_CARRIED,
+        diagnostics={
+          'incoming_handoff_sample_count': len(incoming_handoff),
+          'source_band_handoff_sample_count': len(candidate.incoming_handoff),
+          'incoming_handoff_fingerprint': _handoff_fingerprint(incoming_handoff),
+          'source_band_handoff_fingerprint': _handoff_fingerprint(
+            candidate.incoming_handoff
+          ),
+        },
+      )
+    if not source_is_fresh or not geometry_is_fresh:
+      source_attempts.append({
+        'current_cell_index': current.cell_index,
+        'next_cell_index': next_cell_index,
+        'role': 'alternating-source-band-freshness-gate',
+        'source_band': candidate.as_report(),
+        'incoming_handoff_verified': True,
+        'fresh_source_band': source_is_fresh,
+        'fresh_source_geometry': geometry_is_fresh,
+        'source_band_fingerprint': fingerprint,
+      })
+      return provider_failure(
+        next_cell_index,
+        (
+          'alternating source band or its state-bearing geometry was reused; '
+          'every continued cell requires a fresh bounded source solve'
+        ),
+        diagnostics={
+          'incoming_handoff_verified': True,
+          'fresh_source_band': source_is_fresh,
+          'fresh_source_geometry': geometry_is_fresh,
+          'source_band_fingerprint': fingerprint,
+        },
+      )
+    if not candidate.source_field_verified:
+      source_attempts.append({
+        'current_cell_index': current.cell_index,
+        'next_cell_index': next_cell_index,
+        'role': role,
+        'source_band': candidate.as_report(),
+        'incoming_handoff_verified': True,
+        'fresh_source_band': True,
+        'fresh_source_geometry': True,
+      })
+      reason = (
+        MocChainTerminationReason.INVALID_INPUT
+        if candidate.status is MocReflectedDomainAlternatingSourceStatus.INVALID_INPUT
+        else MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+      )
+      return provider_failure(
+        next_cell_index,
+        (
+          'alternating source-band provider returned a field that did not '
+          f'pass bounded-source gates: {candidate.message}'
+        ),
+        reason=reason,
+        diagnostics={'source_band': candidate.as_report()},
+      )
+
+    used_source_ids.add(id(candidate))
+    used_source_fingerprints.add(fingerprint)
+    source_attempts.append({
+      'current_cell_index': current.cell_index,
+      'next_cell_index': next_cell_index,
+      'role': role,
+      'source_band': candidate.as_report(),
+      'incoming_handoff_sample_count': len(incoming_handoff),
+      'incoming_handoff_verified': True,
+      'fresh_source_band': True,
+      'fresh_source_geometry': True,
+      'source_band_fingerprint': fingerprint,
+    })
+    return candidate
+
+  def solve_next(
+    current: MocChainCell,
+    next_cell_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+  ) -> MocPhysicalPostShockFieldContinuationSolve | MocChainTerminationDecision:
+    nonlocal active_field
+    source = source_provider(current, next_cell_index, incoming_handoff)
+    if isinstance(source, MocChainTerminationDecision):
+      return source
+    try:
+      solved = solve_reflected_domain_alternating_physical_field(
+        source,
+        compression_amplitude_rad,
+        outer_source_index=outer_source_index,
+        target_centerline_y_m=target_centerline_y_m,
+        target_centerline_flow_angle_rad=target_centerline_flow_angle_rad,
+        attachment_angle_half_width_rad=attachment_angle_half_width_rad,
+        sample_count=sample_count,
+        branch=branch,
+        position_tolerance_m=position_tolerance_m,
+        invariant_tolerance=invariant_tolerance,
+        attachment_pressure_tolerance=attachment_pressure_tolerance,
+        pressure_tolerance=pressure_tolerance,
+        tangent_tolerance=tangent_tolerance,
+        shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+        maximum_segment_iterations=maximum_segment_iterations,
+        maximum_boundary_iterations=maximum_boundary_iterations,
+        maximum_shooting_iterations=maximum_shooting_iterations,
+        incoming_handoff=incoming_handoff,
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      return provider_failure(
+        next_cell_index,
+        f'alternating source physical-field solve failed: {error}',
+        reason=MocChainTerminationReason.SOLVER_ERROR,
+        diagnostics={'source_band': source.as_report()},
+      )
+    if (
+      solved.converged
+      and solved.field is not None
+      and solved.field.converged
+      and solved.field.physical_closure_verified
+      and solved.state_sampling_available
+      and solved.upstream_coupling_verified
+    ):
+      active_field = solved.field
+      return MocPhysicalPostShockFieldContinuationSolve(
+        field=solved.field,
+        end_x_m=current.end_x_m + cell_axial_length_m,
+      )
+
+    if solved.status is MocReflectedDomainAlternatingPhysicalFieldStatus.INVALID_INPUT:
+      reason = MocChainTerminationReason.INVALID_INPUT
+    elif solved.status is MocReflectedDomainAlternatingPhysicalFieldStatus.SOURCE_FIELD_FAILURE:
+      reason = MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+    else:
+      reason = MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+    return provider_failure(
+      next_cell_index,
+      (
+        'alternating source physical-field solve did not produce a complete '
+        f'chain cell: {solved.message}'
+      ),
+      reason=reason,
+      diagnostics={
+        'source_band': source.as_report(),
+        'physical_field': solved.as_report(),
+      },
+    )
+
+  planner = plan_ambient_closed_post_shock_chain(
+    seed,
+    solve_next,
+    start_x_m=start_x_m,
+    end_x_m=end_x_m,
+    policy=policy,
+    require_upstream_shock_coupling=True,
+    claim_status=(
+      'alternating-reflected-source fresh-band physical shock-chain sequence; '
+      'bounded research continuation; canonical free-boundary validation and '
+      'production promotion pending'
+    ),
+  )
+  diagnostics = dict(planner.diagnostics)
+  diagnostics.update({
+    'alternating_source_chain_model': (
+      'bounded-alternating-source-fresh-band-physical-field-sequence'
+    ),
+    'alternating_source_initial_band': initial_source_band.as_report(),
+    'alternating_source_attempt_count': len(source_attempts),
+    'alternating_source_attempts': source_attempts,
+    'alternating_source_reuse_policy': (
+      'fresh-alternating-source-band-and-exact-incoming-handoff-required-per-cell'
+    ),
+    'canonical_reflected_domain_closed': False,
+    'physical_closure_pending': True,
+    'canonical_free_boundary_pending': True,
+    'external_validation_pending': True,
   })
   return replace(planner, diagnostics=diagnostics)
 ####

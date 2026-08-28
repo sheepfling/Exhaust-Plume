@@ -28,6 +28,7 @@ from exhaust_plume.models.moc import (
   inverse_prandtl_meyer_angle_rad,
   plan_reflected_domain_remesh_ambient_closed_chain,
   plan_reflected_domain_alternating_source_chain,
+  plan_reflected_domain_alternating_source_chain_sequence,
   plan_reflected_domain_remesh_shock_chain,
   plan_reflected_domain_remesh_shock_chain_sequence,
   solve_marched_attached_shock_field,
@@ -684,6 +685,104 @@ def test_reflected_domain_alternating_source_planner_carries_one_cell_handoff():
     [sample.state.x_m, sample.state.y_m]
     for sample in planner.chain.cells[0].continuation_boundary
   ]
+
+
+def test_reflected_domain_alternating_source_sequence_requires_fresh_bands_and_carries_multiple_cells():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  initial_source = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+    incoming_handoff=_handoff(field),
+  )
+  assert initial_source.converged
+
+  callback_calls = []
+
+  def source_band_at(current_field, current, next_cell_index, incoming_handoff):
+    callback_calls.append((current_field, current.cell_index, next_cell_index))
+    if next_cell_index > 3:
+      return None
+    source = solve_reflected_domain_alternating_source(
+      patch,
+      ambient_pressure,
+      source_sample_count=7 - next_cell_index,
+      incoming_handoff=incoming_handoff,
+    )
+    assert source.converged
+    return source
+
+  planner = plan_reflected_domain_alternating_source_chain_sequence(
+    field,
+    initial_source,
+    source_band_at,
+    start_x_m=0.5,
+    end_x_m=1.0,
+    compression_amplitude_rad=0.05,
+    policy=MocChainContinuationPolicy(max_cells=4, require_state_carry=True),
+  )
+
+  assert planner.chain.resolved
+  assert planner.chain.cell_count == 3
+  assert planner.chain.termination_reason is (
+    MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL
+  )
+  assert planner.handoff_links_verified is True
+  assert [step.result_kind for step in planner.steps] == [
+    'physical-field-solve-returned',
+    'physical-field-solve-returned',
+    'termination-returned',
+  ]
+  assert len(callback_calls) == 2
+  attempts = planner.diagnostics['alternating_source_attempts']
+  assert len(attempts) == 3
+  assert all(
+    attempt['incoming_handoff_verified'] is True
+    and attempt['fresh_source_band'] is True
+    and attempt['fresh_source_geometry'] is True
+    for attempt in attempts[:2]
+  )
+  assert attempts[-1]['provider_result'] is None
+  assert planner.diagnostics['alternating_source_reuse_policy'] == (
+    'fresh-alternating-source-band-and-exact-incoming-handoff-required-per-cell'
+  )
+  assert planner.diagnostics['canonical_reflected_domain_closed'] is False
+  assert planner.diagnostics['external_validation_pending'] is True
+
+
+def test_reflected_domain_alternating_source_sequence_rejects_copied_geometry():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  source = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+    incoming_handoff=_handoff(field),
+  )
+  assert source.converged
+
+  planner = plan_reflected_domain_alternating_source_chain_sequence(
+    field,
+    source,
+    lambda _field, _current, _next, incoming: replace(
+      source,
+      incoming_handoff=incoming,
+    ),
+    start_x_m=0.5,
+    end_x_m=1.0,
+    compression_amplitude_rad=0.05,
+    policy=MocChainContinuationPolicy(max_cells=3, require_state_carry=True),
+  )
+
+  assert planner.chain.cell_count == 2
+  assert planner.chain.termination_reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+  attempt = planner.diagnostics['alternating_source_attempts'][-1]
+  assert attempt['role'] == 'alternating-source-band-freshness-gate'
+  assert attempt['incoming_handoff_verified'] is True
+  assert attempt['fresh_source_band'] is True
+  assert attempt['fresh_source_geometry'] is False
+  assert planner.diagnostics['canonical_reflected_domain_closed'] is False
 
 
 def test_reflected_domain_alternating_source_band_carries_explicit_pressure_row():

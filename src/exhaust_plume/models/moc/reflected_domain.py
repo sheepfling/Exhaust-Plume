@@ -428,6 +428,7 @@ class MocReflectedDomainAlternatingSourceResult:
   trace_forward_tolerance_m: float = 1.0e-4
   invariant_tolerance: float = 1.0e-10
   pressure_tolerance: float = 1.0e-8
+  incoming_handoff: tuple[MocChainBoundarySample, ...] = ()
 
   def __post_init__(self) -> None:
     if not isinstance(self.status, MocReflectedDomainAlternatingSourceStatus):
@@ -559,6 +560,15 @@ class MocReflectedDomainAlternatingSourceResult:
       ):
         raise ValueError(f'{name} must be finite and valid')
       object.__setattr__(self, name, value)
+    incoming_handoff = tuple(self.incoming_handoff)
+    if any(
+      not isinstance(sample, MocChainBoundarySample)
+      for sample in incoming_handoff
+    ):
+      raise TypeError(
+        'incoming_handoff must contain MocChainBoundarySample values'
+      )
+    object.__setattr__(self, 'incoming_handoff', incoming_handoff)
     object.__setattr__(self, 'centerline_source_states', centerline)
     object.__setattr__(self, 'outer_source_states', outer)
     object.__setattr__(self, 'centerline_total_pressure_Pa', centerline_pressures)
@@ -872,6 +882,11 @@ class MocReflectedDomainAlternatingSourceResult:
       'trace_forward_tolerance_m': self.trace_forward_tolerance_m,
       'invariant_tolerance': self.invariant_tolerance,
       'pressure_tolerance': self.pressure_tolerance,
+      'incoming_handoff_sample_count': len(self.incoming_handoff),
+      'incoming_handoff_points_m': [
+        [sample.state.x_m, sample.state.y_m]
+        for sample in self.incoming_handoff
+      ],
       'message': self.message,
     }
   ####
@@ -1154,6 +1169,7 @@ def solve_reflected_domain_alternating_source(
   invariant_tolerance: float = 1.0e-10,
   pressure_tolerance: float = 1.0e-8,
   maximum_iterations: int = 16,
+  incoming_handoff: Sequence[MocChainBoundarySample] = (),
 ) -> MocReflectedDomainAlternatingSourceResult:
   """March a bounded alternating reflected-domain source band.
 
@@ -1209,6 +1225,16 @@ def solve_reflected_domain_alternating_source(
   except (TypeError, ValueError):
     target_y = float('nan')
     target_theta = float('nan')
+  try:
+    resolved_incoming_handoff = tuple(incoming_handoff)
+  except TypeError:
+    resolved_incoming_handoff = ()
+    incoming_handoff_error = True
+  else:
+    incoming_handoff_error = any(
+      not isinstance(sample, MocChainBoundarySample)
+      for sample in resolved_incoming_handoff
+    )
   try:
     seed_pressure = (
       float(outer_seed_total_pressure_Pa)
@@ -1297,12 +1323,18 @@ def solve_reflected_domain_alternating_source(
       trace_forward_tolerance_m=resolved_trace_forward_tolerance,
       invariant_tolerance=resolved_invariant_tolerance,
       pressure_tolerance=resolved_pressure_tolerance,
+      incoming_handoff=resolved_incoming_handoff,
     )
 
   if source_sample_count == 0:
     return failure(
       MocReflectedDomainAlternatingSourceStatus.INVALID_INPUT,
       'source_sample_count must be an integer of at least three',
+    )
+  if incoming_handoff_error:
+    return failure(
+      MocReflectedDomainAlternatingSourceStatus.INVALID_INPUT,
+      'incoming_handoff must contain MocChainBoundarySample values',
     )
   if (
     not isfinite(ambient_pressure)
@@ -1638,6 +1670,7 @@ def solve_reflected_domain_alternating_source(
     trace_forward_tolerance_m=resolved_trace_forward_tolerance,
     invariant_tolerance=resolved_invariant_tolerance,
     pressure_tolerance=resolved_pressure_tolerance,
+    incoming_handoff=resolved_incoming_handoff,
   )
 ####
 

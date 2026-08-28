@@ -1786,3 +1786,26 @@ audit is governance evidence only. The comparison and split audit both remain
 workspace, canonical reflected free-boundary/mixed-regime closure is still
 open, and neither the planner mock nor any visualization, signature, ray, or
 focal-plane-array provider consumes this lane.
+
+## Fresh alternating-source chain sequence checkpoint
+
+The alternating reflected-domain lane now has a multi-cell planner seam:
+`plan_reflected_domain_alternating_source_chain_sequence`. The initial bounded
+C-/C+ source band is used for the first continued cell, and every later cell
+must be supplied by a callback that solves a new source band from the
+currently accepted physical field. The source solver can now retain the exact
+prior centerline handoff as provenance; the planner rejects a missing or
+mismatched handoff before shock solving.
+
+The sequence also fingerprints the state-bearing source rows and rejects a
+copied geometry even when a caller wraps it in a new result object. Active
+field replacement occurs only after the alternating source, ambient-closed
+shock field, upstream coupling, and downstream extent gates pass. A missing
+fresh band is a typed `SOLVER_RETURNED_NO_NEXT_CELL` research stop, while
+source or physical-field failures retain their specific chain reason.
+
+This is a real continued shock-cell orchestration contract, not a canonical
+reflected-plume solution: the local compression envelope, canonical
+mixed-regime/free-boundary closure, refinement, and external validation gates
+remain open. The planner mock and all lower-fidelity visualization, signature,
+ray, and focal-plane-array providers remain unchanged.
