@@ -1708,3 +1708,15 @@ entropy lineage for later shock/ambient coupling. This is transport of
 solver-supplied pressure data, not a shock-loss or ambient free-boundary
 solve; the remesh remains open and non-promotable until those coupled
 conditions are solved and independently validated.
+
+The next boundary step is now executable as a separate solver-owned reference:
+`solve_reflected_domain_outer_source_curve` starts from an explicit prior
+outer-boundary state, marches each later centerline `C+` source to an
+ambient-pressure/streamline-tangent endpoint, and reassembles the resulting
+rows through the pressure-aware characteristic strip. Its independent
+`op.moc.reflected-domain-outer-source` audit checks the raw rows, pressure
+lineage, ambient residuals, topology, and bounded sampling. The generated
+curve can be bound into a fresh reflected-remesh request, so a future planner
+callback has a real boundary-solving seam rather than only a prescribed outer
+trace. The centerline source, prior seed, shock entropy production, downstream
+perimeter, and physical chain-cell promotion remain explicit unresolved gates.

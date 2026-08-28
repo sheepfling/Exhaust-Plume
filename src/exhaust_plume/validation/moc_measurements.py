@@ -65,6 +65,8 @@ from exhaust_plume.models.moc.physical_cell import (
   MocPhysicalPostShockFieldStatus,
 )
 from exhaust_plume.models.moc.reflected_domain import (
+  MocReflectedDomainOuterSourceResult,
+  MocReflectedDomainOuterSourceStatus,
   MocReflectedDomainRemeshResult,
   MocReflectedDomainRemeshStatus,
 )
@@ -76,7 +78,10 @@ from exhaust_plume.models.moc.post_shock import (
   fit_attached_shock_boundary,
 )
 from exhaust_plume.models.moc.shock_chain import MocTerminalShockCellFieldResult
-from exhaust_plume.models.moc.source_strip import MocSourceCharacteristicStripResult
+from exhaust_plume.models.moc.source_strip import (
+  MocSourceCharacteristicStripResult,
+  assemble_source_characteristic_strip_with_source_pressures,
+)
 from exhaust_plume.models.moc.terminal_patch import (
   classify_reflected_trace_polarity,
 )
@@ -89,6 +94,7 @@ __all__ = (
   'MOC_CAUSTIC_REMESH_OPERATOR_ID',
   'MOC_CHAIN_PLANNER_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_REMESH_OPERATOR_ID',
+  'MOC_REFLECTED_DOMAIN_OUTER_SOURCE_OPERATOR_ID',
   'MOC_MIXED_REGIME_FREE_BOUNDARY_OPERATOR_ID',
   'MOC_MIXED_REGIME_FREE_BOUNDARY_REFINEMENT_OPERATOR_ID',
   'MOC_MIXED_REGIME_CONTROL_SECTION_OPERATOR_ID',
@@ -105,6 +111,8 @@ __all__ = (
   'MocChainPlannerMeasurementStatus',
   'MocReflectedDomainRemeshMeasurement',
   'MocReflectedDomainRemeshMeasurementStatus',
+  'MocReflectedDomainOuterSourceMeasurement',
+  'MocReflectedDomainOuterSourceMeasurementStatus',
   'MocMixedRegimePotentialMeasurement',
   'MocMixedRegimePotentialMeasurementStatus',
   'MocMixedRegimeFreeBoundaryMeasurement',
@@ -129,6 +137,7 @@ __all__ = (
   'measure_moc_caustic_remesh',
   'measure_moc_chain_planner',
   'measure_moc_reflected_domain_remesh',
+  'measure_moc_reflected_domain_outer_source_curve',
   'measure_mixed_regime_compressible_potential_field',
   'measure_mixed_regime_free_boundary_reference',
   'measure_mixed_regime_free_boundary_refinement',
@@ -153,6 +162,9 @@ MOC_TERMINAL_CLOSURE_OPERATOR_ID = 'op.moc.terminal-closure'
 MOC_CAUSTIC_REMESH_OPERATOR_ID = 'op.moc.caustic-remesh'
 MOC_CHAIN_PLANNER_OPERATOR_ID = 'op.moc.chain-planner'
 MOC_REFLECTED_DOMAIN_REMESH_OPERATOR_ID = 'op.moc.reflected-domain-remesh'
+MOC_REFLECTED_DOMAIN_OUTER_SOURCE_OPERATOR_ID = (
+  'op.moc.reflected-domain-outer-source'
+)
 MOC_MIXED_REGIME_FREE_BOUNDARY_OPERATOR_ID = (
   'op.moc.mixed-regime-free-boundary-reference'
 )
@@ -1369,6 +1381,103 @@ class MocReflectedDomainRemeshMeasurement:
         'source_topology_verified': self.source_topology_verified,
         'source_sampling_verified': self.source_sampling_verified,
         'bounded_remesh_verified': self.bounded_remesh_verified,
+      },
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'claim_status': self.claim_status,
+      'message': self.message,
+    }
+  ####
+
+
+class MocReflectedDomainOuterSourceMeasurementStatus(str, Enum):
+  """Outcome of the independent outer-source-curve measurement."""
+
+  CONVERGED = 'converged'
+  INVALID_INPUT = 'invalid_input'
+  SEED_FAILURE = 'seed_failure'
+  BOUNDARY_FAILURE = 'boundary_failure'
+  FIELD_FAILURE = 'field_failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainOuterSourceMeasurement:
+  """Independent gates for a generated reflected-domain outer source.
+
+  The measurement reconstructs the ambient boundary and characteristic strip
+  from the returned raw rows.  It does not accept the solver's cached
+  convergence flags as evidence and does not promote the source field to a
+  physical shock-cell solution.
+  """
+
+  status: MocReflectedDomainOuterSourceMeasurementStatus
+  operator_id: str
+  solver_status: str | None
+  centerline_source_count: int
+  outer_source_count: int
+  boundary_point_count: int
+  source_node_count: int
+  source_cell_count: int
+  source_topology: MocTopologyResult
+  ambient_boundary: MocAmbientPressureBoundaryResult | None
+  result_status_verified: bool
+  seed_verified: bool
+  centerline_source_verified: bool
+  outer_source_verified: bool
+  pressure_lineage_verified: bool
+  ambient_boundary_verified: bool
+  source_topology_verified: bool
+  source_sampling_verified: bool
+  bounded_source_verified: bool
+  physical_closure_verified: bool
+  chain_promotion_blocked: bool
+  production_claim_allowed: bool
+  claim_status: str
+  message: str
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocReflectedDomainOuterSourceMeasurementStatus.CONVERGED
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'operator_id': self.operator_id,
+      'converged': self.converged,
+      'solver_status': self.solver_status,
+      'counts': {
+        'centerline_source_count': self.centerline_source_count,
+        'outer_source_count': self.outer_source_count,
+        'boundary_point_count': self.boundary_point_count,
+        'source_node_count': self.source_node_count,
+        'source_cell_count': self.source_cell_count,
+      },
+      'source_topology': {
+        'status': self.source_topology.status.value,
+        'connected': self.source_topology.connected,
+        'forms_closed_zone': self.source_topology.forms_closed_zone,
+        'boundary_edge_count': self.source_topology.boundary_edge_count,
+        'boundary_component_count': self.source_topology.boundary_component_count,
+        'nonmanifold_edge_count': self.source_topology.nonmanifold_edge_count,
+      },
+      'ambient_boundary': (
+        None
+        if self.ambient_boundary is None
+        else self.ambient_boundary.as_report()
+      ),
+      'checks': {
+        'result_status_verified': self.result_status_verified,
+        'seed_verified': self.seed_verified,
+        'centerline_source_verified': self.centerline_source_verified,
+        'outer_source_verified': self.outer_source_verified,
+        'pressure_lineage_verified': self.pressure_lineage_verified,
+        'ambient_boundary_verified': self.ambient_boundary_verified,
+        'source_topology_verified': self.source_topology_verified,
+        'source_sampling_verified': self.source_sampling_verified,
+        'bounded_source_verified': self.bounded_source_verified,
       },
       'physical_closure_verified': self.physical_closure_verified,
       'chain_promotion_blocked': self.chain_promotion_blocked,
@@ -6962,6 +7071,328 @@ def measure_moc_reflected_domain_remesh(
     source_topology_verified=source_topology_verified,
     source_sampling_verified=source_sampling_verified,
     bounded_remesh_verified=bounded_remesh_verified,
+    message=message,
+  )
+####
+
+
+def _reflected_domain_outer_source_measurement_failure(
+  status: MocReflectedDomainOuterSourceMeasurementStatus,
+  *,
+  solver_status: str | None = None,
+  centerline_source_count: int = 0,
+  outer_source_count: int = 0,
+  boundary_point_count: int = 0,
+  source_node_count: int = 0,
+  source_cell_count: int = 0,
+  source_topology: MocTopologyResult | None = None,
+  ambient_boundary: MocAmbientPressureBoundaryResult | None = None,
+  result_status_verified: bool = False,
+  seed_verified: bool = False,
+  centerline_source_verified: bool = False,
+  outer_source_verified: bool = False,
+  pressure_lineage_verified: bool = False,
+  ambient_boundary_verified: bool = False,
+  source_topology_verified: bool = False,
+  source_sampling_verified: bool = False,
+  bounded_source_verified: bool = False,
+  message: str,
+) -> MocReflectedDomainOuterSourceMeasurement:
+  return MocReflectedDomainOuterSourceMeasurement(
+    status=status,
+    operator_id=MOC_REFLECTED_DOMAIN_OUTER_SOURCE_OPERATOR_ID,
+    solver_status=solver_status,
+    centerline_source_count=centerline_source_count,
+    outer_source_count=outer_source_count,
+    boundary_point_count=boundary_point_count,
+    source_node_count=source_node_count,
+    source_cell_count=source_cell_count,
+    source_topology=(_empty_topology() if source_topology is None else source_topology),
+    ambient_boundary=ambient_boundary,
+    result_status_verified=result_status_verified,
+    seed_verified=seed_verified,
+    centerline_source_verified=centerline_source_verified,
+    outer_source_verified=outer_source_verified,
+    pressure_lineage_verified=pressure_lineage_verified,
+    ambient_boundary_verified=ambient_boundary_verified,
+    source_topology_verified=source_topology_verified,
+    source_sampling_verified=source_sampling_verified,
+    bounded_source_verified=bounded_source_verified,
+    physical_closure_verified=False,
+    chain_promotion_blocked=True,
+    production_claim_allowed=False,
+    claim_status='independent-reflected-domain-outer-source-audit; not-accepted',
+    message=message,
+  )
+
+
+def measure_moc_reflected_domain_outer_source_curve(
+  result: MocReflectedDomainOuterSourceResult,
+) -> MocReflectedDomainOuterSourceMeasurement:
+  """Independently audit a solver-generated reflected outer source curve.
+
+  The operator reconstructs the ambient boundary and source strip from the
+  returned rows.  It intentionally does not trust the solver's convergence,
+  source-curve, or field flags, and it never treats this source domain as a
+  closed or promotable shock cell.
+  """
+
+  if not isinstance(result, MocReflectedDomainOuterSourceResult):
+    return _reflected_domain_outer_source_measurement_failure(
+      MocReflectedDomainOuterSourceMeasurementStatus.INVALID_INPUT,
+      message='result must be a MocReflectedDomainOuterSourceResult',
+    )
+
+  solver_status = getattr(result.status, 'value', str(result.status))
+  centerline = tuple(result.centerline_source_states)
+  outer = tuple(result.outer_source_states)
+  centerline_pressures = tuple(result.centerline_total_pressure_Pa)
+  outer_pressures = tuple(result.outer_total_pressure_Pa)
+  centerline_count = len(centerline)
+  outer_count = len(outer)
+  tolerance = result.position_tolerance_m
+  state_tolerance = result.invariant_tolerance
+  pressure_tolerance = result.pressure_tolerance
+  ambient_pressure = result.ambient_pressure_Pa
+
+  result_status_verified = (
+    result.status is MocReflectedDomainOuterSourceStatus.CONVERGED
+  )
+  centerline_verified = bool(
+    centerline_count >= 3
+    and all(isinstance(state, CharacteristicState) for state in centerline)
+    and all(
+      abs(state.y_m - result.target_centerline_y_m) <= tolerance
+      and abs(state.theta_rad - result.target_centerline_flow_angle_rad)
+      <= state_tolerance
+      for state in centerline
+    )
+    and all(
+      right.x_m > left.x_m + tolerance
+      for left, right in zip(centerline, centerline[1:])
+    )
+    and all(
+      abs(state.gamma - centerline[0].gamma) <= state_tolerance
+      for state in centerline
+    )
+  )
+  outer_verified = bool(
+    outer_count == centerline_count
+    and outer_count >= 3
+    and centerline
+    and all(isinstance(state, CharacteristicState) for state in outer)
+    and all(
+      state.y_m > result.target_centerline_y_m + tolerance
+      and abs(state.gamma - centerline[0].gamma) <= state_tolerance
+      for state in outer
+    )
+    and all(
+      right.x_m > left.x_m + tolerance
+      for left, right in zip(outer, outer[1:])
+    )
+    and outer[0].x_m > centerline[0].x_m + tolerance
+    and max(state.k_minus for state in outer)
+    - min(state.k_minus for state in outer)
+    > state_tolerance
+  )
+
+  reference_pressure = result.reference_total_pressure_Pa
+  previous_pressure = result.previous_boundary_total_pressure_Pa
+  seed_verified = bool(
+    isinstance(result.previous_boundary_state, CharacteristicState)
+    and reference_pressure is not None
+    and previous_pressure is not None
+    and ambient_pressure is not None
+    and centerline
+    and _pressure_matches(
+      centerline_pressures[0] if centerline_pressures else None,
+      reference_pressure,
+      pressure_tolerance=pressure_tolerance,
+    )
+    and _pressure_matches(
+      outer_pressures[0] if outer_pressures else None,
+      previous_pressure,
+      pressure_tolerance=pressure_tolerance,
+    )
+    and result.previous_boundary_state.y_m
+    > result.target_centerline_y_m + tolerance
+    and result.previous_boundary_state.x_m
+    > centerline[0].x_m + tolerance
+    and abs(
+      (
+        previous_pressure
+        / (
+          1.0
+          + 0.5
+          * (result.previous_boundary_state.gamma - 1.0)
+          * result.previous_boundary_state.mach
+          * result.previous_boundary_state.mach
+        )
+        ** (
+          result.previous_boundary_state.gamma
+          / (result.previous_boundary_state.gamma - 1.0)
+        )
+        - ambient_pressure
+      )
+      / ambient_pressure
+    )
+    <= pressure_tolerance
+  )
+  pressure_lineage_verified = bool(
+    len(centerline_pressures) == centerline_count
+    and len(outer_pressures) == outer_count
+    and all(
+      isfinite(float(value)) and float(value) > 0.0
+      for value in (*centerline_pressures, *outer_pressures)
+    )
+    and reference_pressure is not None
+    and previous_pressure is not None
+    and _pressure_matches(
+      centerline_pressures[0] if centerline_pressures else None,
+      reference_pressure,
+      pressure_tolerance=pressure_tolerance,
+    )
+    and _pressure_matches(
+      outer_pressures[0] if outer_pressures else None,
+      previous_pressure,
+      pressure_tolerance=pressure_tolerance,
+    )
+    and all(
+      _pressure_matches(
+        outer_pressures[index],
+        centerline_pressures[index],
+        pressure_tolerance=pressure_tolerance,
+      )
+      for index in range(1, min(centerline_count, outer_count))
+    )
+  )
+
+  ambient_boundary: MocAmbientPressureBoundaryResult | None = None
+  if (
+    outer_verified
+    and pressure_lineage_verified
+    and ambient_pressure is not None
+  ):
+    ambient_boundary = validate_ambient_pressure_boundary(
+      tuple(
+        MocAmbientBoundarySample(
+          point_m=(state.x_m, state.y_m),
+          state=state,
+          total_pressure_Pa=pressure,
+        )
+        for state, pressure in zip(outer, outer_pressures, strict=True)
+      ),
+      ambient_pressure,
+      position_tolerance_m=tolerance,
+      pressure_tolerance=pressure_tolerance,
+      tangent_tolerance=pressure_tolerance,
+    )
+  ambient_boundary_verified = bool(
+    ambient_boundary is not None and ambient_boundary.converged
+  )
+
+  recomputed_strip: MocSourceCharacteristicStripResult | None = None
+  if centerline_verified and outer_verified and pressure_lineage_verified:
+    recomputed_strip = assemble_source_characteristic_strip_with_source_pressures(
+      centerline,
+      outer,
+      centerline_pressures,
+      outer_pressures,
+      position_tolerance_m=tolerance,
+      invariant_tolerance=state_tolerance,
+    )
+  source_topology = (
+    _empty_topology()
+    if recomputed_strip is None
+    else recomputed_strip.topology
+  )
+  source_topology_verified = bool(
+    recomputed_strip is not None
+    and recomputed_strip.converged
+    and source_topology.connected
+    and source_topology.forms_closed_zone
+    and source_topology.nonmanifold_edge_count == 0
+  )
+  source_sampling_verified = bool(
+    source_topology_verified
+    and recomputed_strip is not None
+    and all(
+      _caustic_state_matches(
+        recomputed_strip.state_at(
+          (state.x_m, state.y_m),
+          position_tolerance_m=tolerance,
+        ),
+        state,
+        position_tolerance_m=tolerance,
+        state_tolerance=state_tolerance,
+      )
+      and _pressure_matches(
+        recomputed_strip.total_pressure_at(
+          (state.x_m, state.y_m),
+          position_tolerance_m=tolerance,
+        ),
+        pressure,
+        pressure_tolerance=pressure_tolerance,
+      )
+      for state, pressure in (
+        *zip(centerline, centerline_pressures, strict=True),
+        *zip(outer, outer_pressures, strict=True),
+      )
+    )
+  )
+  bounded_source_verified = bool(
+    result_status_verified
+    and seed_verified
+    and centerline_verified
+    and outer_verified
+    and pressure_lineage_verified
+    and ambient_boundary_verified
+    and source_topology_verified
+    and source_sampling_verified
+  )
+
+  if not seed_verified:
+    status = MocReflectedDomainOuterSourceMeasurementStatus.SEED_FAILURE
+    message = 'previous ambient outer-boundary seed failed independent measurement'
+  elif not centerline_verified or not outer_verified or not pressure_lineage_verified:
+    status = MocReflectedDomainOuterSourceMeasurementStatus.BOUNDARY_FAILURE
+    message = 'generated source rows or pressure lineage failed independent measurement'
+  elif not ambient_boundary_verified:
+    status = MocReflectedDomainOuterSourceMeasurementStatus.BOUNDARY_FAILURE
+    message = 'generated outer source curve failed independent ambient acceptance'
+  elif not source_topology_verified or not source_sampling_verified:
+    status = MocReflectedDomainOuterSourceMeasurementStatus.FIELD_FAILURE
+    message = 'recomputed source characteristic strip failed independent measurement'
+  elif not result_status_verified:
+    status = MocReflectedDomainOuterSourceMeasurementStatus.FIELD_FAILURE
+    message = 'outer-source result did not report a converged generated source'
+  else:
+    status = MocReflectedDomainOuterSourceMeasurementStatus.CONVERGED
+    message = (
+      'ambient outer-source curve and bounded characteristic strip passed '
+      'independent row, pressure, boundary, topology, and sampling checks; '
+      'shock-cell closure and promotion remain pending'
+    )
+
+  return _reflected_domain_outer_source_measurement_failure(
+    status,
+    solver_status=solver_status,
+    centerline_source_count=centerline_count,
+    outer_source_count=outer_count,
+    boundary_point_count=len(result.point_results),
+    source_node_count=(0 if recomputed_strip is None else recomputed_strip.node_count),
+    source_cell_count=(0 if recomputed_strip is None else recomputed_strip.cell_count),
+    source_topology=source_topology,
+    ambient_boundary=ambient_boundary,
+    result_status_verified=result_status_verified,
+    seed_verified=seed_verified,
+    centerline_source_verified=centerline_verified,
+    outer_source_verified=outer_verified,
+    pressure_lineage_verified=pressure_lineage_verified,
+    ambient_boundary_verified=ambient_boundary_verified,
+    source_topology_verified=source_topology_verified,
+    source_sampling_verified=source_sampling_verified,
+    bounded_source_verified=bounded_source_verified,
     message=message,
   )
 ####

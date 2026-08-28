@@ -42,6 +42,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocPhysicalPostShockFieldContinuationSolve,
   MocReflectedDomainRemeshRequest,
   MocReflectedDomainRemeshStatus,
+  build_reflected_domain_remesh_request_from_outer_source,
   MocReflectedTracePolarity,
   MocPrescribedMixedRegimeClosureMock,
   MocPrescribedPostShockChainMock,
@@ -94,6 +95,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   plan_reflected_domain_remesh_shock_chain,
   plan_reflected_domain_remesh_shock_chain_sequence,
   solve_reflected_domain_remesh,
+  solve_reflected_domain_outer_source_curve,
   plan_terminal_reflection_patch_chain,
   MocShockBoundaryFitResult,
   MocShockBoundaryFitStatus,
@@ -192,6 +194,7 @@ from exhaust_plume.validation.moc_measurements import (  # noqa: E402
   MocMixedRegimeFreeBoundaryRefinementCase,
   MocMixedRegimeFreeBoundaryRefinementMeasurementStatus,
   MocReflectedDomainRemeshMeasurementStatus,
+  MocReflectedDomainOuterSourceMeasurementStatus,
   MocTerminalClosureObservation,
   MocShockCellObservation,
   MocShockCellChainRefinementCase,
@@ -199,6 +202,7 @@ from exhaust_plume.validation.moc_measurements import (  # noqa: E402
   measure_moc_ambient_closed_physical_field_chain,
   measure_moc_chain_planner,
   measure_moc_reflected_domain_remesh,
+  measure_moc_reflected_domain_outer_source_curve,
   measure_mixed_regime_control_section,
   measure_mixed_regime_free_boundary_reference,
   measure_mixed_regime_free_boundary_refinement,
@@ -561,6 +565,40 @@ def _reflected_domain_remesh_probe(
   remesh_measurement = measure_moc_reflected_domain_remesh(remesh)
   reused_front_measurement = measure_moc_reflected_domain_remesh(reused_front)
 
+  outer_source = None
+  outer_source_measurement = None
+  outer_source_remesh = None
+  outer_source_remesh_measurement = None
+  outer_source_error = None
+  try:
+    outer_seed = request.outer_source_states[0]
+    ambient_pressure = 101325.0
+    outer_seed_pressure = ambient_pressure * (
+      1.0
+      + 0.5 * (outer_seed.gamma - 1.0) * outer_seed.mach * outer_seed.mach
+    ) ** (outer_seed.gamma / (outer_seed.gamma - 1.0))
+    outer_source = solve_reflected_domain_outer_source_curve(
+      request.centerline_source_states,
+      outer_seed,
+      ambient_pressure,
+      request.total_pressure_Pa,
+      previous_boundary_total_pressure_Pa=outer_seed_pressure,
+    )
+    outer_source_measurement = measure_moc_reflected_domain_outer_source_curve(
+      outer_source
+    )
+    generated_request = build_reflected_domain_remesh_request_from_outer_source(
+      reflection_patch,
+      outer_source,
+      incoming_handoff=request.incoming_handoff,
+    )
+    outer_source_remesh = solve_reflected_domain_remesh(generated_request)
+    outer_source_remesh_measurement = measure_moc_reflected_domain_remesh(
+      outer_source_remesh
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    outer_source_error = f'{type(error).__name__}: {error}'
+
   one_step_planner = None
   one_step_error = None
   sequence_planner = None
@@ -688,6 +726,19 @@ def _reflected_domain_remesh_probe(
     and remesh.source_field_verified
     and remesh.physical_closure_verified is False
     and remesh.chain_promotion_blocked
+    and outer_source is not None
+    and outer_source_measurement is not None
+    and outer_source_measurement.status is (
+      MocReflectedDomainOuterSourceMeasurementStatus.CONVERGED
+    )
+    and outer_source_measurement.bounded_source_verified
+    and outer_source_measurement.physical_closure_verified is False
+    and outer_source_measurement.chain_promotion_blocked
+    and outer_source_measurement.production_claim_allowed is False
+    and outer_source_remesh is not None
+    and outer_source_remesh.converged
+    and outer_source_remesh_measurement is not None
+    and outer_source_remesh_measurement.converged
     and reused_front.status is MocReflectedDomainRemeshStatus.OUTER_SOURCE_FAILURE
     and reused_front_measurement.converged is False
     and reused_front_measurement.outer_source_verified is False
@@ -715,6 +766,23 @@ def _reflected_domain_remesh_probe(
     'accepted': accepted,
     'remesh': remesh.as_report(),
     'independent_measurement': remesh_measurement.as_report(),
+    'solver_generated_outer_source': (
+      None if outer_source is None else outer_source.as_report()
+    ),
+    'outer_source_independent_measurement': (
+      None
+      if outer_source_measurement is None
+      else outer_source_measurement.as_report()
+    ),
+    'outer_source_remesh': (
+      None if outer_source_remesh is None else outer_source_remesh.as_report()
+    ),
+    'outer_source_remesh_measurement': (
+      None
+      if outer_source_remesh_measurement is None
+      else outer_source_remesh_measurement.as_report()
+    ),
+    'outer_source_error': outer_source_error,
     'reused_single_front_rejection': reused_front.as_report(),
     'reused_single_front_measurement': reused_front_measurement.as_report(),
     'one_step_planner': one_step_report,

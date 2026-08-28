@@ -220,9 +220,13 @@ from exhaust_plume.models.moc.caustic_restart import (
   restart_characteristic_family_from_caustic,
 )
 from exhaust_plume.models.moc.reflected_domain import (
+  MocReflectedDomainOuterSourceStatus,
+  MocReflectedDomainOuterSourceResult,
   MocReflectedDomainRemeshStatus,
   MocReflectedDomainRemeshRequest,
   MocReflectedDomainRemeshResult,
+  build_reflected_domain_remesh_request_from_outer_source,
+  solve_reflected_domain_outer_source_curve,
   solve_reflected_domain_remesh,
 )
 from exhaust_plume.models.moc.family_band_solver import (
@@ -595,9 +599,13 @@ __all__ = (
   'MocCausticFamilyRestartStatus',
   'MocCausticFamilyBandResult',
   'MocCausticFamilyBandStatus',
+  'MocReflectedDomainOuterSourceStatus',
+  'MocReflectedDomainOuterSourceResult',
   'MocReflectedDomainRemeshStatus',
   'MocReflectedDomainRemeshRequest',
   'MocReflectedDomainRemeshResult',
+  'build_reflected_domain_remesh_request_from_outer_source',
+  'solve_reflected_domain_outer_source_curve',
   'solve_reflected_domain_remesh',
   'MocCausticFamilyBandShockResult',
   'MocCausticFamilyBandShockStatus',

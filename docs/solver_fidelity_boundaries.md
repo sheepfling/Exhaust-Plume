@@ -654,7 +654,9 @@ new centerline `C+` source row and a distinct outer `C-` source curve; reusing
 the single prior characteristic as the whole outer boundary is rejected as a
 degenerate domain. The solver validates the reflection endpoint, family
 polarity, source ordering, diagonal compatibility, and scalar total-pressure
-handoff before exposing a bounded source field.
+handoff before exposing a bounded source field. Optional centerline and outer
+source pressure rows now preserve a caller-supplied nonuniform pressure
+lineage through that bounded field; they do not infer shock entropy.
 
 `plan_reflected_domain_remesh_shock_chain` adapts that field for one
 research-only shock attempt. Its sequence counterpart requires a fresh
@@ -717,3 +719,13 @@ interpolates those values alongside the compatible state, and independent
 measurement rechecks the rows and samples. This closes pressure lineage inside
 an explicit Cauchy patch, but it does not compute shock entropy loss, infer the
 outer ambient curve, or authorize a canonical continued cell.
+
+The outer-source boundary now has a separate solver-owned reference seam.
+`solve_reflected_domain_outer_source_curve` uses an explicit prior outer seed,
+marches the later centerline `C+` states to ambient-pressure/tangent endpoints,
+and reassembles the generated rows as a bounded pressure-aware source field.
+`op.moc.reflected-domain-outer-source` independently rechecks those rows,
+ambient residuals, topology, and source sampling. The result can be bound into
+a fresh reflected-remesh request, but it remains a source-domain result: the
+centerline source, entropy production across shocks, downstream perimeter,
+canonical free-boundary closure, and product promotion are still blocked.

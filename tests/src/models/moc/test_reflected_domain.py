@@ -5,6 +5,7 @@ from math import cos, sin
 
 import pytest
 
+from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput
 from exhaust_plume.models.moc import (
   CharacteristicState,
   MocAmbientPhysicalFieldResult,
@@ -15,11 +16,13 @@ from exhaust_plume.models.moc import (
   MocChainTerminationReason,
   MocPostShockChainCellSolve,
   MocReflectedDomainRemeshRequest,
+  MocReflectedDomainOuterSourceStatus,
   MocReflectedDomainRemeshStatus,
   MocSolverGeneratedAmbientClosedPostShockChainReference,
   MocSourceStripContinuationStatus,
   MocTerminalReflectionPatchAmbientClosureChainReference,
   assemble_terminal_trace_centerline_patch,
+  build_reflected_domain_remesh_request_from_outer_source,
   inverse_prandtl_meyer_angle_rad,
   plan_reflected_domain_remesh_ambient_closed_chain,
   plan_reflected_domain_remesh_shock_chain,
@@ -27,10 +30,20 @@ from exhaust_plume.models.moc import (
   solve_marched_attached_shock_field,
   solve_marched_attached_shock_with_ambient_centerline_physical_field,
   solve_reflected_domain_remesh,
+  solve_reflected_domain_outer_source_curve,
+  solve_underexpanded_expansion_fan,
   solve_uniform_attached_shock_field,
 )
+from exhaust_plume.models.moc import solve_reflected_free_boundary
+from exhaust_plume.models.nozzle.contracts import AmbientState, NozzleExitState
+from exhaust_plume.models.nozzle.exit_state import (
+  derive_ambient_state,
+  derive_uniform_nozzle_exit,
+)
 from exhaust_plume.validation.moc_measurements import (
+  MocReflectedDomainOuterSourceMeasurementStatus,
   MocReflectedDomainRemeshMeasurementStatus,
+  measure_moc_reflected_domain_outer_source_curve,
   measure_moc_reflected_domain_remesh,
 )
 
@@ -136,6 +149,31 @@ def _request(*, declared_polarity=None, incoming_handoff=()):
     declared_polarity=declared_polarity,
   )
   return field, patch, request
+
+
+def _outer_source_fixture() -> tuple[NozzleExitState, AmbientState, object]:
+  gas = CaloricallyPerfectGas.dry_air()
+  exit_state = derive_uniform_nozzle_exit(
+    NozzleExitInput(
+      mach=2.0,
+      total_pressure_Pa=2.0e6,
+      total_temperature_K=900.0,
+      exit_radius_m=0.05,
+    ),
+    gas,
+  )
+  ambient = derive_ambient_state(
+    AmbientInput(pressure_Pa=101325.0, temperature_K=300.0),
+    gas,
+  )
+  fan = solve_underexpanded_expansion_fan(
+    exit_state,
+    ambient,
+    characteristic_count=8,
+  )
+  reflected = solve_reflected_free_boundary(fan, exit_state, ambient)
+  assert reflected.converged
+  return exit_state, ambient, reflected
 
 
 def _handoff(field):
@@ -370,6 +408,149 @@ def test_reflected_domain_remesh_carries_source_family_total_pressure():
   assert measurement.total_pressure_verified
   assert measurement.source_sampling_verified
   assert measurement.production_claim_allowed is False
+
+
+def test_reflected_domain_outer_source_curve_is_solved_and_assembled():
+  exit_state, ambient, reflected = _outer_source_fixture()
+
+  result = solve_reflected_domain_outer_source_curve(
+    reflected.centerline_states,
+    reflected.boundary_states[0],
+    ambient.pressure_Pa,
+    exit_state.total_pressure_Pa,
+  )
+
+  assert result.status is MocReflectedDomainOuterSourceStatus.CONVERGED
+  assert result.converged
+  assert result.outer_source_curve_verified
+  assert result.source_field_verified
+  assert result.source_strip is not None
+  assert result.source_strip.total_pressure_model == (
+    'uniform-isentropic-source-strip'
+  )
+  assert len(result.point_results) == len(reflected.centerline_states) - 1
+  assert all(point.converged for point in result.point_results)
+  assert result.ambient_boundary is not None
+  assert result.ambient_boundary.converged
+  assert tuple(result.outer_source_states[1:]) == pytest.approx(
+    reflected.boundary_states[1:]
+  )
+  assert result.physical_closure_verified is False
+  assert result.chain_promotion_blocked
+  report = result.as_report()
+  assert report['source_model'] == (
+    'solver-owned-ambient-pressure-outer-source-march'
+  )
+  assert report['outer_source_curve_verified'] is True
+  assert report['source_field_verified'] is True
+  assert report['physical_closure_verified'] is False
+  measurement = measure_moc_reflected_domain_outer_source_curve(result)
+  assert measurement.status is MocReflectedDomainOuterSourceMeasurementStatus.CONVERGED
+  assert measurement.bounded_source_verified
+  assert measurement.ambient_boundary_verified
+  assert measurement.source_sampling_verified
+  assert measurement.physical_closure_verified is False
+  assert measurement.chain_promotion_blocked
+  assert measurement.production_claim_allowed is False
+
+
+def test_reflected_domain_outer_source_curve_carries_explicit_pressure_rows():
+  exit_state, ambient, reflected = _outer_source_fixture()
+  total_pressure = exit_state.total_pressure_Pa
+  centerline_pressures = tuple(
+    total_pressure * (1.0 - 0.001 * index)
+    for index in range(len(reflected.centerline_states))
+  )
+
+  result = solve_reflected_domain_outer_source_curve(
+    reflected.centerline_states,
+    reflected.boundary_states[0],
+    ambient.pressure_Pa,
+    total_pressure,
+    centerline_total_pressure_Pa=centerline_pressures,
+  )
+
+  assert result.converged
+  assert result.source_field_verified
+  assert result.source_strip is not None
+  assert result.source_strip.total_pressure_model == (
+    'source-family-carried-total-pressure'
+  )
+  assert result.centerline_total_pressure_Pa == pytest.approx(
+    centerline_pressures
+  )
+  assert result.outer_total_pressure_Pa[0] == pytest.approx(total_pressure)
+  assert result.outer_total_pressure_Pa[1:] == pytest.approx(
+    centerline_pressures[1:]
+  )
+  assert result.source_strip.total_pressure_at(
+    (
+      result.outer_source_states[3].x_m,
+      result.outer_source_states[3].y_m,
+    )
+  ) == pytest.approx(result.outer_total_pressure_Pa[3])
+  assert result.as_report()['total_pressure_range_Pa'][1] == pytest.approx(
+    total_pressure
+  )
+  measurement = measure_moc_reflected_domain_outer_source_curve(result)
+  assert measurement.converged
+  assert measurement.pressure_lineage_verified
+
+
+def test_reflected_domain_outer_source_curve_rejects_nonambient_seed():
+  exit_state, ambient, reflected = _outer_source_fixture()
+  bad_seed = replace(reflected.boundary_states[0], mach=2.0)
+
+  result = solve_reflected_domain_outer_source_curve(
+    reflected.centerline_states,
+    bad_seed,
+    ambient.pressure_Pa,
+    exit_state.total_pressure_Pa,
+  )
+
+  assert result.status is MocReflectedDomainOuterSourceStatus.SEED_FAILURE
+  assert result.converged is False
+  assert result.outer_source_curve_verified is False
+  assert result.source_field_verified is False
+  assert result.point_results == ()
+
+
+def test_reflected_domain_outer_source_curve_binds_into_a_fresh_remesh_request():
+  _field, patch, request = _request()
+  seed = request.outer_source_states[0]
+  ambient_pressure = 101325.0
+  seed_pressure = ambient_pressure * (
+    1.0 + 0.5 * (seed.gamma - 1.0) * seed.mach * seed.mach
+  ) ** (seed.gamma / (seed.gamma - 1.0))
+  generated = solve_reflected_domain_outer_source_curve(
+    request.centerline_source_states,
+    seed,
+    ambient_pressure,
+    request.total_pressure_Pa,
+    previous_boundary_total_pressure_Pa=seed_pressure,
+  )
+  assert generated.converged
+
+  bound_request = build_reflected_domain_remesh_request_from_outer_source(
+    patch,
+    generated,
+    incoming_handoff=request.incoming_handoff,
+  )
+
+  assert bound_request.centerline_source_states == (
+    generated.centerline_source_states
+  )
+  assert bound_request.outer_source_states == generated.outer_source_states
+  assert bound_request.centerline_total_pressure_Pa == pytest.approx(
+    generated.centerline_total_pressure_Pa
+  )
+  assert bound_request.outer_total_pressure_Pa == pytest.approx(
+    generated.outer_total_pressure_Pa
+  )
+  remesh = solve_reflected_domain_remesh(bound_request)
+  assert remesh.converged
+  assert remesh.source_field_verified
+  assert remesh.request is bound_request
 
 
 def test_reflected_domain_ambient_closed_planner_connects_fresh_remeshes_to_physical_solver(
