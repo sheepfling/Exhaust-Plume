@@ -21,6 +21,7 @@ from enum import Enum
 from math import isfinite
 
 from exhaust_plume.models.moc.chain import (
+  MocChainBoundarySample,
   MocChainTerminationDecision,
   MocChainTerminationReason,
 )
@@ -86,6 +87,11 @@ class MocCausticUpstreamRemeshRequest:
   centerline_source_states: tuple[CharacteristicState, ...]
   outer_source_states: tuple[CharacteristicState, ...]
   total_pressure_Pa: float
+  # Standalone Cauchy remeshes may omit this provenance.  A continued-cell
+  # sequence requires later provider results to echo the exact prior chain
+  # handoff so the upstream-domain solve cannot be detached from the cell
+  # being continued.
+  incoming_handoff: tuple[MocChainBoundarySample, ...] = ()
   centerline_y_m: float = 0.0
   outer_boundary_kind: str = 'caustic-conditioned-pre-shock-boundary'
   position_tolerance_m: float = 1.0e-10
@@ -143,6 +149,21 @@ class MocCausticUpstreamRemeshRequest:
       raise ValueError(
         'total_pressure_Pa must match the caustic seed total pressure'
       )
+    try:
+      incoming_handoff = tuple(self.incoming_handoff)
+    except TypeError as error:
+      raise TypeError('incoming_handoff must be iterable') from error
+    if any(
+      not isinstance(sample, MocChainBoundarySample)
+      for sample in incoming_handoff
+    ):
+      raise TypeError(
+        'incoming_handoff must contain MocChainBoundarySample values'
+      )
+    if incoming_handoff and len(incoming_handoff) < 3:
+      raise ValueError(
+        'incoming_handoff requires at least three samples when supplied'
+      )
     centerline_y = float(self.centerline_y_m)
     if not isfinite(centerline_y):
       raise ValueError('centerline_y_m must be finite')
@@ -165,6 +186,7 @@ class MocCausticUpstreamRemeshRequest:
     object.__setattr__(self, 'centerline_source_states', centerline)
     object.__setattr__(self, 'outer_source_states', outer)
     object.__setattr__(self, 'total_pressure_Pa', pressure)
+    object.__setattr__(self, 'incoming_handoff', incoming_handoff)
     object.__setattr__(self, 'centerline_y_m', centerline_y)
     object.__setattr__(self, 'outer_boundary_kind', boundary_kind)
     object.__setattr__(self, 'position_tolerance_m', tolerance)
@@ -205,6 +227,13 @@ class MocCausticUpstreamRemeshRequest:
       'centerline_source_count': len(self.centerline_source_states),
       'outer_source_count': len(self.outer_source_states),
       'total_pressure_Pa': self.total_pressure_Pa,
+      'incoming_handoff_sample_count': len(self.incoming_handoff),
+      'incoming_handoff_points_m': [
+        list(sample.point_m) for sample in self.incoming_handoff
+      ],
+      'incoming_handoff_total_pressure_Pa': [
+        sample.total_pressure_Pa for sample in self.incoming_handoff
+      ],
       'centerline_y_m': self.centerline_y_m,
       'outer_boundary_kind': self.outer_boundary_kind,
       'position_tolerance_m': self.position_tolerance_m,

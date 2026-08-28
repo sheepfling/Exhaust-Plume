@@ -121,6 +121,9 @@ receive a distinct solver-produced remesh from the exact preceding handoff.
 Remesh/source-strip reuse, missing providers, and upstream events become typed
 non-physical boundaries; this does not promote the Cauchy lane or alter the
 fast visualization/reference providers.
+Later remesh requests must now also echo the exact incoming state/total-pressure
+handoff; absent or changed provenance is rejected before a source domain can
+be reused.
 The same validation report now exercises a bounded scalar ambient-pressure
 shoot against the actual post-shock outer perimeter. Its synthetic pressure
 coordinate reaches a candidate root but the independent streamline-tangency

@@ -5081,6 +5081,7 @@ def plan_caustic_upstream_remesh_shock_chain_sequence(
     policy_label: str = 'fresh-bounded-caustic-remesh-required-per-cell',
     allow_remesh_decision: bool = True,
     reason_override: MocChainTerminationReason | None = None,
+    extra_diagnostics: dict[str, Any] | None = None,
   ) -> MocChainTerminationDecision:
     if allow_remesh_decision and reason_override is None:
       decision = candidate.as_chain_termination_decision()
@@ -5091,6 +5092,14 @@ def plan_caustic_upstream_remesh_shock_chain_sequence(
         'caustic_upstream_remesh': candidate.as_report(),
       })
       return replace(decision, diagnostics=diagnostics)
+    diagnostics: dict[str, Any] = {
+      'termination_model': 'caustic-upstream-remesh-sequence',
+      'next_cell_index': next_cell_index,
+      'remesh_reuse_policy': policy_label,
+      'caustic_upstream_remesh': candidate.as_report(),
+    }
+    if extra_diagnostics is not None:
+      diagnostics.update(extra_diagnostics)
     return MocChainTerminationDecision(
       physical_termination=False,
       reason=(
@@ -5102,12 +5111,7 @@ def plan_caustic_upstream_remesh_shock_chain_sequence(
         message
         or 'caustic remesh provider did not provide a fresh bounded upstream field'
       ),
-      diagnostics={
-        'termination_model': 'caustic-upstream-remesh-sequence',
-        'next_cell_index': next_cell_index,
-        'remesh_reuse_policy': policy_label,
-        'caustic_upstream_remesh': candidate.as_report(),
-      },
+      diagnostics=diagnostics,
     )
 
   def provider_failure(
@@ -5206,6 +5210,47 @@ def plan_caustic_upstream_remesh_shock_chain_sequence(
         reason=MocChainTerminationReason.INVALID_INPUT,
       )
 
+    incoming_handoff_verified = bool(
+      next_remesh.request is not None
+      and next_remesh.request.incoming_handoff == incoming_handoff
+    )
+    if not using_initial_remesh and not incoming_handoff_verified:
+      remesh_attempts.append({
+        'current_cell_index': current.cell_index,
+        'next_cell_index': next_cell_index,
+        'role': 'remesh-provider-handoff-seam',
+        'incoming_handoff_sample_count': len(incoming_handoff),
+        'remesh_request_incoming_handoff_sample_count': (
+          None
+          if next_remesh.request is None
+          else len(next_remesh.request.incoming_handoff)
+        ),
+        'incoming_handoff_verified': False,
+        'fresh_remesh': False,
+        'fresh_strip': False,
+      })
+      return boundary_stop(
+        next_remesh,
+        next_cell_index,
+        message=(
+          'caustic remesh provider did not record the exact prior chain '
+          'handoff in its request; a later upstream domain cannot be '
+          'detached from the cell it continues'
+        ),
+        policy_label='require-exact-incoming-handoff-provenance',
+        allow_remesh_decision=False,
+        reason_override=MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
+        extra_diagnostics={
+          'incoming_handoff_sample_count': len(incoming_handoff),
+          'remesh_request_incoming_handoff_sample_count': (
+            None
+            if next_remesh.request is None
+            else len(next_remesh.request.incoming_handoff)
+          ),
+          'incoming_handoff_verified': False,
+        },
+      )
+
     fingerprint = _caustic_upstream_remesh_fingerprint(next_remesh)
     strip_reused = (
       next_remesh.strip is not None
@@ -5225,6 +5270,8 @@ def plan_caustic_upstream_remesh_shock_chain_sequence(
         'fresh_remesh': not remesh_reused,
         'fresh_strip': next_remesh.strip is not None and not strip_reused,
         'remesh_fingerprint': fingerprint,
+        'incoming_handoff_sample_count': len(incoming_handoff),
+        'incoming_handoff_verified': incoming_handoff_verified,
       })
     if remesh_reused and not using_initial_remesh:
       return boundary_stop(

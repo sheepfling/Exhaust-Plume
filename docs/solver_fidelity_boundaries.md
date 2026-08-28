@@ -390,6 +390,10 @@ each cell receives a distinct remesh from the preceding handoff. Remesh and
 source-strip fingerprints, provider failures, upstream events, and typed
 domain stops are retained in the planner audit; reuse is rejected and no
 upstream Cauchy patch is promoted as a physical chain cell.
+For later remeshes, the returned request must also echo the exact incoming
+state/total-pressure handoff supplied to the provider. A remesh that omits or
+changes that provenance is stopped before source-strip reuse is considered;
+standalone Cauchy requests may leave the optional provenance empty.
 
 ## What is done for the basic solver
 

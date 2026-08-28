@@ -367,9 +367,22 @@ def test_caustic_upstream_remesh_sequence_requires_fresh_domains_per_cell(
 
   provider_calls = []
 
+  def remesh_for_handoff(incoming_handoff):
+    assert replacement.request is not None
+    return replace(
+      replacement,
+      request=replace(
+        replacement.request,
+        incoming_handoff=tuple(incoming_handoff),
+      ),
+    )
+
   def remesh_at(current, next_cell_index, incoming_handoff):
     provider_calls.append((current.cell_index, next_cell_index, incoming_handoff))
-    return replacement
+    # Return a new result object each time, but deliberately retain the same
+    # source strip.  The first call is valid only because it records the exact
+    # prior handoff; the second call must still be rejected as source reuse.
+    return remesh_for_handoff(incoming_handoff)
 
   planner = plan_caustic_upstream_remesh_shock_chain_sequence(
     reference.field,
@@ -403,8 +416,37 @@ def test_caustic_upstream_remesh_sequence_requires_fresh_domains_per_cell(
     'fresh-bounded-caustic-remesh-required-per-cell'
   )
   reused_attempt = planner.diagnostics['upstream_remesh_domain_attempts'][2]
+  first_provider_attempt = planner.diagnostics['upstream_remesh_domain_attempts'][1]
+  assert first_provider_attempt['incoming_handoff_verified'] is True
   assert reused_attempt['fresh_remesh'] is False
   assert reused_attempt['fresh_strip'] is False
   assert planner.chain.diagnostics['remesh_reuse_policy'] == (
     'reject-reused-caustic-remesh-or-source-strip'
+  )
+
+  missing_provenance = plan_caustic_upstream_remesh_shock_chain_sequence(
+    reference.field,
+    initial,
+    lambda _current, _next_cell_index, _incoming_handoff: replacement,
+    start_point_at=lambda current, _index, _remesh: (
+      current.end_x_m + 0.01,
+      0.25,
+    ),
+    start_x_m=0.5,
+    end_x_m=0.6,
+    downstream_flow_angle_rad=0.05,
+    sample_count=9,
+    policy=MocChainContinuationPolicy(max_cells=3, require_state_carry=True),
+  )
+  assert missing_provenance.chain.cell_count == 2
+  assert missing_provenance.chain.termination_reason is (
+    MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+  )
+  handoff_attempt = missing_provenance.diagnostics[
+    'upstream_remesh_domain_attempts'
+  ][1]
+  assert handoff_attempt['role'] == 'remesh-provider-handoff-seam'
+  assert handoff_attempt['incoming_handoff_verified'] is False
+  assert missing_provenance.chain.diagnostics['remesh_reuse_policy'] == (
+    'require-exact-incoming-handoff-provenance'
   )

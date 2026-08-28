@@ -1424,6 +1424,12 @@ Only after MOC-1 through MOC-5 pass:
   The bridge is usable for research-only upstream sampling, but shock-curve
   physics, downstream mixed-regime closure, and continued-cell promotion
   remain blocked.
+- Tightened the continued caustic-remesh sequence contract so each later
+  remesh request must carry the exact prior state/total-pressure handoff it
+  was asked to continue. The planner retains the handoff-seam result in its
+  attempt audit before checking remesh/source-strip freshness; a missing or
+  mismatched provenance record is a typed upstream-field boundary rather than
+  an inferred coupling.
 - Added the matching planner seam for that controller. It records the
   two-sided branch audit, the optional selected branch, and the typed
   non-physical caustic termination without appending a chain cell. This keeps
