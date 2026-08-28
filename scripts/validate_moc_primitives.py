@@ -1859,7 +1859,10 @@ def _shock_cell_chain_planner_mock(
   ]
   # Exercise a longer chain in the standalone artifact so the exact
   # handoff/fresh-domain checks cover more than the unit-test default.
-  mock = MocPrescribedPostShockChainMock(total_cell_count=5)
+  mock = MocPrescribedPostShockChainMock(
+    total_cell_count=5,
+    shock_geometry_scale_per_cell=0.05,
+  )
 
   def solve_next(current, cell_index, handoff):
     observations.append({
@@ -6021,6 +6024,12 @@ def build_moc_primitive_report() -> dict[str, Any]:
       ],
       'physical_chain_promotion_allowed': shock_cell_chain_fixture_report[
         'physical_chain_promotion_allowed'
+      ],
+      'shock_geometry_scale_schedule': shock_cell_chain_fixture_report[
+        'shock_geometry_scale_schedule'
+      ],
+      'upstream_pressure_model': shock_cell_chain_fixture_report[
+        'upstream_pressure_model'
       ],
       'planner_step_count': len(shock_cell_chain_planner.steps),
       'handoff_links_verified': shock_cell_chain_planner.handoff_links_verified,

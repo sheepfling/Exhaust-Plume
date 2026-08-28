@@ -854,6 +854,71 @@ def test_prescribed_post_shock_chain_mock_scales_without_changing_its_claim_ceil
   assert planner.production_claim_allowed is False
 
 
+def test_prescribed_post_shock_chain_mock_can_vary_shock_height_per_cell() -> None:
+  seed_fit = MocShockBoundaryFitResult(
+    status=MocShockBoundaryFitStatus.CONVERGED_FITTED,
+    boundary_states=_prescribed_boundary(),
+    shock_angle_residuals_rad=(0.0,) * 4,
+    maximum_shock_angle_residual_rad=0.0,
+  )
+  seed_field = assemble_post_shock_characteristic_field(seed_fit)
+  mock = MocPrescribedPostShockChainMock(
+    total_cell_count=4,
+    shock_geometry_scale_per_cell=0.10,
+  )
+
+  planner = plan_prescribed_post_shock_chain_mock(
+    seed_field,
+    start_x_m=0.7,
+    end_x_m=1.0,
+    mock=mock,
+  )
+
+  def mesh_maximum_y(cell) -> float:
+    return max(
+      point[1]
+      for polygon in cell.mesh
+      for point in polygon.vertices_xr_m
+    )
+
+  expected_heights = tuple(
+    mock.shock_ordinates_m[0] * (1.0 + 0.10 * index)
+    for index in range(3)
+  )
+  assert planner.resolved
+  assert tuple(mesh_maximum_y(cell) for cell in planner.chain.cells[1:]) == pytest.approx(
+    expected_heights
+  )
+  fixture_report = planner.diagnostics['prescribed_chain_mock']
+  assert fixture_report['shock_geometry_scale_per_cell'] == pytest.approx(0.10)
+  assert fixture_report['shock_geometry_scale_schedule'] == [
+    {'cell_index': 2, 'scale': pytest.approx(1.0)},
+    {'cell_index': 3, 'scale': pytest.approx(1.1)},
+    {'cell_index': 4, 'scale': pytest.approx(1.2)},
+  ]
+  assert fixture_report['upstream_pressure_model'] == (
+    'normalized-index-resampling-of-exact-incoming-handoff'
+  )
+  assert fixture_report['claim_fidelity_ceiling'] == (
+    MocChainGeometryFidelity.PRESCRIBED_BOUNDARY_DIAGNOSTIC.value
+  )
+  assert fixture_report['free_boundary_verified'] is False
+  assert fixture_report['physical_chain_promotion_allowed'] is False
+  assert planner.handoff_links_verified is True
+  assert planner.production_claim_allowed is False
+  pressure_ranges = tuple(
+    cell.continuation_total_pressure_range_Pa
+    for cell in planner.chain.cells
+  )
+  assert pressure_ranges[0] == pytest.approx((1.8e6, 1.8e6))
+  assert pressure_ranges[1] is not None
+  assert pressure_ranges[1][1] < pressure_ranges[0][1]
+  assert pressure_ranges[2] is not None
+  assert pressure_ranges[2][1] < pressure_ranges[1][1]
+  assert pressure_ranges[3] is not None
+  assert pressure_ranges[3][1] < pressure_ranges[2][1]
+
+
 def test_solver_generated_post_shock_reference_re_solves_multiple_cells() -> None:
   generated = solve_uniform_attached_shock_field(
     CharacteristicState(

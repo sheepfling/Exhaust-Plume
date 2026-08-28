@@ -1350,6 +1350,18 @@ Only after MOC-1 through MOC-5 pass:
   still reports a pressure-capable open domain, while the continued shock-cell
   planner remains a five-cell research fixture with exact handoff auditing and
   no production claim.
+- Extended the prescribed continued-chain fixture with an explicit optional
+  per-cell shock-geometry scale. Scaling the shock ordinates and their sample
+  spacing together preserves the local fitted tangent while allowing the
+  planner/visualization artifact to show changing cell height across a longer
+  chain. The option is intentionally confined to the prescribed-boundary
+  diagnostic lane; its fidelity ceiling and promotion block remain unchanged.
+- The same fixture now exposes its deterministic scale schedule and resamples
+  the full prior typed total-pressure handoff across each prescribed shock
+  sample. Continued-cell reports therefore retain pressure variation and
+  pressure-loss ordering instead of flattening a handoff to its maximum;
+  normalized-index resampling is explicitly a mock policy and is not a
+  physical upstream-to-shock mapping.
 - The recovered validation archive is not a substitute for the missing
   provider-bound measurement/operator bindings.
 

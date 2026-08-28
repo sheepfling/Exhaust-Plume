@@ -1314,6 +1314,7 @@ class MocPrescribedPostShockChainMock:
   cell_axial_length_m: float = 0.50
   shock_start_offset_m: float = 0.20
   shock_sample_spacing_m: float = 0.02
+  shock_geometry_scale_per_cell: float = 0.0
   # The default line is tangent to a weak attached shock for M=2, gamma=1.4.
   # It is deliberately still prescribed geometry, but the local fit below now
   # proves that it is compatible with the requested attached-shock branch
@@ -1354,6 +1355,8 @@ class MocPrescribedPostShockChainMock:
     ):
       if not isfinite(float(value)) or value <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+    if not isfinite(float(self.shock_geometry_scale_per_cell)):
+      raise ValueError('shock_geometry_scale_per_cell must be finite')
     for name, value, lower_bound in (
       ('mach', self.mach, 1.0),
       ('gamma', self.gamma, 1.0),
@@ -1411,6 +1414,13 @@ class MocPrescribedPostShockChainMock:
       )
     if any(not isfinite(value) for value in configured_upstream_angles):
       raise ValueError('upstream flow angles must be finite')
+    for cell_index in range(2, self.total_cell_count + 1):
+      scale = 1.0 + float(self.shock_geometry_scale_per_cell) * (cell_index - 2)
+      if scale <= 0.0:
+        raise ValueError(
+          'shock_geometry_scale_per_cell produces a non-positive scale '
+          f'at cell {cell_index}'
+        )
     object.__setattr__(self, 'shock_ordinates_m', ordinates)
     object.__setattr__(self, 'downstream_flow_angles_rad', downstream_angles)
     object.__setattr__(self, 'upstream_flow_angles_rad', configured_upstream_angles)
@@ -1420,6 +1430,62 @@ class MocPrescribedPostShockChainMock:
     """Number of prescribed samples on each mock shock boundary."""
 
     return len(self.shock_ordinates_m)
+
+  def shock_geometry_scale_for_cell(self, cell_index: int) -> float:
+    """Return the deterministic geometry multiplier for one continued cell.
+
+    The multiplier is a fixture control, not a solved shock-placement law.
+    Keeping it behind a named method makes the scenario visible to report and
+    visualization consumers while keeping the fidelity boundary explicit.
+    """
+
+    if (
+      isinstance(cell_index, bool)
+      or not isinstance(cell_index, int)
+      or not 2 <= cell_index <= self.total_cell_count
+    ):
+      raise ValueError(
+        'cell_index must identify a configured continued cell '
+        f'(2 through {self.total_cell_count})'
+      )
+    scale = 1.0 + float(self.shock_geometry_scale_per_cell) * (cell_index - 2)
+    if scale <= 0.0:
+      raise ValueError(
+        'shock_geometry_scale_per_cell produces a non-positive scale '
+        f'at cell {cell_index}'
+      )
+    return scale
+
+  def _resample_incoming_total_pressure(
+    self,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+  ) -> tuple[float, ...]:
+    """Resample the prior pressure trace at the mock shock samples.
+
+    The normalized-index interpolation is intentionally a named fixture
+    policy. It preserves pressure variation for contract tests without
+    pretending that the prescribed shock has a physically derived mapping to
+    the prior perimeter.
+    """
+
+    pressures = tuple(sample.total_pressure_Pa for sample in incoming_handoff)
+    if len(pressures) == self.sample_count:
+      return pressures
+    last_incoming_index = len(pressures) - 1
+    last_shock_index = self.sample_count - 1
+    return tuple(
+      (
+        pressures[lower_index]
+        if lower_index == upper_index
+        else pressures[lower_index]
+        + (pressures[upper_index] - pressures[lower_index]) * fraction
+      )
+      for index in range(self.sample_count)
+      for position in (index * last_incoming_index / last_shock_index,)
+      for lower_index in (int(position),)
+      for upper_index in (min(lower_index + 1, last_incoming_index),)
+      for fraction in (position - lower_index,)
+    )
 
   def as_report(self) -> dict[str, Any]:
     """Return explicit provenance and configuration for the fixture."""
@@ -1443,6 +1509,14 @@ class MocPrescribedPostShockChainMock:
       'cell_axial_length_m': self.cell_axial_length_m,
       'shock_start_offset_m': self.shock_start_offset_m,
       'shock_sample_spacing_m': self.shock_sample_spacing_m,
+      'shock_geometry_scale_per_cell': self.shock_geometry_scale_per_cell,
+      'shock_geometry_scale_schedule': [
+        {
+          'cell_index': cell_index,
+          'scale': self.shock_geometry_scale_for_cell(cell_index),
+        }
+        for cell_index in range(2, self.total_cell_count + 1)
+      ],
       'shock_ordinates_m': self.shock_ordinates_m,
       'downstream_flow_angles_rad': self.downstream_flow_angles_rad,
       'upstream_flow_angle_start_rad': self.upstream_flow_angle_start_rad,
@@ -1454,6 +1528,9 @@ class MocPrescribedPostShockChainMock:
       'pressure_loss_ratio_role': (
         'optional expected total-pressure ratio; never used to fabricate '
         'post-shock states'
+      ),
+      'upstream_pressure_model': (
+        'normalized-index-resampling-of-exact-incoming-handoff'
       ),
       'claim_status': (
         'prescribed-next-shock-geometry-fixture; '
@@ -1489,12 +1566,15 @@ class MocPrescribedPostShockChainMock:
           f'{self.total_cell_count}-cell fixture'
         ),
       )
-    upstream_total_pressure_Pa = max(
-      sample.total_pressure_Pa for sample in handoff
-    )
+    upstream_total_pressures = self._resample_incoming_total_pressure(handoff)
+    shock_geometry_scale = self.shock_geometry_scale_for_cell(next_cell_index)
     shock_start_x_m = current.end_x_m + self.shock_start_offset_m
     shock_points = tuple(
-      (shock_start_x_m + self.shock_sample_spacing_m * index, ordinate)
+      (
+        shock_start_x_m
+        + self.shock_sample_spacing_m * shock_geometry_scale * index,
+        ordinate * shock_geometry_scale,
+      )
       for index, ordinate in enumerate(self.shock_ordinates_m)
     )
     upstream_angles = self.upstream_flow_angles_rad
@@ -1510,12 +1590,16 @@ class MocPrescribedPostShockChainMock:
       )
       for index, point in enumerate(shock_points)
     )
-    upstream_static_pressure_Pa = upstream_total_pressure_Pa / (
+    isentropic_factor = (
       1.0 + 0.5 * (self.gamma - 1.0) * self.mach**2
     ) ** (self.gamma / (self.gamma - 1.0))
+    upstream_static_pressures = tuple(
+      pressure / isentropic_factor
+      for pressure in upstream_total_pressures
+    )
     fit = fit_attached_shock_boundary(
       upstream_states,
-      (upstream_static_pressure_Pa,) * self.sample_count,
+      upstream_static_pressures,
       shock_points,
       self.downstream_flow_angles_rad,
       branch=ShockBranch.WEAK,
