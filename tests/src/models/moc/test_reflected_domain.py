@@ -847,6 +847,19 @@ def test_reflected_domain_alternating_source_sequence_requires_fresh_bands_and_c
   )
   assert planner.diagnostics['canonical_reflected_domain_closed'] is False
   assert planner.diagnostics['external_validation_pending'] is True
+  alternating_field_chain_audit = planner.diagnostics[
+    'alternating_physical_field_chain_audit'
+  ]
+  assert alternating_field_chain_audit['status'] == 'domain_failure'
+  assert planner.diagnostics[
+    'alternating_physical_field_chain_audit_accepted'
+  ] is False
+  assert alternating_field_chain_audit['checks'] == {
+    'source_geometry_freshness_verified': True,
+    'handoff_links_verified': True,
+    'fresh_domain_verified': False,
+    'physical_closure_verified': False,
+  }
 
 
 def test_reflected_domain_alternating_source_sequence_rejects_copied_geometry():

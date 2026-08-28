@@ -1860,6 +1860,12 @@ produces another field at the original interface is rejected as a non-fresh
 domain. The current bounded fixture therefore records the correct research
 stop rather than accepting a geometrically repeated cell.
 
+The fresh-band sequence planner now runs this audit over the raw alternating
+physical-field results it produced and carries the report in its diagnostics.
+This makes the planner mock/sequence output self-describing: a resolved
+bookkeeping chain can coexist with an explicit `domain_failure` audit until
+the underlying solver has actually remeshed the downstream interface.
+
 This audit does not close the remaining physics: a solver-owned reflected
 terminal trace must still produce a valid downstream C− source and a fresh
 mixed-regime/free-boundary perimeter before an alternating result can pass the

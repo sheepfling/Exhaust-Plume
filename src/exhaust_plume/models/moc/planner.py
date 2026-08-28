@@ -32,6 +32,7 @@ from exhaust_plume.models.moc.chain import (
 from exhaust_plume.models.moc.caustic_restart import MocCausticFamilyBandResult
 from exhaust_plume.models.moc.reflected_domain import (
   MocReflectedDomainAlternatingSourceStatus,
+  MocReflectedDomainAlternatingPhysicalFieldResult,
   MocReflectedDomainAlternatingPhysicalFieldStatus,
   MocReflectedDomainAlternatingSourceResult,
   MocReflectedDomainRemeshResult,
@@ -7446,6 +7447,9 @@ def plan_reflected_domain_alternating_source_chain_sequence(
   used_source_ids: set[int] = set()
   used_source_fingerprints: set[str] = set()
   source_attempts: list[dict[str, Any]] = []
+  physical_field_results: list[
+    MocReflectedDomainAlternatingPhysicalFieldResult
+  ] = []
 
   def provider_failure(
     next_cell_index: int,
@@ -7690,6 +7694,7 @@ def plan_reflected_domain_alternating_source_chain_sequence(
         maximum_shooting_iterations=maximum_shooting_iterations,
         incoming_handoff=incoming_handoff,
       )
+      physical_field_results.append(solved)
     except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
       return provider_failure(
         next_cell_index,
@@ -7744,6 +7749,29 @@ def plan_reflected_domain_alternating_source_chain_sequence(
     ),
   )
   diagnostics = dict(planner.diagnostics)
+  if physical_field_results:
+    from exhaust_plume.validation.moc_measurements import (
+      measure_moc_reflected_domain_alternating_physical_field_chain,
+    )
+
+    physical_field_chain_audit = (
+      measure_moc_reflected_domain_alternating_physical_field_chain(
+        tuple(physical_field_results),
+      )
+    )
+    diagnostics.update({
+      'alternating_physical_field_chain_audit': (
+        physical_field_chain_audit.as_report()
+      ),
+      'alternating_physical_field_chain_audit_accepted': (
+        physical_field_chain_audit.converged
+      ),
+    })
+  else:
+    diagnostics.update({
+      'alternating_physical_field_chain_audit': None,
+      'alternating_physical_field_chain_audit_accepted': False,
+    })
   diagnostics.update({
     'alternating_source_chain_model': (
       'bounded-alternating-source-fresh-band-physical-field-sequence'
