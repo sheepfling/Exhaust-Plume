@@ -8882,9 +8882,23 @@ def measure_moc_reflected_domain_alternating_physical_field_chain(
     for item in items
   )
   source_geometry_freshness_verified = bool(
-    all(source_fingerprints)
+    all(item.source_band is not None for item in items)
+    and all(fingerprint != 'unavailable' for fingerprint in source_fingerprints)
     and len(set(source_fingerprints)) == len(source_fingerprints)
   )
+  if any(
+    measurement.status
+    is MocReflectedDomainAlternatingPhysicalFieldMeasurementStatus.SOURCE_FAILURE
+    for measurement in measurements
+  ):
+    return _alternating_physical_field_chain_measurement_failure(
+      MocReflectedDomainAlternatingPhysicalFieldChainMeasurementStatus.SOURCE_FAILURE,
+      'one or more alternating source bands failed independent measurement',
+      field_count=len(items),
+      field_measurements=measurements,
+      source_geometry_fingerprints=source_fingerprints,
+      source_geometry_freshness_verified=source_geometry_freshness_verified,
+    )
   physical_fields = tuple(item.field for item in items)
   if any(
     not isinstance(field, MocPhysicalPostShockFieldResult)

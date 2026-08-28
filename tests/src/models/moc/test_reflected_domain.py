@@ -742,6 +742,34 @@ def test_reflected_domain_alternating_physical_field_chain_rejects_copied_geomet
   assert measurement.production_claim_allowed is False
 
 
+def test_reflected_domain_alternating_physical_field_chain_rejects_missing_source_band():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  source = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+  )
+  assert source.converged
+  result = solve_reflected_domain_alternating_physical_field(
+    source,
+    compression_amplitude_rad=0.05,
+  )
+  assert result.converged
+  missing_source = replace(result, source_band=None)
+
+  measurement = measure_moc_reflected_domain_alternating_physical_field_chain(
+    (missing_source,),
+  )
+
+  assert measurement.status is (
+    MocReflectedDomainAlternatingPhysicalFieldChainMeasurementStatus.SOURCE_FAILURE
+  )
+  assert measurement.converged is False
+  assert measurement.source_geometry_freshness_verified is False
+  assert measurement.chain_promotion_blocked is True
+
+
 def test_reflected_domain_alternating_source_planner_carries_one_cell_handoff():
   field, patch = _patch()
   ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
