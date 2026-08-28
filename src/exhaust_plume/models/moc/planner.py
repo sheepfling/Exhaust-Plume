@@ -168,6 +168,7 @@ __all__ = (
   'plan_caustic_shock_remesh_chain',
   'plan_caustic_shock_remesh_chain_from_upstream_bridge',
   'plan_caustic_upstream_remesh_shock_chain',
+  'plan_caustic_upstream_remesh_shock_chain_sequence',
   'plan_caustic_simple_wave_terminal_chain',
   'plan_caustic_remesh_downstream_field_chain',
   'plan_caustic_remesh_downstream_field_invariant_chain',
@@ -528,12 +529,11 @@ def _handoff_fingerprint(
   return sha256(payload.encode('ascii')).hexdigest()
 
 
-def _source_strip_fingerprint(
-  continuation: MocSourceStripContinuationResult,
+def _characteristic_strip_fingerprint(
+  strip: MocSourceCharacteristicStripResult | None,
 ) -> str | None:
   """Return a deterministic identity for a consumed source-strip domain."""
 
-  strip = continuation.strip
   if strip is None:
     return None
 
@@ -559,6 +559,33 @@ def _source_strip_fingerprint(
     'minus:' + '\n'.join(
       state_payload(state) for state in strip.minus_source_states
     ),
+  ))
+  return sha256(payload.encode('ascii')).hexdigest()
+
+
+def _source_strip_fingerprint(
+  continuation: MocSourceStripContinuationResult,
+) -> str | None:
+  """Return a deterministic identity for a continuation's source strip."""
+
+  return _characteristic_strip_fingerprint(continuation.strip)
+
+
+def _caustic_upstream_remesh_fingerprint(
+  remesh: MocCausticUpstreamRemeshResult,
+) -> str | None:
+  """Return a deterministic identity for a consumed caustic remesh."""
+
+  request = remesh.request
+  strip_fingerprint = _characteristic_strip_fingerprint(remesh.strip)
+  if request is None or strip_fingerprint is None:
+    return None
+  event = request.event_point_m
+  payload = '|'.join((
+    'event:' + '|'.join(value.hex() for value in event),
+    f'upstream-edge:{request.upstream_edge_index}',
+    f'total-pressure:{request.total_pressure_Pa.hex()}',
+    f'strip:{strip_fingerprint}',
   ))
   return sha256(payload.encode('ascii')).hexdigest()
 
@@ -4919,6 +4946,389 @@ def plan_caustic_upstream_remesh_shock_chain(
     'source_strip_reuse_policy': (
       'never-reuse-after-one-next-cell-attempt'
     ),
+    'physical_closure_pending': True,
+  })
+  return replace(planner, diagnostics=diagnostics)
+
+
+def plan_caustic_upstream_remesh_shock_chain_sequence(
+  seed: MocPostShockCharacteristicFieldResult,
+  remesh: MocCausticUpstreamRemeshResult,
+  remesh_at: Callable[
+    [MocChainCell, int, tuple[MocChainBoundarySample, ...]],
+    MocCausticUpstreamRemeshResult | MocChainTerminationDecision | None,
+  ],
+  *,
+  start_point_at: Callable[
+    [MocChainCell, int, MocCausticUpstreamRemeshResult],
+    tuple[float, float],
+  ],
+  start_x_m: float,
+  end_x_m: float,
+  end_x_at: Callable[
+    [MocChainCell, int, MocCausticUpstreamRemeshResult],
+    float,
+  ] | None = None,
+  target_centerline_y_m: float = 0.0,
+  downstream_flow_angle_at: Callable[[int, tuple[float, float]], float] | None = None,
+  downstream_flow_angle_rad: float | None = None,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  policy: MocChainContinuationPolicy | None = None,
+) -> MocChainPlannerResult:
+  """Plan continued cells with a fresh caustic remesh for every shock.
+
+  ``remesh`` supplies the first bounded upstream Cauchy domain.  After a
+  successful cell, ``remesh_at`` must solve a new domain from the exact
+  outgoing handoff before the next shock is attempted.  Neither a prior
+  remesh result nor its source strip may be reused, and a missing or invalid
+  remesh becomes a typed upstream-field boundary.  This is the multi-cell
+  counterpart to :func:`plan_caustic_upstream_remesh_shock_chain`; it remains
+  a research planner because the canonical outer trace, mixed-regime closure,
+  and external validation are still separate gates.
+  """
+
+  if not isinstance(seed, MocPostShockCharacteristicFieldResult):
+    raise TypeError('seed must be a MocPostShockCharacteristicFieldResult')
+  if not isinstance(remesh, MocCausticUpstreamRemeshResult):
+    raise TypeError('remesh must be a MocCausticUpstreamRemeshResult')
+  if not callable(remesh_at):
+    raise TypeError('remesh_at must be callable')
+  if not callable(start_point_at):
+    raise TypeError('start_point_at must be callable')
+  if end_x_at is not None and not callable(end_x_at):
+    raise TypeError('end_x_at must be callable when supplied')
+  if (downstream_flow_angle_at is None) == (downstream_flow_angle_rad is None):
+    raise ValueError('supply exactly one downstream flow-angle provider')
+  if downstream_flow_angle_at is not None and not callable(
+    downstream_flow_angle_at
+  ):
+    raise TypeError('downstream_flow_angle_at must be callable when supplied')
+  if downstream_flow_angle_rad is not None and not isfinite(
+    float(downstream_flow_angle_rad)
+  ):
+    raise ValueError('downstream_flow_angle_rad must be finite when supplied')
+  if not isinstance(branch, ShockBranch):
+    raise TypeError('branch must be a ShockBranch')
+  if not isfinite(float(start_x_m)) or not isfinite(float(end_x_m)):
+    raise ValueError('start_x_m and end_x_m must be finite')
+  if end_x_m <= start_x_m:
+    raise ValueError('end_x_m must be strictly downstream of start_x_m')
+  if not isfinite(float(target_centerline_y_m)):
+    raise ValueError('target_centerline_y_m must be finite')
+  for name, value in (
+    ('position_tolerance_m', position_tolerance_m),
+    ('invariant_tolerance', invariant_tolerance),
+    ('shock_angle_tolerance_rad', shock_angle_tolerance_rad),
+  ):
+    if not isfinite(float(value)) or float(value) <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+  if (
+    isinstance(sample_count, bool)
+    or not isinstance(sample_count, int)
+    or sample_count < 3
+  ):
+    raise ValueError('sample_count must be an integer of at least three')
+  if (
+    isinstance(maximum_segment_iterations, bool)
+    or not isinstance(maximum_segment_iterations, int)
+    or maximum_segment_iterations < 1
+  ):
+    raise ValueError('maximum_segment_iterations must be a positive integer')
+
+  cell_axial_length_m = float(end_x_m) - float(start_x_m)
+  source_strip = (
+    remesh.strip
+    if remesh.state_sampling_available
+    and remesh.strip is not None
+    and remesh.strip.converged
+    else None
+  )
+  initial_decision = (
+    None
+    if source_strip is not None
+    else remesh.as_chain_termination_decision()
+  )
+
+  remesh_history: list[MocCausticUpstreamRemeshResult] = [remesh]
+  used_remesh_ids = {id(remesh)}
+  used_strip_ids = (
+    {id(remesh.strip)} if remesh.strip is not None else set()
+  )
+  initial_fingerprint = _caustic_upstream_remesh_fingerprint(remesh)
+  used_fingerprints = (
+    {initial_fingerprint} if initial_fingerprint is not None else set()
+  )
+  remesh_attempts: list[dict[str, Any]] = [{
+    'current_cell_index': 1,
+    'next_cell_index': 2,
+    'role': 'initial-caustic-upstream-remesh',
+    'remesh': remesh.as_report(),
+    'fresh_remesh': True,
+    'fresh_strip': remesh.strip is not None,
+    'remesh_fingerprint': initial_fingerprint,
+  }]
+
+  def boundary_stop(
+    candidate: MocCausticUpstreamRemeshResult,
+    next_cell_index: int,
+    *,
+    message: str | None = None,
+    policy_label: str = 'fresh-bounded-caustic-remesh-required-per-cell',
+    allow_remesh_decision: bool = True,
+    reason_override: MocChainTerminationReason | None = None,
+  ) -> MocChainTerminationDecision:
+    if allow_remesh_decision and reason_override is None:
+      decision = candidate.as_chain_termination_decision()
+      diagnostics = dict(decision.diagnostics)
+      diagnostics.update({
+        'next_cell_index': next_cell_index,
+        'remesh_reuse_policy': policy_label,
+        'caustic_upstream_remesh': candidate.as_report(),
+      })
+      return replace(decision, diagnostics=diagnostics)
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=(
+        MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+        if reason_override is None
+        else reason_override
+      ),
+      message=(
+        message
+        or 'caustic remesh provider did not provide a fresh bounded upstream field'
+      ),
+      diagnostics={
+        'termination_model': 'caustic-upstream-remesh-sequence',
+        'next_cell_index': next_cell_index,
+        'remesh_reuse_policy': policy_label,
+        'caustic_upstream_remesh': candidate.as_report(),
+      },
+    )
+
+  def provider_failure(
+    next_cell_index: int,
+    message: str,
+    *,
+    reason: MocChainTerminationReason = MocChainTerminationReason.SOLVER_ERROR,
+  ) -> MocChainTerminationDecision:
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=reason,
+      message=message,
+      diagnostics={
+        'termination_model': 'caustic-upstream-remesh-sequence',
+        'next_cell_index': next_cell_index,
+        'remesh_reuse_policy': (
+          'fresh-bounded-caustic-remesh-required-per-cell'
+        ),
+      },
+    )
+
+  def solve_next(
+    current: MocChainCell,
+    next_cell_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+  ) -> MocPostShockChainCellSolve | MocChainTerminationDecision:
+    using_initial_remesh = next_cell_index == 2
+    if next_cell_index == 2:
+      if initial_decision is not None:
+        return initial_decision
+      next_remesh: (
+        MocCausticUpstreamRemeshResult
+        | MocChainTerminationDecision
+        | None
+      ) = remesh
+    else:
+      try:
+        next_remesh = remesh_at(current, next_cell_index, incoming_handoff)
+      except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+        remesh_attempts.append({
+          'current_cell_index': current.cell_index,
+          'next_cell_index': next_cell_index,
+          'role': 'remesh-provider',
+          'provider_error': type(error).__name__,
+          'fresh_remesh': False,
+          'fresh_strip': False,
+        })
+        return provider_failure(
+          next_cell_index,
+          f'caustic upstream remesh provider failed: {error}',
+        )
+    if next_remesh is None:
+      remesh_attempts.append({
+        'current_cell_index': current.cell_index,
+        'next_cell_index': next_cell_index,
+        'role': 'remesh-provider',
+        'provider_result': None,
+        'fresh_remesh': False,
+        'fresh_strip': False,
+      })
+      return provider_failure(
+        next_cell_index,
+        'caustic upstream remesh provider returned no bounded field',
+        reason=MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
+      )
+    if isinstance(next_remesh, MocChainTerminationDecision):
+      remesh_attempts.append({
+        'current_cell_index': current.cell_index,
+        'next_cell_index': next_cell_index,
+        'role': 'remesh-provider',
+        'provider_decision': next_remesh.as_report(),
+        'fresh_remesh': False,
+        'fresh_strip': False,
+      })
+      if next_remesh.physical_termination:
+        return provider_failure(
+          next_cell_index,
+          'caustic remesh provider cannot declare physical plume termination '
+          'from an upstream domain boundary',
+          reason=MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
+        )
+      return next_remesh
+    if not isinstance(next_remesh, MocCausticUpstreamRemeshResult):
+      remesh_attempts.append({
+        'current_cell_index': current.cell_index,
+        'next_cell_index': next_cell_index,
+        'role': 'remesh-provider',
+        'provider_result_type': type(next_remesh).__name__,
+        'fresh_remesh': False,
+        'fresh_strip': False,
+      })
+      return provider_failure(
+        next_cell_index,
+        'caustic remesh provider must return a MocCausticUpstreamRemeshResult, '
+        'MocChainTerminationDecision, or None',
+        reason=MocChainTerminationReason.INVALID_INPUT,
+      )
+
+    fingerprint = _caustic_upstream_remesh_fingerprint(next_remesh)
+    strip_reused = (
+      next_remesh.strip is not None
+      and (
+        id(next_remesh.strip) in used_strip_ids
+        or fingerprint is None
+        or fingerprint in used_fingerprints
+      )
+    )
+    remesh_reused = id(next_remesh) in used_remesh_ids or strip_reused
+    if not using_initial_remesh:
+      remesh_attempts.append({
+        'current_cell_index': current.cell_index,
+        'next_cell_index': next_cell_index,
+        'role': 'remesh-provider',
+        'remesh': next_remesh.as_report(),
+        'fresh_remesh': not remesh_reused,
+        'fresh_strip': next_remesh.strip is not None and not strip_reused,
+        'remesh_fingerprint': fingerprint,
+      })
+    if remesh_reused and not using_initial_remesh:
+      return boundary_stop(
+        next_remesh,
+        next_cell_index,
+        message=(
+          'caustic remesh provider reused a prior remesh or source strip; '
+          'a fresh bounded upstream domain is required for each continued '
+          'shock cell'
+        ),
+        policy_label='reject-reused-caustic-remesh-or-source-strip',
+        allow_remesh_decision=False,
+      )
+    if not using_initial_remesh:
+      remesh_history.append(next_remesh)
+      used_remesh_ids.add(id(next_remesh))
+      if next_remesh.strip is not None:
+        used_strip_ids.add(id(next_remesh.strip))
+        if fingerprint is not None:
+          used_fingerprints.add(fingerprint)
+
+    if (
+      next_remesh.request is not None
+      and next_remesh.request.event_point_m[0]
+      < current.end_x_m - float(position_tolerance_m)
+    ):
+      return boundary_stop(
+        next_remesh,
+        next_cell_index,
+        message=(
+          'caustic upstream remesh event lies upstream of the current cell '
+          'interface; no backtracking or extrapolation was performed'
+        ),
+        reason_override=MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
+      )
+    if not next_remesh.state_sampling_available or next_remesh.strip is None:
+      return boundary_stop(next_remesh, next_cell_index)
+
+    try:
+      start_point = start_point_at(current, next_cell_index, next_remesh)
+      if len(start_point) != 2 or not all(
+        isfinite(float(value)) for value in start_point
+      ):
+        raise ValueError('start_point_at must return two finite coordinates')
+      next_end_x = (
+        end_x_at(current, next_cell_index, next_remesh)
+        if end_x_at is not None
+        else current.end_x_m + cell_axial_length_m
+      )
+      if not isfinite(float(next_end_x)) or next_end_x <= current.end_x_m:
+        raise ValueError(
+          'continued remesh cell endpoint must be finite and downstream of '
+          'the current cell interface'
+        )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      return provider_failure(
+        next_cell_index,
+        f'caustic remesh chain geometry provider failed: {error}',
+        reason=MocChainTerminationReason.INVALID_INPUT,
+      )
+    return solve_marched_attached_shock_chain_cell_from_source_strip_or_termination(
+      current,
+      next_cell_index,
+      incoming_handoff,
+      next_remesh.strip,
+      start_point_m=(float(start_point[0]), float(start_point[1])),
+      end_x_m=float(next_end_x),
+      target_centerline_y_m=target_centerline_y_m,
+      downstream_flow_angle_at=downstream_flow_angle_at,
+      downstream_flow_angle_rad=downstream_flow_angle_rad,
+      sample_count=sample_count,
+      branch=branch,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+      shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+      maximum_segment_iterations=maximum_segment_iterations,
+    )
+
+  planner = plan_post_shock_characteristic_chain(
+    seed,
+    solve_next,
+    start_x_m=start_x_m,
+    end_x_m=end_x_m,
+    policy=policy,
+    require_upstream_shock_coupling=True,
+    planner_kind=MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH,
+    claim_status=(
+      'caustic-upstream-cauchy-remesh-shock-chain-sequence; '
+      'fresh-bounded-domain-per-cell; physical-closure-pending'
+    ),
+  )
+  diagnostics = dict(planner.diagnostics)
+  diagnostics.update({
+    'caustic_upstream_remesh_chain_model': (
+      'fresh-bounded-caustic-upstream-remesh-per-cell'
+    ),
+    'caustic_upstream_remesh': remesh.as_report(),
+    'one_step_domain': False,
+    'upstream_remesh_reuse_policy': (
+      'fresh-bounded-caustic-remesh-required-per-cell'
+    ),
+    'upstream_remesh_domain_count': len(remesh_history),
+    'upstream_remesh_domain_attempt_count': len(remesh_attempts),
+    'upstream_remesh_domain_attempts': remesh_attempts,
     'physical_closure_pending': True,
   })
   return replace(planner, diagnostics=diagnostics)

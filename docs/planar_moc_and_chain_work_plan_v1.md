@@ -79,6 +79,14 @@ not wait on this research closure.
   prior continuation result or its strip object is rejected as a typed
   ``UPSTREAM_FIELD_BOUNDARY``; the sequence remains research-only until the
   physical reflected-field and downstream closure are solved.
+- Added the corresponding fresh-domain caustic-remesh sequence planner. The
+  first post-caustic shock consumes one bounded Cauchy remesh, while every
+  later shock requests a distinct remesh from the exact preceding handoff.
+  Reusing a remesh or its source strip, returning no remesh, or presenting an
+  upstream event becomes a typed upstream-field boundary; the attempt history
+  and deterministic remesh fingerprints remain in the planner diagnostics.
+  This extends the continued-chain audit without promoting the Cauchy patch,
+  the planner mock, or any synthetic outer trace into a physical product cell.
 - Added a separately named compressible isentropic potential-flow reference
   for an explicit downstream perimeter. It solves the conservative nonlinear
   subsonic potential equation on a triangular radial mesh, checks uniform

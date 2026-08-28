@@ -115,6 +115,12 @@ also covers an explicit centerline-conditioned Cauchy remesh and its one-step
 shock-chain boundary; it passes the bounded source/topology and typed
 upstream-field-stop checks while the canonical outer trace and physical closure
 remain pending.
+The same research lane now has a multi-cell sequence planner: the first
+continued cell consumes the initial bounded remesh, and every later cell must
+receive a distinct solver-produced remesh from the exact preceding handoff.
+Remesh/source-strip reuse, missing providers, and upstream events become typed
+non-physical boundaries; this does not promote the Cauchy lane or alter the
+fast visualization/reference providers.
 The same validation report now exercises a bounded scalar ambient-pressure
 shoot against the actual post-shock outer perimeter. Its synthetic pressure
 coordinate reaches a candidate root but the independent streamline-tangency

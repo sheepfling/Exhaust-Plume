@@ -14,11 +14,13 @@ from exhaust_plume.models.moc import (
   MocChainPlannerKind,
   MocChainStatus,
   MocChainTerminationReason,
+  MocPostShockChainCellSolve,
   extend_source_characteristic_strip_centerline_reflection,
   assemble_source_characteristic_strip,
   build_caustic_shock_seed,
   inverse_prandtl_meyer_angle_rad,
   plan_caustic_upstream_remesh_shock_chain,
+  plan_caustic_upstream_remesh_shock_chain_sequence,
   solve_caustic_upstream_remesh,
   solve_marched_attached_shock_from_source_strip,
   solve_reflected_free_boundary,
@@ -69,15 +71,21 @@ def _seed():
   return seed, exit_state.total_pressure_Pa
 
 
-def _conditioned_traces(seed, total_pressure_Pa):
+def _conditioned_traces(
+  seed,
+  total_pressure_Pa,
+  *,
+  invariant_step=0.004,
+  theta_step=-0.006,
+):
   selected = seed.edge_states[0].state
   assert selected is not None
   event = (selected.x_m, selected.y_m)
   centerline_states = []
   outer_states = []
   for index in range(6):
-    k_plus = selected.k_plus + 0.004 * index
-    theta = selected.theta_rad - 0.006 * index
+    k_plus = selected.k_plus + invariant_step * index
+    theta = selected.theta_rad + theta_step * index
     inverse_plus = inverse_prandtl_meyer_angle_rad(-k_plus, selected.gamma)
     inverse_outer = inverse_prandtl_meyer_angle_rad(theta - k_plus, selected.gamma)
     assert inverse_plus.value is not None
@@ -143,9 +151,14 @@ def _conditioned_traces(seed, total_pressure_Pa):
   return tuple(centerline_states), tuple(outer_states)
 
 
-def _request():
+def _request(*, invariant_step=0.004, theta_step=-0.006):
   seed, total_pressure = _seed()
-  centerline, outer = _conditioned_traces(seed, total_pressure)
+  centerline, outer = _conditioned_traces(
+    seed,
+    total_pressure,
+    invariant_step=invariant_step,
+    theta_step=theta_step,
+  )
   return MocCausticUpstreamRemeshRequest(
     seed=seed,
     upstream_edge_index=0,
@@ -284,4 +297,114 @@ def test_caustic_upstream_remesh_is_a_bounded_source_for_one_chain_attempt():
   assert planner.diagnostics['one_step_domain'] is True
   assert planner.diagnostics['caustic_upstream_remesh']['status'] == (
     MocCausticUpstreamRemeshStatus.CONVERGED_BOUNDED_FIELD.value
+  )
+
+
+def test_caustic_upstream_remesh_sequence_requires_fresh_domains_per_cell(
+  monkeypatch: pytest.MonkeyPatch,
+):
+  initial = solve_caustic_upstream_remesh(_request())
+  replacement = solve_caustic_upstream_remesh(
+    _request(invariant_step=0.005, theta_step=-0.005)
+  )
+  assert initial.converged and initial.strip is not None
+  assert replacement.converged and replacement.strip is not None
+  assert initial.strip is not replacement.strip
+
+  reference = solve_uniform_attached_shock_field(
+    CharacteristicState(0.5, 0.5, -0.2, 2.0, 1.4),
+    100000.0,
+    (0.5, 0.5),
+    outer_downstream_flow_angle_rad=0.05,
+    sample_count=9,
+  )
+  assert reference.field is not None
+  source_strips = []
+
+  def fake_source_solver(
+    current,
+    _next_cell_index,
+    incoming_handoff,
+    source_strip,
+    **kwargs,
+  ):
+    del kwargs
+    source_strips.append(source_strip)
+    incoming = tuple(incoming_handoff)
+    next_field = solve_uniform_attached_shock_field(
+      CharacteristicState(
+        current.end_x_m + 0.01,
+        0.25,
+        -0.2,
+        2.0,
+        1.4,
+      ),
+      100000.0,
+      (current.end_x_m + 0.01, 0.25),
+      outer_downstream_flow_angle_rad=0.05,
+      sample_count=9,
+    )
+    assert next_field.field is not None
+    field = replace(
+      next_field.field,
+      incoming_handoff_states=tuple(sample.state for sample in incoming),
+      incoming_handoff_total_pressure_Pa=tuple(
+        sample.total_pressure_Pa for sample in incoming
+      ),
+      upstream_boundary_total_pressure_Pa=(
+        min(sample.total_pressure_Pa for sample in incoming),
+      ) * len(next_field.field.upstream_boundary_states),
+    )
+    return MocPostShockChainCellSolve(
+      field=field,
+      end_x_m=current.end_x_m + 0.02,
+    )
+
+  monkeypatch.setattr(
+    'exhaust_plume.models.moc.planner.solve_marched_attached_shock_chain_cell_from_source_strip_or_termination',
+    fake_source_solver,
+  )
+
+  provider_calls = []
+
+  def remesh_at(current, next_cell_index, incoming_handoff):
+    provider_calls.append((current.cell_index, next_cell_index, incoming_handoff))
+    return replacement
+
+  planner = plan_caustic_upstream_remesh_shock_chain_sequence(
+    reference.field,
+    initial,
+    remesh_at,
+    start_point_at=lambda current, _index, _remesh: (
+      current.end_x_m + 0.01,
+      0.25,
+    ),
+    start_x_m=0.5,
+    end_x_m=0.6,
+    downstream_flow_angle_rad=0.05,
+    sample_count=9,
+    policy=MocChainContinuationPolicy(max_cells=4, require_state_carry=True),
+  )
+
+  assert planner.planner_kind is MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
+  assert planner.production_claim_allowed is False
+  assert planner.chain.cell_count == 3
+  assert planner.chain.termination_reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+  assert planner.chain.physical_termination is False
+  assert planner.handoff_links_verified is True
+  assert source_strips == [initial.strip, replacement.strip]
+  assert len(provider_calls) == 2
+  assert provider_calls[0][2] == planner.chain.cells[1].continuation_boundary
+  assert provider_calls[1][2] == planner.chain.cells[2].continuation_boundary
+  assert planner.diagnostics['one_step_domain'] is False
+  assert planner.diagnostics['upstream_remesh_domain_count'] == 2
+  assert planner.diagnostics['upstream_remesh_domain_attempt_count'] == 3
+  assert planner.diagnostics['upstream_remesh_reuse_policy'] == (
+    'fresh-bounded-caustic-remesh-required-per-cell'
+  )
+  reused_attempt = planner.diagnostics['upstream_remesh_domain_attempts'][2]
+  assert reused_attempt['fresh_remesh'] is False
+  assert reused_attempt['fresh_strip'] is False
+  assert planner.chain.diagnostics['remesh_reuse_policy'] == (
+    'reject-reused-caustic-remesh-or-source-strip'
   )

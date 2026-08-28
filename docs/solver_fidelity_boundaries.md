@@ -385,7 +385,11 @@ verifies their exact event state/pressure seam, and exposes a bounded source
 strip to one shock-chain attempt. The outer trace is caller-supplied coupled-
 remesher data, not an inferred or extrapolated boundary; the resulting
 upstream-field stop, open physical closure, and promotion block remain
-explicit.
+explicit. Its sequence planner now permits multiple continued cells only when
+each cell receives a distinct remesh from the preceding handoff. Remesh and
+source-strip fingerprints, provider failures, upstream events, and typed
+domain stops are retained in the planner audit; reuse is rejected and no
+upstream Cauchy patch is promoted as a physical chain cell.
 
 ## What is done for the basic solver
 
