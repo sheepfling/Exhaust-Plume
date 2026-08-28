@@ -1830,3 +1830,20 @@ solver: the perimeter is still caller-owned, the quasi-one-dimensional
 free-boundary reference remains separate, canonical reflected-domain
 coupling/refinement and external observations are still open, and no product
 or provider lane consumes the result.
+
+## Terminal audit model-dispatch checkpoint
+
+The independent terminal-closure measurement now dispatches its mixed-regime
+model gate from the declared field model. Harmonic and radial reference fields
+retain their existing independently recomputed harmonic/divergence checks;
+the compressible potential reference is instead remeasured through
+`op.moc.mixed-regime-compressible-potential`, including nonlinear mass,
+potential circulation, boundary-potential, strict-subsonic, and applicable
+finite-element normal-flow residuals. Those model-specific diagnostics are
+carried in the terminal report rather than being hidden behind a generic
+harmonic residual.
+
+This closes an audit mismatch without changing the physical claim ceiling: the
+perimeter is still supplied by the caller, the terminal remains a stop, and
+the reflected-domain canonical free-boundary/mixed-regime solver, refinement
+evidence, and external observations are still required before any promotion.

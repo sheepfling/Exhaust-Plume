@@ -276,6 +276,10 @@ class MocTerminalClosureMeasurement:
   maximum_velocity_divergence_residual: float | None
   claim_status: str
   message: str
+  mixed_regime_potential_model_verified: bool | None = None
+  maximum_mass_conservation_residual: float | None = None
+  maximum_boundary_normal_velocity_residual: float | None = None
+  potential_circulation_residual: float | None = None
 
   @property
   def converged(self) -> bool:
@@ -338,7 +342,15 @@ class MocTerminalClosureMeasurement:
         'maximum_thermodynamic_residual': self.maximum_thermodynamic_residual,
         'maximum_harmonic_residual': self.maximum_harmonic_residual,
         'maximum_velocity_divergence_residual': self.maximum_velocity_divergence_residual,
+        'maximum_mass_conservation_residual': self.maximum_mass_conservation_residual,
+        'maximum_boundary_normal_velocity_residual': (
+          self.maximum_boundary_normal_velocity_residual
+        ),
+        'potential_circulation_residual': self.potential_circulation_residual,
       },
+      'mixed_regime_potential_model_verified': (
+        self.mixed_regime_potential_model_verified
+      ),
       'claim_status': self.claim_status,
       'message': self.message,
     }
@@ -3690,6 +3702,10 @@ def _terminal_measurement_failure(
   maximum_thermodynamic_residual: float | None = None,
   maximum_harmonic_residual: float | None = None,
   maximum_velocity_divergence_residual: float | None = None,
+  mixed_regime_potential_model_verified: bool | None = None,
+  maximum_mass_conservation_residual: float | None = None,
+  maximum_boundary_normal_velocity_residual: float | None = None,
+  potential_circulation_residual: float | None = None,
   message: str,
 ) -> MocTerminalClosureMeasurement:
   return MocTerminalClosureMeasurement(
@@ -3729,6 +3745,12 @@ def _terminal_measurement_failure(
     maximum_thermodynamic_residual=maximum_thermodynamic_residual,
     maximum_harmonic_residual=maximum_harmonic_residual,
     maximum_velocity_divergence_residual=maximum_velocity_divergence_residual,
+    mixed_regime_potential_model_verified=mixed_regime_potential_model_verified,
+    maximum_mass_conservation_residual=maximum_mass_conservation_residual,
+    maximum_boundary_normal_velocity_residual=(
+      maximum_boundary_normal_velocity_residual
+    ),
+    potential_circulation_residual=potential_circulation_residual,
     claim_status='not_accepted',
     message=message,
   )
@@ -5624,6 +5646,9 @@ def measure_moc_terminal_closure(
   pressure_tolerance: float = 1.0e-8,
   thermodynamic_tolerance: float = 1.0e-8,
   residual_tolerance: float = 1.0e-12,
+  potential_residual_tolerance: float = 1.0e-8,
+  potential_velocity_tolerance: float = 1.0e-8,
+  potential_circulation_tolerance: float = 1.0e-8,
   mesh_vertex_tolerance_m: float = 1.0e-12,
 ) -> MocTerminalClosureMeasurement:
   """Measure a terminal field and optional mixed-regime attachment.
@@ -5646,6 +5671,9 @@ def measure_moc_terminal_closure(
     ('pressure_tolerance', pressure_tolerance),
     ('thermodynamic_tolerance', thermodynamic_tolerance),
     ('residual_tolerance', residual_tolerance),
+    ('potential_residual_tolerance', potential_residual_tolerance),
+    ('potential_velocity_tolerance', potential_velocity_tolerance),
+    ('potential_circulation_tolerance', potential_circulation_tolerance),
     ('mesh_vertex_tolerance_m', mesh_vertex_tolerance_m),
   ):
     if not isfinite(float(value)) or float(value) <= 0.0:
@@ -5867,6 +5895,10 @@ def measure_moc_terminal_closure(
   maximum_thermodynamic_residual: float | None = None
   maximum_harmonic_residual: float | None = None
   maximum_velocity_divergence_residual: float | None = None
+  mixed_regime_potential_model_verified: bool | None = None
+  maximum_mass_conservation_residual: float | None = None
+  maximum_boundary_normal_velocity_residual: float | None = None
+  potential_circulation_residual: float | None = None
   mixed_messages: list[str] = []
   if closure is None:
     mixed_messages.append(
@@ -5962,7 +5994,7 @@ def measure_moc_terminal_closure(
           vertex_tolerance_m=mesh_vertex_tolerance_m,
         )
       )
-      mixed_regime_model_verified = bool(
+      common_model_gates = bool(
         mixed_field.converged
         and samples_valid
         and mixed_regime_node_count > 0
@@ -5973,11 +6005,48 @@ def measure_moc_terminal_closure(
         and not mixed_regime_topology.nonmanifold_edge_count
         and maximum_thermodynamic_residual is not None
         and maximum_thermodynamic_residual <= thermodynamic_tolerance
-        and maximum_harmonic_residual is not None
-        and maximum_harmonic_residual <= residual_tolerance
-        and maximum_velocity_divergence_residual is not None
-        and maximum_velocity_divergence_residual <= residual_tolerance
       )
+      if mixed_field.model == 'compressible-isentropic-potential-reference':
+        try:
+          potential_measurement = measure_mixed_regime_compressible_potential_field(
+            mixed_field,
+            position_tolerance_m=position_tolerance_m,
+            thermodynamic_tolerance=thermodynamic_tolerance,
+            potential_tolerance=potential_circulation_tolerance,
+            residual_tolerance=potential_residual_tolerance,
+            velocity_tolerance=potential_velocity_tolerance,
+            mesh_vertex_tolerance_m=mesh_vertex_tolerance_m,
+          )
+        except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+          potential_measurement = None
+          mixed_messages.append(
+            f'independent potential reference measurement failed: {error}'
+          )
+        if potential_measurement is not None:
+          mixed_regime_potential_model_verified = (
+            potential_measurement.reference_model_verified
+          )
+          maximum_mass_conservation_residual = (
+            potential_measurement.maximum_mass_conservation_residual
+          )
+          maximum_boundary_normal_velocity_residual = (
+            potential_measurement.maximum_boundary_normal_velocity_residual
+          )
+          potential_circulation_residual = (
+            potential_measurement.potential_circulation_residual
+          )
+          mixed_regime_model_verified = bool(
+            common_model_gates
+            and potential_measurement.reference_model_verified
+          )
+      else:
+        mixed_regime_model_verified = bool(
+          common_model_gates
+          and maximum_harmonic_residual is not None
+          and maximum_harmonic_residual <= residual_tolerance
+          and maximum_velocity_divergence_residual is not None
+          and maximum_velocity_divergence_residual <= residual_tolerance
+        )
       if not mixed_regime_model_verified:
         mixed_messages.append(
           'mixed-regime reference mesh or independently recomputed residuals failed'
@@ -6097,6 +6166,12 @@ def measure_moc_terminal_closure(
     maximum_thermodynamic_residual=maximum_thermodynamic_residual,
     maximum_harmonic_residual=maximum_harmonic_residual,
     maximum_velocity_divergence_residual=maximum_velocity_divergence_residual,
+    mixed_regime_potential_model_verified=mixed_regime_potential_model_verified,
+    maximum_mass_conservation_residual=maximum_mass_conservation_residual,
+    maximum_boundary_normal_velocity_residual=(
+      maximum_boundary_normal_velocity_residual
+    ),
+    potential_circulation_residual=potential_circulation_residual,
     message=message,
   )
 ####

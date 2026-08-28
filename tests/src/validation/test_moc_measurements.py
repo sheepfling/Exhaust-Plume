@@ -11,6 +11,9 @@ from exhaust_plume.models.moc import (
   MocChainBoundaryKind,
   MocChainBoundarySample,
   MocChainGeometryFidelity,
+  MocMixedRegimeDownstreamConditionKind,
+  MocMixedRegimeDownstreamPerimeterSpec,
+  MocMixedRegimeFieldSample,
   MocPhysicalPostShockFieldContinuationSolve,
   MocPostShockBoundaryState,
   MocShockBoundaryFitResult,
@@ -20,10 +23,14 @@ from exhaust_plume.models.moc import (
   assemble_post_shock_characteristic_field,
   plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closure,
   plan_prescribed_post_shock_chain_mock,
+  run_mixed_regime_closure_solver,
+  solve_mixed_regime_compressible_potential_field,
   solve_marched_attached_shock_field,
   solve_marched_attached_shock_with_ambient_centerline_physical_field,
   solve_marched_ambient_attachment_shock_cell_transition,
   solve_uniform_attached_shock_field,
+  validate_mixed_regime_boundary,
+  validate_mixed_regime_downstream_condition,
 )
 from exhaust_plume.validation.moc_measurements import (
   MocChainPlannerMeasurementStatus,
@@ -155,6 +162,62 @@ def _terminal_field():
   )
   assert transition.terminal_field is not None
   return transition.terminal_field
+
+
+def _potential_terminal_closure(field):
+  request = field.mixed_regime_perimeter_request()
+  x_terminal, y_terminal = request.terminal_point_m
+  points = (
+    (x_terminal, y_terminal),
+    (x_terminal + 0.1, y_terminal),
+    (x_terminal + 0.1, y_terminal + 0.1),
+    (x_terminal, y_terminal + 0.1),
+    (x_terminal, y_terminal),
+  )
+  samples = tuple(
+    MocMixedRegimeFieldSample(
+      point_m=point,
+      mach=request.terminal_downstream_mach,
+      flow_angle_rad=request.terminal_downstream_flow_angle_rad,
+      static_pressure_Pa=request.terminal_downstream_pressure_Pa,
+      total_pressure_Pa=request.terminal_downstream_total_pressure_Pa,
+      gamma=request.terminal.upstream_state.gamma,
+    )
+    for point in points
+  )
+  boundary = validate_mixed_regime_boundary(
+    request.terminal,
+    request.supersonic_patch,
+    supersonic_patch_converged=True,
+    subsonic_samples=samples,
+    perimeter_points_m=points,
+  )
+  assert boundary.converged
+  condition = validate_mixed_regime_downstream_condition(
+    boundary,
+    MocMixedRegimeDownstreamConditionKind.PRESSURE_OUTFLOW_SECTION,
+    ambient_pressure_Pa=request.terminal_downstream_pressure_Pa,
+  )
+  assert condition.converged
+  potential = solve_mixed_regime_compressible_potential_field(
+    boundary,
+    radial_divisions=2,
+    downstream_condition=condition,
+  )
+  assert potential.converged
+  closure = run_mixed_regime_closure_solver(
+    request,
+    lambda _request: potential,
+  )
+  assert closure.converged
+  return replace(
+    closure,
+    perimeter_spec=MocMixedRegimeDownstreamPerimeterSpec(
+      perimeter_points_m=points,
+      condition_kind=MocMixedRegimeDownstreamConditionKind.PRESSURE_OUTFLOW_SECTION,
+      ambient_pressure_Pa=request.terminal_downstream_pressure_Pa,
+    ),
+  )
 
 
 def _planner_fixture():
@@ -636,6 +699,27 @@ def test_terminal_measurement_rechecks_an_explicit_mixed_regime_attachment() -> 
   assert result.chain_promotion_blocked
   assert result.maximum_thermodynamic_residual == pytest.approx(0.0, abs=1.0e-12)
   assert result.as_report()['mixed_regime_topology']['forms_closed_zone'] is True
+
+
+def test_terminal_measurement_dispatches_to_the_potential_reference_audit() -> None:
+  field = _terminal_field()
+  closure = _potential_terminal_closure(field)
+
+  result = measure_moc_terminal_closure(
+    MocTerminalClosureObservation(
+      terminal_field=field,
+      mixed_regime_closure=closure,
+    )
+  )
+
+  assert result.status is MocTerminalClosureMeasurementStatus.CONVERGED
+  assert result.mixed_regime_model_verified
+  assert result.mixed_regime_potential_model_verified is True
+  assert result.maximum_mass_conservation_residual is not None
+  assert result.maximum_mass_conservation_residual <= 1.0e-8
+  assert result.potential_circulation_residual is not None
+  assert result.potential_circulation_residual <= 1.0e-8
+  assert result.as_report()['mixed_regime_potential_model_verified'] is True
 
 
 def test_terminal_measurement_does_not_trust_reported_mixed_regime_status() -> None:
