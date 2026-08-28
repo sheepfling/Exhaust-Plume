@@ -980,6 +980,7 @@ class MocMixedRegimeFieldResult:
   outlet_pressure_residual_Pa: float | None = None
   free_boundary_geometry_residual_m: float | None = None
   control_section: MocMixedRegimeControlSection | None = None
+  maximum_boundary_normal_velocity_residual: float | None = None
 
   def __post_init__(self) -> None:
     if (
@@ -1017,6 +1018,18 @@ class MocMixedRegimeFieldResult:
     ):
       raise TypeError(
         'control_section must be a MocMixedRegimeControlSection or None'
+      )
+    if self.maximum_boundary_normal_velocity_residual is not None:
+      residual = float(self.maximum_boundary_normal_velocity_residual)
+      if not isfinite(residual) or residual < 0.0:
+        raise ValueError(
+          'maximum_boundary_normal_velocity_residual must be finite and '
+          'nonnegative when supplied'
+        )
+      object.__setattr__(
+        self,
+        'maximum_boundary_normal_velocity_residual',
+        residual,
       )
 
   @property
@@ -1075,6 +1088,10 @@ class MocMixedRegimeFieldResult:
         and self.maximum_mass_conservation_residual <= 1.0e-8
       )
     if self.model == 'compressible-isentropic-potential-reference':
+      tangency_condition_required = bool(
+        self.downstream_condition is not None
+        and self.downstream_condition.tangency_condition_applicable
+      )
       return bool(
         mesh_gates
         and self.maximum_mass_conservation_residual is not None
@@ -1086,6 +1103,13 @@ class MocMixedRegimeFieldResult:
         and self.maximum_boundary_velocity_residual <= 1.0e-8
         and self.potential_circulation_residual <= 1.0e-8
         and self.nonlinear_update_residual <= 1.0e-8
+        and (
+          not tangency_condition_required
+          or (
+            self.maximum_boundary_normal_velocity_residual is not None
+            and self.maximum_boundary_normal_velocity_residual <= 1.0e-8
+          )
+        )
       )
     return bool(
       mesh_gates
@@ -1142,6 +1166,9 @@ class MocMixedRegimeFieldResult:
       'maximum_mach': self.maximum_mach,
       'maximum_mass_conservation_residual': self.maximum_mass_conservation_residual,
       'maximum_boundary_velocity_residual': self.maximum_boundary_velocity_residual,
+      'maximum_boundary_normal_velocity_residual': (
+        self.maximum_boundary_normal_velocity_residual
+      ),
       'potential_circulation_residual': self.potential_circulation_residual,
       'nonlinear_iteration_count': self.nonlinear_iteration_count,
       'nonlinear_update_residual': self.nonlinear_update_residual,
@@ -1396,6 +1423,7 @@ def _field_failure(
   centerline_tangent_residual_rad: float | None = None,
   outlet_pressure_residual_Pa: float | None = None,
   free_boundary_geometry_residual_m: float | None = None,
+  maximum_boundary_normal_velocity_residual: float | None = None,
   message: str,
 ) -> MocMixedRegimeFieldResult:
   return MocMixedRegimeFieldResult(
@@ -1424,6 +1452,9 @@ def _field_failure(
     centerline_tangent_residual_rad=centerline_tangent_residual_rad,
     outlet_pressure_residual_Pa=outlet_pressure_residual_Pa,
     free_boundary_geometry_residual_m=free_boundary_geometry_residual_m,
+    maximum_boundary_normal_velocity_residual=(
+      maximum_boundary_normal_velocity_residual
+    ),
     message=message,
   )
 
@@ -1438,6 +1469,91 @@ def _polygon_signed_area(points: Sequence[tuple[float, float]]) -> float:
     first[0] * second[1] - second[0] * first[1]
     for first, second in zip(points, (*points[1:], points[0]), strict=True)
   )
+
+
+def _potential_boundary_normal_velocity_residual(
+  unique_points: Sequence[tuple[float, float]],
+  connectivity: Sequence[tuple[int, int, int]],
+  triangle_velocities: Sequence[tuple[float, float]],
+  *,
+  outer_start: int,
+  condition_edge_indices: Sequence[int],
+  position_tolerance_m: float,
+) -> float | None:
+  """Measure no-penetration on selected outer finite-element edges.
+
+  The scalar potential reference prescribes boundary potential values, so a
+  tangency check on the input samples is not enough to establish that the
+  solved field has zero normal velocity.  This diagnostic uses the adjacent
+  triangle gradient for each explicitly selected tangency edge.  It is kept
+  separate from the pressure-outflow path, whose normal flux is intentionally
+  not constrained here.
+  """
+
+  if not condition_edge_indices:
+    return None
+  area = _polygon_signed_area(unique_points)
+  if abs(area) <= position_tolerance_m * position_tolerance_m:
+    raise ValueError('potential perimeter has zero signed area for normal-flow measurement')
+  perimeter_count = len(unique_points)
+  edge_to_triangles: dict[tuple[int, int], list[int]] = {}
+  for triangle_index, triangle in enumerate(connectivity):
+    if len(triangle) != 3:
+      raise ValueError('potential normal-flow measurement requires triangular cells')
+    for first, second in zip(triangle, (*triangle[1:], triangle[0])):
+      edge = (first, second) if first <= second else (second, first)
+      edge_to_triangles.setdefault(edge, []).append(triangle_index)
+  if len(connectivity) != len(triangle_velocities):
+    raise ValueError(
+      'potential normal-flow measurement has mismatched cell gradients'
+    )
+  orientation = 1.0 if area > 0.0 else -1.0
+  residuals: list[float] = []
+  for edge_index in condition_edge_indices:
+    if (
+      isinstance(edge_index, bool)
+      or not isinstance(edge_index, int)
+      or edge_index < 0
+      or edge_index >= perimeter_count
+    ):
+      raise ValueError('potential normal-flow measurement received an invalid edge index')
+    next_index = (edge_index + 1) % perimeter_count
+    first_node = outer_start + edge_index
+    second_node = outer_start + next_index
+    edge = (
+      (first_node, second_node)
+      if first_node <= second_node
+      else (second_node, first_node)
+    )
+    adjacent = edge_to_triangles.get(edge, ())
+    if len(adjacent) != 1:
+      raise ValueError(
+        'potential normal-flow measurement requires exactly one adjacent '
+        f'triangle for outer edge {edge_index}'
+      )
+    displacement = (
+      unique_points[next_index][0] - unique_points[edge_index][0],
+      unique_points[next_index][1] - unique_points[edge_index][1],
+    )
+    segment_length = hypot(*displacement)
+    if segment_length <= position_tolerance_m:
+      raise ValueError(
+        'potential normal-flow measurement encountered a zero-length outer edge'
+      )
+    outward_normal = (
+      orientation * displacement[1] / segment_length,
+      -orientation * displacement[0] / segment_length,
+    )
+    velocity = triangle_velocities[adjacent[0]]
+    if not all(isfinite(float(value)) for value in velocity):
+      raise ValueError(
+        'potential normal-flow measurement encountered a non-finite triangle velocity'
+      )
+    residuals.append(abs(
+      velocity[0] * outward_normal[0]
+      + velocity[1] * outward_normal[1]
+    ))
+  return max(residuals, default=None)
 
 
 def _convex_polygon(points: Sequence[tuple[float, float]], tolerance_m: float) -> bool:
@@ -2908,6 +3024,7 @@ def solve_mixed_regime_compressible_potential_field(
       nonlinear_iteration_count=iteration_count,
       nonlinear_update_residual=nonlinear_update_residual,
       velocity_potential=tuple(potential_values),
+      downstream_condition=downstream_condition,
       model=model,
       radial_divisions=radial_divisions,
       message=f'compressible potential field state construction failed: {error}',
@@ -2957,6 +3074,45 @@ def solve_mixed_regime_compressible_potential_field(
       abs(computed_tangent_velocity - prescribed_tangent_velocity),
     )
 
+  boundary_normal_velocity_residual: float | None = None
+  if (
+    downstream_condition is not None
+    and downstream_condition.tangency_condition_applicable
+  ):
+    try:
+      boundary_normal_velocity_residual = (
+        _potential_boundary_normal_velocity_residual(
+          unique_points,
+          connectivity,
+          triangle_velocities,
+          outer_start=outer_start,
+          condition_edge_indices=downstream_condition.condition_edge_indices,
+          position_tolerance_m=position_tolerance_m,
+        )
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      return _field_failure(
+        MocMixedRegimeFieldStatus.GEOMETRY_FAILURE,
+        boundary,
+        nodes=nodes,
+        cells=cells,
+        topology=topology,
+        interior_point_m=center_point,
+        maximum_velocity_divergence_residual=mass_residual,
+        maximum_boundary_velocity_residual=boundary_velocity_residual,
+        potential_circulation_residual=circulation_residual,
+        nonlinear_iteration_count=iteration_count,
+        nonlinear_update_residual=nonlinear_update_residual,
+        velocity_potential=tuple(potential_values),
+        maximum_boundary_normal_velocity_residual=(
+          boundary_normal_velocity_residual
+        ),
+        downstream_condition=downstream_condition,
+        model=model,
+        radial_divisions=radial_divisions,
+        message=f'compressible potential normal-flow measurement failed: {error}',
+      )
+
   thermodynamic_residual = max(
     max(
       _relative_residual(_isentropic_total_pressure(sample), sample.total_pressure_Pa)
@@ -2969,6 +3125,14 @@ def solve_mixed_regime_compressible_potential_field(
   if (
     mass_residual > residual_tolerance
     or boundary_velocity_residual > velocity_tolerance
+    or (
+      downstream_condition is not None
+      and downstream_condition.tangency_condition_applicable
+      and (
+        boundary_normal_velocity_residual is None
+        or boundary_normal_velocity_residual > velocity_tolerance
+      )
+    )
     or thermodynamic_residual > thermodynamic_tolerance
     or maximum_mach >= 1.0 - subsonic_margin
   ):
@@ -2983,15 +3147,21 @@ def solve_mixed_regime_compressible_potential_field(
       maximum_velocity_divergence_residual=mass_residual,
       maximum_mass_conservation_residual=mass_residual,
       maximum_boundary_velocity_residual=boundary_velocity_residual,
+      maximum_boundary_normal_velocity_residual=(
+        boundary_normal_velocity_residual
+      ),
       potential_circulation_residual=circulation_residual,
       nonlinear_iteration_count=iteration_count,
       nonlinear_update_residual=nonlinear_update_residual,
       velocity_potential=tuple(potential_values),
+      downstream_condition=downstream_condition,
       model=model,
       radial_divisions=radial_divisions,
       message=(
         'compressible potential field residual gate failed: '
         f'mass={mass_residual}, boundary_velocity={boundary_velocity_residual}, '
+        'boundary_normal_velocity='
+        f'{boundary_normal_velocity_residual}, '
         f'thermodynamic={thermodynamic_residual}, maximum_mach={maximum_mach}'
       ),
     )
@@ -3012,6 +3182,9 @@ def solve_mixed_regime_compressible_potential_field(
     downstream_condition=downstream_condition,
     maximum_mass_conservation_residual=mass_residual,
     maximum_boundary_velocity_residual=boundary_velocity_residual,
+    maximum_boundary_normal_velocity_residual=(
+      boundary_normal_velocity_residual
+    ),
     potential_circulation_residual=circulation_residual,
     nonlinear_iteration_count=iteration_count,
     nonlinear_update_residual=nonlinear_update_residual,
@@ -3019,8 +3192,9 @@ def solve_mixed_regime_compressible_potential_field(
     message=(
       'compressible isentropic potential field converged on the supplied '
       'closed perimeter with nonlinear mass, circulation, boundary-potential, '
-      'and strict-subsonic gates; this research reference remains separate '
-      'from the supersonic MOC chain and does not infer a free boundary'
+      'strict-subsonic, and applicable no-penetration gates; this research '
+      'reference remains separate from the supersonic MOC chain and does not '
+      'infer a free boundary'
     ),
   )
 

@@ -1809,3 +1809,24 @@ reflected-plume solution: the local compression envelope, canonical
 mixed-regime/free-boundary closure, refinement, and external validation gates
 remain open. The planner mock and all lower-fidelity visualization, signature,
 ray, and focal-plane-array providers remain unchanged.
+
+## Potential-field no-penetration checkpoint
+
+The explicit compressible-potential reference now measures the finite-element
+normal velocity on every selected tangency edge, using the adjacent triangle
+gradient and the declared perimeter orientation. A tangent input trace alone
+is therefore not allowed to masquerade as a no-penetration field: slip-wall
+and ambient free-boundary conditions gate on the independent outer-edge normal
+residual, while a prescribed-pressure outflow section keeps its intentionally
+different normal-flux contract.
+
+The field result and the independent
+`op.moc.mixed-regime-compressible-potential` measurement both carry this
+residual. A tangency-conditioned potential solve that cannot satisfy the
+finite-element no-penetration check returns a typed residual failure, and a
+tampered converged field is rejected by the independent operator. This is a
+closure diagnostic and a stricter research gate, not a free-boundary shape
+solver: the perimeter is still caller-owned, the quasi-one-dimensional
+free-boundary reference remains separate, canonical reflected-domain
+coupling/refinement and external observations are still open, and no product
+or provider lane consumes the result.

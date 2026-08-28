@@ -205,6 +205,64 @@ def _pressure_outflow_boundary_and_condition(terminal):
   return boundary, condition
 
 
+def _single_edge_slip_wall_boundary_and_condition(terminal):
+  assert terminal.shock_point_m is not None
+  assert terminal.downstream_mach is not None
+  assert terminal.downstream_total_pressure_Pa is not None
+  gamma = terminal.upstream_state.gamma
+  sonic_factor = 0.5 * (gamma - 1.0)
+  reference_speed = terminal.downstream_mach / sqrt(
+    1.0 + sonic_factor * terminal.downstream_mach ** 2
+  )
+  transverse_speed = 0.05
+  x_terminal, y_terminal = terminal.shock_point_m
+  points = (
+    (x_terminal, y_terminal),
+    (x_terminal + 0.1, y_terminal),
+    (x_terminal + 0.1, y_terminal + 0.1),
+    (x_terminal, y_terminal + 0.1),
+    (x_terminal, y_terminal),
+  )
+  velocities = (
+    (reference_speed, 0.0),
+    (reference_speed, 0.0),
+    (reference_speed, transverse_speed),
+    (reference_speed, transverse_speed),
+  )
+  samples = []
+  for point, (q_x, q_y) in zip(points[:-1], velocities, strict=True):
+    speed_squared = q_x * q_x + q_y * q_y
+    mach = sqrt(speed_squared / (1.0 - sonic_factor * speed_squared))
+    samples.append(
+      MocMixedRegimeFieldSample(
+        point_m=point,
+        mach=mach,
+        flow_angle_rad=atan2(q_y, q_x),
+        static_pressure_Pa=(
+          terminal.downstream_total_pressure_Pa
+          / (1.0 + sonic_factor * mach ** 2) ** (gamma / (gamma - 1.0))
+        ),
+        total_pressure_Pa=terminal.downstream_total_pressure_Pa,
+        gamma=gamma,
+      )
+    )
+  samples.append(samples[0])
+  boundary = validate_mixed_regime_boundary(
+    terminal,
+    _supersonic_patch(),
+    supersonic_patch_converged=True,
+    subsonic_samples=tuple(samples),
+  )
+  condition = validate_mixed_regime_downstream_condition(
+    boundary,
+    MocMixedRegimeDownstreamConditionKind.SLIP_WALL,
+    condition_edge_indices=(0,),
+    condition_sample_indices=(0, 1),
+  )
+  assert condition.converged
+  return boundary, condition
+
+
 def test_scalar_mixed_regime_boundary_handoff_is_valid_but_not_field_closure() -> None:
   terminal = _terminal()
   result = validate_mixed_regime_boundary(
@@ -623,6 +681,24 @@ def test_compressible_potential_reference_solves_a_declared_subsonic_field(
   assert field.maximum_mach < 1.0
 
 
+def test_compressible_potential_reference_gates_no_penetration_for_tangent_condition() -> None:
+  terminal = _terminal()
+  boundary, condition = _single_edge_slip_wall_boundary_and_condition(terminal)
+
+  field = solve_mixed_regime_compressible_potential_field(
+    boundary,
+    downstream_condition=condition,
+  )
+
+  assert field.status is MocMixedRegimeFieldStatus.RESIDUAL_FAILURE
+  assert not field.converged
+  assert field.downstream_condition is condition
+  assert field.maximum_boundary_normal_velocity_residual is not None
+  assert field.maximum_boundary_normal_velocity_residual > 1.0e-8
+  assert not field.model_closure_verified
+  assert 'boundary_normal_velocity' in field.message
+
+
 def test_compressible_potential_reference_reports_nonlinear_iterations() -> None:
   terminal = _terminal()
   patch = _supersonic_patch()
@@ -794,6 +870,22 @@ def test_independent_potential_measurement_rechecks_the_solver_field() -> None:
   assert tampered_measurement.status is MocMixedRegimePotentialMeasurementStatus.RESIDUAL_FAILURE
   assert not tampered_measurement.converged
   assert tampered_measurement.reference_model_verified is False
+
+
+def test_independent_potential_measurement_recomputes_tangent_boundary_normal_flux() -> None:
+  terminal = _terminal()
+  boundary, condition = _single_edge_slip_wall_boundary_and_condition(terminal)
+  unconstrained = solve_mixed_regime_compressible_potential_field(boundary)
+  assert unconstrained.converged
+
+  field = replace(unconstrained, downstream_condition=condition)
+  measurement = measure_mixed_regime_compressible_potential_field(field)
+
+  assert measurement.status is MocMixedRegimePotentialMeasurementStatus.RESIDUAL_FAILURE
+  assert not measurement.converged
+  assert measurement.maximum_boundary_normal_velocity_residual is not None
+  assert measurement.maximum_boundary_normal_velocity_residual > 1.0e-8
+  assert not measurement.reference_model_verified
 
 
 def test_field_solver_rejects_a_condition_from_a_different_scalar_boundary() -> None:
