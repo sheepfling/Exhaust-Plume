@@ -48,11 +48,14 @@ from exhaust_plume.models.nozzle.exit_state import (
   derive_uniform_nozzle_exit,
 )
 from exhaust_plume.validation.moc_measurements import (
+  MocReflectedDomainAlternatingPhysicalFieldChainRefinementCase,
+  MocReflectedDomainAlternatingPhysicalFieldChainRefinementMeasurementStatus,
   MocReflectedDomainAlternatingPhysicalFieldChainMeasurementStatus,
   MocReflectedDomainAlternatingSourceMeasurementStatus,
   MocReflectedDomainOuterSourceMeasurementStatus,
   MocReflectedDomainRemeshMeasurementStatus,
   measure_moc_reflected_domain_alternating_source,
+  measure_moc_reflected_domain_alternating_physical_field_chain_refinement,
   measure_moc_reflected_domain_alternating_physical_field_chain,
   measure_moc_reflected_domain_alternating_physical_field,
   measure_moc_reflected_domain_outer_source_curve,
@@ -197,6 +200,44 @@ def _handoff(field):
       strict=True,
     )
   )
+
+
+def _alternating_physical_chain_results(seed, sample_count):
+  current = seed
+  results = []
+  for _ in range(2):
+    strip = current.as_open_shock_ambient_strip(
+      trace_position_tolerance_m=3.0e-3,
+      trace_forward_tolerance_m=1.0e-4,
+    )
+    patch = assemble_terminal_trace_centerline_patch(
+      strip,
+      trace_position_tolerance_m=3.0e-3,
+      trace_forward_tolerance_m=1.0e-4,
+    )
+    assert patch.converged
+    ambient_pressure = current.ambient_boundary.ambient_pressure_Pa
+    assert ambient_pressure is not None
+    handoff = _handoff(current)
+    source = solve_reflected_domain_alternating_source(
+      patch,
+      ambient_pressure,
+      incoming_handoff=handoff,
+    )
+    assert source.converged
+    result = solve_reflected_domain_alternating_physical_field(
+      source,
+      compression_amplitude_rad=0.05,
+      use_outer_seed_attachment=True,
+      sample_count=sample_count,
+      shock_angle_tolerance_rad=0.02,
+      incoming_handoff=handoff,
+    )
+    assert result.converged
+    assert result.field is not None
+    results.append(result)
+    current = result.field
+  return tuple(results)
 
 
 def _reference_seed_field():
@@ -684,6 +725,75 @@ def test_reflected_domain_alternating_source_chain_projects_fresh_bands_automati
     and attempt['fresh_source_geometry'] is True
     for attempt in attempts
   )
+
+
+def test_reflected_domain_alternating_physical_field_chain_refinement_is_research_only():
+  seed = _canonical_field()
+  coarse = MocReflectedDomainAlternatingPhysicalFieldChainRefinementCase(
+    resolution=17,
+    results=_alternating_physical_chain_results(seed, 17),
+  )
+  fine = MocReflectedDomainAlternatingPhysicalFieldChainRefinementCase(
+    resolution=33,
+    results=_alternating_physical_chain_results(seed, 33),
+  )
+
+  measurement = (
+    measure_moc_reflected_domain_alternating_physical_field_chain_refinement(
+      (coarse, fine),
+      endpoint_tolerance_m=1.0e-3,
+      shock_spacing_tolerance_m=1.0e-4,
+      area_tolerance_m2=1.5e-3,
+      maximum_radius_tolerance_m=5.0e-4,
+    )
+  )
+
+  assert measurement.status is (
+    MocReflectedDomainAlternatingPhysicalFieldChainRefinementMeasurementStatus.CONVERGED
+  )
+  assert measurement.converged
+  assert measurement.resolutions == (17, 33)
+  assert measurement.field_count == 2
+  assert measurement.resolution_order_verified
+  assert measurement.resolution_metadata_verified
+  assert measurement.field_count_consistent
+  assert measurement.geometry_shape_verified
+  assert measurement.solver_configuration_consistent
+  assert measurement.source_geometry_freshness_verified
+  assert measurement.pressure_loss_verified
+  assert measurement.handoff_metadata_complete
+  assert measurement.handoff_links_verified is True
+  assert measurement.fresh_domain_verified
+  assert measurement.refinement_convergence_verified
+  assert measurement.physical_closure_verified is False
+  assert measurement.chain_promotion_blocked
+  assert measurement.production_claim_allowed is False
+  assert measurement.as_report()['physical_closure_verified'] is False
+
+  reversed_measurement = (
+    measure_moc_reflected_domain_alternating_physical_field_chain_refinement(
+      (fine, coarse),
+    )
+  )
+  assert reversed_measurement.status is (
+    MocReflectedDomainAlternatingPhysicalFieldChainRefinementMeasurementStatus.RESOLUTION_FAILURE
+  )
+  assert reversed_measurement.converged is False
+
+  shape_mismatch = MocReflectedDomainAlternatingPhysicalFieldChainRefinementCase(
+    resolution=33,
+    results=(fine.results[0],),
+  )
+  shape_measurement = (
+    measure_moc_reflected_domain_alternating_physical_field_chain_refinement(
+      (coarse, shape_mismatch),
+    )
+  )
+  assert shape_measurement.status is (
+    MocReflectedDomainAlternatingPhysicalFieldChainRefinementMeasurementStatus.CONSISTENCY_FAILURE
+  )
+  assert shape_measurement.field_count_consistent is False
+  assert shape_measurement.converged is False
 
 
 def test_reflected_domain_alternating_physical_field_rejects_unverified_source():

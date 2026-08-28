@@ -106,6 +106,7 @@ __all__ = (
   'MOC_REFLECTED_DOMAIN_ALTERNATING_SOURCE_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_ALTERNATING_PHYSICAL_FIELD_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_ALTERNATING_PHYSICAL_FIELD_CHAIN_OPERATOR_ID',
+  'MOC_REFLECTED_DOMAIN_ALTERNATING_PHYSICAL_FIELD_CHAIN_REFINEMENT_OPERATOR_ID',
   'MOC_MIXED_REGIME_FREE_BOUNDARY_OPERATOR_ID',
   'MOC_MIXED_REGIME_FREE_BOUNDARY_REFINEMENT_OPERATOR_ID',
   'MOC_MIXED_REGIME_CONTROL_SECTION_OPERATOR_ID',
@@ -130,6 +131,9 @@ __all__ = (
   'MocReflectedDomainAlternatingPhysicalFieldMeasurementStatus',
   'MocReflectedDomainAlternatingPhysicalFieldChainMeasurement',
   'MocReflectedDomainAlternatingPhysicalFieldChainMeasurementStatus',
+  'MocReflectedDomainAlternatingPhysicalFieldChainRefinementCase',
+  'MocReflectedDomainAlternatingPhysicalFieldChainRefinementMeasurement',
+  'MocReflectedDomainAlternatingPhysicalFieldChainRefinementMeasurementStatus',
   'MocMixedRegimePotentialMeasurement',
   'MocMixedRegimePotentialMeasurementStatus',
   'MocMixedRegimeFreeBoundaryMeasurement',
@@ -157,6 +161,7 @@ __all__ = (
   'measure_moc_reflected_domain_outer_source_curve',
   'measure_moc_reflected_domain_alternating_source',
   'measure_moc_reflected_domain_alternating_physical_field_chain',
+  'measure_moc_reflected_domain_alternating_physical_field_chain_refinement',
   'measure_mixed_regime_compressible_potential_field',
   'measure_mixed_regime_free_boundary_reference',
   'measure_mixed_regime_free_boundary_refinement',
@@ -192,6 +197,9 @@ MOC_REFLECTED_DOMAIN_ALTERNATING_PHYSICAL_FIELD_OPERATOR_ID = (
 )
 MOC_REFLECTED_DOMAIN_ALTERNATING_PHYSICAL_FIELD_CHAIN_OPERATOR_ID = (
   'op.moc.reflected-domain-alternating-physical-field-chain'
+)
+MOC_REFLECTED_DOMAIN_ALTERNATING_PHYSICAL_FIELD_CHAIN_REFINEMENT_OPERATOR_ID = (
+  'op.moc.reflected-domain-alternating-physical-field-chain-refinement'
 )
 MOC_MIXED_REGIME_FREE_BOUNDARY_OPERATOR_ID = (
   'op.moc.mixed-regime-free-boundary-reference'
@@ -9067,6 +9075,750 @@ def measure_moc_reflected_domain_alternating_physical_field_chain(
       'independent alternating-source physical-field chain audit passed fresh '
       'source geometry, exact handoff, raw field, and fresh-domain checks; '
       'canonical reflected free-boundary closure remains pending'
+    ),
+  )
+####
+
+
+class MocReflectedDomainAlternatingPhysicalFieldChainRefinementMeasurementStatus(str, Enum):
+  """Outcome of comparing independently rerun alternating physical chains."""
+
+  CONVERGED = 'converged'
+  INVALID_INPUT = 'invalid_input'
+  RESOLUTION_FAILURE = 'resolution_failure'
+  CASE_FAILURE = 'case_failure'
+  CONSISTENCY_FAILURE = 'consistency_failure'
+  SENSITIVITY_FAILURE = 'sensitivity_failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainAlternatingPhysicalFieldChainRefinementCase:
+  """One independently rerun alternating physical-field chain.
+
+  ``resolution`` is the physical shock sample count used for every result in
+  ``results``.  The case owns typed solver results rather than serialized
+  reports so the refinement operator can remeasure their source bands,
+  upstream coupling, and raw physical fields independently.
+  """
+
+  resolution: int
+  results: tuple[MocReflectedDomainAlternatingPhysicalFieldResult, ...]
+  termination_reason: str | None = None
+  physical_termination: bool | None = None
+
+  def __post_init__(self) -> None:
+    if (
+      isinstance(self.resolution, bool)
+      or not isinstance(self.resolution, int)
+      or self.resolution < 3
+    ):
+      raise ValueError('resolution must be an integer of at least three')
+    try:
+      results = tuple(self.results)
+    except TypeError as error:
+      raise TypeError(
+        'results must contain MocReflectedDomainAlternatingPhysicalFieldResult values'
+      ) from error
+    if not results or any(
+      not isinstance(result, MocReflectedDomainAlternatingPhysicalFieldResult)
+      for result in results
+    ):
+      raise TypeError(
+        'results must contain at least one alternating physical-field result'
+      )
+    object.__setattr__(self, 'results', results)
+    reason = self.termination_reason
+    if reason is not None:
+      if isinstance(reason, Enum):
+        reason = reason.value
+      reason = str(reason)
+      if not reason:
+        raise ValueError('termination_reason must be non-empty when supplied')
+      object.__setattr__(self, 'termination_reason', reason)
+    if self.physical_termination is not None and not isinstance(
+      self.physical_termination,
+      bool,
+    ):
+      raise TypeError('physical_termination must be a bool or None')
+  ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainAlternatingPhysicalFieldChainRefinementMeasurement:
+  """Independent numerical-sensitivity evidence for alternating chains.
+
+  Each case is remeasured through the single-chain alternating operator.  The
+  comparison then checks fixed solver configuration, stable continued-cell
+  count and geometry shape, exact handoff/fresh-domain evidence, strict shock
+  pressure loss, and bounded changes in returned chain geometry.  A passing
+  result is still research evidence: it does not close the canonical
+  reflected free boundary or authorize a product claim.
+  """
+
+  status: MocReflectedDomainAlternatingPhysicalFieldChainRefinementMeasurementStatus
+  operator_id: str = (
+    MOC_REFLECTED_DOMAIN_ALTERNATING_PHYSICAL_FIELD_CHAIN_REFINEMENT_OPERATOR_ID
+  )
+  cases: tuple[MocReflectedDomainAlternatingPhysicalFieldChainRefinementCase, ...] = ()
+  chain_measurements: tuple[
+    MocReflectedDomainAlternatingPhysicalFieldChainMeasurement, ...
+  ] = ()
+  resolutions: tuple[int, ...] = ()
+  field_count: int | None = None
+  resolution_order_verified: bool = False
+  resolution_metadata_verified: bool = False
+  field_count_consistent: bool = False
+  geometry_shape_verified: bool = False
+  solver_configuration_consistent: bool = False
+  source_geometry_freshness_verified: bool = False
+  pressure_loss_verified: bool = False
+  handoff_metadata_complete: bool = False
+  handoff_links_verified: bool | None = None
+  fresh_domain_verified: bool = False
+  termination_sensitivity_verified: bool | None = None
+  axial_extent_residuals_m: tuple[float, ...] = ()
+  shock_spacing_residuals_m: tuple[float, ...] = ()
+  mesh_area_residuals_m2: tuple[float, ...] = ()
+  maximum_radius_residuals_m: tuple[float, ...] = ()
+  refinement_convergence_verified: bool = False
+  chain_promotion_blocked: bool = True
+  production_claim_allowed: bool = False
+  claim_status: str = 'not_accepted'
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    cases = tuple(self.cases)
+    measurements = tuple(self.chain_measurements)
+    if len(cases) != len(measurements):
+      raise ValueError('cases and chain_measurements must have equal lengths')
+    if any(
+      not isinstance(
+        case,
+        MocReflectedDomainAlternatingPhysicalFieldChainRefinementCase,
+      )
+      for case in cases
+    ):
+      raise TypeError(
+        'cases must contain alternating physical-field refinement cases'
+      )
+    if any(
+      not isinstance(
+        measurement,
+        MocReflectedDomainAlternatingPhysicalFieldChainMeasurement,
+      )
+      for measurement in measurements
+    ):
+      raise TypeError(
+        'chain_measurements must contain alternating physical-field chain measurements'
+      )
+    object.__setattr__(self, 'cases', cases)
+    object.__setattr__(self, 'chain_measurements', measurements)
+    object.__setattr__(
+      self,
+      'resolutions',
+      tuple(case.resolution for case in cases),
+    )
+    for name in (
+      'axial_extent_residuals_m',
+      'shock_spacing_residuals_m',
+      'mesh_area_residuals_m2',
+      'maximum_radius_residuals_m',
+    ):
+      values = tuple(float(value) for value in getattr(self, name))
+      if any(not isfinite(value) or value < 0.0 for value in values):
+        raise ValueError(f'{name} must contain finite nonnegative values')
+      object.__setattr__(self, name, values)
+    if self.field_count is not None and (
+      isinstance(self.field_count, bool)
+      or not isinstance(self.field_count, int)
+      or self.field_count < 1
+    ):
+      raise ValueError('field_count must be positive when supplied')
+    for name in (
+      'resolution_order_verified',
+      'resolution_metadata_verified',
+      'field_count_consistent',
+      'geometry_shape_verified',
+      'solver_configuration_consistent',
+      'source_geometry_freshness_verified',
+      'pressure_loss_verified',
+      'handoff_metadata_complete',
+      'fresh_domain_verified',
+      'refinement_convergence_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+    for name in ('handoff_links_verified', 'termination_sensitivity_verified'):
+      value = getattr(self, name)
+      if value is not None and not isinstance(value, bool):
+        raise TypeError(f'{name} must be a bool or None')
+  ####
+
+  @property
+  def converged(self) -> bool:
+    return (
+      self.status
+      is MocReflectedDomainAlternatingPhysicalFieldChainRefinementMeasurementStatus.CONVERGED
+    )
+  ####
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    """Keep numerical refinement evidence below the physical-closure gate."""
+
+    return False
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'operator_id': self.operator_id,
+      'converged': self.converged,
+      'case_count': len(self.cases),
+      'resolutions': list(self.resolutions),
+      'field_count': self.field_count,
+      'cases': [
+        {
+          'resolution': case.resolution,
+          'termination_reason': case.termination_reason,
+          'physical_termination': case.physical_termination,
+          'result_count': len(case.results),
+          'result_statuses': [result.status.value for result in case.results],
+          'result_sample_counts': [result.sample_count for result in case.results],
+          'measurement': measurement.as_report(),
+        }
+        for case, measurement in zip(self.cases, self.chain_measurements, strict=True)
+      ],
+      'checks': {
+        'resolution_order_verified': self.resolution_order_verified,
+        'resolution_metadata_verified': self.resolution_metadata_verified,
+        'field_count_consistent': self.field_count_consistent,
+        'geometry_shape_verified': self.geometry_shape_verified,
+        'solver_configuration_consistent': self.solver_configuration_consistent,
+        'source_geometry_freshness_verified': (
+          self.source_geometry_freshness_verified
+        ),
+        'pressure_loss_verified': self.pressure_loss_verified,
+        'handoff_metadata_complete': self.handoff_metadata_complete,
+        'handoff_links_verified': self.handoff_links_verified,
+        'fresh_domain_verified': self.fresh_domain_verified,
+        'termination_sensitivity_verified': self.termination_sensitivity_verified,
+        'refinement_convergence_verified': self.refinement_convergence_verified,
+      },
+      'residuals': {
+        'axial_extent_residuals_m': list(self.axial_extent_residuals_m),
+        'shock_spacing_residuals_m': list(self.shock_spacing_residuals_m),
+        'mesh_area_residuals_m2': list(self.mesh_area_residuals_m2),
+        'maximum_radius_residuals_m': list(self.maximum_radius_residuals_m),
+      },
+      'physical_closure_verified': False,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'claim_status': self.claim_status,
+      'message': self.message,
+    }
+  ####
+
+
+def _alternating_physical_field_chain_refinement_failure(
+  status: MocReflectedDomainAlternatingPhysicalFieldChainRefinementMeasurementStatus,
+  message: str,
+  *,
+  cases: Sequence[
+    MocReflectedDomainAlternatingPhysicalFieldChainRefinementCase
+  ] = (),
+  chain_measurements: Sequence[
+    MocReflectedDomainAlternatingPhysicalFieldChainMeasurement
+  ] = (),
+  field_count: int | None = None,
+  resolution_order_verified: bool = False,
+  resolution_metadata_verified: bool = False,
+  field_count_consistent: bool = False,
+  geometry_shape_verified: bool = False,
+  solver_configuration_consistent: bool = False,
+  source_geometry_freshness_verified: bool = False,
+  pressure_loss_verified: bool = False,
+  handoff_metadata_complete: bool = False,
+  handoff_links_verified: bool | None = None,
+  fresh_domain_verified: bool = False,
+  termination_sensitivity_verified: bool | None = None,
+  axial_extent_residuals_m: Sequence[float] = (),
+  shock_spacing_residuals_m: Sequence[float] = (),
+  mesh_area_residuals_m2: Sequence[float] = (),
+  maximum_radius_residuals_m: Sequence[float] = (),
+  refinement_convergence_verified: bool = False,
+) -> MocReflectedDomainAlternatingPhysicalFieldChainRefinementMeasurement:
+  valid_cases = tuple(
+    case
+    for case in cases
+    if isinstance(
+      case,
+      MocReflectedDomainAlternatingPhysicalFieldChainRefinementCase,
+    )
+  )
+  valid_measurements = tuple(
+    measurement
+    for measurement in chain_measurements
+    if isinstance(
+      measurement,
+      MocReflectedDomainAlternatingPhysicalFieldChainMeasurement,
+    )
+  )
+  paired_count = min(len(valid_cases), len(valid_measurements))
+  return MocReflectedDomainAlternatingPhysicalFieldChainRefinementMeasurement(
+    status=status,
+    cases=valid_cases[:paired_count],
+    chain_measurements=valid_measurements[:paired_count],
+    field_count=field_count,
+    resolution_order_verified=resolution_order_verified,
+    resolution_metadata_verified=resolution_metadata_verified,
+    field_count_consistent=field_count_consistent,
+    geometry_shape_verified=geometry_shape_verified,
+    solver_configuration_consistent=solver_configuration_consistent,
+    source_geometry_freshness_verified=source_geometry_freshness_verified,
+    pressure_loss_verified=pressure_loss_verified,
+    handoff_metadata_complete=handoff_metadata_complete,
+    handoff_links_verified=handoff_links_verified,
+    fresh_domain_verified=fresh_domain_verified,
+    termination_sensitivity_verified=termination_sensitivity_verified,
+    axial_extent_residuals_m=tuple(axial_extent_residuals_m),
+    shock_spacing_residuals_m=tuple(shock_spacing_residuals_m),
+    mesh_area_residuals_m2=tuple(mesh_area_residuals_m2),
+    maximum_radius_residuals_m=tuple(maximum_radius_residuals_m),
+    refinement_convergence_verified=refinement_convergence_verified,
+    message=message,
+  )
+
+
+def _alternating_physical_field_chain_geometry_metrics(
+  measurement: MocReflectedDomainAlternatingPhysicalFieldChainMeasurement,
+) -> tuple[tuple[float, float], tuple[float, ...], float, tuple[float, ...]] | None:
+  """Extract comparable chain geometry from an independent chain audit."""
+
+  physical = measurement.physical_field_chain_measurement
+  if physical is None or len(physical.field_measurements) != measurement.field_count:
+    return None
+  fields = physical.field_measurements
+  extents: list[tuple[float, float]] = []
+  starts: list[float] = []
+  radii: list[float] = []
+  areas: list[float] = []
+  for field in fields:
+    if (
+      field.axial_extent_m is None
+      or field.shock_start_m is None
+      or field.maximum_radius_m is None
+      or field.mesh_area_m2 is None
+    ):
+      return None
+    extent = (float(field.axial_extent_m[0]), float(field.axial_extent_m[1]))
+    start_x = float(field.shock_start_m[0])
+    radius = float(field.maximum_radius_m)
+    area = float(field.mesh_area_m2)
+    if (
+      not all(isfinite(value) for value in extent)
+      or not isfinite(start_x)
+      or not isfinite(radius)
+      or not isfinite(area)
+      or area < 0.0
+    ):
+      return None
+    extents.append(extent)
+    starts.append(start_x)
+    radii.append(radius)
+    areas.append(area)
+  spacing = tuple(
+    current - previous
+    for previous, current in zip(starts, starts[1:])
+  )
+  if any(not isfinite(value) for value in spacing):
+    return None
+  return (
+    (min(extent[0] for extent in extents), max(extent[1] for extent in extents)),
+    spacing,
+    fsum(areas),
+    tuple(radii),
+  )
+
+
+def measure_moc_reflected_domain_alternating_physical_field_chain_refinement(
+  cases: Sequence[
+    MocReflectedDomainAlternatingPhysicalFieldChainRefinementCase
+  ],
+  *,
+  endpoint_tolerance_m: float = 2.0e-5,
+  shock_spacing_tolerance_m: float = 1.0e-5,
+  area_tolerance_m2: float = 2.0e-4,
+  maximum_radius_tolerance_m: float = 2.0e-5,
+  position_tolerance_m: float = 1.0e-9,
+  state_tolerance: float = 1.0e-9,
+  invariant_tolerance: float = 1.0e-8,
+  pressure_tolerance: float = 1.0e-8,
+  tangent_tolerance: float = 1.0e-8,
+  mesh_vertex_tolerance_m: float = 1.0e-12,
+) -> MocReflectedDomainAlternatingPhysicalFieldChainRefinementMeasurement:
+  """Compare independently rerun alternating physical chains by resolution.
+
+  The operator never smooths, interpolates, or repairs a chain.  Each case is
+  remeasured from its raw source-band and field results, and only exact chain
+  geometry features that every case exposes are compared.  The resolution
+  value is required to match each result's physical shock sample count; a
+  caller cannot label an unchanged run as refinement evidence.
+  """
+
+  for name, value in (
+    ('endpoint_tolerance_m', endpoint_tolerance_m),
+    ('shock_spacing_tolerance_m', shock_spacing_tolerance_m),
+    ('area_tolerance_m2', area_tolerance_m2),
+    ('maximum_radius_tolerance_m', maximum_radius_tolerance_m),
+    ('position_tolerance_m', position_tolerance_m),
+    ('state_tolerance', state_tolerance),
+    ('invariant_tolerance', invariant_tolerance),
+    ('pressure_tolerance', pressure_tolerance),
+    ('tangent_tolerance', tangent_tolerance),
+    ('mesh_vertex_tolerance_m', mesh_vertex_tolerance_m),
+  ):
+    if not isfinite(float(value)) or float(value) <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+  try:
+    items = tuple(cases)
+  except TypeError:
+    return _alternating_physical_field_chain_refinement_failure(
+      MocReflectedDomainAlternatingPhysicalFieldChainRefinementMeasurementStatus.INVALID_INPUT,
+      'refinement cases must be iterable',
+    )
+  if len(items) < 2:
+    return _alternating_physical_field_chain_refinement_failure(
+      MocReflectedDomainAlternatingPhysicalFieldChainRefinementMeasurementStatus.INVALID_INPUT,
+      'at least two alternating physical-field refinement cases are required',
+    )
+  if any(
+    not isinstance(
+      case,
+      MocReflectedDomainAlternatingPhysicalFieldChainRefinementCase,
+    )
+    for case in items
+  ):
+    return _alternating_physical_field_chain_refinement_failure(
+      MocReflectedDomainAlternatingPhysicalFieldChainRefinementMeasurementStatus.INVALID_INPUT,
+      'refinement cases must contain alternating physical-field refinement cases',
+      cases=items,
+    )
+  resolutions = tuple(case.resolution for case in items)
+  resolution_order_verified = all(
+    right > left
+    for left, right in zip(resolutions, resolutions[1:])
+  )
+  if not resolution_order_verified:
+    return _alternating_physical_field_chain_refinement_failure(
+      MocReflectedDomainAlternatingPhysicalFieldChainRefinementMeasurementStatus.RESOLUTION_FAILURE,
+      'refinement resolutions must be strictly increasing from coarse to fine',
+      cases=items,
+    )
+
+  chain_measurements = tuple(
+    measure_moc_reflected_domain_alternating_physical_field_chain(
+      case.results,
+      position_tolerance_m=position_tolerance_m,
+      state_tolerance=state_tolerance,
+      invariant_tolerance=invariant_tolerance,
+      pressure_tolerance=pressure_tolerance,
+      tangent_tolerance=tangent_tolerance,
+      mesh_vertex_tolerance_m=mesh_vertex_tolerance_m,
+    )
+    for case in items
+  )
+  if any(not measurement.converged for measurement in chain_measurements):
+    return _alternating_physical_field_chain_refinement_failure(
+      MocReflectedDomainAlternatingPhysicalFieldChainRefinementMeasurementStatus.CASE_FAILURE,
+      'one or more alternating physical-field refinement cases failed independent measurement',
+      cases=items,
+      chain_measurements=chain_measurements,
+      resolution_order_verified=True,
+    )
+
+  field_counts = tuple(measurement.field_count for measurement in chain_measurements)
+  field_count_consistent = bool(
+    field_counts
+    and all(
+      isinstance(count, int)
+      and not isinstance(count, bool)
+      and count > 0
+      for count in field_counts
+    )
+    and len(set(field_counts)) == 1
+  )
+  field_count = field_counts[0] if field_count_consistent else None
+  resolution_metadata_verified = all(
+    result.sample_count == case.resolution
+    for case in items
+    for result in case.results
+  )
+  geometry_shapes = tuple(
+    (
+      measurement.field_count,
+      None
+      if measurement.physical_field_chain_measurement is None
+      else len(measurement.physical_field_chain_measurement.field_measurements),
+    )
+    for measurement in chain_measurements
+  )
+  geometry_shape_verified = bool(
+    field_count_consistent
+    and len(set(geometry_shapes)) == 1
+    and all(
+      measurement.physical_field_chain_measurement is not None
+      and len(measurement.physical_field_chain_measurement.field_measurements)
+      == field_count
+      for measurement in chain_measurements
+    )
+  )
+
+  configurations = tuple(
+    (
+      result.compression_amplitude_rad,
+      result.continuation_law,
+      result.attachment_source,
+      result.outer_source_index,
+      result.position_tolerance_m,
+      result.shock_angle_tolerance_rad,
+    )
+    for case in items
+    for result in case.results
+  )
+  solver_configuration_consistent = bool(
+    configurations and len(set(configurations)) == 1
+  )
+  source_geometry_freshness_verified = all(
+    measurement.source_geometry_freshness_verified
+    for measurement in chain_measurements
+  )
+  pressure_loss_verified = all(
+    field_measurement.pressure_loss_verified is True
+    for measurement in chain_measurements
+    for field_measurement in (
+      ()
+      if measurement.physical_field_chain_measurement is None
+      else measurement.physical_field_chain_measurement.field_measurements
+    )
+  )
+  handoff_metadata_complete = all(
+    measurement.handoff_links_verified is not None
+    for measurement in chain_measurements
+  )
+  if all(measurement.handoff_link_count == 0 for measurement in chain_measurements):
+    handoff_links_verified: bool | None = None
+  else:
+    handoff_links_verified = all(
+      measurement.handoff_links_verified is True
+      for measurement in chain_measurements
+    )
+  fresh_domain_verified = all(
+    measurement.fresh_domain_verified
+    for measurement in chain_measurements
+  )
+
+  if not (
+    resolution_metadata_verified
+    and field_count_consistent
+    and geometry_shape_verified
+    and solver_configuration_consistent
+  ):
+    return _alternating_physical_field_chain_refinement_failure(
+      MocReflectedDomainAlternatingPhysicalFieldChainRefinementMeasurementStatus.CONSISTENCY_FAILURE,
+      'refinement cases must retain one solver configuration and continued-cell geometry shape',
+      cases=items,
+      chain_measurements=chain_measurements,
+      field_count=field_count,
+      resolution_order_verified=True,
+      resolution_metadata_verified=resolution_metadata_verified,
+      field_count_consistent=field_count_consistent,
+      geometry_shape_verified=geometry_shape_verified,
+      solver_configuration_consistent=solver_configuration_consistent,
+      source_geometry_freshness_verified=source_geometry_freshness_verified,
+      pressure_loss_verified=pressure_loss_verified,
+      handoff_metadata_complete=handoff_metadata_complete,
+      handoff_links_verified=handoff_links_verified,
+      fresh_domain_verified=fresh_domain_verified,
+    )
+
+  geometry_metrics = tuple(
+    _alternating_physical_field_chain_geometry_metrics(measurement)
+    for measurement in chain_measurements
+  )
+  if any(metrics is None for metrics in geometry_metrics):
+    return _alternating_physical_field_chain_refinement_failure(
+      MocReflectedDomainAlternatingPhysicalFieldChainRefinementMeasurementStatus.CASE_FAILURE,
+      'alternating physical-field refinement cases must expose comparable raw chain geometry',
+      cases=items,
+      chain_measurements=chain_measurements,
+      field_count=field_count,
+      resolution_order_verified=True,
+      resolution_metadata_verified=resolution_metadata_verified,
+      field_count_consistent=field_count_consistent,
+      geometry_shape_verified=geometry_shape_verified,
+      solver_configuration_consistent=solver_configuration_consistent,
+      source_geometry_freshness_verified=source_geometry_freshness_verified,
+      pressure_loss_verified=pressure_loss_verified,
+      handoff_metadata_complete=handoff_metadata_complete,
+      handoff_links_verified=handoff_links_verified,
+      fresh_domain_verified=fresh_domain_verified,
+    )
+  resolved_metrics: tuple[
+    tuple[tuple[float, float], tuple[float, ...], float, tuple[float, ...]],
+    ...
+  ] = tuple(
+    metrics for metrics in geometry_metrics if metrics is not None
+  )
+  axial_extent_residuals = tuple(
+    max(
+      abs(current[0][0] - previous[0][0]),
+      abs(current[0][1] - previous[0][1]),
+    )
+    for previous, current in zip(resolved_metrics, resolved_metrics[1:])
+  )
+  shock_spacing_residuals = tuple(
+    max(
+      (
+        abs(current - previous)
+        for previous, current in zip(
+          previous_metrics[1],
+          current_metrics[1],
+          strict=True,
+        )
+      ),
+      default=0.0,
+    )
+    for previous_metrics, current_metrics in zip(
+      resolved_metrics,
+      resolved_metrics[1:],
+    )
+  )
+  mesh_area_residuals = tuple(
+    abs(current_metrics[2] - previous_metrics[2])
+    for previous_metrics, current_metrics in zip(
+      resolved_metrics,
+      resolved_metrics[1:],
+    )
+  )
+  maximum_radius_residuals = tuple(
+    max(
+      (
+        abs(current - previous)
+        for previous, current in zip(
+          previous_metrics[3],
+          current_metrics[3],
+          strict=True,
+        )
+      ),
+      default=0.0,
+    )
+    for previous_metrics, current_metrics in zip(
+      resolved_metrics,
+      resolved_metrics[1:],
+    )
+  )
+  termination_metadata = tuple(
+    (case.termination_reason, case.physical_termination)
+    for case in items
+  )
+  if not any(
+    reason is not None or physical is not None
+    for reason, physical in termination_metadata
+  ):
+    termination_sensitivity_verified = None
+  elif any(
+    reason is None or physical is None
+    for reason, physical in termination_metadata
+  ):
+    termination_sensitivity_verified = False
+  else:
+    termination_sensitivity_verified = len(set(termination_metadata)) == 1
+
+  refinement_convergence_verified = bool(
+    resolution_metadata_verified
+    and field_count_consistent
+    and geometry_shape_verified
+    and solver_configuration_consistent
+    and source_geometry_freshness_verified
+    and pressure_loss_verified
+    and handoff_links_verified is not False
+    and fresh_domain_verified
+    and all(
+      residual <= float(endpoint_tolerance_m)
+      for residual in axial_extent_residuals
+    )
+    and all(
+      residual <= float(shock_spacing_tolerance_m)
+      for residual in shock_spacing_residuals
+    )
+    and all(
+      residual <= float(area_tolerance_m2)
+      for residual in mesh_area_residuals
+    )
+    and all(
+      residual <= float(maximum_radius_tolerance_m)
+      for residual in maximum_radius_residuals
+    )
+    and termination_sensitivity_verified is not False
+  )
+  common = {
+    'cases': items,
+    'chain_measurements': chain_measurements,
+    'field_count': field_count,
+    'resolution_order_verified': True,
+    'resolution_metadata_verified': resolution_metadata_verified,
+    'field_count_consistent': field_count_consistent,
+    'geometry_shape_verified': geometry_shape_verified,
+    'solver_configuration_consistent': solver_configuration_consistent,
+    'source_geometry_freshness_verified': source_geometry_freshness_verified,
+    'pressure_loss_verified': pressure_loss_verified,
+    'handoff_metadata_complete': handoff_metadata_complete,
+    'handoff_links_verified': handoff_links_verified,
+    'fresh_domain_verified': fresh_domain_verified,
+    'termination_sensitivity_verified': termination_sensitivity_verified,
+    'axial_extent_residuals_m': axial_extent_residuals,
+    'shock_spacing_residuals_m': shock_spacing_residuals,
+    'mesh_area_residuals_m2': mesh_area_residuals,
+    'maximum_radius_residuals_m': maximum_radius_residuals,
+    'refinement_convergence_verified': refinement_convergence_verified,
+  }
+  if not refinement_convergence_verified:
+    return _alternating_physical_field_chain_refinement_failure(
+      MocReflectedDomainAlternatingPhysicalFieldChainRefinementMeasurementStatus.SENSITIVITY_FAILURE,
+      'alternating physical-field chain geometry, pressure-loss, freshness, or termination sensitivity exceeded the declared tolerances',
+      **common,
+    )
+  return MocReflectedDomainAlternatingPhysicalFieldChainRefinementMeasurement(
+    status=MocReflectedDomainAlternatingPhysicalFieldChainRefinementMeasurementStatus.CONVERGED,
+    cases=items,
+    chain_measurements=chain_measurements,
+    field_count=field_count,
+    resolution_order_verified=True,
+    resolution_metadata_verified=True,
+    field_count_consistent=True,
+    geometry_shape_verified=True,
+    solver_configuration_consistent=True,
+    source_geometry_freshness_verified=True,
+    pressure_loss_verified=True,
+    handoff_metadata_complete=handoff_metadata_complete,
+    handoff_links_verified=handoff_links_verified,
+    fresh_domain_verified=True,
+    termination_sensitivity_verified=termination_sensitivity_verified,
+    axial_extent_residuals_m=axial_extent_residuals,
+    shock_spacing_residuals_m=shock_spacing_residuals,
+    mesh_area_residuals_m2=mesh_area_residuals,
+    maximum_radius_residuals_m=maximum_radius_residuals,
+    refinement_convergence_verified=True,
+    chain_promotion_blocked=True,
+    production_claim_allowed=False,
+    message=(
+      'independent alternating physical-field chains are stable across the '
+      'declared shock resolutions; canonical reflected free-boundary closure '
+      'and external validation remain pending'
     ),
   )
 ####

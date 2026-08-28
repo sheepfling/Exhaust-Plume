@@ -1946,3 +1946,27 @@ This remains a research continuation: the canonical reflected free-boundary
 law, mixed-regime downstream closure, refinement evidence, and external
 observations are still release gates, and no product/provider lane consumes
 the result.
+
+## Alternating physical-field chain refinement checkpoint
+
+The continued shock-cell lane now has a separate numerical-sensitivity
+operator, `op.moc.reflected-domain-alternating-physical-field-chain-refinement`.
+It accepts independently rerun typed physical-field chains at strictly
+increasing shock resolutions and remeasures every chain before comparison.
+Resolution metadata must match every retained field's physical shock sample
+count; a caller cannot relabel an unchanged run as refinement evidence.
+
+The audit requires stable continued-cell count and geometry shape, fixed
+solver controls, fresh source-band geometry, exact handoff metadata, strict
+shock pressure loss, and bounded changes in axial extent, shock spacing, mesh
+area, and maximum radius. Optional termination metadata is compared when
+provided. The case report retains the per-resolution measurements and raw
+residuals, so a failed sensitivity check is distinguishable from a solver or
+source-domain failure.
+
+A passing refinement measurement is still explicitly research-only: its
+`physical_closure_verified` property remains false, chain promotion remains
+blocked, and production claims remain disallowed. The canonical reflected
+free-boundary/mixed-regime closure and external validation archive are still
+open, and the fast visualization, signature, ray, and focal-plane-array
+providers remain untouched.
