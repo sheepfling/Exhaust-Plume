@@ -839,6 +839,10 @@ def test_terminal_patch_planner_mock_consumes_exact_retained_seam() -> None:
   )
   assert planner.diagnostics['mixed_regime_closure_attached'] is False
   assert planner.diagnostics['mixed_regime_model_closure_verified'] is True
+  assert planner.diagnostics['terminal_closure_audit_accepted'] is True
+  assert planner.diagnostics['terminal_closure_audit']['status'] == 'converged'
+  assert planner.diagnostics['free_boundary_reference_audit'] is None
+  assert planner.diagnostics['free_boundary_reference_audit_accepted'] is False
   assert planner.as_report()['production_claim_allowed'] is False
 
 
@@ -876,6 +880,7 @@ def test_terminal_patch_can_explicitly_attach_an_exact_mixed_regime_field() -> N
   assert planner.diagnostics['mixed_regime_field_attachment_requested'] is True
   assert planner.diagnostics['mixed_regime_closure_attached'] is True
   assert planner.diagnostics['mixed_regime_field_attached'] is True
+  assert planner.diagnostics['terminal_closure_audit_accepted'] is True
   assert planner.as_report()['transition']['physical_closure_verified'] is True
   assert planner.as_report()['mixed_regime_field_complete'] is True
   assert planner.as_report()['production_claim_allowed'] is False
@@ -946,6 +951,11 @@ def test_terminal_patch_planner_reference_keeps_scalar_result_separate() -> None
   assert planner.mixed_regime_reference is not None
   assert planner.mixed_regime_reference.converged
   assert planner.mixed_regime_model_closure_verified
+  assert planner.diagnostics['terminal_closure_audit_accepted'] is True
+  assert planner.diagnostics['free_boundary_reference_audit_accepted'] is True
+  assert planner.diagnostics['free_boundary_reference_audit']['status'] == (
+    'converged_solver_owned_free_boundary_measurement'
+  )
   assert planner.chain_promotion_blocked
   assert planner.diagnostics['mixed_regime_closure_attached'] is False
 

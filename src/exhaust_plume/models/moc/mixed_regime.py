@@ -5203,9 +5203,13 @@ def solve_mixed_regime_downstream_free_boundary(
       perimeter_spec=specification,
       message=f'free-boundary scalar field failed its model gates: {field.message}',
     )
-  closure = run_mixed_regime_closure_solver(
-    request,
-    lambda _request: field,
+  closure = replace(
+    run_mixed_regime_closure_solver(
+      request,
+      lambda _request: field,
+    ),
+    downstream_condition=condition,
+    perimeter_spec=specification,
   )
   if not closure.converged:
     return MocMixedRegimeFreeBoundaryResult(

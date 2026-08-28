@@ -6193,6 +6193,36 @@ def measure_moc_terminal_closure(
             common_model_gates
             and potential_measurement.reference_model_verified
           )
+      elif mixed_field.model == 'solver-owned-subsonic-free-boundary-reference':
+        pressure_scale = max(
+          1.0,
+          max(
+            (
+              abs(sample.static_pressure_Pa)
+              for sample in mixed_field.boundary.subsonic_samples
+            ),
+            default=1.0,
+          ),
+        )
+        mixed_regime_model_verified = bool(
+          common_model_gates
+          and maximum_harmonic_residual is not None
+          and maximum_harmonic_residual <= residual_tolerance
+          and mixed_field.maximum_mass_conservation_residual is not None
+          and mixed_field.maximum_mass_conservation_residual <= residual_tolerance
+          and mixed_field.free_boundary_pressure_residual_Pa is not None
+          and mixed_field.free_boundary_pressure_residual_Pa
+          <= pressure_tolerance * pressure_scale
+          and mixed_field.free_boundary_tangent_residual_rad is not None
+          and mixed_field.free_boundary_tangent_residual_rad <= residual_tolerance
+          and mixed_field.centerline_tangent_residual_rad is not None
+          and mixed_field.centerline_tangent_residual_rad <= residual_tolerance
+          and mixed_field.outlet_pressure_residual_Pa is not None
+          and mixed_field.outlet_pressure_residual_Pa
+          <= pressure_tolerance * pressure_scale
+          and mixed_field.free_boundary_geometry_residual_m is not None
+          and mixed_field.free_boundary_geometry_residual_m <= position_tolerance_m
+        )
       else:
         mixed_regime_model_verified = bool(
           common_model_gates

@@ -9267,6 +9267,11 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
     'mixed_regime_solver_supplied': supplied_modes == 1,
     'mixed_regime_closure_attached': False,
     'mixed_regime_field_attachment_requested': attach_mixed_regime_field,
+    'terminal_closure_audit': None,
+    'terminal_closure_audit_accepted': False,
+    'terminal_supersonic_audit_accepted': False,
+    'free_boundary_reference_audit': None,
+    'free_boundary_reference_audit_accepted': False,
     'chain_promotion_blocked': True,
     'production_claim_allowed': False,
   }
@@ -9323,11 +9328,95 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
         diagnostics['mixed_regime_closure_message'] = (
           mixed_regime_closure.message
         )
+
+      terminal_closure_audit_accepted = False
+      terminal_supersonic_audit_accepted = False
+      if transition.terminal_field is not None:
+        try:
+          # Keep validation imports local: validation imports the model
+          # package, while this planner is imported during package startup.
+          from exhaust_plume.validation.moc_measurements import (
+            MocTerminalClosureObservation,
+            measure_moc_terminal_closure,
+          )
+
+          terminal_closure_measurement = measure_moc_terminal_closure(
+            MocTerminalClosureObservation(
+              terminal_field=transition.terminal_field,
+              mixed_regime_closure=mixed_regime_closure,
+            )
+          )
+        except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+          diagnostics['terminal_closure_audit_error'] = str(error)
+        else:
+          diagnostics['terminal_closure_audit'] = (
+            terminal_closure_measurement.as_report()
+          )
+          terminal_closure_audit_accepted = bool(
+            terminal_closure_measurement.converged
+            and terminal_closure_measurement.physical_closure_verified
+            and terminal_closure_measurement.physical_termination_verified
+            and terminal_closure_measurement.chain_promotion_blocked
+          )
+          terminal_supersonic_audit_accepted = bool(
+            terminal_closure_measurement.terminal_normal_shock_verified
+            and terminal_closure_measurement.terminal_shock_geometry_verified
+            and terminal_closure_measurement.terminal_pressure_loss_verified
+            and terminal_closure_measurement.supersonic_patch_verified
+            and terminal_closure_measurement.chain_promotion_blocked
+          )
+          diagnostics['terminal_supersonic_audit_accepted'] = (
+            terminal_supersonic_audit_accepted
+          )
+          diagnostics['terminal_closure_audit_accepted'] = (
+            terminal_closure_audit_accepted
+          )
+      else:
+        diagnostics['terminal_closure_audit_skipped'] = (
+          'terminal transition did not retain a terminal supersonic field'
+        )
+
+      free_boundary_reference_audit_accepted = False
+      if mixed_regime_reference is not None:
+        try:
+          from exhaust_plume.validation.moc_measurements import (
+            measure_mixed_regime_free_boundary_reference,
+          )
+
+          free_boundary_measurement = (
+            measure_mixed_regime_free_boundary_reference(
+              mixed_regime_reference,
+            )
+          )
+        except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+          diagnostics['free_boundary_reference_audit_error'] = str(error)
+        else:
+          diagnostics['free_boundary_reference_audit'] = (
+            free_boundary_measurement.as_report()
+          )
+          free_boundary_reference_audit_accepted = bool(
+            free_boundary_measurement.converged
+            and free_boundary_measurement.physical_closure_verified
+            and free_boundary_measurement.chain_promotion_blocked
+            and not free_boundary_measurement.production_claim_allowed
+          )
+          diagnostics['free_boundary_reference_audit_accepted'] = (
+            free_boundary_reference_audit_accepted
+          )
+          diagnostics['terminal_closure_audit_accepted'] = bool(
+            terminal_supersonic_audit_accepted
+            and free_boundary_reference_audit_accepted
+          )
       if (
         attach_mixed_regime_field
         and mixed_regime_closure is not None
         and mixed_regime_closure.converged
         and mixed_regime_closure.field is not None
+        and terminal_closure_audit_accepted
+        and (
+          mixed_regime_reference is None
+          or free_boundary_reference_audit_accepted
+        )
       ):
         try:
           transition = transition.attach_mixed_regime_closure(

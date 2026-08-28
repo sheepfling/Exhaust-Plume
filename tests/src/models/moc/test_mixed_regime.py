@@ -1765,6 +1765,9 @@ def test_solver_owned_free_boundary_reference_shoots_height_and_closes_scalar_fi
   assert result.field.chain_promotion_blocked
   assert result.field.maximum_mass_conservation_residual is not None
   assert result.field.maximum_mass_conservation_residual <= 1.0e-8
+  assert result.closure is not None
+  assert result.closure.downstream_condition == result.downstream_condition
+  assert result.closure.perimeter_spec == result.perimeter_spec
   assert result.downstream_condition is not None
   assert result.downstream_condition.condition_edge_indices
   assert result.downstream_condition.condition_sample_indices

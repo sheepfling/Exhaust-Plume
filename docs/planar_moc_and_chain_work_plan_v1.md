@@ -1872,3 +1872,26 @@ mixed-regime/free-boundary perimeter before an alternating result can pass the
 multi-cell domain gate. Refinement and external observations remain separate
 release gates, and no visualization, signature, ray, or focal-plane-array
 provider consumes this research lane.
+
+## Terminal planner downstream-audit checkpoint
+
+The continued terminal-patch planner now records independent downstream
+evidence beside its solver result. Every retained terminal field and selected
+mixed-regime closure is remeasured through
+`op.moc.terminal-closure`; the audit verifies the normal-shock seam, terminal
+mesh coverage, pressure loss, exact mixed-regime seam, and the declared field
+model. The solver-owned quasi-one-dimensional reference additionally carries
+the independent `op.moc.mixed-regime-free-boundary-reference` measurement,
+which rechecks its outlet-height root, generated perimeter, ambient pressure,
+tangency, mass-flow, and scalar-field gates.
+
+The free-boundary solver now retains its exact downstream condition and
+perimeter specification on the closure object as well as on the enclosing
+result. The generic terminal audit dispatches the free-boundary model without
+applying the harmonic reference's velocity-divergence gate; the specialized
+free-boundary operator remains the stronger root and geometry check. Explicit
+field attachment therefore requires the independent terminal seam audit and,
+for the free-boundary reference, its specialized audit too. Both outcomes
+remain terminal, non-promotable research evidence: the reflected two-
+dimensional free-boundary solve, refinement, and external observations are
+still open, and no product/provider lane consumes them.
