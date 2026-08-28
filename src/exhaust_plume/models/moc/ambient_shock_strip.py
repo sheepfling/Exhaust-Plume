@@ -316,6 +316,18 @@ class MocAmbientShockStripResult:
   minimum_post_shock_total_pressure_ratio: float | None
   maximum_post_shock_total_pressure_ratio: float | None
   message: str = ''
+  terminal_trace_position_tolerance_m: float = 1.0e-10
+  terminal_trace_invariant_tolerance: float = 1.0e-10
+
+  def __post_init__(self) -> None:
+    for name in (
+      'terminal_trace_position_tolerance_m',
+      'terminal_trace_invariant_tolerance',
+    ):
+      value = float(getattr(self, name))
+      if not isfinite(value) or value <= 0.0:
+        raise ValueError(f'{name} must be finite and positive')
+      object.__setattr__(self, name, value)
 
   @property
   def converged(self) -> bool:
@@ -353,6 +365,8 @@ class MocAmbientShockStripResult:
     return validate_characteristic_trace(
       self.terminal_trace_samples,
       CharacteristicFamily.PLUS,
+      position_tolerance_m=self.terminal_trace_position_tolerance_m,
+      invariant_tolerance=self.terminal_trace_invariant_tolerance,
     )
   ####
 
@@ -382,6 +396,8 @@ class MocAmbientShockStripResult:
       'terminal_trace_sample_count': len(self.terminal_trace_points_m),
       'terminal_trace_kind': 'terminal-characteristic-trace',
       'terminal_trace_family': CharacteristicFamily.PLUS.value,
+      'terminal_trace_position_tolerance_m': self.terminal_trace_position_tolerance_m,
+      'terminal_trace_invariant_tolerance': self.terminal_trace_invariant_tolerance,
       'terminal_trace_validation': self.terminal_trace_validation.as_report(),
       'source_families': {'shock': 'C+', 'ambient': 'C-'},
       'maximum_geometry_residual_m': self.maximum_geometry_residual_m,

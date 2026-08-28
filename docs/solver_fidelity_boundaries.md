@@ -446,3 +446,21 @@ gates, do not create a measured image, and do not advertise an FPA provider.
 5. Performance is part of the basic solver contract. If a proposed improvement
    makes the fast lane materially slower or more stateful, it belongs in a
    separate lane even when it agrees with the same equations in a small test.
+
+## Reflected physical-field continuation boundary
+
+The higher-fidelity planar lane now has a concrete one-transition path after
+the accepted first field. The field can expose its open shock/ambient source
+submesh, carry the terminal `C+` trace into the centerline reflection patch,
+and provide the reflected `C-` front to the next attached-shock marcher.
+The source projection and centerline seam are independently reported, with a
+declared mesh-discretization tolerance.
+
+The canonical transition ends at a verified normal-shock/subsonic boundary.
+That is a valid typed physical stop for the supersonic chain, not acceptance
+of the downstream mixed-regime field. The planner retains only the resolved
+seed, blocks cell promotion at that boundary, and remains research-only
+because its downstream turn condition and external validation are not yet
+canonical. Further shock cells require a separately solved mixed-regime or
+reflected-domain continuation. No basic, reduced-order, signature, or FPA
+provider is changed by this lane.

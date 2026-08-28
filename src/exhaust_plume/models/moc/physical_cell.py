@@ -23,6 +23,10 @@ from exhaust_plume.models.moc.ambient_boundary import (
   MocAmbientPressureBoundaryResult,
   validate_ambient_pressure_boundary,
 )
+from exhaust_plume.models.moc.ambient_shock_strip import (
+  MocAmbientShockStripResult,
+  MocAmbientShockStripStatus,
+)
 from exhaust_plume.models.moc.chain import (
   MocCellClosureStatus,
   MocChainBoundaryKind,
@@ -35,6 +39,7 @@ from exhaust_plume.models.moc.chain import (
   MocChainTerminationDecision,
   MocChainTerminationReason,
   continue_moc_cell_chain,
+  validate_characteristic_trace,
 )
 from exhaust_plume.models.moc.post_shock import (
   MocShockBoundaryFitResult,
@@ -51,6 +56,14 @@ from exhaust_plume.models.moc.primitives import (
 )
 from exhaust_plume.models.moc.topology import MocTopologyResult, validate_moc_mesh
 from exhaust_plume.models.moc.zone import MocCharacteristicCell, MocCharacteristicNode
+from exhaust_plume.models.moc.terminal_patch import (
+  MocTerminalReflectionPatchResult,
+  assemble_terminal_trace_centerline_patch,
+)
+from exhaust_plume.models.moc.terminal_patch_solver import (
+  MocTerminalPatchShockCouplingStatus,
+  solve_marched_attached_shock_from_terminal_reflection_patch,
+)
 from exhaust_plume.util.aero.shock_validity import ShockBranch
 
 __all__ = (
@@ -59,6 +72,7 @@ __all__ = (
   'MocPhysicalPostShockFieldContinuationSolve',
   'assemble_ambient_boundary_post_shock_field',
   'assemble_ambient_boundary_post_shock_field_with_centerline_reflection',
+  'solve_ambient_closed_post_shock_chain_cell_from_physical_field_terminal_patch_or_termination',
   'solve_ambient_closed_post_shock_chain_cell_from_physical_field_or_termination',
   'continue_ambient_closed_post_shock_chain',
 )
@@ -614,6 +628,162 @@ class MocPhysicalPostShockFieldResult:
       1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
     ) ** (state.gamma / (state.gamma - 1.0))
     return total_pressure / pressure_ratio
+  ####
+
+  def as_open_shock_ambient_strip(
+    self,
+    *,
+    trace_position_tolerance_m: float = 1.0e-3,
+    trace_invariant_tolerance: float = 1.0e-10,
+  ) -> MocAmbientShockStripResult:
+    """Expose the accepted field's open shock/ambient source submesh.
+
+    The reflected physical field contains the shock/ambient characteristic
+    strip and the centerline-closing cells.  A continued shock cannot consume
+    the whole closed mesh as if it were a new upstream domain: the solver must
+    first select the open source strip, validate its terminal shock-sourced
+    ``C+`` trace, and then assemble the centerline reflection patch.  This
+    projection is therefore a typed seam between the first-cell closure and a
+    subsequent shock-cell solve; it never changes this result or promotes the
+    projected strip to a chain cell.
+
+    The physical field's terminal trace is piecewise linear at the retained
+    sampling resolution.  ``trace_position_tolerance_m`` is consequently an
+    explicit discretization tolerance, rather than the tighter characteristic
+    invariant tolerance used for the carried state data.
+    """
+
+    for name, value in (
+      ('trace_position_tolerance_m', trace_position_tolerance_m),
+      ('trace_invariant_tolerance', trace_invariant_tolerance),
+    ):
+      if not isfinite(float(value)) or value <= 0.0:
+        raise ValueError(f'{name} must be finite and positive')
+    if not self.converged or not self.physical_closure_verified:
+      raise ValueError(
+        'only a converged ambient-closed physical field can expose an '
+        'open shock/ambient source strip'
+      )
+    if not self.state_sampling_available:
+      raise ValueError(
+        'the physical field must expose a complete bounded state sampler '
+        'before its open source strip can be consumed'
+      )
+    if not self.upstream_shock_coupling_verified:
+      raise ValueError(
+        'the physical field must retain fitted upstream shock samples '
+        'before its open source strip can be consumed'
+      )
+
+    shock_points = tuple(self.shock_boundary_points_m)
+    ambient_points = tuple(self.ambient_boundary_points_m)
+    expected_count = len(shock_points)
+    if expected_count < 3 or len(ambient_points) != expected_count:
+      raise ValueError(
+        'an accepted physical field must contain equal shock and ambient '
+        'sample counts of at least three before projection'
+      )
+    if (
+      len(self.post_shock_boundary_states) != expected_count
+      or len(self.post_shock_boundary_total_pressure_Pa) != expected_count
+      or len(self.ambient_boundary.states) != expected_count
+      or len(self.ambient_boundary.total_pressure_Pa) != expected_count
+    ):
+      raise ValueError(
+        'an accepted physical field is missing a complete shock/ambient '
+        'state and total-pressure projection'
+      )
+
+    node_by_index = {
+      (node.centerline_index, node.boundary_index): node
+      for node in self.nodes
+    }
+    terminal_points = [shock_points[-1]]
+    terminal_states = [self.post_shock_boundary_states[-1]]
+    terminal_pressures = [self.post_shock_boundary_total_pressure_Pa[-1]]
+    try:
+      for boundary_index in range(expected_count - 1):
+        terminal_node = node_by_index[(expected_count - 1, boundary_index)]
+        if terminal_node.total_pressure_Pa is None:
+          raise ValueError(
+            f'terminal source node {boundary_index} has no total pressure'
+          )
+        terminal_points.append(terminal_node.point_m)
+        terminal_states.append(terminal_node.state)
+        terminal_pressures.append(float(terminal_node.total_pressure_Pa))
+    except KeyError as error:
+      raise ValueError(
+        'accepted physical field is missing a terminal shock/ambient source '
+        f'node: {error}'
+      ) from error
+    terminal_points.append(ambient_points[-1])
+    terminal_states.append(self.ambient_boundary.states[-1])
+    terminal_pressures.append(self.ambient_boundary.total_pressure_Pa[-1])
+    terminal_samples = tuple(
+      MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
+      for state, pressure in zip(
+        terminal_states,
+        terminal_pressures,
+        strict=True,
+      )
+    )
+    terminal_trace = validate_characteristic_trace(
+      terminal_samples,
+      CharacteristicFamily.PLUS,
+      position_tolerance_m=trace_position_tolerance_m,
+      invariant_tolerance=trace_invariant_tolerance,
+    )
+    if not terminal_trace.converged:
+      raise ValueError(
+        'accepted physical field terminal shock/ambient trace is not a '
+        f'usable C+ source: {terminal_trace.message}'
+      )
+
+    open_cell_kinds = frozenset({
+      'post-shock-shock-strip',
+      'post-shock-ambient-outer-strip',
+      'post-shock-ambient-interior',
+    })
+    open_cells = tuple(
+      cell for cell in self.cells if cell.cell_kind in open_cell_kinds
+    )
+    topology = validate_moc_mesh(open_cells)
+    if (
+      not open_cells
+      or not topology.connected
+      or not topology.forms_closed_zone
+      or topology.nonmanifold_edge_count
+    ):
+      raise ValueError(
+        'accepted physical field open shock/ambient source submesh failed '
+        f'topology validation: {topology.message}'
+      )
+    return MocAmbientShockStripResult(
+      status=MocAmbientShockStripStatus.CONVERGED_OPEN,
+      characteristic_layer_count=expected_count - 1,
+      nodes=self.nodes,
+      cells=open_cells,
+      topology=topology,
+      shock_boundary_points_m=shock_points,
+      ambient_boundary_points_m=ambient_points,
+      terminal_trace_points_m=tuple(terminal_points),
+      terminal_trace_states=tuple(terminal_states),
+      terminal_trace_total_pressure_Pa=tuple(
+        float(value) for value in terminal_pressures
+      ),
+      ambient_boundary=self.ambient_boundary,
+      maximum_geometry_residual_m=self.maximum_geometry_residual_m,
+      maximum_absolute_invariant_residual=self.maximum_absolute_invariant_residual,
+      minimum_post_shock_total_pressure_ratio=self.minimum_post_shock_total_pressure_ratio,
+      maximum_post_shock_total_pressure_ratio=self.maximum_post_shock_total_pressure_ratio,
+      message=(
+        'accepted ambient-closed physical field projected to its open '
+        'shock/ambient source strip; terminal C+ trace is retained for '
+        'centerline reflection'
+      ),
+      terminal_trace_position_tolerance_m=float(trace_position_tolerance_m),
+      terminal_trace_invariant_tolerance=float(trace_invariant_tolerance),
+    )
   ####
 
   @property
@@ -1883,6 +2053,422 @@ def assemble_ambient_boundary_post_shock_field_with_centerline_reflection(
     invariant_tolerance=invariant_tolerance,
     pressure_tolerance=pressure_tolerance,
     tangent_tolerance=tangent_tolerance,
+  )
+
+
+def solve_ambient_closed_post_shock_chain_cell_from_physical_field_terminal_patch_or_termination(
+  current_cell: MocChainCell,
+  next_cell_index: int,
+  incoming_handoff: Sequence[MocChainBoundarySample],
+  upstream_field: MocPhysicalPostShockFieldResult,
+  *,
+  end_x_m: float,
+  target_centerline_y_m: float = 0.0,
+  downstream_flow_angle_at: Callable[[int, tuple[float, float]], float] | None = None,
+  downstream_flow_angle_rad: float | None = 0.0,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  trace_position_tolerance_m: float = 1.0e-3,
+  seam_position_tolerance_m: float = 3.0e-3,
+  position_tolerance_m: float = 1.0e-3,
+  invariant_tolerance: float = 1.0e-10,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+) -> MocChainTerminationDecision:
+  """Continue an accepted field through a reflected terminal patch.
+
+  This is the solver-owned continuation seam for the current planar lane:
+
+  ``closed physical field -> open shock/ambient strip -> centerline patch
+  -> next attached shock -> typed normal-shock terminal``.
+
+  The source field is not copied into a second cell.  Its open submesh is
+  projected only to provide the terminal ``C+`` trace needed by the reflection
+  patch, and the subsequent shock is sampled only inside that patch.  A
+  completed supersonic field is not promoted here because the supplied
+  downstream angle is still a research condition and the mixed-regime
+  subsonic field is intentionally outside this MOC chain.  The only accepted
+  chain outcome from this adapter is therefore a typed physical termination;
+  incomplete or out-of-domain attempts return a non-physical stop.
+
+  The outer end of the reflected patch is allowed to coincide with the
+  current cell's axial interface.  That is the physical shared boundary for
+  this construction; the older terminal-patch cell adapter continues to
+  require a strictly downstream start because it consumes a pre-existing
+  terminal-trace cell instead of deriving the patch from a closed field.
+  """
+
+  def decision(
+    reason: MocChainTerminationReason,
+    message: str,
+    diagnostics: dict[str, Any] | None = None,
+  ) -> MocChainTerminationDecision:
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=reason,
+      message=message,
+      diagnostics={} if diagnostics is None else diagnostics,
+    )
+
+  if not isinstance(current_cell, MocChainCell):
+    return decision(
+      MocChainTerminationReason.INVALID_INPUT,
+      'current_cell must be a MocChainCell',
+    )
+  if (
+    isinstance(next_cell_index, bool)
+    or not isinstance(next_cell_index, int)
+    or next_cell_index != current_cell.cell_index + 1
+  ):
+    return decision(
+      MocChainTerminationReason.INVALID_INPUT,
+      'next_cell_index must immediately follow current_cell.cell_index',
+    )
+  if not current_cell.resolved:
+    return decision(
+      MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
+      'terminal-patch continuation requires a resolved physical current cell',
+    )
+  if not isinstance(upstream_field, MocPhysicalPostShockFieldResult):
+    return decision(
+      MocChainTerminationReason.INVALID_INPUT,
+      'upstream_field must be a MocPhysicalPostShockFieldResult',
+    )
+  if not upstream_field.converged or not upstream_field.physical_closure_verified:
+    return decision(
+      MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
+      'upstream physical field is not physically closed; no terminal patch was assembled',
+      {'upstream_field_status': upstream_field.status.value},
+    )
+  if not upstream_field.state_sampling_available:
+    return decision(
+      MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
+      'upstream physical field has no complete bounded state/pressure sampler',
+      {'upstream_field_status': upstream_field.status.value},
+    )
+  if not upstream_field.upstream_shock_coupling_verified:
+    return decision(
+      MocChainTerminationReason.STATE_NOT_CARRIED,
+      'upstream physical field has no retained fitted upstream shock samples',
+    )
+  if current_cell.continuation_boundary_kind is not MocChainBoundaryKind.CENTERLINE_TRACE:
+    return decision(
+      MocChainTerminationReason.INVALID_INPUT,
+      'terminal-patch physical-field continuation requires a centerline-trace handoff',
+    )
+  try:
+    handoff = tuple(incoming_handoff)
+  except TypeError:
+    return decision(
+      MocChainTerminationReason.INVALID_INPUT,
+      'incoming_handoff must be an iterable of MocChainBoundarySample values',
+    )
+  if any(not isinstance(sample, MocChainBoundarySample) for sample in handoff):
+    return decision(
+      MocChainTerminationReason.INVALID_INPUT,
+      'incoming_handoff must contain MocChainBoundarySample values',
+    )
+  if handoff != current_cell.continuation_boundary:
+    return decision(
+      MocChainTerminationReason.STATE_NOT_CARRIED,
+      'incoming_handoff must exactly match the current physical cell boundary',
+    )
+  expected_handoff = tuple(
+    MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
+    for state, pressure in zip(
+      upstream_field.centerline_boundary_states,
+      upstream_field.centerline_boundary_total_pressure_Pa,
+      strict=True,
+    )
+  )
+  if handoff != expected_handoff:
+    return decision(
+      MocChainTerminationReason.STATE_NOT_CARRIED,
+      'incoming_handoff does not match the bounded upstream physical field',
+    )
+  if len(handoff) < 3:
+    return decision(
+      MocChainTerminationReason.INVALID_INPUT,
+      'terminal-patch physical-field continuation requires at least three handoff samples',
+    )
+  if not isinstance(branch, ShockBranch):
+    return decision(
+      MocChainTerminationReason.INVALID_INPUT,
+      'branch must be a ShockBranch',
+    )
+  if (downstream_flow_angle_at is None) == (downstream_flow_angle_rad is None):
+    return decision(
+      MocChainTerminationReason.INVALID_INPUT,
+      'supply exactly one downstream flow-angle provider',
+    )
+  if downstream_flow_angle_rad is not None and not isfinite(float(downstream_flow_angle_rad)):
+    return decision(
+      MocChainTerminationReason.INVALID_INPUT,
+      'downstream_flow_angle_rad must be finite',
+    )
+  if (
+    isinstance(sample_count, bool)
+    or not isinstance(sample_count, int)
+    or sample_count < 3
+  ):
+    return decision(
+      MocChainTerminationReason.INVALID_INPUT,
+      'sample_count must be an integer of at least three',
+    )
+  if (
+    isinstance(maximum_segment_iterations, bool)
+    or not isinstance(maximum_segment_iterations, int)
+    or maximum_segment_iterations < 1
+  ):
+    return decision(
+      MocChainTerminationReason.INVALID_INPUT,
+      'maximum_segment_iterations must be a positive integer',
+    )
+  for name, value in (
+    ('trace_position_tolerance_m', trace_position_tolerance_m),
+    ('seam_position_tolerance_m', seam_position_tolerance_m),
+    ('position_tolerance_m', position_tolerance_m),
+    ('invariant_tolerance', invariant_tolerance),
+    ('shock_angle_tolerance_rad', shock_angle_tolerance_rad),
+    ('end_x_m', end_x_m),
+  ):
+    try:
+      numeric_value = float(value)
+    except (TypeError, ValueError):
+      numeric_value = float('nan')
+    if not isfinite(numeric_value) or (
+      numeric_value <= 0.0
+      if name != 'end_x_m'
+      else numeric_value <= current_cell.end_x_m + float(position_tolerance_m)
+    ):
+      return decision(
+        MocChainTerminationReason.INVALID_INPUT,
+        f'{name} must be finite and valid for terminal-patch continuation',
+      )
+  if not isfinite(float(target_centerline_y_m)):
+    return decision(
+      MocChainTerminationReason.INVALID_INPUT,
+      'target_centerline_y_m must be finite',
+    )
+  if abs(float(target_centerline_y_m)) > position_tolerance_m:
+    return decision(
+      MocChainTerminationReason.INVALID_INPUT,
+      'terminal reflection patch continuation currently targets y=0 only',
+    )
+
+  try:
+    source_strip = upstream_field.as_open_shock_ambient_strip(
+      trace_position_tolerance_m=trace_position_tolerance_m,
+      trace_invariant_tolerance=invariant_tolerance,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return decision(
+      MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
+      'accepted physical field could not expose a terminal shock/ambient source strip',
+      {
+        'termination_model': 'ambient-closed-physical-field-terminal-reflection',
+        'source_strip_status': 'projection-failure',
+        'source_strip_message': str(error),
+        'next_cell_index': next_cell_index,
+      },
+    )
+  try:
+    patch = assemble_terminal_trace_centerline_patch(
+      source_strip,
+      trace_position_tolerance_m=trace_position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return decision(
+      MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
+      'terminal trace centerline reflection raised before a next shock was solved',
+      {
+        'termination_model': 'ambient-closed-physical-field-terminal-reflection',
+        'source_strip_report': source_strip.as_report(),
+        'reflection_patch_status': 'assembly-failure',
+        'reflection_patch_message': str(error),
+        'next_cell_index': next_cell_index,
+      },
+    )
+  seam_position_tolerance = float(seam_position_tolerance_m)
+  common_diagnostics: dict[str, Any] = {
+    'termination_model': 'ambient-closed-physical-field-terminal-reflection',
+    'upstream_field_model': 'accepted-ambient-closed-field-open-terminal-trace',
+    'source_strip_report': source_strip.as_report(),
+    'reflection_patch_report': patch.as_report(),
+    'incoming_handoff_sample_count': len(handoff),
+    'outgoing_handoff_sample_count': len(patch.outgoing_trace_samples),
+    'trace_position_tolerance_m': float(trace_position_tolerance_m),
+    'seam_position_tolerance_m': seam_position_tolerance,
+    'position_tolerance_m': float(position_tolerance_m),
+    'invariant_tolerance': float(invariant_tolerance),
+    'next_cell_index': next_cell_index,
+  }
+  if not isinstance(patch, MocTerminalReflectionPatchResult) or not patch.converged:
+    common_diagnostics.update({
+      'reflection_patch_status': patch.status.value,
+      'reflection_patch_message': patch.message,
+    })
+    return decision(
+      MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
+      'terminal reflection patch did not converge; no next shock was fitted',
+      common_diagnostics,
+    )
+
+  state_tolerance = max(float(invariant_tolerance), 1.0e-8)
+  expected_axis = tuple(
+    zip(
+      upstream_field.centerline_boundary_points_m,
+      upstream_field.centerline_boundary_states,
+      upstream_field.centerline_boundary_total_pressure_Pa,
+      strict=True,
+    )
+  )
+  actual_axis = tuple(
+    zip(
+      patch.axis_points_m,
+      patch.axis_states,
+      patch.axis_total_pressure_Pa,
+      strict=True,
+    )
+  )
+  seam_error: str | None = None
+  if len(actual_axis) != len(expected_axis):
+    seam_error = (
+      'centerline reflection patch changed the physical field axis sample '
+      f'count from {len(expected_axis)} to {len(actual_axis)}'
+    )
+  else:
+    for index, (expected, actual) in enumerate(zip(expected_axis, actual_axis, strict=True)):
+      expected_point, expected_state, expected_pressure = expected
+      actual_point, actual_state, actual_pressure = actual
+      if any(
+        abs(first - second) > seam_position_tolerance
+        for first, second in zip(expected_point, actual_point, strict=True)
+      ):
+        seam_error = f'centerline reflection changed axis point {index}'
+        break
+      if any(
+        abs(first - second) > state_tolerance
+        for first, second in (
+          (expected_state.theta_rad, actual_state.theta_rad),
+          (expected_state.mach, actual_state.mach),
+          (expected_state.gamma, actual_state.gamma),
+        )
+      ):
+        seam_error = f'centerline reflection changed axis state {index}'
+        break
+      if abs(expected_pressure - actual_pressure) > state_tolerance * max(
+        1.0,
+        abs(expected_pressure),
+        abs(actual_pressure),
+      ):
+        seam_error = f'centerline reflection changed axis total pressure {index}'
+        break
+  if seam_error is not None:
+    common_diagnostics.update({
+      'centerline_seam_verified': False,
+      'centerline_seam_error': seam_error,
+    })
+    return decision(
+      MocChainTerminationReason.STATE_NOT_CARRIED,
+      'terminal reflection patch did not preserve the accepted field centerline seam',
+      common_diagnostics,
+    )
+  common_diagnostics['centerline_seam_verified'] = True
+
+  start_point = patch.outgoing_trace_points_m[0]
+  if start_point[0] < current_cell.end_x_m - position_tolerance_m:
+    common_diagnostics.update({
+      'first_outgoing_trace_point_m': start_point,
+      'current_end_x_m': current_cell.end_x_m,
+    })
+    return decision(
+      MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
+      'terminal reflection patch begins upstream of the current cell interface',
+      common_diagnostics,
+    )
+  try:
+    solved = solve_marched_attached_shock_from_terminal_reflection_patch(
+      patch,
+      start_point,
+      target_centerline_y_m=target_centerline_y_m,
+      downstream_flow_angle_at=downstream_flow_angle_at,
+      downstream_flow_angle_rad=downstream_flow_angle_rad,
+      incoming_handoff=patch.outgoing_trace_samples,
+      sample_count=sample_count,
+      branch=branch,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+      shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+      maximum_segment_iterations=maximum_segment_iterations,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    common_diagnostics.update({
+      'downstream_shock_status': 'solve-failure',
+      'downstream_shock_message': str(error),
+    })
+    return decision(
+      MocChainTerminationReason.SOLVER_ERROR,
+      'terminal-patch downstream shock solve raised; no physical endpoint was inferred',
+      common_diagnostics,
+    )
+  common_diagnostics['downstream_shock_report'] = solved.as_report()
+  if solved.physical_terminal_verified:
+    terminal = solved.shock.normal_shock_terminal
+    if terminal is None:
+      return decision(
+        MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
+        'terminal-patch shock reported a physical stop without normal-shock diagnostics',
+        common_diagnostics,
+      )
+    if terminal.shock_point_m[0] > float(end_x_m) + float(position_tolerance_m):
+      common_diagnostics.update({
+        'terminal_shock_point_m': terminal.shock_point_m,
+        'requested_end_x_m': float(end_x_m),
+      })
+      return decision(
+        MocChainTerminationReason.AXIAL_DOMAIN_LIMIT,
+        'verified terminal shock lies beyond the requested continuation interval',
+        common_diagnostics,
+      )
+    terminal_decision = solved.as_physical_termination_decision()
+    diagnostics = dict(terminal_decision.diagnostics)
+    diagnostics.update(common_diagnostics)
+    diagnostics.update({
+      'terminal_shock_point_m': terminal.shock_point_m,
+      'requested_end_x_m': float(end_x_m),
+      'physical_terminal_verified': True,
+      'chain_cell_promotion': 'blocked-at-mixed-regime-boundary',
+    })
+    return MocChainTerminationDecision(
+      physical_termination=True,
+      reason=MocChainTerminationReason.PHYSICAL_TERMINATION,
+      message=(
+        'continued reflected physical field reached a verified normal-shock '
+        'terminal; the unresolved subsonic mixed-regime field remains outside '
+        'the supersonic shock-cell chain'
+      ),
+      diagnostics=diagnostics,
+    )
+  common_diagnostics.update({
+    'physical_terminal_verified': False,
+    'downstream_shock_status': solved.shock.status.value,
+    'downstream_coupling_status': solved.coupling.status.value,
+  })
+  if (
+    solved.shock.status.value == 'upstream_field_failure'
+    or solved.coupling.status is MocTerminalPatchShockCouplingStatus.OUTSIDE_DOMAIN
+  ):
+    return decision(
+      MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
+      'continued shock left the finite terminal reflection patch; no extrapolation or physical endpoint was inferred',
+      common_diagnostics,
+    )
+  return decision(
+    MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
+    'continued shock did not produce a verified terminal or a complete next cell; no physical endpoint was inferred',
+    common_diagnostics,
   )
 
 

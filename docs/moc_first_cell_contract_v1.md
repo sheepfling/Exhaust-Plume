@@ -663,3 +663,20 @@ do not authorize replacing the basic provider or accepting a product claim.
 4. Only then route an explicitly versioned MOC provider through the visual
    product contract; downstream shock-train and optical/FPA products remain
    separate lanes.
+
+## Continued terminal-patch transition
+
+The accepted centerline-reflected field exposes a solver-owned open
+shock/ambient source submesh through `as_open_shock_ambient_strip()`. The
+projection retains the terminal shock-sourced `C+` trace, its carried state
+and total pressure, and an explicit trace discretization tolerance. The
+terminal reflection assembler consumes that trace, checks the centerline seam
+against the original field, and supplies the outgoing `C-` trace to the next
+attached-shock solve.
+
+On the canonical nine-sample case this transition reaches a converged
+normal-shock/subsonic terminal. The planner records one resolved seed and a
+typed physical stop; it does not append the open reflection patch or the
+unresolved mixed-regime field. The constant downstream turn used for this
+research transition remains a declared non-production condition, and the
+basic visual and reduced-order providers remain separate.

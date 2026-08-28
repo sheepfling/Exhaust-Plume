@@ -433,7 +433,7 @@ def _polygon_interpolation_weights(
 def assemble_terminal_trace_centerline_patch(
   strip: MocAmbientShockStripResult,
   *,
-  trace_position_tolerance_m: float = 1.0e-10,
+  trace_position_tolerance_m: float | None = None,
   invariant_tolerance: float = 1.0e-10,
 ) -> MocTerminalReflectionPatchResult:
   """Reflect an open shock/ambient ``C+`` trace into a centerline patch.
@@ -447,6 +447,9 @@ def assemble_terminal_trace_centerline_patch(
   The returned mesh is a connected open transition.  Its incoming trace is
   shared with the supplied strip and its outgoing front is a new typed
   boundary; neither a shock nor a physical termination is invented here.
+  When the position tolerance is omitted, the trace tolerance recorded by
+  the source strip is reused; standard strips retain their strict default,
+  while projected physical fields retain their declared mesh tolerance.
   """
 
   if not isinstance(strip, MocAmbientShockStripResult):
@@ -455,6 +458,8 @@ def assemble_terminal_trace_centerline_patch(
       source_strip_status=None,
       message='strip must be a MocAmbientShockStripResult',
     )
+  if trace_position_tolerance_m is None:
+    trace_position_tolerance_m = strip.terminal_trace_position_tolerance_m
   for name, value in (
     ('trace_position_tolerance_m', trace_position_tolerance_m),
     ('invariant_tolerance', invariant_tolerance),

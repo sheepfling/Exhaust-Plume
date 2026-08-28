@@ -65,6 +65,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   plan_caustic_upstream_bridge_invariant_chain,
   plan_ambient_pressure_field_chain,
   plan_ambient_closed_post_shock_chain,
+  plan_ambient_closed_post_shock_chain_terminal_patch,
   plan_post_shock_characteristic_chain,
   plan_field_coupled_post_shock_chain_reference,
   plan_post_shock_field_invariant_chain,
@@ -608,6 +609,7 @@ def _ambient_shock_strip_probe(
     and ambient_centerline_physical_field.field.cell_count == 53
   )
   ambient_centerline_physical_field_refinement = []
+  ambient_centerline_physical_field_refinement_results = {}
   for refinement_sample_count in (5, 9, 17):
     if refinement_sample_count == 9:
       refinement_result = ambient_centerline_physical_field
@@ -627,6 +629,9 @@ def _ambient_shock_strip_probe(
           sample_count=refinement_sample_count,
         )
       )
+    ambient_centerline_physical_field_refinement_results[refinement_sample_count] = (
+      refinement_result
+    )
     refinement_field = refinement_result.field
     ambient_centerline_physical_field_refinement.append({
       'sample_count': refinement_sample_count,
@@ -668,6 +673,10 @@ def _ambient_shock_strip_probe(
   )
   ambient_centerline_physical_chain_probe = None
   ambient_centerline_physical_chain_probe_accepted = False
+  ambient_centerline_physical_terminal_patch_planner = None
+  ambient_centerline_physical_terminal_patch_planner_accepted = False
+  ambient_centerline_physical_terminal_patch_refinement = []
+  ambient_centerline_physical_terminal_patch_refinement_accepted = False
   if (
     ambient_centerline_physical_field_accepted
     and ambient_centerline_physical_field.field is not None
@@ -732,6 +741,102 @@ def _ambient_shock_strip_probe(
       and physical_chain_planner.steps[0].result_kind == 'termination-returned'
       and physical_chain_planner.steps[0].result_termination_reason
       == MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY.value
+    )
+    terminal_patch_planner = plan_ambient_closed_post_shock_chain_terminal_patch(
+      physical_field,
+      start_x_m=shock_fit.boundary_states[0].point_m[0],
+      end_x_m=physical_field.ambient_boundary_points_m[-1][0],
+      terminal_end_x_m=physical_field.centerline_boundary_points_m[-1][0] + 0.25,
+      downstream_flow_angle_rad=0.0,
+      sample_count=9,
+      trace_position_tolerance_m=1.0e-3,
+      seam_position_tolerance_m=3.0e-3,
+      position_tolerance_m=1.0e-3,
+      policy=MocChainContinuationPolicy(
+        max_cells=2,
+        require_state_carry=True,
+      ),
+    )
+    ambient_centerline_physical_terminal_patch_planner = terminal_patch_planner.as_report()
+    ambient_centerline_physical_terminal_patch_planner_accepted = (
+      terminal_patch_planner.planner_kind is MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
+      and terminal_patch_planner.production_claim_allowed is False
+      and terminal_patch_planner.chain.resolved
+      and terminal_patch_planner.chain.cell_count == 1
+      and terminal_patch_planner.chain.physical_termination
+      and terminal_patch_planner.chain.termination_reason
+      is MocChainTerminationReason.PHYSICAL_TERMINATION
+      and len(terminal_patch_planner.steps) == 1
+      and terminal_patch_planner.steps[0].result_kind == 'termination-returned'
+      and terminal_patch_planner.steps[0].result_termination_reason
+      == MocChainTerminationReason.PHYSICAL_TERMINATION.value
+      and terminal_patch_planner.chain.diagnostics.get('centerline_seam_verified') is True
+    )
+    for refinement_sample_count in (5, 9, 17):
+      refinement_result = ambient_centerline_physical_field_refinement_results.get(
+        refinement_sample_count
+      )
+      refinement_field = (
+        None if refinement_result is None else refinement_result.field
+      )
+      if refinement_field is None:
+        ambient_centerline_physical_terminal_patch_refinement.append({
+          'sample_count': refinement_sample_count,
+          'accepted': False,
+          'status': 'missing-physical-field',
+        })
+        continue
+      refinement_planner = plan_ambient_closed_post_shock_chain_terminal_patch(
+        refinement_field,
+        start_x_m=shock_fit.boundary_states[0].point_m[0],
+        end_x_m=refinement_field.ambient_boundary_points_m[-1][0],
+        terminal_end_x_m=refinement_field.centerline_boundary_points_m[-1][0] + 0.25,
+        downstream_flow_angle_rad=0.0,
+        sample_count=refinement_sample_count,
+        trace_position_tolerance_m=1.0e-3,
+        seam_position_tolerance_m=3.0e-3,
+        position_tolerance_m=1.0e-3,
+        policy=MocChainContinuationPolicy(
+          max_cells=2,
+          require_state_carry=True,
+        ),
+      )
+      refinement_decision = refinement_planner.chain
+      ambient_centerline_physical_terminal_patch_refinement.append({
+        'sample_count': refinement_sample_count,
+        'accepted': (
+          refinement_planner.planner_kind is MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
+          and refinement_planner.production_claim_allowed is False
+          and refinement_decision.resolved
+          and refinement_decision.cell_count == 1
+          and refinement_decision.physical_termination
+          and refinement_decision.termination_reason
+          is MocChainTerminationReason.PHYSICAL_TERMINATION
+          and len(refinement_planner.steps) == 1
+          and refinement_decision.diagnostics.get('centerline_seam_verified') is True
+        ),
+        'status': refinement_decision.status.value,
+        'termination_reason': refinement_decision.termination_reason.value,
+        'physical_termination': refinement_decision.physical_termination,
+        'cell_count': refinement_decision.cell_count,
+        'centerline_seam_verified': refinement_decision.diagnostics.get(
+          'centerline_seam_verified'
+        ),
+        'terminal_shock_point_m': refinement_decision.diagnostics.get(
+          'terminal_shock_point_m'
+        ),
+        'message': refinement_decision.message,
+      })
+    ambient_centerline_physical_terminal_patch_refinement_accepted = (
+      len(ambient_centerline_physical_terminal_patch_refinement) == 3
+      and all(
+        case['accepted'] is True
+        and case['termination_reason'] == MocChainTerminationReason.PHYSICAL_TERMINATION.value
+        and case['physical_termination'] is True
+        and case['cell_count'] == 1
+        and case['centerline_seam_verified'] is True
+        for case in ambient_centerline_physical_terminal_patch_refinement
+      )
     )
   ambient_axis_closure_probe_accepted = (
     ambient_axis_closure.status is MocAmbientAxisClosureStatus.PRESSURE_FAILURE
@@ -978,6 +1083,18 @@ def _ambient_shock_strip_probe(
     ),
     'ambient_centerline_physical_chain_probe_accepted': (
       ambient_centerline_physical_chain_probe_accepted
+    ),
+    'ambient_centerline_physical_terminal_patch_planner': (
+      ambient_centerline_physical_terminal_patch_planner
+    ),
+    'ambient_centerline_physical_terminal_patch_planner_accepted': (
+      ambient_centerline_physical_terminal_patch_planner_accepted
+    ),
+    'ambient_centerline_physical_terminal_patch_refinement': (
+      ambient_centerline_physical_terminal_patch_refinement
+    ),
+    'ambient_centerline_physical_terminal_patch_refinement_accepted': (
+      ambient_centerline_physical_terminal_patch_refinement_accepted
     ),
     'strip': strip.as_report(),
     'terminal_compression_candidate': solve_terminal_compression_candidate(
@@ -5293,6 +5410,18 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'ambient_centerline_physical_chain_probe_accepted'
     ) is not True
   )
+  ambient_centerline_physical_terminal_patch_failure = (
+    ambient_shock_strip_probe.get('accepted') is True
+    and ambient_shock_strip_probe.get(
+      'ambient_centerline_physical_terminal_patch_planner_accepted'
+    ) is not True
+  )
+  ambient_centerline_physical_terminal_patch_refinement_failure = (
+    ambient_shock_strip_probe.get('accepted') is True
+    and ambient_shock_strip_probe.get(
+      'ambient_centerline_physical_terminal_patch_refinement_accepted'
+    ) is not True
+  )
   terminal_patch_chain_probe = ambient_shock_strip_probe.get(
     'terminal_reflection_patch_chain_probe',
   )
@@ -6782,6 +6911,35 @@ def build_moc_primitive_report() -> dict[str, Any]:
     ] if ambient_centerline_physical_chain_failure else []),
     *([
       {
+        'case': 'solver_generated_ambient_centerline_physical_terminal_patch',
+        'status': str(
+          ambient_shock_strip_probe.get(
+            'ambient_centerline_physical_terminal_patch_planner',
+            {},
+          ).get('chain', {}).get('termination_reason', 'missing')
+        ),
+        'message': str(
+          ambient_shock_strip_probe.get(
+            'ambient_centerline_physical_terminal_patch_planner',
+            {},
+          ).get('message', '')
+        ),
+      }
+    ] if ambient_centerline_physical_terminal_patch_failure else []),
+    *([
+      {
+        'case': 'solver_generated_ambient_centerline_physical_terminal_patch_refinement',
+        'status': 'refinement-gate-failed',
+        'message': str(
+          ambient_shock_strip_probe.get(
+            'ambient_centerline_physical_terminal_patch_refinement',
+            [],
+          )
+        ),
+      }
+    ] if ambient_centerline_physical_terminal_patch_refinement_failure else []),
+    *([
+      {
         'case': 'solver_generated_terminal_patch_chain_probe',
         'status': (
           'missing'
@@ -7125,7 +7283,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
     'geometry_cases': geometry_results,
     'failures': failures,
     'next_gates': [
-      'extend the reflected MOC upstream state/pressure field beyond the terminal source window without crossing a characteristic caustic',
+      'replace the research terminal-patch downstream turn with a physically validated reflected-domain law for any further shock-cell transition',
       'replace the provisional constant-invariant boundary with a physically validated downstream closure and a straddling canonical bracket',
       'complete and independently validate the mixed-regime downstream closure after the open oblique supersonic patch and before chain promotion',
       'production next-cell shock fitting that consumes the typed state/total-pressure handoff without a geometric template',

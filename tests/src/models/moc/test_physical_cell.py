@@ -24,11 +24,15 @@ from exhaust_plume.models.moc import (
   CharacteristicPointResult,
   assemble_ambient_boundary_post_shock_field,
   assemble_ambient_boundary_post_shock_field_with_centerline_reflection,
+  assemble_terminal_trace_centerline_patch,
   centerline_characteristic_point,
   continue_ambient_closed_post_shock_chain,
   march_post_shock_ambient_boundary,
   plan_ambient_closed_post_shock_chain,
+  plan_ambient_closed_post_shock_chain_terminal_patch,
   solve_marched_attached_shock_field,
+  solve_marched_attached_shock_with_ambient_centerline_physical_field,
+  solve_ambient_closed_post_shock_chain_cell_from_physical_field_terminal_patch_or_termination,
   solve_ambient_closed_post_shock_chain_cell_from_physical_field_or_termination,
   validate_ambient_pressure_boundary,
   validate_moc_mesh,
@@ -305,6 +309,172 @@ def test_centerline_reflection_does_not_accept_an_appended_axis_corner() -> None
 
   assert result.status is MocPhysicalPostShockFieldStatus.INVALID_INPUT
   assert 'one physical ambient sample per fitted shock sample' in result.message
+
+
+def _canonical_ambient_closed_field(*, sample_count: int = 9):
+  """Return the accepted reflected field used by terminal-patch tests."""
+
+  upstream = CharacteristicState(
+    x_m=0.5,
+    y_m=0.5,
+    theta_rad=-0.2,
+    mach=2.0,
+    gamma=1.4,
+  )
+  shock = solve_marched_attached_shock_field(
+    lambda point: replace(upstream, x_m=point[0], y_m=point[1]),
+    lambda _point: 100000.0,
+    (0.5, 0.5),
+    downstream_flow_angle_at=lambda _index, point: 0.05 * point[1] / 0.5,
+    sample_count=sample_count,
+  )
+  assert shock.shock_fit is not None
+  first = shock.shock_fit.boundary_states[0]
+  ambient_pressure = first.downstream_total_pressure_Pa / (
+    1.0 + 0.5 * (first.state.gamma - 1.0) * first.state.mach**2
+  ) ** (first.state.gamma / (first.state.gamma - 1.0))
+  march = march_post_shock_ambient_boundary(
+    shock.shock_fit,
+    ambient_pressure,
+  )
+  assert march.converged
+  result = solve_marched_attached_shock_with_ambient_centerline_physical_field(
+    lambda point: replace(upstream, x_m=point[0], y_m=point[1]),
+    lambda _point: 100000.0,
+    (0.5, 0.5),
+    ambient_pressure,
+    0.02,
+    0.12,
+    sample_count=sample_count,
+  )
+  assert result.field is not None
+  assert result.field.physical_closure_verified
+  return result.field
+
+
+def test_accepted_physical_field_projects_to_a_valid_terminal_source_strip() -> None:
+  field = _canonical_ambient_closed_field()
+
+  strip = field.as_open_shock_ambient_strip()
+  assert strip.status.value == 'converged_open_shock_ambient_strip'
+  assert strip.converged
+  assert strip.chain_promotion_blocked
+  assert strip.node_count == 45
+  assert strip.cell_count == 44
+  assert strip.topology.connected
+  assert strip.topology.forms_closed_zone
+  assert strip.topology.nonmanifold_edge_count == 0
+  assert strip.terminal_trace_validation.converged
+  assert strip.terminal_trace_position_tolerance_m == pytest.approx(1.0e-3)
+
+  patch = assemble_terminal_trace_centerline_patch(strip)
+  assert patch.converged
+  assert len(patch.axis_points_m) == len(field.centerline_boundary_points_m)
+  assert all(
+    point[0] == pytest.approx(expected[0], abs=3.0e-3)
+    and point[1] == pytest.approx(expected[1], abs=3.0e-3)
+    and state.mach == pytest.approx(expected_state.mach, abs=1.0e-8)
+    and pressure == pytest.approx(expected_pressure, rel=1.0e-8)
+    for point, state, pressure, expected, expected_state, expected_pressure in zip(
+      patch.axis_points_m,
+      patch.axis_states,
+      patch.axis_total_pressure_Pa,
+      field.centerline_boundary_points_m,
+      field.centerline_boundary_states,
+      field.centerline_boundary_total_pressure_Pa,
+      strict=True,
+    )
+  )
+
+
+def test_physical_field_terminal_patch_transition_reaches_typed_normal_shock_stop() -> None:
+  field = _canonical_ambient_closed_field()
+  current = field.as_coupled_chain_cell(
+    start_x_m=0.5,
+    end_x_m=field.ambient_boundary_points_m[-1][0],
+    cell_index=1,
+  )
+
+  decision = solve_ambient_closed_post_shock_chain_cell_from_physical_field_terminal_patch_or_termination(
+    current,
+    2,
+    current.continuation_boundary,
+    field,
+    end_x_m=2.2,
+    sample_count=9,
+    trace_position_tolerance_m=1.0e-3,
+    position_tolerance_m=1.0e-3,
+  )
+
+  assert isinstance(decision, MocChainTerminationDecision)
+  assert decision.physical_termination
+  assert decision.reason is MocChainTerminationReason.PHYSICAL_TERMINATION
+  assert decision.diagnostics['centerline_seam_verified'] is True
+  assert decision.diagnostics['source_strip_report']['cell_count'] == 44
+  assert decision.diagnostics['reflection_patch_report']['converged'] is True
+  downstream_report = decision.diagnostics['downstream_shock_report']
+  assert downstream_report['physical_terminal_verified'] is True
+  assert downstream_report['shock']['status'] == 'subsonic_terminal_required'
+  assert decision.diagnostics['chain_cell_promotion'] == (
+    'blocked-at-mixed-regime-boundary'
+  )
+
+
+def test_terminal_patch_planner_records_one_seed_and_physical_stop() -> None:
+  field = _canonical_ambient_closed_field()
+  planner = plan_ambient_closed_post_shock_chain_terminal_patch(
+    field,
+    start_x_m=0.5,
+    end_x_m=field.ambient_boundary_points_m[-1][0],
+    terminal_end_x_m=2.2,
+    sample_count=9,
+    trace_position_tolerance_m=1.0e-3,
+    position_tolerance_m=1.0e-3,
+    policy=MocChainContinuationPolicy(
+      max_cells=2,
+      require_state_carry=True,
+    ),
+  )
+
+  assert planner.production_claim_allowed is False
+  assert planner.chain.resolved
+  assert planner.chain.physical_termination
+  assert planner.chain.termination_reason is MocChainTerminationReason.PHYSICAL_TERMINATION
+  assert planner.chain.cell_count == 1
+  assert len(planner.steps) == 1
+  assert planner.steps[0].result_kind == 'termination-returned'
+  assert planner.steps[0].result_termination_reason is (
+    MocChainTerminationReason.PHYSICAL_TERMINATION
+  )
+  assert planner.diagnostics['terminal_patch_planner_depth'] == 1
+  assert planner.diagnostics['physical_cell_promotion'] == (
+    'blocked-at-mixed-regime-boundary'
+  )
+
+
+def test_terminal_patch_transition_rejects_backward_source_interface() -> None:
+  field = _canonical_ambient_closed_field()
+  current = field.as_coupled_chain_cell(
+    start_x_m=0.5,
+    end_x_m=field.centerline_boundary_points_m[-1][0],
+    cell_index=1,
+  )
+
+  decision = solve_ambient_closed_post_shock_chain_cell_from_physical_field_terminal_patch_or_termination(
+    current,
+    2,
+    current.continuation_boundary,
+    field,
+    end_x_m=2.2,
+    sample_count=9,
+    trace_position_tolerance_m=1.0e-3,
+    position_tolerance_m=1.0e-3,
+  )
+
+  assert decision.physical_termination is False
+  assert decision.reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+  assert decision.diagnostics['centerline_seam_verified'] is True
+  assert decision.diagnostics['first_outgoing_trace_point_m'][0] < current.end_x_m
 
 
 def _manufactured_closed_physical_field(

@@ -1408,3 +1408,30 @@ Only after MOC-1 through MOC-5 pass:
 
 These blockers are intentionally represented as structured statuses in code;
 they are not reasons to weaken the fidelity boundary.
+
+### Continued terminal-patch transition
+
+The accepted centerline-reflected physical field now exposes a solver-owned
+open shock/ambient source submesh through
+`as_open_shock_ambient_strip()`. This is a projection of the existing field,
+not a second cell: it retains the shock-sourced `C+` terminal trace, validates
+the retained state/total-pressure lineage, and carries an explicit trace
+discretization tolerance. The existing terminal reflection assembler then
+builds the centerline patch and hands its outgoing `C-` trace to the marched
+attached-shock solver.
+
+`plan_ambient_closed_post_shock_chain_terminal_patch()` records this one-step
+research transition. On the canonical nine-sample case it produces a resolved
+seed plus a typed `PHYSICAL_TERMINATION` at a converged normal shock, with the
+subsonic/mixed-regime field left outside the supersonic chain. The planner
+stores the source-strip report, centerline-seam check, reflected-patch report,
+downstream shock report, and tolerance settings. It never appends an open
+patch or an unresolved mixed-regime cell, and it remains
+`UPSTREAM_COUPLED_RESEARCH` with no production claim.
+
+This closes the first real continued-shock transition without claiming a
+complete multi-cell plume. Further cells require a physically closed
+mixed-regime handoff (or a separately validated reflected-domain solver),
+refinement evidence for the trace-to-patch seam, and independent
+measurement-space validation. The basic visual solver and reduced-order
+shock-train provider remain unchanged.

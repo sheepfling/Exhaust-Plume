@@ -52,6 +52,7 @@ from exhaust_plume.models.moc.caustic_terminal import (
 from exhaust_plume.models.moc.physical_cell import (
   MocPhysicalPostShockFieldContinuationSolve,
   MocPhysicalPostShockFieldResult,
+  solve_ambient_closed_post_shock_chain_cell_from_physical_field_terminal_patch_or_termination,
   continue_ambient_closed_post_shock_chain,
 )
 from exhaust_plume.models.moc.first_cell_closure import (
@@ -149,6 +150,7 @@ __all__ = (
   'plan_caustic_remesh_downstream_field_invariant_chain',
   'plan_ambient_pressure_field_chain',
   'plan_ambient_closed_post_shock_chain',
+  'plan_ambient_closed_post_shock_chain_terminal_patch',
   'plan_first_cell_terminal_closure',
   'plan_prescribed_first_cell_terminal_closure_mock',
   'plan_solver_generated_first_cell_terminal_closure_reference',
@@ -4909,5 +4911,122 @@ def plan_ambient_closed_post_shock_chain(
       if claim_status is None
       else claim_status
     ),
+  )
+####
+
+
+def plan_ambient_closed_post_shock_chain_terminal_patch(
+  seed: MocPhysicalPostShockFieldResult,
+  *,
+  start_x_m: float,
+  end_x_m: float,
+  terminal_end_x_m: float,
+  target_centerline_y_m: float = 0.0,
+  downstream_flow_angle_at: Callable[[int, tuple[float, float]], float] | None = None,
+  downstream_flow_angle_rad: float | None = 0.0,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  trace_position_tolerance_m: float = 1.0e-3,
+  seam_position_tolerance_m: float = 3.0e-3,
+  position_tolerance_m: float = 1.0e-3,
+  invariant_tolerance: float = 1.0e-10,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  policy: MocChainContinuationPolicy | None = None,
+  claim_status: str | None = None,
+) -> MocChainPlannerResult:
+  """Plan one reflected physical-field transition into a typed terminal.
+
+  The seed's ``end_x_m`` is the shared axial interface for the accepted first
+  cell.  ``terminal_end_x_m`` is a separate bound for the continued shock
+  attempt because the derived terminal reflection patch begins at the outer
+  end of the seed's carried trace.  Keeping those coordinates separate makes
+  the physical handoff explicit and prevents a planner bookkeeping endpoint
+  from silently becoming a solved shock boundary.
+
+  This planner is intentionally one transition deep.  If the downstream
+  marcher does not reach a verified normal-shock terminal, the callback
+  returns a typed non-physical stop and the planner retains only the accepted
+  seed cell.  No open patch, reduced-order cell, or unresolved subsonic field
+  is appended to the resolved chain.
+  """
+
+  invoked = False
+
+  def solve_next(
+    current: MocChainCell,
+    next_cell_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+  ) -> MocChainTerminationDecision:
+    nonlocal invoked
+    if invoked:
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
+        message=(
+          'terminal-patch physical-field planner is intentionally limited to '
+          'one continued shock transition'
+        ),
+      )
+    invoked = True
+    return solve_ambient_closed_post_shock_chain_cell_from_physical_field_terminal_patch_or_termination(
+      current,
+      next_cell_index,
+      incoming_handoff,
+      seed,
+      end_x_m=terminal_end_x_m,
+      target_centerline_y_m=target_centerline_y_m,
+      downstream_flow_angle_at=downstream_flow_angle_at,
+      downstream_flow_angle_rad=downstream_flow_angle_rad,
+      sample_count=sample_count,
+      branch=branch,
+      trace_position_tolerance_m=trace_position_tolerance_m,
+      seam_position_tolerance_m=seam_position_tolerance_m,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+      shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+      maximum_segment_iterations=maximum_segment_iterations,
+    )
+
+  planner = plan_ambient_closed_post_shock_chain(
+    seed,
+    solve_next,
+    start_x_m=start_x_m,
+    end_x_m=end_x_m,
+    policy=policy,
+    require_upstream_shock_coupling=True,
+    claim_status=(
+      'ambient-closed-field-terminal-reflection-patch; '
+      'typed-normal-shock-stop; mixed-regime-cell-promotion-pending'
+      if claim_status is None
+      else claim_status
+    ),
+  )
+  return replace(
+    planner,
+    diagnostics={
+      'transition_model': (
+        'accepted-ambient-closed-field -> open-shock-ambient-strip -> '
+        'centerline-reflection-patch -> attached-shock -> normal-shock-terminal'
+      ),
+      'terminal_patch_planner_depth': 1,
+      'terminal_end_x_m': float(terminal_end_x_m),
+      'target_centerline_y_m': float(target_centerline_y_m),
+      'downstream_flow_angle_model': (
+        'callback-supplied'
+        if downstream_flow_angle_at is not None
+        else 'constant-research-angle'
+      ),
+      'downstream_flow_angle_rad': downstream_flow_angle_rad,
+      'sample_count': sample_count,
+      'branch': branch.value,
+      'trace_position_tolerance_m': float(trace_position_tolerance_m),
+      'seam_position_tolerance_m': float(seam_position_tolerance_m),
+      'position_tolerance_m': float(position_tolerance_m),
+      'invariant_tolerance': float(invariant_tolerance),
+      'shock_angle_tolerance_rad': float(shock_angle_tolerance_rad),
+      'production_claim_allowed': False,
+      'physical_cell_promotion': 'blocked-at-mixed-regime-boundary',
+    },
   )
 ####
