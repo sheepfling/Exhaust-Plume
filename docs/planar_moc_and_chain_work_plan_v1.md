@@ -2790,9 +2790,18 @@ six-node/four-cell/six-edge field, then returns a typed
 ``FIDELITY_NOT_ALLOWED`` decision with zero physical shock-cell entries. The
 field is not passed to the generic resolved-chain callback because its
 reflected free boundary and external validation are still absent. The
-existing prescribed-boundary planner mock remains the deterministic
-multi-cell chain fixture for exercising state-carrying handoffs; it is not
-used to upgrade this solver-owned field or the fast/reduced-order providers.
+dedicated ``plan_euler_ambient_first_wedge_entropy_characteristic_field_chain``
+planner now defines the separate continuation seam. Each callback receives
+the exact ``POST_SHOCK_FIELD_PERIMETER`` and may append only a solver-supplied
+locally audited field on a fresh downstream domain; open fields are never
+converted into ``MocChainCell`` objects. The matching
+``MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainMock`` is an
+explicit replay fixture: it defaults to the one-field/no-next-field stop and
+does not synthesize translated downstream physics. The independent
+``op.moc.euler-ambient-first-wedge-entropy-characteristic-field-chain-audit``
+rechecks every retained field, exact handoff fingerprint, fresh-domain link,
+and nonphysical termination. This lane is not used to upgrade the
+solver-owned field or the fast/reduced-order providers.
 
 Next implementation sequence:
 

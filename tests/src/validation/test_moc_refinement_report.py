@@ -132,6 +132,9 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   entropy_characteristic_field = report['geometry_cases'][
     'euler_ambient_first_wedge_entropy_characteristic_field'
   ]
+  entropy_characteristic_field_chain = report['geometry_cases'][
+    'euler_ambient_first_wedge_entropy_characteristic_field_chain'
+  ]
   ambient_attachment = report['geometry_cases']['ambient_attachment_closure_probe']
   ambient_transition = report['geometry_cases']['ambient_attachment_transition_probe']
   ambient_closure = report['geometry_cases']['ambient_pressure_closure_probe']
@@ -326,6 +329,29 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert entropy_characteristic_field['claim_status'].endswith(
     'continued shock-cell-chain promotion pending'
   )
+  assert entropy_characteristic_field_chain['mock']['explicit_next_field_count'] == 0
+  assert entropy_characteristic_field_chain['planner']['resolved'] is True
+  assert entropy_characteristic_field_chain['planner']['local_sequence_verified'] is True
+  assert entropy_characteristic_field_chain['planner']['field_count'] == 1
+  assert entropy_characteristic_field_chain['planner']['continued_field_count'] == 0
+  assert entropy_characteristic_field_chain['planner']['physical_chain_cell_count'] == 0
+  assert entropy_characteristic_field_chain['planner']['termination']['reason'] == (
+    'solver-returned-no-next-cell'
+  )
+  assert entropy_characteristic_field_chain['independent_audit']['status'] == (
+    'converged_euler_ambient_first_wedge_entropy_characteristic_field_chain_audit'
+  )
+  assert entropy_characteristic_field_chain['independent_audit']['local_consistency_verified'] is True
+  assert entropy_characteristic_field_chain['independent_audit']['checks'] == {
+    'handoff_links_verified': True,
+    'fresh_domains_verified': True,
+    'termination_verified': True,
+    'planner_resolved_consistent': True,
+    'physical_chain_cell_count': 0,
+    'physical_closure_verified': False,
+    'chain_promotion_blocked': True,
+    'production_claim_allowed': False,
+  }
   assert alternating_physical_chain_refinement['status'] == 'converged'
   assert alternating_physical_chain_refinement['operator_id'] == (
     'op.moc.reflected-domain-alternating-physical-field-chain-refinement'

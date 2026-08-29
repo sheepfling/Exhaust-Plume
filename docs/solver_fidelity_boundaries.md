@@ -1429,3 +1429,23 @@ remains the only executable multi-cell fixture until that gate is closed.
 No result from this lane may update the fast/basic visualization, signature,
 ray-transfer, or focal-plane-array providers, and no local characteristic
 subcell may be silently relabeled as a continued shock-cell chain cell.
+
+## Entropy-characteristic field-chain handoff
+
+The continued-field seam is now represented by
+``plan_euler_ambient_first_wedge_entropy_characteristic_field_chain``. Each
+callback receives the exact three-sample ``POST_SHOCK_FIELD_PERIMETER`` and may
+return only another solver-supplied entropy-characteristic field, a typed
+nonphysical termination, or no next field. Accepted fields must pass their
+local gates and occupy a strictly fresh downstream axial domain; the planner
+never creates a ``MocChainCell`` from them.
+
+``MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainMock`` is an
+explicit replay fixture, not a downstream physics generator. It defaults to
+the canonical one-field/no-next-field stop and accepts future fields only when
+they are supplied by a caller. The independent
+``op.moc.euler-ambient-first-wedge-entropy-characteristic-field-chain-audit``
+re-audits every retained field, reconstructs the perimeter fingerprints and
+domain ordering, and verifies the typed nonphysical termination. This makes
+the continuation contract executable without disguising a replay or a local
+field as a physical shock-cell train.

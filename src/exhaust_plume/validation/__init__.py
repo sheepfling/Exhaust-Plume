@@ -297,6 +297,13 @@ from exhaust_plume.validation.moc_euler_entropy_characteristic_field import (
   MocEulerAmbientFirstWedgeEntropyCharacteristicFieldAudit,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_field,
 )
+from exhaust_plume.validation.moc_euler_entropy_characteristic_chain import (
+  MOC_EULER_AMBIENT_FIRST_WEDGE_ENTROPY_CHARACTERISTIC_FIELD_CHAIN_AUDIT_OPERATOR_ID,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainFieldAudit,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainAuditStatus,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainAudit,
+  measure_moc_euler_ambient_first_wedge_entropy_characteristic_field_chain,
+)
 from exhaust_plume.validation.lane_contracts import (
   SignatureLaneInvariantReport,
   VisualLaneInvariantReport,
@@ -523,6 +530,11 @@ __all__ = (
   'MocEulerAmbientFirstWedgeEntropyCharacteristicFieldAuditStatus',
   'MocEulerAmbientFirstWedgeEntropyCharacteristicFieldAudit',
   'measure_moc_euler_ambient_first_wedge_entropy_characteristic_field',
+  'MOC_EULER_AMBIENT_FIRST_WEDGE_ENTROPY_CHARACTERISTIC_FIELD_CHAIN_AUDIT_OPERATOR_ID',
+  'MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainFieldAudit',
+  'MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainAuditStatus',
+  'MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainAudit',
+  'measure_moc_euler_ambient_first_wedge_entropy_characteristic_field_chain',
   'SignatureLaneInvariantReport',
   'VisualLaneInvariantReport',
   'MACH_DISK_FEATURE_OPERATOR_ID',

@@ -6,10 +6,14 @@ from math import atan2
 from exhaust_plume.models.moc import (
   CharacteristicState,
   MocChainTerminationReason,
+  MocChainTerminationDecision,
   MocEulerAmbientFirstWedgeEntropyCharacteristicFieldStatus,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainMock,
   MocEulerAmbientFirstWedgeEntropyCarryStatus,
   assemble_euler_ambient_physical_field,
   plan_euler_ambient_first_wedge_entropy_characteristic_field,
+  plan_euler_ambient_first_wedge_entropy_characteristic_field_chain,
+  plan_euler_ambient_first_wedge_entropy_characteristic_field_chain_mock,
   solve_euler_ambient_first_wedge_characteristic_remesh,
   solve_euler_ambient_first_wedge_entropy_carry,
   solve_euler_ambient_first_wedge_entropy_characteristic_field,
@@ -18,7 +22,9 @@ from exhaust_plume.models.moc import (
 )
 from exhaust_plume.validation import (
   MocEulerAmbientFirstWedgeEntropyCharacteristicFieldAuditStatus,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainAuditStatus,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_field,
+  measure_moc_euler_ambient_first_wedge_entropy_characteristic_field_chain,
 )
 
 
@@ -214,3 +220,108 @@ def test_internal_entropy_characteristic_planner_stops_before_chain_promotion() 
     'reflected-free-boundary-coupling-and-external-validation-before-'
     'continued-shock-cell-chain'
   )
+
+
+def test_internal_entropy_characteristic_chain_has_typed_nonphysical_stop() -> None:
+  _, field = _internal_field()
+
+  planner = plan_euler_ambient_first_wedge_entropy_characteristic_field_chain_mock(
+    field,
+  )
+  audit = (
+    measure_moc_euler_ambient_first_wedge_entropy_characteristic_field_chain(
+      planner,
+    )
+  )
+
+  assert planner.resolved
+  assert planner.local_sequence_verified
+  assert planner.field_count == 1
+  assert planner.continued_field_count == 0
+  assert planner.handoff_links_verified is True
+  assert planner.physical_chain_cell_count == 0
+  assert planner.termination.reason is (
+    MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL
+  )
+  assert planner.termination.physical_termination is False
+  assert audit.status is (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainAuditStatus
+    .CONVERGED_LOCAL_CHAIN_AUDIT
+  )
+  assert audit.converged
+  assert audit.local_consistency_verified
+  assert audit.handoff_links_verified
+  assert audit.fresh_domains_verified
+  assert audit.termination_verified
+  assert audit.planner_resolved_consistent
+  assert audit.physical_chain_cell_count == 0
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False
+
+
+def test_internal_entropy_characteristic_chain_downgrades_physical_stop() -> None:
+  _, field = _internal_field()
+
+  def physical_stop(current, next_field_index, incoming_handoff):
+    assert incoming_handoff == current.continuation_boundary
+    return MocChainTerminationDecision(
+      physical_termination=True,
+      reason=MocChainTerminationReason.PHYSICAL_TERMINATION,
+      message='fixture attempted a physical stop',
+    )
+
+  planner = plan_euler_ambient_first_wedge_entropy_characteristic_field_chain(
+    field,
+    physical_stop,
+    total_field_count=1,
+  )
+
+  assert planner.termination.reason is MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+  assert planner.termination.physical_termination is False
+  assert planner.field_count == 1
+  assert planner.physical_chain_cell_count == 0
+  assert planner.chain_promotion_blocked
+  assert planner.steps[-1].result_termination_reason is (
+    MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+  )
+
+
+def test_internal_entropy_characteristic_chain_rejects_replayed_seed() -> None:
+  _, field = _internal_field()
+
+  planner = plan_euler_ambient_first_wedge_entropy_characteristic_field_chain_mock(
+    field,
+    mock=MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainMock(
+      next_fields=(field,),
+    ),
+  )
+
+  assert planner.field_count == 1
+  assert planner.termination.reason is MocChainTerminationReason.STATE_NOT_CARRIED
+  assert planner.steps[-1].result_kind == 'field-reuse-rejected'
+  assert planner.physical_chain_cell_count == 0
+
+
+def test_internal_entropy_characteristic_chain_audit_rejects_tampered_link() -> None:
+  _, field = _internal_field()
+  planner = plan_euler_ambient_first_wedge_entropy_characteristic_field_chain_mock(
+    field,
+  )
+  tampered_step = replace(
+    planner.steps[0],
+    incoming_handoff_fingerprint='tampered',
+  )
+  tampered = replace(planner, steps=(tampered_step,))
+
+  audit = (
+    measure_moc_euler_ambient_first_wedge_entropy_characteristic_field_chain(
+      tampered,
+    )
+  )
+
+  assert audit.status is (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainAuditStatus
+    .HANDOFF_FAILURE
+  )
+  assert not audit.converged
+  assert not audit.local_consistency_verified
