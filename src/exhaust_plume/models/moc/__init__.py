@@ -41,7 +41,10 @@ from exhaust_plume.models.moc.compression import (
 )
 from exhaust_plume.models.moc.euler_shock_boundary import (
   MocEulerShockBoundaryStatus,
+  MocEulerShockBoundaryOrientation,
   MocEulerShockBoundaryResult,
+  MocEulerShockBoundaryCurveResult,
+  fit_euler_consistent_shock_boundary,
   solve_euler_consistent_attached_shock_segment,
 )
 from exhaust_plume.models.moc.mixed_regime import (
@@ -821,7 +824,10 @@ __all__ = (
   'solve_overexpanded_lip_shock',
   'solve_normal_shock_terminal',
   'MocEulerShockBoundaryStatus',
+  'MocEulerShockBoundaryOrientation',
   'MocEulerShockBoundaryResult',
+  'MocEulerShockBoundaryCurveResult',
+  'fit_euler_consistent_shock_boundary',
   'solve_euler_consistent_attached_shock_segment',
   'validate_mixed_regime_boundary',
   'validate_mixed_regime_downstream_condition',

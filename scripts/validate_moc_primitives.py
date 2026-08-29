@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import replace
 import json
-from math import atan2, cos, isfinite, log, pi, sin, sqrt
+from math import atan2, cos, isfinite, log, pi, sin, sqrt, tan
 from pathlib import Path
 import sys
 from typing import Any
@@ -67,6 +67,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocChainTerminationDecision,
   MocChainTerminationReason,
   MocChainStatus,
+  MocEulerShockBoundaryOrientation,
   MocChainPlannerKind,
   MocCausticFamilyBandEnvelopeStatus,
   MocCausticShockBridgeStatus,
@@ -124,6 +125,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   prandtl_meyer_angle_rad,
   solve_attached_compression_to_pressure,
   solve_attached_compression_to_turn,
+  fit_euler_consistent_shock_boundary,
   solve_euler_consistent_attached_shock_segment,
   solve_attached_shock_to_centerline,
   solve_terminal_compression_candidate,
@@ -9707,6 +9709,37 @@ def build_moc_primitive_report() -> dict[str, Any]:
     100000.0,
     0.0,
   )
+  euler_curve_compression = solve_attached_compression_to_turn(
+    upstream_mach=2.0,
+    gamma=1.4,
+    upstream_pressure_Pa=100000.0,
+    target_turn_rad=0.2,
+  )
+  if euler_curve_compression.beta_rad is None:
+    raise RuntimeError('Euler-consistent shock-curve fixture could not resolve beta')
+  euler_curve_shock_angle = 0.2 - euler_curve_compression.beta_rad
+  euler_curve_points = tuple(
+    (
+      0.5 + index * (-0.1 / tan(euler_curve_shock_angle)),
+      0.5 - index * 0.1,
+    )
+    for index in range(6)
+  )
+  euler_consistent_shock_boundary = fit_euler_consistent_shock_boundary(
+    tuple(
+      CharacteristicState(
+        x_m=point[0],
+        y_m=point[1],
+        theta_rad=0.2,
+        mach=2.0,
+        gamma=1.4,
+      )
+      for point in euler_curve_points
+    ),
+    (100000.0,) * len(euler_curve_points),
+    euler_curve_points,
+    (0.0,) * len(euler_curve_points),
+  )
   normal_shock_terminal = solve_normal_shock_terminal(
     CharacteristicState(
       x_m=1.25,
@@ -9877,6 +9910,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'claim_status': (
         'local-euler-shock-segment-only; post-shock-field-and-'
         'reflected-free-boundary-pending'
+      ),
+    },
+    'euler_consistent_shock_boundary_curve': {
+      **euler_consistent_shock_boundary.as_report(),
+      'claim_status': (
+        'local-euler-shock-boundary-only; companion-characteristic-boundary-'
+        'and-post-shock-field-pending'
       ),
     },
     'attached_turn_compression_foundation': {
@@ -10710,6 +10750,20 @@ def build_moc_primitive_report() -> dict[str, Any]:
       or not euler_consistent_shock_segment.local_euler_verified
       or euler_consistent_shock_segment.physical_closure_verified
       or not euler_consistent_shock_segment.chain_promotion_blocked
+    ) else []),
+    *([
+      {
+        'case': 'euler_consistent_shock_boundary_curve',
+        'status': euler_consistent_shock_boundary.status.value,
+        'message': euler_consistent_shock_boundary.message,
+      }
+    ] if (
+      not euler_consistent_shock_boundary.converged
+      or not euler_consistent_shock_boundary.local_euler_verified
+      or euler_consistent_shock_boundary.orientation is not MocEulerShockBoundaryOrientation.MIXED_CHARACTERISTIC_BOUNDARY
+      or not euler_consistent_shock_boundary.companion_boundary_required
+      or euler_consistent_shock_boundary.physical_closure_verified
+      or not euler_consistent_shock_boundary.chain_promotion_blocked
     ) else []),
     *([
       {

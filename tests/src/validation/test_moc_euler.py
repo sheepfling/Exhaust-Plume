@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from math import tan
 
 from exhaust_plume.models.moc import (
   CharacteristicState,
+  MocEulerShockBoundaryOrientation,
   MocEulerShockBoundaryStatus,
+  fit_euler_consistent_shock_boundary,
+  solve_attached_compression_to_turn,
   solve_marched_attached_shock_field,
   solve_marched_attached_shock_with_ambient_centerline_physical_field,
   solve_euler_consistent_attached_shock_segment,
@@ -129,3 +133,68 @@ def test_euler_consistent_shock_segment_rejects_the_reference_turn_direction() -
   assert segment.status is MocEulerShockBoundaryStatus.NONCOMPRESSIVE_TURN
   assert segment.converged is False
   assert segment.chain_promotion_blocked
+
+
+def test_euler_consistent_shock_curve_records_mach_cone_orientation() -> None:
+  compression = solve_attached_compression_to_turn(
+    upstream_mach=2.0,
+    gamma=1.4,
+    upstream_pressure_Pa=100000.0,
+    target_turn_rad=0.2,
+  )
+  assert compression.beta_rad is not None
+  shock_angle = 0.2 - compression.beta_rad
+  points = tuple(
+    (0.5 + index * (-0.1 / tan(shock_angle)), 0.5 - index * 0.1)
+    for index in range(6)
+  )
+  upstream_states = tuple(
+    CharacteristicState(
+      x_m=point[0],
+      y_m=point[1],
+      theta_rad=0.2,
+      mach=2.0,
+      gamma=1.4,
+    )
+    for point in points
+  )
+
+  curve = fit_euler_consistent_shock_boundary(
+    upstream_states,
+    (100000.0,) * len(points),
+    points,
+    (0.0,) * len(points),
+  )
+
+  assert curve.status is MocEulerShockBoundaryStatus.CONVERGED_LOCAL_SHOCK
+  assert curve.converged
+  assert curve.local_euler_verified
+  assert curve.orientation is MocEulerShockBoundaryOrientation.MIXED_CHARACTERISTIC_BOUNDARY
+  assert curve.companion_boundary_required
+  assert not curve.two_family_cauchy_geometry_verified
+  assert curve.maximum_shock_jump_residual is not None
+  assert curve.maximum_shock_jump_residual < 1.0e-10
+  assert curve.maximum_tangent_residual_rad is not None
+  assert curve.maximum_tangent_residual_rad < 1.0e-10
+  assert curve.physical_closure_verified is False
+  assert curve.chain_promotion_blocked
+  report = curve.as_report()
+  assert report['orientation'] == 'mixed-characteristic-boundary'
+  assert report['companion_boundary_required'] is True
+
+
+def test_euler_consistent_shock_curve_rejects_reference_turn_direction() -> None:
+  points = ((0.5, 0.5), (0.7, 0.4))
+  result = fit_euler_consistent_shock_boundary(
+    tuple(
+      CharacteristicState(x_m=x, y_m=y, theta_rad=-0.2, mach=2.0, gamma=1.4)
+      for x, y in points
+    ),
+    (100000.0, 100000.0),
+    points,
+    (0.0, 0.0),
+  )
+
+  assert result.status is MocEulerShockBoundaryStatus.NONCOMPRESSIVE_TURN
+  assert not result.converged
+  assert result.chain_promotion_blocked
