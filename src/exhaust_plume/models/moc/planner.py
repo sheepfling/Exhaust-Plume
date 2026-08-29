@@ -1605,6 +1605,25 @@ class MocAmbientClosedPostShockChainTerminalPlannerResult:
     )
 
   @property
+  def mixed_regime_planar_handoff(self) -> MocMixedRegimePlanarSolveResult | None:
+    """Return the optional planar handoff beside the continued prefix."""
+
+    return (
+      None
+      if self.terminal_planner is None
+      else self.terminal_planner.mixed_regime_planar_handoff
+    )
+
+  @property
+  def mixed_regime_planar_handoff_verified(self) -> bool:
+    """Whether the optional planar handoff passed its local seam audit."""
+
+    return bool(
+      self.mixed_regime_planar_handoff is not None
+      and self.mixed_regime_planar_handoff.handoff_verified
+    )
+
+  @property
   def chain_promotion_blocked(self) -> bool:
     """A terminal mixed-regime result cannot seed another shock cell."""
 
@@ -1627,6 +1646,14 @@ class MocAmbientClosedPostShockChainTerminalPlannerResult:
       'physical_closure_verified': self.physical_closure_verified,
       'mixed_regime_model_closure_verified': (
         self.mixed_regime_model_closure_verified
+      ),
+      'mixed_regime_planar_handoff_verified': (
+        self.mixed_regime_planar_handoff_verified
+      ),
+      'mixed_regime_planar_handoff': (
+        None
+        if self.mixed_regime_planar_handoff is None
+        else self.mixed_regime_planar_handoff.as_report()
       ),
       'cell_count': self.cell_count,
       'chain_promotion_blocked': self.chain_promotion_blocked,

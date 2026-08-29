@@ -925,6 +925,8 @@ def test_continued_chain_planner_records_planar_handoff_after_prefix() -> None:
   assert handoff.handoff_verified
   assert handoff.section_is_varying is False
   assert handoff.physical_closure_verified is False
+  assert planner.mixed_regime_planar_handoff is handoff
+  assert planner.mixed_regime_planar_handoff_verified
   assert planner.diagnostics[
     'terminal_mixed_regime_planar_handoff_verified'
   ] is True
