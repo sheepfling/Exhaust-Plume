@@ -216,6 +216,7 @@ from exhaust_plume.validation.moc_measurements import (  # noqa: E402
   MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus,
   MocFirstCellCandidateMeasurementStatus,
   MocFirstCellFreeBoundaryCorrectionMeasurementStatus,
+  MocFirstCellFreeBoundaryCorrectionRefinementMeasurementStatus,
   MocReflectedDomainRemeshMeasurementStatus,
   MocReflectedDomainOuterSourceMeasurementStatus,
   MocTerminalClosureObservation,
@@ -226,6 +227,7 @@ from exhaust_plume.validation.moc_measurements import (  # noqa: E402
   measure_moc_ambient_closed_physical_field_chain,
   measure_first_cell_geometry_owned_candidate,
   measure_first_cell_free_boundary_correction,
+  measure_first_cell_free_boundary_correction_refinement,
   measure_moc_chain_planner,
   measure_moc_reflected_domain_remesh,
   measure_moc_reflected_domain_alternating_source,
@@ -1255,6 +1257,8 @@ def _ambient_shock_strip_probe(
   geometry_owned_first_cell_candidate_accepted = False
   geometry_owned_first_cell_candidate_refinement = []
   geometry_owned_first_cell_candidate_refinement_accepted = False
+  first_cell_correction_shape_scale_lower = 0.95
+  first_cell_correction_shape_scale_upper = 1.05
   candidate_source = None
   candidate_seed_points = ()
   if (
@@ -1476,8 +1480,8 @@ def _ambient_shock_strip_probe(
           ambient_pressure,
           target_centerline_y_m=0.0,
           target_centerline_flow_angle_rad=0.0,
-          shape_scale_lower=0.8,
-          shape_scale_upper=1.2,
+          shape_scale_lower=first_cell_correction_shape_scale_lower,
+          shape_scale_upper=first_cell_correction_shape_scale_upper,
           maximum_iterations=12,
         )
       )
@@ -1521,6 +1525,7 @@ def _ambient_shock_strip_probe(
         and geometry_owned_first_cell_free_boundary_correction_measurement.scalar_root_verified
         and geometry_owned_first_cell_free_boundary_correction_measurement.axis_boundary_verified
         is False
+        and geometry_owned_first_cell_free_boundary_correction_measurement.selected_field_audit_verified
         and geometry_owned_first_cell_free_boundary_correction_measurement.canonical_free_boundary_verified
         is False
         and geometry_owned_first_cell_free_boundary_correction_measurement.canonical_euler_verified
@@ -1549,6 +1554,212 @@ def _ambient_shock_strip_probe(
       geometry_owned_first_cell_free_boundary_correction_error = (
         f'{type(error).__name__}: {error}'
       )
+  geometry_owned_first_cell_free_boundary_correction_refinement = []
+  geometry_owned_first_cell_free_boundary_correction_refinement_results = []
+  geometry_owned_first_cell_free_boundary_correction_refinement_measurement = None
+  geometry_owned_first_cell_free_boundary_correction_refinement_accepted = False
+  if geometry_owned_first_cell_candidate_accepted and candidate_source is not None:
+    for correction_sample_count in (5, 9, 17):
+      correction_refinement = None
+      correction_refinement_measurement = None
+      correction_refinement_planner = None
+      correction_refinement_error = None
+      refinement_field_result = ambient_centerline_physical_field_refinement_results[
+        correction_sample_count
+      ]
+      if (
+        refinement_field_result.ambient_attachment is not None
+        and refinement_field_result.ambient_attachment.shock is not None
+        and refinement_field_result.ambient_attachment.shock.shock_fit is not None
+      ):
+        refinement_fit = refinement_field_result.ambient_attachment.shock.shock_fit
+        correction_refinement_seed = tuple(
+          sample.point_m for sample in refinement_fit.boundary_states
+        )
+        try:
+          correction_refinement = solve_first_cell_free_boundary_correction(
+            candidate_source,
+            correction_refinement_seed,
+            ambient_pressure,
+            target_centerline_y_m=0.0,
+            target_centerline_flow_angle_rad=0.0,
+            shape_scale_lower=first_cell_correction_shape_scale_lower,
+            shape_scale_upper=first_cell_correction_shape_scale_upper,
+            maximum_iterations=12,
+          )
+          correction_refinement_measurement = (
+            measure_first_cell_free_boundary_correction(correction_refinement)
+          )
+          correction_refinement_planner = plan_first_cell_free_boundary_correction(
+            correction_refinement,
+          )
+        except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+          correction_refinement_error = f'{type(error).__name__}: {error}'
+      if correction_refinement is not None:
+        geometry_owned_first_cell_free_boundary_correction_refinement_results.append(
+          correction_refinement
+        )
+      correction_refinement_decision = (
+        None
+        if correction_refinement is None
+        else correction_refinement.as_chain_termination_decision()
+      )
+      selected_axis = (
+        None
+        if correction_refinement is None
+        else correction_refinement.selected_axis_closure
+      )
+      geometry_owned_first_cell_free_boundary_correction_refinement.append({
+        'sample_count': correction_sample_count,
+        'status': (
+          None
+          if correction_refinement is None
+          else correction_refinement.status.value
+        ),
+        'measurement_status': (
+          None
+          if correction_refinement_measurement is None
+          else correction_refinement_measurement.status.value
+        ),
+        'measurement_converged': (
+          False
+          if correction_refinement_measurement is None
+          else correction_refinement_measurement.converged
+        ),
+        'shape_family_verified': (
+          False
+          if correction_refinement_measurement is None
+          else correction_refinement_measurement.shape_family_verified
+        ),
+        'trial_residuals_verified': (
+          False
+          if correction_refinement_measurement is None
+          else correction_refinement_measurement.trial_residuals_verified
+        ),
+        'selected_trial_verified': (
+          False
+          if correction_refinement_measurement is None
+          else correction_refinement_measurement.selected_trial_verified
+        ),
+        'scalar_root_verified': (
+          False
+          if correction_refinement_measurement is None
+          else correction_refinement_measurement.scalar_root_verified
+        ),
+        'selected_field_audit_verified': (
+          False
+          if correction_refinement_measurement is None
+          else correction_refinement_measurement.selected_field_audit_verified
+        ),
+        'axis_boundary_verified': (
+          False
+          if correction_refinement_measurement is None
+          else correction_refinement_measurement.axis_boundary_verified
+        ),
+        'physical_closure_verified': (
+          False
+          if correction_refinement_measurement is None
+          else correction_refinement_measurement.physical_closure_verified
+        ),
+        'minimum_absolute_residual': (
+          None
+          if correction_refinement_measurement is None
+          else correction_refinement_measurement.minimum_absolute_residual
+        ),
+        'selected_residual': (
+          None
+          if selected_axis is None
+          else selected_axis.relative_pressure_residual
+        ),
+        'planner_termination_reason': (
+          None
+          if correction_refinement_decision is None
+          else correction_refinement_decision.reason.value
+        ),
+        'planner_physical_termination': (
+          False
+          if correction_refinement_decision is None
+          else correction_refinement_decision.physical_termination
+        ),
+        'planner_callback_invoked': (
+          None
+          if correction_refinement_planner is None
+          else correction_refinement_planner.diagnostics[
+            'continued_cell_callback_invoked'
+          ]
+        ),
+        'canonical_free_boundary_verified': (
+          None
+          if correction_refinement is None
+          else correction_refinement.canonical_free_boundary_verified
+        ),
+        'canonical_euler_verified': (
+          None
+          if correction_refinement is None
+          else correction_refinement.canonical_euler_verified
+        ),
+        'chain_promotion_blocked': (
+          None
+          if correction_refinement is None
+          else correction_refinement.chain_promotion_blocked
+        ),
+        'production_claim_allowed': (
+          None
+          if correction_refinement is None
+          else correction_refinement.production_claim_allowed
+        ),
+        'error': correction_refinement_error,
+      })
+    if geometry_owned_first_cell_free_boundary_correction_refinement_results:
+      geometry_owned_first_cell_free_boundary_correction_refinement_measurement = (
+        measure_first_cell_free_boundary_correction_refinement(
+          geometry_owned_first_cell_free_boundary_correction_refinement_results,
+          expected_sample_counts=(5, 9, 17),
+          expected_status=MocFirstCellFreeBoundaryCorrectionStatus.NO_BRACKET,
+          residual_spread_tolerance=1.0e-6,
+        )
+      )
+    manual_refinement_accepted = (
+      len(geometry_owned_first_cell_free_boundary_correction_refinement) == 3
+      and all(
+        case['status'] == MocFirstCellFreeBoundaryCorrectionStatus.NO_BRACKET.value
+        and case['measurement_status'] == MocFirstCellFreeBoundaryCorrectionMeasurementStatus.CONVERGED.value
+        and case['measurement_converged'] is True
+        and case['shape_family_verified'] is True
+        and case['trial_residuals_verified'] is True
+        and case['selected_trial_verified'] is True
+        and case['scalar_root_verified'] is True
+        and case['selected_field_audit_verified'] is True
+        and case['axis_boundary_verified'] is False
+        and case['physical_closure_verified'] is False
+        and case['planner_termination_reason'] == MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE.value
+        and case['planner_physical_termination'] is False
+        and case['planner_callback_invoked'] is False
+        and case['canonical_free_boundary_verified'] is False
+        and case['canonical_euler_verified'] is False
+        and case['chain_promotion_blocked'] is True
+        and case['production_claim_allowed'] is False
+        and case['error'] is None
+        for case in geometry_owned_first_cell_free_boundary_correction_refinement
+      )
+    )
+    geometry_owned_first_cell_free_boundary_correction_refinement_accepted = (
+      manual_refinement_accepted
+      and geometry_owned_first_cell_free_boundary_correction_refinement_measurement
+      is not None
+      and geometry_owned_first_cell_free_boundary_correction_refinement_measurement.status
+      is MocFirstCellFreeBoundaryCorrectionRefinementMeasurementStatus.CONVERGED
+      and geometry_owned_first_cell_free_boundary_correction_refinement_measurement.converged
+      and geometry_owned_first_cell_free_boundary_correction_refinement_measurement.sample_count_order_verified
+      and geometry_owned_first_cell_free_boundary_correction_refinement_measurement.expected_sample_counts_verified
+      and geometry_owned_first_cell_free_boundary_correction_refinement_measurement.shape_family_verified
+      and geometry_owned_first_cell_free_boundary_correction_refinement_measurement.shape_bracket_verified
+      and geometry_owned_first_cell_free_boundary_correction_refinement_measurement.outcome_consistency_verified
+      and geometry_owned_first_cell_free_boundary_correction_refinement_measurement.residuals_verified
+      and geometry_owned_first_cell_free_boundary_correction_refinement_measurement.fidelity_isolation_verified
+      and geometry_owned_first_cell_free_boundary_correction_refinement_measurement.physical_closure_verified
+      is False
+    )
   ambient_centerline_physical_chain_probe = None
   ambient_centerline_physical_chain_probe_accepted = False
   ambient_centerline_physical_chain_mock = None
@@ -2435,6 +2646,18 @@ def _ambient_shock_strip_probe(
       None
       if geometry_owned_first_cell_free_boundary_correction_planner is None
       else geometry_owned_first_cell_free_boundary_correction_planner.as_report()
+    ),
+    'geometry_owned_first_cell_free_boundary_correction_refinement': (
+      geometry_owned_first_cell_free_boundary_correction_refinement
+    ),
+    'geometry_owned_first_cell_free_boundary_correction_refinement_measurement': (
+      None
+      if geometry_owned_first_cell_free_boundary_correction_refinement_measurement
+      is None
+      else geometry_owned_first_cell_free_boundary_correction_refinement_measurement.as_report()
+    ),
+    'geometry_owned_first_cell_free_boundary_correction_refinement_accepted': (
+      geometry_owned_first_cell_free_boundary_correction_refinement_accepted
     ),
     'geometry_owned_first_cell_free_boundary_correction_accepted': (
       geometry_owned_first_cell_free_boundary_correction_accepted
@@ -8234,6 +8457,12 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'geometry_owned_first_cell_free_boundary_correction_accepted'
     ) is not True
   )
+  geometry_owned_first_cell_free_boundary_correction_refinement_failure = (
+    ambient_shock_strip_probe.get('accepted') is True
+    and ambient_shock_strip_probe.get(
+      'geometry_owned_first_cell_free_boundary_correction_refinement_accepted'
+    ) is not True
+  )
   ambient_centerline_physical_chain_failure = (
     ambient_shock_strip_probe.get('accepted') is True
     and ambient_shock_strip_probe.get(
@@ -10010,6 +10239,35 @@ def build_moc_primitive_report() -> dict[str, Any]:
         ),
       }
     ] if geometry_owned_first_cell_free_boundary_correction_failure else []),
+    *([
+      {
+        'case': 'solver_generated_geometry_owned_first_cell_free_boundary_correction_refinement',
+        'status': str(
+          ambient_shock_strip_probe.get(
+            'geometry_owned_first_cell_free_boundary_correction_refinement_measurement',
+            {},
+          ).get('status', 'missing')
+        ),
+        'measurement_status': str(
+          ambient_shock_strip_probe.get(
+            'geometry_owned_first_cell_free_boundary_correction_refinement_measurement',
+            {},
+          ).get('status', 'missing')
+        ),
+        'message': str(
+          (
+            ambient_shock_strip_probe.get(
+              'geometry_owned_first_cell_free_boundary_correction_refinement_measurement',
+              {},
+            ).get('message', '')
+            or ambient_shock_strip_probe.get(
+              'geometry_owned_first_cell_free_boundary_correction_refinement',
+              [],
+            )
+          )
+        ),
+      }
+    ] if geometry_owned_first_cell_free_boundary_correction_refinement_failure else []),
     *([
       {
         'case': 'solver_generated_ambient_centerline_physical_chain',

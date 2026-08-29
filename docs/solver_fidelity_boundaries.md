@@ -998,6 +998,22 @@ and upper shape bounds both retain a positive residual of approximately
 successful audit of an unresolved boundary, not physical free-boundary
 closure.
 
+The standalone refinement fixes the same narrow shape bracket, `0.95 <= s <=
+1.05`, and reruns fresh corrections at 5, 9, and 17 shock samples. Each
+resolution passes the raw field audit and retains the same positive residual;
+the ambient-to-axis boundary is still open. The earlier wider local family
+can leave the fine-resolution characteristic domain, so it is not widened by
+fallback or extrapolation.
+
+The reusable
+`op.moc.first-cell-free-boundary-correction-refinement` operator now owns the
+resolution audit used by the standalone gate. It independently remeasures
+each correction, requires the declared sample-count order and fixed shape
+bracket, compares selected residuals, and preserves the non-promotion flags.
+Its converged status means that an unresolved research boundary is stable
+across the declared cases; it does not authorize a continued shock-cell
+handoff.
+
 `plan_first_cell_free_boundary_correction` is a planner guard that forwards
 the correction-owned `open-physical-closure` decision without creating a
 continued-cell handoff. The correction, planner guard, and measurement must

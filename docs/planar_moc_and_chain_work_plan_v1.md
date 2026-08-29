@@ -2313,6 +2313,22 @@ currently has a same-sign positive residual of about `0.15276` at both shape
 bounds, so the correct evidence is an audited `axis_pressure_no_bracket`
 boundary, not a fabricated corrected root.
 
+The standalone refinement keeps the same narrow shape bracket, `0.95 <= s <=
+1.05`, and repeats fresh solves at 5, 9, and 17 shock samples. All three
+resolutions independently reproduce the shape family, selected raw field
+audit, and same-sign residual; the appended ambient-to-axis boundary remains
+open at every resolution. A wider local bracket can leave the characteristic
+domain at the fine resolution, so it is reported as a solver-domain boundary
+rather than silently widened or extrapolated.
+
+The reusable `op.moc.first-cell-free-boundary-correction-refinement` operator
+now owns that resolution check for the standalone gate. It independently
+remeasures each correction, requires the declared sample-count order and
+fixed shape bracket, compares the selected residuals, and carries the same
+non-promotion flags. A converged refinement measurement therefore means
+resolution consistency of an unresolved research boundary, not readiness to
+append a continued shock cell.
+
 `plan_first_cell_free_boundary_correction` exposes the correction-owned chain
 termination decision through a planner guard. It deliberately invokes no
 continued-cell callback and preserves

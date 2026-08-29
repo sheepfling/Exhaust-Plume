@@ -150,6 +150,7 @@ __all__ = (
   'MOC_TERMINAL_CLOSURE_OPERATOR_ID',
   'MOC_FIRST_CELL_CANDIDATE_OPERATOR_ID',
   'MOC_FIRST_CELL_FREE_BOUNDARY_CORRECTION_OPERATOR_ID',
+  'MOC_FIRST_CELL_FREE_BOUNDARY_CORRECTION_REFINEMENT_OPERATOR_ID',
   'MocCausticRemeshMeasurement',
   'MocCausticRemeshMeasurementStatus',
   'MocCausticRemeshObservation',
@@ -204,6 +205,8 @@ __all__ = (
   'MocFirstCellCandidateMeasurementStatus',
   'MocFirstCellFreeBoundaryCorrectionMeasurement',
   'MocFirstCellFreeBoundaryCorrectionMeasurementStatus',
+  'MocFirstCellFreeBoundaryCorrectionRefinementMeasurement',
+  'MocFirstCellFreeBoundaryCorrectionRefinementMeasurementStatus',
   'measure_moc_caustic_remesh',
   'measure_moc_chain_planner',
   'measure_moc_reflected_domain_remesh',
@@ -227,6 +230,7 @@ __all__ = (
   'measure_moc_ambient_closed_physical_field_chain',
   'measure_first_cell_geometry_owned_candidate',
   'measure_first_cell_free_boundary_correction',
+  'measure_first_cell_free_boundary_correction_refinement',
 )
 
 
@@ -244,6 +248,9 @@ MOC_FIRST_CELL_CANDIDATE_OPERATOR_ID = (
 )
 MOC_FIRST_CELL_FREE_BOUNDARY_CORRECTION_OPERATOR_ID = (
   'op.moc.first-cell-free-boundary-correction'
+)
+MOC_FIRST_CELL_FREE_BOUNDARY_CORRECTION_REFINEMENT_OPERATOR_ID = (
+  'op.moc.first-cell-free-boundary-correction-refinement'
 )
 MOC_CAUSTIC_REMESH_OPERATOR_ID = 'op.moc.caustic-remesh'
 MOC_CHAIN_PLANNER_OPERATOR_ID = 'op.moc.chain-planner'
@@ -1309,6 +1316,8 @@ class MocFirstCellFreeBoundaryCorrectionMeasurement:
   selected_residual: float | None
   minimum_absolute_residual: float | None
   selected_candidate_measurement: MocFirstCellCandidateMeasurement | None
+  selected_field_measurement: MocPhysicalFieldChainMeasurement | None
+  selected_field_audit_verified: bool
   canonical_free_boundary_verified: bool
   canonical_euler_verified: bool
   external_validation_verified: bool
@@ -1317,6 +1326,11 @@ class MocFirstCellFreeBoundaryCorrectionMeasurement:
   fidelity_isolation_verified: bool
   physical_closure_verified: bool
   message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.selected_field_audit_verified, bool):
+      raise TypeError('selected_field_audit_verified must be a bool')
+  ####
 
   @property
   def converged(self) -> bool:
@@ -1347,6 +1361,12 @@ class MocFirstCellFreeBoundaryCorrectionMeasurement:
         if self.selected_candidate_measurement is None
         else self.selected_candidate_measurement.as_report()
       ),
+      'selected_field_measurement': (
+        None
+        if self.selected_field_measurement is None
+        else self.selected_field_measurement.as_report()
+      ),
+      'selected_field_audit_verified': self.selected_field_audit_verified,
       'canonical_free_boundary_verified': self.canonical_free_boundary_verified,
       'canonical_euler_verified': self.canonical_euler_verified,
       'external_validation_verified': self.external_validation_verified,
@@ -1375,6 +1395,8 @@ def _first_cell_free_boundary_measurement_failure(
   selected_residual: float | None = None,
   minimum_absolute_residual: float | None = None,
   selected_candidate_measurement: MocFirstCellCandidateMeasurement | None = None,
+  selected_field_measurement: MocPhysicalFieldChainMeasurement | None = None,
+  selected_field_audit_verified: bool = False,
   canonical_free_boundary_verified: bool = False,
   canonical_euler_verified: bool = False,
   external_validation_verified: bool = False,
@@ -1399,6 +1421,8 @@ def _first_cell_free_boundary_measurement_failure(
     selected_residual=selected_residual,
     minimum_absolute_residual=minimum_absolute_residual,
     selected_candidate_measurement=selected_candidate_measurement,
+    selected_field_measurement=selected_field_measurement,
+    selected_field_audit_verified=selected_field_audit_verified,
     canonical_free_boundary_verified=canonical_free_boundary_verified,
     canonical_euler_verified=canonical_euler_verified,
     external_validation_verified=external_validation_verified,
@@ -1666,6 +1690,26 @@ def measure_first_cell_free_boundary_correction(
       pressure_residual_tolerance=pressure_tolerance_value,
       position_tolerance_m=position_tolerance_value,
     )
+  selected_field_measurement = None
+  if (
+    correction.selected_candidate is not None
+    and correction.selected_candidate.field is not None
+  ):
+    selected_field_measurement = measure_moc_ambient_closed_physical_field_chain(
+      (correction.selected_candidate.field,),
+      position_tolerance_m=position_tolerance_value,
+      state_tolerance=invariant_tolerance_value,
+      invariant_tolerance=invariant_tolerance_value,
+      pressure_tolerance=pressure_tolerance_value,
+      tangent_tolerance=pressure_tolerance_value,
+    )
+  selected_field_audit_verified = bool(
+    selected_field_measurement is not None
+    and selected_field_measurement.converged
+    and selected_field_measurement.physical_closure_verified
+    and selected_field_measurement.chain_promotion_blocked
+    and selected_field_measurement.production_claim_allowed is False
+  )
   selected_residual = (
     None
     if selected_trial is None
@@ -1738,6 +1782,7 @@ def measure_first_cell_free_boundary_correction(
     and axis_boundary_verified
     and selected_candidate_measurement is not None
     and selected_candidate_measurement.physical_closure_verified
+    and selected_field_audit_verified
   )
   if not shape_family_verified:
     status = MocFirstCellFreeBoundaryCorrectionMeasurementStatus.GEOMETRY_FAILURE
@@ -1745,6 +1790,13 @@ def measure_first_cell_free_boundary_correction(
   elif not trial_residuals_verified:
     status = MocFirstCellFreeBoundaryCorrectionMeasurementStatus.TRIAL_FAILURE
     message = 'returned axis residuals do not reproduce independent trial measurements'
+  elif (
+    correction.selected_candidate is not None
+    and correction.selected_candidate.field is not None
+    and not selected_field_audit_verified
+  ):
+    status = MocFirstCellFreeBoundaryCorrectionMeasurementStatus.FIELD_FAILURE
+    message = 'selected physical field failed its independent raw-mesh audit'
   elif not selected_trial_verified or not fidelity_isolation_verified:
     status = MocFirstCellFreeBoundaryCorrectionMeasurementStatus.RESIDUAL_FAILURE
     message = 'selected correction trial or fidelity isolation metadata is inconsistent'
@@ -1773,11 +1825,542 @@ def measure_first_cell_free_boundary_correction(
     selected_residual=selected_residual,
     minimum_absolute_residual=minimum_absolute_residual,
     selected_candidate_measurement=selected_candidate_measurement,
+    selected_field_measurement=selected_field_measurement,
+    selected_field_audit_verified=selected_field_audit_verified,
     canonical_free_boundary_verified=correction.canonical_free_boundary_verified,
     canonical_euler_verified=correction.canonical_euler_verified,
     external_validation_verified=correction.external_validation_verified,
     chain_promotion_blocked=correction.chain_promotion_blocked,
     production_claim_allowed=correction.production_claim_allowed,
+    fidelity_isolation_verified=fidelity_isolation_verified,
+    physical_closure_verified=physical_closure_verified,
+    message=message,
+  )
+####
+
+
+class MocFirstCellFreeBoundaryCorrectionRefinementMeasurementStatus(str, Enum):
+  """Outcome of independently measuring correction resolution cases."""
+
+  CONVERGED = 'converged'
+  INVALID_INPUT = 'invalid_input'
+  CASE_FAILURE = 'correction_refinement_case_failure'
+  CONSISTENCY_FAILURE = 'correction_refinement_consistency_failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocFirstCellFreeBoundaryCorrectionRefinementMeasurement:
+  """Independent resolution audit for first-cell correction results.
+
+  A converged refinement measurement means that every supplied correction
+  outcome was independently measured and that the declared resolution,
+  shape-family, residual, and fidelity metadata are mutually consistent.  It
+  does not turn a repeated no-bracket result into a free-boundary solution.
+  """
+
+  status: MocFirstCellFreeBoundaryCorrectionRefinementMeasurementStatus
+  sample_counts: tuple[int, ...] = ()
+  case_measurements: tuple[
+    MocFirstCellFreeBoundaryCorrectionMeasurement,
+    ...
+  ] = ()
+  expected_sample_counts: tuple[int, ...] | None = None
+  expected_correction_status: str | None = None
+  shape_parameter_name: str = ''
+  shape_parameter_bracket: tuple[float, float] | None = None
+  sample_count_order_verified: bool = False
+  expected_sample_counts_verified: bool = False
+  shape_family_verified: bool = False
+  shape_bracket_verified: bool = False
+  outcome_consistency_verified: bool = False
+  residuals_verified: bool = False
+  residual_values: tuple[float, ...] = ()
+  minimum_absolute_residual: float | None = None
+  maximum_absolute_residual: float | None = None
+  residual_spread: float | None = None
+  residual_spread_tolerance: float = 1.0e-6
+  canonical_free_boundary_verified: bool = False
+  canonical_euler_verified: bool = False
+  external_validation_verified: bool = False
+  chain_promotion_blocked: bool = True
+  production_claim_allowed: bool = False
+  fidelity_isolation_verified: bool = False
+  physical_closure_verified: bool = False
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocFirstCellFreeBoundaryCorrectionRefinementMeasurementStatus,
+    ):
+      raise TypeError(
+        'status must be a '
+        'MocFirstCellFreeBoundaryCorrectionRefinementMeasurementStatus'
+      )
+    sample_counts = tuple(self.sample_counts)
+    if any(
+      isinstance(value, bool) or not isinstance(value, int) or value < 0
+      for value in sample_counts
+    ):
+      raise ValueError('sample_counts must contain nonnegative integers')
+    object.__setattr__(self, 'sample_counts', sample_counts)
+    case_measurements = tuple(self.case_measurements)
+    if any(
+      not isinstance(
+        measurement,
+        MocFirstCellFreeBoundaryCorrectionMeasurement,
+      )
+      for measurement in case_measurements
+    ):
+      raise TypeError(
+        'case_measurements must contain correction measurement values'
+      )
+    if len(case_measurements) != len(sample_counts):
+      raise ValueError(
+        'case_measurements must have one entry per sample count'
+      )
+    object.__setattr__(self, 'case_measurements', case_measurements)
+    if self.expected_sample_counts is not None:
+      expected_counts = tuple(self.expected_sample_counts)
+      if any(
+        isinstance(value, bool) or not isinstance(value, int) or value < 0
+        for value in expected_counts
+      ):
+        raise ValueError(
+          'expected_sample_counts must contain nonnegative integers'
+        )
+      object.__setattr__(self, 'expected_sample_counts', expected_counts)
+    if self.expected_correction_status is not None:
+      object.__setattr__(
+        self,
+        'expected_correction_status',
+        str(self.expected_correction_status),
+      )
+    object.__setattr__(self, 'shape_parameter_name', str(self.shape_parameter_name))
+    if self.shape_parameter_bracket is not None:
+      bracket = tuple(float(value) for value in self.shape_parameter_bracket)
+      if (
+        len(bracket) != 2
+        or not all(isfinite(value) and value > 0.0 for value in bracket)
+        or bracket[0] >= bracket[1]
+      ):
+        raise ValueError(
+          'shape_parameter_bracket must contain two ordered positive values'
+        )
+      object.__setattr__(self, 'shape_parameter_bracket', bracket)
+    residual_values = tuple(float(value) for value in self.residual_values)
+    if any(not isfinite(value) for value in residual_values):
+      raise ValueError('residual_values must be finite')
+    object.__setattr__(self, 'residual_values', residual_values)
+    for name in (
+      'sample_count_order_verified',
+      'expected_sample_counts_verified',
+      'shape_family_verified',
+      'shape_bracket_verified',
+      'outcome_consistency_verified',
+      'residuals_verified',
+      'canonical_free_boundary_verified',
+      'canonical_euler_verified',
+      'external_validation_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+      'fidelity_isolation_verified',
+      'physical_closure_verified',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+    residual_tolerance = float(self.residual_spread_tolerance)
+    if not isfinite(residual_tolerance) or residual_tolerance <= 0.0:
+      raise ValueError('residual_spread_tolerance must be finite and positive')
+    object.__setattr__(self, 'residual_spread_tolerance', residual_tolerance)
+    for name in (
+      'minimum_absolute_residual',
+      'maximum_absolute_residual',
+      'residual_spread',
+    ):
+      value = getattr(self, name)
+      if value is not None:
+        normalized = float(value)
+        if not isfinite(normalized) or normalized < 0.0:
+          raise ValueError(f'{name} must be finite and nonnegative')
+        object.__setattr__(self, name, normalized)
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def converged(self) -> bool:
+    """Whether all correction resolution cases passed this audit."""
+
+    return self.status is (
+      MocFirstCellFreeBoundaryCorrectionRefinementMeasurementStatus.CONVERGED
+    )
+  ####
+
+  def as_report(self) -> dict[str, object]:
+    return {
+      'operator_id': MOC_FIRST_CELL_FREE_BOUNDARY_CORRECTION_REFINEMENT_OPERATOR_ID,
+      'status': self.status.value,
+      'converged': self.converged,
+      'sample_counts': self.sample_counts,
+      'expected_sample_counts': self.expected_sample_counts,
+      'expected_correction_status': self.expected_correction_status,
+      'shape_parameter_name': self.shape_parameter_name,
+      'shape_parameter_bracket': self.shape_parameter_bracket,
+      'sample_count_order_verified': self.sample_count_order_verified,
+      'expected_sample_counts_verified': self.expected_sample_counts_verified,
+      'shape_family_verified': self.shape_family_verified,
+      'shape_bracket_verified': self.shape_bracket_verified,
+      'outcome_consistency_verified': self.outcome_consistency_verified,
+      'residuals_verified': self.residuals_verified,
+      'residual_values': self.residual_values,
+      'minimum_absolute_residual': self.minimum_absolute_residual,
+      'maximum_absolute_residual': self.maximum_absolute_residual,
+      'residual_spread': self.residual_spread,
+      'residual_spread_tolerance': self.residual_spread_tolerance,
+      'case_measurements': tuple(
+        measurement.as_report() for measurement in self.case_measurements
+      ),
+      'canonical_free_boundary_verified': self.canonical_free_boundary_verified,
+      'canonical_euler_verified': self.canonical_euler_verified,
+      'external_validation_verified': self.external_validation_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'fidelity_isolation_verified': self.fidelity_isolation_verified,
+      'physical_closure_verified': self.physical_closure_verified,
+      'message': self.message,
+    }
+  ####
+
+
+def _first_cell_free_boundary_refinement_measurement_failure(
+  status: MocFirstCellFreeBoundaryCorrectionRefinementMeasurementStatus,
+  *,
+  message: str,
+  sample_counts: Sequence[int] = (),
+  case_measurements: Sequence[
+    MocFirstCellFreeBoundaryCorrectionMeasurement
+  ] = (),
+  expected_sample_counts: Sequence[int] | None = None,
+  expected_correction_status: str | None = None,
+  shape_parameter_name: str = '',
+  shape_parameter_bracket: tuple[float, float] | None = None,
+  sample_count_order_verified: bool = False,
+  expected_sample_counts_verified: bool = False,
+  shape_family_verified: bool = False,
+  shape_bracket_verified: bool = False,
+  outcome_consistency_verified: bool = False,
+  residuals_verified: bool = False,
+  residual_values: Sequence[float] = (),
+  minimum_absolute_residual: float | None = None,
+  maximum_absolute_residual: float | None = None,
+  residual_spread: float | None = None,
+  residual_spread_tolerance: float = 1.0e-6,
+  canonical_free_boundary_verified: bool = False,
+  canonical_euler_verified: bool = False,
+  external_validation_verified: bool = False,
+  chain_promotion_blocked: bool = True,
+  production_claim_allowed: bool = False,
+  fidelity_isolation_verified: bool = False,
+  physical_closure_verified: bool = False,
+) -> MocFirstCellFreeBoundaryCorrectionRefinementMeasurement:
+  return MocFirstCellFreeBoundaryCorrectionRefinementMeasurement(
+    status=status,
+    sample_counts=tuple(sample_counts),
+    case_measurements=tuple(case_measurements),
+    expected_sample_counts=(
+      None
+      if expected_sample_counts is None
+      else tuple(expected_sample_counts)
+    ),
+    expected_correction_status=expected_correction_status,
+    shape_parameter_name=shape_parameter_name,
+    shape_parameter_bracket=shape_parameter_bracket,
+    sample_count_order_verified=sample_count_order_verified,
+    expected_sample_counts_verified=expected_sample_counts_verified,
+    shape_family_verified=shape_family_verified,
+    shape_bracket_verified=shape_bracket_verified,
+    outcome_consistency_verified=outcome_consistency_verified,
+    residuals_verified=residuals_verified,
+    residual_values=tuple(residual_values),
+    minimum_absolute_residual=minimum_absolute_residual,
+    maximum_absolute_residual=maximum_absolute_residual,
+    residual_spread=residual_spread,
+    residual_spread_tolerance=residual_spread_tolerance,
+    canonical_free_boundary_verified=canonical_free_boundary_verified,
+    canonical_euler_verified=canonical_euler_verified,
+    external_validation_verified=external_validation_verified,
+    chain_promotion_blocked=chain_promotion_blocked,
+    production_claim_allowed=production_claim_allowed,
+    fidelity_isolation_verified=fidelity_isolation_verified,
+    physical_closure_verified=physical_closure_verified,
+    message=message,
+  )
+####
+
+
+def measure_first_cell_free_boundary_correction_refinement(
+  corrections: Sequence[MocFirstCellFreeBoundaryCorrectionResult],
+  *,
+  expected_sample_counts: Sequence[int] | None = None,
+  expected_status: MocFirstCellFreeBoundaryCorrectionStatus | None = None,
+  shape_tolerance: float = 1.0e-6,
+  pressure_tolerance: float = 1.0e-8,
+  position_tolerance_m: float = 1.0e-8,
+  invariant_tolerance: float = 1.0e-8,
+  residual_spread_tolerance: float = 1.0e-6,
+) -> MocFirstCellFreeBoundaryCorrectionRefinementMeasurement:
+  """Independently measure a fixed-configuration correction refinement."""
+
+  try:
+    items = tuple(corrections)
+  except TypeError:
+    return _first_cell_free_boundary_refinement_measurement_failure(
+      MocFirstCellFreeBoundaryCorrectionRefinementMeasurementStatus.INVALID_INPUT,
+      message='corrections must be an iterable of correction results',
+    )
+  if not items or any(
+    not isinstance(item, MocFirstCellFreeBoundaryCorrectionResult)
+    for item in items
+  ):
+    return _first_cell_free_boundary_refinement_measurement_failure(
+      MocFirstCellFreeBoundaryCorrectionRefinementMeasurementStatus.INVALID_INPUT,
+      message=(
+        'corrections must contain at least one '
+        'MocFirstCellFreeBoundaryCorrectionResult'
+      ),
+    )
+  if expected_status is not None and not isinstance(
+    expected_status,
+    MocFirstCellFreeBoundaryCorrectionStatus,
+  ):
+    return _first_cell_free_boundary_refinement_measurement_failure(
+      MocFirstCellFreeBoundaryCorrectionRefinementMeasurementStatus.INVALID_INPUT,
+      message='expected_status must be a correction status or None',
+    )
+  try:
+    shape_tolerance_value = float(shape_tolerance)
+    pressure_tolerance_value = float(pressure_tolerance)
+    position_tolerance_value = float(position_tolerance_m)
+    invariant_tolerance_value = float(invariant_tolerance)
+    residual_spread_tolerance_value = float(residual_spread_tolerance)
+  except (TypeError, ValueError):
+    return _first_cell_free_boundary_refinement_measurement_failure(
+      MocFirstCellFreeBoundaryCorrectionRefinementMeasurementStatus.INVALID_INPUT,
+      message='correction refinement tolerances must be numeric',
+    )
+  if not all(
+    isfinite(value) and value > 0.0
+    for value in (
+      shape_tolerance_value,
+      pressure_tolerance_value,
+      position_tolerance_value,
+      invariant_tolerance_value,
+      residual_spread_tolerance_value,
+    )
+  ):
+    return _first_cell_free_boundary_refinement_measurement_failure(
+      MocFirstCellFreeBoundaryCorrectionRefinementMeasurementStatus.INVALID_INPUT,
+      message='correction refinement tolerances must be finite and positive',
+    )
+  try:
+    measured_cases = tuple(
+      measure_first_cell_free_boundary_correction(
+        item,
+        shape_tolerance=shape_tolerance_value,
+        pressure_tolerance=pressure_tolerance_value,
+        position_tolerance_m=position_tolerance_value,
+        invariant_tolerance=invariant_tolerance_value,
+      )
+      for item in items
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return _first_cell_free_boundary_refinement_measurement_failure(
+      MocFirstCellFreeBoundaryCorrectionRefinementMeasurementStatus.CASE_FAILURE,
+      message=f'independent correction case measurement raised: {error}',
+    )
+  sample_counts = tuple(len(item.initial_shock_points_m) for item in items)
+  normalized_expected_counts = None
+  if expected_sample_counts is not None:
+    try:
+      normalized_expected_counts = tuple(expected_sample_counts)
+    except TypeError:
+      return _first_cell_free_boundary_refinement_measurement_failure(
+        MocFirstCellFreeBoundaryCorrectionRefinementMeasurementStatus.INVALID_INPUT,
+        sample_counts=sample_counts,
+        case_measurements=measured_cases,
+        message='expected_sample_counts must be an integer sequence',
+      )
+    if any(
+      isinstance(value, bool) or not isinstance(value, int) or value < 0
+      for value in normalized_expected_counts
+    ):
+      return _first_cell_free_boundary_refinement_measurement_failure(
+        MocFirstCellFreeBoundaryCorrectionRefinementMeasurementStatus.INVALID_INPUT,
+        sample_counts=sample_counts,
+        case_measurements=measured_cases,
+        message='expected_sample_counts must contain nonnegative integers',
+      )
+  sample_count_order_verified = all(
+    left < right for left, right in zip(sample_counts, sample_counts[1:])
+  )
+  expected_sample_counts_verified = bool(
+    normalized_expected_counts is None
+    or sample_counts == normalized_expected_counts
+  )
+  first = items[0]
+  shape_parameter_name = first.shape_parameter_name
+  shape_parameter_bracket = first.shape_parameter_bracket
+  shape_bracket_verified = bool(shape_parameter_bracket is not None)
+  for item in items[1:]:
+    shape_bracket_verified = shape_bracket_verified and bool(
+      item.shape_parameter_name == shape_parameter_name
+      and item.shape_parameter_bracket is not None
+      and shape_parameter_bracket is not None
+      and _correction_measurement_close(
+        item.shape_parameter_bracket[0],
+        shape_parameter_bracket[0],
+        shape_tolerance_value,
+      )
+      and _correction_measurement_close(
+        item.shape_parameter_bracket[1],
+        shape_parameter_bracket[1],
+        shape_tolerance_value,
+      )
+    )
+  shape_family_verified = bool(
+    all(measurement.shape_family_verified for measurement in measured_cases)
+  )
+  statuses = tuple(item.status for item in items)
+  expected_status_verified = bool(
+    expected_status is None
+    or all(status is expected_status for status in statuses)
+  )
+  outcome_consistency_verified = bool(
+    all(status is statuses[0] for status in statuses)
+    and expected_status_verified
+  )
+  residual_values = tuple(
+    float(measurement.selected_residual)
+    for measurement in measured_cases
+    if measurement.selected_residual is not None
+  )
+  residual_values_verified = bool(
+    len(residual_values) == len(items)
+    and all(isfinite(value) for value in residual_values)
+  )
+  residual_spread = (
+    None
+    if not residual_values
+    else max(residual_values) - min(residual_values)
+  )
+  minimum_absolute_residual = (
+    None
+    if not residual_values
+    else min(abs(value) for value in residual_values)
+  )
+  maximum_absolute_residual = (
+    None
+    if not residual_values
+    else max(abs(value) for value in residual_values)
+  )
+  residuals_verified = bool(
+    residual_values_verified
+    and residual_spread is not None
+    and residual_spread <= residual_spread_tolerance_value * max(
+      1.0,
+      maximum_absolute_residual or 0.0,
+    )
+  )
+  case_audits_verified = all(
+    measurement.converged
+    and measurement.shape_family_verified
+    and measurement.trial_residuals_verified
+    and measurement.selected_trial_verified
+    and measurement.selected_field_audit_verified
+    and measurement.fidelity_isolation_verified
+    for measurement in measured_cases
+  )
+  no_bracket_audit_verified = bool(
+    expected_status is not MocFirstCellFreeBoundaryCorrectionStatus.NO_BRACKET
+    or all(
+      measurement.scalar_root_verified
+      and measurement.axis_boundary_verified is False
+      and measurement.physical_closure_verified is False
+      for measurement in measured_cases
+    )
+  )
+  fidelity_isolation_verified = bool(
+    all(
+      item.canonical_free_boundary_verified is False
+      and item.canonical_euler_verified is False
+      and item.external_validation_verified is False
+      and item.chain_promotion_blocked
+      and item.production_claim_allowed is False
+      and measurement.canonical_free_boundary_verified is False
+      and measurement.canonical_euler_verified is False
+      and measurement.external_validation_verified is False
+      and measurement.chain_promotion_blocked
+      and measurement.production_claim_allowed is False
+      for item, measurement in zip(items, measured_cases, strict=True)
+    )
+  )
+  physical_closure_verified = bool(
+    all(
+      item.physical_closure_verified
+      and measurement.physical_closure_verified
+      for item, measurement in zip(items, measured_cases, strict=True)
+    )
+  )
+  all_checks = bool(
+    sample_count_order_verified
+    and expected_sample_counts_verified
+    and shape_bracket_verified
+    and shape_family_verified
+    and outcome_consistency_verified
+    and residuals_verified
+    and case_audits_verified
+    and no_bracket_audit_verified
+    and fidelity_isolation_verified
+  )
+  if not case_audits_verified:
+    status = MocFirstCellFreeBoundaryCorrectionRefinementMeasurementStatus.CASE_FAILURE
+    message = 'one or more correction cases failed independent measurement'
+  elif not all_checks:
+    status = MocFirstCellFreeBoundaryCorrectionRefinementMeasurementStatus.CONSISTENCY_FAILURE
+    message = 'correction resolution cases are not mutually consistent'
+  else:
+    status = MocFirstCellFreeBoundaryCorrectionRefinementMeasurementStatus.CONVERGED
+    message = (
+      'independent correction-case, resolution-order, fixed-shape, residual, '
+      'and fidelity audit passed; repeated boundary outcomes remain research-only'
+    )
+  return _first_cell_free_boundary_refinement_measurement_failure(
+    status,
+    sample_counts=sample_counts,
+    case_measurements=measured_cases,
+    expected_sample_counts=normalized_expected_counts,
+    expected_correction_status=(
+      None if expected_status is None else expected_status.value
+    ),
+    shape_parameter_name=shape_parameter_name,
+    shape_parameter_bracket=shape_parameter_bracket,
+    sample_count_order_verified=sample_count_order_verified,
+    expected_sample_counts_verified=expected_sample_counts_verified,
+    shape_family_verified=shape_family_verified,
+    shape_bracket_verified=shape_bracket_verified,
+    outcome_consistency_verified=outcome_consistency_verified,
+    residuals_verified=residuals_verified,
+    residual_values=residual_values,
+    minimum_absolute_residual=minimum_absolute_residual,
+    maximum_absolute_residual=maximum_absolute_residual,
+    residual_spread=residual_spread,
+    residual_spread_tolerance=residual_spread_tolerance_value,
+    canonical_free_boundary_verified=False,
+    canonical_euler_verified=False,
+    external_validation_verified=False,
+    chain_promotion_blocked=fidelity_isolation_verified,
+    production_claim_allowed=False,
     fidelity_isolation_verified=fidelity_isolation_verified,
     physical_closure_verified=physical_closure_verified,
     message=message,

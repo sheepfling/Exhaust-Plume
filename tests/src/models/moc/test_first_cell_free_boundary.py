@@ -13,11 +13,13 @@ from exhaust_plume.models.moc import (
 )
 from exhaust_plume.validation import (
   MocFirstCellFreeBoundaryCorrectionMeasurementStatus,
+  MocFirstCellFreeBoundaryCorrectionRefinementMeasurementStatus,
   measure_first_cell_free_boundary_correction,
+  measure_first_cell_free_boundary_correction_refinement,
 )
 
 
-def _correction_inputs() -> tuple[
+def _correction_inputs(sample_count: int = 9) -> tuple[
   MocBoundedUpstreamFieldSource,
   tuple[tuple[float, float], ...],
   float,
@@ -46,7 +48,7 @@ def _correction_inputs() -> tuple[
     source.static_pressure_at,
     (0.5, 0.5),
     downstream_flow_angle_at=lambda _index, point: 0.05 * point[1] / 0.5,
-    sample_count=9,
+    sample_count=sample_count,
   )
   assert seed.shock_fit is not None
   shock_points = tuple(
@@ -98,6 +100,9 @@ def test_free_boundary_correction_records_explicit_no_bracket_and_audit() -> Non
   assert measurement.selected_trial_verified
   assert measurement.scalar_root_verified
   assert measurement.axis_boundary_verified is False
+  assert measurement.selected_field_audit_verified
+  assert measurement.selected_field_measurement is not None
+  assert measurement.selected_field_measurement.converged
   assert measurement.physical_closure_verified is False
   assert measurement.fidelity_isolation_verified
 
@@ -157,3 +162,41 @@ def test_free_boundary_correction_rejects_shape_bracket_without_seed() -> None:
   assert result.status is MocFirstCellFreeBoundaryCorrectionStatus.INVALID_INPUT
   assert result.converged is False
   assert result.trials == ()
+
+
+def test_free_boundary_correction_refinement_is_independently_audited() -> None:
+  corrections = []
+  for sample_count in (5, 9, 17):
+    source, shock_points, ambient_pressure = _correction_inputs(sample_count)
+    corrections.append(
+      solve_first_cell_free_boundary_correction(
+        source,
+        shock_points,
+        ambient_pressure,
+        shape_scale_lower=0.95,
+        shape_scale_upper=1.05,
+      )
+    )
+
+  measurement = measure_first_cell_free_boundary_correction_refinement(
+    corrections,
+    expected_sample_counts=(5, 9, 17),
+    expected_status=MocFirstCellFreeBoundaryCorrectionStatus.NO_BRACKET,
+  )
+
+  assert measurement.status is (
+    MocFirstCellFreeBoundaryCorrectionRefinementMeasurementStatus.CONVERGED
+  )
+  assert measurement.converged
+  assert measurement.sample_counts == (5, 9, 17)
+  assert measurement.sample_count_order_verified
+  assert measurement.expected_sample_counts_verified
+  assert measurement.shape_family_verified
+  assert measurement.shape_bracket_verified
+  assert measurement.outcome_consistency_verified
+  assert measurement.residuals_verified
+  assert measurement.residual_spread is not None
+  assert measurement.fidelity_isolation_verified
+  assert measurement.physical_closure_verified is False
+  assert measurement.chain_promotion_blocked
+  assert measurement.production_claim_allowed is False
