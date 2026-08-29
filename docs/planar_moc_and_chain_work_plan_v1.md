@@ -2062,3 +2062,20 @@ The callback remains caller-owned research evidence. A passing local planar
 field does not close the canonical reflected free boundary, does not create a
 new shock cell, and cannot promote the basic visualization, reduced-order,
 signature, ray, or focal-plane-array lanes.
+
+## Next fidelity boundary: trace-referenced continuation
+
+The continued alternating-field lane now exposes an explicit
+`use_trace_referenced_profile` switch. With retained outer-seed attachment,
+the opt-in path reuses the exact reflected `C-` trace as the downstream turn
+profile and independently remeasures that profile from raw samples. The
+automatic multi-cell planner leaves this switch off: a locally closed
+trace-profile field can still fail the next remesh's terminal-characteristic
+gate at the current resolution. That observed failure is retained as a
+research boundary rather than hidden by relaxing the chain's geometry checks.
+
+The next implementation target remains the canonical reflected-domain
+remesher and mixed-regime/free-boundary solve. Until those gates, refinement,
+and indexed external observations pass, all alternating results remain
+research-only and isolated from visualization, signature, ray, and
+focal-plane-array providers.

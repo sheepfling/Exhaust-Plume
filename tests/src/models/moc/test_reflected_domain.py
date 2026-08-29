@@ -669,6 +669,7 @@ def test_reflected_domain_alternating_physical_field_can_attach_at_retained_oute
     source,
     compression_amplitude_rad=0.05,
     use_outer_seed_attachment=True,
+    use_trace_referenced_profile=True,
   )
 
   assert result.status is (
@@ -684,6 +685,10 @@ def test_reflected_domain_alternating_physical_field_can_attach_at_retained_oute
   )
   assert result.as_report()['attachment_source'] == (
     'outer-seed-reflection-interface'
+  )
+  assert result.as_report()['use_trace_referenced_profile'] is True
+  assert result.continuation_law == (
+    'reflected-trace-referenced-compression-envelope'
   )
   measurement = measure_moc_reflected_domain_alternating_physical_field(result)
   assert measurement.converged
@@ -984,6 +989,7 @@ def test_reflected_domain_alternating_source_planner_carries_one_cell_handoff():
   assert planner.steps[1].result_kind == 'termination-returned'
   assert planner.handoff_links_verified is True
   assert planner.diagnostics['one_step_domain'] is True
+  assert planner.diagnostics['use_trace_referenced_profile'] is False
   assert planner.diagnostics['canonical_reflected_domain_closed'] is False
   assert planner.diagnostics['physical_closure_pending'] is True
   incoming_points = planner.chain.cells[1].diagnostics['boundary_geometry'][
@@ -993,6 +999,31 @@ def test_reflected_domain_alternating_source_planner_carries_one_cell_handoff():
     [sample.state.x_m, sample.state.y_m]
     for sample in planner.chain.cells[0].continuation_boundary
   ]
+
+
+def test_reflected_domain_alternating_source_planner_can_opt_into_trace_profile():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  source = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+  )
+
+  planner = plan_reflected_domain_alternating_source_chain(
+    _canonical_field(),
+    source,
+    start_x_m=0.5,
+    end_x_m=1.0,
+    compression_amplitude_rad=0.05,
+    use_outer_seed_attachment=True,
+    use_trace_referenced_profile=True,
+  )
+
+  assert planner.chain.resolved
+  assert planner.chain.cell_count == 2
+  assert planner.diagnostics['use_outer_seed_attachment'] is True
+  assert planner.diagnostics['use_trace_referenced_profile'] is True
 
 
 def test_reflected_domain_alternating_source_sequence_requires_fresh_bands_and_carries_multiple_cells():

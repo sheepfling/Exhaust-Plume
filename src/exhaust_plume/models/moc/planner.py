@@ -7428,6 +7428,7 @@ def plan_reflected_domain_alternating_source_chain(
   compression_amplitude_rad: float,
   outer_source_index: int = 0,
   use_outer_seed_attachment: bool = False,
+  use_trace_referenced_profile: bool = False,
   target_centerline_y_m: float = 0.0,
   target_centerline_flow_angle_rad: float = 0.0,
   attachment_angle_half_width_rad: float = 1.0e-6,
@@ -7459,6 +7460,12 @@ def plan_reflected_domain_alternating_source_chain(
   newly generated outer source row and preserves the original one-step
   behavior.
 
+  ``use_trace_referenced_profile`` is a separate explicit research option.
+  It uses the exact retained reflected trace for the downstream turn law and
+  requires ``use_outer_seed_attachment``.  It is not enabled by default
+  because a trace-profile field can close at one resolution without exposing
+  a usable terminal trace for the next remesh.
+
   The generated shock field is eligible for the research chain lane only
   after its physical-field gates pass.  The planner remains non-production
   because the compression envelope is not the canonical reflected-plume
@@ -7480,6 +7487,12 @@ def plan_reflected_domain_alternating_source_chain(
     raise ValueError('end_x_m must be strictly downstream of start_x_m')
   if not isinstance(use_outer_seed_attachment, bool):
     raise ValueError('use_outer_seed_attachment must be a bool')
+  if not isinstance(use_trace_referenced_profile, bool):
+    raise ValueError('use_trace_referenced_profile must be a bool')
+  if use_trace_referenced_profile and not use_outer_seed_attachment:
+    raise ValueError(
+      'use_trace_referenced_profile requires use_outer_seed_attachment'
+    )
   cell_axial_length_m = float(end_x_m) - float(start_x_m)
 
   initial_decision: MocChainTerminationDecision | None = None
@@ -7529,6 +7542,7 @@ def plan_reflected_domain_alternating_source_chain(
       compression_amplitude_rad,
       outer_source_index=outer_source_index,
       use_outer_seed_attachment=use_outer_seed_attachment,
+      use_trace_referenced_profile=use_trace_referenced_profile,
       target_centerline_y_m=target_centerline_y_m,
       target_centerline_flow_angle_rad=target_centerline_flow_angle_rad,
       attachment_angle_half_width_rad=attachment_angle_half_width_rad,
@@ -7598,6 +7612,7 @@ def plan_reflected_domain_alternating_source_chain(
     ),
     'one_step_domain': True,
     'use_outer_seed_attachment': use_outer_seed_attachment,
+    'use_trace_referenced_profile': use_trace_referenced_profile,
     'alternating_source_reuse_policy': (
       'never-reuse-after-one-next-cell-attempt'
     ),
@@ -7629,6 +7644,7 @@ def plan_reflected_domain_alternating_source_chain_sequence(
   compression_amplitude_rad: float,
   outer_source_index: int = 0,
   use_outer_seed_attachment: bool = False,
+  use_trace_referenced_profile: bool = False,
   target_centerline_y_m: float = 0.0,
   target_centerline_flow_angle_rad: float = 0.0,
   attachment_angle_half_width_rad: float = 1.0e-6,
@@ -7664,6 +7680,11 @@ def plan_reflected_domain_alternating_source_chain_sequence(
   the retained outgoing reflection-interface seed from its fresh source
   patch.  The default keeps the existing first-outer-row attachment behavior
   for callers that are not yet using a reflected-interface continuation.
+
+  ``use_trace_referenced_profile`` separately opts into the exact reflected
+  trace turn law for each generated field.  It requires seed attachment and
+  remains disabled by default so the automatic multi-cell reference does not
+  silently change its continuation law.
   """
 
   if not isinstance(seed, MocPhysicalPostShockFieldResult):
@@ -7685,6 +7706,12 @@ def plan_reflected_domain_alternating_source_chain_sequence(
     raise ValueError('compression_amplitude_rad must be finite and positive')
   if not isinstance(use_outer_seed_attachment, bool):
     raise ValueError('use_outer_seed_attachment must be a bool')
+  if not isinstance(use_trace_referenced_profile, bool):
+    raise ValueError('use_trace_referenced_profile must be a bool')
+  if use_trace_referenced_profile and not use_outer_seed_attachment:
+    raise ValueError(
+      'use_trace_referenced_profile requires use_outer_seed_attachment'
+    )
   cell_axial_length_m = float(end_x_m) - float(start_x_m)
 
   active_field = seed
@@ -7924,6 +7951,7 @@ def plan_reflected_domain_alternating_source_chain_sequence(
         compression_amplitude_rad,
         outer_source_index=outer_source_index,
         use_outer_seed_attachment=use_outer_seed_attachment,
+        use_trace_referenced_profile=use_trace_referenced_profile,
         target_centerline_y_m=target_centerline_y_m,
         target_centerline_flow_angle_rad=target_centerline_flow_angle_rad,
         attachment_angle_half_width_rad=attachment_angle_half_width_rad,
@@ -8029,6 +8057,7 @@ def plan_reflected_domain_alternating_source_chain_sequence(
       'fresh-alternating-source-band-and-exact-incoming-handoff-required-per-cell'
     ),
     'use_outer_seed_attachment': use_outer_seed_attachment,
+    'use_trace_referenced_profile': use_trace_referenced_profile,
     'canonical_reflected_domain_closed': False,
     'physical_closure_pending': True,
     'canonical_free_boundary_pending': True,
@@ -8046,6 +8075,7 @@ def plan_reflected_domain_alternating_source_chain_from_physical_field(
   compression_amplitude_rad: float,
   source_sample_count: int = 6,
   outer_source_index: int = 0,
+  use_trace_referenced_profile: bool = False,
   target_centerline_y_m: float = 0.0,
   target_centerline_flow_angle_rad: float = 0.0,
   attachment_angle_half_width_rad: float = 1.0e-6,
@@ -8078,6 +8108,12 @@ def plan_reflected_domain_alternating_source_chain_from_physical_field(
   a typed non-physical chain stop; no stale source band or extrapolated state
   is substituted.
 
+  ``use_trace_referenced_profile`` is an explicit research option passed to
+  each physical-field continuation.  It requires the retained outer-seed
+  attachment mode and remains disabled by default because a profile can close
+  one sampled field without producing a usable terminal trace at the next
+  remesh resolution.
+
   This wrapper makes the solver-owned continuation path usable without a
   caller fabricating a fresh source callback.  It remains a research
   reference: the local compression envelope, canonical reflected
@@ -8087,6 +8123,8 @@ def plan_reflected_domain_alternating_source_chain_from_physical_field(
 
   if not isinstance(seed, MocPhysicalPostShockFieldResult):
     raise TypeError('seed must be a MocPhysicalPostShockFieldResult')
+  if not isinstance(use_trace_referenced_profile, bool):
+    raise ValueError('use_trace_referenced_profile must be a bool')
 
   def field_handoff(
     field: MocPhysicalPostShockFieldResult,
@@ -8312,6 +8350,7 @@ def plan_reflected_domain_alternating_source_chain_from_physical_field(
     compression_amplitude_rad=compression_amplitude_rad,
     outer_source_index=outer_source_index,
     use_outer_seed_attachment=True,
+    use_trace_referenced_profile=use_trace_referenced_profile,
     target_centerline_y_m=target_centerline_y_m,
     target_centerline_flow_angle_rad=target_centerline_flow_angle_rad,
     attachment_angle_half_width_rad=attachment_angle_half_width_rad,
@@ -8347,6 +8386,7 @@ def plan_reflected_domain_alternating_source_chain_from_physical_field(
       'never-reuse-or-extrapolate-a-prior-source-band'
     ),
     'use_outer_seed_attachment': True,
+    'use_trace_referenced_profile': use_trace_referenced_profile,
     'canonical_reflected_domain_closed': False,
     'canonical_free_boundary_pending': True,
     'external_validation_pending': True,

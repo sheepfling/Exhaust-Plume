@@ -58,7 +58,9 @@ from exhaust_plume.models.moc.source_strip import (
 from exhaust_plume.models.moc.terminal_patch import (
   MocReflectedTracePolarity,
   MocReflectedTracePolarityResult,
+  MocReflectedTraceCompressionProfile,
   MocTerminalReflectionPatchResult,
+  build_reflected_trace_compression_profile,
   classify_reflected_trace_polarity,
 )
 from exhaust_plume.models.moc.topology import MocTopologyResult, validate_moc_mesh
@@ -928,6 +930,7 @@ class MocReflectedDomainAlternatingPhysicalFieldResult:
     'alternating-source-local-compression-envelope'
   )
   attachment_source: str = 'alternating-outer-source-row'
+  use_trace_referenced_profile: bool = False
   position_tolerance_m: float = 1.0e-9
   shock_angle_tolerance_rad: float = 1.0e-2
   message: str = ''
@@ -1014,6 +1017,8 @@ class MocReflectedDomainAlternatingPhysicalFieldResult:
       raise ValueError('continuation_law must be a non-empty string')
     if not isinstance(self.attachment_source, str) or not self.attachment_source:
       raise ValueError('attachment_source must be a non-empty string')
+    if not isinstance(self.use_trace_referenced_profile, bool):
+      raise TypeError('use_trace_referenced_profile must be a bool')
     position_tolerance = float(self.position_tolerance_m)
     if not isfinite(position_tolerance) or position_tolerance <= 0.0:
       raise ValueError('position_tolerance_m must be finite and positive')
@@ -1154,6 +1159,7 @@ class MocReflectedDomainAlternatingPhysicalFieldResult:
       'incoming_handoff_sample_count': len(self.incoming_handoff),
       'continuation_law': self.continuation_law,
       'attachment_source': self.attachment_source,
+      'use_trace_referenced_profile': self.use_trace_referenced_profile,
       'position_tolerance_m': self.position_tolerance_m,
       'shock_sample_count': (
         None if shock is None else len(shock.shock_points_m)
@@ -1702,6 +1708,7 @@ def solve_reflected_domain_alternating_physical_field(
   *,
   outer_source_index: int = 0,
   use_outer_seed_attachment: bool = False,
+  use_trace_referenced_profile: bool = False,
   target_centerline_y_m: float = 0.0,
   target_centerline_flow_angle_rad: float = 0.0,
   attachment_angle_half_width_rad: float = 1.0e-6,
@@ -1733,12 +1740,20 @@ def solve_reflected_domain_alternating_physical_field(
   and prevents the fast source band from being silently promoted as a
   canonical reflected-plume shock law.
 
+  ``use_trace_referenced_profile`` is a separate, explicit research option.
+  When enabled with ``use_outer_seed_attachment``, the exact reflected
+  outgoing trace supplies the profile baseline.  It is kept separate from
+  ordinary seed attachment because a profile can close one sampled field
+  while still producing a terminal trace that is not suitable for the next
+  remesh at that resolution.
+
   The source callbacks remain bounded by ``source_band``.  If a candidate
   shock leaves that finite source domain, the underlying physical solver
   returns a typed upstream-field failure; no extrapolated state is inserted.
   """
 
   continuation_law = 'alternating-source-local-compression-envelope'
+  compression_profile: MocReflectedTraceCompressionProfile | None = None
   band = (
     source_band
     if isinstance(source_band, MocReflectedDomainAlternatingSourceResult)
@@ -1773,6 +1788,11 @@ def solve_reflected_domain_alternating_physical_field(
   resolved_seed_attachment = (
     use_outer_seed_attachment
     if isinstance(use_outer_seed_attachment, bool)
+    else False
+  )
+  resolved_trace_profile = (
+    use_trace_referenced_profile
+    if isinstance(use_trace_referenced_profile, bool)
     else False
   )
   attachment_source = (
@@ -1827,6 +1847,7 @@ def solve_reflected_domain_alternating_physical_field(
       incoming_handoff=resolved_incoming_handoff,
       continuation_law=continuation_law,
       attachment_source=attachment_source,
+      use_trace_referenced_profile=resolved_trace_profile,
       position_tolerance_m=resolved_position_tolerance,
       shock_angle_tolerance_rad=(
         resolved_shock_angle_tolerance
@@ -1851,6 +1872,16 @@ def solve_reflected_domain_alternating_physical_field(
     return failure(
       MocReflectedDomainAlternatingPhysicalFieldStatus.INVALID_INPUT,
       'use_outer_seed_attachment must be a bool',
+    )
+  if not isinstance(use_trace_referenced_profile, bool):
+    return failure(
+      MocReflectedDomainAlternatingPhysicalFieldStatus.INVALID_INPUT,
+      'use_trace_referenced_profile must be a bool',
+    )
+  if resolved_trace_profile and not resolved_seed_attachment:
+    return failure(
+      MocReflectedDomainAlternatingPhysicalFieldStatus.INVALID_INPUT,
+      'use_trace_referenced_profile requires use_outer_seed_attachment',
     )
   if not band.source_field_verified:
     return failure(
@@ -1938,6 +1969,35 @@ def solve_reflected_domain_alternating_physical_field(
       MocReflectedDomainAlternatingPhysicalFieldStatus.SOURCE_FIELD_FAILURE,
       'alternating source band does not retain an outer seed attachment state',
     )
+  if resolved_seed_attachment and resolved_trace_profile:
+    if band.reflection_patch is None:
+      return failure(
+        MocReflectedDomainAlternatingPhysicalFieldStatus.SOURCE_FIELD_FAILURE,
+        'outer-seed attachment requires the exact reflected trace source',
+      )
+    try:
+      compression_profile = build_reflected_trace_compression_profile(
+        band.reflection_patch.outgoing_trace_samples,
+        amplitude,
+        target_centerline_y_m=target_y,
+        target_centerline_flow_angle_rad=target_theta,
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      return failure(
+        MocReflectedDomainAlternatingPhysicalFieldStatus.SOURCE_FIELD_FAILURE,
+        f'outer-seed reflected trace compression profile is invalid: {error}',
+      )
+    if not _state_matches(
+      source_state,
+      compression_profile.source_trace[0].state,
+      position_tolerance_m=float(position_tolerance_m),
+      state_tolerance=float(invariant_tolerance),
+    ):
+      return failure(
+        MocReflectedDomainAlternatingPhysicalFieldStatus.SOURCE_FIELD_FAILURE,
+        'outer-seed attachment state does not match the exact reflected trace start',
+      )
+    continuation_law = compression_profile.model
   start_point = (source_state.x_m, source_state.y_m)
   bracket = (
     source_state.theta_rad - half_width,
@@ -1976,9 +2036,11 @@ def solve_reflected_domain_alternating_physical_field(
     )
 
   def downstream_flow_angle_at(
-    _index: int,
+    index: int,
     point_m: tuple[float, float],
   ) -> float:
+    if compression_profile is not None:
+      return compression_profile.flow_angle_at(index, point_m)
     ordinate = float(point_m[1])
     fraction = (ordinate - target_y) / denominator
     if fraction < -1.0e-8 or fraction > 1.0 + 1.0e-8:
@@ -2069,6 +2131,7 @@ def solve_reflected_domain_alternating_physical_field(
       incoming_handoff=resolved_incoming_handoff,
       continuation_law=continuation_law,
       attachment_source=attachment_source,
+      use_trace_referenced_profile=resolved_trace_profile,
       position_tolerance_m=float(position_tolerance_m),
       shock_angle_tolerance_rad=float(shock_angle_tolerance_rad),
       message=(

@@ -774,3 +774,21 @@ production provider: the local envelope must still be replaced by a canonical
 reflected free-boundary/mixed-regime closure and compared against refinement
 and external observations. Basic/visual, reduced-order, signature, ray, and
 focal-plane-array providers remain isolated.
+
+## Trace-profile continuation boundary checkpoint
+
+The alternating physical-field solver now exposes the exact reflected-trace
+compression profile as a separate `use_trace_referenced_profile` option. When
+selected together with outer-seed attachment, the downstream turn callback is
+recomputed from the retained outgoing `C-` trace rather than from the local
+alternating-band state. The independent field measurement reconstructs that
+profile from raw trace samples and checks the same endpoint and interior law.
+
+This option is deliberately not the default for the automatic multi-cell
+planner. A profile can close an individual sampled field while its terminal
+trace is not usable for the next remesh at that resolution; the default chain
+therefore retains the prior local-envelope behavior and its existing fresh
+domain/typed-stop gates. The profile mode remains a bounded research
+experiment, with canonical reflected remeshing, mixed-regime/free-boundary
+coupling, refinement, external observations, and product promotion still
+blocked.

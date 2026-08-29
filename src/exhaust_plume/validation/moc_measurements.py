@@ -91,7 +91,9 @@ from exhaust_plume.models.moc.source_strip import (
   assemble_source_characteristic_strip_with_source_pressures,
 )
 from exhaust_plume.models.moc.terminal_patch import (
+  MocReflectedTraceCompressionProfile,
   MocTerminalReflectionPatchResult,
+  build_reflected_trace_compression_profile,
   classify_reflected_trace_polarity,
 )
 from exhaust_plume.models.moc.topology import MocTopologyResult, validate_moc_mesh
@@ -8691,6 +8693,7 @@ def measure_moc_reflected_domain_alternating_physical_field(
     attachment is not None and attachment.zero_strength_attachment
   )
   envelope_verified = False
+  compression_profile: MocReflectedTraceCompressionProfile | None = None
   upstream_coupling_verified = False
   incoming_handoff_verified = False
 
@@ -8759,6 +8762,34 @@ def measure_moc_reflected_domain_alternating_physical_field(
     denominator = source_state.y_m - source_band.target_centerline_y_m
     if denominator > source_band.position_tolerance_m:
       envelope_verified = True
+      if result.continuation_law == (
+        'reflected-trace-referenced-compression-envelope'
+      ):
+        try:
+          if (
+            source_band.reflection_patch is None
+            or result.compression_amplitude_rad is None
+          ):
+            raise ValueError(
+              'reflected trace and compression amplitude are required'
+            )
+          compression_profile = build_reflected_trace_compression_profile(
+            source_band.reflection_patch.outgoing_trace_samples,
+            result.compression_amplitude_rad,
+            target_centerline_y_m=source_band.target_centerline_y_m,
+            target_centerline_flow_angle_rad=(
+              source_band.target_centerline_flow_angle_rad
+            ),
+          )
+          envelope_verified = _caustic_state_matches(
+            source_state,
+            compression_profile.source_trace[0].state,
+            position_tolerance_m=source_sampling_position_tolerance,
+            state_tolerance=source_band.invariant_tolerance,
+          )
+        except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+          compression_profile = None
+          envelope_verified = False
       for index, (point, target_angle) in enumerate(zip(
         shock.shock_points_m,
         shock.downstream_flow_angles_rad,
@@ -8771,7 +8802,13 @@ def measure_moc_reflected_domain_alternating_physical_field(
           envelope_verified = False
           break
         fraction = max(0.0, min(1.0, fraction))
-        if index == len(shock.shock_points_m) - 1:
+        if compression_profile is not None:
+          try:
+            expected_angle = compression_profile.flow_angle_at(index, point)
+          except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+            envelope_verified = False
+            break
+        elif index == len(shock.shock_points_m) - 1:
           expected_angle = source_band.target_centerline_flow_angle_rad
         else:
           state = source_band.state_at(
