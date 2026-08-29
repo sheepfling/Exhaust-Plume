@@ -109,7 +109,9 @@ from exhaust_plume.models.moc.euler_first_wedge_remesh import (
 )
 from exhaust_plume.models.moc.euler_terminal_wedge import (
   MocEulerAmbientFirstWedgeCharacteristicResult,
+  MocEulerAmbientFirstWedgeCharacteristicFieldResult,
   solve_euler_ambient_first_wedge_characteristic_remesh,
+  remesh_euler_ambient_first_wedge_characteristic_field,
 )
 from exhaust_plume.models.moc.euler_physical_field import (
   MocEulerAmbientPhysicalFieldResult,
@@ -226,6 +228,9 @@ __all__ = (
   'MocEulerAmbientFirstWedgeCharacteristicPlannerStep',
   'MocEulerAmbientFirstWedgeCharacteristicPlannerResult',
   'plan_euler_ambient_first_wedge_characteristic_remesh',
+  'MocEulerAmbientFirstWedgeCharacteristicFieldPlannerStep',
+  'MocEulerAmbientFirstWedgeCharacteristicFieldPlannerResult',
+  'plan_euler_ambient_first_wedge_characteristic_field',
   'MocEulerPostShockFieldContinuationSolve',
   'MocEulerPostShockFieldChainStep',
   'MocEulerPostShockFieldChainPlannerResult',
@@ -10675,6 +10680,273 @@ def plan_euler_ambient_first_wedge_characteristic_remesh(
     result_production_claim_allowed=candidate.production_claim_allowed,
   )
   return result(candidate.as_chain_termination_decision())
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerAmbientFirstWedgeCharacteristicFieldPlannerStep:
+  """One solver-owned local field-retile attempt before chain promotion."""
+
+  source_field_status: str
+  result_status: str
+  result_kind: str
+  result_converged: bool
+  result_retiled_field_status: str | None
+  result_replaced_cell_count: int
+  result_topology_verified: bool
+  result_boundary_paths_verified: bool
+  result_terminal_geometry_verified: bool
+  result_variable_entropy_compatibility_verified: bool
+  result_cell_euler_residual_verified: bool
+  result_physical_closure_verified: bool
+  result_chain_promotion_blocked: bool
+  result_production_claim_allowed: bool
+
+  def __post_init__(self) -> None:
+    for name in ('source_field_status', 'result_status', 'result_kind'):
+      value = getattr(self, name)
+      if not isinstance(value, str) or not value:
+        raise ValueError(f'{name} must be a non-empty string')
+    if self.result_retiled_field_status is not None:
+      if not isinstance(self.result_retiled_field_status, str) or not self.result_retiled_field_status:
+        raise ValueError('result_retiled_field_status must be a non-empty string or None')
+    if (
+      isinstance(self.result_replaced_cell_count, bool)
+      or not isinstance(self.result_replaced_cell_count, int)
+      or self.result_replaced_cell_count < 0
+    ):
+      raise ValueError('result_replaced_cell_count must be a nonnegative integer')
+    for name in (
+      'result_converged',
+      'result_topology_verified',
+      'result_boundary_paths_verified',
+      'result_terminal_geometry_verified',
+      'result_variable_entropy_compatibility_verified',
+      'result_cell_euler_residual_verified',
+      'result_physical_closure_verified',
+      'result_chain_promotion_blocked',
+      'result_production_claim_allowed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'source_field_status': self.source_field_status,
+      'result_status': self.result_status,
+      'result_kind': self.result_kind,
+      'result_converged': self.result_converged,
+      'result_retiled_field_status': self.result_retiled_field_status,
+      'result_replaced_cell_count': self.result_replaced_cell_count,
+      'checks': {
+        'topology_verified': self.result_topology_verified,
+        'boundary_paths_verified': self.result_boundary_paths_verified,
+        'terminal_geometry_verified': self.result_terminal_geometry_verified,
+        'variable_entropy_compatibility_verified': (
+          self.result_variable_entropy_compatibility_verified
+        ),
+        'cell_euler_residual_verified': self.result_cell_euler_residual_verified,
+        'physical_closure_verified': self.result_physical_closure_verified,
+        'chain_promotion_blocked': self.result_chain_promotion_blocked,
+        'production_claim_allowed': self.result_production_claim_allowed,
+      },
+    }
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerAmbientFirstWedgeCharacteristicFieldPlannerResult:
+  """A local field retile and its explicit pre-chain fidelity stop."""
+
+  seed: MocEulerAmbientPhysicalFieldResult
+  field_retile: MocEulerAmbientFirstWedgeCharacteristicFieldResult | None
+  step: MocEulerAmbientFirstWedgeCharacteristicFieldPlannerStep | None
+  termination: MocChainTerminationDecision
+  planner_kind: MocChainPlannerKind
+  claim_status: str
+  diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.seed, MocEulerAmbientPhysicalFieldResult):
+      raise TypeError('seed must be a MocEulerAmbientPhysicalFieldResult')
+    if self.field_retile is not None and not isinstance(
+      self.field_retile,
+      MocEulerAmbientFirstWedgeCharacteristicFieldResult,
+    ):
+      raise TypeError(
+        'field_retile must be a '
+        'MocEulerAmbientFirstWedgeCharacteristicFieldResult or None'
+      )
+    if self.step is not None and not isinstance(
+      self.step,
+      MocEulerAmbientFirstWedgeCharacteristicFieldPlannerStep,
+    ):
+      raise TypeError(
+        'step must be a '
+        'MocEulerAmbientFirstWedgeCharacteristicFieldPlannerStep or None'
+      )
+    if (self.field_retile is None) != (self.step is None):
+      raise ValueError('field_retile and step must be supplied together')
+    if not isinstance(self.termination, MocChainTerminationDecision):
+      raise TypeError('termination must be a MocChainTerminationDecision')
+    if self.planner_kind is not MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH:
+      raise ValueError(
+        'characteristic field-retile planner must use the upstream-coupled '
+        'research planner kind'
+      )
+    object.__setattr__(self, 'claim_status', str(self.claim_status))
+    object.__setattr__(self, 'diagnostics', MappingProxyType(dict(self.diagnostics)))
+
+  @property
+  def attempted(self) -> bool:
+    return self.field_retile is not None
+
+  @property
+  def resolved(self) -> bool:
+    """Whether the retile attempt reached a typed non-physical stop."""
+
+    return bool(
+      self.field_retile is not None
+      and self.termination.reason is MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+    )
+
+  @property
+  def physical_chain_cell_count(self) -> int:
+    return 0
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    return False
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    return True
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    return False
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'planner_kind': self.planner_kind.value,
+      'planning_only': True,
+      'claim_status': self.claim_status,
+      'attempted': self.attempted,
+      'resolved': self.resolved,
+      'physical_chain_cell_count': self.physical_chain_cell_count,
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'field_retile': (
+        None if self.field_retile is None else self.field_retile.as_report()
+      ),
+      'step': None if self.step is None else self.step.as_report(),
+      'termination': self.termination.as_report(),
+      'diagnostics': dict(self.diagnostics),
+    }
+
+
+def plan_euler_ambient_first_wedge_characteristic_field(
+  seed: MocEulerAmbientPhysicalFieldResult,
+  *,
+  position_tolerance_m: float = 1.0e-10,
+  characteristic_residual_tolerance: float = 1.0e-8,
+  edge_alignment_tolerance: float = 0.25,
+  cell_residual_tolerance: float = 1.0e-2,
+) -> MocEulerAmbientFirstWedgeCharacteristicFieldPlannerResult:
+  """Plan the local field retile and stop before a physical chain cell."""
+
+  if not isinstance(seed, MocEulerAmbientPhysicalFieldResult):
+    raise TypeError('seed must be a MocEulerAmbientPhysicalFieldResult')
+  try:
+    position_tolerance = float(position_tolerance_m)
+    residual_tolerance = float(characteristic_residual_tolerance)
+    alignment_tolerance = float(edge_alignment_tolerance)
+    cell_tolerance = float(cell_residual_tolerance)
+  except (TypeError, ValueError) as error:
+    raise ValueError('characteristic field planner tolerances must be numeric') from error
+  for name, value in (
+    ('position_tolerance_m', position_tolerance),
+    ('characteristic_residual_tolerance', residual_tolerance),
+    ('edge_alignment_tolerance', alignment_tolerance),
+    ('cell_residual_tolerance', cell_tolerance),
+  ):
+    if not isfinite(value) or value <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+  field_retile: MocEulerAmbientFirstWedgeCharacteristicFieldResult | None = None
+  step: MocEulerAmbientFirstWedgeCharacteristicFieldPlannerStep | None = None
+
+  def result(
+    termination: MocChainTerminationDecision,
+  ) -> MocEulerAmbientFirstWedgeCharacteristicFieldPlannerResult:
+    return MocEulerAmbientFirstWedgeCharacteristicFieldPlannerResult(
+      seed=seed,
+      field_retile=field_retile,
+      step=step,
+      termination=termination,
+      planner_kind=MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH,
+      claim_status=(
+        'solver-owned-terminal-characteristic-field-retile-planner; '
+        'multi-cell entropy transport, reflected free-boundary continuation, '
+        'and external validation pending'
+      ),
+      diagnostics={
+        'planner_model': 'euler-ambient-first-wedge-characteristic-field-retile',
+        'retile_consumed_as_chain_cell': False,
+        'physical_chain_cell_count': 0,
+        'local_retile_policy': 'retain-for-audit; never-create-moc-chain-cell',
+        'position_tolerance_m': position_tolerance,
+        'characteristic_residual_tolerance': residual_tolerance,
+        'edge_alignment_tolerance': alignment_tolerance,
+        'cell_residual_tolerance': cell_tolerance,
+        'physical_closure_verified': False,
+        'chain_promotion_blocked': True,
+        'production_claim_allowed': False,
+      },
+    )
+
+  try:
+    field_retile = remesh_euler_ambient_first_wedge_characteristic_field(
+      seed,
+      position_tolerance_m=position_tolerance,
+      characteristic_residual_tolerance=residual_tolerance,
+      edge_alignment_tolerance=alignment_tolerance,
+      cell_residual_tolerance=cell_tolerance,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return result(
+      MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_ERROR,
+        message=f'characteristic field-retile planner raised: {error}',
+        diagnostics={
+          'planner_model': 'euler-ambient-first-wedge-characteristic-field-retile',
+          'solver_error': type(error).__name__,
+          'retile_consumed_as_chain_cell': False,
+        },
+      )
+    )
+  step = MocEulerAmbientFirstWedgeCharacteristicFieldPlannerStep(
+    source_field_status=seed.status.value,
+    result_status=field_retile.status.value,
+    result_kind='solver-owned-terminal-characteristic-field-retile',
+    result_converged=field_retile.converged,
+    result_retiled_field_status=(
+      None
+      if field_retile.retiled_field is None
+      else field_retile.retiled_field.status.value
+    ),
+    result_replaced_cell_count=len(field_retile.replaced_cell_indices),
+    result_topology_verified=field_retile.retiled_field_topology_verified,
+    result_boundary_paths_verified=field_retile.boundary_paths_verified,
+    result_terminal_geometry_verified=field_retile.terminal_geometry_verified,
+    result_variable_entropy_compatibility_verified=(
+      field_retile.variable_entropy_compatibility_verified
+    ),
+    result_cell_euler_residual_verified=field_retile.cell_euler_residual_verified,
+    result_physical_closure_verified=field_retile.physical_closure_verified,
+    result_chain_promotion_blocked=field_retile.chain_promotion_blocked,
+    result_production_claim_allowed=field_retile.production_claim_allowed,
+  )
+  return result(field_retile.as_chain_termination_decision())
 
 
 @dataclass(frozen=True, slots=True)

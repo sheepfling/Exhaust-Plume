@@ -2707,3 +2707,20 @@ residual gates still fail. Its planner records the candidate, contributes zero
 physical chain cells, and stops with ``FIDELITY_NOT_ALLOWED``. The next gate
 is a multi-cell entropy-carrying terminal remesh coupled to the complete
 ambient/reflected free boundary.
+
+The next local field seam now retilees that corrected triangle together with
+the immediately adjacent centerline strip. The solver replaces only the two
+affected cells and the matching centerline sample, retains the untouched
+field cells, and exposes the raw snapshot for visualization and audit. The
+retiled mesh is connected with one explicit perimeter and all 53 cell vertex
+states/total-pressure samples remain finite on the reference case. Its field
+status is intentionally ``invariant_failure`` rather than converged, so the
+ordinary field sampler and every continued-chain adapter reject it. The
+independent
+``op.moc.euler-ambient-first-wedge-characteristic-field-audit`` rechecks the
+retiled topology, shock/ambient/centerline paths, raw state/pressure samples,
+all cell Euler residuals, the terminal entropy audit, and the non-promotion
+barrier. The canonical result remains an expected entropy/Euler boundary with
+zero physical chain cells; it is not a production field and does not alter
+the basic visualization, signature, ray-transfer, or focal-plane-array
+providers.

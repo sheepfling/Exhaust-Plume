@@ -123,6 +123,9 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   terminal_wedge = report['geometry_cases'][
     'euler_ambient_first_wedge_terminal_characteristic'
   ]
+  characteristic_field = report['geometry_cases'][
+    'euler_ambient_first_wedge_characteristic_field'
+  ]
   ambient_attachment = report['geometry_cases']['ambient_attachment_closure_probe']
   ambient_transition = report['geometry_cases']['ambient_attachment_transition_probe']
   ambient_closure = report['geometry_cases']['ambient_pressure_closure_probe']
@@ -194,6 +197,30 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
     'variable_entropy_compatibility_verified': False,
     'cell_euler_residual_finite': True,
     'cell_euler_residual_verified': False,
+    'solver_status_consistent': True,
+    'physical_closure_verified': False,
+    'chain_promotion_blocked': True,
+    'production_claim_allowed': False,
+  }
+  assert characteristic_field['planner']['resolved'] is True
+  assert characteristic_field['planner']['physical_chain_cell_count'] == 0
+  assert characteristic_field['planner']['field_retile']['status'] == (
+    'euler_ambient_first_wedge_characteristic_field_entropy_failure'
+  )
+  assert characteristic_field['planner']['field_retile']['replaced_cell_indices'] == (
+    16,
+    17,
+  )
+  assert characteristic_field['independent_audit']['status'] == (
+    'euler_ambient_first_wedge_characteristic_field_entropy_failure'
+  )
+  assert characteristic_field['independent_audit']['checks'] == {
+    'topology_verified': True,
+    'boundary_paths_verified': True,
+    'state_samples_finite': True,
+    'cell_euler_residuals_finite': True,
+    'cell_euler_residuals_verified': False,
+    'retiled_field_status_barrier_verified': True,
     'solver_status_consistent': True,
     'physical_closure_verified': False,
     'chain_promotion_blocked': True,

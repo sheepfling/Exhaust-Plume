@@ -26,6 +26,11 @@ from exhaust_plume.models.moc.euler_first_wedge_remesh import (
 from exhaust_plume.models.moc.euler_terminal_wedge import (
   MocEulerAmbientFirstWedgeCharacteristicResult,
   MocEulerAmbientFirstWedgeCharacteristicStatus,
+  MocEulerAmbientFirstWedgeCharacteristicFieldResult,
+  MocEulerAmbientFirstWedgeCharacteristicFieldStatus,
+)
+from exhaust_plume.models.moc.physical_cell import (
+  MocPhysicalPostShockFieldStatus,
 )
 from exhaust_plume.models.moc.primitives import (
   CharacteristicFamily,
@@ -44,6 +49,10 @@ __all__ = (
   'MocEulerAmbientFirstWedgeTerminalCharacteristicAuditStatus',
   'MocEulerAmbientFirstWedgeTerminalCharacteristicAudit',
   'measure_moc_euler_ambient_first_wedge_terminal_characteristic_audit',
+  'MOC_EULER_AMBIENT_FIRST_WEDGE_CHARACTERISTIC_FIELD_AUDIT_OPERATOR_ID',
+  'MocEulerAmbientFirstWedgeCharacteristicFieldAuditStatus',
+  'MocEulerAmbientFirstWedgeCharacteristicFieldAudit',
+  'measure_moc_euler_ambient_first_wedge_characteristic_field_audit',
 )
 
 
@@ -1199,5 +1208,616 @@ def measure_moc_euler_ambient_first_wedge_terminal_characteristic_audit(
     characteristic_residual_tolerance=residual_tolerance,
     edge_alignment_tolerance=alignment_tolerance,
     cell_residual_tolerance=cell_tolerance,
+    message=message,
+  )
+
+
+MOC_EULER_AMBIENT_FIRST_WEDGE_CHARACTERISTIC_FIELD_AUDIT_OPERATOR_ID = (
+  'op.moc.euler-ambient-first-wedge-characteristic-field-audit'
+)
+
+
+class MocEulerAmbientFirstWedgeCharacteristicFieldAuditStatus(str, Enum):
+  """Outcome of the independent local characteristic-field retile audit."""
+
+  CONVERGED_LOCAL_AUDIT = (
+    'converged_euler_ambient_first_wedge_characteristic_field_audit'
+  )
+  INVALID_INPUT = 'invalid_input'
+  FIELD_FAILURE = 'euler_ambient_first_wedge_characteristic_field_failure'
+  TOPOLOGY_FAILURE = (
+    'euler_ambient_first_wedge_characteristic_field_topology_failure'
+  )
+  PATH_FAILURE = (
+    'euler_ambient_first_wedge_characteristic_field_boundary_path_failure'
+  )
+  STATE_FAILURE = (
+    'euler_ambient_first_wedge_characteristic_field_state_failure'
+  )
+  CHARACTERISTIC_GEOMETRY_FAILURE = (
+    'euler_ambient_first_wedge_characteristic_field_geometry_failure'
+  )
+  ENTROPY_FAILURE = (
+    'euler_ambient_first_wedge_characteristic_field_entropy_failure'
+  )
+  EULER_RESIDUAL_FAILURE = (
+    'euler_ambient_first_wedge_characteristic_field_euler_residual_failure'
+  )
+  FIELD_EULER_RESIDUAL_FAILURE = (
+    'euler_ambient_first_wedge_characteristic_field_full_euler_residual_failure'
+  )
+  FLAG_FAILURE = (
+    'euler_ambient_first_wedge_characteristic_field_flag_failure'
+  )
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerAmbientFirstWedgeCharacteristicFieldAudit:
+  """Independent raw-mesh evidence for the two-cell characteristic retile."""
+
+  status: MocEulerAmbientFirstWedgeCharacteristicFieldAuditStatus
+  solver_status: str | None
+  retiled_field_status: str | None
+  replaced_cell_indices: tuple[int, ...]
+  cell_count: int
+  sampled_cell_count: int
+  cell_euler_residuals: tuple[float, ...]
+  replaced_cell_euler_residuals: tuple[float, ...]
+  maximum_cell_euler_residual: float | None
+  maximum_replaced_cell_euler_residual: float | None
+  topology_verified: bool
+  boundary_paths_verified: bool
+  state_samples_finite: bool
+  cell_euler_residuals_finite: bool
+  cell_euler_residuals_verified: bool
+  retiled_field_status_barrier_verified: bool
+  solver_status_consistent: bool
+  terminal_characteristic_audit_status: str | None
+  physical_closure_verified: bool = False
+  chain_promotion_blocked: bool = True
+  production_claim_allowed: bool = False
+  residual_tolerance: float = 1.0e-2
+  position_tolerance_m: float = 1.0e-10
+  message: str = ''
+  operator_id: str = (
+    MOC_EULER_AMBIENT_FIRST_WEDGE_CHARACTERISTIC_FIELD_AUDIT_OPERATOR_ID
+  )
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocEulerAmbientFirstWedgeCharacteristicFieldAuditStatus,
+    ):
+      raise TypeError(
+        'status must be a '
+        'MocEulerAmbientFirstWedgeCharacteristicFieldAuditStatus'
+      )
+    for name in ('solver_status', 'retiled_field_status', 'terminal_characteristic_audit_status'):
+      value = getattr(self, name)
+      if value is not None:
+        object.__setattr__(self, name, str(value))
+    replaced_indices = tuple(self.replaced_cell_indices)
+    if any(
+      isinstance(index, bool) or not isinstance(index, int) or index < 0
+      for index in replaced_indices
+    ):
+      raise ValueError('replaced_cell_indices must contain nonnegative integers')
+    object.__setattr__(self, 'replaced_cell_indices', replaced_indices)
+    for name in ('cell_count', 'sampled_cell_count'):
+      value = getattr(self, name)
+      if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f'{name} must be a nonnegative integer')
+    residual_tolerance = float(self.residual_tolerance)
+    position_tolerance = float(self.position_tolerance_m)
+    if not isfinite(residual_tolerance) or residual_tolerance <= 0.0:
+      raise ValueError('residual_tolerance must be finite and positive')
+    if not isfinite(position_tolerance) or position_tolerance <= 0.0:
+      raise ValueError('position_tolerance_m must be finite and positive')
+    object.__setattr__(self, 'residual_tolerance', residual_tolerance)
+    object.__setattr__(self, 'position_tolerance_m', position_tolerance)
+    for name in ('cell_euler_residuals', 'replaced_cell_euler_residuals'):
+      values = tuple(float(value) for value in getattr(self, name))
+      if any(not isfinite(value) or value < 0.0 for value in values):
+        raise ValueError(f'{name} must contain finite nonnegative values')
+      object.__setattr__(self, name, values)
+    for name in (
+      'maximum_cell_euler_residual',
+      'maximum_replaced_cell_euler_residual',
+    ):
+      value = getattr(self, name)
+      if value is not None:
+        numeric = float(value)
+        if not isfinite(numeric) or numeric < 0.0:
+          raise ValueError(f'{name} must be finite and nonnegative when supplied')
+        object.__setattr__(self, name, numeric)
+    for name in (
+      'topology_verified',
+      'boundary_paths_verified',
+      'state_samples_finite',
+      'cell_euler_residuals_finite',
+      'cell_euler_residuals_verified',
+      'retiled_field_status_barrier_verified',
+      'solver_status_consistent',
+      'physical_closure_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+    if self.physical_closure_verified:
+      raise ValueError(
+        'a local characteristic field audit cannot claim physical closure'
+      )
+    if self.production_claim_allowed:
+      raise ValueError(
+        'a local characteristic field audit cannot claim production validity'
+      )
+    operator_id = str(self.operator_id)
+    if not operator_id:
+      raise ValueError('operator_id must be a non-empty string')
+    object.__setattr__(self, 'operator_id', operator_id)
+    object.__setattr__(self, 'message', str(self.message))
+
+  @property
+  def converged(self) -> bool:
+    return self.status is (
+      MocEulerAmbientFirstWedgeCharacteristicFieldAuditStatus
+      .CONVERGED_LOCAL_AUDIT
+    )
+
+  @property
+  def local_consistency_verified(self) -> bool:
+    return bool(
+      self.converged
+      and self.topology_verified
+      and self.boundary_paths_verified
+      and self.state_samples_finite
+      and self.cell_euler_residuals_finite
+      and self.cell_euler_residuals_verified
+      and self.retiled_field_status_barrier_verified
+      and self.solver_status_consistent
+      and not self.physical_closure_verified
+      and self.chain_promotion_blocked
+      and not self.production_claim_allowed
+    )
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'operator_id': self.operator_id,
+      'solver_status': self.solver_status,
+      'retiled_field_status': self.retiled_field_status,
+      'terminal_characteristic_audit_status': (
+        self.terminal_characteristic_audit_status
+      ),
+      'converged': self.converged,
+      'local_consistency_verified': self.local_consistency_verified,
+      'replaced_cell_indices': list(self.replaced_cell_indices),
+      'cell_count': self.cell_count,
+      'sampled_cell_count': self.sampled_cell_count,
+      'cell_euler_residuals': list(self.cell_euler_residuals),
+      'replaced_cell_euler_residuals': list(self.replaced_cell_euler_residuals),
+      'maximum_cell_euler_residual': self.maximum_cell_euler_residual,
+      'maximum_replaced_cell_euler_residual': (
+        self.maximum_replaced_cell_euler_residual
+      ),
+      'checks': {
+        'topology_verified': self.topology_verified,
+        'boundary_paths_verified': self.boundary_paths_verified,
+        'state_samples_finite': self.state_samples_finite,
+        'cell_euler_residuals_finite': self.cell_euler_residuals_finite,
+        'cell_euler_residuals_verified': self.cell_euler_residuals_verified,
+        'retiled_field_status_barrier_verified': (
+          self.retiled_field_status_barrier_verified
+        ),
+        'solver_status_consistent': self.solver_status_consistent,
+        'physical_closure_verified': self.physical_closure_verified,
+        'chain_promotion_blocked': self.chain_promotion_blocked,
+        'production_claim_allowed': self.production_claim_allowed,
+      },
+      'residual_tolerance': self.residual_tolerance,
+      'position_tolerance_m': self.position_tolerance_m,
+      'canonical_reflected_free_boundary_verified': False,
+      'external_validation_verified': False,
+      'claim_status': (
+        'independent-local-characteristic-field-retile audit; complete '
+        'entropy transport, reflected free-boundary continuation, and '
+        'external validation remain pending'
+      ),
+      'message': self.message,
+    }
+
+
+def _characteristic_field_audit_failure(
+  status: MocEulerAmbientFirstWedgeCharacteristicFieldAuditStatus,
+  message: str,
+  *,
+  solver_status: str | None = None,
+  retiled_field_status: str | None = None,
+  replaced_cell_indices: Sequence[int] = (),
+  cell_count: int = 0,
+  sampled_cell_count: int = 0,
+  cell_euler_residuals: Sequence[float] = (),
+  replaced_cell_euler_residuals: Sequence[float] = (),
+  maximum_cell_euler_residual: float | None = None,
+  maximum_replaced_cell_euler_residual: float | None = None,
+  topology_verified: bool = False,
+  boundary_paths_verified: bool = False,
+  state_samples_finite: bool = False,
+  cell_euler_residuals_finite: bool = False,
+  cell_euler_residuals_verified: bool = False,
+  retiled_field_status_barrier_verified: bool = False,
+  solver_status_consistent: bool = False,
+  terminal_characteristic_audit_status: str | None = None,
+  residual_tolerance: float = 1.0e-2,
+  position_tolerance_m: float = 1.0e-10,
+) -> MocEulerAmbientFirstWedgeCharacteristicFieldAudit:
+  return MocEulerAmbientFirstWedgeCharacteristicFieldAudit(
+    status=status,
+    solver_status=solver_status,
+    retiled_field_status=retiled_field_status,
+    replaced_cell_indices=tuple(replaced_cell_indices),
+    cell_count=cell_count,
+    sampled_cell_count=sampled_cell_count,
+    cell_euler_residuals=tuple(cell_euler_residuals),
+    replaced_cell_euler_residuals=tuple(replaced_cell_euler_residuals),
+    maximum_cell_euler_residual=maximum_cell_euler_residual,
+    maximum_replaced_cell_euler_residual=maximum_replaced_cell_euler_residual,
+    topology_verified=topology_verified,
+    boundary_paths_verified=boundary_paths_verified,
+    state_samples_finite=state_samples_finite,
+    cell_euler_residuals_finite=cell_euler_residuals_finite,
+    cell_euler_residuals_verified=cell_euler_residuals_verified,
+    retiled_field_status_barrier_verified=retiled_field_status_barrier_verified,
+    solver_status_consistent=solver_status_consistent,
+    terminal_characteristic_audit_status=terminal_characteristic_audit_status,
+    residual_tolerance=residual_tolerance,
+    position_tolerance_m=position_tolerance_m,
+    message=message,
+  )
+
+
+def _field_audit_point_key(
+  point: tuple[float, float],
+  tolerance_m: float,
+) -> tuple[int, int]:
+  return round(point[0] / tolerance_m), round(point[1] / tolerance_m)
+
+
+def _field_audit_edge_key(
+  first: tuple[float, float],
+  second: tuple[float, float],
+  tolerance_m: float,
+) -> tuple[tuple[int, int], tuple[int, int]]:
+  first_key = _field_audit_point_key(first, tolerance_m)
+  second_key = _field_audit_point_key(second, tolerance_m)
+  return (
+    (first_key, second_key)
+    if first_key <= second_key
+    else (second_key, first_key)
+  )
+
+
+def _field_audit_boundary_paths_verified(
+  field: Any,
+  tolerance_m: float,
+) -> bool:
+  edge_counts: dict[
+    tuple[tuple[int, int], tuple[int, int]],
+    int,
+  ] = {}
+  for cell in field.cells:
+    vertices = tuple(cell.vertices_xr_m)
+    for first, second in zip(vertices, (*vertices[1:], vertices[0])):
+      edge = _field_audit_edge_key(first, second, tolerance_m)
+      edge_counts[edge] = edge_counts.get(edge, 0) + 1
+  return all(
+    edge_counts.get(_field_audit_edge_key(first, second, tolerance_m), 0) == 1
+    for path in (
+      tuple(field.shock_boundary_points_m),
+      tuple(field.ambient_boundary_points_m),
+      tuple(field.centerline_boundary_points_m),
+    )
+    for first, second in zip(path, path[1:])
+  )
+
+
+def _field_audit_raw_cell_samples(
+  field: Any,
+  tolerance_m: float,
+) -> tuple[
+  tuple[
+    tuple[tuple[float, float], ...],
+    tuple[CharacteristicState, ...],
+    tuple[float, ...],
+  ] | None,
+  ...,
+]:
+  sources: list[
+    tuple[tuple[float, float], CharacteristicState, float | None]
+  ] = []
+  sources.extend(
+    (
+      (state.x_m, state.y_m),
+      state,
+      pressure,
+    )
+    for state, pressure in zip(
+      field.post_shock_boundary_states,
+      field.post_shock_boundary_total_pressure_Pa,
+      strict=True,
+    )
+  )
+  sources.extend(
+    (
+      point,
+      state,
+      pressure,
+    )
+    for point, state, pressure in zip(
+      field.ambient_boundary.points_m,
+      field.ambient_boundary.states,
+      field.ambient_boundary.total_pressure_Pa,
+      strict=True,
+    )
+  )
+  sources.extend(
+    (
+      point,
+      state,
+      pressure,
+    )
+    for point, state, pressure in zip(
+      field.centerline_boundary_points_m,
+      field.centerline_boundary_states,
+      field.centerline_boundary_total_pressure_Pa,
+      strict=True,
+    )
+  )
+  sources.extend(
+    (node.point_m, node.state, node.total_pressure_Pa)
+    for node in field.nodes
+  )
+
+  def resolve(
+    point: tuple[float, float],
+  ) -> tuple[CharacteristicState, float] | None:
+    for source_point, state, pressure in sources:
+      if (
+        hypot(point[0] - source_point[0], point[1] - source_point[1])
+        <= tolerance_m
+        and pressure is not None
+      ):
+        return state, float(pressure)
+    return None
+
+  samples: list[
+    tuple[
+      tuple[tuple[float, float], ...],
+      tuple[CharacteristicState, ...],
+      tuple[float, ...],
+    ] | None
+  ] = []
+  for cell in field.cells:
+    vertices = tuple(
+      (float(point[0]), float(point[1])) for point in cell.vertices_xr_m
+    )
+    resolved = tuple(resolve(point) for point in vertices)
+    if any(value is None for value in resolved):
+      samples.append(None)
+      continue
+    complete = tuple(value for value in resolved if value is not None)
+    samples.append(
+      (
+        vertices,
+        tuple(value[0] for value in complete),
+        tuple(value[1] for value in complete),
+      )
+    )
+  return tuple(samples)
+
+
+def measure_moc_euler_ambient_first_wedge_characteristic_field_audit(
+  result: MocEulerAmbientFirstWedgeCharacteristicFieldResult,
+  *,
+  position_tolerance_m: float = 1.0e-10,
+  cell_residual_tolerance: float = 1.0e-2,
+) -> MocEulerAmbientFirstWedgeCharacteristicFieldAudit:
+  """Recompute raw retiled-field topology, paths, samples, and Euler fluxes.
+
+  This audit intentionally accepts the solver's non-converged diagnostic
+  field.  It never calls the field sampler as an acceptance shortcut and
+  never uses the cached field topology or residual flags as evidence.
+  """
+
+  if not isinstance(
+    result,
+    MocEulerAmbientFirstWedgeCharacteristicFieldResult,
+  ):
+    return _characteristic_field_audit_failure(
+      MocEulerAmbientFirstWedgeCharacteristicFieldAuditStatus.INVALID_INPUT,
+      'result must be a '
+      'MocEulerAmbientFirstWedgeCharacteristicFieldResult',
+    )
+  try:
+    position_tolerance = float(position_tolerance_m)
+    residual_tolerance = float(cell_residual_tolerance)
+  except (TypeError, ValueError):
+    return _characteristic_field_audit_failure(
+      MocEulerAmbientFirstWedgeCharacteristicFieldAuditStatus.INVALID_INPUT,
+      'characteristic field audit tolerances must be numeric',
+      solver_status=result.status.value,
+    )
+  for name, value in (
+    ('position_tolerance_m', position_tolerance),
+    ('cell_residual_tolerance', residual_tolerance),
+  ):
+    if not isfinite(value) or value <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+  retiled_field = result.retiled_field
+  common = {
+    'solver_status': result.status.value,
+    'retiled_field_status': (
+      None if retiled_field is None else retiled_field.status.value
+    ),
+    'replaced_cell_indices': result.replaced_cell_indices,
+    'residual_tolerance': residual_tolerance,
+    'position_tolerance_m': position_tolerance,
+  }
+  if retiled_field is None:
+    return _characteristic_field_audit_failure(
+      MocEulerAmbientFirstWedgeCharacteristicFieldAuditStatus.FIELD_FAILURE,
+      'characteristic field retile did not return an inspectable raw field',
+      **common,
+    )
+  topology = validate_moc_mesh(retiled_field.cells)
+  topology_verified = bool(
+    topology.connected
+    and topology.forms_closed_zone
+    and topology.nonmanifold_edge_count == 0
+  )
+  boundary_paths_verified = _field_audit_boundary_paths_verified(
+    retiled_field,
+    position_tolerance,
+  )
+  samples = _field_audit_raw_cell_samples(retiled_field, position_tolerance)
+  def sample_is_finite(sample: Any) -> bool:
+    if sample is None:
+      return False
+    vertices, states, pressures = sample
+    return bool(
+      len(vertices) == len(states) == len(pressures)
+      and all(
+        isinstance(state, CharacteristicState)
+        and all(
+          isfinite(value)
+          for value in (
+            state.x_m,
+            state.y_m,
+            state.theta_rad,
+            state.mach,
+            state.gamma,
+          )
+        )
+        and state.mach > 1.0
+        and state.gamma > 1.0
+        for state in states
+      )
+      and all(isfinite(float(pressure)) and float(pressure) > 0.0 for pressure in pressures)
+      and all(
+        hypot(state.x_m - point[0], state.y_m - point[1]) <= position_tolerance
+        for point, state in zip(vertices, states, strict=True)
+      )
+    )
+  state_samples_finite = all(sample_is_finite(sample) for sample in samples)
+  sampled_cell_count = sum(sample is not None for sample in samples)
+  residuals: list[float] = []
+  if state_samples_finite:
+    for sample in samples:
+      if sample is None:
+        continue
+      try:
+        residuals.append(_cell_flux_residual(*sample))
+      except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+        residuals.append(float('nan'))
+  residuals_finite = bool(
+    len(residuals) == len(retiled_field.cells)
+    and all(isfinite(value) and value >= 0.0 for value in residuals)
+  )
+  maximum_residual = max(residuals, default=None)
+  replaced_residuals = tuple(
+    residuals[index]
+    for index in result.replaced_cell_indices
+    if 0 <= index < len(residuals)
+  )
+  maximum_replaced_residual = max(replaced_residuals, default=None)
+  residuals_verified = bool(
+    residuals_finite
+    and maximum_residual is not None
+    and maximum_residual <= residual_tolerance
+  )
+  barrier_verified = bool(
+    retiled_field.status is MocPhysicalPostShockFieldStatus.INVARIANT_FAILURE
+    and not retiled_field.physical_closure_verified
+    and not retiled_field.state_sampling_available
+  )
+  terminal_audit = None
+  if result.terminal_wedge is not None:
+    terminal_audit = measure_moc_euler_ambient_first_wedge_terminal_characteristic_audit(
+      result.terminal_wedge,
+      position_tolerance_m=position_tolerance,
+      cell_residual_tolerance=residual_tolerance,
+    )
+  terminal_status = None if terminal_audit is None else terminal_audit.status.value
+  if not topology_verified:
+    status = MocEulerAmbientFirstWedgeCharacteristicFieldAuditStatus.TOPOLOGY_FAILURE
+    expected_solver_status = MocEulerAmbientFirstWedgeCharacteristicFieldStatus.TOPOLOGY_FAILURE.value
+    message = f'independent retiled-field topology audit failed: {topology.message}'
+  elif not boundary_paths_verified:
+    status = MocEulerAmbientFirstWedgeCharacteristicFieldAuditStatus.PATH_FAILURE
+    expected_solver_status = MocEulerAmbientFirstWedgeCharacteristicFieldStatus.TOPOLOGY_FAILURE.value
+    message = 'independent retiled-field physical boundary-path audit failed'
+  elif not state_samples_finite:
+    status = MocEulerAmbientFirstWedgeCharacteristicFieldAuditStatus.STATE_FAILURE
+    expected_solver_status = MocEulerAmbientFirstWedgeCharacteristicFieldStatus.ADJACENT_CELL_FAILURE.value
+    message = 'independent retiled-field state/pressure sampling audit failed'
+  elif terminal_audit is None:
+    status = MocEulerAmbientFirstWedgeCharacteristicFieldAuditStatus.FIELD_FAILURE
+    expected_solver_status = MocEulerAmbientFirstWedgeCharacteristicFieldStatus.TERMINAL_WEDGE_FAILURE.value
+    message = 'retiled field has no terminal characteristic evidence to audit'
+  elif not terminal_audit.characteristic_geometry_verified:
+    status = MocEulerAmbientFirstWedgeCharacteristicFieldAuditStatus.CHARACTERISTIC_GEOMETRY_FAILURE
+    expected_solver_status = MocEulerAmbientFirstWedgeCharacteristicFieldStatus.CHARACTERISTIC_GEOMETRY_FAILURE.value
+    message = 'independent terminal characteristic geometry audit failed'
+  elif not terminal_audit.variable_entropy_compatibility_verified:
+    status = MocEulerAmbientFirstWedgeCharacteristicFieldAuditStatus.ENTROPY_FAILURE
+    expected_solver_status = MocEulerAmbientFirstWedgeCharacteristicFieldStatus.ENTROPY_FAILURE.value
+    message = 'independent terminal characteristic entropy audit failed'
+  elif not terminal_audit.cell_euler_residual_verified:
+    status = MocEulerAmbientFirstWedgeCharacteristicFieldAuditStatus.EULER_RESIDUAL_FAILURE
+    expected_solver_status = MocEulerAmbientFirstWedgeCharacteristicFieldStatus.EULER_RESIDUAL_FAILURE.value
+    message = 'independent terminal characteristic Euler residual audit failed'
+  elif not residuals_finite or not residuals_verified:
+    status = MocEulerAmbientFirstWedgeCharacteristicFieldAuditStatus.FIELD_EULER_RESIDUAL_FAILURE
+    expected_solver_status = MocEulerAmbientFirstWedgeCharacteristicFieldStatus.EULER_RESIDUAL_FAILURE.value
+    message = 'independent full retiled-field Euler residual audit failed'
+  elif not barrier_verified or result.physical_closure_verified or not result.chain_promotion_blocked or result.production_claim_allowed:
+    status = MocEulerAmbientFirstWedgeCharacteristicFieldAuditStatus.FLAG_FAILURE
+    expected_solver_status = MocEulerAmbientFirstWedgeCharacteristicFieldStatus.CONVERGED_LOCAL_RETILE.value
+    message = 'retiled-field result returned weakened fidelity flags or status barrier'
+  else:
+    status = MocEulerAmbientFirstWedgeCharacteristicFieldAuditStatus.CONVERGED_LOCAL_AUDIT
+    expected_solver_status = MocEulerAmbientFirstWedgeCharacteristicFieldStatus.CONVERGED_LOCAL_RETILE.value
+    message = 'independent retiled-field topology, paths, states, and Euler residuals passed'
+  solver_status_consistent = (
+    result.status.value == expected_solver_status
+    and barrier_verified
+  )
+  if not solver_status_consistent:
+    message += (
+      f'; solver status {result.status.value!r} does not match the '
+      f'independent expected status {expected_solver_status!r}'
+    )
+  return MocEulerAmbientFirstWedgeCharacteristicFieldAudit(
+    status=status,
+    solver_status=result.status.value,
+    retiled_field_status=retiled_field.status.value,
+    replaced_cell_indices=result.replaced_cell_indices,
+    cell_count=len(retiled_field.cells),
+    sampled_cell_count=sampled_cell_count,
+    cell_euler_residuals=tuple(residuals),
+    replaced_cell_euler_residuals=replaced_residuals,
+    maximum_cell_euler_residual=maximum_residual,
+    maximum_replaced_cell_euler_residual=maximum_replaced_residual,
+    topology_verified=topology_verified,
+    boundary_paths_verified=boundary_paths_verified,
+    state_samples_finite=state_samples_finite,
+    cell_euler_residuals_finite=residuals_finite,
+    cell_euler_residuals_verified=residuals_verified,
+    retiled_field_status_barrier_verified=barrier_verified,
+    solver_status_consistent=solver_status_consistent,
+    terminal_characteristic_audit_status=terminal_status,
+    residual_tolerance=residual_tolerance,
+    position_tolerance_m=position_tolerance,
     message=message,
   )

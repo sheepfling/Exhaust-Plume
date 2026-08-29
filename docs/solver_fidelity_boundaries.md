@@ -54,6 +54,24 @@ the rising 2-D divergence diagnostic is retained as evidence of the
 quasi-1-D model limitation; this sequence cannot promote a reflected-MOC
 cell or close the canonical downstream boundary.
 
+The solver-owned terminal characteristic seam also has a bounded field-retile
+variant. It reflects the terminal ``C-`` characteristic, replaces the
+terminal triangle and the adjacent centerline strip with a shared new axis
+vertex, updates the exact centerline state/total-pressure lineage, and leaves
+all other cells untouched. The raw retile must pass connected topology,
+one-perimeter boundary-path, and finite state-sampling checks before it is
+reported. Even then, the returned field is deliberately marked
+``invariant_failure``: a locally retiled snapshot is not an accepted physical
+field, cannot be sampled by the ordinary continuation API, and contributes no
+``MocChainCell``. The independent
+``op.moc.euler-ambient-first-wedge-characteristic-field-audit`` recomputes the
+raw topology, physical paths, every cell's conservative Euler residual, and
+the terminal entropy result. The canonical case passes the structural seam
+but fails the entropy/full-field residual gate, so the next required work is a
+multi-cell entropy-carrying reflected-field continuation followed by
+refinement and indexed external observations. No lower-fidelity product lane
+may consume or learn from this retiled diagnostic.
+
 The reference lane also accepts an explicit
 ``MocMixedRegimeControlSection`` handoff. This is a transverse, scalar,
 flux-bearing input—not a ``CharacteristicState`` boundary. The section-aware

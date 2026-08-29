@@ -15,7 +15,7 @@ source measurable before a future multi-cell terminal remesher is attempted.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from math import cos, hypot, isfinite, log, sin, sqrt
 from typing import Any
@@ -29,6 +29,10 @@ from exhaust_plume.models.moc.euler_first_wedge_remesh import (
 )
 from exhaust_plume.models.moc.euler_physical_field import (
   MocEulerAmbientPhysicalFieldResult,
+)
+from exhaust_plume.models.moc.physical_cell import (
+  MocPhysicalPostShockFieldResult,
+  MocPhysicalPostShockFieldStatus,
 )
 from exhaust_plume.models.moc.primitives import (
   CharacteristicFamily,
@@ -44,6 +48,9 @@ __all__ = (
   'MocEulerAmbientFirstWedgeCharacteristicEdge',
   'MocEulerAmbientFirstWedgeCharacteristicResult',
   'solve_euler_ambient_first_wedge_characteristic_remesh',
+  'MocEulerAmbientFirstWedgeCharacteristicFieldStatus',
+  'MocEulerAmbientFirstWedgeCharacteristicFieldResult',
+  'remesh_euler_ambient_first_wedge_characteristic_field',
 )
 
 
@@ -1107,4 +1114,755 @@ def solve_euler_ambient_first_wedge_characteristic_remesh(
     cell_euler_residual_verified=cell_residual_verified,
     **common,
     message=message,
+  )
+
+
+class MocEulerAmbientFirstWedgeCharacteristicFieldStatus(str, Enum):
+  """Outcome of retileing the first wedge and its adjacent centerline strip."""
+
+  CONVERGED_LOCAL_RETILE = (
+    'converged_euler_ambient_first_wedge_characteristic_field_retile'
+  )
+  INVALID_INPUT = 'invalid_input'
+  TERMINAL_WEDGE_FAILURE = (
+    'euler_ambient_first_wedge_characteristic_field_terminal_wedge_failure'
+  )
+  ADJACENT_CELL_FAILURE = (
+    'euler_ambient_first_wedge_characteristic_field_adjacent_cell_failure'
+  )
+  CHARACTERISTIC_GEOMETRY_FAILURE = (
+    'euler_ambient_first_wedge_characteristic_field_geometry_failure'
+  )
+  TOPOLOGY_FAILURE = (
+    'euler_ambient_first_wedge_characteristic_field_topology_failure'
+  )
+  ENTROPY_FAILURE = (
+    'euler_ambient_first_wedge_characteristic_field_entropy_failure'
+  )
+  EULER_RESIDUAL_FAILURE = (
+    'euler_ambient_first_wedge_characteristic_field_euler_residual_failure'
+  )
+
+
+def _field_point_key(
+  point: tuple[float, float],
+  tolerance_m: float,
+) -> tuple[int, int]:
+  return round(point[0] / tolerance_m), round(point[1] / tolerance_m)
+
+
+def _field_edge_key(
+  first: tuple[float, float],
+  second: tuple[float, float],
+  tolerance_m: float,
+) -> tuple[tuple[int, int], tuple[int, int]]:
+  first_key = _field_point_key(first, tolerance_m)
+  second_key = _field_point_key(second, tolerance_m)
+  return (
+    (first_key, second_key)
+    if first_key <= second_key
+    else (second_key, first_key)
+  )
+
+
+def _field_boundary_paths_verified(
+  cells: tuple[MocCharacteristicCell, ...],
+  paths: tuple[tuple[tuple[float, float], ...], ...],
+  tolerance_m: float,
+) -> bool:
+  edge_counts: dict[
+    tuple[tuple[int, int], tuple[int, int]],
+    int,
+  ] = {}
+  for cell in cells:
+    vertices = tuple(cell.vertices_xr_m)
+    for first, second in zip(vertices, (*vertices[1:], vertices[0])):
+      edge = _field_edge_key(first, second, tolerance_m)
+      edge_counts[edge] = edge_counts.get(edge, 0) + 1
+  return all(
+    all(
+      edge_counts.get(_field_edge_key(first, second, tolerance_m), 0) == 1
+      for first, second in zip(path, path[1:])
+    )
+    for path in paths
+  )
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerAmbientFirstWedgeCharacteristicFieldResult:
+  """A solver-owned local field retile below physical chain promotion.
+
+  The returned ``retiled_field`` retains the candidate geometry and all
+  untouched source cells for inspection.  Its status is intentionally set to
+  ``INVARIANT_FAILURE`` even when the local retile is topologically sound;
+  this prevents the ordinary field sampler and chain adapters from treating
+  an entropy-incomplete local patch as an accepted upstream domain.
+  """
+
+  status: MocEulerAmbientFirstWedgeCharacteristicFieldStatus
+  source_field: MocEulerAmbientPhysicalFieldResult | None
+  terminal_wedge: MocEulerAmbientFirstWedgeCharacteristicResult | None
+  retiled_field: MocPhysicalPostShockFieldResult | None
+  replaced_cell_indices: tuple[int, ...]
+  replaced_centerline_index: int | None
+  original_centerline_point: tuple[float, float] | None
+  retiled_centerline_point: tuple[float, float] | None
+  topology: MocTopologyResult
+  retiled_field_topology_verified: bool
+  boundary_paths_verified: bool
+  terminal_geometry_verified: bool
+  variable_entropy_compatibility_verified: bool
+  cell_euler_residual_verified: bool
+  physical_closure_verified: bool = False
+  chain_promotion_blocked: bool = True
+  production_claim_allowed: bool = False
+  position_tolerance_m: float = 1.0e-10
+  characteristic_residual_tolerance: float = 1.0e-8
+  edge_alignment_tolerance: float = 0.25
+  cell_residual_tolerance: float = 1.0e-2
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocEulerAmbientFirstWedgeCharacteristicFieldStatus,
+    ):
+      raise TypeError(
+        'status must be a '
+        'MocEulerAmbientFirstWedgeCharacteristicFieldStatus'
+      )
+    if self.source_field is not None and not isinstance(
+      self.source_field,
+      MocEulerAmbientPhysicalFieldResult,
+    ):
+      raise TypeError(
+        'source_field must be a MocEulerAmbientPhysicalFieldResult or None'
+      )
+    if self.terminal_wedge is not None and not isinstance(
+      self.terminal_wedge,
+      MocEulerAmbientFirstWedgeCharacteristicResult,
+    ):
+      raise TypeError(
+        'terminal_wedge must be a '
+        'MocEulerAmbientFirstWedgeCharacteristicResult or None'
+      )
+    if self.retiled_field is not None and not isinstance(
+      self.retiled_field,
+      MocPhysicalPostShockFieldResult,
+    ):
+      raise TypeError(
+        'retiled_field must be a MocPhysicalPostShockFieldResult or None'
+      )
+    replaced_indices = tuple(self.replaced_cell_indices)
+    if any(
+      isinstance(index, bool) or not isinstance(index, int) or index < 0
+      for index in replaced_indices
+    ):
+      raise ValueError('replaced_cell_indices must contain nonnegative integers')
+    if len(set(replaced_indices)) != len(replaced_indices):
+      raise ValueError('replaced_cell_indices must not contain duplicates')
+    object.__setattr__(self, 'replaced_cell_indices', replaced_indices)
+    if self.replaced_centerline_index is not None and (
+      isinstance(self.replaced_centerline_index, bool)
+      or not isinstance(self.replaced_centerline_index, int)
+      or self.replaced_centerline_index < 0
+    ):
+      raise ValueError(
+        'replaced_centerline_index must be a nonnegative integer or None'
+      )
+    for name in ('original_centerline_point', 'retiled_centerline_point'):
+      point = getattr(self, name)
+      if point is None:
+        continue
+      object.__setattr__(self, name, _finite_point(point, name))
+    if not isinstance(self.topology, MocTopologyResult):
+      raise TypeError('topology must be a MocTopologyResult')
+    for name in (
+      'retiled_field_topology_verified',
+      'boundary_paths_verified',
+      'terminal_geometry_verified',
+      'variable_entropy_compatibility_verified',
+      'cell_euler_residual_verified',
+      'physical_closure_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+    if self.physical_closure_verified:
+      raise ValueError(
+        'a local characteristic field retile cannot claim physical closure'
+      )
+    if self.production_claim_allowed:
+      raise ValueError(
+        'a local characteristic field retile cannot claim production validity'
+      )
+    for name in (
+      'position_tolerance_m',
+      'characteristic_residual_tolerance',
+      'edge_alignment_tolerance',
+      'cell_residual_tolerance',
+    ):
+      value = float(getattr(self, name))
+      if not isfinite(value) or value <= 0.0:
+        raise ValueError(f'{name} must be finite and positive')
+      object.__setattr__(self, name, value)
+    object.__setattr__(self, 'message', str(self.message))
+
+  @property
+  def converged(self) -> bool:
+    """Whether the local retile passed every local solver gate."""
+
+    return self.status is (
+      MocEulerAmbientFirstWedgeCharacteristicFieldStatus
+      .CONVERGED_LOCAL_RETILE
+    )
+
+  @property
+  def local_consistency_verified(self) -> bool:
+    return bool(
+      self.converged
+      and self.retiled_field is not None
+      and self.retiled_field.status is MocPhysicalPostShockFieldStatus.INVARIANT_FAILURE
+      and self.retiled_field_topology_verified
+      and self.boundary_paths_verified
+      and self.terminal_geometry_verified
+      and self.variable_entropy_compatibility_verified
+      and self.cell_euler_residual_verified
+      and not self.physical_closure_verified
+      and self.chain_promotion_blocked
+      and not self.production_claim_allowed
+    )
+
+  @property
+  def physical_chain_cell_count(self) -> int:
+    """Number of physical chain cells contributed by this retile."""
+
+    return 0
+
+  def as_chain_termination_decision(self) -> MocChainTerminationDecision:
+    """Return the hard stop between the retiled field and a chain."""
+
+    reason = (
+      MocChainTerminationReason.INVALID_INPUT
+      if self.status is MocEulerAmbientFirstWedgeCharacteristicFieldStatus.INVALID_INPUT
+      else MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+    )
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=reason,
+      message=(
+        'solver-owned first-wedge field retile remains below physical chain '
+        'promotion; entropy-carrying reflected continuation, conservative '
+        'field closure, and external validation are still required'
+        if reason is MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+        else self.message
+      ),
+      diagnostics={
+        'characteristic_field_retile_status': self.status.value,
+        'replaced_cell_indices': self.replaced_cell_indices,
+        'replaced_centerline_index': self.replaced_centerline_index,
+        'retiled_field_topology_verified': self.retiled_field_topology_verified,
+        'boundary_paths_verified': self.boundary_paths_verified,
+        'terminal_geometry_verified': self.terminal_geometry_verified,
+        'variable_entropy_compatibility_verified': (
+          self.variable_entropy_compatibility_verified
+        ),
+        'cell_euler_residual_verified': self.cell_euler_residual_verified,
+        'physical_closure_verified': False,
+        'chain_promotion_blocked': True,
+        'production_claim_allowed': False,
+        'required_next_gate': (
+          'multi-cell-entropy-carrying-reflected-field-continuation-and-'
+          'independent-conservative-audit'
+        ),
+      },
+    )
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'converged': self.converged,
+      'local_consistency_verified': self.local_consistency_verified,
+      'source_field_status': (
+        None if self.source_field is None else self.source_field.status.value
+      ),
+      'terminal_wedge_status': (
+        None if self.terminal_wedge is None else self.terminal_wedge.status.value
+      ),
+      'retiled_field_status': (
+        None if self.retiled_field is None else self.retiled_field.status.value
+      ),
+      'replaced_cell_indices': self.replaced_cell_indices,
+      'replaced_centerline_index': self.replaced_centerline_index,
+      'original_centerline_point': self.original_centerline_point,
+      'retiled_centerline_point': self.retiled_centerline_point,
+      'physical_chain_cell_count': self.physical_chain_cell_count,
+      'topology': {
+        'status': self.topology.status.value,
+        'connected': self.topology.connected,
+        'forms_closed_zone': self.topology.forms_closed_zone,
+        'boundary_edge_count': self.topology.boundary_edge_count,
+        'nonmanifold_edge_count': self.topology.nonmanifold_edge_count,
+      },
+      'checks': {
+        'retiled_field_topology_verified': self.retiled_field_topology_verified,
+        'boundary_paths_verified': self.boundary_paths_verified,
+        'terminal_geometry_verified': self.terminal_geometry_verified,
+        'variable_entropy_compatibility_verified': (
+          self.variable_entropy_compatibility_verified
+        ),
+        'cell_euler_residual_verified': self.cell_euler_residual_verified,
+        'physical_closure_verified': self.physical_closure_verified,
+        'chain_promotion_blocked': self.chain_promotion_blocked,
+        'production_claim_allowed': self.production_claim_allowed,
+      },
+      'retiled_field': (
+        None if self.retiled_field is None else self.retiled_field.as_report()
+      ),
+      'terminal_wedge': (
+        None
+        if self.terminal_wedge is None
+        else self.terminal_wedge.as_report()
+      ),
+      'position_tolerance_m': self.position_tolerance_m,
+      'characteristic_residual_tolerance': (
+        self.characteristic_residual_tolerance
+      ),
+      'edge_alignment_tolerance': self.edge_alignment_tolerance,
+      'cell_residual_tolerance': self.cell_residual_tolerance,
+      'chain_termination_decision': (
+        self.as_chain_termination_decision().as_report()
+      ),
+      'claim_status': (
+        'solver-owned-local-first-wedge-field-retile; complete entropy '
+        'transport, reflected free-boundary continuation, and external '
+        'validation remain pending'
+      ),
+      'message': self.message,
+    }
+
+
+def _field_failure(
+  status: MocEulerAmbientFirstWedgeCharacteristicFieldStatus,
+  source_field: MocEulerAmbientPhysicalFieldResult | None,
+  *,
+  terminal_wedge: MocEulerAmbientFirstWedgeCharacteristicResult | None = None,
+  retiled_field: MocPhysicalPostShockFieldResult | None = None,
+  replaced_cell_indices: tuple[int, ...] = (),
+  replaced_centerline_index: int | None = None,
+  original_centerline_point: tuple[float, float] | None = None,
+  retiled_centerline_point: tuple[float, float] | None = None,
+  topology: MocTopologyResult | None = None,
+  retiled_field_topology_verified: bool = False,
+  boundary_paths_verified: bool = False,
+  terminal_geometry_verified: bool = False,
+  variable_entropy_compatibility_verified: bool = False,
+  cell_euler_residual_verified: bool = False,
+  position_tolerance_m: float = 1.0e-10,
+  characteristic_residual_tolerance: float = 1.0e-8,
+  edge_alignment_tolerance: float = 0.25,
+  cell_residual_tolerance: float = 1.0e-2,
+  message: str,
+) -> MocEulerAmbientFirstWedgeCharacteristicFieldResult:
+  return MocEulerAmbientFirstWedgeCharacteristicFieldResult(
+    status=status,
+    source_field=source_field,
+    terminal_wedge=terminal_wedge,
+    retiled_field=retiled_field,
+    replaced_cell_indices=replaced_cell_indices,
+    replaced_centerline_index=replaced_centerline_index,
+    original_centerline_point=original_centerline_point,
+    retiled_centerline_point=retiled_centerline_point,
+    topology=_empty_topology() if topology is None else topology,
+    retiled_field_topology_verified=retiled_field_topology_verified,
+    boundary_paths_verified=boundary_paths_verified,
+    terminal_geometry_verified=terminal_geometry_verified,
+    variable_entropy_compatibility_verified=(
+      variable_entropy_compatibility_verified
+    ),
+    cell_euler_residual_verified=cell_euler_residual_verified,
+    position_tolerance_m=position_tolerance_m,
+    characteristic_residual_tolerance=characteristic_residual_tolerance,
+    edge_alignment_tolerance=edge_alignment_tolerance,
+    cell_residual_tolerance=cell_residual_tolerance,
+    message=message,
+  )
+
+
+def remesh_euler_ambient_first_wedge_characteristic_field(
+  source_field: MocEulerAmbientPhysicalFieldResult,
+  *,
+  position_tolerance_m: float = 1.0e-10,
+  characteristic_residual_tolerance: float = 1.0e-8,
+  edge_alignment_tolerance: float = 0.25,
+  cell_residual_tolerance: float = 1.0e-2,
+) -> MocEulerAmbientFirstWedgeCharacteristicFieldResult:
+  """Retile one corrected terminal wedge and its adjacent strip.
+
+  The source field is never mutated.  The returned field is a diagnostic
+  snapshot with a non-converged physical-field status, so its mesh can be
+  audited without exposing it to the normal continuation sampler.
+  """
+
+  if not isinstance(source_field, MocEulerAmbientPhysicalFieldResult):
+    return _field_failure(
+      MocEulerAmbientFirstWedgeCharacteristicFieldStatus.INVALID_INPUT,
+      None,
+      message='source_field must be a MocEulerAmbientPhysicalFieldResult',
+    )
+  try:
+    position_tolerance = float(position_tolerance_m)
+    residual_tolerance = float(characteristic_residual_tolerance)
+    alignment_tolerance = float(edge_alignment_tolerance)
+    cell_tolerance = float(cell_residual_tolerance)
+  except (TypeError, ValueError):
+    return _field_failure(
+      MocEulerAmbientFirstWedgeCharacteristicFieldStatus.INVALID_INPUT,
+      source_field,
+      message='characteristic field retile tolerances must be numeric',
+    )
+  for name, value in (
+    ('position_tolerance_m', position_tolerance),
+    ('characteristic_residual_tolerance', residual_tolerance),
+    ('edge_alignment_tolerance', alignment_tolerance),
+    ('cell_residual_tolerance', cell_tolerance),
+  ):
+    if not isfinite(value) or value <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+  common = {
+    'position_tolerance_m': position_tolerance,
+    'characteristic_residual_tolerance': residual_tolerance,
+    'edge_alignment_tolerance': alignment_tolerance,
+    'cell_residual_tolerance': cell_tolerance,
+  }
+  terminal_wedge = solve_euler_ambient_first_wedge_characteristic_remesh(
+    source_field,
+    position_tolerance_m=position_tolerance,
+    characteristic_residual_tolerance=residual_tolerance,
+    edge_alignment_tolerance=alignment_tolerance,
+    cell_residual_tolerance=cell_tolerance,
+  )
+  if terminal_wedge.cell is None or len(terminal_wedge.vertices_xr_m) != 3:
+    return _field_failure(
+      MocEulerAmbientFirstWedgeCharacteristicFieldStatus.TERMINAL_WEDGE_FAILURE,
+      source_field,
+      terminal_wedge=terminal_wedge,
+      message=(
+        'characteristic field retile requires a terminal-wedge candidate '
+        'with one reconstructed triangular cell'
+      ),
+      **common,
+    )
+  field = source_field.field
+  if field is None or terminal_wedge.source_cell_index is None:
+    return _field_failure(
+      MocEulerAmbientFirstWedgeCharacteristicFieldStatus.TERMINAL_WEDGE_FAILURE,
+      source_field,
+      terminal_wedge=terminal_wedge,
+      message='terminal-wedge candidate did not retain its source field cell',
+      **common,
+    )
+  source_cell_index = terminal_wedge.source_cell_index
+  if not 0 <= source_cell_index < len(field.cells):
+    return _field_failure(
+      MocEulerAmbientFirstWedgeCharacteristicFieldStatus.TERMINAL_WEDGE_FAILURE,
+      source_field,
+      terminal_wedge=terminal_wedge,
+      message='terminal-wedge source cell index is outside the physical field',
+      **common,
+    )
+  source_cell = field.cells[source_cell_index]
+  original_vertices = tuple(
+    _finite_point(point, 'terminal-wedge source cell vertex')
+    for point in source_cell.vertices_xr_m
+  )
+  axis_vertices = tuple(
+    point for point in original_vertices if abs(point[1]) <= position_tolerance
+  )
+  off_axis_vertices = tuple(
+    point for point in original_vertices if abs(point[1]) > position_tolerance
+  )
+  reflection = terminal_wedge.reflection_result
+  if len(axis_vertices) != 2 or len(off_axis_vertices) != 1 or reflection is None:
+    return _field_failure(
+      MocEulerAmbientFirstWedgeCharacteristicFieldStatus.TERMINAL_WEDGE_FAILURE,
+      source_field,
+      terminal_wedge=terminal_wedge,
+      message=(
+        'terminal-wedge source cell must expose two axis vertices, one '
+        'off-axis vertex, and a reflected C- result'
+      ),
+      **common,
+    )
+  original_centerline_point = max(axis_vertices, key=lambda point: point[0])
+  off_axis_point = off_axis_vertices[0]
+  retiled_centerline_point = _finite_point(
+    reflection.point_m,
+    'reflected terminal centerline point',
+  )
+  reflected_vertex_indices = tuple(
+    index
+    for index, point in enumerate(terminal_wedge.vertices_xr_m)
+    if hypot(
+      point[0] - retiled_centerline_point[0],
+      point[1] - retiled_centerline_point[1],
+    ) <= position_tolerance
+  )
+  off_axis_matches = tuple(
+    index
+    for index, point in enumerate(terminal_wedge.vertices_xr_m)
+    if hypot(point[0] - off_axis_point[0], point[1] - off_axis_point[1])
+    <= position_tolerance
+  )
+  terminal_geometry_verified = bool(
+    reflection.converged
+    and len(reflected_vertex_indices) == 1
+    and len(off_axis_matches) == 1
+    and abs(retiled_centerline_point[1]) <= position_tolerance
+  )
+  if not terminal_geometry_verified:
+    return _field_failure(
+      MocEulerAmbientFirstWedgeCharacteristicFieldStatus.CHARACTERISTIC_GEOMETRY_FAILURE,
+      source_field,
+      terminal_wedge=terminal_wedge,
+      original_centerline_point=original_centerline_point,
+      retiled_centerline_point=retiled_centerline_point,
+      terminal_geometry_verified=False,
+      message='reflected terminal characteristic is not a usable axis vertex',
+      **common,
+    )
+  adjacent_indices = tuple(
+    index
+    for index, cell in enumerate(field.cells)
+    if (
+      index != source_cell_index
+      and cell.cell_kind == 'post-shock-ambient-centerline-strip'
+      and any(
+        hypot(point[0] - original_centerline_point[0], point[1] - original_centerline_point[1])
+        <= position_tolerance
+        for point in cell.vertices_xr_m
+      )
+      and any(
+        hypot(point[0] - off_axis_point[0], point[1] - off_axis_point[1])
+        <= position_tolerance
+        for point in cell.vertices_xr_m
+      )
+    )
+  )
+  if len(adjacent_indices) != 1:
+    return _field_failure(
+      MocEulerAmbientFirstWedgeCharacteristicFieldStatus.ADJACENT_CELL_FAILURE,
+      source_field,
+      terminal_wedge=terminal_wedge,
+      original_centerline_point=original_centerline_point,
+      retiled_centerline_point=retiled_centerline_point,
+      terminal_geometry_verified=True,
+      message=(
+        'characteristic field retile requires exactly one adjacent '
+        'post-shock centerline strip containing the original terminal axis '
+        'point and terminal off-axis node'
+      ),
+      **common,
+    )
+  adjacent_index = adjacent_indices[0]
+  adjacent_cell = field.cells[adjacent_index]
+  adjacent_axis_matches = tuple(
+    index
+    for index, point in enumerate(adjacent_cell.vertices_xr_m)
+    if hypot(
+      point[0] - original_centerline_point[0],
+      point[1] - original_centerline_point[1],
+    ) <= position_tolerance
+  )
+  if len(adjacent_axis_matches) != 1:
+    return _field_failure(
+      MocEulerAmbientFirstWedgeCharacteristicFieldStatus.ADJACENT_CELL_FAILURE,
+      source_field,
+      terminal_wedge=terminal_wedge,
+      replaced_cell_indices=(source_cell_index, adjacent_index),
+      original_centerline_point=original_centerline_point,
+      retiled_centerline_point=retiled_centerline_point,
+      terminal_geometry_verified=True,
+      message='adjacent centerline strip has an ambiguous original axis vertex',
+      **common,
+    )
+  retiled_adjacent_vertices = tuple(
+    retiled_centerline_point
+    if index == adjacent_axis_matches[0]
+    else point
+    for index, point in enumerate(adjacent_cell.vertices_xr_m)
+  )
+  retiled_terminal_cell = replace(
+    terminal_wedge.cell,
+    cell_index=source_cell.cell_index,
+  )
+  retiled_adjacent_cell = replace(
+    adjacent_cell,
+    vertices_xr_m=retiled_adjacent_vertices,
+    cell_kind=f'{adjacent_cell.cell_kind}-retiled',
+  )
+  retiled_cells = tuple(
+    retiled_terminal_cell
+    if index == source_cell_index
+    else retiled_adjacent_cell
+    if index == adjacent_index
+    else cell
+    for index, cell in enumerate(field.cells)
+  )
+  topology = validate_moc_mesh(retiled_cells)
+  retiled_field_topology_verified = bool(
+    topology.connected
+    and topology.forms_closed_zone
+    and topology.nonmanifold_edge_count == 0
+  )
+  centerline_matches = tuple(
+    index
+    for index, point in enumerate(field.centerline_boundary_points_m)
+    if hypot(
+      point[0] - original_centerline_point[0],
+      point[1] - original_centerline_point[1],
+    ) <= position_tolerance
+  )
+  if len(centerline_matches) != 1:
+    return _field_failure(
+      MocEulerAmbientFirstWedgeCharacteristicFieldStatus.ADJACENT_CELL_FAILURE,
+      source_field,
+      terminal_wedge=terminal_wedge,
+      replaced_cell_indices=(source_cell_index, adjacent_index),
+      original_centerline_point=original_centerline_point,
+      retiled_centerline_point=retiled_centerline_point,
+      topology=topology,
+      retiled_field_topology_verified=retiled_field_topology_verified,
+      terminal_geometry_verified=True,
+      message=(
+        'characteristic field retile requires exactly one matching source '
+        'centerline boundary sample'
+      ),
+      **common,
+    )
+  centerline_index = centerline_matches[0]
+  retiled_centerline_points = tuple(
+    retiled_centerline_point
+    if index == centerline_index
+    else point
+    for index, point in enumerate(field.centerline_boundary_points_m)
+  )
+  reflected_index = reflected_vertex_indices[0]
+  retiled_centerline_states = tuple(
+    terminal_wedge.states[reflected_index]
+    if index == centerline_index
+    else state
+    for index, state in enumerate(field.centerline_boundary_states)
+  )
+  retiled_centerline_pressures = tuple(
+    terminal_wedge.total_pressure_Pa[reflected_index]
+    if index == centerline_index
+    else pressure
+    for index, pressure in enumerate(field.centerline_boundary_total_pressure_Pa)
+  )
+  centerline_order_verified = bool(
+    all(
+      abs(point[1]) <= position_tolerance
+      and state.x_m == point[0]
+      and state.y_m == point[1]
+      for point, state in zip(
+        retiled_centerline_points,
+        retiled_centerline_states,
+        strict=True,
+      )
+    )
+    and all(
+      second[0] > first[0] + position_tolerance
+      for first, second in zip(
+        retiled_centerline_points,
+        retiled_centerline_points[1:],
+      )
+    )
+  )
+  if not centerline_order_verified:
+    return _field_failure(
+      MocEulerAmbientFirstWedgeCharacteristicFieldStatus.TOPOLOGY_FAILURE,
+      source_field,
+      terminal_wedge=terminal_wedge,
+      replaced_cell_indices=(source_cell_index, adjacent_index),
+      replaced_centerline_index=centerline_index,
+      original_centerline_point=original_centerline_point,
+      retiled_centerline_point=retiled_centerline_point,
+      topology=topology,
+      retiled_field_topology_verified=retiled_field_topology_verified,
+      terminal_geometry_verified=True,
+      message='retiled centerline boundary is not an ordered axis trace',
+      **common,
+    )
+  boundary_paths_verified = _field_boundary_paths_verified(
+    retiled_cells,
+    (
+      tuple(field.shock_boundary_points_m),
+      tuple(field.ambient_boundary_points_m),
+      retiled_centerline_points,
+    ),
+    position_tolerance,
+  )
+  retiled_field = replace(
+    field,
+    status=MocPhysicalPostShockFieldStatus.INVARIANT_FAILURE,
+    cells=retiled_cells,
+    topology=topology,
+    centerline_boundary_points_m=retiled_centerline_points,
+    centerline_boundary_states=retiled_centerline_states,
+    centerline_boundary_total_pressure_Pa=retiled_centerline_pressures,
+    message=(
+      'solver-owned terminal characteristic retile retained for audit; '
+      'physical field status intentionally remains invariant_failure until '
+      'entropy-carrying continuation and conservative closure pass'
+    ),
+  )
+  if not retiled_field_topology_verified or not boundary_paths_verified:
+    status = MocEulerAmbientFirstWedgeCharacteristicFieldStatus.TOPOLOGY_FAILURE
+    message = (
+      'terminal characteristic geometry was retiled, but the complete raw '
+      'field topology or physical boundary paths failed validation'
+    )
+  elif not terminal_wedge.characteristic_geometry_verified:
+    status = MocEulerAmbientFirstWedgeCharacteristicFieldStatus.CHARACTERISTIC_GEOMETRY_FAILURE
+    message = 'retiled field retained a terminal wedge with failed characteristic geometry'
+  elif not terminal_wedge.variable_entropy_compatibility_verified:
+    status = MocEulerAmbientFirstWedgeCharacteristicFieldStatus.ENTROPY_FAILURE
+    message = (
+      'retiled field has the corrected local topology, but variable entropy '
+      'compatibility still fails on the reflected terminal wedge'
+    )
+  elif not terminal_wedge.cell_euler_residual_verified:
+    status = MocEulerAmbientFirstWedgeCharacteristicFieldStatus.EULER_RESIDUAL_FAILURE
+    message = (
+      'retiled field has characteristic entropy compatibility, but the '
+      'terminal wedge conservative residual remains above tolerance'
+    )
+  else:
+    status = MocEulerAmbientFirstWedgeCharacteristicFieldStatus.CONVERGED_LOCAL_RETILE
+    message = (
+      'retiled first wedge and adjacent strip passed local geometry, entropy, '
+      'Euler, topology, and boundary-path gates; physical chain promotion '
+      'remains blocked'
+    )
+  return _field_failure(
+    status,
+    source_field,
+    terminal_wedge=terminal_wedge,
+    retiled_field=retiled_field,
+    replaced_cell_indices=(source_cell_index, adjacent_index),
+    replaced_centerline_index=centerline_index,
+    original_centerline_point=original_centerline_point,
+    retiled_centerline_point=retiled_centerline_point,
+    topology=topology,
+    retiled_field_topology_verified=retiled_field_topology_verified,
+    boundary_paths_verified=boundary_paths_verified,
+    terminal_geometry_verified=terminal_geometry_verified,
+    variable_entropy_compatibility_verified=(
+      terminal_wedge.variable_entropy_compatibility_verified
+    ),
+    cell_euler_residual_verified=terminal_wedge.cell_euler_residual_verified,
+    message=message,
+    **common,
   )

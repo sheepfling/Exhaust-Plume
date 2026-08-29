@@ -9,12 +9,15 @@ from exhaust_plume.models.moc import (
   MocChainTerminationReason,
   MocEulerAmbientFirstWedgeRemeshStatus,
   MocEulerAmbientFirstWedgeCharacteristicStatus,
+  MocEulerAmbientFirstWedgeCharacteristicFieldStatus,
   MocEulerAmbientPhysicalFieldStatus,
   assemble_euler_ambient_physical_field,
   fit_euler_consistent_shock_boundary,
   plan_euler_ambient_first_wedge_remesh_mock,
   plan_euler_ambient_first_wedge_characteristic_remesh,
+  plan_euler_ambient_first_wedge_characteristic_field,
   remesh_euler_ambient_first_wedge,
+  remesh_euler_ambient_first_wedge_characteristic_field,
   solve_euler_ambient_first_wedge_characteristic_remesh,
   solve_attached_compression_to_turn,
   validate_moc_mesh,
@@ -27,9 +30,11 @@ from exhaust_plume.validation import (
   MocEulerAmbientPhysicalFieldRefinementStatus,
   MocEulerAmbientFirstWedgeCharacteristicAuditStatus,
   MocEulerAmbientFirstWedgeTerminalCharacteristicAuditStatus,
+  MocEulerAmbientFirstWedgeCharacteristicFieldAuditStatus,
   measure_moc_euler_ambient_first_wedge_remesh,
   measure_moc_euler_ambient_first_wedge_characteristic_audit,
   measure_moc_euler_ambient_first_wedge_terminal_characteristic_audit,
+  measure_moc_euler_ambient_first_wedge_characteristic_field_audit,
   measure_moc_euler_ambient_first_wedge_remesh_refinement,
   measure_moc_euler_ambient_physical_field,
   measure_moc_euler_ambient_physical_field_refinement,
@@ -514,6 +519,146 @@ def test_terminal_wedge_planner_records_candidate_without_chain_promotion() -> N
   assert planner.termination.reason is MocChainTerminationReason.FIDELITY_NOT_ALLOWED
   assert planner.as_report()['diagnostics']['candidate_consumed_as_chain_cell'] is False
   assert planner.as_report()['planning_only'] is True
+  assert planner.physical_closure_verified is False
+  assert planner.chain_promotion_blocked
+  assert planner.production_claim_allowed is False
+
+
+def test_terminal_characteristic_field_retile_preserves_source_and_blocks_chain() -> None:
+  shock = _shaped_exact_shock()
+  physical_field = assemble_euler_ambient_physical_field(
+    shock,
+    shock.downstream_static_pressure_Pa[0],
+  )
+  original_cells = physical_field.field.cells
+  original_centerline = physical_field.field.centerline_boundary_points_m
+
+  result = remesh_euler_ambient_first_wedge_characteristic_field(
+    physical_field,
+  )
+
+  assert result.status is (
+    MocEulerAmbientFirstWedgeCharacteristicFieldStatus.ENTROPY_FAILURE
+  )
+  assert result.retiled_field is not None
+  assert result.replaced_cell_indices == (16, 17)
+  assert result.replaced_centerline_index == 1
+  assert result.retiled_field.status.value == 'invariant_failure'
+  assert result.retiled_field_topology_verified
+  assert result.boundary_paths_verified
+  assert result.terminal_geometry_verified
+  assert not result.variable_entropy_compatibility_verified
+  assert not result.cell_euler_residual_verified
+  assert result.retiled_field.cells[16].vertices_xr_m == (
+    (2.125, 0.0),
+    (2.2331132751544187, 0.07673569462883911),
+    (2.4636587590024055, 0.0),
+  )
+  assert result.retiled_field.cells[17].vertices_xr_m[-1] == (
+    2.4636587590024055,
+    0.0,
+  )
+  assert result.retiled_field.centerline_boundary_points_m[1] == (
+    2.4636587590024055,
+    0.0,
+  )
+  assert physical_field.field.cells == original_cells
+  assert physical_field.field.centerline_boundary_points_m == original_centerline
+  assert result.physical_closure_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  assert result.physical_chain_cell_count == 0
+  assert result.as_chain_termination_decision().reason is (
+    MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+  )
+
+
+def test_terminal_characteristic_field_audit_recomputes_raw_retile_and_barrier() -> None:
+  shock = _shaped_exact_shock()
+  physical_field = assemble_euler_ambient_physical_field(
+    shock,
+    shock.downstream_static_pressure_Pa[0],
+  )
+  result = remesh_euler_ambient_first_wedge_characteristic_field(
+    physical_field,
+  )
+
+  audit = measure_moc_euler_ambient_first_wedge_characteristic_field_audit(
+    result,
+  )
+
+  assert audit.status is (
+    MocEulerAmbientFirstWedgeCharacteristicFieldAuditStatus.ENTROPY_FAILURE
+  )
+  assert audit.topology_verified
+  assert audit.boundary_paths_verified
+  assert audit.state_samples_finite
+  assert audit.cell_euler_residuals_finite
+  assert not audit.cell_euler_residuals_verified
+  assert audit.retiled_field_status_barrier_verified
+  assert audit.solver_status_consistent
+  assert audit.cell_count == 53
+  assert audit.sampled_cell_count == 53
+  assert audit.maximum_cell_euler_residual is not None
+  assert audit.maximum_cell_euler_residual > 1.0e-2
+  assert audit.replaced_cell_euler_residuals == (
+    result.terminal_wedge.cell_euler_residual,
+    audit.maximum_replaced_cell_euler_residual,
+  )
+  assert audit.terminal_characteristic_audit_status == (
+    'euler_ambient_first_wedge_terminal_entropy_failure'
+  )
+  assert audit.physical_closure_verified is False
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False
+  assert audit.as_report()['operator_id'] == (
+    'op.moc.euler-ambient-first-wedge-characteristic-field-audit'
+  )
+
+  assert result.retiled_field is not None
+  tampered = replace(
+    result,
+    retiled_field=replace(
+      result.retiled_field,
+      topology=validate_moc_mesh(()),
+    ),
+  )
+  tampered_audit = measure_moc_euler_ambient_first_wedge_characteristic_field_audit(
+    tampered,
+  )
+  assert tampered_audit.topology_verified
+  assert tampered_audit.solver_status_consistent
+  assert tampered_audit.status is audit.status
+
+
+def test_terminal_characteristic_field_planner_records_retile_without_chain() -> None:
+  shock = _shaped_exact_shock()
+  physical_field = assemble_euler_ambient_physical_field(
+    shock,
+    shock.downstream_static_pressure_Pa[0],
+  )
+
+  planner = plan_euler_ambient_first_wedge_characteristic_field(
+    physical_field,
+  )
+
+  assert planner.attempted
+  assert planner.resolved
+  assert planner.field_retile is not None
+  assert planner.step is not None
+  assert planner.step.result_kind == (
+    'solver-owned-terminal-characteristic-field-retile'
+  )
+  assert planner.step.result_replaced_cell_count == 2
+  assert planner.step.result_topology_verified
+  assert planner.step.result_boundary_paths_verified
+  assert planner.step.result_terminal_geometry_verified
+  assert not planner.step.result_variable_entropy_compatibility_verified
+  assert not planner.step.result_cell_euler_residual_verified
+  assert planner.step.result_retiled_field_status == 'invariant_failure'
+  assert planner.physical_chain_cell_count == 0
+  assert planner.termination.reason is MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+  assert planner.as_report()['diagnostics']['retile_consumed_as_chain_cell'] is False
   assert planner.physical_closure_verified is False
   assert planner.chain_promotion_blocked
   assert planner.production_claim_allowed is False
