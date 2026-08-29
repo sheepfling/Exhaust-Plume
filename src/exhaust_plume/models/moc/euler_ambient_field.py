@@ -542,8 +542,10 @@ class MocEulerAmbientBoundaryMarchResult:
       if value is None:
         continue
       numeric = float(value)
-      if not isfinite(numeric) or numeric < 0.0:
-        raise ValueError(f'{name} must be finite and nonnegative when supplied')
+      if not isfinite(numeric):
+        raise ValueError(f'{name} must be finite when supplied')
+      if name != 'attachment_relative_pressure_residual' and numeric < 0.0:
+        raise ValueError(f'{name} must be nonnegative when supplied')
       object.__setattr__(self, name, numeric)
     for name in (
       'physical_closure_verified',

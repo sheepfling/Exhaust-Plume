@@ -2622,3 +2622,31 @@ The next physical gate is a shared-attachment reflected/free-boundary solver
 that replaces the local topology fan with a solved downstream perimeter and
 transports nonuniform shock entropy. It must pass refinement and indexed
 external observations before this chain can be promoted beyond research use.
+
+## Exact ambient-closed physical-field checkpoint
+
+`assemble_euler_ambient_physical_field` is the next solver-owned lane after
+the local post-shock topology. It consumes a locally Euler-verified,
+mixed-characteristic shock curve, marches its shock-sourced `C+` data to a
+pressure-matched ambient boundary, and reuses the reflected centerline
+assembler to retain a bounded field and downstream state/total-pressure
+handoff. A shaped nine-sample shock fixture now closes that local boundary
+with ordered centerline topology and exact local shock jumps.
+
+This is deliberately a physical-field candidate rather than a production
+claim. The independent `op.moc.euler-ambient-physical-field-audit` rechecks
+the shock jumps, ambient samples, field topology/state sampling, and
+conservative cell residuals. The current fixture reaches the geometric
+closure checkpoint but remains stopped at the cell-residual/refinement gate;
+its variable downstream entropy lineage is reported explicitly. The result
+therefore keeps `chain_promotion_blocked=true` and
+`production_claim_allowed=false`, and exposes a typed
+`fidelity-not-allowed` chain decision instead of silently making a shock-cell
+handoff.
+
+The exact ambient lane does not alter the fast/basic visualization,
+signature, ray-transfer, or focal-plane-array providers. Continued shock
+cells still require independent conservative-cell refinement, a globally
+coupled reflected free-boundary/entropy solve, and indexed external
+validation data. The shaped fixture is retained as a reproducible
+planner/visualization checkpoint while those gates remain open.

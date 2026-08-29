@@ -33,6 +33,9 @@ from exhaust_plume.models.moc.euler_ambient_field import (
   MocEulerAmbientBoundaryMarchResult,
   MocEulerAmbientShockFieldResult,
 )
+from exhaust_plume.models.moc.euler_physical_field import (
+  MocEulerAmbientPhysicalFieldResult,
+)
 from exhaust_plume.models.moc.euler_post_shock import (
   MocEulerPostShockFieldResult,
 )
@@ -51,6 +54,10 @@ __all__ = (
   'MocPhysicalFieldEulerAuditStatus',
   'MocPhysicalFieldEulerAudit',
   'measure_moc_physical_field_euler_audit',
+  'MOC_EULER_AMBIENT_PHYSICAL_FIELD_AUDIT_OPERATOR_ID',
+  'MocEulerAmbientPhysicalFieldAuditStatus',
+  'MocEulerAmbientPhysicalFieldAudit',
+  'measure_moc_euler_ambient_physical_field',
   'MOC_EULER_COMPANION_FIELD_AUDIT_OPERATOR_ID',
   'MocEulerCompanionFieldAuditStatus',
   'MocEulerCompanionFieldAudit',
@@ -101,6 +108,9 @@ MOC_EULER_AMBIENT_SHOCK_FIELD_AUDIT_OPERATOR_ID = (
 )
 MOC_EULER_AMBIENT_SHOCK_FIELD_CHAIN_AUDIT_OPERATOR_ID = (
   'op.moc.euler-ambient-shock-field-chain-audit'
+)
+MOC_EULER_AMBIENT_PHYSICAL_FIELD_AUDIT_OPERATOR_ID = (
+  'op.moc.euler-ambient-physical-field-audit'
 )
 
 
@@ -1700,6 +1710,392 @@ def measure_moc_physical_field_euler_audit(
     field_topology_verified=topology_verified,
     residual_tolerance=cell_tolerance,
     message=message,
+  )
+
+
+class MocEulerAmbientPhysicalFieldAuditStatus(str, Enum):
+  """Outcome of auditing the exact ambient-closed physical-field bridge."""
+
+  CONVERGED_LOCAL_AUDIT = 'converged_euler_ambient_physical_field_audit'
+  INVALID_INPUT = 'invalid_input'
+  SHOCK_FAILURE = 'euler_ambient_physical_field_audit_shock_failure'
+  AMBIENT_FAILURE = 'euler_ambient_physical_field_audit_ambient_failure'
+  FIELD_FAILURE = 'euler_ambient_physical_field_audit_field_failure'
+  ENTROPY_FAILURE = 'euler_ambient_physical_field_audit_entropy_failure'
+  CELL_RESIDUAL_FAILURE = (
+    'euler_ambient_physical_field_audit_cell_residual_failure'
+  )
+  FLAG_FAILURE = 'euler_ambient_physical_field_audit_flag_failure'
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerAmbientPhysicalFieldAudit:
+  """Independent gate report for an exact ambient-closed field candidate.
+
+  The audit deliberately keeps geometric field closure separate from the
+  conservative-cell residual gate.  This lets the long-running planner
+  retain a useful exact field for diagnostics while refusing to promote it
+  into a continued shock-cell chain until refinement and cell evidence pass.
+  """
+
+  status: MocEulerAmbientPhysicalFieldAuditStatus
+  result_status: str | None
+  shock_sample_count: int
+  field_cell_count: int
+  shock_jump_verified: bool
+  cell_euler_residuals_verified: bool
+  physical_field_verified: bool
+  entropy_lineage_verified: bool
+  physical_closure_verified: bool
+  chain_promotion_blocked: bool
+  production_claim_allowed: bool
+  maximum_shock_jump_mass_residual: float | None = None
+  maximum_shock_jump_momentum_residual: float | None = None
+  maximum_shock_jump_energy_residual: float | None = None
+  maximum_cell_euler_residual: float | None = None
+  message: str = ''
+  operator_id: str = MOC_EULER_AMBIENT_PHYSICAL_FIELD_AUDIT_OPERATOR_ID
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.status, MocEulerAmbientPhysicalFieldAuditStatus):
+      raise TypeError(
+        'status must be a MocEulerAmbientPhysicalFieldAuditStatus'
+      )
+    if self.result_status is not None:
+      object.__setattr__(self, 'result_status', str(self.result_status))
+    for name in ('shock_sample_count', 'field_cell_count'):
+      value = getattr(self, name)
+      if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f'{name} must be a nonnegative integer')
+    for name in (
+      'maximum_shock_jump_mass_residual',
+      'maximum_shock_jump_momentum_residual',
+      'maximum_shock_jump_energy_residual',
+      'maximum_cell_euler_residual',
+    ):
+      value = getattr(self, name)
+      if value is None:
+        continue
+      numeric = float(value)
+      if not isfinite(numeric) or numeric < 0.0:
+        raise ValueError(f'{name} must be finite and nonnegative when supplied')
+      object.__setattr__(self, name, numeric)
+    for name in (
+      'shock_jump_verified',
+      'cell_euler_residuals_verified',
+      'physical_field_verified',
+      'entropy_lineage_verified',
+      'physical_closure_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+    operator_id = str(self.operator_id)
+    if not operator_id:
+      raise ValueError('operator_id must be a non-empty string')
+    object.__setattr__(self, 'operator_id', operator_id)
+    object.__setattr__(self, 'message', str(self.message))
+
+  @property
+  def converged(self) -> bool:
+    """Whether every requested local bridge audit gate passed."""
+
+    return self.status is MocEulerAmbientPhysicalFieldAuditStatus.CONVERGED_LOCAL_AUDIT
+
+  @property
+  def local_consistency_verified(self) -> bool:
+    """Whether the audit passed while preserving the hard claim boundary."""
+
+    return bool(
+      self.converged
+      and self.shock_jump_verified
+      and self.cell_euler_residuals_verified
+      and self.physical_field_verified
+      and self.physical_closure_verified
+      and self.chain_promotion_blocked
+      and not self.production_claim_allowed
+    )
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'operator_id': self.operator_id,
+      'converged': self.converged,
+      'local_consistency_verified': self.local_consistency_verified,
+      'result_status': self.result_status,
+      'shock_sample_count': self.shock_sample_count,
+      'field_cell_count': self.field_cell_count,
+      'maximum_shock_jump_mass_residual': (
+        self.maximum_shock_jump_mass_residual
+      ),
+      'maximum_shock_jump_momentum_residual': (
+        self.maximum_shock_jump_momentum_residual
+      ),
+      'maximum_shock_jump_energy_residual': (
+        self.maximum_shock_jump_energy_residual
+      ),
+      'maximum_cell_euler_residual': self.maximum_cell_euler_residual,
+      'checks': {
+        'shock_jump_verified': self.shock_jump_verified,
+        'cell_euler_residuals_verified': self.cell_euler_residuals_verified,
+        'physical_field_verified': self.physical_field_verified,
+        'entropy_lineage_verified': self.entropy_lineage_verified,
+        'physical_closure_verified': self.physical_closure_verified,
+        'chain_promotion_blocked': self.chain_promotion_blocked,
+        'production_claim_allowed': self.production_claim_allowed,
+      },
+      'canonical_reflected_free_boundary_verified': False,
+      'external_validation_verified': False,
+      'claim_status': (
+        'exact ambient-closed physical-field audit; independent cell '
+        'refinement, canonical reflected free-boundary, and external '
+        'validation remain explicit promotion gates'
+      ),
+      'message': self.message,
+    }
+
+
+def _ambient_physical_field_audit_failure(
+  status: MocEulerAmbientPhysicalFieldAuditStatus,
+  message: str,
+  *,
+  result_status: str | None = None,
+  shock_sample_count: int = 0,
+  field_cell_count: int = 0,
+  shock_jump_verified: bool = False,
+  cell_euler_residuals_verified: bool = False,
+  physical_field_verified: bool = False,
+  entropy_lineage_verified: bool = False,
+  physical_closure_verified: bool = False,
+  chain_promotion_blocked: bool = True,
+  production_claim_allowed: bool = False,
+  maximum_shock_jump_mass_residual: float | None = None,
+  maximum_shock_jump_momentum_residual: float | None = None,
+  maximum_shock_jump_energy_residual: float | None = None,
+  maximum_cell_euler_residual: float | None = None,
+) -> MocEulerAmbientPhysicalFieldAudit:
+  return MocEulerAmbientPhysicalFieldAudit(
+    status=status,
+    result_status=result_status,
+    shock_sample_count=shock_sample_count,
+    field_cell_count=field_cell_count,
+    shock_jump_verified=shock_jump_verified,
+    cell_euler_residuals_verified=cell_euler_residuals_verified,
+    physical_field_verified=physical_field_verified,
+    entropy_lineage_verified=entropy_lineage_verified,
+    physical_closure_verified=physical_closure_verified,
+    chain_promotion_blocked=chain_promotion_blocked,
+    production_claim_allowed=production_claim_allowed,
+    maximum_shock_jump_mass_residual=maximum_shock_jump_mass_residual,
+    maximum_shock_jump_momentum_residual=maximum_shock_jump_momentum_residual,
+    maximum_shock_jump_energy_residual=maximum_shock_jump_energy_residual,
+    maximum_cell_euler_residual=maximum_cell_euler_residual,
+    message=message,
+  )
+
+
+def measure_moc_euler_ambient_physical_field(
+  result: MocEulerAmbientPhysicalFieldResult,
+  *,
+  shock_residual_tolerance: float = 1.0e-8,
+  cell_residual_tolerance: float = 1.0e-2,
+  position_tolerance_m: float = 1.0e-10,
+  pressure_tolerance: float = 1.0e-8,
+  invariant_tolerance: float = 1.0e-8,
+) -> MocEulerAmbientPhysicalFieldAudit:
+  """Audit the exact shock, ambient march, and retained physical field.
+
+  The nested physical-field audit is intentionally run even when the exact
+  bridge has already marked its geometry closed.  Its conservative cell
+  residual is the independent promotion gate for a future continued chain.
+  """
+
+  if not isinstance(result, MocEulerAmbientPhysicalFieldResult):
+    return _ambient_physical_field_audit_failure(
+      MocEulerAmbientPhysicalFieldAuditStatus.INVALID_INPUT,
+      'result must be a MocEulerAmbientPhysicalFieldResult',
+    )
+  try:
+    shock_tolerance = float(shock_residual_tolerance)
+    cell_tolerance = float(cell_residual_tolerance)
+    position_tolerance = float(position_tolerance_m)
+    pressure_tolerance_value = float(pressure_tolerance)
+    invariant_tolerance_value = float(invariant_tolerance)
+  except (TypeError, ValueError):
+    return _ambient_physical_field_audit_failure(
+      MocEulerAmbientPhysicalFieldAuditStatus.INVALID_INPUT,
+      'ambient physical-field audit tolerances must be numeric',
+      result_status=result.status.value,
+    )
+  tolerances = (
+    shock_tolerance,
+    cell_tolerance,
+    position_tolerance,
+    pressure_tolerance_value,
+    invariant_tolerance_value,
+  )
+  if not all(isfinite(value) and value > 0.0 for value in tolerances):
+    raise ValueError('ambient physical-field audit tolerances must be finite and positive')
+  shock = result.shock_boundary
+  march = result.ambient_march
+  field = result.field
+  shock_count = 0 if shock is None else len(shock.shock_points_m)
+  cell_count = 0 if field is None else len(field.cells)
+  if shock is None:
+    return _ambient_physical_field_audit_failure(
+      MocEulerAmbientPhysicalFieldAuditStatus.SHOCK_FAILURE,
+      'exact ambient physical-field result did not retain a shock boundary',
+      result_status=result.status.value,
+      field_cell_count=cell_count,
+    )
+  if not shock.converged or not shock.local_euler_verified:
+    return _ambient_physical_field_audit_failure(
+      MocEulerAmbientPhysicalFieldAuditStatus.SHOCK_FAILURE,
+      'exact shock boundary did not pass its local Euler gate',
+      result_status=result.status.value,
+      shock_sample_count=shock_count,
+      field_cell_count=cell_count,
+    )
+  if march is None or not march.converged:
+    return _ambient_physical_field_audit_failure(
+      MocEulerAmbientPhysicalFieldAuditStatus.AMBIENT_FAILURE,
+      'exact ambient physical-field result did not retain a converged ambient march',
+      result_status=result.status.value,
+      shock_sample_count=shock_count,
+      field_cell_count=cell_count,
+    )
+  ambient_boundary_verified = bool(
+    len(march.boundary_samples) == shock_count
+    and len(march.point_results) == shock_count
+    and march.ambient_boundary.converged
+    and march.maximum_geometry_residual_m is not None
+    and march.maximum_geometry_residual_m <= position_tolerance
+    and march.maximum_absolute_pressure_residual is not None
+    and march.maximum_absolute_pressure_residual <= pressure_tolerance_value
+    and march.maximum_absolute_invariant_residual is not None
+    and march.maximum_absolute_invariant_residual <= invariant_tolerance_value
+    and march.attachment_relative_pressure_residual is not None
+    and abs(march.attachment_relative_pressure_residual) <= pressure_tolerance_value
+    and all(result_item.converged for result_item in march.point_results)
+    and all(
+      residual <= invariant_tolerance_value
+      for residual in march.incoming_k_plus_residuals
+    )
+  )
+  if not ambient_boundary_verified:
+    return _ambient_physical_field_audit_failure(
+      MocEulerAmbientPhysicalFieldAuditStatus.AMBIENT_FAILURE,
+      'ambient march did not pass independent pressure, geometry, and invariant checks',
+      result_status=result.status.value,
+      shock_sample_count=shock_count,
+      field_cell_count=cell_count,
+    )
+  if field is None:
+    return _ambient_physical_field_audit_failure(
+      MocEulerAmbientPhysicalFieldAuditStatus.FIELD_FAILURE,
+      'exact ambient physical-field result did not retain a physical field',
+      result_status=result.status.value,
+      shock_sample_count=shock_count,
+    )
+  try:
+    field_audit = measure_moc_physical_field_euler_audit(
+      field,
+      shock_residual_tolerance=shock_tolerance,
+      cell_residual_tolerance=cell_tolerance,
+      position_tolerance_m=position_tolerance,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return _ambient_physical_field_audit_failure(
+      MocEulerAmbientPhysicalFieldAuditStatus.FIELD_FAILURE,
+      f'independent physical-field audit raised: {error}',
+      result_status=result.status.value,
+      shock_sample_count=shock_count,
+      field_cell_count=cell_count,
+    )
+  physical_field_verified = bool(
+    result.converged
+    and result.physical_field_verified
+    and field.converged
+    and field.physical_closure_verified
+    and field.state_sampling_available
+    and field_audit.field_topology_verified
+  )
+  shock_jump_verified = bool(
+    result.shock_boundary_verified
+    and field_audit.shock_jump_verified
+  )
+  flags_verified = bool(
+    result.chain_promotion_blocked
+    and not result.production_claim_allowed
+    and march.chain_promotion_blocked
+    and not march.production_claim_allowed
+  )
+  physical_closure_verified = bool(
+    result.physical_closure_verified and field.physical_closure_verified
+  )
+  chain_promotion_blocked = bool(
+    result.chain_promotion_blocked and march.chain_promotion_blocked
+  )
+  production_claim_allowed = bool(
+    result.production_claim_allowed or march.production_claim_allowed
+  )
+  common = dict(
+    result_status=result.status.value,
+    shock_sample_count=shock_count,
+    field_cell_count=cell_count,
+    shock_jump_verified=shock_jump_verified,
+    cell_euler_residuals_verified=field_audit.cell_euler_residuals_verified,
+    physical_field_verified=physical_field_verified,
+    entropy_lineage_verified=result.entropy_lineage_verified,
+    physical_closure_verified=physical_closure_verified,
+    chain_promotion_blocked=chain_promotion_blocked,
+    production_claim_allowed=production_claim_allowed,
+    maximum_shock_jump_mass_residual=(
+      field_audit.maximum_shock_jump_mass_residual
+    ),
+    maximum_shock_jump_momentum_residual=(
+      field_audit.maximum_shock_jump_momentum_residual
+    ),
+    maximum_shock_jump_energy_residual=(
+      field_audit.maximum_shock_jump_energy_residual
+    ),
+    maximum_cell_euler_residual=field_audit.maximum_cell_euler_residual,
+  )
+  if not shock_jump_verified:
+    status = MocEulerAmbientPhysicalFieldAuditStatus.SHOCK_FAILURE
+    message = 'independent shock Rankine--Hugoniot audit exceeded tolerance'
+  elif not physical_field_verified:
+    status = MocEulerAmbientPhysicalFieldAuditStatus.FIELD_FAILURE
+    message = 'independent physical-field topology or state-sampling audit failed'
+  elif not physical_closure_verified:
+    status = MocEulerAmbientPhysicalFieldAuditStatus.FIELD_FAILURE
+    message = 'exact ambient physical-field closure flag was not verified'
+  elif not field_audit.cell_euler_residuals_verified:
+    status = MocEulerAmbientPhysicalFieldAuditStatus.CELL_RESIDUAL_FAILURE
+    message = (
+      'independent conservative cell Euler residual exceeded tolerance; '
+      'refinement is required before chain promotion'
+    )
+  elif not result.entropy_lineage_verified:
+    status = MocEulerAmbientPhysicalFieldAuditStatus.ENTROPY_FAILURE
+    message = (
+      'exact field retained variable downstream entropy/total-pressure '
+      'lineage that is not yet admitted by the continued-chain contract'
+    )
+  elif not flags_verified:
+    status = MocEulerAmbientPhysicalFieldAuditStatus.FLAG_FAILURE
+    message = 'exact ambient physical-field fidelity flags were weakened'
+  else:
+    status = MocEulerAmbientPhysicalFieldAuditStatus.CONVERGED_LOCAL_AUDIT
+    message = (
+      'independent exact ambient physical-field audit passed shock, ambient, '
+      'field, cell, entropy-lineage, and fidelity gates'
+    )
+  return _ambient_physical_field_audit_failure(
+    status,
+    message,
+    **common,
   )
 
 

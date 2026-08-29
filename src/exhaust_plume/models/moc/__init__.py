@@ -356,6 +356,11 @@ from exhaust_plume.models.moc.physical_cell import (
   solve_ambient_closed_post_shock_chain_cell_from_physical_field_or_termination,
   continue_ambient_closed_post_shock_chain,
 )
+from exhaust_plume.models.moc.euler_physical_field import (
+  MocEulerAmbientPhysicalFieldStatus,
+  MocEulerAmbientPhysicalFieldResult,
+  assemble_euler_ambient_physical_field,
+)
 from exhaust_plume.models.moc.ambient_shock_strip import (
   MocAmbientShockBoundaryMarchStatus,
   MocAmbientShockBoundaryMarchResult,
@@ -918,6 +923,9 @@ __all__ = (
   'MocEulerAmbientShockFieldResult',
   'assemble_euler_ambient_shock_field',
   'assemble_euler_ambient_shock_field_from_companion',
+  'MocEulerAmbientPhysicalFieldStatus',
+  'MocEulerAmbientPhysicalFieldResult',
+  'assemble_euler_ambient_physical_field',
   'MocEulerPostShockFieldStatus',
   'MocEulerPostShockFieldResult',
   'assemble_euler_post_shock_field',

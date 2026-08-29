@@ -1271,3 +1271,27 @@ handoff is state-carrying, but every field and the planner remain research-
 only. The independent field and chain audits enforce the same boundary:
 physical closure stays false, promotion stays blocked, and no product
 provider may consume the sequence as a resolved shock-cell chain.
+
+## Exact ambient-closed physical-field boundary
+
+The separate `assemble_euler_ambient_physical_field` API is the first lane
+that joins an exact locally conservative shock to a solver-owned
+pressure-matched ambient march and a reflected centerline mesh. It is
+available for higher-fidelity inspection and downstream handoff diagnostics,
+but its `converged` result means only that the local boundary/topology
+assembly completed. It does not mean that the characteristic cells satisfy
+the independent conservative Euler residual gate.
+
+`measure_moc_euler_ambient_physical_field` is the corresponding independent
+audit. It keeps shock-jump, physical-field closure, entropy-lineage, and
+cell-residual evidence separate, and the chain adapter returns
+`fidelity-not-allowed` while promotion gates remain incomplete. The current
+shaped-shock reference intentionally demonstrates this distinction: local
+shock jumps and topology pass, while the retained cell residual requires
+refinement before continued shock-cell chains can be considered.
+
+This provider is research-only. It must not be used to retrain or upgrade the
+basic visualization lane, signature lane, ray-transfer path, or focal-plane
+array path. Promotion additionally requires globally coupled reflected
+free-boundary closure, entropy transport, resolution evidence, and indexed
+external observations.
