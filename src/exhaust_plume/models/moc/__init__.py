@@ -381,6 +381,11 @@ from exhaust_plume.models.moc.euler_entropy_carry import (
   MocEulerAmbientFirstWedgeEntropyCarryResult,
   solve_euler_ambient_first_wedge_entropy_carry,
 )
+from exhaust_plume.models.moc.euler_entropy_refinement import (
+  MocEulerAmbientFirstWedgeEntropyCarryRefinementStatus,
+  MocEulerAmbientFirstWedgeEntropyCarryRefinementResult,
+  refine_euler_ambient_first_wedge_entropy_carry,
+)
 from exhaust_plume.models.moc.ambient_shock_strip import (
   MocAmbientShockBoundaryMarchStatus,
   MocAmbientShockBoundaryMarchResult,
@@ -529,6 +534,9 @@ from exhaust_plume.models.moc.planner import (
   MocEulerAmbientFirstWedgeEntropyCarryPlannerStep,
   MocEulerAmbientFirstWedgeEntropyCarryPlannerResult,
   plan_euler_ambient_first_wedge_entropy_carry,
+  MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerStep,
+  MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerResult,
+  plan_euler_ambient_first_wedge_entropy_carry_refinement,
   MocEulerPostShockFieldContinuationSolve,
   MocEulerPostShockFieldChainStep,
   MocEulerPostShockFieldChainPlannerResult,
@@ -716,6 +724,9 @@ __all__ = (
   'MocEulerAmbientFirstWedgeEntropyCarryPlannerStep',
   'MocEulerAmbientFirstWedgeEntropyCarryPlannerResult',
   'plan_euler_ambient_first_wedge_entropy_carry',
+  'MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerStep',
+  'MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerResult',
+  'plan_euler_ambient_first_wedge_entropy_carry_refinement',
   'MocEulerPostShockFieldContinuationSolve',
   'MocEulerPostShockFieldChainStep',
   'MocEulerPostShockFieldChainPlannerResult',
@@ -984,6 +995,9 @@ __all__ = (
   'MocEulerAmbientFirstWedgeEntropyCarryStatus',
   'MocEulerAmbientFirstWedgeEntropyCarryResult',
   'solve_euler_ambient_first_wedge_entropy_carry',
+  'MocEulerAmbientFirstWedgeEntropyCarryRefinementStatus',
+  'MocEulerAmbientFirstWedgeEntropyCarryRefinementResult',
+  'refine_euler_ambient_first_wedge_entropy_carry',
   'MocEulerPostShockFieldStatus',
   'MocEulerPostShockFieldResult',
   'assemble_euler_post_shock_field',

@@ -280,6 +280,16 @@ from exhaust_plume.validation.moc_euler_entropy import (
   MocEulerAmbientFirstWedgeEntropyCarryAudit,
   measure_moc_euler_ambient_first_wedge_entropy_carry,
 )
+from exhaust_plume.validation.moc_euler_entropy_refinement import (
+  MOC_EULER_AMBIENT_FIRST_WEDGE_ENTROPY_CARRY_REFINEMENT_AUDIT_OPERATOR_ID,
+  MocEulerAmbientFirstWedgeEntropyCarryRefinementAuditStatus,
+  MocEulerAmbientFirstWedgeEntropyCarryRefinementAudit,
+  measure_moc_euler_ambient_first_wedge_entropy_carry_refinement,
+  MocEulerAmbientFirstWedgeEntropyCarryRefinementCase,
+  MocEulerAmbientFirstWedgeEntropyCarryRefinementMeasurementStatus,
+  MocEulerAmbientFirstWedgeEntropyCarryRefinementMeasurement,
+  measure_moc_euler_ambient_first_wedge_entropy_carry_refinement_ladder,
+)
 from exhaust_plume.validation.lane_contracts import (
   SignatureLaneInvariantReport,
   VisualLaneInvariantReport,
@@ -493,6 +503,14 @@ __all__ = (
   'MocEulerAmbientFirstWedgeEntropyCarryEdgeAudit',
   'MocEulerAmbientFirstWedgeEntropyCarryAudit',
   'measure_moc_euler_ambient_first_wedge_entropy_carry',
+  'MOC_EULER_AMBIENT_FIRST_WEDGE_ENTROPY_CARRY_REFINEMENT_AUDIT_OPERATOR_ID',
+  'MocEulerAmbientFirstWedgeEntropyCarryRefinementAuditStatus',
+  'MocEulerAmbientFirstWedgeEntropyCarryRefinementAudit',
+  'measure_moc_euler_ambient_first_wedge_entropy_carry_refinement',
+  'MocEulerAmbientFirstWedgeEntropyCarryRefinementCase',
+  'MocEulerAmbientFirstWedgeEntropyCarryRefinementMeasurementStatus',
+  'MocEulerAmbientFirstWedgeEntropyCarryRefinementMeasurement',
+  'measure_moc_euler_ambient_first_wedge_entropy_carry_refinement_ladder',
   'SignatureLaneInvariantReport',
   'VisualLaneInvariantReport',
   'MACH_DISK_FEATURE_OPERATOR_ID',

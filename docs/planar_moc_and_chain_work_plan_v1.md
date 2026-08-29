@@ -2746,3 +2746,25 @@ barrier. The canonical result remains an expected entropy/Euler boundary with
 zero physical chain cells; it is not a production field and does not alter
 the basic visualization, signature, ray-transfer, or focal-plane-array
 providers.
+
+## Entropy-carrying refinement and chain-planner boundary
+
+The first-wedge entropy-carrying candidate now has a separate diagnostic
+subcell ladder. ``refine_euler_ambient_first_wedge_entropy_carry`` projects
+``theta``, ``nu``, and ``log(p0)`` over the solver-owned triangle and evaluates
+the finite-volume Euler residual for each barycentric subcell. The independent
+``op.moc.euler-ambient-first-wedge-entropy-carry-refinement-audit`` rebuilds
+the projection, topology, pressure lineage, and residuals from raw samples.
+
+The canonical 1/2/3 ladder has side counts 2/4/8, cell counts 4/16/64, and
+maximum residuals about 0.01801/0.01223/0.00703. This establishes useful local
+resolution evidence, but it is deliberately not the MOC solution: no internal
+characteristic family closure or reflected free-boundary coupling is claimed.
+
+The planner mock records each diagnostic refinement step and stops with
+``FIDELITY_NOT_ALLOWED`` and zero physical shock-cell entries. The next
+implementation work is to replace the barycentric projection with a
+solver-owned ``C+``/``C-`` subcell solve, propagate the reflected outer/front
+boundary through the refined mesh, and then repeat full-field conservation,
+refinement, and indexed-observation gates. None of this changes the fast
+visualization or reduced-order product providers.

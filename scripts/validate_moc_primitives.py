@@ -76,6 +76,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   plan_euler_ambient_first_wedge_characteristic_remesh,
   plan_euler_ambient_first_wedge_characteristic_field,
   plan_euler_ambient_first_wedge_entropy_carry,
+  plan_euler_ambient_first_wedge_entropy_carry_refinement,
   MocEulerPostShockFieldStatus,
   MocEulerPostShockFieldChainMock,
   MocEulerCompanionFieldChainMock,
@@ -339,6 +340,11 @@ from exhaust_plume.validation.moc_euler_characteristic import (  # noqa: E402
 from exhaust_plume.validation.moc_euler_entropy import (  # noqa: E402
   MocEulerAmbientFirstWedgeEntropyCarryAuditStatus,
   measure_moc_euler_ambient_first_wedge_entropy_carry,
+)
+from exhaust_plume.validation.moc_euler_entropy_refinement import (  # noqa: E402
+  MocEulerAmbientFirstWedgeEntropyCarryRefinementCase,
+  MocEulerAmbientFirstWedgeEntropyCarryRefinementMeasurementStatus,
+  measure_moc_euler_ambient_first_wedge_entropy_carry_refinement_ladder,
 )
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput  # noqa: E402
 from exhaust_plume.models.nozzle.exit_state import derive_ambient_state, derive_uniform_nozzle_exit  # noqa: E402
@@ -10118,6 +10124,34 @@ def build_moc_primitive_report() -> dict[str, Any]:
       euler_ambient_first_wedge_entropy_carry_planner.entropy_carry,
     )
   )
+  euler_ambient_first_wedge_entropy_carry_refinement_planner = (
+    None
+    if euler_ambient_first_wedge_entropy_carry_planner is None
+    or euler_ambient_first_wedge_entropy_carry_planner.entropy_carry is None
+    else plan_euler_ambient_first_wedge_entropy_carry_refinement(
+      euler_ambient_first_wedge_entropy_carry_planner.seed,
+      subdivision_levels=(1, 2, 3),
+    )
+  )
+  euler_ambient_first_wedge_entropy_carry_refinement_measurement = None
+  if (
+    euler_ambient_first_wedge_entropy_carry_refinement_planner is not None
+  ):
+    refinement_cases = tuple(
+      MocEulerAmbientFirstWedgeEntropyCarryRefinementCase(
+        subdivision_level=refinement.subdivision_level,
+        result=refinement,
+      )
+      for refinement in (
+        euler_ambient_first_wedge_entropy_carry_refinement_planner.refinements
+      )
+    )
+    euler_ambient_first_wedge_entropy_carry_refinement_measurement = (
+      measure_moc_euler_ambient_first_wedge_entropy_carry_refinement_ladder(
+        refinement_cases,
+        expected_subdivision_levels=(1, 2, 3),
+      )
+    )
   euler_ambient_first_wedge_remesh_refinement = (
     measure_moc_euler_ambient_first_wedge_remesh_refinement(
       tuple(
@@ -10528,9 +10562,20 @@ def build_moc_primitive_report() -> dict[str, Any]:
         if euler_ambient_first_wedge_entropy_carry_audit is None
         else euler_ambient_first_wedge_entropy_carry_audit.as_report()
       ),
+      'refinement_planner': (
+        None
+        if euler_ambient_first_wedge_entropy_carry_refinement_planner is None
+        else euler_ambient_first_wedge_entropy_carry_refinement_planner.as_report()
+      ),
+      'refinement_measurement': (
+        None
+        if euler_ambient_first_wedge_entropy_carry_refinement_measurement is None
+        else euler_ambient_first_wedge_entropy_carry_refinement_measurement.as_report()
+      ),
       'claim_status': (
         'solver-owned-local-entropy-carrying-terminal-trial; characteristic '
-        'subcell refinement, reflected free-boundary continuation, and '
+        'subcell projection ladder is measured separately; internal '
+        'characteristic closure, reflected free-boundary continuation, and '
         'physical shock-cell promotion pending'
       ),
     },
@@ -11582,6 +11627,25 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or euler_ambient_first_wedge_entropy_carry_planner.physical_chain_cell_count
     != 0
   )
+  euler_ambient_first_wedge_entropy_carry_refinement_failure = (
+    euler_ambient_first_wedge_entropy_carry_refinement_planner is None
+    or not euler_ambient_first_wedge_entropy_carry_refinement_planner.resolved
+    or len(
+      euler_ambient_first_wedge_entropy_carry_refinement_planner.refinements
+    ) != 3
+    or euler_ambient_first_wedge_entropy_carry_refinement_measurement is None
+    or euler_ambient_first_wedge_entropy_carry_refinement_measurement.status
+    is not MocEulerAmbientFirstWedgeEntropyCarryRefinementMeasurementStatus.CONVERGED_LOCAL_REFINEMENT
+    or not euler_ambient_first_wedge_entropy_carry_refinement_measurement.local_consistency_verified
+    or euler_ambient_first_wedge_entropy_carry_refinement_measurement.internal_characteristic_closure_verified
+    or euler_ambient_first_wedge_entropy_carry_refinement_measurement.physical_closure_verified
+    or not euler_ambient_first_wedge_entropy_carry_refinement_measurement.chain_promotion_blocked
+    or euler_ambient_first_wedge_entropy_carry_refinement_measurement.production_claim_allowed
+    or euler_ambient_first_wedge_entropy_carry_refinement_planner.termination.reason
+    is not MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+    or euler_ambient_first_wedge_entropy_carry_refinement_planner.physical_chain_cell_count
+    != 0
+  )
   euler_companion_field_planner_failure = (
     euler_companion_field_planner.planner_kind is not MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
     or not euler_companion_field_planner.resolved
@@ -11893,6 +11957,20 @@ def build_moc_primitive_report() -> dict[str, Any]:
         ),
       }
     ] if euler_ambient_first_wedge_entropy_carry_failure else []),
+    *([
+      {
+        'case': 'euler_ambient_first_wedge_entropy_carry_refinement',
+        'status': (
+          'missing'
+          if euler_ambient_first_wedge_entropy_carry_refinement_measurement is None
+          else euler_ambient_first_wedge_entropy_carry_refinement_measurement.status.value
+        ),
+        'message': (
+          'the entropy-carrying subcell projection ladder did not preserve '
+          'independent topology, lineage, residual reduction, and chain-stop gates'
+        ),
+      }
+    ] if euler_ambient_first_wedge_entropy_carry_refinement_failure else []),
     *([
       {
         'case': 'euler_solver_owned_ambient_companion_boundary',

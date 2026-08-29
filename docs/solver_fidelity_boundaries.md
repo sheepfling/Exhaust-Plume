@@ -1372,3 +1372,30 @@ refinement failure and requires a solver-owned remesh/subdivision; it cannot
 be cleared by relabeling the boundary sample count or by promoting a
 planner mock. The fast visual, signature, ray-transfer, and focal-plane-array
 providers remain isolated while that higher-fidelity seam is open.
+
+## Entropy-carrying subcell refinement checkpoint
+
+The solver now exposes a bounded diagnostic refinement of the
+entropy-carrying first-wedge candidate through
+``refine_euler_ambient_first_wedge_entropy_carry``. It projects the solver-owned
+triangle states in ``theta``, ``nu``, and ``log(p0)`` onto a barycentric
+subcell lattice, then measures the conservative Euler residual on each
+subcell. This is a resolution probe, not an internal characteristic closure.
+
+The canonical ladder uses side counts 2, 4, and 8 (4, 16, and 64 cells).
+Its maximum cell residual decreases from approximately 0.01801 to 0.01223 to
+0.00703; the final local residual gate passes. The independent
+``op.moc.euler-ambient-first-wedge-entropy-carry-refinement-audit`` reconstructs
+the topology, projected states, pressure lineage, and residuals from raw
+inputs, so the trend is evidence about this bounded projection rather than a
+solver self-report.
+
+The fidelity boundary is explicit: projected subcells are not promoted to
+physical shock cells, do not establish internal ``C+``/``C-`` characteristic
+closure, and do not close the reflected free boundary. The continued-chain
+planner therefore records all three diagnostic steps but remains
+``FIDELITY_NOT_ALLOWED`` with zero physical chain cells. The next gate is a
+solver-owned internal characteristic solve on the refined cells, coupled to
+the reflected outer/front boundary, followed by full-field conservation and
+indexed external observations. The fast visualization, signature,
+ray-transfer, and focal-plane-array providers remain unchanged.

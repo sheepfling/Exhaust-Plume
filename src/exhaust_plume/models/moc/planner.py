@@ -117,6 +117,10 @@ from exhaust_plume.models.moc.euler_entropy_carry import (
   MocEulerAmbientFirstWedgeEntropyCarryResult,
   solve_euler_ambient_first_wedge_entropy_carry,
 )
+from exhaust_plume.models.moc.euler_entropy_refinement import (
+  MocEulerAmbientFirstWedgeEntropyCarryRefinementResult,
+  refine_euler_ambient_first_wedge_entropy_carry,
+)
 from exhaust_plume.models.moc.euler_physical_field import (
   MocEulerAmbientPhysicalFieldResult,
 )
@@ -238,6 +242,9 @@ __all__ = (
   'MocEulerAmbientFirstWedgeEntropyCarryPlannerStep',
   'MocEulerAmbientFirstWedgeEntropyCarryPlannerResult',
   'plan_euler_ambient_first_wedge_entropy_carry',
+  'MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerStep',
+  'MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerResult',
+  'plan_euler_ambient_first_wedge_entropy_carry_refinement',
   'MocEulerPostShockFieldContinuationSolve',
   'MocEulerPostShockFieldChainStep',
   'MocEulerPostShockFieldChainPlannerResult',
@@ -11235,6 +11242,369 @@ def plan_euler_ambient_first_wedge_entropy_carry(
     result_production_claim_allowed=entropy_carry.production_claim_allowed,
   )
   return result(entropy_carry.as_chain_termination_decision())
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerStep:
+  """One declared entropy-carrying projection resolution in the planner."""
+
+  subdivision_level: int
+  subdivision_side_count: int
+  result_status: str
+  result_kind: str
+  result_converged: bool
+  result_cell_count: int
+  result_state_sample_count: int
+  result_maximum_cell_euler_residual: float | None
+  result_topology_verified: bool
+  result_state_projection_verified: bool
+  result_pressure_lineage_carried: bool
+  result_cell_euler_residuals_finite: bool
+  result_cell_euler_residuals_verified: bool
+  result_internal_characteristic_closure_verified: bool
+  result_physical_closure_verified: bool
+  result_chain_promotion_blocked: bool
+  result_production_claim_allowed: bool
+
+  def __post_init__(self) -> None:
+    for name in ('subdivision_level', 'subdivision_side_count', 'result_cell_count', 'result_state_sample_count'):
+      value = getattr(self, name)
+      if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f'{name} must be a nonnegative integer')
+    for name in ('result_status', 'result_kind'):
+      value = getattr(self, name)
+      if not isinstance(value, str) or not value:
+        raise ValueError(f'{name} must be a non-empty string')
+    if self.result_maximum_cell_euler_residual is not None:
+      value = float(self.result_maximum_cell_euler_residual)
+      if not isfinite(value) or value < 0.0:
+        raise ValueError(
+          'result_maximum_cell_euler_residual must be finite and nonnegative'
+        )
+      object.__setattr__(self, 'result_maximum_cell_euler_residual', value)
+    for name in (
+      'result_converged',
+      'result_topology_verified',
+      'result_state_projection_verified',
+      'result_pressure_lineage_carried',
+      'result_cell_euler_residuals_finite',
+      'result_cell_euler_residuals_verified',
+      'result_internal_characteristic_closure_verified',
+      'result_physical_closure_verified',
+      'result_chain_promotion_blocked',
+      'result_production_claim_allowed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+    if self.result_internal_characteristic_closure_verified:
+      raise ValueError(
+        'projection refinement planner steps cannot claim internal characteristic closure'
+      )
+    if self.result_physical_closure_verified:
+      raise ValueError(
+        'projection refinement planner steps cannot claim physical closure'
+      )
+    if self.result_production_claim_allowed:
+      raise ValueError(
+        'projection refinement planner steps cannot claim production validity'
+      )
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'subdivision_level': self.subdivision_level,
+      'subdivision_side_count': self.subdivision_side_count,
+      'result_status': self.result_status,
+      'result_kind': self.result_kind,
+      'result_converged': self.result_converged,
+      'result_cell_count': self.result_cell_count,
+      'result_state_sample_count': self.result_state_sample_count,
+      'result_maximum_cell_euler_residual': self.result_maximum_cell_euler_residual,
+      'checks': {
+        'topology_verified': self.result_topology_verified,
+        'state_projection_verified': self.result_state_projection_verified,
+        'pressure_lineage_carried': self.result_pressure_lineage_carried,
+        'cell_euler_residuals_finite': self.result_cell_euler_residuals_finite,
+        'cell_euler_residuals_verified': self.result_cell_euler_residuals_verified,
+        'internal_characteristic_closure_verified': False,
+        'physical_closure_verified': False,
+        'chain_promotion_blocked': True,
+        'production_claim_allowed': False,
+      },
+    }
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerResult:
+  """An entropy-carrying resolution ladder with a hard pre-chain stop."""
+
+  seed: MocEulerAmbientFirstWedgeCharacteristicResult
+  entropy_carry: MocEulerAmbientFirstWedgeEntropyCarryResult | None
+  refinements: tuple[MocEulerAmbientFirstWedgeEntropyCarryRefinementResult, ...]
+  steps: tuple[MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerStep, ...]
+  termination: MocChainTerminationDecision
+  planner_kind: MocChainPlannerKind
+  claim_status: str
+  diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.seed,
+      MocEulerAmbientFirstWedgeCharacteristicResult,
+    ):
+      raise TypeError(
+        'seed must be a MocEulerAmbientFirstWedgeCharacteristicResult'
+      )
+    if self.entropy_carry is not None and not isinstance(
+      self.entropy_carry,
+      MocEulerAmbientFirstWedgeEntropyCarryResult,
+    ):
+      raise TypeError(
+        'entropy_carry must be a '
+        'MocEulerAmbientFirstWedgeEntropyCarryResult or None'
+      )
+    refinements = tuple(self.refinements)
+    steps = tuple(self.steps)
+    if len(refinements) != len(steps):
+      raise ValueError('refinements and steps must have equal lengths')
+    if any(
+      not isinstance(
+        refinement,
+        MocEulerAmbientFirstWedgeEntropyCarryRefinementResult,
+      )
+      for refinement in refinements
+    ):
+      raise TypeError(
+        'refinements must contain '
+        'MocEulerAmbientFirstWedgeEntropyCarryRefinementResult values'
+      )
+    if any(
+      not isinstance(
+        step,
+        MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerStep,
+      )
+      for step in steps
+    ):
+      raise TypeError(
+        'steps must contain '
+        'MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerStep values'
+      )
+    object.__setattr__(self, 'refinements', refinements)
+    object.__setattr__(self, 'steps', steps)
+    if not isinstance(self.termination, MocChainTerminationDecision):
+      raise TypeError('termination must be a MocChainTerminationDecision')
+    if self.planner_kind is not MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH:
+      raise ValueError(
+        'entropy-carrying refinement planner must use the upstream-coupled '
+        'research planner kind'
+      )
+    object.__setattr__(self, 'claim_status', str(self.claim_status))
+    object.__setattr__(
+      self,
+      'diagnostics',
+      MappingProxyType(dict(self.diagnostics)),
+    )
+
+  @property
+  def attempted(self) -> bool:
+    return self.entropy_carry is not None
+
+  @property
+  def resolved(self) -> bool:
+    return bool(
+      self.entropy_carry is not None
+      and self.refinements
+      and self.termination.reason is MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+    )
+
+  @property
+  def physical_chain_cell_count(self) -> int:
+    return 0
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    return False
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    return True
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    return False
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'planner_kind': self.planner_kind.value,
+      'planning_only': True,
+      'claim_status': self.claim_status,
+      'attempted': self.attempted,
+      'resolved': self.resolved,
+      'physical_chain_cell_count': self.physical_chain_cell_count,
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'entropy_carry': (
+        None
+        if self.entropy_carry is None
+        else self.entropy_carry.as_report()
+      ),
+      'refinements': [refinement.as_report() for refinement in self.refinements],
+      'steps': [step.as_report() for step in self.steps],
+      'termination': self.termination.as_report(),
+      'diagnostics': dict(self.diagnostics),
+    }
+
+
+def plan_euler_ambient_first_wedge_entropy_carry_refinement(
+  seed: MocEulerAmbientFirstWedgeCharacteristicResult,
+  *,
+  subdivision_levels: Sequence[int] = (1, 2, 3),
+  position_tolerance_m: float = 1.0e-10,
+  pressure_lineage_tolerance: float = 1.0e-8,
+  cell_residual_tolerance: float = 1.0e-2,
+  characteristic_residual_tolerance: float = 1.0e-8,
+  edge_alignment_tolerance: float = 0.25,
+  maximum_iterations: int = 24,
+) -> MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerResult:
+  """Plan a bounded entropy-carrying projection ladder without chain cells."""
+
+  if not isinstance(seed, MocEulerAmbientFirstWedgeCharacteristicResult):
+    raise TypeError(
+      'seed must be a MocEulerAmbientFirstWedgeCharacteristicResult'
+    )
+  try:
+    levels = tuple(subdivision_levels)
+  except TypeError as error:
+    raise ValueError('subdivision_levels must be an iterable of integers') from error
+  if not levels or any(
+    isinstance(level, bool) or not isinstance(level, int) or level < 1
+    for level in levels
+  ):
+    raise ValueError('subdivision_levels must contain positive integers')
+  if any(right <= left for left, right in zip(levels, levels[1:])):
+    raise ValueError('subdivision_levels must be strictly increasing')
+  entropy_carry: MocEulerAmbientFirstWedgeEntropyCarryResult | None = None
+  refinements: list[MocEulerAmbientFirstWedgeEntropyCarryRefinementResult] = []
+  steps: list[MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerStep] = []
+
+  def result(
+    termination: MocChainTerminationDecision,
+  ) -> MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerResult:
+    return MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerResult(
+      seed=seed,
+      entropy_carry=entropy_carry,
+      refinements=tuple(refinements),
+      steps=tuple(steps),
+      termination=termination,
+      planner_kind=MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH,
+      claim_status=(
+        'solver-owned-entropy-carrying-refinement-planner; projected '
+        'residual reduction does not establish internal characteristic closure '
+        'or authorize a continued physical shock-cell chain'
+      ),
+      diagnostics={
+        'planner_model': 'euler-ambient-first-wedge-entropy-carry-refinement',
+        'subdivision_levels': levels,
+        'refinement_consumed_as_chain_cell': False,
+        'physical_chain_cell_count': 0,
+        'internal_characteristic_closure_verified': False,
+        'physical_closure_verified': False,
+        'chain_promotion_blocked': True,
+        'production_claim_allowed': False,
+        'independent_ladder_audit_required': True,
+      },
+    )
+
+  try:
+    entropy_carry = solve_euler_ambient_first_wedge_entropy_carry(
+      seed,
+      position_tolerance_m=position_tolerance_m,
+      characteristic_residual_tolerance=characteristic_residual_tolerance,
+      edge_alignment_tolerance=edge_alignment_tolerance,
+      cell_residual_tolerance=cell_residual_tolerance,
+      pressure_lineage_tolerance=pressure_lineage_tolerance,
+      maximum_iterations=maximum_iterations,
+    )
+    for level in levels:
+      refinement = refine_euler_ambient_first_wedge_entropy_carry(
+        entropy_carry,
+        subdivision_level=level,
+        position_tolerance_m=position_tolerance_m,
+        pressure_lineage_tolerance=pressure_lineage_tolerance,
+        cell_residual_tolerance=cell_residual_tolerance,
+      )
+      refinements.append(refinement)
+      steps.append(
+        MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerStep(
+          subdivision_level=level,
+          subdivision_side_count=refinement.subdivision_side_count,
+          result_status=refinement.status.value,
+          result_kind='solver-owned-entropy-carrying-subcell-projection',
+          result_converged=refinement.converged,
+          result_cell_count=refinement.cell_count,
+          result_state_sample_count=refinement.state_sample_count,
+          result_maximum_cell_euler_residual=(
+            refinement.maximum_cell_euler_residual
+          ),
+          result_topology_verified=(
+            refinement.topology.connected
+            and refinement.topology.forms_closed_zone
+            and refinement.topology.nonmanifold_edge_count == 0
+          ),
+          result_state_projection_verified=refinement.state_projection_verified,
+          result_pressure_lineage_carried=refinement.pressure_lineage_carried,
+          result_cell_euler_residuals_finite=(
+            refinement.cell_euler_residuals_finite
+          ),
+          result_cell_euler_residuals_verified=(
+            refinement.cell_euler_residuals_verified
+          ),
+          result_internal_characteristic_closure_verified=(
+            refinement.internal_characteristic_closure_verified
+          ),
+          result_physical_closure_verified=refinement.physical_closure_verified,
+          result_chain_promotion_blocked=refinement.chain_promotion_blocked,
+          result_production_claim_allowed=refinement.production_claim_allowed,
+        )
+      )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return result(
+      MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_ERROR,
+        message=f'entropy-carrying refinement planner raised: {error}',
+        diagnostics={
+          'planner_model': 'euler-ambient-first-wedge-entropy-carry-refinement',
+          'solver_error': type(error).__name__,
+          'refinement_consumed_as_chain_cell': False,
+          'physical_chain_cell_count': 0,
+        },
+      )
+    )
+  return result(
+    MocChainTerminationDecision(
+      physical_termination=False,
+      reason=MocChainTerminationReason.FIDELITY_NOT_ALLOWED,
+      message=(
+        'entropy-carrying subcell projection ladder is retained as residual '
+        'evidence; internal characteristic closure, reflected free-boundary '
+        'coupling, and external validation still block chain promotion'
+      ),
+      diagnostics={
+        'planner_model': 'euler-ambient-first-wedge-entropy-carry-refinement',
+        'refinement_consumed_as_chain_cell': False,
+        'physical_chain_cell_count': 0,
+        'internal_characteristic_closure_verified': False,
+        'physical_closure_verified': False,
+        'chain_promotion_blocked': True,
+        'production_claim_allowed': False,
+        'required_next_gate': (
+          'internal-characteristic-family-closure-on-refined-entropy-field-'
+          'and-reflected-free-boundary-coupling'
+        ),
+      },
+    )
+  )
 
 
 @dataclass(frozen=True, slots=True)

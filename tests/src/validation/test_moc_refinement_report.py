@@ -252,6 +252,34 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
     'chain_promotion_blocked': True,
     'production_claim_allowed': False,
   }
+  entropy_carry_refinement = entropy_carry['refinement_measurement']
+  assert entropy_carry['refinement_planner']['resolved'] is True
+  assert entropy_carry['refinement_planner']['physical_chain_cell_count'] == 0
+  assert entropy_carry_refinement['status'] == (
+    'converged_euler_ambient_first_wedge_entropy_carry_refinement_ladder'
+  )
+  assert entropy_carry_refinement['operator_id'] == (
+    'op.moc.euler-ambient-first-wedge-entropy-carry-refinement-audit-ladder'
+  )
+  assert entropy_carry_refinement['subdivision_levels'] == [1, 2, 3]
+  assert entropy_carry_refinement['subdivision_side_counts'] == [2, 4, 8]
+  assert entropy_carry_refinement['cell_counts'] == [4, 16, 64]
+  assert entropy_carry_refinement['state_sample_counts'] == [6, 15, 45]
+  assert entropy_carry_refinement['checks'] == {
+    'levels_verified': True,
+    'audits_verified': True,
+    'topology_verified': True,
+    'state_projection_verified': True,
+    'pressure_lineage_verified': True,
+    'cell_euler_residuals_finite': True,
+    'final_cell_euler_residual_verified': True,
+    'residual_nonincreasing_verified': True,
+    'residual_reduction_verified': True,
+    'internal_characteristic_closure_verified': False,
+    'physical_closure_verified': False,
+    'chain_promotion_blocked': True,
+    'production_claim_allowed': False,
+  }
   assert alternating_physical_chain_refinement['status'] == 'converged'
   assert alternating_physical_chain_refinement['operator_id'] == (
     'op.moc.reflected-domain-alternating-physical-field-chain-refinement'

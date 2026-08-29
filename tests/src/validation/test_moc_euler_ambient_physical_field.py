@@ -11,6 +11,7 @@ from exhaust_plume.models.moc import (
   MocEulerAmbientFirstWedgeCharacteristicStatus,
   MocEulerAmbientFirstWedgeCharacteristicFieldStatus,
   MocEulerAmbientFirstWedgeEntropyCarryStatus,
+  MocEulerAmbientFirstWedgeEntropyCarryRefinementStatus,
   MocEulerAmbientPhysicalFieldStatus,
   assemble_euler_ambient_physical_field,
   fit_euler_consistent_shock_boundary,
@@ -18,6 +19,8 @@ from exhaust_plume.models.moc import (
   plan_euler_ambient_first_wedge_characteristic_remesh,
   plan_euler_ambient_first_wedge_characteristic_field,
   plan_euler_ambient_first_wedge_entropy_carry,
+  plan_euler_ambient_first_wedge_entropy_carry_refinement,
+  refine_euler_ambient_first_wedge_entropy_carry,
   remesh_euler_ambient_first_wedge,
   remesh_euler_ambient_first_wedge_characteristic_field,
   solve_euler_ambient_first_wedge_characteristic_remesh,
@@ -39,6 +42,10 @@ from exhaust_plume.validation import (
   measure_moc_euler_ambient_first_wedge_terminal_characteristic_audit,
   measure_moc_euler_ambient_first_wedge_characteristic_field_audit,
   measure_moc_euler_ambient_first_wedge_entropy_carry,
+  MocEulerAmbientFirstWedgeEntropyCarryRefinementCase,
+  MocEulerAmbientFirstWedgeEntropyCarryRefinementMeasurementStatus,
+  measure_moc_euler_ambient_first_wedge_entropy_carry_refinement,
+  measure_moc_euler_ambient_first_wedge_entropy_carry_refinement_ladder,
   measure_moc_euler_ambient_first_wedge_remesh_refinement,
   measure_moc_euler_ambient_physical_field,
   measure_moc_euler_ambient_physical_field_refinement,
@@ -765,6 +772,152 @@ def test_entropy_carry_audit_recomputes_raw_gates_and_planner_stops() -> None:
   assert planner.physical_chain_cell_count == 0
   assert planner.termination.reason is MocChainTerminationReason.FIDELITY_NOT_ALLOWED
   assert planner.as_report()['diagnostics']['entropy_carry_consumed_as_chain_cell'] is False
+
+
+def test_entropy_carry_refinement_ladder_reduces_residual_without_moc_promotion() -> None:
+  shock = _shaped_exact_shock()
+  physical_field = assemble_euler_ambient_physical_field(
+    shock,
+    shock.downstream_static_pressure_Pa[0],
+  )
+  candidate = solve_euler_ambient_first_wedge_characteristic_remesh(
+    physical_field,
+  )
+  entropy_carry = solve_euler_ambient_first_wedge_entropy_carry(candidate)
+  cases = tuple(
+    MocEulerAmbientFirstWedgeEntropyCarryRefinementCase(
+      subdivision_level=level,
+      result=refine_euler_ambient_first_wedge_entropy_carry(
+        entropy_carry,
+        subdivision_level=level,
+      ),
+    )
+    for level in (1, 2, 3)
+  )
+
+  measurement = (
+    measure_moc_euler_ambient_first_wedge_entropy_carry_refinement_ladder(
+      cases,
+      expected_subdivision_levels=(1, 2, 3),
+    )
+  )
+
+  assert measurement.status is (
+    MocEulerAmbientFirstWedgeEntropyCarryRefinementMeasurementStatus
+    .CONVERGED_LOCAL_REFINEMENT
+  )
+  assert measurement.local_consistency_verified
+  assert measurement.subdivision_levels == (1, 2, 3)
+  assert measurement.subdivision_side_counts == (2, 4, 8)
+  assert measurement.cell_counts == (4, 16, 64)
+  assert measurement.state_sample_counts == (6, 15, 45)
+  assert measurement.topology_verified
+  assert measurement.state_projection_verified
+  assert measurement.pressure_lineage_verified
+  assert measurement.cell_euler_residuals_finite
+  assert measurement.final_cell_euler_residual_verified
+  assert measurement.residual_nonincreasing_verified
+  assert measurement.residual_reduction_verified
+  assert measurement.internal_characteristic_closure_verified is False
+  assert measurement.physical_closure_verified is False
+  assert measurement.chain_promotion_blocked
+  assert measurement.production_claim_allowed is False
+  assert measurement.maximum_cell_euler_residuals[0] > measurement.maximum_cell_euler_residuals[1] > measurement.maximum_cell_euler_residuals[2]
+  assert measurement.maximum_cell_euler_residuals[-1] < 1.0e-2
+  assert all(
+    audit.solver_status_consistent
+    and audit.source_trial_gates_verified
+    and audit.topology_verified
+    and audit.state_projection_verified
+    and audit.pressure_lineage_carried
+    and audit.cell_euler_residuals_finite
+    for audit in measurement.audits
+  )
+  assert measurement.audits[0].cell_euler_residuals_verified is False
+  assert measurement.audits[-1].cell_euler_residuals_verified
+
+  planner = plan_euler_ambient_first_wedge_entropy_carry_refinement(candidate)
+  assert planner.attempted
+  assert planner.resolved
+  assert planner.entropy_carry is not None
+  assert len(planner.refinements) == 3
+  assert len(planner.steps) == 3
+  assert [step.subdivision_level for step in planner.steps] == [1, 2, 3]
+  assert all(
+    step.result_kind == 'solver-owned-entropy-carrying-subcell-projection'
+    and step.result_topology_verified
+    and step.result_state_projection_verified
+    and step.result_pressure_lineage_carried
+    and step.result_cell_euler_residuals_finite
+    and step.result_internal_characteristic_closure_verified is False
+    and step.result_physical_closure_verified is False
+    and step.result_chain_promotion_blocked
+    and step.result_production_claim_allowed is False
+    for step in planner.steps
+  )
+  assert planner.physical_chain_cell_count == 0
+  assert planner.termination.reason is MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+  assert planner.as_report()['diagnostics']['refinement_consumed_as_chain_cell'] is False
+
+
+def test_entropy_carry_refinement_audit_recomputes_raw_projection() -> None:
+  shock = _shaped_exact_shock()
+  physical_field = assemble_euler_ambient_physical_field(
+    shock,
+    shock.downstream_static_pressure_Pa[0],
+  )
+  candidate = solve_euler_ambient_first_wedge_characteristic_remesh(
+    physical_field,
+  )
+  entropy_carry = solve_euler_ambient_first_wedge_entropy_carry(candidate)
+  refinement = refine_euler_ambient_first_wedge_entropy_carry(
+    entropy_carry,
+    subdivision_level=3,
+  )
+
+  audit = measure_moc_euler_ambient_first_wedge_entropy_carry_refinement(
+    refinement,
+  )
+
+  assert audit.status.value == (
+    'converged_euler_ambient_first_wedge_entropy_carry_refinement_audit'
+  )
+  assert audit.local_consistency_verified
+  assert audit.solver_status_consistent
+  assert audit.cell_count == 64
+  assert audit.sampled_cell_count == 64
+  assert audit.state_sample_count == 45
+  assert audit.maximum_cell_euler_residual is not None
+  assert audit.maximum_cell_euler_residual < 1.0e-2
+  assert audit.internal_characteristic_closure_verified is False
+  assert audit.physical_closure_verified is False
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False
+
+  tampered_sample = replace(
+    refinement.cell_samples[0],
+    total_pressure_Pa=(
+      refinement.cell_samples[0].total_pressure_Pa[0] * 1.01,
+      *refinement.cell_samples[0].total_pressure_Pa[1:],
+    ),
+  )
+  tampered = replace(
+    refinement,
+    cell_samples=(tampered_sample, *refinement.cell_samples[1:]),
+    status=MocEulerAmbientFirstWedgeEntropyCarryRefinementStatus
+    .CONVERGED_DIAGNOSTIC_REFINEMENT,
+  )
+  tampered_audit = measure_moc_euler_ambient_first_wedge_entropy_carry_refinement(
+    tampered,
+  )
+  assert not tampered_audit.local_consistency_verified
+  assert not tampered_audit.state_projection_verified
+  assert not tampered_audit.pressure_lineage_carried
+  assert not tampered_audit.solver_status_consistent
+  assert tampered_audit.status.value in (
+    'euler_ambient_first_wedge_entropy_carry_refinement_state_projection_failure',
+    'euler_ambient_first_wedge_entropy_carry_refinement_pressure_lineage_failure',
+  )
 
 
 def test_first_wedge_remesh_planner_records_ladder_and_stops_before_chain() -> None:
