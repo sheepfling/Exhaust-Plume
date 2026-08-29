@@ -794,6 +794,25 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert strong_subsonic_boundary['subsonic_shock_boundary']['subsonic'] is True
   assert strong_subsonic_boundary['normal_shock_terminal'] is None
   assert mixed_regime_boundary['accepted'] is True
+  flux_reference = mixed_regime_boundary[
+    'solver_generated_control_section_flux_reference'
+  ]
+  flux_measurement = mixed_regime_boundary[
+    'solver_generated_control_section_flux_measurement'
+  ]
+  assert flux_reference['model'] == (
+    'solver-owned-control-section-flux-quasi-1d-reference'
+  )
+  assert flux_reference['control_section_projection_verified'] is False
+  assert flux_reference['control_section_flux_verified'] is True
+  assert flux_reference['chain_promotion_blocked'] is True
+  assert flux_measurement['status'] == (
+    'converged_solver_owned_free_boundary_measurement'
+  )
+  assert flux_measurement['checks']['control_section_verified'] is True
+  assert flux_measurement['checks']['control_section_flux_verified'] is True
+  assert flux_measurement['physical_closure_verified'] is True
+  assert flux_measurement['chain_promotion_blocked'] is True
   closure_mock = mixed_regime_boundary['mixed_regime_closure_mock']
   assert closure_mock['model'] == (
     'prescribed-pressure-outflow-mixed-regime-closure-mock'

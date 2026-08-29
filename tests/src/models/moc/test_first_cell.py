@@ -29,6 +29,7 @@ from exhaust_plume.models.moc import (
   plan_prescribed_first_cell_terminal_closure_mock,
   plan_solver_generated_first_cell_terminal_closure_reference,
   plan_solver_generated_first_cell_terminal_closure_reference_from_control_section,
+  plan_solver_generated_first_cell_terminal_closure_reference_from_control_section_flux,
   plan_first_cell_terminal_closure_with_planar_handoff,
   plan_first_cell_terminal_closure_with_planar_potential_reference,
   plan_first_cell_terminal_closure_with_planar_frozen_profile_reference,
@@ -433,6 +434,49 @@ def test_first_cell_terminal_planner_accepts_only_terminal_equivalent_control_se
   free_boundary = planner.diagnostics['solver_generated_mixed_regime_result']
   assert free_boundary['model'] == 'solver-owned-control-section-quasi-1d-reference'
   assert free_boundary['control_section_validation']['converged'] is True
+
+  varying_mach = request.terminal_downstream_mach + 0.01
+  varying_static_pressure = request.terminal_downstream_total_pressure_Pa / (
+    1.0 + 0.5 * (gamma - 1.0) * varying_mach**2
+  ) ** (gamma / (gamma - 1.0))
+  varying_section = replace(
+    section,
+    samples=tuple(
+      replace(
+        sample,
+        mach=varying_mach,
+        static_pressure_Pa=varying_static_pressure,
+      )
+      for sample in section.samples
+    ),
+  )
+  flux_planner = (
+    plan_solver_generated_first_cell_terminal_closure_reference_from_control_section_flux(
+      terminal,
+      varying_section,
+      solver=MocSolverGeneratedMixedRegimeClosureReference(
+        ambient_pressure_Pa=0.8 * request.terminal_downstream_pressure_Pa,
+      ),
+    )
+  )
+
+  assert flux_planner.resolved
+  assert flux_planner.physical_closure_verified
+  assert flux_planner.physical_termination
+  assert flux_planner.chain_promotion_blocked
+  assert flux_planner.mixed_regime_closure is not None
+  assert flux_planner.mixed_regime_closure.converged
+  assert flux_planner.diagnostics['control_section_flux_mode'] == (
+    'integrated-flux-quasi-1d-reference'
+  )
+  flux_free_boundary = flux_planner.diagnostics[
+    'solver_generated_mixed_regime_result'
+  ]
+  assert flux_free_boundary['model'] == (
+    'solver-owned-control-section-flux-quasi-1d-reference'
+  )
+  assert flux_free_boundary['control_section_projection_verified'] is False
+  assert flux_free_boundary['control_section_flux_verified'] is True
 
 
 def test_first_cell_terminal_closure_uses_the_explicit_perimeter_solver_seam() -> None:

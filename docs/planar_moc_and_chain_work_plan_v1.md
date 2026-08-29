@@ -2010,3 +2010,23 @@ This checkpoint closes the reporting seam only. Canonical reflected-domain
 mixed-regime/free-boundary coupling, external indexed observations, and
 provider promotion remain open; the fast visualization, signature, ray, and
 focal-plane-array lanes are unchanged.
+
+## Integrated control-section flux reference checkpoint
+
+The solver-owned terminal adapter now has an explicit opt-in integrated-flux
+path for a distributed subsonic control section. It recomputes an equivalent
+terminal-state height from the section's scalar mass-flux proxy, while keeping
+the full section, its varying Mach/flow-angle samples, and the flux identity in
+the result. The original geometric-measure adapter still rejects a
+non-terminal-equivalent section, so a caller must name the lower-fidelity
+reduction deliberately.
+
+The first-cell planner exposes this path through
+`plan_solver_generated_first_cell_terminal_closure_reference_from_control_section_flux`.
+The independent free-boundary measurement rechecks the control section,
+stored validation, flux proxy, equivalent height, and flux residual before
+accepting the local reference. This is useful for continued-chain and
+visualization development, but it remains a quasi-one-dimensional reduction:
+the downstream 2-D perimeter/entropy coupling, refinement, and external
+indexed observations are still release gates. The terminal remains a stop and
+cannot seed another shock cell; no product/provider lane consumes this result.

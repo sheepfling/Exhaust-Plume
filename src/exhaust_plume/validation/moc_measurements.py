@@ -28,6 +28,7 @@ from exhaust_plume.models.moc.mixed_regime import (
   MocMixedRegimeFieldStatus,
   MocMixedRegimeFreeBoundaryResult,
   MocMixedRegimePerimeterRequest,
+  validate_mixed_regime_control_section,
   validate_mixed_regime_boundary,
   validate_mixed_regime_downstream_condition,
 )
@@ -482,9 +483,12 @@ class MocMixedRegimeFreeBoundaryMeasurement:
 
   The operator recomputes the scalar height root, perimeter geometry, selected
   ambient/tangency condition, radial field layout, and model-specific
-  residuals.  It deliberately reports the mesh divergence diagnostic without
-  using it as a gate: this reference is quasi-one-dimensional, so that value
-  is not evidence of a full two-dimensional MOC or Navier--Stokes field.
+  residuals.  When a control section is supplied, it also rechecks the
+  retained section validation and, for the integrated-flux variant, the
+  flux-to-height identity.  It deliberately reports the mesh divergence
+  diagnostic without using it as a gate: this reference is
+  quasi-one-dimensional, so that value is not evidence of a full
+  two-dimensional MOC or Navier--Stokes field.
   """
 
   status: MocMixedRegimeFreeBoundaryMeasurementStatus
@@ -525,6 +529,9 @@ class MocMixedRegimeFreeBoundaryMeasurement:
   maximum_velocity_divergence_residual: float | None
   claim_status: str
   message: str
+  control_section_verified: bool | None = None
+  control_section_flux_verified: bool | None = None
+  control_section_flux_residual: float | None = None
 
   @property
   def converged(self) -> bool:
@@ -566,6 +573,8 @@ class MocMixedRegimeFreeBoundaryMeasurement:
         'field_layout_verified': self.field_layout_verified,
         'scalar_root_verified': self.scalar_root_verified,
         'mass_flow_verified': self.mass_flow_verified,
+        'control_section_verified': self.control_section_verified,
+        'control_section_flux_verified': self.control_section_flux_verified,
       },
       'physical_closure_verified': self.physical_closure_verified,
       'chain_promotion_blocked': self.chain_promotion_blocked,
@@ -582,6 +591,7 @@ class MocMixedRegimeFreeBoundaryMeasurement:
         'maximum_thermodynamic_residual': self.maximum_thermodynamic_residual,
         'maximum_harmonic_residual': self.maximum_harmonic_residual,
         'maximum_velocity_divergence_residual': self.maximum_velocity_divergence_residual,
+        'control_section_flux_residual': self.control_section_flux_residual,
       },
       'claim_status': self.claim_status,
       'message': self.message,
@@ -4834,6 +4844,9 @@ def _free_boundary_measurement_failure(
   maximum_thermodynamic_residual: float | None = None,
   maximum_harmonic_residual: float | None = None,
   maximum_velocity_divergence_residual: float | None = None,
+  control_section_verified: bool | None = None,
+  control_section_flux_verified: bool | None = None,
+  control_section_flux_residual: float | None = None,
   message: str,
 ) -> MocMixedRegimeFreeBoundaryMeasurement:
   field = None if result is None else result.field
@@ -4874,6 +4887,9 @@ def _free_boundary_measurement_failure(
     maximum_thermodynamic_residual=maximum_thermodynamic_residual,
     maximum_harmonic_residual=maximum_harmonic_residual,
     maximum_velocity_divergence_residual=maximum_velocity_divergence_residual,
+    control_section_verified=control_section_verified,
+    control_section_flux_verified=control_section_flux_verified,
+    control_section_flux_residual=control_section_flux_residual,
     claim_status=(
       'independent-solver-owned-quasi-1d-free-boundary-reference-measurement; '
       'not-canonical-moc-validation'
@@ -4889,6 +4905,7 @@ def measure_mixed_regime_free_boundary_reference(
   position_tolerance_m: float = 1.0e-9,
   state_tolerance: float = 1.0e-9,
   pressure_tolerance: float = 1.0e-8,
+  normal_flux_tolerance: float = 1.0e-8,
   tangent_tolerance_rad: float = 1.0e-8,
   height_tolerance_m: float = 1.0e-9,
   thermodynamic_tolerance: float = 1.0e-8,
@@ -4914,6 +4931,7 @@ def measure_mixed_regime_free_boundary_reference(
     ('position_tolerance_m', position_tolerance_m),
     ('state_tolerance', state_tolerance),
     ('pressure_tolerance', pressure_tolerance),
+    ('normal_flux_tolerance', normal_flux_tolerance),
     ('tangent_tolerance_rad', tangent_tolerance_rad),
     ('height_tolerance_m', height_tolerance_m),
     ('thermodynamic_tolerance', thermodynamic_tolerance),
@@ -4925,15 +4943,27 @@ def measure_mixed_regime_free_boundary_reference(
       raise ValueError(f'{name} must be finite and positive')
   expected_model = 'solver-owned-quasi-1d-ambient-free-boundary-reference'
   expected_field_model = 'solver-owned-subsonic-free-boundary-reference'
-  if result.model != expected_field_model:
+  supported_result_models = {
+    expected_field_model,
+    'solver-owned-control-section-quasi-1d-reference',
+    'solver-owned-control-section-flux-quasi-1d-reference',
+  }
+  if result.model not in supported_result_models:
     return _free_boundary_measurement_failure(
       MocMixedRegimeFreeBoundaryMeasurementStatus.INVALID_INPUT,
       result=result,
       message=(
-        'free-boundary measurement requires the explicitly named scalar-field '
-        f'model, received {result.model!r}'
+        'free-boundary measurement requires an explicitly named supported '
+        'quasi-one-dimensional result model, '
+        f'received {result.model!r}'
       ),
     )
+  integrated_flux_mode = (
+    result.model == 'solver-owned-control-section-flux-quasi-1d-reference'
+  )
+  control_section_verified: bool | None = None
+  control_section_flux_verified: bool | None = None
+  control_section_flux_residual: float | None = None
   field = result.field
   boundary = result.boundary
   specification = result.perimeter_spec
@@ -4959,6 +4989,91 @@ def measure_mixed_regime_free_boundary_reference(
       message='free-boundary result did not retain its generated perimeter specification',
     )
   request = result.request
+  if result.control_section is not None:
+    try:
+      independent_control_section = validate_mixed_regime_control_section(
+        request,
+        result.control_section,
+        position_tolerance_m=position_tolerance_m,
+        state_tolerance=state_tolerance,
+        pressure_tolerance=pressure_tolerance,
+        normal_flux_tolerance=normal_flux_tolerance,
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      return _free_boundary_measurement_failure(
+        MocMixedRegimeFreeBoundaryMeasurementStatus.TERMINAL_FAILURE,
+        result=result,
+        control_section_verified=False,
+        control_section_flux_verified=(False if integrated_flux_mode else None),
+        message=f'control section could not be independently remeasured: {error}',
+      )
+    cached_control_section_verified = bool(
+      result.control_section_validation == independent_control_section
+    )
+    control_section_verified = bool(
+      cached_control_section_verified and independent_control_section.converged
+    )
+    if integrated_flux_mode:
+      upstream_state = request.terminal.upstream_state
+      if (
+        upstream_state is None
+        or result.control_section_validation is None
+        or independent_control_section.mass_flux_proxy is None
+      ):
+        return _free_boundary_measurement_failure(
+          MocMixedRegimeFreeBoundaryMeasurementStatus.TERMINAL_FAILURE,
+          result=result,
+          control_section_verified=False,
+          control_section_flux_verified=False,
+          message=(
+            'integrated-flux free-boundary result did not retain the terminal '
+            'gamma or its control-section validation'
+          ),
+        )
+      terminal_flux = request.terminal_downstream_total_pressure_Pa * (
+        _free_boundary_mass_flux_measurement(
+          request.terminal_downstream_mach,
+          upstream_state.gamma,
+        )
+      )
+      expected_height = independent_control_section.mass_flux_proxy / terminal_flux
+      height_identity_residual = abs(
+        result.effective_inlet_height_m * terminal_flux
+        - independent_control_section.mass_flux_proxy
+      ) / max(1.0, abs(independent_control_section.mass_flux_proxy))
+      stored_height = result.control_section_flux_equivalent_height_m
+      stored_proxy = result.control_section_flux_proxy
+      stored_residual = result.control_section_flux_residual
+      control_section_flux_residual = height_identity_residual
+      control_section_flux_verified = bool(
+        control_section_verified
+        and not result.control_section_projection_verified
+        and stored_proxy is not None
+        and abs(stored_proxy - independent_control_section.mass_flux_proxy)
+        <= mass_tolerance * max(1.0, abs(independent_control_section.mass_flux_proxy))
+        and stored_height is not None
+        and abs(stored_height - expected_height) <= height_tolerance_m
+        and height_identity_residual <= mass_tolerance
+        and stored_residual is not None
+        and abs(stored_residual - height_identity_residual) <= mass_tolerance
+        and result.control_section_flux_verified
+      )
+    else:
+      control_section_verified = bool(
+        control_section_verified
+        and result.control_section_projection_verified
+        and independent_control_section.maximum_terminal_state_residual is not None
+        and independent_control_section.maximum_terminal_state_residual
+        <= state_tolerance
+      )
+  elif integrated_flux_mode:
+    return _free_boundary_measurement_failure(
+      MocMixedRegimeFreeBoundaryMeasurementStatus.TERMINAL_FAILURE,
+      result=result,
+      control_section_verified=False,
+      control_section_flux_verified=False,
+      message='integrated-flux free-boundary result did not retain its control section',
+    )
   request_verified = bool(
     field.boundary == boundary
     and boundary.terminal == request.terminal
@@ -5276,6 +5391,13 @@ def measure_mixed_regime_free_boundary_reference(
     and closure.request == request
     and closure.field == field
   )
+  control_section_gate_verified = bool(
+    control_section_verified is not False
+    and (
+      not integrated_flux_mode
+      or control_section_flux_verified is True
+    )
+  )
   physical_closure_verified = bool(
     request_verified
     and perimeter_spec_verified
@@ -5288,6 +5410,7 @@ def measure_mixed_regime_free_boundary_reference(
     and mass_flow_verified
     and geometry_verified
     and condition_residuals_verified
+    and control_section_gate_verified
   )
   if not physical_closure_verified:
     return _free_boundary_measurement_failure(
@@ -5314,6 +5437,9 @@ def measure_mixed_regime_free_boundary_reference(
       maximum_thermodynamic_residual=maximum_thermodynamic_residual,
       maximum_harmonic_residual=maximum_harmonic_residual,
       maximum_velocity_divergence_residual=maximum_velocity_divergence_residual,
+      control_section_verified=control_section_verified,
+      control_section_flux_verified=control_section_flux_verified,
+      control_section_flux_residual=control_section_flux_residual,
       message=(
         'independent free-boundary reference gates failed: '
         f'field_model={field_model_verified}, root={scalar_root_verified}, '
@@ -5346,6 +5472,9 @@ def measure_mixed_regime_free_boundary_reference(
     maximum_thermodynamic_residual=maximum_thermodynamic_residual,
     maximum_harmonic_residual=maximum_harmonic_residual,
     maximum_velocity_divergence_residual=maximum_velocity_divergence_residual,
+    control_section_verified=control_section_verified,
+    control_section_flux_verified=control_section_flux_verified,
+    control_section_flux_residual=control_section_flux_residual,
     message=(
       'independent quasi-one-dimensional free-boundary reference measurement '
       'passed its exact seam, generated-perimeter, condition, radial-field, '

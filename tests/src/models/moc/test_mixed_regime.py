@@ -1270,6 +1270,91 @@ def test_control_section_reference_uses_measure_and_rejects_varying_section_proj
   assert varying_result.chain_promotion_blocked
 
 
+def test_integrated_flux_reference_retains_varying_control_section_flux() -> None:
+  terminal = _terminal()
+  request = MocMixedRegimePerimeterRequest(
+    terminal=terminal,
+    terminal_point_m=terminal.shock_point_m,
+    terminal_downstream_mach=terminal.downstream_mach,
+    terminal_downstream_flow_angle_rad=terminal.downstream_flow_angle_rad,
+    terminal_downstream_pressure_Pa=terminal.downstream_pressure_Pa,
+    terminal_downstream_total_pressure_Pa=terminal.downstream_total_pressure_Pa,
+    terminal_total_pressure_ratio=terminal.total_pressure_ratio,
+    supersonic_patch=_supersonic_patch(),
+  )
+  section = _terminal_equivalent_control_section(request)
+  varying_mach = request.terminal_downstream_mach + 0.01
+  gamma = request.terminal.upstream_state.gamma
+  varying_static_pressure = request.terminal_downstream_total_pressure_Pa / (
+    1.0 + 0.5 * (gamma - 1.0) * varying_mach**2
+  ) ** (gamma / (gamma - 1.0))
+  varying_section = replace(
+    section,
+    samples=tuple(
+      replace(
+        sample,
+        mach=varying_mach,
+        static_pressure_Pa=varying_static_pressure,
+      )
+      for sample in section.samples
+    ),
+  )
+
+  result = solve_mixed_regime_downstream_free_boundary_from_control_section(
+    request,
+    varying_section,
+    ambient_pressure_Pa=0.8 * terminal.downstream_pressure_Pa,
+    downstream_length_m=0.05,
+    free_boundary_sample_count=7,
+    radial_divisions=2,
+    use_integrated_flux=True,
+  )
+
+  assert result.status is MocMixedRegimeFreeBoundaryStatus.CONVERGED_REFERENCE
+  assert result.converged
+  assert result.physical_closure_verified
+  assert result.control_section is varying_section
+  assert result.control_section_validation is not None
+  assert result.control_section_validation.converged
+  assert result.control_section_projection_verified is False
+  assert result.control_section_flux_proxy == pytest.approx(
+    varying_section.mass_flux_proxy
+  )
+  assert result.control_section_flux_equivalent_height_m == pytest.approx(
+    result.effective_inlet_height_m
+  )
+  assert result.control_section_flux_residual is not None
+  assert result.control_section_flux_residual <= 1.0e-8
+  assert result.control_section_flux_verified
+  assert result.effective_inlet_height_m != pytest.approx(
+    varying_section.section_measure_m
+  )
+  assert result.model == 'solver-owned-control-section-flux-quasi-1d-reference'
+  assert result.chain_promotion_blocked
+
+  measurement = measure_mixed_regime_free_boundary_reference(result)
+
+  assert measurement.status is MocMixedRegimeFreeBoundaryMeasurementStatus.CONVERGED
+  assert measurement.converged
+  assert measurement.control_section_verified
+  assert measurement.control_section_flux_verified
+  assert measurement.control_section_flux_residual is not None
+  assert measurement.control_section_flux_residual <= 1.0e-8
+  assert measurement.physical_closure_verified
+  assert measurement.chain_promotion_blocked
+
+  tampered = replace(
+    result,
+    control_section_flux_proxy=result.control_section_flux_proxy * 1.01,
+  )
+  tampered_measurement = measure_mixed_regime_free_boundary_reference(tampered)
+
+  assert not tampered_measurement.converged
+  assert tampered_measurement.control_section_verified
+  assert tampered_measurement.control_section_flux_verified is False
+  assert tampered_measurement.physical_closure_verified is False
+
+
 def test_planar_downstream_handoff_requires_and_retains_a_varying_control_section() -> None:
   terminal = _terminal()
   patch = _supersonic_patch()

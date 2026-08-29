@@ -1227,6 +1227,10 @@ class MocMixedRegimeFreeBoundaryResult:
   control_section: MocMixedRegimeControlSection | None = None
   control_section_validation: MocMixedRegimeControlSectionResult | None = None
   control_section_projection_verified: bool = False
+  control_section_flux_proxy: float | None = None
+  control_section_flux_equivalent_height_m: float | None = None
+  control_section_flux_residual: float | None = None
+  control_section_flux_verified: bool = False
 
   def __post_init__(self) -> None:
     if not isinstance(self.status, MocMixedRegimeFreeBoundaryStatus):
@@ -1294,6 +1298,27 @@ class MocMixedRegimeFreeBoundaryResult:
       )
     if not isinstance(self.control_section_projection_verified, bool):
       raise TypeError('control_section_projection_verified must be a bool')
+    if not isinstance(self.control_section_flux_verified, bool):
+      raise TypeError('control_section_flux_verified must be a bool')
+    if self.control_section_flux_proxy is not None:
+      numeric = float(self.control_section_flux_proxy)
+      if not isfinite(numeric):
+        raise ValueError(
+          'control_section_flux_proxy must be finite when supplied'
+        )
+      object.__setattr__(self, 'control_section_flux_proxy', numeric)
+    for name in (
+      'control_section_flux_equivalent_height_m',
+      'control_section_flux_residual',
+    ):
+      value = getattr(self, name)
+      if value is not None:
+        numeric = float(value)
+        if not isfinite(numeric) or numeric < 0.0:
+          raise ValueError(
+            f'{name} must be finite and nonnegative when supplied'
+          )
+        object.__setattr__(self, name, numeric)
     if (
       self.control_section_validation is not None
       and self.control_section_validation.section is not None
@@ -1372,6 +1397,12 @@ class MocMixedRegimeFreeBoundaryResult:
         else self.control_section_validation.as_report()
       ),
       'control_section_projection_verified': self.control_section_projection_verified,
+      'control_section_flux_proxy': self.control_section_flux_proxy,
+      'control_section_flux_equivalent_height_m': (
+        self.control_section_flux_equivalent_height_m
+      ),
+      'control_section_flux_residual': self.control_section_flux_residual,
+      'control_section_flux_verified': self.control_section_flux_verified,
       'boundary': None if self.boundary is None else self.boundary.as_report(),
       'downstream_condition': (
         None
@@ -1381,8 +1412,15 @@ class MocMixedRegimeFreeBoundaryResult:
       'field': None if self.field is None else self.field.as_report(),
       'closure': None if self.closure is None else self.closure.as_report(),
       'claim_status': (
-        'solver-owned-control-section-quasi-1d-reference; '
-        'varying-section-2d-coupling-and-external-validation-pending'
+        (
+          'solver-owned-control-section-integrated-flux-quasi-1d-reference; '
+          'downstream-2d-coupling-and-external-validation-pending'
+        )
+        if self.model == 'solver-owned-control-section-flux-quasi-1d-reference'
+        else (
+          'solver-owned-control-section-quasi-1d-reference; '
+          'varying-section-2d-coupling-and-external-validation-pending'
+        )
         if self.control_section is not None
         else (
           'solver-owned-quasi-1d-free-boundary-reference; '
@@ -5275,6 +5313,8 @@ def solve_mixed_regime_downstream_free_boundary_from_control_section(
   pressure_tolerance: float = 1.0e-8,
   normal_flux_tolerance: float = 1.0e-8,
   control_section_projection_tolerance: float = 1.0e-8,
+  use_integrated_flux: bool = False,
+  control_section_flux_tolerance: float = 1.0e-8,
   height_tolerance_m: float = 1.0e-10,
   tangent_tolerance_rad: float = 1.0e-8,
   thermodynamic_tolerance: float = 1.0e-8,
@@ -5283,12 +5323,14 @@ def solve_mixed_regime_downstream_free_boundary_from_control_section(
 ) -> MocMixedRegimeFreeBoundaryResult:
   """Run the quasi-one-dimensional reference from an explicit control section.
 
-  The control section is the only source of the effective inlet measure in
-  this adapter.  A section whose scalar states vary from the terminal state is
-  rejected instead of being collapsed into a one-dimensional height: that
-  case requires a genuine downstream two-dimensional mixed-regime solver.
-  This preserves a useful planner/reference path while making the fidelity
-  boundary executable and visible in the result.
+  The default adapter is intentionally conservative: it accepts only a
+  terminal-equivalent scalar section and uses its geometric measure as the
+  effective inlet height.  With ``use_integrated_flux=True``, the adapter
+  instead consumes the section's distributed scalar mass-flux proxy and
+  derives an equivalent terminal-state height.  That opt-in path can retain a
+  varying Mach/flow-angle profile, but it remains an explicitly named
+  quasi-one-dimensional reference; it does not solve the downstream
+  two-dimensional free-boundary geometry.
   """
 
   if not isinstance(request, MocMixedRegimePerimeterRequest):
@@ -5305,6 +5347,7 @@ def solve_mixed_regime_downstream_free_boundary_from_control_section(
     ('pressure_tolerance', pressure_tolerance),
     ('normal_flux_tolerance', normal_flux_tolerance),
     ('control_section_projection_tolerance', control_section_projection_tolerance),
+    ('control_section_flux_tolerance', control_section_flux_tolerance),
     ('height_tolerance_m', height_tolerance_m),
     ('tangent_tolerance_rad', tangent_tolerance_rad),
     ('thermodynamic_tolerance', thermodynamic_tolerance),
@@ -5313,6 +5356,8 @@ def solve_mixed_regime_downstream_free_boundary_from_control_section(
   ):
     if not isfinite(float(value)) or float(value) <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+  if not isinstance(use_integrated_flux, bool):
+    raise TypeError('use_integrated_flux must be a bool')
   if subsonic_margin >= 1.0:
     raise ValueError('subsonic_margin must be less than one')
   for name, value, minimum in (
@@ -5335,6 +5380,15 @@ def solve_mixed_regime_downstream_free_boundary_from_control_section(
     pressure_tolerance=pressure_tolerance,
     normal_flux_tolerance=normal_flux_tolerance,
   )
+  model = (
+    'solver-owned-control-section-flux-quasi-1d-reference'
+    if use_integrated_flux
+    else 'solver-owned-control-section-quasi-1d-reference'
+  )
+  control_section_flux_proxy = validation.mass_flux_proxy
+  control_section_flux_equivalent_height: float | None = None
+  control_section_flux_residual: float | None = None
+  control_section_flux_verified = False
   effective_inlet_height = control_section.section_measure_m
   common = {
     'request': request,
@@ -5351,7 +5405,11 @@ def solve_mixed_regime_downstream_free_boundary_from_control_section(
     'height_bracket_m': None,
     'control_section': control_section,
     'control_section_validation': validation,
-    'model': 'solver-owned-control-section-quasi-1d-reference',
+    'model': model,
+    'control_section_flux_proxy': control_section_flux_proxy,
+    'control_section_flux_equivalent_height_m': None,
+    'control_section_flux_residual': None,
+    'control_section_flux_verified': False,
   }
   if not validation.converged:
     return MocMixedRegimeFreeBoundaryResult(
@@ -5362,21 +5420,117 @@ def solve_mixed_regime_downstream_free_boundary_from_control_section(
       ),
       **common,
     )
-  maximum_terminal_state_residual = validation.maximum_terminal_state_residual
-  if (
-    maximum_terminal_state_residual is None
-    or maximum_terminal_state_residual > control_section_projection_tolerance
-  ):
-    return MocMixedRegimeFreeBoundaryResult(
-      status=MocMixedRegimeFreeBoundaryStatus.CONTROL_SECTION_FAILURE,
-      message=(
-        'the control section is not terminal-equivalent within the declared '
-        'quasi-one-dimensional projection tolerance; a varying section must '
-        'be solved by the pending downstream two-dimensional mixed-regime '
-        f'coupling, residual={maximum_terminal_state_residual}'
-      ),
-      **common,
+  if use_integrated_flux:
+    terminal = request.terminal
+    upstream_state = terminal.upstream_state
+    if upstream_state is None:
+      return MocMixedRegimeFreeBoundaryResult(
+        status=MocMixedRegimeFreeBoundaryStatus.TERMINAL_FAILURE,
+        message='terminal does not expose gamma for integrated control-section flux',
+        **common,
+      )
+    if (
+      abs(request.terminal_downstream_flow_angle_rad) > state_tolerance
+      or abs(control_section.normal_angle_rad) > state_tolerance
+    ):
+      return MocMixedRegimeFreeBoundaryResult(
+        status=MocMixedRegimeFreeBoundaryStatus.CONTROL_SECTION_FAILURE,
+        message=(
+          'integrated control-section flux reference is axis-aligned only; '
+          'a rotated terminal or control-section normal requires a rotated '
+          'two-dimensional downstream solve'
+        ),
+        **common,
+      )
+    terminal_total_pressure = request.terminal_downstream_total_pressure_Pa
+    maximum_total_pressure_residual = max(
+      abs(sample.total_pressure_Pa - terminal_total_pressure)
+      / max(1.0, abs(sample.total_pressure_Pa), abs(terminal_total_pressure))
+      for sample in control_section.samples
     )
+    if maximum_total_pressure_residual > state_tolerance:
+      return MocMixedRegimeFreeBoundaryResult(
+        status=MocMixedRegimeFreeBoundaryStatus.CONTROL_SECTION_FAILURE,
+        message=(
+          'integrated control-section flux reference requires one uniform '
+          'isentropic total pressure; varying total pressure requires a '
+          'two-dimensional entropy-carrying solve: '
+          f'residual={maximum_total_pressure_residual}'
+        ),
+        **common,
+      )
+    if control_section_flux_proxy is None or not isfinite(control_section_flux_proxy):
+      return MocMixedRegimeFreeBoundaryResult(
+        status=MocMixedRegimeFreeBoundaryStatus.CONTROL_SECTION_FAILURE,
+        message='integrated control-section flux is unavailable or non-finite',
+        **common,
+      )
+    terminal_flux_factor = _subsonic_mass_flux_factor(
+      request.terminal_downstream_mach,
+      upstream_state.gamma,
+    )
+    effective_inlet_height = (
+      control_section_flux_proxy
+      / (terminal_total_pressure * terminal_flux_factor)
+    )
+    if not isfinite(effective_inlet_height) or effective_inlet_height <= 0.0:
+      return MocMixedRegimeFreeBoundaryResult(
+        status=MocMixedRegimeFreeBoundaryStatus.CONTROL_SECTION_FAILURE,
+        message=(
+          'integrated control-section flux did not produce a finite positive '
+          f'equivalent terminal height: {effective_inlet_height}'
+        ),
+        **common,
+      )
+    common['effective_inlet_height_m'] = effective_inlet_height
+    control_section_flux_equivalent_height = effective_inlet_height
+    reference_flux = (
+      effective_inlet_height * terminal_total_pressure * terminal_flux_factor
+    )
+    control_section_flux_residual = abs(
+      reference_flux - control_section_flux_proxy
+    ) / max(1.0, abs(control_section_flux_proxy))
+    control_section_flux_verified = (
+      control_section_flux_residual <= control_section_flux_tolerance
+    )
+    if not control_section_flux_verified:
+      return MocMixedRegimeFreeBoundaryResult(
+        status=MocMixedRegimeFreeBoundaryStatus.CONTROL_SECTION_FAILURE,
+        message=(
+          'integrated control-section flux equivalent-height closure failed: '
+          f'residual={control_section_flux_residual}'
+        ),
+        control_section_flux_equivalent_height_m=(
+          control_section_flux_equivalent_height
+        ),
+        control_section_flux_residual=control_section_flux_residual,
+        control_section_flux_verified=False,
+        **{
+          key: value
+          for key, value in common.items()
+          if key not in {
+            'control_section_flux_equivalent_height_m',
+            'control_section_flux_residual',
+            'control_section_flux_verified',
+          }
+        },
+      )
+  else:
+    maximum_terminal_state_residual = validation.maximum_terminal_state_residual
+    if (
+      maximum_terminal_state_residual is None
+      or maximum_terminal_state_residual > control_section_projection_tolerance
+    ):
+      return MocMixedRegimeFreeBoundaryResult(
+        status=MocMixedRegimeFreeBoundaryStatus.CONTROL_SECTION_FAILURE,
+        message=(
+          'the control section is not terminal-equivalent within the declared '
+          'quasi-one-dimensional projection tolerance; a varying section must '
+          'be solved by the pending downstream two-dimensional mixed-regime '
+          f'coupling, residual={maximum_terminal_state_residual}'
+        ),
+        **common,
+      )
 
   result = solve_mixed_regime_downstream_free_boundary(
     request,
@@ -5396,13 +5550,29 @@ def solve_mixed_regime_downstream_free_boundary_from_control_section(
   )
   return replace(
     result,
-    model='solver-owned-control-section-quasi-1d-reference',
+    model=model,
     control_section=control_section,
     control_section_validation=validation,
-    control_section_projection_verified=True,
+    control_section_projection_verified=not use_integrated_flux,
+    control_section_flux_proxy=control_section_flux_proxy,
+    control_section_flux_equivalent_height_m=(
+      control_section_flux_equivalent_height
+    ),
+    control_section_flux_residual=control_section_flux_residual,
+    control_section_flux_verified=(
+      control_section_flux_verified
+      if use_integrated_flux
+      else False
+    ),
     message=(
       f'{result.message} Explicit terminal-equivalent control section '
       'supplied the effective inlet measure; varying-section two-dimensional '
       'coupling and external validation remain pending.'
+      if not use_integrated_flux
+      else (
+        f'{result.message} The distributed control-section flux supplied an '
+        'equivalent terminal height for this quasi-one-dimensional reference; '
+        'two-dimensional coupling and external validation remain pending.'
+      )
     ),
   )

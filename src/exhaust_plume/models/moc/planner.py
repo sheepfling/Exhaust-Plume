@@ -205,6 +205,7 @@ __all__ = (
   'plan_prescribed_first_cell_terminal_closure_mock',
   'plan_solver_generated_first_cell_terminal_closure_reference',
   'plan_solver_generated_first_cell_terminal_closure_reference_from_control_section',
+  'plan_solver_generated_first_cell_terminal_closure_reference_from_control_section_flux',
   'plan_first_cell_terminal_closure_with_planar_handoff',
   'plan_first_cell_terminal_closure_with_planar_potential_reference',
   'plan_first_cell_terminal_closure_with_planar_frozen_profile_reference',
@@ -1149,6 +1150,36 @@ class MocSolverGeneratedMixedRegimeClosureReference:
       maximum_iterations=self.maximum_iterations,
     )
 
+  def solve_from_control_section_flux(
+    self,
+    request: MocMixedRegimePerimeterRequest,
+    control_section: MocMixedRegimeControlSection,
+  ) -> MocMixedRegimeFreeBoundaryResult:
+    """Run the opt-in integrated-flux quasi-one-dimensional reference.
+
+    This path preserves distributed section flux when the scalar section is
+    not terminal-equivalent.  It remains a reference height reduction and
+    does not claim the pending downstream two-dimensional free-boundary solve.
+    """
+
+    if not isinstance(request, MocMixedRegimePerimeterRequest):
+      raise TypeError('request must be a MocMixedRegimePerimeterRequest')
+    if not isinstance(control_section, MocMixedRegimeControlSection):
+      raise TypeError(
+        'control_section must be a MocMixedRegimeControlSection'
+      )
+    return solve_mixed_regime_downstream_free_boundary_from_control_section(
+      request,
+      control_section,
+      ambient_pressure_Pa=self._ambient_pressure(request),
+      downstream_length_m=self.downstream_length_m,
+      free_boundary_sample_count=self.free_boundary_sample_count,
+      radial_divisions=self.radial_divisions,
+      terminal_regularization_fraction=self.terminal_regularization_fraction,
+      maximum_iterations=self.maximum_iterations,
+      use_integrated_flux=True,
+    )
+
   def as_report(self) -> dict[str, Any]:
     return {
       'model': self.model,
@@ -1162,6 +1193,10 @@ class MocSolverGeneratedMixedRegimeClosureReference:
       'radial_divisions': self.radial_divisions,
       'terminal_regularization_fraction': self.terminal_regularization_fraction,
       'maximum_iterations': self.maximum_iterations,
+      'control_section_flux_mode': (
+        'available-through-solve_from_control_section_flux; '
+        'quasi-1d-reference-only'
+      ),
       'claim_status': (
         'solver-owned-quasi-1d-free-boundary-reference; '
         'canonical-reflected-moc-and-external-validation-pending'
@@ -1724,6 +1759,7 @@ def plan_first_cell_terminal_closure(
     [MocMixedRegimePerimeterRequest],
     MocMixedRegimeFieldResult | None,
   ] | None = None,
+  use_integrated_flux: bool = False,
   claim_status: str | None = None,
 ) -> MocFirstCellTerminalClosurePlannerResult:
   """Audit a first-cell terminal and optionally submit its exact scalar seam.
@@ -1735,8 +1771,10 @@ def plan_first_cell_terminal_closure(
   real mixed-regime adapter owns seam acceptance.  Omitting all three only
   audits the already-solved supersonic terminal and preserves its open/
   physical decision.  ``control_section`` is accepted only with ``solver``;
-  the section-aware path refuses to collapse a varying scalar section into a
-  one-dimensional height.
+  the default section-aware path refuses to collapse a varying scalar section
+  into a one-dimensional height.  ``use_integrated_flux`` opts into the
+  separately named distributed-flux quasi-one-dimensional reference and still
+  blocks production/chain claims.
   """
 
   if not isinstance(terminal, MocFirstCellTerminalClosureResult):
@@ -1766,6 +1804,12 @@ def plan_first_cell_terminal_closure(
     )
   if control_section is not None and solver is None:
     raise ValueError('control_section requires the solver-generated reference')
+  if not isinstance(use_integrated_flux, bool):
+    raise TypeError('use_integrated_flux must be a bool')
+  if use_integrated_flux and control_section is None:
+    raise ValueError('use_integrated_flux requires a control_section')
+  if use_integrated_flux and solver is None:
+    raise ValueError('use_integrated_flux requires the solver-generated reference')
   supplied_solvers = sum(
     value is not None for value in (mock, solver, solve_field)
   )
@@ -1792,6 +1836,11 @@ def plan_first_cell_terminal_closure(
     diagnostics['downstream_solver_model'] = solver.model
     diagnostics['solver_generated_mixed_regime_reference'] = solver.as_report()
     diagnostics['control_section_supplied'] = control_section is not None
+    diagnostics['control_section_flux_mode'] = (
+      'integrated-flux-quasi-1d-reference'
+      if use_integrated_flux
+      else 'terminal-equivalent-geometric-measure'
+    )
     if control_section is not None:
       diagnostics['control_section'] = control_section.as_report()
   elif solve_field is not None:
@@ -1813,7 +1862,9 @@ def plan_first_cell_terminal_closure(
         elif solver is not None:
           request = terminal.mixed_regime_perimeter_request()
           free_boundary = (
-            solver.solve_from_control_section(request, control_section)
+            solver.solve_from_control_section_flux(request, control_section)
+            if use_integrated_flux
+            else solver.solve_from_control_section(request, control_section)
             if control_section is not None
             else solver.solve(request)
           )
@@ -1934,6 +1985,28 @@ def plan_solver_generated_first_cell_terminal_closure_reference_from_control_sec
     terminal,
     solver=reference,
     control_section=control_section,
+  )
+  ####
+
+
+def plan_solver_generated_first_cell_terminal_closure_reference_from_control_section_flux(
+  terminal: MocFirstCellTerminalClosureResult,
+  control_section: MocMixedRegimeControlSection,
+  *,
+  solver: MocSolverGeneratedMixedRegimeClosureReference | None = None,
+) -> MocFirstCellTerminalClosurePlannerResult:
+  """Plan a first-cell closure from integrated scalar control-section flux."""
+
+  reference = (
+    MocSolverGeneratedMixedRegimeClosureReference()
+    if solver is None
+    else solver
+  )
+  return plan_first_cell_terminal_closure(
+    terminal,
+    solver=reference,
+    control_section=control_section,
+    use_integrated_flux=True,
   )
   ####
 

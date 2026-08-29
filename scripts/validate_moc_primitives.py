@@ -2926,6 +2926,22 @@ def _mixed_regime_boundary_probe(
     ),
     normal_angle_rad=0.0,
   )
+  solver_generated_control_section_flux_reference = (
+    MocSolverGeneratedMixedRegimeClosureReference(
+      ambient_pressure_Pa=0.8 * terminal.downstream_pressure_Pa,
+    )
+  )
+  solver_generated_control_section_flux = (
+    solver_generated_control_section_flux_reference.solve_from_control_section_flux(
+      perimeter_request,
+      planar_control_section,
+    )
+  )
+  solver_generated_control_section_flux_measurement = (
+    measure_mixed_regime_free_boundary_reference(
+      solver_generated_control_section_flux,
+    )
+  )
   planar_downstream_handoff = run_mixed_regime_planar_field_solver(
     perimeter_request,
     planar_control_section,
@@ -3256,6 +3272,21 @@ def _mixed_regime_boundary_probe(
       and planar_handoff_measurement.converged
       and planar_handoff_measurement.physical_closure_verified
       and planar_handoff_measurement.chain_promotion_blocked
+      and solver_generated_control_section_flux.status.value == (
+        'converged-solver-owned-free-boundary-reference'
+      )
+      and solver_generated_control_section_flux.converged
+      and solver_generated_control_section_flux.physical_closure_verified
+      and solver_generated_control_section_flux.model == (
+        'solver-owned-control-section-flux-quasi-1d-reference'
+      )
+      and solver_generated_control_section_flux.control_section_projection_verified is False
+      and solver_generated_control_section_flux.control_section_flux_verified
+      and solver_generated_control_section_flux_measurement.converged
+      and solver_generated_control_section_flux_measurement.physical_closure_verified
+      and solver_generated_control_section_flux_measurement.chain_promotion_blocked
+      and solver_generated_control_section_flux_measurement.control_section_verified
+      and solver_generated_control_section_flux_measurement.control_section_flux_verified
       and planar_potential_handoff.status is MocMixedRegimePlanarSolveStatus.CONVERGED_HANDOFF
       and planar_potential_handoff.handoff_verified
       and planar_potential_handoff.section_is_varying
@@ -3310,6 +3341,15 @@ def _mixed_regime_boundary_probe(
     'control_section_measurement': control_section_measurement.as_report(),
     'planar_downstream_handoff': planar_downstream_handoff.as_report(),
     'planar_downstream_handoff_measurement': planar_handoff_measurement.as_report(),
+    'solver_generated_control_section_flux_reference_configuration': (
+      solver_generated_control_section_flux_reference.as_report()
+    ),
+    'solver_generated_control_section_flux_reference': (
+      solver_generated_control_section_flux.as_report()
+    ),
+    'solver_generated_control_section_flux_measurement': (
+      solver_generated_control_section_flux_measurement.as_report()
+    ),
     'planar_potential_reference_configuration': planar_potential_reference.as_report(),
     'planar_potential_reference': planar_potential_handoff.as_report(),
     'planar_potential_reference_measurement': (

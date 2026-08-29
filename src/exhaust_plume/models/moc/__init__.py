@@ -442,6 +442,7 @@ from exhaust_plume.models.moc.planner import (
   plan_prescribed_first_cell_terminal_closure_mock,
   plan_solver_generated_first_cell_terminal_closure_reference,
   plan_solver_generated_first_cell_terminal_closure_reference_from_control_section,
+  plan_solver_generated_first_cell_terminal_closure_reference_from_control_section_flux,
   plan_first_cell_terminal_closure_with_planar_handoff,
   plan_first_cell_terminal_closure_with_planar_frozen_profile_reference,
 )
@@ -818,6 +819,7 @@ __all__ = (
   'plan_prescribed_first_cell_terminal_closure_mock',
   'plan_solver_generated_first_cell_terminal_closure_reference',
   'plan_solver_generated_first_cell_terminal_closure_reference_from_control_section',
+  'plan_solver_generated_first_cell_terminal_closure_reference_from_control_section_flux',
   'plan_first_cell_terminal_closure_with_planar_handoff',
   'plan_first_cell_terminal_closure_with_planar_frozen_profile_reference',
   'plan_first_cell_terminal_closure_with_planar_potential_reference',
