@@ -130,6 +130,8 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_attached_compression_to_turn,
   fit_euler_consistent_shock_boundary,
   assemble_euler_consistent_companion_characteristic_strip,
+  plan_euler_companion_field_reference,
+  plan_euler_companion_field_chain_probe,
   solve_euler_consistent_attached_shock_segment,
   solve_attached_shock_to_centerline,
   solve_terminal_compression_candidate,
@@ -9781,6 +9783,21 @@ def build_moc_primitive_report() -> dict[str, Any]:
   euler_companion_field_audit = measure_moc_euler_companion_field(
     euler_companion_field,
   )
+  euler_companion_field_planner = plan_euler_companion_field_reference(
+    euler_companion_field,
+  )
+  euler_companion_chain_planner = None
+  euler_companion_chain_planner_measurement = None
+  if solver_generated_shock.field is not None and solver_generated_shock.field.converged:
+    euler_companion_chain_planner = plan_euler_companion_field_chain_probe(
+      solver_generated_shock.field,
+      euler_companion_field,
+      start_x_m=0.5,
+      end_x_m=1.0,
+    )
+    euler_companion_chain_planner_measurement = measure_moc_chain_planner(
+      euler_companion_chain_planner,
+    )
   normal_shock_terminal = solve_normal_shock_terminal(
     CharacteristicState(
       x_m=1.25,
@@ -9969,6 +9986,19 @@ def build_moc_primitive_report() -> dict[str, Any]:
         euler_ambient_companion_boundary_audit.as_report()
       ),
       'independent_audit': euler_companion_field_audit.as_report(),
+      'planner': euler_companion_field_planner.as_report(),
+      'chain_boundary_probe': (
+        None
+        if euler_companion_chain_planner is None
+        else {
+          **euler_companion_chain_planner.as_report(),
+          'planner_measurement': (
+            None
+            if euler_companion_chain_planner_measurement is None
+            else euler_companion_chain_planner_measurement.as_report()
+          ),
+        }
+      ),
       'claim_status': (
         'open-companion-conditioned-characteristic-strip; ambient-free-'
         'boundary-and-continued-chain-pending'
@@ -10752,6 +10782,37 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'refinement_diagnostic': _refinement_diagnostic(resolution_probe),
     },
   }
+  euler_companion_field_planner_failure = (
+    euler_companion_field_planner.planner_kind is not MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
+    or not euler_companion_field_planner.resolved
+    or euler_companion_field_planner.physical_closure_verified
+    or not euler_companion_field_planner.chain_promotion_blocked
+    or euler_companion_field_planner.production_claim_allowed
+    or euler_companion_field_planner.termination.reason is not MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+    or euler_companion_field_planner.diagnostics.get('continued_cell_callback_invoked') is not False
+  )
+  euler_companion_chain_planner_failure = (
+    euler_companion_chain_planner is None
+    or euler_companion_chain_planner.planner_kind is not MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
+    or not euler_companion_chain_planner.as_report()['planning_only']
+    or euler_companion_chain_planner.production_claim_allowed
+    or not euler_companion_chain_planner.chain.resolved
+    or euler_companion_chain_planner.chain.status is not MocChainStatus.SOLVER_TERMINATED
+    or euler_companion_chain_planner.chain.termination_reason is not MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+    or euler_companion_chain_planner.chain.physical_termination
+    or euler_companion_chain_planner.chain.cell_count != 1
+    or len(euler_companion_chain_planner.steps) != 1
+    or euler_companion_chain_planner.steps[0].result_kind != 'termination-returned'
+    or euler_companion_chain_planner.steps[0].result_termination_reason is not MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+    or euler_companion_chain_planner.diagnostics.get('euler_field_consumed_as_chain_seed') is not False
+    or euler_companion_chain_planner.diagnostics.get('upstream_field_replacement_policy') != 'never-replace-on-boundary-probe'
+    or euler_companion_chain_planner_measurement is None
+    or not euler_companion_chain_planner_measurement.converged
+    or not euler_companion_chain_planner_measurement.termination_verified
+    or not euler_companion_chain_planner_measurement.fidelity_isolation_verified
+    or euler_companion_chain_planner_measurement.physical_termination
+    or euler_companion_chain_planner_measurement.production_claim_allowed
+  )
   failures = [
     *round_trip_failures,
     *resolution_failures,
@@ -10878,6 +10939,30 @@ def build_moc_primitive_report() -> dict[str, Any]:
       or not euler_companion_field_audit.chain_promotion_blocked
       or euler_companion_field_audit.production_claim_allowed
     ) else []),
+    *([
+      {
+        'case': 'euler_companion_field_planner_boundary',
+        'status': euler_companion_field_planner.termination.reason.value,
+        'message': (
+          'Euler companion-field planner did not preserve its typed open '
+          'physical-closure boundary'
+        ),
+      }
+    ] if euler_companion_field_planner_failure else []),
+    *([
+      {
+        'case': 'euler_companion_field_chain_boundary_probe',
+        'status': (
+          'missing'
+          if euler_companion_chain_planner is None
+          else euler_companion_chain_planner.chain.status.value
+        ),
+        'message': (
+          'Euler companion-field chain probe did not preserve the one-cell '
+          'seed and typed open physical-closure stop'
+        ),
+      }
+    ] if euler_companion_chain_planner_failure else []),
     *([
       {
         'case': 'compression_normal_shock_limit_failure',

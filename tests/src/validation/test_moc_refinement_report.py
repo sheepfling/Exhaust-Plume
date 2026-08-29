@@ -236,6 +236,31 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert euler_companion['solver_owned_ambient_companion_boundary_audit']['checks'][
     'local_boundary_consistency_verified'
   ] is True
+  euler_companion_planner = euler_companion['planner']
+  assert euler_companion_planner['planner_kind'] == 'upstream-coupled-research'
+  assert euler_companion_planner['resolved'] is True
+  assert euler_companion_planner['physical_closure_verified'] is False
+  assert euler_companion_planner['chain_promotion_blocked'] is True
+  assert euler_companion_planner['production_claim_allowed'] is False
+  assert euler_companion_planner['termination']['reason'] == (
+    'open-physical-closure'
+  )
+  euler_companion_chain_probe = euler_companion['chain_boundary_probe']
+  assert euler_companion_chain_probe['planner_kind'] == 'upstream-coupled-research'
+  assert euler_companion_chain_probe['planning_only'] is True
+  assert euler_companion_chain_probe['production_claim_allowed'] is False
+  assert euler_companion_chain_probe['chain']['status'] == 'solver-terminated'
+  assert euler_companion_chain_probe['chain']['termination_reason'] == (
+    'open-physical-closure'
+  )
+  assert euler_companion_chain_probe['chain']['physical_termination'] is False
+  assert euler_companion_chain_probe['chain']['cell_count'] == 1
+  assert euler_companion_chain_probe['chain']['resolved'] is True
+  assert euler_companion_chain_probe['diagnostics']['euler_field_consumed_as_chain_seed'] is False
+  assert euler_companion_chain_probe['planner_measurement']['status'] == 'converged'
+  assert euler_companion_chain_probe['planner_measurement']['checks']['termination_verified'] is True
+  assert euler_companion_chain_probe['planner_measurement']['checks']['fidelity_isolation_verified'] is True
+  assert euler_companion_chain_probe['planner_measurement']['physical_termination'] is False
   assert first_cell_research_chain['planner_kind'] == 'upstream-coupled-research'
   assert first_cell_research_chain['resolved'] is True
   assert first_cell_research_chain['cell_count'] == 3

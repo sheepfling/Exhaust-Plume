@@ -2491,3 +2491,29 @@ the mixed-regime perimeter before any continued shock-cell chain can consume
 it. Indexed external observations are also still missing; the promotion
 review therefore remains a hard data gate, and the fast/basic visualization
 and reduced-order providers remain unchanged.
+
+## Euler companion-field planner and continued-chain boundary checkpoint
+
+The locally audited Euler companion strip is now exposed through the planner
+contract by `plan_euler_companion_field_reference`. Its
+`MocEulerCompanionFieldPlannerResult` preserves the field's typed
+`open-physical-closure` termination, reports the local result as
+`upstream-coupled-research`, and keeps production claims and chain promotion
+disabled. A converged open strip is therefore visible to planning and
+validation without being relabeled as a resolved shock cell.
+
+`plan_euler_companion_field_chain_probe` adds the next seam. It accepts an
+already resolved planar-MOC seed, records the exact incoming state/total-
+pressure handoff, invokes the boundary adapter once, and returns the typed
+open-closure stop. The Euler strip is explicitly not converted into a
+`MocChainCell`, and the accepted upstream field is never replaced by the
+probe. The existing prescribed multi-cell planner mock remains a separate
+deterministic contract for exercising repeated state-carrying cells; it is not
+used to increase the Euler lane's fidelity.
+
+The standalone validation report now audits both planner boundaries and their
+independent chain-planner measurement. This advances the continued-cell
+interface while leaving the physics gate unchanged: global reflected
+Euler/free-boundary closure, entropy transport, refinement, and indexed
+external observations are still required before a continued Euler chain can
+be claimed.

@@ -6,6 +6,8 @@ from math import tan
 from exhaust_plume.models.moc import (
   CharacteristicState,
   MocChainBoundarySample,
+  MocChainPlannerKind,
+  MocChainStatus,
   MocChainTerminationReason,
   MocEulerAmbientCompanionBoundaryStatus,
   MocEulerCompanionFieldStatus,
@@ -13,17 +15,21 @@ from exhaust_plume.models.moc import (
   MocEulerShockBoundaryStatus,
   assemble_euler_consistent_companion_characteristic_strip,
   fit_euler_consistent_shock_boundary,
+  plan_euler_companion_field_chain_probe,
+  plan_euler_companion_field_reference,
   solve_euler_ambient_companion_boundary_reference,
   solve_attached_compression_to_turn,
   solve_marched_attached_shock_field,
   solve_marched_attached_shock_with_ambient_centerline_physical_field,
   solve_euler_consistent_attached_shock_segment,
+  solve_uniform_attached_shock_field,
 )
 from exhaust_plume.validation import (
   MocEulerAmbientCompanionBoundaryAuditStatus,
   MocEulerCompanionFieldAuditStatus,
   MocPhysicalFieldEulerAuditStatus,
   measure_moc_ambient_companion_boundary,
+  measure_moc_chain_planner,
   measure_moc_euler_companion_field,
   measure_moc_physical_field_euler_audit,
 )
@@ -417,3 +423,93 @@ def test_euler_companion_strip_uses_explicit_second_characteristic_boundary() ->
   assert rejected.status is MocEulerCompanionFieldStatus.PRESSURE_FAILURE
   assert not rejected.converged
   assert rejected.chain_promotion_blocked
+
+
+def test_euler_companion_field_has_a_typed_planner_boundary_without_chain_promotion() -> None:
+  compression = solve_attached_compression_to_turn(
+    upstream_mach=2.0,
+    gamma=1.4,
+    upstream_pressure_Pa=100000.0,
+    target_turn_rad=0.2,
+  )
+  assert compression.beta_rad is not None
+  shock_angle = 0.2 - compression.beta_rad
+  points = tuple(
+    (0.5 + index * (-0.1 / tan(shock_angle)), 0.5 - index * 0.1)
+    for index in range(6)
+  )
+  shock_boundary = fit_euler_consistent_shock_boundary(
+    tuple(
+      CharacteristicState(
+        x_m=point[0],
+        y_m=point[1],
+        theta_rad=0.2,
+        mach=2.0,
+        gamma=1.4,
+      )
+      for point in points
+    ),
+    (100000.0,) * len(points),
+    points,
+    (0.0,) * len(points),
+  )
+  ambient_pressure = shock_boundary.downstream_total_pressure_Pa[0] / (
+    1.0 + 0.5 * (1.4 - 1.0) * 2.0**2
+  ) ** (1.4 / (1.4 - 1.0))
+  companion = solve_euler_ambient_companion_boundary_reference(
+    shock_boundary,
+    ambient_pressure,
+    separation_m=0.8,
+  )
+  field = assemble_euler_consistent_companion_characteristic_strip(
+    shock_boundary,
+    companion.samples,
+  )
+
+  field_planner = plan_euler_companion_field_reference(field)
+  assert field_planner.planner_kind is MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
+  assert field_planner.resolved
+  assert field_planner.physical_closure_verified is False
+  assert field_planner.chain_promotion_blocked
+  assert field_planner.termination.reason is MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+  assert field_planner.diagnostics['continued_cell_callback_invoked'] is False
+
+  generated = solve_uniform_attached_shock_field(
+    CharacteristicState(
+      x_m=0.5,
+      y_m=0.5,
+      theta_rad=-0.2,
+      mach=2.0,
+      gamma=1.4,
+    ),
+    100000.0,
+    (0.5, 0.5),
+    outer_downstream_flow_angle_rad=0.05,
+    sample_count=9,
+  )
+  assert generated.field is not None
+  chain_planner = plan_euler_companion_field_chain_probe(
+    generated.field,
+    field,
+    start_x_m=0.5,
+    end_x_m=1.0,
+  )
+  assert chain_planner.planner_kind is MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
+  assert chain_planner.chain.status is MocChainStatus.SOLVER_TERMINATED
+  assert chain_planner.chain.termination_reason is MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+  assert chain_planner.chain.physical_termination is False
+  assert chain_planner.chain.cell_count == 1
+  assert chain_planner.chain.resolved
+  assert chain_planner.steps[0].result_kind == 'termination-returned'
+  assert chain_planner.steps[0].result_termination_reason is MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+  assert chain_planner.diagnostics['euler_field_consumed_as_chain_seed'] is False
+  assert chain_planner.diagnostics['upstream_field_replacement_policy'] == (
+    'never-replace-on-boundary-probe'
+  )
+
+  planner_audit = measure_moc_chain_planner(chain_planner)
+  assert planner_audit.converged
+  assert planner_audit.termination_verified
+  assert planner_audit.fidelity_isolation_verified
+  assert planner_audit.physical_termination is False
+  assert planner_audit.production_claim_allowed is False

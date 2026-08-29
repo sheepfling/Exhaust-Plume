@@ -96,6 +96,9 @@ from exhaust_plume.models.moc.post_shock import (
 from exhaust_plume.models.moc.euler_shock_boundary import (
   fit_euler_consistent_shock_boundary,
 )
+from exhaust_plume.models.moc.euler_characteristic_field import (
+  MocEulerCompanionFieldResult,
+)
 from exhaust_plume.models.moc.mixed_regime import (
   MocMixedRegimeClosureResult,
   MocMixedRegimeControlSection,
@@ -991,6 +994,97 @@ class MocChainPlannerResult:
       'handoff_links_verified': self.handoff_links_verified,
       'steps': [step.as_report() for step in self.steps],
       'chain': self.chain.as_report(),
+      'diagnostics': dict(self.diagnostics),
+    }
+  ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerCompanionFieldPlannerResult:
+  """Planner boundary for a locally audited Euler companion field.
+
+  The Euler companion strip is a useful higher-fidelity field handoff, but it
+  is not a resolved shock cell: its companion/ambient boundary remains an
+  explicit closure input.  This wrapper keeps that distinction at the
+  planner boundary and exposes the field's typed non-physical stop without
+  manufacturing a ``MocChainCell``.
+  """
+
+  field: MocEulerCompanionFieldResult
+  termination: MocChainTerminationDecision
+  planner_kind: MocChainPlannerKind
+  claim_status: str
+  diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.field, MocEulerCompanionFieldResult):
+      raise TypeError(
+        'field must be a MocEulerCompanionFieldResult'
+      )
+    if not isinstance(self.termination, MocChainTerminationDecision):
+      raise TypeError(
+        'termination must be a MocChainTerminationDecision'
+      )
+    expected = self.field.as_chain_termination_decision()
+    if self.termination != expected:
+      raise ValueError(
+        'termination must match field.as_chain_termination_decision()'
+      )
+    if self.planner_kind is not MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH:
+      raise ValueError(
+        'Euler companion field planning must use the upstream-coupled '
+        'research planner kind'
+      )
+    object.__setattr__(self, 'claim_status', str(self.claim_status))
+    object.__setattr__(self, 'diagnostics', MappingProxyType(dict(self.diagnostics)))
+
+  @property
+  def resolved(self) -> bool:
+    """Whether the local companion strip assembled numerically."""
+
+    return self.field.converged
+  ####
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    """The companion strip does not solve the global physical closure."""
+
+    return False
+  ####
+
+  @property
+  def physical_termination(self) -> bool:
+    """Whether the field supplied a verified physical chain endpoint."""
+
+    return self.termination.physical_termination
+  ####
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    """Prevent an open companion field from becoming a chain cell."""
+
+    return True
+  ####
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    """Planner/reference results never support a product claim."""
+
+    return False
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'planner_kind': self.planner_kind.value,
+      'planning_only': True,
+      'production_claim_allowed': self.production_claim_allowed,
+      'claim_status': self.claim_status,
+      'resolved': self.resolved,
+      'physical_closure_verified': self.physical_closure_verified,
+      'physical_termination': self.physical_termination,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'termination': self.termination.as_report(),
+      'field': self.field.as_report(),
       'diagnostics': dict(self.diagnostics),
     }
   ####
@@ -7483,6 +7577,117 @@ def plan_post_shock_characteristic_chain(
     ),
   )
 ####
+
+
+def plan_euler_companion_field_reference(
+  field: MocEulerCompanionFieldResult,
+  *,
+  claim_status: str | None = None,
+) -> MocEulerCompanionFieldPlannerResult:
+  """Expose an Euler companion field through the planner safety boundary.
+
+  A converged companion strip is a local characteristic result, not a closed
+  shock-cell seed.  The planner therefore retains its typed termination and
+  never invokes a continued-cell callback from this adapter.
+  """
+
+  if not isinstance(field, MocEulerCompanionFieldResult):
+    raise TypeError('field must be a MocEulerCompanionFieldResult')
+  termination = field.as_chain_termination_decision()
+  return MocEulerCompanionFieldPlannerResult(
+    field=field,
+    termination=termination,
+    planner_kind=MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH,
+    claim_status=(
+      'solver-generated-euler-companion-field-planner; '
+      'global-reflected-free-boundary-and-continued-chain-pending'
+      if claim_status is None
+      else claim_status
+    ),
+    diagnostics={
+      'planner_model': 'euler-companion-field-boundary-planner',
+      'continued_cell_callback_invoked': False,
+      'field_status': field.status.value,
+      'field_converged': field.converged,
+      'field_chain_termination_reason': termination.reason.value,
+      'chain_promotion_blocked': True,
+      'canonical_free_boundary_verified': False,
+      'canonical_euler_verified': False,
+      'external_validation_verified': False,
+    },
+  )
+  ####
+
+
+def plan_euler_companion_field_chain_probe(
+  seed: MocPostShockCharacteristicFieldResult,
+  field: MocEulerCompanionFieldResult,
+  *,
+  start_x_m: float,
+  end_x_m: float,
+  policy: MocChainContinuationPolicy | None = None,
+) -> MocChainPlannerResult:
+  """Probe an Euler companion field at the continued-chain boundary.
+
+  The legacy-compatible ``seed`` supplies the already accepted chain prefix
+  needed by the generic planner.  The Euler companion field is consumed only
+  as the next-cell solver's typed boundary decision; it is intentionally not
+  converted into a ``MocChainCell``.  This keeps the high-fidelity Euler lane
+  observable in chain reports while the missing reflected closure remains a
+  hard stop.
+  """
+
+  if not isinstance(seed, MocPostShockCharacteristicFieldResult):
+    raise TypeError('seed must be a MocPostShockCharacteristicFieldResult')
+  if not isinstance(field, MocEulerCompanionFieldResult):
+    raise TypeError('field must be a MocEulerCompanionFieldResult')
+  field_planner = plan_euler_companion_field_reference(field)
+  boundary_decision = field_planner.termination
+
+  def solve_next(
+    current: MocChainCell,
+    next_cell_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+  ) -> MocChainTerminationDecision:
+    if incoming_handoff != current.continuation_boundary:
+      raise ValueError(
+        'Euler companion field chain probe received a changed incoming handoff'
+      )
+    diagnostics = dict(boundary_decision.diagnostics)
+    diagnostics.update({
+      'planner_model': 'euler-companion-field-chain-boundary-probe',
+      'next_cell_index': next_cell_index,
+      'incoming_handoff_sample_count': len(incoming_handoff),
+      'incoming_handoff_fingerprint': _handoff_fingerprint(incoming_handoff),
+      'euler_field_consumed_as_chain_seed': False,
+    })
+    return replace(boundary_decision, diagnostics=diagnostics)
+
+  planner = plan_post_shock_characteristic_chain(
+    seed,
+    solve_next,
+    start_x_m=start_x_m,
+    end_x_m=end_x_m,
+    policy=policy,
+    require_upstream_shock_coupling=True,
+    planner_kind=MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH,
+    claim_status=(
+      'euler-companion-field-chain-boundary-probe; '
+      'open-reflected-free-boundary-and-continued-euler-chain-pending'
+    ),
+  )
+  return replace(
+    planner,
+    diagnostics={
+      'euler_companion_field_planner': field_planner.as_report(),
+      'euler_field_consumed_as_chain_seed': False,
+      'continued_cell_callback_policy': (
+        'typed-boundary-stop-only-until-global-reflected-closure'
+      ),
+      'upstream_field_replacement_policy': 'never-replace-on-boundary-probe',
+    },
+  )
+  ####
 
 
 def plan_post_shock_field_chain(
