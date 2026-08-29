@@ -881,6 +881,13 @@ state sampling are useful evidence, but ambient closure, reflected-shock
 coupling, variable entropy transport, and continued-cell promotion remain
 blocked.
 
+The global reflected-remesh planner records this boundary-fit diagnostic for
+each retained attempt as well as the independent Euler audit. On the current
+reference fixture the corrected fit stops at `noncompressive_turn`, because
+the stored upstream flow angle uses the compatibility reference's opposite
+turn direction. That result is retained as a fidelity-boundary signal; the
+planner does not reinterpret or mutate the older reference field.
+
 ## Parameterized planar free-boundary research boundary
 
 The current higher-fidelity downstream experiment is isolated under the exact

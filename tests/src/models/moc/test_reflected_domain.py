@@ -1113,6 +1113,19 @@ def test_global_reflected_shock_remesh_planner_preserves_research_stop():
     for row in euler_audits
   )
   assert planner.diagnostics[
+    'global_reflected_shock_remesh_euler_boundary_accepted'
+  ] is False
+  boundary_curves = planner.diagnostics[
+    'global_reflected_shock_remesh_euler_boundary_curves'
+  ]
+  assert len(boundary_curves) == 2
+  assert all(
+    row['field_available']
+    and row['curve'] is not None
+    and row['curve']['chain_promotion_blocked']
+    for row in boundary_curves
+  )
+  assert planner.diagnostics[
     'global_reflected_shock_remesh_independent_measurement'
   ]['status'] == 'converged'
   assert planner.production_claim_allowed is False

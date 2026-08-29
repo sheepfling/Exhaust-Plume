@@ -93,6 +93,9 @@ from exhaust_plume.models.moc.post_shock import (
   continue_post_shock_characteristic_chain,
   fit_attached_shock_boundary,
 )
+from exhaust_plume.models.moc.euler_shock_boundary import (
+  fit_euler_consistent_shock_boundary,
+)
 from exhaust_plume.models.moc.mixed_regime import (
   MocMixedRegimeClosureResult,
   MocMixedRegimeControlSection,
@@ -9535,6 +9538,7 @@ def plan_reflected_domain_global_shock_remesh_chain(
   solver_result: MocReflectedDomainGlobalShockRemeshResult | None = None
   solver_measurement: Any | None = None
   solver_euler_audits: tuple[dict[str, Any], ...] = ()
+  solver_euler_boundary_curves: tuple[dict[str, Any], ...] = ()
   solver_error: str | None = None
 
   def stop(
@@ -9567,7 +9571,8 @@ def plan_reflected_domain_global_shock_remesh_chain(
     next_cell_index: int,
     incoming_handoff: tuple[MocChainBoundarySample, ...],
   ) -> MocChainTerminationDecision:
-    nonlocal solver_error, solver_measurement, solver_result, solver_euler_audits
+    nonlocal solver_error, solver_measurement, solver_result
+    nonlocal solver_euler_audits, solver_euler_boundary_curves
     if total_cell_count is not None and next_cell_index > total_cell_count:
       return stop(
         MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
@@ -9631,6 +9636,7 @@ def plan_reflected_domain_global_shock_remesh_chain(
       )
 
       audit_rows: list[dict[str, Any]] = []
+      boundary_curve_rows: list[dict[str, Any]] = []
       for attempt_index, attempt in enumerate(solver_result.attempts):
         selected_field = attempt.first_cell_result.selected_physical_field
         field = None if selected_field is None else selected_field.field
@@ -9643,6 +9649,15 @@ def plan_reflected_domain_global_shock_remesh_chain(
             'field_available': False,
             'audit': None,
           })
+          boundary_curve_rows.append({
+            'attempt_index': attempt_index,
+            'outer_source_index': attempt.outer_source_index,
+            'target_centerline_index': attempt.target_centerline_index,
+            'compression_envelope_skew': attempt.compression_envelope_skew,
+            'field_available': False,
+            'curve': None,
+            'message': 'selected physical field unavailable',
+          })
           continue
         audit = measure_moc_physical_field_euler_audit(field)
         audit_rows.append({
@@ -9653,7 +9668,71 @@ def plan_reflected_domain_global_shock_remesh_chain(
           'field_available': True,
           'audit': audit.as_report(),
         })
+        upstream_states = tuple(field.upstream_shock_boundary_states)
+        upstream_total_pressures = tuple(
+          field.upstream_shock_boundary_total_pressure_Pa
+        )
+        downstream_states = tuple(field.post_shock_boundary_states)
+        points = tuple(field.shock_boundary_points_m)
+        if not (
+          len(upstream_states)
+          == len(upstream_total_pressures)
+          == len(downstream_states)
+          == len(points)
+          and len(points) >= 2
+        ):
+          boundary_curve_rows.append({
+            'attempt_index': attempt_index,
+            'outer_source_index': attempt.outer_source_index,
+            'target_centerline_index': attempt.target_centerline_index,
+            'compression_envelope_skew': attempt.compression_envelope_skew,
+            'field_available': True,
+            'curve': None,
+            'message': (
+              'selected physical field does not carry equal upstream, '
+              'downstream, pressure, and shock-point samples'
+            ),
+          })
+          continue
+        upstream_static_pressures = tuple(
+          pressure / (
+            1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
+          ) ** (state.gamma / (state.gamma - 1.0))
+          for state, pressure in zip(
+            upstream_states,
+            upstream_total_pressures,
+            strict=True,
+          )
+        )
+        try:
+          boundary_curve = fit_euler_consistent_shock_boundary(
+            upstream_states,
+            upstream_static_pressures,
+            points,
+            tuple(state.theta_rad for state in downstream_states),
+            shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+          )
+        except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+          boundary_curve_rows.append({
+            'attempt_index': attempt_index,
+            'outer_source_index': attempt.outer_source_index,
+            'target_centerline_index': attempt.target_centerline_index,
+            'compression_envelope_skew': attempt.compression_envelope_skew,
+            'field_available': True,
+            'curve': None,
+            'message': f'Euler-consistent shock boundary fit failed: {error}',
+          })
+          continue
+        boundary_curve_rows.append({
+          'attempt_index': attempt_index,
+          'outer_source_index': attempt.outer_source_index,
+          'target_centerline_index': attempt.target_centerline_index,
+          'compression_envelope_skew': attempt.compression_envelope_skew,
+          'field_available': True,
+          'curve': boundary_curve.as_report(),
+        })
       solver_euler_audits = tuple(audit_rows)
+      solver_euler_boundary_curves = tuple(boundary_curve_rows)
     except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
       solver_error = f'{type(error).__name__}: {error}'
       return stop(
@@ -9710,6 +9789,22 @@ def plan_reflected_domain_global_shock_remesh_chain(
       )
     ),
     'global_reflected_shock_remesh_euler_audit_required_for_promotion': True,
+    'global_reflected_shock_remesh_euler_boundary_curves': (
+      solver_euler_boundary_curves
+    ),
+    'global_reflected_shock_remesh_euler_boundary_accepted': bool(
+      solver_euler_boundary_curves
+      and all(
+        row['field_available']
+        and row['curve'] is not None
+        and row['curve']['local_euler_verified']
+        and row['curve']['orientation'] == 'mixed-characteristic-boundary'
+        and row['curve']['companion_boundary_required']
+        and row['curve']['chain_promotion_blocked']
+        for row in solver_euler_boundary_curves
+      )
+    ),
+    'global_reflected_shock_remesh_euler_boundary_required_for_promotion': True,
     'global_reflected_shock_remesh_audit_accepted': bool(
       solver_measurement is not None
       and solver_measurement.converged
