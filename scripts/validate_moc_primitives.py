@@ -3514,6 +3514,7 @@ def _shock_cell_chain_planner_mock(
     cell_axial_lengths_m=(0.46, 0.50, 0.54, 0.58),
     shock_start_offsets_m=(0.16, 0.18, 0.20, 0.22),
     shock_geometry_scales_per_cell=(1.00, 1.05, 1.10, 1.15),
+    shock_pressure_coordinates=(0.0, 0.12, 0.38, 0.72, 1.0),
   )
 
   def solve_next(current, cell_index, handoff):
@@ -8921,6 +8922,12 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'upstream_pressure_model': shock_cell_chain_fixture_report[
         'upstream_pressure_model'
       ],
+      'shock_pressure_coordinates': shock_cell_chain_fixture_report[
+        'shock_pressure_coordinates'
+      ],
+      'upstream_pressure_coordinate_model': shock_cell_chain_fixture_report[
+        'upstream_pressure_coordinate_model'
+      ],
       'planner_step_count': len(shock_cell_chain_planner.steps),
       'handoff_links_verified': shock_cell_chain_planner.handoff_links_verified,
       'planner_steps': [
@@ -9952,6 +9959,12 @@ def build_moc_primitive_report() -> dict[str, Any]:
       )
       or shock_cell_chain_fixture_report['geometry_schedule_model'] != (
         'explicit-per-cell-schedule'
+      )
+      or shock_cell_chain_fixture_report['upstream_pressure_coordinate_model'] != (
+        'explicit-normalized-shock-sample-coordinate-from-exact-incoming-handoff'
+      )
+      or len(shock_cell_chain_fixture_report['shock_pressure_coordinates']) != (
+        len(shock_cell_chain_fixture_report['shock_ordinates_m'])
       )
       or len(shock_cell_chain_fixture_report['per_cell_geometry_schedule']) != 4
       or shock_cell_chain_fixture_report['free_boundary_verified'] is not False

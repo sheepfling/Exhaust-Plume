@@ -2170,3 +2170,22 @@ planner therefore keeps chain promotion blocked and the production claim
 false. The next implementation target remains the solver-owned coupled
 subsonic entropy-transport/free-boundary problem, followed by refinement and
 indexed external observations.
+
+## Continued-chain pressure-map checkpoint
+
+The prescribed post-shock planner mock now exposes an explicit normalized
+pressure-coordinate vector for every prescribed next-shock sample. The
+continued-cell callback maps the exact incoming handoff through those
+coordinates and reports the mapping alongside the per-cell geometry schedule;
+planner and visualization diagnostics can therefore see how pressure lineage
+was transferred instead of treating normalized-index resampling as hidden
+solver behavior. The standalone five-cell fixture exercises a nonuniform
+coordinate schedule and the existing independent shock-cell/planner
+measurements remain green.
+
+This is still a deterministic prescribed-boundary mock. The coordinate map is
+not a streamline solve, a reflected free-boundary law, or canonical entropy
+transport, so the mock remains below the resolved physical-chain and product
+claim ceilings. The next physics gate is unchanged: a solver-owned
+subsonic entropy-transport/free-boundary solve must replace the fixture policy
+before any continued-cell promotion.

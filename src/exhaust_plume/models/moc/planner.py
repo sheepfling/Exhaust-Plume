@@ -2462,6 +2462,10 @@ class MocPrescribedPostShockChainMock:
     0.020592771141007285,
     0.0,
   )
+  # Explicit normalized coordinates map the prior carried pressure trace to
+  # the prescribed next-shock samples.  This remains a fixture mapping, not
+  # a solved streamline/free-boundary relation.
+  shock_pressure_coordinates: tuple[float, ...] | None = None
   downstream_flow_angles_rad: tuple[float, ...] = (-0.16, -0.12, -0.08, -0.04, 0.0)
   upstream_flow_angle_start_rad: float = -0.22316537247754467
   upstream_flow_angle_step_rad: float = 0.01953284223794056
@@ -2531,6 +2535,47 @@ class MocPrescribedPostShockChainMock:
       raise ValueError('downstream flow angles must be finite')
     if abs(downstream_angles[-1]) > 1.0e-12:
       raise ValueError('the final prescribed downstream flow angle must be zero')
+    try:
+      configured_pressure_coordinates = (
+        tuple(float(value) for value in self.shock_pressure_coordinates)
+        if self.shock_pressure_coordinates is not None
+        else tuple(
+          index / (len(ordinates) - 1)
+          for index in range(len(ordinates))
+        )
+      )
+    except (TypeError, ValueError) as error:
+      raise ValueError(
+        'shock_pressure_coordinates must be a numeric sequence'
+      ) from error
+    if len(configured_pressure_coordinates) != len(ordinates):
+      raise ValueError(
+        'shock_pressure_coordinates must match the shock sample count'
+      )
+    if any(
+      not isfinite(value) or value < 0.0 or value > 1.0
+      for value in configured_pressure_coordinates
+    ):
+      raise ValueError(
+        'shock_pressure_coordinates must contain finite values in [0, 1]'
+      )
+    if (
+      abs(configured_pressure_coordinates[0]) > 1.0e-12
+      or abs(configured_pressure_coordinates[-1] - 1.0) > 1.0e-12
+    ):
+      raise ValueError(
+        'shock_pressure_coordinates must start at zero and end at one'
+      )
+    if any(
+      next_value <= value
+      for value, next_value in zip(
+        configured_pressure_coordinates,
+        configured_pressure_coordinates[1:],
+      )
+    ):
+      raise ValueError(
+        'shock_pressure_coordinates must be strictly increasing'
+      )
     for name, value in (
       ('upstream_flow_angle_start_rad', self.upstream_flow_angle_start_rad),
       ('upstream_flow_angle_step_rad', self.upstream_flow_angle_step_rad),
@@ -2630,6 +2675,11 @@ class MocPrescribedPostShockChainMock:
           f'{shock_end_offset} m from its start'
         )
     object.__setattr__(self, 'shock_ordinates_m', ordinates)
+    object.__setattr__(
+      self,
+      'shock_pressure_coordinates',
+      configured_pressure_coordinates,
+    )
     object.__setattr__(self, 'downstream_flow_angles_rad', downstream_angles)
     object.__setattr__(self, 'upstream_flow_angles_rad', configured_upstream_angles)
     object.__setattr__(self, 'cell_axial_lengths_m', normalized_lengths)
@@ -2702,32 +2752,64 @@ class MocPrescribedPostShockChainMock:
       )
     return scale
 
-  def _resample_incoming_total_pressure(
+  def incoming_total_pressure_at_shock_samples(
+    self,
+    incoming_handoff: Sequence[MocChainBoundarySample],
+  ) -> tuple[float, ...]:
+    """Return the explicit pressure map used by the prescribed mock.
+
+    The method is public so planner and visualization diagnostics can inspect
+    the fixture's pressure-lineage policy without reaching into its solver
+    callback.  It is still only a normalized reference mapping; it does not
+    infer a physical streamline correspondence.
+    """
+
+    try:
+      handoff = tuple(incoming_handoff)
+    except TypeError as error:
+      raise TypeError(
+        'incoming_handoff must be an iterable of MocChainBoundarySample values'
+      ) from error
+    if any(
+      not isinstance(sample, MocChainBoundarySample)
+      for sample in handoff
+    ):
+      raise TypeError(
+        'incoming_handoff must contain MocChainBoundarySample values'
+      )
+    if len(handoff) < 2:
+      raise ValueError(
+        'incoming_handoff requires at least two pressure samples'
+      )
+    return self._map_incoming_total_pressure(handoff)
+
+  def _map_incoming_total_pressure(
     self,
     incoming_handoff: tuple[MocChainBoundarySample, ...],
   ) -> tuple[float, ...]:
-    """Resample the prior pressure trace at the mock shock samples.
+    """Map the prior pressure trace to the mock shock samples.
 
-    The normalized-index interpolation is intentionally a named fixture
-    policy. It preserves pressure variation for contract tests without
-    pretending that the prescribed shock has a physically derived mapping to
-    the prior perimeter.
+    The normalized coordinates are an explicit fixture policy.  They preserve
+    pressure variation for contract tests without pretending that the
+    prescribed shock has a physically derived mapping to the prior perimeter.
     """
 
     pressures = tuple(sample.total_pressure_Pa for sample in incoming_handoff)
-    if len(pressures) == self.sample_count:
-      return pressures
+    coordinates = self.shock_pressure_coordinates
+    if coordinates is None:
+      raise ValueError(
+        'shock_pressure_coordinates was not normalized by the fixture'
+      )
     last_incoming_index = len(pressures) - 1
-    last_shock_index = self.sample_count - 1
     return tuple(
       (
         pressures[lower_index]
         if lower_index == upper_index
         else pressures[lower_index]
-        + (pressures[upper_index] - pressures[lower_index]) * fraction
+          + (pressures[upper_index] - pressures[lower_index]) * fraction
       )
-      for index in range(self.sample_count)
-      for position in (index * last_incoming_index / last_shock_index,)
+      for coordinate in coordinates
+      for position in (coordinate * last_incoming_index,)
       for lower_index in (int(position),)
       for upper_index in (min(lower_index + 1, last_incoming_index),)
       for fraction in (position - lower_index,)
@@ -2756,6 +2838,10 @@ class MocPrescribedPostShockChainMock:
       'shock_start_offset_m': self.shock_start_offset_m,
       'shock_sample_spacing_m': self.shock_sample_spacing_m,
       'shock_geometry_scale_per_cell': self.shock_geometry_scale_per_cell,
+      'shock_pressure_coordinates': self.shock_pressure_coordinates,
+      'upstream_pressure_coordinate_model': (
+        'explicit-normalized-shock-sample-coordinate-from-exact-incoming-handoff'
+      ),
       'shock_geometry_scale_schedule': [
         {
           'cell_index': cell_index,
@@ -2836,7 +2922,9 @@ class MocPrescribedPostShockChainMock:
           f'{self.total_cell_count}-cell fixture'
         ),
       )
-    upstream_total_pressures = self._resample_incoming_total_pressure(handoff)
+    upstream_total_pressures = self.incoming_total_pressure_at_shock_samples(
+      handoff
+    )
     shock_geometry_scale = self.shock_geometry_scale_for_cell(next_cell_index)
     shock_start_x_m = current.end_x_m + self.shock_start_offset_for_cell(next_cell_index)
     shock_points = tuple(

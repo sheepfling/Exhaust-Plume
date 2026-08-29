@@ -870,3 +870,13 @@ reports expose the handoff and a separate
 `chain_promotion_blocked=true` and `production_claim_allowed=false`. This is
 planner observability only; it does not change the fidelity boundary or
 authorize downstream field closure.
+
+The prescribed continued-cell planner mock also now makes its pressure
+lineage map explicit. A normalized coordinate is retained for each
+prescribed next-shock sample, the exact incoming boundary is interpolated only
+through that declared map, and the schedule is serialized for independent
+planner/visualization diagnostics. The standalone five-cell mock uses a
+nonuniform schedule to exercise this path. It remains a fixture mapping—not a
+streamline correspondence or entropy/free-boundary solve—and therefore does
+not change the mock's prescribed-boundary fidelity ceiling or authorize chain
+promotion.

@@ -1000,6 +1000,55 @@ def test_prescribed_post_shock_chain_mock_accepts_an_explicit_geometry_schedule(
   assert planner.production_claim_allowed is False
 
 
+def test_prescribed_post_shock_chain_mock_exposes_explicit_pressure_mapping() -> None:
+  seed_fit = MocShockBoundaryFitResult(
+    status=MocShockBoundaryFitStatus.CONVERGED_FITTED,
+    boundary_states=_prescribed_boundary(),
+    shock_angle_residuals_rad=(0.0,) * 4,
+    maximum_shock_angle_residual_rad=0.0,
+  )
+  seed_field = assemble_post_shock_characteristic_field(seed_fit)
+  seed_cell = seed_field.as_chain_cell(start_x_m=0.7, end_x_m=1.0)
+  mock = MocPrescribedPostShockChainMock(
+    shock_pressure_coordinates=(0.0, 0.10, 0.45, 0.80, 1.0),
+  )
+  incoming_pressures = (1.8e6, 1.7e6, 1.5e6, 1.2e6, 1.0e6)
+  incoming_handoff = tuple(
+    replace(sample, total_pressure_Pa=pressure)
+    for sample, pressure in zip(
+      seed_cell.continuation_boundary,
+      incoming_pressures,
+      strict=True,
+    )
+  )
+
+  mapped = mock.incoming_total_pressure_at_shock_samples(incoming_handoff)
+
+  assert mapped == pytest.approx((1.8e6, 1.76e6, 1.54e6, 1.16e6, 1.0e6))
+  report = mock.as_report()
+  assert report['shock_pressure_coordinates'] == pytest.approx(
+    (0.0, 0.10, 0.45, 0.80, 1.0)
+  )
+  assert report['upstream_pressure_coordinate_model'] == (
+    'explicit-normalized-shock-sample-coordinate-from-exact-incoming-handoff'
+  )
+
+
+def test_prescribed_post_shock_chain_mock_rejects_invalid_pressure_coordinates() -> None:
+  with pytest.raises(ValueError, match='must match the shock sample count'):
+    MocPrescribedPostShockChainMock(
+      shock_pressure_coordinates=(0.0, 0.5, 1.0),
+    )
+  with pytest.raises(ValueError, match='start at zero and end at one'):
+    MocPrescribedPostShockChainMock(
+      shock_pressure_coordinates=(0.1, 0.4, 0.6, 0.8, 1.0),
+    )
+  with pytest.raises(ValueError, match='strictly increasing'):
+    MocPrescribedPostShockChainMock(
+      shock_pressure_coordinates=(0.0, 0.2, 0.2, 0.8, 1.0),
+    )
+
+
 def test_prescribed_post_shock_chain_mock_rejects_an_incomplete_geometry_schedule() -> None:
   with pytest.raises(ValueError, match='cell_axial_lengths_m must contain one value'):
     MocPrescribedPostShockChainMock(
