@@ -270,7 +270,9 @@ from exhaust_plume.validation.moc_measurements import (  # noqa: E402
 )
 from exhaust_plume.validation.moc_external_comparisons import (  # noqa: E402
   MOC_SHOCK_CELL_EXTERNAL_COMPARISON_OPERATOR_ID,
+  MocShockCellExternalPromotionPolicy,
   audit_moc_external_validation_splits,
+  review_moc_shock_cell_external_promotion,
 )
 from exhaust_plume.validation.moc_euler import (  # noqa: E402
   MocEulerCompanionFieldAuditStatus,
@@ -5299,6 +5301,11 @@ def _solver_generated_chain_external_validation_probe(
   """
 
   split_audit = audit_moc_external_validation_splits(())
+  promotion_review = review_moc_shock_cell_external_promotion(
+    chain_measurement,
+    (),
+    MocShockCellExternalPromotionPolicy(),
+  )
   return {
     'status': 'blocked-missing-external-observations',
     'comparison_operator_id': MOC_SHOCK_CELL_EXTERNAL_COMPARISON_OPERATOR_ID,
@@ -5306,6 +5313,7 @@ def _solver_generated_chain_external_validation_probe(
     'dataset_count': 0,
     'datasets': [],
     'split_audit': split_audit.as_report(),
+    'promotion_review': promotion_review.as_report(),
     'comparison': None,
     'model_chain_measurement': (
       None

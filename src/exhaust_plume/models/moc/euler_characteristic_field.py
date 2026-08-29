@@ -14,7 +14,11 @@ from enum import Enum
 from math import isfinite
 from typing import Any, Sequence
 
-from exhaust_plume.models.moc.chain import MocChainBoundarySample
+from exhaust_plume.models.moc.chain import (
+  MocChainBoundarySample,
+  MocChainTerminationDecision,
+  MocChainTerminationReason,
+)
 from exhaust_plume.models.moc.euler_shock_boundary import (
   MocEulerShockBoundaryCurveResult,
   MocEulerShockBoundaryOrientation,
@@ -226,6 +230,98 @@ class MocEulerCompanionFieldResult:
     return len(self.nodes)
   ####
 
+  def as_chain_termination_decision(self) -> MocChainTerminationDecision:
+    """Return the explicit chain boundary represented by this field.
+
+    A companion strip has a topologically bounded patch, but its second
+    characteristic boundary is an input to the strip rather than a solved
+    ambient/free-boundary closure.  Consequently a converged strip must
+    enter a continued-chain planner as a non-physical stop.  Keeping this
+    conversion on the typed result prevents a caller from treating
+    ``converged`` or ``forms_closed_zone`` as permission to relabel the strip
+    as a resolved chain cell.
+    """
+
+    if self.converged:
+      reason = MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+      message = (
+        'Euler companion characteristic strip is locally assembled but its '
+        'companion/ambient downstream closure is open; no continued cell may '
+        'be promoted from this field'
+      )
+    elif self.status is MocEulerCompanionFieldStatus.INVALID_INPUT:
+      reason = MocChainTerminationReason.INVALID_INPUT
+      message = 'Euler companion characteristic strip rejected its inputs'
+    elif self.status is MocEulerCompanionFieldStatus.SHOCK_BOUNDARY_REQUIRED:
+      reason = MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+      message = (
+        'Euler companion characteristic strip has no locally verified shock '
+        'boundary to seed the downstream field'
+      )
+    elif self.status is MocEulerCompanionFieldStatus.COMPANION_BOUNDARY_REQUIRED:
+      reason = MocChainTerminationReason.STATE_NOT_CARRIED
+      message = (
+        'Euler companion characteristic strip is missing its second '
+        'characteristic boundary; no state-carrying cell handoff exists'
+      )
+    elif self.status is MocEulerCompanionFieldStatus.CHARACTERISTIC_ORIENTATION_FAILURE:
+      reason = MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+      message = (
+        'Euler companion characteristic strip received a boundary whose '
+        'characteristic orientation is not supported by this stencil'
+      )
+    elif self.status is MocEulerCompanionFieldStatus.TOPOLOGY_FAILURE:
+      reason = MocChainTerminationReason.TOPOLOGY_INVALID
+      message = (
+        'Euler companion characteristic strip did not produce a valid '
+        'connected bounded mesh'
+      )
+    elif self.status in (
+      MocEulerCompanionFieldStatus.PRESSURE_FAILURE,
+      MocEulerCompanionFieldStatus.INVARIANT_FAILURE,
+    ):
+      reason = MocChainTerminationReason.STATE_NOT_CARRIED
+      message = (
+        'Euler companion characteristic strip did not preserve a usable '
+        'state/pressure handoff'
+      )
+    else:
+      reason = MocChainTerminationReason.SOLVER_ERROR
+      message = (
+        'Euler companion characteristic strip failed before a continued '
+        'cell handoff was available'
+      )
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=reason,
+      message=message,
+      diagnostics={
+        'euler_companion_field_status': self.status.value,
+        'node_count': self.node_count,
+        'cell_count': self.cell_count,
+        'shock_boundary_orientation': (
+          None
+          if self.shock_boundary_orientation is None
+          else self.shock_boundary_orientation.value
+        ),
+        'shock_boundary_local_euler_verified': (
+          self.shock_boundary_local_euler_verified
+        ),
+        'companion_boundary_contract_verified': (
+          self.companion_boundary_contract_verified
+        ),
+        'pressure_lineage_verified': self.pressure_lineage_verified,
+        'topology_forms_closed_zone': self.topology.forms_closed_zone,
+        'physical_closure_verified': self.physical_closure_verified,
+        'chain_promotion_blocked': self.chain_promotion_blocked,
+        'production_claim_allowed': self.production_claim_allowed,
+        'required_next_boundary': (
+          'ambient/free-boundary plus downstream entropy-coupled closure'
+        ),
+      },
+    )
+  ####
+
   def as_report(self) -> dict[str, Any]:
     return {
       'status': self.status.value,
@@ -271,6 +367,7 @@ class MocEulerCompanionFieldResult:
       'physical_closure_verified': self.physical_closure_verified,
       'chain_promotion_blocked': self.chain_promotion_blocked,
       'production_claim_allowed': self.production_claim_allowed,
+      'chain_termination_decision': self.as_chain_termination_decision().as_report(),
       'message': self.message,
     }
   ####

@@ -6,6 +6,7 @@ from math import tan
 from exhaust_plume.models.moc import (
   CharacteristicState,
   MocChainBoundarySample,
+  MocChainTerminationReason,
   MocEulerCompanionFieldStatus,
   MocEulerShockBoundaryOrientation,
   MocEulerShockBoundaryStatus,
@@ -269,9 +270,14 @@ def test_euler_companion_strip_uses_explicit_second_characteristic_boundary() ->
   assert field.state_sampling_available
   assert field.physical_closure_verified is False
   assert field.chain_promotion_blocked
+  chain_decision = field.as_chain_termination_decision()
+  assert chain_decision.reason is MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+  assert chain_decision.physical_termination is False
+  assert chain_decision.diagnostics['chain_promotion_blocked'] is True
   report = field.as_report()
   assert report['shock_boundary_orientation'] == 'mixed-characteristic-boundary'
   assert report['topology_forms_closed_zone'] is True
+  assert report['chain_termination_decision']['reason'] == 'open-physical-closure'
 
   audit = measure_moc_euler_companion_field(field)
   assert audit.status is MocEulerCompanionFieldAuditStatus.CONVERGED_LOCAL_AUDIT

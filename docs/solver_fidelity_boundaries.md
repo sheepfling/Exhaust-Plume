@@ -888,6 +888,26 @@ companion and interior pressure traces did not reset entropy. A passing audit
 is still local evidence for this open strip; it does not establish a closed
 physical cell.
 
+The companion result now exposes an explicit chain decision as well. A locally
+assembled strip maps to a non-physical `open-physical-closure` stop with the
+required ambient/free-boundary and downstream entropy-coupled boundary named
+in diagnostics. Missing shock data, missing companion state, unsupported
+characteristic orientation, topology failure, and pressure/invariant failure
+map to distinct typed chain reasons; no open strip is relabeled as a resolved
+cell.
+
+The indexed external-data lane also has a separate
+`op.moc.shock-cell-external-promotion-review` review. It requires owner-supplied
+per-feature RMSE tolerances, disjoint calibration and validation case IDs, and
+exact cell-index coverage by default. It performs no calibration, coordinate
+conversion, interpolation, or feature synthesis. A passing review means only
+that the supplied external evidence satisfies its declared policy;
+`chain_promotion_allowed` and `product_claim_allowed` remain false until the
+independent reflected-field, refinement, and product gates are closed. With
+the missing external archive, the standalone report records
+`blocked-missing-external-data` rather than treating local fixtures as
+validation.
+
 The global reflected-remesh planner records this boundary-fit diagnostic for
 each retained attempt as well as the independent Euler audit. On the current
 reference fixture the corrected fit stops at `noncompressive_turn`, because

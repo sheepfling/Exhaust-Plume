@@ -216,6 +216,11 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   )
   assert generated_chain_external_validation['split_audit']['dataset_count'] == 0
   assert generated_chain_external_validation['split_audit']['verified'] is False
+  assert generated_chain_external_validation['promotion_review']['status'] == (
+    'blocked-missing-external-data'
+  )
+  assert generated_chain_external_validation['promotion_review']['external_validation_verified'] is False
+  assert generated_chain_external_validation['promotion_review']['chain_promotion_allowed'] is False
   assert first_cell_research_chain['planner_kind'] == 'upstream-coupled-research'
   assert first_cell_research_chain['resolved'] is True
   assert first_cell_research_chain['cell_count'] == 3

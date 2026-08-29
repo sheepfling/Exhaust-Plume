@@ -22,6 +22,9 @@ from exhaust_plume.validation.moc_measurements import (
 MOC_SHOCK_CELL_EXTERNAL_COMPARISON_OPERATOR_ID = (
   'op.moc.shock-cell-external-comparison'
 )
+MOC_SHOCK_CELL_EXTERNAL_PROMOTION_REVIEW_OPERATOR_ID = (
+  'op.moc.shock-cell-external-promotion-review'
+)
 
 
 class MocExternalValidationSplit(str, Enum):
@@ -63,6 +66,27 @@ class MocExternalValidationSplitAuditStatus(str, Enum):
   MISSING_SPLIT = 'blocked-missing-split'
   DUPLICATE_DATASET = 'blocked-duplicate-dataset'
   CASE_OVERLAP = 'blocked-case-overlap'
+  ####
+
+
+class MocShockCellExternalPromotionReviewStatus(str, Enum):
+  """Outcome of the explicit indexed-data promotion review.
+
+  ``EXTERNAL_EVIDENCE_VERIFIED`` only means that the supplied data and
+  residual policy passed this review.  It never authorizes a resolved MOC
+  chain or a product claim; those remain separate physics and release gates.
+  """
+
+  EXTERNAL_EVIDENCE_VERIFIED = 'external-evidence-verified'
+  INVALID_INPUT = 'invalid_input'
+  BLOCKED_MISSING_DATA = 'blocked-missing-external-data'
+  BLOCKED_SPLIT_AUDIT = 'blocked-external-split-audit'
+  BLOCKED_MODEL_MEASUREMENT = 'blocked-model-measurement'
+  BLOCKED_COMPARISON = 'blocked-external-comparison'
+  BLOCKED_COVERAGE = 'blocked-external-coverage'
+  BLOCKED_REQUIRED_FEATURE = 'blocked-required-feature'
+  BLOCKED_TOLERANCE_CONFIGURATION = 'blocked-tolerance-configuration'
+  BLOCKED_RESIDUAL = 'blocked-external-residual'
   ####
 
 
@@ -247,6 +271,102 @@ class MocShockCellExternalDataset:
 
 
 @dataclass(frozen=True, slots=True)
+class MocShockCellExternalPromotionPolicy:
+  """Explicit residual and coverage rules for an external-data review.
+
+  The tolerance table is intentionally supplied by the review owner.  An
+  empty table is valid as a manifest, but a review with observations remains
+  blocked until every required feature has an explicit tolerance.  No
+  calibration, scaling, interpolation, or tolerance inference occurs here.
+  """
+
+  required_features: tuple[MocShockCellExternalFeature, ...] = tuple(
+    MocShockCellExternalFeature
+  )
+  maximum_rmse_m: tuple[
+    tuple[MocShockCellExternalFeature, float], ...
+  ] = ()
+  minimum_matched_cell_fraction: float = 1.0
+  require_exact_cell_indices: bool = True
+  maximum_uncertainty_weighted_rmse: float | None = None
+
+  def __post_init__(self) -> None:
+    features = tuple(self.required_features)
+    if not features or any(
+      not isinstance(feature, MocShockCellExternalFeature)
+      for feature in features
+    ):
+      raise ValueError(
+        'required_features must contain at least one external feature'
+      )
+    if len(set(features)) != len(features):
+      raise ValueError('required_features must not contain duplicates')
+    object.__setattr__(self, 'required_features', features)
+    tolerances = tuple(self.maximum_rmse_m)
+    seen_features: set[MocShockCellExternalFeature] = set()
+    normalized_tolerances: list[tuple[MocShockCellExternalFeature, float]] = []
+    for feature, tolerance in tolerances:
+      if not isinstance(feature, MocShockCellExternalFeature):
+        raise TypeError(
+          'maximum_rmse_m keys must be MocShockCellExternalFeature values'
+        )
+      if feature in seen_features:
+        raise ValueError('maximum_rmse_m must not contain duplicate features')
+      numeric = float(tolerance)
+      if not isfinite(numeric) or numeric < 0.0:
+        raise ValueError('maximum_rmse_m values must be finite and nonnegative')
+      seen_features.add(feature)
+      normalized_tolerances.append((feature, numeric))
+    object.__setattr__(self, 'maximum_rmse_m', tuple(normalized_tolerances))
+    fraction = float(self.minimum_matched_cell_fraction)
+    if not isfinite(fraction) or not 0.0 < fraction <= 1.0:
+      raise ValueError('minimum_matched_cell_fraction must be in (0, 1]')
+    object.__setattr__(self, 'minimum_matched_cell_fraction', fraction)
+    if not isinstance(self.require_exact_cell_indices, bool):
+      raise TypeError('require_exact_cell_indices must be a bool')
+    weighted = self.maximum_uncertainty_weighted_rmse
+    if weighted is not None:
+      weighted_value = float(weighted)
+      if not isfinite(weighted_value) or weighted_value < 0.0:
+        raise ValueError(
+          'maximum_uncertainty_weighted_rmse must be finite and nonnegative'
+        )
+      object.__setattr__(self, 'maximum_uncertainty_weighted_rmse', weighted_value)
+    ####
+
+  def tolerance_for(
+    self,
+    feature: MocShockCellExternalFeature,
+  ) -> float | None:
+    """Return the explicitly declared RMSE tolerance for ``feature``."""
+
+    if not isinstance(feature, MocShockCellExternalFeature):
+      raise TypeError('feature must be a MocShockCellExternalFeature')
+    return next(
+      (tolerance for key, tolerance in self.maximum_rmse_m if key is feature),
+      None,
+    )
+    ####
+
+  def as_report(self) -> dict[str, Any]:
+    """Return the review policy without deriving any thresholds."""
+
+    return {
+      'required_features': [feature.value for feature in self.required_features],
+      'maximum_rmse_m': {
+        feature.value: tolerance
+        for feature, tolerance in self.maximum_rmse_m
+      },
+      'minimum_matched_cell_fraction': self.minimum_matched_cell_fraction,
+      'require_exact_cell_indices': self.require_exact_cell_indices,
+      'maximum_uncertainty_weighted_rmse': (
+        self.maximum_uncertainty_weighted_rmse
+      ),
+    }
+  ####
+
+
+@dataclass(frozen=True, slots=True)
 class MocShockCellExternalFeatureComparison:
   """Residuals for one feature over the exact overlapping cell indices."""
 
@@ -363,6 +483,149 @@ class MocExternalValidationSplitAudit:
       'duplicate_dataset_ids': list(self.duplicate_dataset_ids),
       'overlapping_case_ids': list(self.overlapping_case_ids),
       'verified': self.verified,
+      'claim_status': self.claim_status,
+      'message': self.message,
+  }
+  ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocShockCellExternalPromotionReview:
+  """Independent external-data review for a measured shock-cell chain.
+
+  A verified review means that the supplied indexed observations satisfy the
+  explicitly declared coverage and residual policy.  It is deliberately not
+  a chain-promotion result: canonical reflected-field closure, numerical
+  refinement, and product claim gates remain independent.
+  """
+
+  status: MocShockCellExternalPromotionReviewStatus
+  operator_id: str
+  model_cell_count: int
+  dataset_count: int
+  policy: MocShockCellExternalPromotionPolicy
+  split_audit: MocExternalValidationSplitAudit
+  comparisons: tuple[MocShockCellExternalComparison, ...] = ()
+  failed_dataset_ids: tuple[str, ...] = ()
+  missing_features: tuple[MocShockCellExternalFeature, ...] = ()
+  missing_tolerances: tuple[MocShockCellExternalFeature, ...] = ()
+  residual_failures: tuple[tuple[str, MocShockCellExternalFeature], ...] = ()
+  external_validation_verified: bool = False
+  chain_promotion_allowed: bool = False
+  product_claim_allowed: bool = False
+  claim_status: str = 'not_accepted'
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocShockCellExternalPromotionReviewStatus,
+    ):
+      raise TypeError(
+        'status must be a MocShockCellExternalPromotionReviewStatus'
+      )
+    if not isinstance(self.operator_id, str) or not self.operator_id:
+      raise ValueError('operator_id must be a non-empty string')
+    for name in ('model_cell_count', 'dataset_count'):
+      value = getattr(self, name)
+      if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f'{name} must be a nonnegative integer')
+    if not isinstance(
+      self.policy,
+      MocShockCellExternalPromotionPolicy,
+    ):
+      raise TypeError(
+        'policy must be a MocShockCellExternalPromotionPolicy'
+      )
+    if not isinstance(self.split_audit, MocExternalValidationSplitAudit):
+      raise TypeError(
+        'split_audit must be a MocExternalValidationSplitAudit'
+      )
+    comparisons = tuple(self.comparisons)
+    if any(
+      not isinstance(comparison, MocShockCellExternalComparison)
+      for comparison in comparisons
+    ):
+      raise TypeError(
+        'comparisons must contain MocShockCellExternalComparison values'
+      )
+    object.__setattr__(self, 'comparisons', comparisons)
+    failed_dataset_ids = tuple(str(value) for value in self.failed_dataset_ids)
+    if any(not value for value in failed_dataset_ids):
+      raise ValueError('failed_dataset_ids must contain non-empty strings')
+    object.__setattr__(self, 'failed_dataset_ids', failed_dataset_ids)
+    missing_features = tuple(self.missing_features)
+    if any(
+      not isinstance(feature, MocShockCellExternalFeature)
+      for feature in missing_features
+    ):
+      raise TypeError(
+        'missing_features must contain MocShockCellExternalFeature values'
+      )
+    object.__setattr__(self, 'missing_features', missing_features)
+    missing_tolerances = tuple(self.missing_tolerances)
+    if any(
+      not isinstance(feature, MocShockCellExternalFeature)
+      for feature in missing_tolerances
+    ):
+      raise TypeError(
+        'missing_tolerances must contain MocShockCellExternalFeature values'
+      )
+    object.__setattr__(self, 'missing_tolerances', missing_tolerances)
+    failures = tuple(self.residual_failures)
+    if any(
+      len(failure) != 2
+      or not isinstance(failure[0], str)
+      or not failure[0]
+      or not isinstance(failure[1], MocShockCellExternalFeature)
+      for failure in failures
+    ):
+      raise TypeError(
+        'residual_failures must contain (dataset_id, feature) pairs'
+      )
+    object.__setattr__(self, 'residual_failures', failures)
+    for name in (
+      'external_validation_verified',
+      'chain_promotion_allowed',
+      'product_claim_allowed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+    object.__setattr__(self, 'claim_status', str(self.claim_status))
+    object.__setattr__(self, 'message', str(self.message))
+    ####
+
+  @property
+  def converged(self) -> bool:
+    """Whether all external review gates passed."""
+
+    return self.status is MocShockCellExternalPromotionReviewStatus.EXTERNAL_EVIDENCE_VERIFIED
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    """Return the review without changing any upstream chain metadata."""
+
+    return {
+      'status': self.status.value,
+      'operator_id': self.operator_id,
+      'converged': self.converged,
+      'model_cell_count': self.model_cell_count,
+      'dataset_count': self.dataset_count,
+      'policy': self.policy.as_report(),
+      'split_audit': self.split_audit.as_report(),
+      'comparisons': [comparison.as_report() for comparison in self.comparisons],
+      'failed_dataset_ids': list(self.failed_dataset_ids),
+      'missing_features': [feature.value for feature in self.missing_features],
+      'missing_tolerances': [
+        feature.value for feature in self.missing_tolerances
+      ],
+      'residual_failures': [
+        {'dataset_id': dataset_id, 'feature': feature.value}
+        for dataset_id, feature in self.residual_failures
+      ],
+      'external_validation_verified': self.external_validation_verified,
+      'chain_promotion_allowed': self.chain_promotion_allowed,
+      'product_claim_allowed': self.product_claim_allowed,
       'claim_status': self.claim_status,
       'message': self.message,
     }
@@ -658,17 +921,244 @@ def audit_moc_external_validation_splits(
   )
 
 
+def review_moc_shock_cell_external_promotion(
+  chain_measurement: MocShockCellChainMeasurement,
+  datasets: Sequence[MocShockCellExternalDataset],
+  policy: MocShockCellExternalPromotionPolicy | None = None,
+) -> MocShockCellExternalPromotionReview:
+  """Review indexed external evidence against an explicit residual policy.
+
+  The function is intentionally read-only and non-calibrating.  It requires
+  both disjoint calibration and validation cases, exact indexed coverage by
+  default, every required feature, and an owner-supplied RMSE tolerance for
+  each required feature.  A passing external review records evidence only;
+  it does not mutate ``chain_measurement`` or authorize MOC-chain/product
+  promotion.
+  """
+
+  if not isinstance(chain_measurement, MocShockCellChainMeasurement):
+    raise TypeError(
+      'chain_measurement must be a MocShockCellChainMeasurement'
+    )
+  if policy is None:
+    policy = MocShockCellExternalPromotionPolicy()
+  if not isinstance(policy, MocShockCellExternalPromotionPolicy):
+    raise TypeError(
+      'policy must be a MocShockCellExternalPromotionPolicy or None'
+    )
+  try:
+    items = tuple(datasets)
+  except TypeError:
+    items = ()
+    dataset_input_valid = False
+  else:
+    dataset_input_valid = all(
+      isinstance(dataset, MocShockCellExternalDataset)
+      for dataset in items
+    )
+  split_audit = audit_moc_external_validation_splits(items)
+  base = {
+    'operator_id': MOC_SHOCK_CELL_EXTERNAL_PROMOTION_REVIEW_OPERATOR_ID,
+    'model_cell_count': len(chain_measurement.cells),
+    'dataset_count': len(items),
+    'policy': policy,
+    'split_audit': split_audit,
+    'claim_status': 'not_accepted',
+  }
+  if not dataset_input_valid:
+    return MocShockCellExternalPromotionReview(
+      status=MocShockCellExternalPromotionReviewStatus.INVALID_INPUT,
+      message=(
+        'datasets must contain MocShockCellExternalDataset values; no '
+        'external review was computed'
+      ),
+      **base,
+    )
+  if not items:
+    return MocShockCellExternalPromotionReview(
+      status=MocShockCellExternalPromotionReviewStatus.BLOCKED_MISSING_DATA,
+      message=(
+        'no indexed external observations were supplied; calibration, '
+        'validation, and residual review remain blocked'
+      ),
+      **base,
+    )
+  if not split_audit.verified:
+    return MocShockCellExternalPromotionReview(
+      status=MocShockCellExternalPromotionReviewStatus.BLOCKED_SPLIT_AUDIT,
+      message=(
+        'external observations cannot be reviewed until calibration and '
+        'validation case identities are disjoint and both roles are present'
+      ),
+      **base,
+    )
+  if not chain_measurement.converged:
+    return MocShockCellExternalPromotionReview(
+      status=MocShockCellExternalPromotionReviewStatus.BLOCKED_MODEL_MEASUREMENT,
+      message=(
+        'the measured chain is not converged; external residuals cannot be '
+        'used for a promotion review'
+      ),
+      **base,
+    )
+
+  comparisons = tuple(
+    compare_moc_shock_cell_chain_to_external(chain_measurement, dataset)
+    for dataset in items
+  )
+  coverage_failures: list[str] = []
+  comparison_failures: list[str] = []
+  for comparison in comparisons:
+    coverage_fraction = (
+      comparison.matched_cell_count / comparison.model_cell_count
+      if comparison.model_cell_count else 0.0
+    )
+    # Validation cases always need the complete indexed model domain.  The
+    # opt-out is available only for explicitly partial calibration evidence;
+    # it cannot turn a validation prefix into a passed external review.
+    exact_coverage_required = (
+      policy.require_exact_cell_indices
+      or comparison.split is MocExternalValidationSplit.VALIDATION
+    )
+    coverage_is_acceptable = (
+      comparison.status is MocShockCellExternalComparisonStatus.FULL_DOMAIN_COMPUTED
+      or (
+        not exact_coverage_required
+        and comparison.status is MocShockCellExternalComparisonStatus.PARTIAL_DIAGNOSTIC
+        and coverage_fraction >= policy.minimum_matched_cell_fraction
+      )
+    )
+    if not coverage_is_acceptable:
+      if comparison.status in (
+        MocShockCellExternalComparisonStatus.FULL_DOMAIN_COMPUTED,
+        MocShockCellExternalComparisonStatus.PARTIAL_DIAGNOSTIC,
+        MocShockCellExternalComparisonStatus.BLOCKED_NO_OVERLAP,
+      ):
+        coverage_failures.append(comparison.dataset_id)
+      else:
+        comparison_failures.append(comparison.dataset_id)
+  failed_dataset_ids = tuple(
+    dict.fromkeys((*coverage_failures, *comparison_failures))
+  )
+  if failed_dataset_ids:
+    status = (
+      MocShockCellExternalPromotionReviewStatus.BLOCKED_COVERAGE
+      if coverage_failures
+      else MocShockCellExternalPromotionReviewStatus.BLOCKED_COMPARISON
+    )
+    return MocShockCellExternalPromotionReview(
+      status=status,
+      comparisons=comparisons,
+      failed_dataset_ids=failed_dataset_ids,
+      message=(
+        'every calibration and validation dataset must produce an exact '
+        'indexed full-domain comparison before external evidence can pass'
+      ),
+      **base,
+    )
+
+  missing_tolerances = tuple(
+    feature
+    for feature in policy.required_features
+    if policy.tolerance_for(feature) is None
+  )
+  if missing_tolerances:
+    return MocShockCellExternalPromotionReview(
+      status=(
+        MocShockCellExternalPromotionReviewStatus.BLOCKED_TOLERANCE_CONFIGURATION
+      ),
+      comparisons=comparisons,
+      missing_tolerances=missing_tolerances,
+      message=(
+        'the review owner must declare an RMSE tolerance for every required '
+        'feature; no tolerance was inferred from the observations'
+      ),
+      **base,
+    )
+
+  missing_features = tuple(
+    feature
+    for feature in policy.required_features
+    if any(
+      not any(
+        comparison.feature is feature
+        for comparison in dataset_comparison.feature_comparisons
+      )
+      for dataset_comparison in comparisons
+    )
+  )
+  if missing_features:
+    return MocShockCellExternalPromotionReview(
+      status=MocShockCellExternalPromotionReviewStatus.BLOCKED_REQUIRED_FEATURE,
+      comparisons=comparisons,
+      missing_features=missing_features,
+      message=(
+        'every required feature must be present in every indexed external '
+        'comparison; no feature was inferred or synthesized'
+      ),
+      **base,
+    )
+
+  residual_failures: list[tuple[str, MocShockCellExternalFeature]] = []
+  for comparison in comparisons:
+    feature_comparisons = {
+      item.feature: item for item in comparison.feature_comparisons
+    }
+    for feature in policy.required_features:
+      item = feature_comparisons[feature]
+      tolerance = policy.tolerance_for(feature)
+      assert tolerance is not None
+      if item.rmse_m > tolerance:
+        residual_failures.append((comparison.dataset_id, feature))
+      weighted_tolerance = policy.maximum_uncertainty_weighted_rmse
+      if (
+        weighted_tolerance is not None
+        and item.uncertainty_weighted_rmse is not None
+        and item.uncertainty_weighted_rmse > weighted_tolerance
+      ):
+        residual_failures.append((comparison.dataset_id, feature))
+  if residual_failures:
+    return MocShockCellExternalPromotionReview(
+      status=MocShockCellExternalPromotionReviewStatus.BLOCKED_RESIDUAL,
+      comparisons=comparisons,
+      residual_failures=tuple(residual_failures),
+      message=(
+        'one or more indexed external feature residuals exceed the explicit '
+        'review policy; no calibration or correction was applied'
+      ),
+      **base,
+    )
+  return MocShockCellExternalPromotionReview(
+    status=MocShockCellExternalPromotionReviewStatus.EXTERNAL_EVIDENCE_VERIFIED,
+    comparisons=comparisons,
+    external_validation_verified=True,
+    chain_promotion_allowed=False,
+    product_claim_allowed=False,
+    message=(
+      'indexed calibration and validation comparisons satisfy the declared '
+      'external-data review policy; canonical MOC closure and product '
+      'promotion remain separate gates'
+    ),
+    **base,
+  )
+
+
 __all__ = (
   'MOC_SHOCK_CELL_EXTERNAL_COMPARISON_OPERATOR_ID',
+  'MOC_SHOCK_CELL_EXTERNAL_PROMOTION_REVIEW_OPERATOR_ID',
   'MocExternalValidationSplit',
   'MocShockCellExternalFeature',
   'MocShockCellExternalComparisonStatus',
   'MocExternalValidationSplitAuditStatus',
+  'MocShockCellExternalPromotionReviewStatus',
   'MocShockCellExternalObservation',
   'MocShockCellExternalDataset',
+  'MocShockCellExternalPromotionPolicy',
   'MocShockCellExternalFeatureComparison',
   'MocShockCellExternalComparison',
   'MocExternalValidationSplitAudit',
+  'MocShockCellExternalPromotionReview',
   'compare_moc_shock_cell_chain_to_external',
   'audit_moc_external_validation_splits',
+  'review_moc_shock_cell_external_promotion',
 )

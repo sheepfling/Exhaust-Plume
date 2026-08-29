@@ -11,11 +11,14 @@ from exhaust_plume.validation import (
   MocShockCellExternalDataset,
   MocShockCellExternalFeature,
   MocShockCellExternalObservation,
+  MocShockCellExternalPromotionPolicy,
+  MocShockCellExternalPromotionReviewStatus,
   MocShockCellObservation,
   MocExternalValidationSplitAuditStatus,
   audit_moc_external_validation_splits,
   compare_moc_shock_cell_chain_to_external,
   measure_moc_shock_cell_chain,
+  review_moc_shock_cell_external_promotion,
 )
 
 
@@ -56,6 +59,20 @@ def _chain():
   )
   assert result.converged
   return result
+
+
+def _promotion_policy(
+  *,
+  tolerance_m: float = 1.0e-9,
+  require_exact_cell_indices: bool = True,
+) -> MocShockCellExternalPromotionPolicy:
+  return MocShockCellExternalPromotionPolicy(
+    maximum_rmse_m=tuple(
+      (feature, tolerance_m)
+      for feature in MocShockCellExternalFeature
+    ),
+    require_exact_cell_indices=require_exact_cell_indices,
+  )
 
 
 def _dataset(
@@ -191,3 +208,85 @@ def test_external_observation_rejects_empty_feature_records() -> None:
       cell_index=1,
       axial_length_uncertainty_m=0.1,
     )
+
+
+def test_external_promotion_review_blocks_without_indexed_observations() -> None:
+  review = review_moc_shock_cell_external_promotion(
+    _chain(),
+    (),
+    _promotion_policy(),
+  )
+
+  assert review.status is MocShockCellExternalPromotionReviewStatus.BLOCKED_MISSING_DATA
+  assert not review.converged
+  assert review.external_validation_verified is False
+  assert review.chain_promotion_allowed is False
+  assert review.product_claim_allowed is False
+  assert review.split_audit.verified is False
+
+
+def test_external_promotion_review_requires_explicit_split_and_residual_policy() -> None:
+  calibration = _dataset(
+    dataset_id='calibration-dataset',
+    case_id='calibration-case',
+    split=MocExternalValidationSplit.CALIBRATION,
+  )
+  validation = _dataset(
+    dataset_id='validation-dataset',
+    case_id='validation-case',
+  )
+
+  review = review_moc_shock_cell_external_promotion(
+    _chain(),
+    (calibration, validation),
+    _promotion_policy(),
+  )
+
+  assert review.status is MocShockCellExternalPromotionReviewStatus.EXTERNAL_EVIDENCE_VERIFIED
+  assert review.converged
+  assert review.external_validation_verified
+  assert review.chain_promotion_allowed is False
+  assert review.product_claim_allowed is False
+  assert len(review.comparisons) == 2
+  assert review.as_report()['operator_id'] == (
+    'op.moc.shock-cell-external-promotion-review'
+  )
+
+  missing_tolerance = review_moc_shock_cell_external_promotion(
+    _chain(),
+    (calibration, validation),
+    MocShockCellExternalPromotionPolicy(),
+  )
+  assert missing_tolerance.status is (
+    MocShockCellExternalPromotionReviewStatus.BLOCKED_TOLERANCE_CONFIGURATION
+  )
+  assert missing_tolerance.missing_tolerances == tuple(MocShockCellExternalFeature)
+
+
+def test_external_promotion_review_keeps_partial_index_coverage_non_promotable() -> None:
+  partial_observations = tuple(
+    observation
+    for observation in _dataset().observations
+    if observation.cell_index == 1
+  )
+  calibration = _dataset(
+    dataset_id='calibration-dataset',
+    case_id='calibration-case',
+    split=MocExternalValidationSplit.CALIBRATION,
+    observations=partial_observations,
+  )
+  validation = _dataset(
+    dataset_id='validation-dataset',
+    case_id='validation-case',
+    observations=partial_observations,
+  )
+
+  review = review_moc_shock_cell_external_promotion(
+    _chain(),
+    (calibration, validation),
+    _promotion_policy(require_exact_cell_indices=False),
+  )
+
+  assert review.status is MocShockCellExternalPromotionReviewStatus.BLOCKED_COVERAGE
+  assert review.converged is False
+  assert review.chain_promotion_allowed is False

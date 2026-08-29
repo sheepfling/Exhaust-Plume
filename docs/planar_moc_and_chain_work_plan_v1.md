@@ -2446,3 +2446,30 @@ bounds. The standalone evidence uses a three-sample scan and records the
 same-sign residual boundary as a successful research audit. This advances the
 bracket-search seam without changing the fidelity ceiling or any
 visualization, signature, ray, or focal-plane-array provider.
+
+## Euler companion-field and external-review checkpoint
+
+The Euler-consistent shock lane now exposes the companion-conditioned strip's
+chain boundary through `MocEulerCompanionFieldResult.as_chain_termination_decision`.
+A converged one-layer strip is reported as a typed non-physical
+`open-physical-closure` stop, while missing shock/companion data, unsupported
+characteristic orientation, topology failure, and pressure/invariant failure
+retain distinct chain reasons. This makes the strip available to planner
+logic without allowing a topologically bounded diagnostic patch to become a
+resolved chain cell.
+
+The external lane now has an explicit
+`MocShockCellExternalPromotionPolicy` and
+`review_moc_shock_cell_external_promotion` operator. It aligns only exact
+`cell_index` observations, requires disjoint calibration and validation case
+IDs, and refuses to infer tolerances, coordinates, missing features, or
+unobserved cells. A passing review is external evidence only; it leaves chain
+and product promotion false. Because the owner-provided indexed archive is
+not currently bound to the standalone report, its review remains
+`blocked-missing-external-data`.
+
+The next implementation gate remains a solver-owned companion/free-boundary
+closure that can supply the missing downstream boundary and entropy transport
+from the reflected field. Once that exists, the same chain handoff and
+external review contracts can audit a multi-cell sequence without changing
+the fast visualization or reduced-order providers.
