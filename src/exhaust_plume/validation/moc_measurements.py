@@ -85,6 +85,9 @@ from exhaust_plume.models.moc.physical_cell import (
   MocPhysicalPostShockFieldResult,
   MocPhysicalPostShockFieldStatus,
 )
+from exhaust_plume.models.moc.first_cell_candidate import (
+  MocFirstCellCandidateResult,
+)
 from exhaust_plume.models.moc.reflected_domain import (
   MocReflectedDomainAlternatingSourceResult,
   MocReflectedDomainAlternatingSourceStatus,
@@ -116,6 +119,7 @@ from exhaust_plume.models.moc.topology import MocTopologyResult, validate_moc_me
 from exhaust_plume.models.moc.zone import MocCharacteristicCell, MocCharacteristicNode
 from exhaust_plume.models.moc.free_boundary import MocFreeBoundaryShockResult
 from exhaust_plume.util.aero.shock_validity import ShockBranch
+from exhaust_plume.util.aero.shock_validity import theta_beta_mach_residual
 
 __all__ = (
   'MOC_CAUSTIC_REMESH_OPERATOR_ID',
@@ -140,6 +144,7 @@ __all__ = (
   'MOC_SHOCK_CELL_GEOMETRY_OPERATOR_ID',
   'MOC_AMBIENT_CLOSED_PHYSICAL_FIELD_CHAIN_OPERATOR_ID',
   'MOC_TERMINAL_CLOSURE_OPERATOR_ID',
+  'MOC_FIRST_CELL_CANDIDATE_OPERATOR_ID',
   'MocCausticRemeshMeasurement',
   'MocCausticRemeshMeasurementStatus',
   'MocCausticRemeshObservation',
@@ -190,6 +195,8 @@ __all__ = (
   'MocShockCellObservation',
   'MocPhysicalFieldChainMeasurement',
   'MocPhysicalFieldChainMeasurementStatus',
+  'MocFirstCellCandidateMeasurement',
+  'MocFirstCellCandidateMeasurementStatus',
   'measure_moc_caustic_remesh',
   'measure_moc_chain_planner',
   'measure_moc_reflected_domain_remesh',
@@ -211,6 +218,7 @@ __all__ = (
   'measure_moc_shock_cell_chain',
   'measure_moc_shock_cell_chain_refinement',
   'measure_moc_ambient_closed_physical_field_chain',
+  'measure_first_cell_geometry_owned_candidate',
 )
 
 
@@ -223,6 +231,9 @@ MOC_SHOCK_CELL_CHAIN_REFINEMENT_OPERATOR_ID = (
   'op.moc.shock-cell-chain-refinement'
 )
 MOC_TERMINAL_CLOSURE_OPERATOR_ID = 'op.moc.terminal-closure'
+MOC_FIRST_CELL_CANDIDATE_OPERATOR_ID = (
+  'op.moc.first-cell-geometry-owned-candidate'
+)
 MOC_CAUSTIC_REMESH_OPERATOR_ID = 'op.moc.caustic-remesh'
 MOC_CHAIN_PLANNER_OPERATOR_ID = 'op.moc.chain-planner'
 MOC_REFLECTED_DOMAIN_REMESH_OPERATOR_ID = 'op.moc.reflected-domain-remesh'
@@ -818,6 +829,435 @@ def measure_mixed_regime_entropy_handoff(
       'patch and terminal, arc-length ordering, strict total-pressure loss, '
       'and entropy coordinate; downstream entropy transport and free-boundary '
       'closure remain pending'
+    ),
+  )
+####
+
+
+class MocFirstCellCandidateMeasurementStatus(str, Enum):
+  """Outcome for independent first-cell candidate measurements."""
+
+  CONVERGED = 'converged'
+  INVALID_INPUT = 'invalid_input'
+  SHOCK_FAILURE = 'shock_measurement_failure'
+  AMBIENT_FAILURE = 'ambient_measurement_failure'
+  FIELD_FAILURE = 'field_measurement_failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocFirstCellCandidateMeasurement:
+  """Raw-data measurement of a geometry-owned first-cell candidate."""
+
+  status: MocFirstCellCandidateMeasurementStatus
+  candidate_status: str
+  sample_count: int
+  shock_fit_verified: bool
+  shock_rankine_hugoniot_verified: bool
+  shock_pressure_loss_verified: bool
+  attachment_pressure_verified: bool
+  ambient_boundary_verified: bool
+  field_topology_verified: bool
+  field_physical_closure_verified: bool
+  field_state_sampling_verified: bool
+  upstream_shock_coupling_verified: bool
+  maximum_rankine_hugoniot_residual: float | None
+  maximum_shock_geometry_residual_rad: float | None
+  attachment_pressure_residual: float | None
+  maximum_ambient_pressure_residual: float | None
+  maximum_ambient_tangent_residual: float | None
+  centerline_flow_angle_residual_rad: float | None
+  canonical_free_boundary_verified: bool
+  canonical_euler_verified: bool
+  external_validation_verified: bool
+  chain_promotion_blocked: bool
+  production_claim_allowed: bool
+  message: str = ''
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocFirstCellCandidateMeasurementStatus.CONVERGED
+  ####
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    return self.converged and self.field_physical_closure_verified
+  ####
+
+  def as_report(self) -> dict[str, object]:
+    return {
+      'operator_id': MOC_FIRST_CELL_CANDIDATE_OPERATOR_ID,
+      'status': self.status.value,
+      'converged': self.converged,
+      'physical_closure_verified': self.physical_closure_verified,
+      'candidate_status': self.candidate_status,
+      'sample_count': self.sample_count,
+      'shock_fit_verified': self.shock_fit_verified,
+      'shock_rankine_hugoniot_verified': self.shock_rankine_hugoniot_verified,
+      'shock_pressure_loss_verified': self.shock_pressure_loss_verified,
+      'attachment_pressure_verified': self.attachment_pressure_verified,
+      'ambient_boundary_verified': self.ambient_boundary_verified,
+      'field_topology_verified': self.field_topology_verified,
+      'field_physical_closure_verified': self.field_physical_closure_verified,
+      'field_state_sampling_verified': self.field_state_sampling_verified,
+      'upstream_shock_coupling_verified': self.upstream_shock_coupling_verified,
+      'maximum_rankine_hugoniot_residual': self.maximum_rankine_hugoniot_residual,
+      'maximum_shock_geometry_residual_rad': self.maximum_shock_geometry_residual_rad,
+      'attachment_pressure_residual': self.attachment_pressure_residual,
+      'maximum_ambient_pressure_residual': self.maximum_ambient_pressure_residual,
+      'maximum_ambient_tangent_residual': self.maximum_ambient_tangent_residual,
+      'centerline_flow_angle_residual_rad': self.centerline_flow_angle_residual_rad,
+      'canonical_free_boundary_verified': self.canonical_free_boundary_verified,
+      'canonical_euler_verified': self.canonical_euler_verified,
+      'external_validation_verified': self.external_validation_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'message': self.message,
+    }
+  ####
+
+
+def _candidate_shock_tangent(
+  points: Sequence[tuple[float, float]],
+  index: int,
+) -> float:
+  if index == 0:
+    first, second = points[0], points[1]
+  elif index == len(points) - 1:
+    first, second = points[-2], points[-1]
+  else:
+    first, second = points[index - 1], points[index + 1]
+  return atan2(second[1] - first[1], second[0] - first[0])
+####
+
+
+def _first_cell_candidate_measurement_failure(
+  status: MocFirstCellCandidateMeasurementStatus,
+  *,
+  candidate_status: str,
+  sample_count: int = 0,
+  shock_fit_verified: bool = False,
+  shock_rankine_hugoniot_verified: bool = False,
+  shock_pressure_loss_verified: bool = False,
+  attachment_pressure_verified: bool = False,
+  ambient_boundary_verified: bool = False,
+  field_topology_verified: bool = False,
+  field_physical_closure_verified: bool = False,
+  field_state_sampling_verified: bool = False,
+  upstream_shock_coupling_verified: bool = False,
+  maximum_rankine_hugoniot_residual: float | None = None,
+  maximum_shock_geometry_residual_rad: float | None = None,
+  attachment_pressure_residual: float | None = None,
+  maximum_ambient_pressure_residual: float | None = None,
+  maximum_ambient_tangent_residual: float | None = None,
+  centerline_flow_angle_residual_rad: float | None = None,
+  canonical_free_boundary_verified: bool = False,
+  canonical_euler_verified: bool = False,
+  external_validation_verified: bool = False,
+  chain_promotion_blocked: bool = True,
+  production_claim_allowed: bool = False,
+  message: str,
+) -> MocFirstCellCandidateMeasurement:
+  return MocFirstCellCandidateMeasurement(
+    status=status,
+    candidate_status=candidate_status,
+    sample_count=sample_count,
+    shock_fit_verified=shock_fit_verified,
+    shock_rankine_hugoniot_verified=shock_rankine_hugoniot_verified,
+    shock_pressure_loss_verified=shock_pressure_loss_verified,
+    attachment_pressure_verified=attachment_pressure_verified,
+    ambient_boundary_verified=ambient_boundary_verified,
+    field_topology_verified=field_topology_verified,
+    field_physical_closure_verified=field_physical_closure_verified,
+    field_state_sampling_verified=field_state_sampling_verified,
+    upstream_shock_coupling_verified=upstream_shock_coupling_verified,
+    maximum_rankine_hugoniot_residual=maximum_rankine_hugoniot_residual,
+    maximum_shock_geometry_residual_rad=maximum_shock_geometry_residual_rad,
+    attachment_pressure_residual=attachment_pressure_residual,
+    maximum_ambient_pressure_residual=maximum_ambient_pressure_residual,
+    maximum_ambient_tangent_residual=maximum_ambient_tangent_residual,
+    centerline_flow_angle_residual_rad=centerline_flow_angle_residual_rad,
+    canonical_free_boundary_verified=canonical_free_boundary_verified,
+    canonical_euler_verified=canonical_euler_verified,
+    external_validation_verified=external_validation_verified,
+    chain_promotion_blocked=chain_promotion_blocked,
+    production_claim_allowed=production_claim_allowed,
+    message=message,
+  )
+####
+
+
+def measure_first_cell_geometry_owned_candidate(
+  candidate: MocFirstCellCandidateResult,
+  *,
+  shock_residual_tolerance_rad: float = 1.0e-8,
+  pressure_residual_tolerance: float = 1.0e-8,
+  position_tolerance_m: float = 1.0e-8,
+) -> MocFirstCellCandidateMeasurement:
+  """Independently remeasure the candidate's shock, boundary, and field.
+
+  This operator consumes the retained typed data only.  It recomputes local
+  theta-beta-Mach residuals, shock pressure-loss ratios, ambient pressure and
+  tangent residuals, and the immutable physical-field gate; it never calls
+  the candidate solver.
+  """
+
+  if not isinstance(candidate, MocFirstCellCandidateResult):
+    return _first_cell_candidate_measurement_failure(
+      MocFirstCellCandidateMeasurementStatus.INVALID_INPUT,
+      candidate_status='invalid-input',
+      message='candidate must be a MocFirstCellCandidateResult',
+    )
+  try:
+    shock_tolerance = float(shock_residual_tolerance_rad)
+    pressure_tolerance = float(pressure_residual_tolerance)
+    position_tolerance = float(position_tolerance_m)
+  except (TypeError, ValueError):
+    return _first_cell_candidate_measurement_failure(
+      MocFirstCellCandidateMeasurementStatus.INVALID_INPUT,
+      candidate_status=candidate.status.value,
+      message='measurement tolerances must be numeric',
+    )
+  if not all(
+    isfinite(value) and value > 0.0
+    for value in (shock_tolerance, pressure_tolerance, position_tolerance)
+  ):
+    raise ValueError('measurement tolerances must be finite and positive')
+  points = tuple(candidate.shock_points_m)
+  fit = candidate.shock_fit
+  if (
+    fit is None
+    or not fit.converged
+    or len(points) < 3
+    or len(fit.boundary_states) != len(points)
+    or len(fit.upstream_states) != len(points)
+    or len(fit.upstream_total_pressure_Pa) != len(points)
+  ):
+    return _first_cell_candidate_measurement_failure(
+      MocFirstCellCandidateMeasurementStatus.SHOCK_FAILURE,
+      candidate_status=candidate.status.value,
+      sample_count=len(points),
+      message='candidate does not retain a complete converged shock fit',
+    )
+  shock_geometry_verified = True
+  rh_residuals: list[float] = []
+  shock_loss_verified = True
+  for index, (point, sample, upstream, upstream_pressure) in enumerate(zip(
+    points,
+    fit.boundary_states,
+    fit.upstream_states,
+    fit.upstream_total_pressure_Pa,
+    strict=True,
+  )):
+    shock_geometry_verified = shock_geometry_verified and (
+      abs(point[0] - sample.point_m[0]) <= position_tolerance
+      and abs(point[1] - sample.point_m[1]) <= position_tolerance
+      and abs(upstream.x_m - point[0]) <= position_tolerance
+      and abs(upstream.y_m - point[1]) <= position_tolerance
+      and isfinite(float(upstream_pressure))
+      and float(upstream_pressure) > 0.0
+    )
+    tangent = _candidate_shock_tangent(points, index)
+    beta = upstream.theta_rad - tangent
+    turn = sample.state.theta_rad - upstream.theta_rad
+    try:
+      residual = abs(theta_beta_mach_residual(
+        theta_rad=turn,
+        beta_rad=beta,
+        mach=upstream.mach,
+        gamma=upstream.gamma,
+      ))
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+      residual = float('inf')
+    rh_residuals.append(float(residual))
+    ratio = (
+      sample.downstream_total_pressure_Pa
+      / sample.upstream_total_pressure_Pa
+    )
+    zero_start_allowed = bool(
+      index == 0
+      and candidate.field is not None
+      and candidate.field.zero_strength_shock_start_allowed
+    )
+    zero_end_allowed = bool(
+      index == len(points) - 1
+      and candidate.field is not None
+      and candidate.field.zero_strength_shock_endpoints_allowed
+    )
+    shock_loss_verified = shock_loss_verified and (
+      0.0 < ratio < 1.0
+      or (
+        abs(ratio - 1.0) <= pressure_tolerance
+        and (zero_start_allowed or zero_end_allowed)
+      )
+    )
+  maximum_rh = max(rh_residuals, default=None)
+  shock_fit_verified = shock_geometry_verified and (
+    maximum_rh is not None and maximum_rh <= shock_tolerance
+  )
+  if not shock_fit_verified:
+    return _first_cell_candidate_measurement_failure(
+      MocFirstCellCandidateMeasurementStatus.SHOCK_FAILURE,
+      candidate_status=candidate.status.value,
+      sample_count=len(points),
+      shock_fit_verified=shock_geometry_verified,
+      shock_rankine_hugoniot_verified=(
+        maximum_rh is not None and maximum_rh <= shock_tolerance
+      ),
+      shock_pressure_loss_verified=shock_loss_verified,
+      maximum_rankine_hugoniot_residual=maximum_rh,
+      maximum_shock_geometry_residual_rad=max(
+        (abs(value) for value in fit.shock_angle_residuals_rad),
+        default=None,
+      ),
+      chain_promotion_blocked=candidate.chain_promotion_blocked,
+      production_claim_allowed=candidate.production_claim_allowed,
+      message='independent shock tangent/RH residual exceeded tolerance',
+    )
+  march = candidate.ambient_march
+  if march is None or not march.converged:
+    return _first_cell_candidate_measurement_failure(
+      MocFirstCellCandidateMeasurementStatus.AMBIENT_FAILURE,
+      candidate_status=candidate.status.value,
+      sample_count=len(points),
+      shock_fit_verified=True,
+      shock_rankine_hugoniot_verified=True,
+      shock_pressure_loss_verified=shock_loss_verified,
+      maximum_rankine_hugoniot_residual=maximum_rh,
+      maximum_shock_geometry_residual_rad=max(
+        (abs(value) for value in fit.shock_angle_residuals_rad),
+        default=None,
+      ),
+      chain_promotion_blocked=candidate.chain_promotion_blocked,
+      production_claim_allowed=candidate.production_claim_allowed,
+      message='candidate does not retain a converged ambient boundary march',
+    )
+  ambient = validate_ambient_pressure_boundary(
+    march.boundary_samples,
+    float(march.ambient_boundary.ambient_pressure_Pa),
+    position_tolerance_m=position_tolerance,
+    pressure_tolerance=pressure_tolerance,
+    tangent_tolerance=pressure_tolerance,
+  )
+  attachment_residual = None
+  ambient_pressure = ambient.ambient_pressure_Pa
+  if ambient_pressure is not None:
+    first = fit.boundary_states[0]
+    first_static = first.downstream_total_pressure_Pa / (
+      1.0 + 0.5 * (first.state.gamma - 1.0) * first.state.mach * first.state.mach
+    ) ** (first.state.gamma / (first.state.gamma - 1.0))
+    attachment_residual = (first_static - ambient_pressure) / ambient_pressure
+  attachment_verified = (
+    attachment_residual is not None
+    and abs(attachment_residual) <= pressure_tolerance
+  )
+  ambient_verified = ambient.converged
+  if not ambient_verified or not attachment_verified or not shock_loss_verified:
+    return _first_cell_candidate_measurement_failure(
+      MocFirstCellCandidateMeasurementStatus.AMBIENT_FAILURE,
+      candidate_status=candidate.status.value,
+      sample_count=len(points),
+      shock_fit_verified=True,
+      shock_rankine_hugoniot_verified=True,
+      shock_pressure_loss_verified=shock_loss_verified,
+      attachment_pressure_verified=attachment_verified,
+      ambient_boundary_verified=ambient_verified,
+      maximum_rankine_hugoniot_residual=maximum_rh,
+      maximum_shock_geometry_residual_rad=max(
+        (abs(value) for value in fit.shock_angle_residuals_rad),
+        default=None,
+      ),
+      attachment_pressure_residual=attachment_residual,
+      maximum_ambient_pressure_residual=ambient.maximum_absolute_pressure_residual,
+      maximum_ambient_tangent_residual=ambient.maximum_absolute_tangent_residual,
+      centerline_flow_angle_residual_rad=candidate.centerline_flow_angle_residual_rad,
+      chain_promotion_blocked=candidate.chain_promotion_blocked,
+      production_claim_allowed=candidate.production_claim_allowed,
+      message='independent ambient pressure, tangent, or shock-loss gate failed',
+    )
+  field = candidate.field
+  if field is None:
+    return _first_cell_candidate_measurement_failure(
+      MocFirstCellCandidateMeasurementStatus.FIELD_FAILURE,
+      candidate_status=candidate.status.value,
+      sample_count=len(points),
+      shock_fit_verified=True,
+      shock_rankine_hugoniot_verified=True,
+      shock_pressure_loss_verified=True,
+      attachment_pressure_verified=True,
+      ambient_boundary_verified=True,
+      maximum_rankine_hugoniot_residual=maximum_rh,
+      maximum_shock_geometry_residual_rad=max(
+        (abs(value) for value in fit.shock_angle_residuals_rad),
+        default=None,
+      ),
+      attachment_pressure_residual=attachment_residual,
+      maximum_ambient_pressure_residual=ambient.maximum_absolute_pressure_residual,
+      maximum_ambient_tangent_residual=ambient.maximum_absolute_tangent_residual,
+      centerline_flow_angle_residual_rad=candidate.centerline_flow_angle_residual_rad,
+      chain_promotion_blocked=candidate.chain_promotion_blocked,
+      production_claim_allowed=candidate.production_claim_allowed,
+      message='candidate does not retain a physical characteristic field',
+    )
+  field_gates = field.physical_closure_gates
+  topology_verified = bool(
+    field_gates.get('topology_verified', False)
+    and field_gates.get('physical_boundary_paths_verified', False)
+  )
+  field_physical = all(field_gates.values())
+  state_sampling = field.state_sampling_available
+  upstream_coupling = field.upstream_shock_coupling_verified
+  converged = bool(
+    candidate.converged
+    and shock_fit_verified
+    and shock_loss_verified
+    and attachment_verified
+    and ambient_verified
+    and topology_verified
+    and field_physical
+    and state_sampling
+    and upstream_coupling
+    and candidate.chain_promotion_blocked
+    and not candidate.production_claim_allowed
+  )
+  status = (
+    MocFirstCellCandidateMeasurementStatus.CONVERGED
+    if converged
+    else MocFirstCellCandidateMeasurementStatus.FIELD_FAILURE
+  )
+  return _first_cell_candidate_measurement_failure(
+    status,
+    candidate_status=candidate.status.value,
+    sample_count=len(points),
+    shock_fit_verified=shock_fit_verified,
+    shock_rankine_hugoniot_verified=True,
+    shock_pressure_loss_verified=shock_loss_verified,
+    attachment_pressure_verified=attachment_verified,
+    ambient_boundary_verified=ambient_verified,
+    field_topology_verified=topology_verified,
+    field_physical_closure_verified=field_physical,
+    field_state_sampling_verified=state_sampling,
+    upstream_shock_coupling_verified=upstream_coupling,
+    maximum_rankine_hugoniot_residual=maximum_rh,
+    maximum_shock_geometry_residual_rad=max(
+      (abs(value) for value in fit.shock_angle_residuals_rad),
+      default=None,
+    ),
+    attachment_pressure_residual=attachment_residual,
+    maximum_ambient_pressure_residual=ambient.maximum_absolute_pressure_residual,
+    maximum_ambient_tangent_residual=ambient.maximum_absolute_tangent_residual,
+    centerline_flow_angle_residual_rad=candidate.centerline_flow_angle_residual_rad,
+    canonical_free_boundary_verified=candidate.canonical_free_boundary_verified,
+    canonical_euler_verified=candidate.canonical_euler_verified,
+    external_validation_verified=candidate.external_validation_verified,
+    chain_promotion_blocked=candidate.chain_promotion_blocked,
+    production_claim_allowed=candidate.production_claim_allowed,
+    message=(
+      'independent geometry/RH, ambient-boundary, topology, state-sampling, '
+      'and upstream-coupling measurement passed; canonical reflected '
+      'free-boundary, Euler, and external-validation gates remain pending'
+      if converged
+      else 'independent physical-field evidence did not pass every gate'
     ),
   )
 ####

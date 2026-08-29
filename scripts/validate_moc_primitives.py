@@ -25,6 +25,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocAmbientPhysicalFieldStatus,
   MocAmbientClosedChainSourceMode,
   MocBoundedUpstreamFieldSource,
+  MocFirstCellCandidateStatus,
   MocMixedRegimeBoundaryStatus,
   MocMixedRegimeControlSection,
   MocMixedRegimeDownstreamConditionKind,
@@ -184,6 +185,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   probe_post_shock_ambient_axis_closure,
   solve_marched_attached_shock_with_ambient_axis_closure,
   solve_marched_attached_shock_with_ambient_centerline_physical_field,
+  solve_first_cell_geometry_owned_candidate,
   solve_marched_attached_shock_with_ambient_physical_field,
   solve_ambient_closed_post_shock_chain_cell_from_physical_field_or_termination,
   sample_reflected_zone_along_shock_path,
@@ -209,6 +211,7 @@ from exhaust_plume.validation.moc_measurements import (  # noqa: E402
   MocMixedRegimeEntropyHandoffMeasurementStatus,
   MocMixedRegimeEntropyTransportMeasurementStatus,
   MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus,
+  MocFirstCellCandidateMeasurementStatus,
   MocReflectedDomainRemeshMeasurementStatus,
   MocReflectedDomainOuterSourceMeasurementStatus,
   MocTerminalClosureObservation,
@@ -217,6 +220,7 @@ from exhaust_plume.validation.moc_measurements import (  # noqa: E402
   MocReflectedDomainAlternatingPhysicalFieldChainRefinementCase,
   measure_moc_caustic_remesh,
   measure_moc_ambient_closed_physical_field_chain,
+  measure_first_cell_geometry_owned_candidate,
   measure_moc_chain_planner,
   measure_moc_reflected_domain_remesh,
   measure_moc_reflected_domain_alternating_source,
@@ -1241,6 +1245,212 @@ def _ambient_shock_strip_probe(
       for case in ambient_centerline_physical_field_refinement
     )
   )
+  geometry_owned_first_cell_candidate = None
+  geometry_owned_first_cell_candidate_measurement = None
+  geometry_owned_first_cell_candidate_accepted = False
+  geometry_owned_first_cell_candidate_refinement = []
+  geometry_owned_first_cell_candidate_refinement_accepted = False
+  if (
+    ambient_centerline_physical_field_accepted
+    and ambient_centerline_physical_field.ambient_attachment is not None
+    and ambient_centerline_physical_field.ambient_attachment.shock is not None
+    and ambient_centerline_physical_field.ambient_attachment.shock.shock_fit is not None
+  ):
+    candidate_shock_fit = (
+      ambient_centerline_physical_field.ambient_attachment.shock.shock_fit
+    )
+
+    def candidate_state_at(point):
+      if (
+        point[0] < 0.0
+        or point[0] > 10.0
+        or point[1] < 0.0
+        or point[1] > shock_start_y_m
+      ):
+        return None
+      return replace(
+        upstream_reference,
+        x_m=point[0],
+        y_m=point[1],
+      )
+
+    def candidate_pressure_at(point):
+      if (
+        point[0] < 0.0
+        or point[0] > 10.0
+        or point[1] < 0.0
+        or point[1] > shock_start_y_m
+      ):
+        return None
+      return upstream_reference_pressure
+
+    candidate_source = MocBoundedUpstreamFieldSource(
+      state_at=candidate_state_at,
+      static_pressure_at=candidate_pressure_at,
+      model='uniform-upstream-reference-geometry-owned-candidate',
+      domain_x_extent_m=(0.0, 10.0),
+      domain_y_extent_m=(0.0, shock_start_y_m),
+      upstream_coupling_verified=False,
+      preferred_start_point_m=candidate_shock_fit.boundary_states[0].point_m,
+    )
+    candidate_seed_points = tuple(
+      sample.point_m for sample in candidate_shock_fit.boundary_states
+    )
+    geometry_owned_first_cell_candidate = (
+      solve_first_cell_geometry_owned_candidate(
+        candidate_source,
+        candidate_seed_points,
+        ambient_pressure,
+        target_centerline_y_m=0.0,
+        target_centerline_flow_angle_rad=0.0,
+      )
+    )
+    geometry_owned_first_cell_candidate_measurement = (
+      measure_first_cell_geometry_owned_candidate(
+        geometry_owned_first_cell_candidate,
+      )
+    )
+    geometry_owned_first_cell_candidate_accepted = (
+      geometry_owned_first_cell_candidate.status
+      is MocFirstCellCandidateStatus.CONVERGED_LOCAL_PHYSICAL_FIELD
+      and geometry_owned_first_cell_candidate.converged
+      and geometry_owned_first_cell_candidate.local_physical_closure_verified
+      and geometry_owned_first_cell_candidate.field is not None
+      and geometry_owned_first_cell_candidate.field.physical_closure_verified
+      and geometry_owned_first_cell_candidate.field.state_sampling_available
+      and geometry_owned_first_cell_candidate.field.upstream_shock_coupling_verified
+      and geometry_owned_first_cell_candidate.canonical_free_boundary_verified is False
+      and geometry_owned_first_cell_candidate.canonical_euler_verified is False
+      and geometry_owned_first_cell_candidate.external_validation_verified is False
+      and geometry_owned_first_cell_candidate.chain_promotion_blocked
+      and geometry_owned_first_cell_candidate.production_claim_allowed is False
+      and geometry_owned_first_cell_candidate.as_chain_termination_decision().reason.value
+      == 'fidelity-not-allowed'
+      and geometry_owned_first_cell_candidate.as_chain_termination_decision().physical_termination
+      is False
+      and geometry_owned_first_cell_candidate_measurement.status
+      is MocFirstCellCandidateMeasurementStatus.CONVERGED
+      and geometry_owned_first_cell_candidate_measurement.converged
+      and geometry_owned_first_cell_candidate_measurement.physical_closure_verified
+      and geometry_owned_first_cell_candidate_measurement.shock_rankine_hugoniot_verified
+      and geometry_owned_first_cell_candidate_measurement.shock_pressure_loss_verified
+      and geometry_owned_first_cell_candidate_measurement.attachment_pressure_verified
+      and geometry_owned_first_cell_candidate_measurement.ambient_boundary_verified
+      and geometry_owned_first_cell_candidate_measurement.field_topology_verified
+      and geometry_owned_first_cell_candidate_measurement.field_state_sampling_verified
+      and geometry_owned_first_cell_candidate_measurement.upstream_shock_coupling_verified
+      and geometry_owned_first_cell_candidate_measurement.canonical_free_boundary_verified is False
+      and geometry_owned_first_cell_candidate_measurement.canonical_euler_verified is False
+      and geometry_owned_first_cell_candidate_measurement.external_validation_verified is False
+      and geometry_owned_first_cell_candidate_measurement.chain_promotion_blocked
+      and geometry_owned_first_cell_candidate_measurement.production_claim_allowed is False
+    )
+    for candidate_sample_count in (5, 9, 17):
+      refinement_field_result = ambient_centerline_physical_field_refinement_results[
+        candidate_sample_count
+      ]
+      refinement_candidate = None
+      refinement_measurement = None
+      if (
+        refinement_field_result.ambient_attachment is not None
+        and refinement_field_result.ambient_attachment.shock is not None
+        and refinement_field_result.ambient_attachment.shock.shock_fit is not None
+      ):
+        refinement_fit = refinement_field_result.ambient_attachment.shock.shock_fit
+        refinement_candidate = solve_first_cell_geometry_owned_candidate(
+          candidate_source,
+          tuple(sample.point_m for sample in refinement_fit.boundary_states),
+          ambient_pressure,
+        )
+        refinement_measurement = measure_first_cell_geometry_owned_candidate(
+          refinement_candidate,
+        )
+      refinement_field = None if refinement_candidate is None else refinement_candidate.field
+      geometry_owned_first_cell_candidate_refinement.append({
+        'sample_count': candidate_sample_count,
+        'status': (
+          None
+          if refinement_candidate is None
+          else refinement_candidate.status.value
+        ),
+        'converged': (
+          False
+          if refinement_candidate is None
+          else refinement_candidate.converged
+        ),
+        'local_physical_closure_verified': (
+          False
+          if refinement_candidate is None
+          else refinement_candidate.local_physical_closure_verified
+        ),
+        'measurement_status': (
+          None
+          if refinement_measurement is None
+          else refinement_measurement.status.value
+        ),
+        'measurement_converged': (
+          False
+          if refinement_measurement is None
+          else refinement_measurement.converged
+        ),
+        'maximum_rankine_hugoniot_residual': (
+          None
+          if refinement_measurement is None
+          else refinement_measurement.maximum_rankine_hugoniot_residual
+        ),
+        'maximum_geometry_residual_m': (
+          None
+          if refinement_field is None
+          else refinement_field.maximum_geometry_residual_m
+        ),
+        'maximum_absolute_invariant_residual': (
+          None
+          if refinement_field is None
+          else refinement_field.maximum_absolute_invariant_residual
+        ),
+        'node_count': None if refinement_field is None else refinement_field.node_count,
+        'cell_count': None if refinement_field is None else refinement_field.cell_count,
+        'canonical_free_boundary_verified': (
+          None
+          if refinement_candidate is None
+          else refinement_candidate.canonical_free_boundary_verified
+        ),
+        'canonical_euler_verified': (
+          None
+          if refinement_candidate is None
+          else refinement_candidate.canonical_euler_verified
+        ),
+        'chain_promotion_blocked': (
+          None
+          if refinement_candidate is None
+          else refinement_candidate.chain_promotion_blocked
+        ),
+        'production_claim_allowed': (
+          None
+          if refinement_candidate is None
+          else refinement_candidate.production_claim_allowed
+        ),
+      })
+    geometry_owned_first_cell_candidate_refinement_accepted = (
+      len(geometry_owned_first_cell_candidate_refinement) == 3
+      and all(
+        case['status'] == MocFirstCellCandidateStatus.CONVERGED_LOCAL_PHYSICAL_FIELD.value
+        and case['converged'] is True
+        and case['local_physical_closure_verified'] is True
+        and case['measurement_status'] == MocFirstCellCandidateMeasurementStatus.CONVERGED.value
+        and case['measurement_converged'] is True
+        and case['maximum_rankine_hugoniot_residual'] is not None
+        and case['maximum_geometry_residual_m'] is not None
+        and case['maximum_absolute_invariant_residual'] is not None
+        and case['node_count'] > 0
+        and case['cell_count'] > 0
+        and case['canonical_free_boundary_verified'] is False
+        and case['canonical_euler_verified'] is False
+        and case['chain_promotion_blocked'] is True
+        and case['production_claim_allowed'] is False
+        for case in geometry_owned_first_cell_candidate_refinement
+      )
+    )
   ambient_centerline_physical_chain_probe = None
   ambient_centerline_physical_chain_probe_accepted = False
   ambient_centerline_physical_chain_mock = None
@@ -2093,6 +2303,25 @@ def _ambient_shock_strip_probe(
     ),
     'ambient_centerline_physical_field_refinement_accepted': (
       ambient_centerline_physical_field_refinement_accepted
+    ),
+    'geometry_owned_first_cell_candidate': (
+      None
+      if geometry_owned_first_cell_candidate is None
+      else geometry_owned_first_cell_candidate.as_report()
+    ),
+    'geometry_owned_first_cell_candidate_measurement': (
+      None
+      if geometry_owned_first_cell_candidate_measurement is None
+      else geometry_owned_first_cell_candidate_measurement.as_report()
+    ),
+    'geometry_owned_first_cell_candidate_accepted': (
+      geometry_owned_first_cell_candidate_accepted
+    ),
+    'geometry_owned_first_cell_candidate_refinement': (
+      geometry_owned_first_cell_candidate_refinement
+    ),
+    'geometry_owned_first_cell_candidate_refinement_accepted': (
+      geometry_owned_first_cell_candidate_refinement_accepted
     ),
     'ambient_centerline_physical_chain_probe': (
       ambient_centerline_physical_chain_probe
@@ -7868,6 +8097,18 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'ambient_centerline_physical_field_refinement_accepted'
     ) is not True
   )
+  geometry_owned_first_cell_candidate_failure = (
+    ambient_shock_strip_probe.get('accepted') is True
+    and ambient_shock_strip_probe.get(
+      'geometry_owned_first_cell_candidate_accepted'
+    ) is not True
+  )
+  geometry_owned_first_cell_candidate_refinement_failure = (
+    ambient_shock_strip_probe.get('accepted') is True
+    and ambient_shock_strip_probe.get(
+      'geometry_owned_first_cell_candidate_refinement_accepted'
+    ) is not True
+  )
   ambient_centerline_physical_chain_failure = (
     ambient_shock_strip_probe.get('accepted') is True
     and ambient_shock_strip_probe.get(
@@ -9582,6 +9823,35 @@ def build_moc_primitive_report() -> dict[str, Any]:
         ),
       }
     ] if ambient_centerline_physical_field_refinement_failure else []),
+    *([
+      {
+        'case': 'solver_generated_geometry_owned_first_cell_candidate',
+        'status': str(
+          ambient_shock_strip_probe.get(
+            'geometry_owned_first_cell_candidate',
+            {},
+          ).get('status', 'missing')
+        ),
+        'message': str(
+          ambient_shock_strip_probe.get(
+            'geometry_owned_first_cell_candidate',
+            {},
+          ).get('message', '')
+        ),
+      }
+    ] if geometry_owned_first_cell_candidate_failure else []),
+    *([
+      {
+        'case': 'solver_generated_geometry_owned_first_cell_candidate_refinement',
+        'status': 'refinement-gate-failed',
+        'message': str(
+          ambient_shock_strip_probe.get(
+            'geometry_owned_first_cell_candidate_refinement',
+            [],
+          )
+        ),
+      }
+    ] if geometry_owned_first_cell_candidate_refinement_failure else []),
     *([
       {
         'case': 'solver_generated_ambient_centerline_physical_chain',

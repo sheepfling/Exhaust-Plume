@@ -371,6 +371,11 @@ from exhaust_plume.models.moc.first_cell_closure import (
   assemble_first_cell_terminal_shock_field,
   solve_marched_first_cell_terminal_closure,
 )
+from exhaust_plume.models.moc.first_cell_candidate import (
+  MocFirstCellCandidateStatus,
+  MocFirstCellCandidateResult,
+  solve_first_cell_geometry_owned_candidate,
+)
 from exhaust_plume.models.moc.post_shock import (
   MocPostShockBoundaryState,
   MocPostShockCharacteristicSegment,
@@ -722,6 +727,9 @@ __all__ = (
   'MocFirstCellTerminalClosureResult',
   'assemble_first_cell_terminal_shock_field',
   'solve_marched_first_cell_terminal_closure',
+  'MocFirstCellCandidateStatus',
+  'MocFirstCellCandidateResult',
+  'solve_first_cell_geometry_owned_candidate',
   'MocPostShockBoundaryState',
   'MocPostShockCharacteristicSegment',
   'MocPostShockContinuationResult',

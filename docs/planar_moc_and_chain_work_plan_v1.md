@@ -2253,3 +2253,41 @@ and the free boundary is not a shock-fitted canonical Euler boundary. Thus
 genuinely coupled reflected 2-D Euler/MOC/free-boundary solve, followed by
 refinement and indexed external observations; no basic visualization,
 signature, ray, or focal-plane-array provider consumes this lane.
+
+## Geometry-owned first-cell candidate checkpoint
+
+The next supersonic seam is now explicit in
+`solve_first_cell_geometry_owned_candidate`. It accepts a finite shock-geometry
+seed and a bounded upstream source exposing `state_at` and
+`static_pressure_at`; it does not accept a downstream flow-angle callback. At
+each shock sample it derives the local attached turn from the shock tangent,
+re-solves the Rankine--Hugoniot state, corrects the first segment to the
+requested ambient pressure, corrects the final segment to the centerline
+target, and assembles the ambient/centerline reflected characteristic field.
+
+The returned candidate retains the original and corrected shock points, the
+upstream samples, downstream angles, shock-angle residuals, ambient pressure
+and tangent residuals, the iteration history, and the complete physical-field
+result. The independent
+`op.moc.first-cell-geometry-owned-candidate` measurement recomputes the local
+shock tangent/RH residual, strict total-pressure loss, ambient attachment,
+field topology, state sampling, and upstream-shock coupling from those typed
+outputs. A bounded source miss is a typed upstream-field failure; no last-state
+extrapolation is permitted.
+
+This is a research candidate rather than the canonical free-boundary solve.
+The seed still supplies the global shock topology, the upstream field is a
+bounded fixture or previously solved source, and the coupled 2-D Euler/free-
+boundary residual plus external indexed observations remain open. The
+candidate and its measurement therefore keep
+`canonical_free_boundary_verified=false`,
+`canonical_euler_verified=false`, `external_validation_verified=false`,
+`chain_promotion_blocked=true`, and `production_claim_allowed=false`. The
+standalone primitive report now records this candidate beside the existing
+prescribed planner mock and continued physical-chain references without
+changing any fast visualization or reduced-order provider.
+
+The next implementation seam is to use the accepted local field as an
+explicit research handoff for a deterministic continued-cell audit, then
+replace the seeded geometry with a globally remeshed reflected shock and add
+sample-count refinement before any chain promotion is reconsidered.

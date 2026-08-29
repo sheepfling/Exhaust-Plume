@@ -944,3 +944,36 @@ remains blocked. The basic visual, signature, ray, and focal-plane-array
 providers are unchanged and cannot consume its cells. The next gate is a
 solver-owned coupled 2-D Euler/MOC/free-boundary implementation with
 refinement and indexed external observations.
+
+## Geometry-owned first-cell candidate
+
+`solve_first_cell_geometry_owned_candidate` is the higher-fidelity local
+first-cell seam beside the planner mock. Its upstream input is a bounded
+state/pressure source and its shock input is a finite geometry seed. The
+candidate derives the downstream turn from each shock tangent and the attached
+theta-beta-Mach/Rankine--Hugoniot relation; callers cannot supply a hidden
+downstream-angle law. The first shock segment is corrected against ambient
+static pressure and the terminal segment is corrected against the centerline
+target before the solver-owned ambient march and centerline-reflected physical
+field are assembled.
+
+The candidate's local closure gate is intentionally narrower than a canonical
+claim. It can report a converged finite shock/ambient/centerline field with
+state sampling and fitted upstream shock data, while the global reflected
+free-boundary topology, coupled 2-D Euler residual, and indexed external
+validation remain unsolved. Its independent measurement operator
+`op.moc.first-cell-geometry-owned-candidate` rechecks the retained geometry,
+local RH residuals, pressure loss, ambient boundary, topology, state sampling,
+and upstream coupling. A bounded source returning no state or pressure is a
+typed upstream-field stop; source extrapolation is out of contract.
+
+Accordingly the candidate and measurement retain
+`canonical_free_boundary_verified=false`,
+`canonical_euler_verified=false`, `external_validation_verified=false`,
+`chain_promotion_blocked=true`, and `production_claim_allowed=false`. The
+candidate is reported alongside the existing prescribed-boundary planner mock
+and continued shock-cell references for research comparison only. No basic
+visualization, signature, ray, or focal-plane-array provider consumes it. The
+next gate is a globally remeshed reflected shock/free-boundary solve with
+refinement and indexed external observations, after which a separate chain
+promotion review can be performed.
