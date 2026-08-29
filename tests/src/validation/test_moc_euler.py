@@ -12,12 +12,16 @@ from exhaust_plume.models.moc import (
   MocChainStatus,
   MocChainTerminationReason,
   MocEulerCompanionFieldChainMock,
+  MocEulerAmbientBoundaryMarchStatus,
   MocEulerAmbientCompanionBoundaryStatus,
+  MocEulerAmbientShockFieldStatus,
   MocEulerCompanionFieldStatus,
   MocEulerShockBoundaryOrientation,
   MocEulerShockBoundaryStatus,
+  assemble_euler_ambient_shock_field,
   assemble_euler_consistent_companion_characteristic_strip,
   fit_euler_consistent_shock_boundary,
+  march_euler_ambient_boundary,
   plan_euler_companion_field_chain_probe,
   plan_euler_companion_field_chain_mock,
   plan_euler_companion_field_reference,
@@ -30,12 +34,14 @@ from exhaust_plume.models.moc import (
 )
 from exhaust_plume.validation import (
   MocEulerAmbientCompanionBoundaryAuditStatus,
+  MocEulerAmbientShockFieldAuditStatus,
   MocEulerCompanionFieldAuditStatus,
   MocEulerCompanionFieldChainAuditStatus,
   MocEulerCompanionFieldChainRefinementCase,
   MocEulerCompanionFieldChainRefinementMeasurementStatus,
   MocPhysicalFieldEulerAuditStatus,
   measure_moc_ambient_companion_boundary,
+  measure_moc_euler_ambient_shock_field,
   measure_moc_chain_planner,
   measure_moc_euler_companion_field,
   measure_moc_euler_companion_field_chain,
@@ -121,6 +127,41 @@ def _euler_companion_field_for_resolution(sample_count: int):
     shock_boundary,
     companion.samples,
   )
+
+
+def _euler_exact_ambient_fixture(sample_count: int = 6):
+  compression = solve_attached_compression_to_turn(
+    upstream_mach=2.0,
+    gamma=1.4,
+    upstream_pressure_Pa=100000.0,
+    target_turn_rad=0.2,
+  )
+  assert compression.beta_rad is not None
+  shock_angle = 0.2 - compression.beta_rad
+  points = tuple(
+    (
+      0.5 + index * (-0.1 / (sample_count - 1) / tan(shock_angle)),
+      0.5 - index * (0.1 / (sample_count - 1)),
+    )
+    for index in range(sample_count)
+  )
+  shock_boundary = fit_euler_consistent_shock_boundary(
+    tuple(
+      CharacteristicState(
+        x_m=point[0],
+        y_m=point[1],
+        theta_rad=0.2,
+        mach=2.0,
+        gamma=1.4,
+      )
+      for point in points
+    ),
+    (100000.0,) * sample_count,
+    points,
+    (0.0,) * sample_count,
+  )
+  assert shock_boundary.converged
+  return shock_boundary, shock_boundary.downstream_static_pressure_Pa[0]
 
 
 def test_euler_audit_reports_nonconservative_reference_and_retains_cells() -> None:
@@ -268,6 +309,121 @@ def test_euler_consistent_shock_curve_rejects_reference_turn_direction() -> None
   assert result.status is MocEulerShockBoundaryStatus.NONCOMPRESSIVE_TURN
   assert not result.converged
   assert result.chain_promotion_blocked
+
+
+def test_exact_euler_ambient_march_closes_pressure_and_tangent_boundary() -> None:
+  shock_boundary, ambient_pressure = _euler_exact_ambient_fixture()
+
+  march = march_euler_ambient_boundary(shock_boundary, ambient_pressure)
+
+  assert march.status is MocEulerAmbientBoundaryMarchStatus.CONVERGED
+  assert march.converged
+  assert march.state_sampling_available
+  assert len(march.boundary_samples) == len(shock_boundary.shock_points_m)
+  assert march.ambient_boundary.converged
+  assert march.maximum_absolute_pressure_residual is not None
+  assert march.maximum_absolute_pressure_residual < 1.0e-10
+  assert march.maximum_absolute_invariant_residual is not None
+  assert march.maximum_absolute_invariant_residual < 1.0e-10
+  assert march.physical_closure_verified is False
+  assert march.chain_promotion_blocked
+  assert march.production_claim_allowed is False
+  assert march.as_chain_termination_decision().reason is (
+    MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+  )
+
+
+def test_exact_euler_ambient_field_blocks_generic_attachment_stencil() -> None:
+  shock_boundary, ambient_pressure = _euler_exact_ambient_fixture()
+
+  field = assemble_euler_ambient_shock_field(
+    shock_boundary,
+    ambient_pressure,
+  )
+  audit = measure_moc_euler_ambient_shock_field(field)
+
+  assert field.status is MocEulerAmbientShockFieldStatus.ATTACHMENT_GEOMETRY_FAILURE
+  assert not field.converged
+  assert field.ambient_march is not None
+  assert field.ambient_march.converged
+  assert field.field is None
+  assert field.physical_closure_verified is False
+  assert field.chain_promotion_blocked
+  assert field.as_chain_termination_decision().reason is (
+    MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+  )
+  assert audit.status is MocEulerAmbientShockFieldAuditStatus.FIELD_FAILURE
+  assert not audit.converged
+  assert audit.shock_geometry_verified
+  assert audit.shock_jump_verified
+  assert audit.ambient_sample_alignment_verified
+  assert audit.ambient_direction_verified
+  assert audit.ambient_boundary_verified
+  assert audit.entropy_lineage_verified
+  assert not audit.companion_field_verified
+  assert audit.promotion_flags_verified
+  assert audit.maximum_shock_jump_mass_residual is not None
+  assert audit.maximum_shock_jump_mass_residual < 1.0e-8
+  assert audit.maximum_ambient_pressure_residual is not None
+  assert audit.maximum_ambient_pressure_residual < 1.0e-10
+  assert audit.as_report()['operator_id'] == (
+    'op.moc.euler-ambient-shock-field-audit'
+  )
+
+
+def test_exact_euler_ambient_march_rejects_reference_ambient_attachment() -> None:
+  shock_boundary, _ = _euler_exact_ambient_fixture()
+  reference_ambient_pressure = shock_boundary.downstream_total_pressure_Pa[0] / (
+    1.0 + 0.5 * (1.4 - 1.0) * 2.0**2
+  ) ** (1.4 / (1.4 - 1.0))
+
+  march = march_euler_ambient_boundary(
+    shock_boundary,
+    reference_ambient_pressure,
+  )
+
+  assert march.status is MocEulerAmbientBoundaryMarchStatus.ATTACHMENT_FAILURE
+  assert not march.converged
+  assert march.attachment_relative_pressure_residual is not None
+  assert abs(march.attachment_relative_pressure_residual) > 0.1
+  assert march.chain_promotion_blocked
+
+
+def test_exact_euler_ambient_field_requires_entropy_transport_for_variable_p0() -> None:
+  shock_boundary, ambient_pressure = _euler_exact_ambient_fixture()
+  variable_pressure = tuple(
+    pressure if index == 0 else pressure * (1.0 - 0.01 * index)
+    for index, pressure in enumerate(shock_boundary.downstream_total_pressure_Pa)
+  )
+  variable_upstream_pressure = tuple(
+    pressure * (1.0 - 0.01 * index)
+    for index, pressure in enumerate(shock_boundary.upstream_total_pressure_Pa)
+  )
+  variable_shock = replace(
+    shock_boundary,
+    upstream_total_pressure_Pa=variable_upstream_pressure,
+    downstream_total_pressure_Pa=variable_pressure,
+  )
+
+  field = assemble_euler_ambient_shock_field(
+    variable_shock,
+    ambient_pressure,
+  )
+  audit = measure_moc_euler_ambient_shock_field(field)
+
+  assert field.status is MocEulerAmbientShockFieldStatus.ENTROPY_TRANSPORT_REQUIRED
+  assert field.field is None
+  assert field.ambient_march is not None
+  assert field.ambient_march.converged
+  assert field.as_chain_termination_decision().reason is (
+    MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+  )
+  assert audit.status is MocEulerAmbientShockFieldAuditStatus.ENTROPY_FAILURE
+  assert audit.ambient_boundary_verified
+  assert not audit.entropy_lineage_verified
+  assert audit.maximum_entropy_residual is not None
+  assert audit.maximum_entropy_residual > 1.0e-3
+  assert audit.chain_promotion_blocked
 
 
 def test_solver_owned_ambient_companion_boundary_feeds_the_open_strip() -> None:

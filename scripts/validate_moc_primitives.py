@@ -68,10 +68,13 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocChainTerminationReason,
   MocChainStatus,
   MocEulerAmbientCompanionBoundaryStatus,
+  MocEulerAmbientBoundaryMarchStatus,
+  MocEulerAmbientShockFieldStatus,
   MocEulerCompanionFieldChainMock,
   MocEulerCompanionFieldStatus,
   solve_euler_ambient_companion_boundary_reference,
   MocEulerShockBoundaryOrientation,
+  assemble_euler_ambient_shock_field,
   MocChainPlannerKind,
   MocCausticFamilyBandEnvelopeStatus,
   MocCausticShockBridgeStatus,
@@ -130,6 +133,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_attached_compression_to_pressure,
   solve_attached_compression_to_turn,
   fit_euler_consistent_shock_boundary,
+  march_euler_ambient_boundary,
   assemble_euler_consistent_companion_characteristic_strip,
   plan_euler_companion_field_reference,
   plan_euler_companion_field_chain_probe,
@@ -282,11 +286,13 @@ from exhaust_plume.validation.moc_external_comparisons import (  # noqa: E402
 )
 from exhaust_plume.validation.moc_euler import (  # noqa: E402
   MocEulerAmbientCompanionBoundaryAuditStatus,
+  MocEulerAmbientShockFieldAuditStatus,
   MocEulerCompanionFieldAuditStatus,
   MocEulerCompanionFieldChainAuditStatus,
   MocEulerCompanionFieldChainRefinementCase,
   MocEulerCompanionFieldChainRefinementMeasurementStatus,
   measure_moc_ambient_companion_boundary,
+  measure_moc_euler_ambient_shock_field,
   measure_moc_euler_companion_field,
   measure_moc_euler_companion_field_chain,
   measure_moc_euler_companion_field_chain_refinement,
@@ -9825,6 +9831,20 @@ def build_moc_primitive_report() -> dict[str, Any]:
   euler_ambient_pressure = euler_consistent_shock_boundary.downstream_total_pressure_Pa[0] / (
     1.0 + 0.5 * (1.4 - 1.0) * 2.0**2
   ) ** (1.4 / (1.4 - 1.0))
+  euler_exact_ambient_pressure = (
+    euler_consistent_shock_boundary.downstream_static_pressure_Pa[0]
+  )
+  euler_exact_ambient_boundary = march_euler_ambient_boundary(
+    euler_consistent_shock_boundary,
+    euler_exact_ambient_pressure,
+  )
+  euler_ambient_shock_field = assemble_euler_ambient_shock_field(
+    euler_consistent_shock_boundary,
+    euler_exact_ambient_pressure,
+  )
+  euler_ambient_shock_field_audit = measure_moc_euler_ambient_shock_field(
+    euler_ambient_shock_field,
+  )
   euler_ambient_companion_boundary = (
     solve_euler_ambient_companion_boundary_reference(
       euler_consistent_shock_boundary,
@@ -10114,6 +10134,16 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'claim_status': (
         'open-companion-conditioned-characteristic-strip; ambient-free-'
         'boundary-and-continued-chain-pending'
+      ),
+    },
+    'euler_ambient_shock_field_candidate': {
+      'ambient_pressure_Pa': euler_exact_ambient_pressure,
+      'ambient_boundary_march': euler_exact_ambient_boundary.as_report(),
+      'field_candidate': euler_ambient_shock_field.as_report(),
+      'independent_audit': euler_ambient_shock_field_audit.as_report(),
+      'claim_status': (
+        'exact-euler-shock-and-ambient-boundary-passed; shared-attachment-'
+        'aware downstream remesh and continued physical shock-cell chain pending'
       ),
     },
     'attached_turn_compression_foundation': {
@@ -10894,6 +10924,37 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'refinement_diagnostic': _refinement_diagnostic(resolution_probe),
     },
   }
+  euler_exact_ambient_boundary_failure = (
+    euler_exact_ambient_boundary.status
+    is not MocEulerAmbientBoundaryMarchStatus.CONVERGED
+    or not euler_exact_ambient_boundary.converged
+    or not euler_exact_ambient_boundary.state_sampling_available
+    or not euler_exact_ambient_boundary.ambient_boundary.converged
+    or euler_exact_ambient_boundary.physical_closure_verified
+    or not euler_exact_ambient_boundary.chain_promotion_blocked
+    or euler_exact_ambient_boundary.production_claim_allowed
+  )
+  euler_ambient_shock_field_failure = (
+    euler_ambient_shock_field.status
+    is not MocEulerAmbientShockFieldStatus.ATTACHMENT_GEOMETRY_FAILURE
+    or euler_ambient_shock_field.converged
+    or euler_ambient_shock_field.ambient_march is None
+    or not euler_ambient_shock_field.ambient_march.converged
+    or euler_ambient_shock_field.field is not None
+    or euler_ambient_shock_field.physical_closure_verified
+    or not euler_ambient_shock_field.chain_promotion_blocked
+    or euler_ambient_shock_field.production_claim_allowed
+  )
+  euler_ambient_shock_field_audit_failure = (
+    euler_ambient_shock_field_audit.status
+    is not MocEulerAmbientShockFieldAuditStatus.FIELD_FAILURE
+    or euler_ambient_shock_field_audit.converged
+    or not euler_ambient_shock_field_audit.shock_jump_verified
+    or not euler_ambient_shock_field_audit.ambient_boundary_verified
+    or not euler_ambient_shock_field_audit.entropy_lineage_verified
+    or euler_ambient_shock_field_audit.companion_field_verified
+    or not euler_ambient_shock_field_audit.promotion_flags_verified
+  )
   euler_companion_field_planner_failure = (
     euler_companion_field_planner.planner_kind is not MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
     or not euler_companion_field_planner.resolved
@@ -11038,6 +11099,27 @@ def build_moc_primitive_report() -> dict[str, Any]:
       or euler_consistent_shock_boundary.physical_closure_verified
       or not euler_consistent_shock_boundary.chain_promotion_blocked
     ) else []),
+    *([
+      {
+        'case': 'euler_exact_ambient_boundary_march',
+        'status': euler_exact_ambient_boundary.status.value,
+        'message': euler_exact_ambient_boundary.message,
+      }
+    ] if euler_exact_ambient_boundary_failure else []),
+    *([
+      {
+        'case': 'euler_ambient_shock_field_attachment_gate',
+        'status': euler_ambient_shock_field.status.value,
+        'message': euler_ambient_shock_field.message,
+      }
+    ] if euler_ambient_shock_field_failure else []),
+    *([
+      {
+        'case': 'euler_ambient_shock_field_audit',
+        'status': euler_ambient_shock_field_audit.status.value,
+        'message': euler_ambient_shock_field_audit.message,
+      }
+    ] if euler_ambient_shock_field_audit_failure else []),
     *([
       {
         'case': 'euler_solver_owned_ambient_companion_boundary',
@@ -12420,6 +12502,8 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'complete and independently validate the canonical reflected-MOC mixed-regime downstream closure after the open oblique supersonic patch; the affine projected potential reference remains research-only',
       'assemble a downstream physical characteristic field on the correct side of the locally Euler-consistent shock Cauchy curve',
       'replace the bounded solver-owned companion-boundary reference with a globally coupled Euler/free-boundary field and close its ambient/reflected boundary conditions',
+      'implement an attachment-aware exact-Euler first interior wedge/remesh; the generic paired-node stencil cannot start at the shared shock/ambient point',
+      'add entropy transport for variable post-shock total-pressure lineages before allowing exact-Euler field continuation',
       'production next-cell shock fitting that consumes the typed state/total-pressure handoff without a geometric template',
       'grid/refinement convergence for the assembled reflected zone and mild attached-overexpanded cases',
       'external measurement-operator comparison using the independent MOC extraction before provider integration',

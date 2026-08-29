@@ -55,6 +55,14 @@ from exhaust_plume.models.moc.euler_characteristic_field import (
   MocEulerCompanionFieldResult,
   assemble_euler_consistent_companion_characteristic_strip,
 )
+from exhaust_plume.models.moc.euler_ambient_field import (
+  MocEulerAmbientBoundaryMarchStatus,
+  MocEulerAmbientBoundaryMarchResult,
+  march_euler_ambient_boundary,
+  MocEulerAmbientShockFieldStatus,
+  MocEulerAmbientShockFieldResult,
+  assemble_euler_ambient_shock_field,
+)
 from exhaust_plume.models.moc.mixed_regime import (
   MocMixedRegimeBoundaryResult,
   MocMixedRegimeBoundaryStatus,
@@ -861,6 +869,12 @@ __all__ = (
   'MocEulerCompanionFieldStatus',
   'MocEulerCompanionFieldResult',
   'assemble_euler_consistent_companion_characteristic_strip',
+  'MocEulerAmbientBoundaryMarchStatus',
+  'MocEulerAmbientBoundaryMarchResult',
+  'march_euler_ambient_boundary',
+  'MocEulerAmbientShockFieldStatus',
+  'MocEulerAmbientShockFieldResult',
+  'assemble_euler_ambient_shock_field',
   'validate_mixed_regime_boundary',
   'validate_mixed_regime_downstream_condition',
   'solve_mixed_regime_downstream_condition',

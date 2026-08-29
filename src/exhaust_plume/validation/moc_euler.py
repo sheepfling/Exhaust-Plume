@@ -19,7 +19,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 from hashlib import sha256
-from math import cos, hypot, isfinite, sin, sqrt
+from math import atan2, cos, hypot, isfinite, sin, sqrt
 from typing import Any, Sequence
 
 from exhaust_plume.models.moc.physical_cell import (
@@ -28,6 +28,10 @@ from exhaust_plume.models.moc.physical_cell import (
 from exhaust_plume.models.moc.euler_characteristic_field import (
   MocEulerAmbientCompanionBoundaryResult,
   MocEulerCompanionFieldResult,
+)
+from exhaust_plume.models.moc.euler_ambient_field import (
+  MocEulerAmbientBoundaryMarchResult,
+  MocEulerAmbientShockFieldResult,
 )
 from exhaust_plume.models.moc.euler_shock_boundary import (
   MocEulerShockBoundaryOrientation,
@@ -57,6 +61,10 @@ __all__ = (
   'MocEulerCompanionFieldChainRefinementMeasurementStatus',
   'MocEulerCompanionFieldChainRefinementMeasurement',
   'measure_moc_euler_companion_field_chain_refinement',
+  'MOC_EULER_AMBIENT_SHOCK_FIELD_AUDIT_OPERATOR_ID',
+  'MocEulerAmbientShockFieldAuditStatus',
+  'MocEulerAmbientShockFieldAudit',
+  'measure_moc_euler_ambient_shock_field',
 )
 
 
@@ -68,6 +76,9 @@ MOC_EULER_COMPANION_FIELD_AUDIT_OPERATOR_ID = (
 )
 MOC_EULER_AMBIENT_COMPANION_BOUNDARY_AUDIT_OPERATOR_ID = (
   'op.moc.euler-ambient-companion-boundary-audit'
+)
+MOC_EULER_AMBIENT_SHOCK_FIELD_AUDIT_OPERATOR_ID = (
+  'op.moc.euler-ambient-shock-field-audit'
 )
 
 
@@ -2935,4 +2946,698 @@ def measure_moc_euler_companion_field_chain_refinement(
       'residuals, exact frontier links, and a typed non-physical stop; '
       'physical reflected closure remains pending'
     ),
+  )
+
+
+class MocEulerAmbientShockFieldAuditStatus(str, Enum):
+  """Outcome of independently auditing the exact ambient shock-field lane."""
+
+  CONVERGED_LOCAL_AUDIT = 'converged_euler_ambient_shock_field_audit'
+  INVALID_INPUT = 'invalid_input'
+  SHOCK_JUMP_FAILURE = 'euler_ambient_shock_field_audit_shock_failure'
+  AMBIENT_BOUNDARY_FAILURE = 'euler_ambient_shock_field_audit_ambient_failure'
+  ENTROPY_FAILURE = 'euler_ambient_shock_field_audit_entropy_failure'
+  FIELD_FAILURE = 'euler_ambient_shock_field_audit_field_failure'
+  FLAG_FAILURE = 'euler_ambient_shock_field_audit_flag_failure'
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerAmbientShockFieldAudit:
+  """Independent evidence for an exact shock-to-ambient field candidate.
+
+  The audit deliberately distinguishes the converged ambient boundary from
+  the downstream characteristic strip.  A solver result may therefore carry
+  a passing shock and ambient march while this audit still reports
+  ``FIELD_FAILURE`` because the shared attachment has not been remeshed into
+  a valid first interior wedge.
+  """
+
+  status: MocEulerAmbientShockFieldAuditStatus
+  field_status: str | None
+  shock_sample_count: int
+  ambient_sample_count: int
+  cell_count: int
+  shock_jump_mass_residuals: tuple[float, ...]
+  shock_jump_momentum_residuals: tuple[float, ...]
+  shock_jump_energy_residuals: tuple[float, ...]
+  ambient_pressure_residuals: tuple[float, ...]
+  ambient_tangent_residuals: tuple[float, ...]
+  incoming_k_plus_residuals: tuple[float, ...]
+  entropy_residuals: tuple[float, ...]
+  maximum_shock_jump_mass_residual: float | None
+  maximum_shock_jump_momentum_residual: float | None
+  maximum_shock_jump_energy_residual: float | None
+  maximum_ambient_pressure_residual: float | None
+  maximum_ambient_tangent_residual: float | None
+  maximum_incoming_k_plus_residual: float | None
+  maximum_entropy_residual: float | None
+  attachment_relative_pressure_residual: float | None
+  shock_geometry_verified: bool
+  shock_jump_verified: bool
+  ambient_sample_alignment_verified: bool
+  ambient_direction_verified: bool
+  ambient_boundary_verified: bool
+  entropy_lineage_verified: bool
+  companion_field_verified: bool
+  promotion_flags_verified: bool
+  shock_residual_tolerance: float
+  cell_residual_tolerance: float
+  position_tolerance_m: float
+  invariant_tolerance: float
+  pressure_tolerance: float
+  tangent_tolerance: float
+  physical_closure_verified: bool = False
+  chain_promotion_blocked: bool = True
+  production_claim_allowed: bool = False
+  message: str = ''
+  operator_id: str = MOC_EULER_AMBIENT_SHOCK_FIELD_AUDIT_OPERATOR_ID
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.status, MocEulerAmbientShockFieldAuditStatus):
+      raise TypeError(
+        'status must be a MocEulerAmbientShockFieldAuditStatus'
+      )
+    for name in ('shock_sample_count', 'ambient_sample_count', 'cell_count'):
+      value = getattr(self, name)
+      if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f'{name} must be a nonnegative integer')
+    for name in (
+      'shock_residual_tolerance',
+      'cell_residual_tolerance',
+      'position_tolerance_m',
+      'invariant_tolerance',
+      'pressure_tolerance',
+      'tangent_tolerance',
+    ):
+      value = float(getattr(self, name))
+      if not isfinite(value) or value <= 0.0:
+        raise ValueError(f'{name} must be finite and positive')
+      object.__setattr__(self, name, value)
+    for name in (
+      'shock_jump_mass_residuals',
+      'shock_jump_momentum_residuals',
+      'shock_jump_energy_residuals',
+      'ambient_pressure_residuals',
+      'ambient_tangent_residuals',
+      'incoming_k_plus_residuals',
+      'entropy_residuals',
+    ):
+      values = tuple(float(value) for value in getattr(self, name))
+      if any(not isfinite(value) or value < 0.0 for value in values):
+        raise ValueError(f'{name} must contain finite nonnegative values')
+      object.__setattr__(self, name, values)
+    for name in (
+      'maximum_shock_jump_mass_residual',
+      'maximum_shock_jump_momentum_residual',
+      'maximum_shock_jump_energy_residual',
+      'maximum_ambient_pressure_residual',
+      'maximum_ambient_tangent_residual',
+      'maximum_incoming_k_plus_residual',
+      'maximum_entropy_residual',
+      'attachment_relative_pressure_residual',
+    ):
+      value = getattr(self, name)
+      if value is None:
+        continue
+      numeric = float(value)
+      if not isfinite(numeric) or numeric < 0.0:
+        raise ValueError(f'{name} must be finite and nonnegative when supplied')
+      object.__setattr__(self, name, numeric)
+    for name in (
+      'shock_geometry_verified',
+      'shock_jump_verified',
+      'ambient_sample_alignment_verified',
+      'ambient_direction_verified',
+      'ambient_boundary_verified',
+      'entropy_lineage_verified',
+      'companion_field_verified',
+      'promotion_flags_verified',
+      'physical_closure_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+    if self.field_status is not None:
+      object.__setattr__(self, 'field_status', str(self.field_status))
+    operator_id = str(self.operator_id)
+    if not operator_id:
+      raise ValueError('operator_id must be a non-empty string')
+    object.__setattr__(self, 'operator_id', operator_id)
+    object.__setattr__(self, 'message', str(self.message))
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocEulerAmbientShockFieldAuditStatus.CONVERGED_LOCAL_AUDIT
+
+  @property
+  def local_consistency_verified(self) -> bool:
+    return bool(
+      self.converged
+      and self.shock_geometry_verified
+      and self.shock_jump_verified
+      and self.ambient_sample_alignment_verified
+      and self.ambient_direction_verified
+      and self.ambient_boundary_verified
+      and self.entropy_lineage_verified
+      and self.companion_field_verified
+      and self.promotion_flags_verified
+    )
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'operator_id': self.operator_id,
+      'converged': self.converged,
+      'field_status': self.field_status,
+      'shock_sample_count': self.shock_sample_count,
+      'ambient_sample_count': self.ambient_sample_count,
+      'cell_count': self.cell_count,
+      'shock_jump_mass_residuals': list(self.shock_jump_mass_residuals),
+      'shock_jump_momentum_residuals': list(self.shock_jump_momentum_residuals),
+      'shock_jump_energy_residuals': list(self.shock_jump_energy_residuals),
+      'ambient_pressure_residuals': list(self.ambient_pressure_residuals),
+      'ambient_tangent_residuals': list(self.ambient_tangent_residuals),
+      'incoming_k_plus_residuals': list(self.incoming_k_plus_residuals),
+      'entropy_residuals': list(self.entropy_residuals),
+      'maximum_shock_jump_mass_residual': (
+        self.maximum_shock_jump_mass_residual
+      ),
+      'maximum_shock_jump_momentum_residual': (
+        self.maximum_shock_jump_momentum_residual
+      ),
+      'maximum_shock_jump_energy_residual': (
+        self.maximum_shock_jump_energy_residual
+      ),
+      'maximum_ambient_pressure_residual': (
+        self.maximum_ambient_pressure_residual
+      ),
+      'maximum_ambient_tangent_residual': (
+        self.maximum_ambient_tangent_residual
+      ),
+      'maximum_incoming_k_plus_residual': (
+        self.maximum_incoming_k_plus_residual
+      ),
+      'maximum_entropy_residual': self.maximum_entropy_residual,
+      'attachment_relative_pressure_residual': (
+        self.attachment_relative_pressure_residual
+      ),
+      'checks': {
+        'shock_geometry_verified': self.shock_geometry_verified,
+        'shock_jump_verified': self.shock_jump_verified,
+        'ambient_sample_alignment_verified': (
+          self.ambient_sample_alignment_verified
+        ),
+        'ambient_direction_verified': self.ambient_direction_verified,
+        'ambient_boundary_verified': self.ambient_boundary_verified,
+        'entropy_lineage_verified': self.entropy_lineage_verified,
+        'companion_field_verified': self.companion_field_verified,
+        'promotion_flags_verified': self.promotion_flags_verified,
+        'local_consistency_verified': self.local_consistency_verified,
+        'physical_closure_verified': self.physical_closure_verified,
+        'chain_promotion_blocked': self.chain_promotion_blocked,
+        'production_claim_allowed': self.production_claim_allowed,
+      },
+      'tolerances': {
+        'shock_residual_tolerance': self.shock_residual_tolerance,
+        'cell_residual_tolerance': self.cell_residual_tolerance,
+        'position_tolerance_m': self.position_tolerance_m,
+        'invariant_tolerance': self.invariant_tolerance,
+        'pressure_tolerance': self.pressure_tolerance,
+        'tangent_tolerance': self.tangent_tolerance,
+      },
+      'canonical_euler_verified': False,
+      'canonical_free_boundary_verified': False,
+      'external_validation_verified': False,
+      'claim_status': (
+        'independent-exact-euler-ambient-shock-field-audit; attachment-aware '
+        'remesh, reflected closure, chain continuation, and external validation '
+        'remain pending'
+      ),
+      'message': self.message,
+    }
+
+
+def _ambient_shock_field_audit_failure(
+  status: MocEulerAmbientShockFieldAuditStatus,
+  message: str,
+  *,
+  field_status: str | None = None,
+  shock_sample_count: int = 0,
+  ambient_sample_count: int = 0,
+  cell_count: int = 0,
+  shock_jump_mass_residuals: Sequence[float] = (),
+  shock_jump_momentum_residuals: Sequence[float] = (),
+  shock_jump_energy_residuals: Sequence[float] = (),
+  ambient_pressure_residuals: Sequence[float] = (),
+  ambient_tangent_residuals: Sequence[float] = (),
+  incoming_k_plus_residuals: Sequence[float] = (),
+  entropy_residuals: Sequence[float] = (),
+  attachment_relative_pressure_residual: float | None = None,
+  shock_geometry_verified: bool = False,
+  shock_jump_verified: bool = False,
+  ambient_sample_alignment_verified: bool = False,
+  ambient_direction_verified: bool = False,
+  ambient_boundary_verified: bool = False,
+  entropy_lineage_verified: bool = False,
+  companion_field_verified: bool = False,
+  promotion_flags_verified: bool = False,
+  shock_residual_tolerance: float = 1.0e-8,
+  cell_residual_tolerance: float = 1.0e-2,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  pressure_tolerance: float = 1.0e-8,
+  tangent_tolerance: float = 1.0e-8,
+) -> MocEulerAmbientShockFieldAudit:
+  values = (
+    tuple(float(value) for value in shock_jump_mass_residuals),
+    tuple(float(value) for value in shock_jump_momentum_residuals),
+    tuple(float(value) for value in shock_jump_energy_residuals),
+    tuple(float(value) for value in ambient_pressure_residuals),
+    tuple(float(value) for value in ambient_tangent_residuals),
+    tuple(float(value) for value in incoming_k_plus_residuals),
+    tuple(float(value) for value in entropy_residuals),
+  )
+  maxima = tuple(max(item, default=None) for item in values)
+  return MocEulerAmbientShockFieldAudit(
+    status=status,
+    field_status=field_status,
+    shock_sample_count=shock_sample_count,
+    ambient_sample_count=ambient_sample_count,
+    cell_count=cell_count,
+    shock_jump_mass_residuals=values[0],
+    shock_jump_momentum_residuals=values[1],
+    shock_jump_energy_residuals=values[2],
+    ambient_pressure_residuals=values[3],
+    ambient_tangent_residuals=values[4],
+    incoming_k_plus_residuals=values[5],
+    entropy_residuals=values[6],
+    maximum_shock_jump_mass_residual=maxima[0],
+    maximum_shock_jump_momentum_residual=maxima[1],
+    maximum_shock_jump_energy_residual=maxima[2],
+    maximum_ambient_pressure_residual=maxima[3],
+    maximum_ambient_tangent_residual=maxima[4],
+    maximum_incoming_k_plus_residual=maxima[5],
+    maximum_entropy_residual=maxima[6],
+    attachment_relative_pressure_residual=attachment_relative_pressure_residual,
+    shock_geometry_verified=shock_geometry_verified,
+    shock_jump_verified=shock_jump_verified,
+    ambient_sample_alignment_verified=ambient_sample_alignment_verified,
+    ambient_direction_verified=ambient_direction_verified,
+    ambient_boundary_verified=ambient_boundary_verified,
+    entropy_lineage_verified=entropy_lineage_verified,
+    companion_field_verified=companion_field_verified,
+    promotion_flags_verified=promotion_flags_verified,
+    shock_residual_tolerance=shock_residual_tolerance,
+    cell_residual_tolerance=cell_residual_tolerance,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+    pressure_tolerance=pressure_tolerance,
+    tangent_tolerance=tangent_tolerance,
+    message=message,
+  )
+
+
+def measure_moc_euler_ambient_shock_field(
+  field: MocEulerAmbientShockFieldResult,
+  *,
+  shock_residual_tolerance: float = 1.0e-8,
+  cell_residual_tolerance: float = 1.0e-2,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  pressure_tolerance: float = 1.0e-8,
+  tangent_tolerance: float = 1.0e-8,
+) -> MocEulerAmbientShockFieldAudit:
+  """Reconstruct exact shock, ambient, entropy, and field evidence.
+
+  This operator only measures retained states and geometry.  It does not
+  rerun the shock or ambient solver.  The nested companion-strip audit is
+  likewise a measurement of the retained open field, not a continuation call.
+  """
+
+  if not isinstance(field, MocEulerAmbientShockFieldResult):
+    return _ambient_shock_field_audit_failure(
+      MocEulerAmbientShockFieldAuditStatus.INVALID_INPUT,
+      'field must be a MocEulerAmbientShockFieldResult',
+    )
+  try:
+    shock_tolerance = float(shock_residual_tolerance)
+    cell_tolerance = float(cell_residual_tolerance)
+    position_tolerance = float(position_tolerance_m)
+    invariant_tolerance_value = float(invariant_tolerance)
+    pressure_tolerance_value = float(pressure_tolerance)
+    tangent_tolerance_value = float(tangent_tolerance)
+  except (TypeError, ValueError):
+    return _ambient_shock_field_audit_failure(
+      MocEulerAmbientShockFieldAuditStatus.INVALID_INPUT,
+      'ambient shock-field audit tolerances must be numeric',
+      field_status=field.status.value,
+    )
+  tolerances = (
+    shock_tolerance,
+    cell_tolerance,
+    position_tolerance,
+    invariant_tolerance_value,
+    pressure_tolerance_value,
+    tangent_tolerance_value,
+  )
+  if any(not isfinite(value) or value <= 0.0 for value in tolerances):
+    raise ValueError(
+      'ambient shock-field audit tolerances must be finite and positive'
+    )
+
+  shock = field.shock_boundary
+  march = field.ambient_march
+  shock_status = field.status.value
+  if shock is None or not shock.converged or not shock.local_euler_verified:
+    return _ambient_shock_field_audit_failure(
+      MocEulerAmbientShockFieldAuditStatus.SHOCK_JUMP_FAILURE,
+      'ambient shock-field audit requires a converged locally Euler-verified shock curve',
+      field_status=shock_status,
+      shock_sample_count=0 if shock is None else len(shock.shock_points_m),
+      cell_count=0 if field.field is None else field.field.cell_count,
+      shock_residual_tolerance=shock_tolerance,
+      cell_residual_tolerance=cell_tolerance,
+      position_tolerance_m=position_tolerance,
+      invariant_tolerance=invariant_tolerance_value,
+      pressure_tolerance=pressure_tolerance_value,
+      tangent_tolerance=tangent_tolerance_value,
+    )
+
+  shock_points = tuple(shock.shock_points_m)
+  shock_count = len(shock_points)
+  shock_geometry_verified = bool(
+    shock_count >= 2
+    and len(shock.upstream_states) == shock_count
+    and len(shock.upstream_total_pressure_Pa) == shock_count
+    and len(shock.downstream_states) == shock_count
+    and len(shock.downstream_total_pressure_Pa) == shock_count
+    and all(
+      len(point) == 2 and all(isfinite(float(value)) for value in point)
+      for point in shock_points
+    )
+    and all(
+      abs(state.x_m - point[0]) <= position_tolerance
+      and abs(state.y_m - point[1]) <= position_tolerance
+      for state, point in zip(shock.downstream_states, shock_points, strict=True)
+    )
+    and all(
+      shock_points[index + 1][0] > shock_points[index][0] + position_tolerance
+      for index in range(shock_count - 1)
+    )
+    and shock.orientation is MocEulerShockBoundaryOrientation.MIXED_CHARACTERISTIC_BOUNDARY
+  )
+  jump_mass: list[float] = []
+  jump_momentum: list[float] = []
+  jump_energy: list[float] = []
+  if shock_geometry_verified:
+    try:
+      for index in range(shock_count):
+        mass, momentum, energy = _shock_jump_residuals(
+          shock.upstream_states[index],
+          shock.upstream_total_pressure_Pa[index],
+          shock.downstream_states[index],
+          shock.downstream_total_pressure_Pa[index],
+          _shock_tangent(shock_points, index),
+        )
+        jump_mass.append(mass)
+        jump_momentum.append(momentum)
+        jump_energy.append(energy)
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+      shock_geometry_verified = False
+  maximum_shock_residual = max(
+    (*jump_mass, *jump_momentum, *jump_energy),
+    default=None,
+  )
+  shock_jump_verified = bool(
+    shock_geometry_verified
+    and maximum_shock_residual is not None
+    and maximum_shock_residual <= shock_tolerance
+  )
+
+  ambient_pressure_residuals: list[float] = []
+  ambient_tangent_residuals: list[float] = []
+  incoming_k_plus_residuals: list[float] = []
+  attachment_residual: float | None = None
+  ambient_sample_alignment_verified = False
+  ambient_direction_verified = False
+  ambient_boundary_verified = False
+  ambient_count = 0
+  ambient_pressure = field.ambient_pressure_Pa
+  if isinstance(march, MocEulerAmbientBoundaryMarchResult):
+    samples = tuple(march.boundary_samples)
+    ambient_count = len(samples)
+    sample_states = tuple(sample.state for sample in samples)
+    ambient_sample_alignment_verified = bool(
+      march.converged
+      and ambient_pressure is not None
+      and march.ambient_pressure_Pa is not None
+      and abs(march.ambient_pressure_Pa - ambient_pressure)
+      <= pressure_tolerance_value * max(1.0, abs(ambient_pressure))
+      and ambient_count == shock_count
+      and len(march.point_results) == ambient_count
+      and len(march.incoming_k_plus_residuals) == ambient_count
+      and len(march.ambient_boundary.points_m) == ambient_count
+      and len(march.ambient_boundary.states) == ambient_count
+      and all(
+        abs(state.x_m - point[0]) <= position_tolerance
+        and abs(state.y_m - point[1]) <= position_tolerance
+        for state, point in zip(sample_states, march.points_m, strict=True)
+      )
+      and all(
+        abs(point[axis] - reference[axis]) <= position_tolerance
+        for point, reference in zip(
+          march.ambient_boundary.points_m,
+          march.points_m,
+          strict=True,
+        )
+        for axis in (0, 1)
+      )
+      and all(
+        abs(state.x_m - point[0]) <= position_tolerance
+        and abs(state.y_m - point[1]) <= position_tolerance
+        for state, point in zip(
+          march.ambient_boundary.states,
+          march.points_m,
+          strict=True,
+        )
+      )
+      and abs(samples[0].point_m[0] - shock_points[0][0])
+      <= position_tolerance
+      and abs(samples[0].point_m[1] - shock_points[0][1])
+      <= position_tolerance
+    ) if ambient_count and shock_count else False
+    if ambient_count == shock_count and shock_count:
+      try:
+        for index, sample in enumerate(samples):
+          state = sample.state
+          pressure_ratio = (
+            1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
+          ) ** (state.gamma / (state.gamma - 1.0))
+          static_pressure = sample.total_pressure_Pa / pressure_ratio
+          if ambient_pressure is None or ambient_pressure <= 0.0:
+            raise ValueError('ambient pressure is missing or non-positive')
+          ambient_pressure_residuals.append(
+            abs(static_pressure - ambient_pressure) / ambient_pressure
+          )
+          incoming_k_plus_residuals.append(
+            abs(state.k_plus - shock.downstream_states[index].k_plus)
+          )
+        for first, second in zip(samples, samples[1:]):
+          dx = second.point_m[0] - first.point_m[0]
+          dy = second.point_m[1] - first.point_m[1]
+          length = hypot(dx, dy)
+          if not isfinite(length) or length <= 0.0:
+            raise ValueError('ambient boundary contains a zero-length segment')
+          segment_angle = atan2(dy, dx)
+          flow_angle = 0.5 * (
+            first.state.theta_rad + second.state.theta_rad
+          )
+          ambient_tangent_residuals.append(
+            abs(sin(segment_angle - flow_angle))
+          )
+        attachment_residual = ambient_pressure_residuals[0]
+        ambient_direction_verified = bool(
+          all(
+            second.point_m[0] > first.point_m[0] + position_tolerance
+            for first, second in zip(samples, samples[1:])
+          )
+          and all(
+            (second.point_m[0] - first.point_m[0])
+            * cos(0.5 * (first.state.theta_rad + second.state.theta_rad))
+            + (second.point_m[1] - first.point_m[1])
+            * sin(0.5 * (first.state.theta_rad + second.state.theta_rad))
+            > 0.0
+            for first, second in zip(samples, samples[1:])
+          )
+        )
+      except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+        ambient_sample_alignment_verified = False
+    ambient_pressure_maximum = max(ambient_pressure_residuals, default=None)
+    ambient_tangent_maximum = max(ambient_tangent_residuals, default=None)
+    incoming_k_plus_maximum = max(incoming_k_plus_residuals, default=None)
+    march_invariant_evidence = bool(
+      len(march.incoming_k_plus_residuals) == len(incoming_k_plus_residuals)
+      and all(
+        abs(declared - reconstructed) <= invariant_tolerance_value
+        for declared, reconstructed in zip(
+          march.incoming_k_plus_residuals,
+          incoming_k_plus_residuals,
+          strict=True,
+        )
+      )
+    )
+    ambient_boundary_verified = bool(
+      ambient_sample_alignment_verified
+      and ambient_pressure_maximum is not None
+      and ambient_pressure_maximum <= pressure_tolerance_value
+      and (
+        not ambient_tangent_residuals
+        or (
+          ambient_tangent_maximum is not None
+          and ambient_tangent_maximum <= tangent_tolerance_value
+        )
+      )
+      and incoming_k_plus_maximum is not None
+      and incoming_k_plus_maximum <= invariant_tolerance_value
+      and march.ambient_boundary.converged
+      and march_invariant_evidence
+    )
+  else:
+    ambient_pressure_maximum = None
+    ambient_tangent_maximum = None
+    incoming_k_plus_maximum = None
+
+  entropy_residuals: list[float] = []
+  entropy_lineage_verified = False
+  if shock_geometry_verified and shock_count:
+    baseline_pressure = shock.downstream_total_pressure_Pa[0]
+    if isfinite(baseline_pressure) and baseline_pressure > 0.0:
+      entropy_residuals = [
+        abs(pressure - baseline_pressure) / baseline_pressure
+        for pressure in shock.downstream_total_pressure_Pa
+      ]
+      retained_entropy = tuple(field.entropy_residuals)
+      entropy_lineage_verified = bool(
+        max(entropy_residuals, default=float('inf'))
+        <= pressure_tolerance_value
+        and len(retained_entropy) == shock_count
+        and all(
+          abs(declared - reconstructed)
+          <= pressure_tolerance_value * max(1.0, reconstructed)
+          for declared, reconstructed in zip(
+            retained_entropy,
+            entropy_residuals,
+            strict=True,
+          )
+        )
+        and field.entropy_lineage_verified
+      )
+
+  companion_field_verified = False
+  if field.field is not None:
+    companion_audit = measure_moc_euler_companion_field(
+      field.field,
+      shock_residual_tolerance=shock_tolerance,
+      cell_residual_tolerance=cell_tolerance,
+      position_tolerance_m=position_tolerance,
+      invariant_tolerance=invariant_tolerance_value,
+      pressure_tolerance=pressure_tolerance_value,
+    )
+    companion_field_verified = bool(
+      companion_audit.converged
+      and companion_audit.local_euler_consistency_verified
+    )
+  promotion_flags_verified = bool(
+    shock.physical_closure_verified is False
+    and shock.chain_promotion_blocked
+    and shock.production_claim_allowed is False
+    and (
+      march is None
+      or (
+        march.physical_closure_verified is False
+        and march.chain_promotion_blocked
+        and march.production_claim_allowed is False
+      )
+    )
+    and field.physical_closure_verified is False
+    and field.chain_promotion_blocked
+    and field.production_claim_allowed is False
+    and (
+      field.field is None
+      or (
+        field.field.physical_closure_verified is False
+        and field.field.chain_promotion_blocked
+        and field.field.production_claim_allowed is False
+      )
+    )
+  )
+
+  if not shock_geometry_verified or not shock_jump_verified:
+    status = MocEulerAmbientShockFieldAuditStatus.SHOCK_JUMP_FAILURE
+    message = 'exact shock geometry or Rankine--Hugoniot residual failed independent audit'
+  elif not ambient_boundary_verified:
+    status = MocEulerAmbientShockFieldAuditStatus.AMBIENT_BOUNDARY_FAILURE
+    message = (
+      'solver-owned ambient boundary failed independent pressure, tangent, '
+      'direction, or shock-sourced C+ checks'
+    )
+  elif not entropy_lineage_verified:
+    status = MocEulerAmbientShockFieldAuditStatus.ENTROPY_FAILURE
+    message = (
+      'downstream total-pressure lineage is variable or not retained; '
+      'entropy transport is required before field continuation'
+    )
+  elif not field.converged or not companion_field_verified:
+    status = MocEulerAmbientShockFieldAuditStatus.FIELD_FAILURE
+    message = (
+      'shock and ambient boundary evidence passed, but the downstream '
+      'attachment-aware characteristic field is not locally closed'
+    )
+  elif not promotion_flags_verified:
+    status = MocEulerAmbientShockFieldAuditStatus.FLAG_FAILURE
+    message = 'ambient shock-field result weakened its non-promotion fidelity flags'
+  else:
+    status = MocEulerAmbientShockFieldAuditStatus.CONVERGED_LOCAL_AUDIT
+    message = (
+      'independent exact-Euler ambient shock-field audit verified shock jumps, '
+      'ambient pressure/tangency, C+ lineage, entropy consistency, and the '
+      'open-field local strip; reflected closure remains pending'
+    )
+  return MocEulerAmbientShockFieldAudit(
+    status=status,
+    field_status=field.status.value,
+    shock_sample_count=shock_count,
+    ambient_sample_count=ambient_count,
+    cell_count=0 if field.field is None else field.field.cell_count,
+    shock_jump_mass_residuals=tuple(jump_mass),
+    shock_jump_momentum_residuals=tuple(jump_momentum),
+    shock_jump_energy_residuals=tuple(jump_energy),
+    ambient_pressure_residuals=tuple(ambient_pressure_residuals),
+    ambient_tangent_residuals=tuple(ambient_tangent_residuals),
+    incoming_k_plus_residuals=tuple(incoming_k_plus_residuals),
+    entropy_residuals=tuple(entropy_residuals),
+    maximum_shock_jump_mass_residual=max(jump_mass, default=None),
+    maximum_shock_jump_momentum_residual=max(jump_momentum, default=None),
+    maximum_shock_jump_energy_residual=max(jump_energy, default=None),
+    maximum_ambient_pressure_residual=ambient_pressure_maximum,
+    maximum_ambient_tangent_residual=ambient_tangent_maximum,
+    maximum_incoming_k_plus_residual=incoming_k_plus_maximum,
+    maximum_entropy_residual=max(entropy_residuals, default=None),
+    attachment_relative_pressure_residual=attachment_residual,
+    shock_geometry_verified=shock_geometry_verified,
+    shock_jump_verified=shock_jump_verified,
+    ambient_sample_alignment_verified=ambient_sample_alignment_verified,
+    ambient_direction_verified=ambient_direction_verified,
+    ambient_boundary_verified=ambient_boundary_verified,
+    entropy_lineage_verified=entropy_lineage_verified,
+    companion_field_verified=companion_field_verified,
+    promotion_flags_verified=promotion_flags_verified,
+    shock_residual_tolerance=shock_tolerance,
+    cell_residual_tolerance=cell_tolerance,
+    position_tolerance_m=position_tolerance,
+    invariant_tolerance=invariant_tolerance_value,
+    pressure_tolerance=pressure_tolerance_value,
+    tangent_tolerance=tangent_tolerance_value,
+    message=message,
   )
