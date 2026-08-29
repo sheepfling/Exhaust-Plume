@@ -1051,6 +1051,17 @@ fingerprints, typed termination consistency, and bounded changes in per-cell
 axial extent, shock spacing, radius, and mesh area. This makes deterministic
 continuation and resolution sensitivity visible without promoting the chain.
 
+The higher-fidelity sibling
+`plan_first_cell_geometry_owned_alternating_research_chain` seeds the same
+candidate field into the automatic reflected-domain source path. It derives a
+fresh alternating `C-`/`C+` source band from each accepted field, retains the
+exact incoming centerline handoff, and is independently checked at 5, 9, and
+17 shock samples. The bounded default prefix contains the candidate plus two
+continued fields and ends with a typed `solver-returned-no-next-cell`
+decision. Its explicit compression envelope is a research control, not the
+canonical reflected expansion/free-boundary law; canonical mixed-regime
+closure, external validation, and product promotion remain false.
+
 This handoff is useful for research visualization and chain-topology work only.
 The candidate seed, reflected-patch continuation, and prescribed mock all
 retain `canonical_free_boundary_verified=false`,

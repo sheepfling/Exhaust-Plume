@@ -14,6 +14,7 @@ from exhaust_plume.models.moc import (
   MocTerminalReflectionPatchAmbientClosureChainReference,
   MocChainContinuationPolicy,
   plan_first_cell_free_boundary_correction,
+  plan_first_cell_geometry_owned_alternating_research_chain,
   plan_first_cell_geometry_owned_research_chain,
   solve_first_cell_free_boundary_correction,
   solve_first_cell_geometry_owned_candidate,
@@ -266,6 +267,64 @@ def test_geometry_owned_candidate_can_seed_reflected_research_chain_without_prom
   assert report['physical_field_count'] == 3
   assert report['diagnostics']['first_cell_field_identity_verified'] is True
   assert report['diagnostics']['continued_cell_callback_invoked'] is True
+
+
+def test_geometry_owned_candidate_can_seed_alternating_research_chain_without_promotion() -> None:
+  source, shock_points, ambient_pressure = _correction_inputs()
+  candidate = solve_first_cell_geometry_owned_candidate(
+    source,
+    shock_points,
+    ambient_pressure,
+  )
+
+  planner = plan_first_cell_geometry_owned_alternating_research_chain(
+    candidate,
+    start_x_m=0.5,
+    end_x_m=1.0,
+    compression_amplitude_rad=0.01,
+    total_cell_count=3,
+    policy=MocChainContinuationPolicy(
+      max_cells=4,
+      require_state_carry=True,
+    ),
+  )
+
+  assert isinstance(planner, MocFirstCellResearchChainPlannerResult)
+  assert planner.planner_kind.value == 'upstream-coupled-research'
+  assert planner.chain_planner is not None
+  assert planner.chain_planner.chain.resolved
+  assert planner.cell_count == 3
+  assert planner.continued_cell_count == 2
+  assert planner.resolved
+  assert planner.first_cell_handoff_verified
+  assert planner.continued_chain_audit_verified
+  assert planner.research_audit_accepted
+  assert planner.handoff_links_verified is True
+  assert planner.physical_closure_verified
+  assert planner.physical_fields[0] is candidate.field
+  assert len(planner.physical_fields) == planner.cell_count
+  assert planner.chain_planner.diagnostics[
+    'alternating_physical_field_chain_audit_accepted'
+  ] is True
+  attempts = planner.chain_planner.diagnostics['alternating_source_attempts']
+  assert len(attempts) == 3
+  assert all(
+    attempt['incoming_handoff_verified'] is True
+    and attempt['fresh_source_band'] is True
+    and attempt['fresh_source_geometry'] is True
+    for attempt in attempts[:2]
+  )
+  assert attempts[-1]['provider_decision']['reason'] == (
+    'solver-returned-no-next-cell'
+  )
+  assert planner.termination.reason is (
+    MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL
+  )
+  assert planner.chain_promotion_blocked
+  assert planner.production_claim_allowed is False
+  assert planner.canonical_free_boundary_verified is False
+  assert planner.canonical_euler_verified is False
+  assert planner.external_validation_verified is False
 
 
 def test_geometry_owned_research_chain_is_deterministic_over_resolution() -> None:

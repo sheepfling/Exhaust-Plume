@@ -2370,6 +2370,17 @@ radius, and mesh-area changes across resolution. The standalone gate passes
 these checks; the result is numerical stability evidence for the research
 lane only, not a physical reflected-plume validation claim.
 
+The higher-fidelity sibling
+`plan_first_cell_geometry_owned_alternating_research_chain` now seeds the same
+candidate field into the automatic reflected-domain source path. It derives a
+fresh alternating `C-`/`C+` source band from each accepted field, retains the
+exact incoming centerline handoff, and is independently checked at 5, 9, and
+17 shock samples. The bounded default prefix contains the candidate plus two
+continued fields and ends with a typed `solver-returned-no-next-cell`
+decision. Its explicit compression envelope is a research control, not the
+canonical reflected expansion/free-boundary law; canonical mixed-regime
+closure, external validation, and product promotion remain closed.
+
 The optional prescribed mock remains a separate mode. It may consume the
 same local candidate field only as a bounded handoff fixture; if its explicit
 next shock leaves that finite field, the planner returns the typed

@@ -208,6 +208,7 @@ __all__ = (
   'plan_reflected_domain_alternating_source_chain',
   'plan_reflected_domain_alternating_source_chain_sequence',
   'plan_reflected_domain_alternating_source_chain_from_physical_field',
+  'plan_first_cell_geometry_owned_alternating_research_chain',
   'plan_caustic_simple_wave_terminal_chain',
   'plan_caustic_remesh_downstream_field_chain',
   'plan_caustic_remesh_downstream_field_invariant_chain',
@@ -8375,6 +8376,10 @@ def plan_reflected_domain_alternating_source_chain_sequence(
   maximum_boundary_iterations: int = 16,
   maximum_shooting_iterations: int = 40,
   policy: MocChainContinuationPolicy | None = None,
+  _field_observer: Callable[
+    [MocPhysicalPostShockFieldContinuationSolve, MocChainCell],
+    None,
+  ] | None = None,
 ) -> MocChainPlannerResult:
   """Plan a sequence of fresh alternating-source physical shock cells.
 
@@ -8427,6 +8432,8 @@ def plan_reflected_domain_alternating_source_chain_sequence(
     raise ValueError(
       'use_trace_referenced_profile requires use_outer_seed_attachment'
     )
+  if _field_observer is not None and not callable(_field_observer):
+    raise TypeError('_field_observer must be callable when supplied')
   cell_axial_length_m = float(end_x_m) - float(start_x_m)
 
   active_field = seed
@@ -8700,6 +8707,14 @@ def plan_reflected_domain_alternating_source_chain_sequence(
       and solved.upstream_coupling_verified
     ):
       active_field = solved.field
+      if _field_observer is not None:
+        _field_observer(
+          MocPhysicalPostShockFieldContinuationSolve(
+            field=solved.field,
+            end_x_m=current.end_x_m + cell_axial_length_m,
+          ),
+          current,
+        )
       return MocPhysicalPostShockFieldContinuationSolve(
         field=solved.field,
         end_x_m=current.end_x_m + cell_axial_length_m,
@@ -8811,7 +8826,12 @@ def plan_reflected_domain_alternating_source_chain_from_physical_field(
   maximum_segment_iterations: int = 24,
   maximum_boundary_iterations: int = 16,
   maximum_shooting_iterations: int = 40,
+  total_cell_count: int | None = None,
   policy: MocChainContinuationPolicy | None = None,
+  _field_observer: Callable[
+    [MocPhysicalPostShockFieldContinuationSolve, MocChainCell],
+    None,
+  ] | None = None,
 ) -> MocChainPlannerResult:
   """Plan a fresh-band alternating chain from accepted physical fields.
 
@@ -8822,6 +8842,10 @@ def plan_reflected_domain_alternating_source_chain_from_physical_field(
   new alternating ``C-``/``C+`` source band.  A projection failure is kept as
   a typed non-physical chain stop; no stale source band or extrapolated state
   is substituted.
+
+  When supplied, ``total_cell_count`` bounds a research prefix.  The final
+  attempt is reported as a typed ``SOLVER_RETURNED_NO_NEXT_CELL`` decision,
+  rather than being conflated with the policy's safety cell limit.
 
   ``use_trace_referenced_profile`` is an explicit research option passed to
   each physical-field continuation.  It requires the retained outer-seed
@@ -8840,6 +8864,12 @@ def plan_reflected_domain_alternating_source_chain_from_physical_field(
     raise TypeError('seed must be a MocPhysicalPostShockFieldResult')
   if not isinstance(use_trace_referenced_profile, bool):
     raise ValueError('use_trace_referenced_profile must be a bool')
+  if total_cell_count is not None and (
+    isinstance(total_cell_count, bool)
+    or not isinstance(total_cell_count, int)
+    or total_cell_count < 1
+  ):
+    raise ValueError('total_cell_count must be a positive integer when supplied')
 
   def field_handoff(
     field: MocPhysicalPostShockFieldResult,
@@ -8872,6 +8902,7 @@ def plan_reflected_domain_alternating_source_chain_from_physical_field(
         'accepted-field -> open-shock-ambient-strip -> '
         'centerline-reflection-patch -> alternating-source-band'
       ),
+      'configured_total_cell_count': total_cell_count,
     }
     if diagnostics is not None:
       payload.update(diagnostics)
@@ -9049,6 +9080,16 @@ def plan_reflected_domain_alternating_source_chain_from_physical_field(
     MocReflectedDomainAlternatingSourceResult
     | MocChainTerminationDecision
   ):
+    if total_cell_count is not None and next_cell_index > total_cell_count:
+      return decision(
+        MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
+        (
+          'alternating source chain reached its configured '
+          f'{total_cell_count}-cell research prefix'
+        ),
+        next_cell_index=next_cell_index,
+        diagnostics={'termination_model': 'configured-cell-count'},
+      )
     return source_for_field(
       field,
       incoming_handoff,
@@ -9081,6 +9122,7 @@ def plan_reflected_domain_alternating_source_chain_from_physical_field(
     maximum_boundary_iterations=maximum_boundary_iterations,
     maximum_shooting_iterations=maximum_shooting_iterations,
     policy=policy,
+    _field_observer=_field_observer,
   )
   diagnostics = dict(planner.diagnostics)
   diagnostics.update({
@@ -9096,6 +9138,7 @@ def plan_reflected_domain_alternating_source_chain_from_physical_field(
     'source_position_tolerance_m': float(source_position_tolerance_m),
     'source_invariant_tolerance': float(source_invariant_tolerance),
     'source_pressure_tolerance': float(source_pressure_tolerance),
+    'configured_total_cell_count': total_cell_count,
     'source_projection_failure_policy': (
       'typed-open-physical-closure-or-upstream-field-stop; '
       'never-reuse-or-extrapolate-a-prior-source-band'
@@ -11157,6 +11200,217 @@ def plan_first_cell_geometry_owned_research_chain(
     chain_planner=planner,
     termination=termination,
     planner_kind=planner_kind,
+    claim_status=claim_status,
+    physical_fields=tuple(fields),
+    candidate_measurement=candidate_measurement,
+    chain_planner_measurement=chain_planner_measurement,
+    physical_field_chain_measurement=physical_field_chain_measurement,
+    research_chain_measurement=research_chain_measurement,
+    diagnostics=diagnostics,
+  )
+####
+
+
+def plan_first_cell_geometry_owned_alternating_research_chain(
+  candidate: MocFirstCellCandidateResult,
+  *,
+  start_x_m: float,
+  end_x_m: float,
+  compression_amplitude_rad: float = 1.0e-2,
+  source_sample_count: int = 6,
+  total_cell_count: int = 3,
+  use_trace_referenced_profile: bool = False,
+  target_centerline_y_m: float = 0.0,
+  target_centerline_flow_angle_rad: float = 0.0,
+  attachment_angle_half_width_rad: float = 1.0e-6,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  policy: MocChainContinuationPolicy | None = None,
+) -> MocFirstCellResearchChainPlannerResult:
+  """Continue a geometry-owned candidate with fresh alternating source bands.
+
+  This is the higher-fidelity sibling of
+  :func:`plan_first_cell_geometry_owned_research_chain`.  It derives the first
+  ``C-``/``C+`` source band from the candidate's accepted shock/ambient trace,
+  then derives a fresh band from each accepted downstream field.  The local
+  shock solve still uses the explicit compression envelope, so this remains a
+  research chain and cannot raise the candidate's canonical, Euler, external,
+  or product claims.
+
+  ``end_x_m`` is the chain interface/spacing anchor supplied to the continued
+  planner.  It must leave the first reflected source band downstream of that
+  interface; no source extrapolation or backtracking is performed when it does
+  not.
+  """
+
+  if not isinstance(candidate, MocFirstCellCandidateResult):
+    raise TypeError('candidate must be a MocFirstCellCandidateResult')
+
+  candidate_measurement = None
+  measurement_error: str | None = None
+  try:
+    from exhaust_plume.validation.moc_measurements import (
+      measure_first_cell_geometry_owned_candidate,
+    )
+
+    candidate_measurement = measure_first_cell_geometry_owned_candidate(candidate)
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    measurement_error = str(error)
+
+  candidate_ready = bool(
+    candidate.local_physical_closure_verified
+    and candidate.field is not None
+    and candidate_measurement is not None
+    and candidate_measurement.converged
+    and candidate_measurement.physical_closure_verified
+    and candidate_measurement.chain_promotion_blocked
+    and candidate_measurement.production_claim_allowed is False
+  )
+  fields: list[MocPhysicalPostShockFieldResult] = []
+  if candidate.field is not None:
+    fields.append(candidate.field)
+  claim_status = (
+    'geometry-owned-first-cell-to-alternating-reflected-domain-research-chain; '
+    'canonical-reflected-free-boundary-and-external-validation-pending'
+  )
+  diagnostics: dict[str, Any] = {
+    'planner_model': 'first-cell-geometry-owned-alternating-research-chain',
+    'continuation_model': (
+      'fresh-alternating-reflected-domain-source-band-per-accepted-cell'
+    ),
+    'first_cell_source': 'geometry-owned-candidate-local-physical-field',
+    'candidate_local_physical_closure_verified': (
+      candidate.local_physical_closure_verified
+    ),
+    'candidate_independent_measurement_verified': (
+      False if candidate_measurement is None else candidate_measurement.converged
+    ),
+    'candidate_measurement_error': measurement_error,
+    'continued_cell_callback_invoked': False,
+    'canonical_free_boundary_verified': False,
+    'canonical_euler_verified': False,
+    'external_validation_verified': False,
+    'chain_promotion_blocked': True,
+    'production_claim_allowed': False,
+    'fidelity_boundary': (
+      'higher-fidelity research-only alternating reflected-domain handoff; '
+      'no basic/reduced-provider promotion'
+    ),
+    'source_band_freshness_policy': (
+      'fresh-solver-generated-alternating-band-and-exact-incoming-handoff-'
+      'required-per-cell'
+    ),
+    'configured_total_cell_count': total_cell_count,
+  }
+
+  if not candidate_ready:
+    diagnostics.update({
+      'handoff_blocked_before_continuation': True,
+      'handoff_block_reason': (
+        'candidate local field or independent first-cell measurement did not '
+        'pass'
+      ),
+    })
+    return MocFirstCellResearchChainPlannerResult(
+      candidate=candidate,
+      chain_planner=None,
+      termination=candidate.as_chain_termination_decision(),
+      planner_kind=MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH,
+      claim_status=claim_status,
+      physical_fields=tuple(fields),
+      candidate_measurement=candidate_measurement,
+      diagnostics=diagnostics,
+    )
+
+  assert candidate.field is not None
+
+  def observe(
+    solved: MocPhysicalPostShockFieldContinuationSolve,
+    _current: MocChainCell,
+  ) -> None:
+    fields.append(solved.field)
+    diagnostics['continued_cell_callback_invoked'] = True
+
+  try:
+    planner = plan_reflected_domain_alternating_source_chain_from_physical_field(
+      candidate.field,
+      start_x_m=start_x_m,
+      end_x_m=end_x_m,
+      compression_amplitude_rad=compression_amplitude_rad,
+      source_sample_count=source_sample_count,
+      total_cell_count=total_cell_count,
+      use_trace_referenced_profile=use_trace_referenced_profile,
+      target_centerline_y_m=target_centerline_y_m,
+      target_centerline_flow_angle_rad=target_centerline_flow_angle_rad,
+      attachment_angle_half_width_rad=attachment_angle_half_width_rad,
+      sample_count=sample_count,
+      branch=branch,
+      policy=policy,
+      _field_observer=observe,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    termination = _research_chain_solver_failure(error)
+    diagnostics.update({
+      'handoff_blocked_before_continuation': False,
+      'continuation_solver_failure': str(error),
+      'continued_field_count': len(fields),
+    })
+    return MocFirstCellResearchChainPlannerResult(
+      candidate=candidate,
+      chain_planner=None,
+      termination=termination,
+      planner_kind=MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH,
+      claim_status=claim_status,
+      physical_fields=tuple(fields),
+      candidate_measurement=candidate_measurement,
+      diagnostics=diagnostics,
+    )
+
+  termination = _chain_planner_termination(planner)
+  diagnostics.update({
+    'handoff_blocked_before_continuation': False,
+    'continued_field_count': len(fields),
+    'continued_cell_count': planner.chain.cell_count - 1,
+    'chain_termination_reason': planner.chain.termination_reason.value,
+    'chain_physical_termination': planner.chain.physical_termination,
+    'first_cell_field_identity_verified': bool(
+      fields and fields[0] is candidate.field
+    ),
+    'alternating_source_chain_planner': dict(planner.diagnostics),
+  })
+
+  chain_planner_measurement = None
+  physical_field_chain_measurement = None
+  research_chain_measurement = None
+  try:
+    from exhaust_plume.validation.moc_measurements import (
+      measure_first_cell_geometry_owned_research_chain,
+    )
+
+    research_chain_measurement = measure_first_cell_geometry_owned_research_chain(
+      candidate,
+      planner,
+      tuple(fields),
+    )
+    chain_planner_measurement = (
+      research_chain_measurement.chain_planner_measurement
+    )
+    physical_field_chain_measurement = (
+      research_chain_measurement.physical_field_chain_measurement
+    )
+    candidate_measurement = research_chain_measurement.candidate_measurement
+    diagnostics.update({
+      'research_chain_measurement_status': research_chain_measurement.status.value,
+      'research_chain_measurement_converged': research_chain_measurement.converged,
+    })
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    diagnostics['research_chain_measurement_error'] = str(error)
+
+  return MocFirstCellResearchChainPlannerResult(
+    candidate=candidate,
+    chain_planner=planner,
+    termination=termination,
+    planner_kind=MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH,
     claim_status=claim_status,
     physical_fields=tuple(fields),
     candidate_measurement=candidate_measurement,
