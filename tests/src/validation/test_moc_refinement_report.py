@@ -107,6 +107,9 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   planner = report['geometry_cases']['shock_cell_chain_planner_mock']
   invariant_closure = report['geometry_cases']['terminal_source_window_invariant_closure']
   ambient_strip = report['geometry_cases']['solver_generated_ambient_shock_strip']
+  first_cell_research_chain = ambient_strip[
+    'geometry_owned_first_cell_research_chain'
+  ]
   first_cell_free_boundary_refinement = ambient_strip[
     'first_cell_terminal_closure_free_boundary_refinement_measurement'
   ]
@@ -210,6 +213,22 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   )
   assert generated_chain_external_validation['split_audit']['dataset_count'] == 0
   assert generated_chain_external_validation['split_audit']['verified'] is False
+  assert first_cell_research_chain['planner_kind'] == 'upstream-coupled-research'
+  assert first_cell_research_chain['resolved'] is True
+  assert first_cell_research_chain['cell_count'] == 2
+  assert first_cell_research_chain['continued_cell_count'] == 1
+  assert first_cell_research_chain['research_audit_accepted'] is True
+  assert first_cell_research_chain['first_cell_handoff_verified'] is True
+  assert first_cell_research_chain['continued_chain_audit_verified'] is True
+  assert first_cell_research_chain['handoff_links_verified'] is True
+  assert first_cell_research_chain['chain_promotion_blocked'] is True
+  assert first_cell_research_chain['production_claim_allowed'] is False
+  assert first_cell_research_chain['research_chain_measurement']['status'] == (
+    'converged'
+  )
+  assert first_cell_research_chain['research_chain_measurement']['operator_id'] == (
+    'op.moc.first-cell-geometry-owned-research-chain'
+  )
   assert generated_chain_external_validation['model_chain_measurement']['status'] == (
     'converged'
   )

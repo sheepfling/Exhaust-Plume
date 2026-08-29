@@ -4,16 +4,25 @@ from dataclasses import replace
 
 from exhaust_plume.models.moc import (
   CharacteristicState,
+  MocAmbientBoundarySample,
+  MocAmbientClosedPostShockChainCandidate,
   MocBoundedUpstreamFieldSource,
   MocChainTerminationReason,
   MocFirstCellFreeBoundaryCorrectionStatus,
+  MocFirstCellResearchChainPlannerResult,
+  MocPrescribedAmbientClosedPostShockChainMock,
+  MocTerminalReflectionPatchAmbientClosureChainReference,
+  MocChainContinuationPolicy,
   plan_first_cell_free_boundary_correction,
+  plan_first_cell_geometry_owned_research_chain,
   solve_first_cell_free_boundary_correction,
+  solve_first_cell_geometry_owned_candidate,
   solve_marched_attached_shock_field,
 )
 from exhaust_plume.validation import (
   MocFirstCellFreeBoundaryCorrectionMeasurementStatus,
   MocFirstCellFreeBoundaryCorrectionRefinementMeasurementStatus,
+  MocFirstCellResearchChainMeasurementStatus,
   measure_first_cell_free_boundary_correction,
   measure_first_cell_free_boundary_correction_refinement,
 )
@@ -200,3 +209,120 @@ def test_free_boundary_correction_refinement_is_independently_audited() -> None:
   assert measurement.physical_closure_verified is False
   assert measurement.chain_promotion_blocked
   assert measurement.production_claim_allowed is False
+
+
+def test_geometry_owned_candidate_can_seed_reflected_research_chain_without_promotion() -> None:
+  source, shock_points, ambient_pressure = _correction_inputs()
+  candidate = solve_first_cell_geometry_owned_candidate(
+    source,
+    shock_points,
+    ambient_pressure,
+  )
+
+  planner = plan_first_cell_geometry_owned_research_chain(
+    candidate,
+    start_x_m=0.5,
+    end_x_m=8.0,
+    reference=MocTerminalReflectionPatchAmbientClosureChainReference(
+      total_cell_count=2,
+    ),
+    policy=MocChainContinuationPolicy(
+      max_cells=3,
+      require_state_carry=True,
+    ),
+  )
+
+  assert isinstance(planner, MocFirstCellResearchChainPlannerResult)
+  assert planner.planner_kind.value == 'upstream-coupled-research'
+  assert planner.chain_planner is not None
+  assert planner.chain_planner.chain.resolved
+  assert planner.cell_count == 2
+  assert planner.continued_cell_count == 1
+  assert planner.resolved
+  assert planner.first_cell_handoff_verified
+  assert planner.continued_chain_audit_verified
+  assert planner.research_audit_accepted
+  assert planner.handoff_links_verified is True
+  assert planner.physical_closure_verified
+  assert planner.physical_fields[0] is candidate.field
+  assert len(planner.physical_fields) == planner.cell_count
+  assert planner.research_chain_measurement is not None
+  assert planner.research_chain_measurement.status is (
+    MocFirstCellResearchChainMeasurementStatus.CONVERGED
+  )
+  assert planner.chain_promotion_blocked
+  assert planner.production_claim_allowed is False
+  assert planner.canonical_free_boundary_verified is False
+  assert planner.canonical_euler_verified is False
+  assert planner.external_validation_verified is False
+  assert planner.termination.reason is (
+    MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL
+  )
+  report = planner.as_report()
+  assert report['research_audit_accepted'] is True
+  assert report['physical_field_count'] == 2
+  assert report['diagnostics']['first_cell_field_identity_verified'] is True
+  assert report['diagnostics']['continued_cell_callback_invoked'] is True
+
+
+def test_geometry_owned_candidate_mock_keeps_bounded_source_stop_typed() -> None:
+  source, shock_points, ambient_pressure = _correction_inputs()
+  candidate = solve_first_cell_geometry_owned_candidate(
+    source,
+    shock_points,
+    ambient_pressure,
+  )
+  assert candidate.field is not None
+  state = source.state_at((2.0, 0.5))
+  assert state is not None
+  ambient_sample = MocAmbientBoundarySample(
+    point_m=(2.0, 0.5),
+    state=state,
+    total_pressure_Pa=100000.0,
+  )
+  candidate_mock = MocPrescribedAmbientClosedPostShockChainMock(
+    candidates=(
+      MocAmbientClosedPostShockChainCandidate(
+        shock_points_m=((2.0, 0.5), (2.1, 0.25), (2.2, 0.0)),
+        downstream_flow_angles_rad=(0.0, 0.0, 0.0),
+        ambient_boundary=(
+          ambient_sample,
+          MocAmbientBoundarySample(
+            point_m=(2.1, 0.25),
+            state=state,
+            total_pressure_Pa=100000.0,
+          ),
+          MocAmbientBoundarySample(
+            point_m=(2.2, 0.0),
+            state=state,
+            total_pressure_Pa=100000.0,
+          ),
+        ),
+        ambient_pressure_Pa=ambient_pressure,
+        end_x_m=3.0,
+      ),
+    ),
+  )
+
+  planner = plan_first_cell_geometry_owned_research_chain(
+    candidate,
+    start_x_m=0.5,
+    end_x_m=1.0,
+    mock=candidate_mock,
+    policy=MocChainContinuationPolicy(
+      max_cells=2,
+      require_state_carry=True,
+    ),
+  )
+
+  assert planner.planner_kind.value == 'prescribed-boundary-mock'
+  assert planner.chain_planner is not None
+  assert planner.chain_planner.chain.cell_count == 1
+  assert planner.termination.reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+  assert planner.termination.physical_termination is False
+  assert planner.first_cell_handoff_verified
+  assert planner.resolved is False
+  assert planner.research_audit_accepted is False
+  assert planner.chain_promotion_blocked
+  assert planner.production_claim_allowed is False
+  assert planner.as_report()['diagnostics']['continued_cell_callback_invoked'] is False

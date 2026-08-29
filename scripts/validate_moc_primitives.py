@@ -87,6 +87,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   plan_ambient_pressure_field_chain,
   plan_ambient_closed_post_shock_chain,
   plan_prescribed_ambient_closed_post_shock_chain_mock,
+  plan_first_cell_geometry_owned_research_chain,
   plan_ambient_closed_post_shock_chain_terminal_patch,
   plan_ambient_closed_post_shock_chain_terminal_patch_mock,
   plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closure,
@@ -217,6 +218,7 @@ from exhaust_plume.validation.moc_measurements import (  # noqa: E402
   MocFirstCellCandidateMeasurementStatus,
   MocFirstCellFreeBoundaryCorrectionMeasurementStatus,
   MocFirstCellFreeBoundaryCorrectionRefinementMeasurementStatus,
+  MocFirstCellResearchChainMeasurementStatus,
   MocReflectedDomainRemeshMeasurementStatus,
   MocReflectedDomainOuterSourceMeasurementStatus,
   MocTerminalClosureObservation,
@@ -1462,6 +1464,57 @@ def _ambient_shock_strip_probe(
         for case in geometry_owned_first_cell_candidate_refinement
       )
     )
+  geometry_owned_first_cell_research_chain = None
+  geometry_owned_first_cell_research_chain_error = None
+  geometry_owned_first_cell_research_chain_accepted = False
+  if (
+    geometry_owned_first_cell_candidate_accepted
+    and geometry_owned_first_cell_candidate is not None
+  ):
+    try:
+      geometry_owned_first_cell_research_chain = (
+        plan_first_cell_geometry_owned_research_chain(
+          geometry_owned_first_cell_candidate,
+          start_x_m=shock_fit.boundary_states[0].point_m[0],
+          end_x_m=8.0,
+          reference=MocTerminalReflectionPatchAmbientClosureChainReference(
+            total_cell_count=2,
+          ),
+          policy=MocChainContinuationPolicy(
+            max_cells=3,
+            require_state_carry=True,
+          ),
+        )
+      )
+      geometry_owned_first_cell_research_chain_accepted = bool(
+        geometry_owned_first_cell_research_chain.planner_kind
+        is MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
+        and geometry_owned_first_cell_research_chain.resolved
+        and geometry_owned_first_cell_research_chain.cell_count == 2
+        and geometry_owned_first_cell_research_chain.continued_cell_count == 1
+        and geometry_owned_first_cell_research_chain.first_cell_handoff_verified
+        and geometry_owned_first_cell_research_chain.continued_chain_audit_verified
+        and geometry_owned_first_cell_research_chain.research_audit_accepted
+        and geometry_owned_first_cell_research_chain.handoff_links_verified is True
+        and geometry_owned_first_cell_research_chain.chain_promotion_blocked
+        and geometry_owned_first_cell_research_chain.production_claim_allowed is False
+        and geometry_owned_first_cell_research_chain.canonical_free_boundary_verified
+        is False
+        and geometry_owned_first_cell_research_chain.canonical_euler_verified
+        is False
+        and geometry_owned_first_cell_research_chain.external_validation_verified
+        is False
+        and geometry_owned_first_cell_research_chain.termination.reason
+        is MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL
+        and geometry_owned_first_cell_research_chain.research_chain_measurement
+        is not None
+        and geometry_owned_first_cell_research_chain.research_chain_measurement.status
+        is MocFirstCellResearchChainMeasurementStatus.CONVERGED
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      geometry_owned_first_cell_research_chain_error = (
+        f'{type(error).__name__}: {error}'
+      )
   geometry_owned_first_cell_free_boundary_correction = None
   geometry_owned_first_cell_free_boundary_correction_measurement = None
   geometry_owned_first_cell_free_boundary_correction_planner = None
@@ -2631,6 +2684,17 @@ def _ambient_shock_strip_probe(
     ),
     'geometry_owned_first_cell_candidate_refinement_accepted': (
       geometry_owned_first_cell_candidate_refinement_accepted
+    ),
+    'geometry_owned_first_cell_research_chain': (
+      None
+      if geometry_owned_first_cell_research_chain is None
+      else geometry_owned_first_cell_research_chain.as_report()
+    ),
+    'geometry_owned_first_cell_research_chain_accepted': (
+      geometry_owned_first_cell_research_chain_accepted
+    ),
+    'geometry_owned_first_cell_research_chain_error': (
+      geometry_owned_first_cell_research_chain_error
     ),
     'geometry_owned_first_cell_free_boundary_correction': (
       None
@@ -8451,6 +8515,12 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'geometry_owned_first_cell_candidate_refinement_accepted'
     ) is not True
   )
+  geometry_owned_first_cell_research_chain_failure = (
+    ambient_shock_strip_probe.get('accepted') is True
+    and ambient_shock_strip_probe.get(
+      'geometry_owned_first_cell_research_chain_accepted'
+    ) is not True
+  )
   geometry_owned_first_cell_free_boundary_correction_failure = (
     ambient_shock_strip_probe.get('accepted') is True
     and ambient_shock_strip_probe.get(
@@ -10206,6 +10276,38 @@ def build_moc_primitive_report() -> dict[str, Any]:
         ),
       }
     ] if geometry_owned_first_cell_candidate_refinement_failure else []),
+    *([
+      {
+        'case': 'solver_generated_geometry_owned_first_cell_research_chain',
+        'status': str(
+          ((ambient_shock_strip_probe.get(
+            'geometry_owned_first_cell_research_chain',
+            {},
+          ) or {}).get('research_chain_measurement', {}) or {}).get(
+            'status',
+            'missing',
+          )
+        ),
+        'termination_reason': str(
+          ((ambient_shock_strip_probe.get(
+            'geometry_owned_first_cell_research_chain',
+            {},
+          ) or {}).get('termination', {}) or {}).get(
+            'reason',
+            'missing',
+          )
+        ),
+        'message': str(
+          ambient_shock_strip_probe.get(
+            'geometry_owned_first_cell_research_chain_error',
+            '',
+          ) or ((ambient_shock_strip_probe.get(
+            'geometry_owned_first_cell_research_chain',
+            {},
+          ) or {}).get('diagnostics', {}) or {}).get('message', '')
+        ),
+      }
+    ] if geometry_owned_first_cell_research_chain_failure else []),
     *([
       {
         'case': 'solver_generated_geometry_owned_first_cell_free_boundary_correction',

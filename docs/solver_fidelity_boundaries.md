@@ -1024,3 +1024,29 @@ continued shock-cell chains may validate exact handoffs and topology, but
 cannot promote this local correction. Promotion requires a globally remeshed
 shock, an independently closed post-shock characteristic field, and
 resolution/refinement evidence.
+
+## Geometry-owned first-cell research-chain handoff
+
+`plan_first_cell_geometry_owned_research_chain` is the explicit boundary
+between the local geometry-owned first-cell candidate and a continued
+shock-cell experiment. It requires the independent first-cell measurement
+before invoking a continuation. The default path feeds the exact candidate
+physical field into the solver-generated terminal-reflection-patch remesher;
+an optional `MocPrescribedAmbientClosedPostShockChainMock` exercises the same
+handoff with caller-supplied next-shock and ambient boundaries.
+
+The handoff retains the candidate field and every accepted downstream field.
+`op.moc.first-cell-geometry-owned-research-chain` independently checks the
+candidate, planner step trace, first-field identity, exact centerline state /
+total-pressure handoffs, fresh downstream domains, and local physical closure.
+The current standalone case passes with one continued cell and an explicit
+configured reference stop. A mock candidate that leaves the bounded field
+returns `upstream-field-boundary`; no state or pressure is extrapolated.
+
+This handoff is useful for research visualization and chain-topology work only.
+The candidate seed, reflected-patch continuation, and prescribed mock all
+retain `canonical_free_boundary_verified=false`,
+`canonical_euler_verified=false`, `chain_promotion_blocked=true`, and
+`production_claim_allowed=false`. No product/provider lane is allowed to
+consume the result until the globally coupled reflected free-boundary solve,
+refinement, and indexed external observations are closed.

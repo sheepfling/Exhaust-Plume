@@ -74,6 +74,9 @@ from exhaust_plume.models.moc.physical_cell import (
 from exhaust_plume.models.moc.first_cell_closure import (
   MocFirstCellTerminalClosureResult,
 )
+from exhaust_plume.models.moc.first_cell_candidate import (
+  MocFirstCellCandidateResult,
+)
 from exhaust_plume.models.moc.first_cell_free_boundary import (
   MocFirstCellFreeBoundaryCorrectionResult,
 )
@@ -158,6 +161,7 @@ __all__ = (
   'MocChainPlannerResult',
   'MocFirstCellTerminalClosurePlannerResult',
   'MocFirstCellFreeBoundaryCorrectionPlannerResult',
+  'MocFirstCellResearchChainPlannerResult',
   'MocCausticUpstreamContinuationPlannerResult',
   'MocPrescribedMixedRegimeClosureMock',
   'MocSolverGeneratedMixedRegimeClosureReference',
@@ -186,6 +190,7 @@ __all__ = (
   'plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closure_with_mixed_regime',
   'plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closure_with_planar_handoff',
   'plan_prescribed_ambient_closed_post_shock_chain_mock',
+  'plan_first_cell_geometry_owned_research_chain',
   'plan_terminal_reflection_patch_chain',
   'plan_post_shock_zone_chain',
   'plan_caustic_family_band_chain',
@@ -10572,6 +10577,10 @@ def plan_prescribed_ambient_closed_post_shock_chain_mock(
   end_x_m: float,
   mock: MocPrescribedAmbientClosedPostShockChainMock | None = None,
   policy: MocChainContinuationPolicy | None = None,
+  _field_observer: Callable[
+    [MocPhysicalPostShockFieldContinuationSolve, MocChainCell],
+    None,
+  ] | None = None,
 ) -> MocChainPlannerResult:
   """Run a prescribed multi-cell mock through the physical-field solver.
 
@@ -10590,6 +10599,8 @@ def plan_prescribed_ambient_closed_post_shock_chain_mock(
     raise TypeError(
       'mock must be a MocPrescribedAmbientClosedPostShockChainMock'
     )
+  if _field_observer is not None and not callable(_field_observer):
+    raise TypeError('_field_observer must be callable when supplied')
   current_field = seed
 
   def solve_next(
@@ -10606,6 +10617,8 @@ def plan_prescribed_ambient_closed_post_shock_chain_mock(
     )
     if isinstance(solved, MocPhysicalPostShockFieldContinuationSolve):
       current_field = solved.field
+      if _field_observer is not None:
+        _field_observer(solved, current)
     return solved
 
   planner = plan_ambient_closed_post_shock_chain(
@@ -10632,6 +10645,525 @@ def plan_prescribed_ambient_closed_post_shock_chain_mock(
         'retain-valid-prefix-and-preserve-typed-upstream-boundary-stop'
       ),
     },
+  )
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocFirstCellResearchChainPlannerResult:
+  """Research-only handoff from a local first-cell candidate to a chain.
+
+  The geometry-owned first-cell candidate is a locally closed physical field,
+  but it is not the canonical reflected free-boundary solution.  This wrapper
+  makes the deliberate research handoff explicit: the candidate field may be
+  used to exercise a reflected-patch continuation or a prescribed-boundary
+  planner mock, while the candidate's production and canonical promotion
+  gates remain false.
+
+  ``physical_fields`` retains the exact seed and every accepted continuation
+  returned by the planner.  It is carried so an independent validation
+  operator can remeasure the complete handoff instead of trusting planner
+  flags or serialized cell metadata.
+  """
+
+  candidate: MocFirstCellCandidateResult
+  chain_planner: MocChainPlannerResult | None
+  termination: MocChainTerminationDecision
+  planner_kind: MocChainPlannerKind
+  claim_status: str
+  physical_fields: tuple[MocPhysicalPostShockFieldResult, ...] = ()
+  candidate_measurement: Any | None = None
+  chain_planner_measurement: Any | None = None
+  physical_field_chain_measurement: Any | None = None
+  research_chain_measurement: Any | None = None
+  diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.candidate, MocFirstCellCandidateResult):
+      raise TypeError('candidate must be a MocFirstCellCandidateResult')
+    if self.chain_planner is not None and not isinstance(
+      self.chain_planner,
+      MocChainPlannerResult,
+    ):
+      raise TypeError(
+        'chain_planner must be a MocChainPlannerResult or None'
+      )
+    if not isinstance(self.termination, MocChainTerminationDecision):
+      raise TypeError(
+        'termination must be a MocChainTerminationDecision'
+      )
+    if not isinstance(self.planner_kind, MocChainPlannerKind):
+      raise TypeError('planner_kind must be a MocChainPlannerKind')
+    if self.chain_planner is not None and (
+      self.chain_planner.planner_kind is not self.planner_kind
+    ):
+      raise ValueError(
+        'planner_kind must match the continued-chain planner kind'
+      )
+    fields = tuple(self.physical_fields)
+    if any(
+      not isinstance(field, MocPhysicalPostShockFieldResult)
+      for field in fields
+    ):
+      raise TypeError(
+        'physical_fields must contain MocPhysicalPostShockFieldResult values'
+      )
+    if fields and self.candidate.field is not fields[0]:
+      raise ValueError(
+        'physical_fields must retain the exact candidate field as its first '
+        'entry'
+      )
+    object.__setattr__(self, 'physical_fields', fields)
+    for name in (
+      'candidate_measurement',
+      'chain_planner_measurement',
+      'physical_field_chain_measurement',
+      'research_chain_measurement',
+    ):
+      value = getattr(self, name)
+      if value is not None and not callable(getattr(value, 'as_report', None)):
+        raise TypeError(f'{name} must expose an as_report method when supplied')
+    object.__setattr__(self, 'claim_status', str(self.claim_status))
+    object.__setattr__(
+      self,
+      'diagnostics',
+      MappingProxyType(dict(self.diagnostics)),
+    )
+  ####
+
+  @property
+  def cell_count(self) -> int:
+    """Return the accepted research prefix count, including the seed."""
+
+    return (
+      0
+      if self.chain_planner is None
+      else self.chain_planner.chain.cell_count
+    )
+  ####
+
+  @property
+  def continued_cell_count(self) -> int:
+    """Return the number of accepted cells after the candidate seed."""
+
+    return max(0, self.cell_count - 1)
+  ####
+
+  @property
+  def resolved(self) -> bool:
+    """Whether the research prefix contains an accepted continuation."""
+
+    return bool(
+      self.continued_cell_count > 0
+      and self.chain_planner is not None
+      and self.chain_planner.chain.resolved
+    )
+  ####
+
+  @property
+  def first_cell_handoff_verified(self) -> bool:
+    """Whether the candidate field passed the independent first-cell audit."""
+
+    return bool(
+      self.candidate.field is not None
+      and self.physical_fields
+      and self.physical_fields[0] is self.candidate.field
+      and self.candidate.local_physical_closure_verified
+      and self.candidate_measurement is not None
+      and getattr(self.candidate_measurement, 'converged', False)
+    )
+  ####
+
+  @property
+  def handoff_links_verified(self) -> bool | None:
+    """Return the independent planner/field-chain handoff result."""
+
+    planner_links = None
+    if self.chain_planner_measurement is not None:
+      planner_links = getattr(
+        self.chain_planner_measurement,
+        'handoff_links_verified',
+        None,
+      )
+    field_links = None
+    if self.physical_field_chain_measurement is not None:
+      field_links = getattr(
+        self.physical_field_chain_measurement,
+        'handoff_links_verified',
+        None,
+      )
+    if planner_links is False or field_links is False:
+      return False
+    if planner_links is True and field_links is True:
+      return True
+    if self.chain_planner is not None:
+      return self.chain_planner.handoff_links_verified
+    return None
+  ####
+
+  @property
+  def continued_chain_audit_verified(self) -> bool:
+    """Whether both independent continued-chain measurements passed."""
+
+    return bool(
+      self.chain_planner is not None
+      and self.chain_planner_measurement is not None
+      and getattr(self.chain_planner_measurement, 'converged', False)
+      and self.physical_field_chain_measurement is not None
+      and getattr(self.physical_field_chain_measurement, 'converged', False)
+      and self.handoff_links_verified is True
+    )
+  ####
+
+  @property
+  def research_audit_accepted(self) -> bool:
+    """Whether the candidate-to-chain research evidence passed its audits."""
+
+    return bool(
+      self.resolved
+      and self.first_cell_handoff_verified
+      and self.continued_chain_audit_verified
+      and self.research_chain_measurement is not None
+      and getattr(self.research_chain_measurement, 'converged', False)
+    )
+  ####
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    """Expose local physical closure without changing the fidelity ceiling."""
+
+    return bool(
+      self.physical_field_chain_measurement is not None
+      and getattr(
+        self.physical_field_chain_measurement,
+        'physical_closure_verified',
+        False,
+      )
+    )
+  ####
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    """Keep this research handoff out of product promotion."""
+
+    return True
+  ####
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    """A local candidate and its continuation are never production evidence."""
+
+    return False
+  ####
+
+  @property
+  def canonical_free_boundary_verified(self) -> bool:
+    return False
+  ####
+
+  @property
+  def canonical_euler_verified(self) -> bool:
+    return False
+  ####
+
+  @property
+  def external_validation_verified(self) -> bool:
+    return False
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    def report(value: Any | None) -> dict[str, Any] | None:
+      return None if value is None else value.as_report()
+
+    return {
+      'planner_kind': self.planner_kind.value,
+      'planning_only': True,
+      'production_claim_allowed': self.production_claim_allowed,
+      'claim_status': self.claim_status,
+      'resolved': self.resolved,
+      'research_audit_accepted': self.research_audit_accepted,
+      'cell_count': self.cell_count,
+      'continued_cell_count': self.continued_cell_count,
+      'first_cell_handoff_verified': self.first_cell_handoff_verified,
+      'continued_chain_audit_verified': self.continued_chain_audit_verified,
+      'handoff_links_verified': self.handoff_links_verified,
+      'physical_closure_verified': self.physical_closure_verified,
+      'canonical_free_boundary_verified': self.canonical_free_boundary_verified,
+      'canonical_euler_verified': self.canonical_euler_verified,
+      'external_validation_verified': self.external_validation_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'termination': self.termination.as_report(),
+      'candidate': self.candidate.as_report(),
+      'candidate_measurement': report(self.candidate_measurement),
+      'chain_planner_measurement': report(self.chain_planner_measurement),
+      'physical_field_chain_measurement': report(
+        self.physical_field_chain_measurement
+      ),
+      'research_chain_measurement': report(self.research_chain_measurement),
+      'physical_field_count': len(self.physical_fields),
+      'chain_planner': (
+        None if self.chain_planner is None else self.chain_planner.as_report()
+      ),
+      'diagnostics': dict(self.diagnostics),
+    }
+  ####
+
+
+def _chain_planner_termination(
+  planner: MocChainPlannerResult,
+) -> MocChainTerminationDecision:
+  """Convert a completed planner trace into its typed final decision."""
+
+  return MocChainTerminationDecision(
+    physical_termination=planner.chain.physical_termination,
+    reason=planner.chain.termination_reason,
+    message=planner.chain.message,
+    diagnostics=dict(planner.chain.diagnostics),
+  )
+
+
+def _research_chain_solver_failure(
+  error: Exception,
+) -> MocChainTerminationDecision:
+  """Return a typed non-physical stop for a failed research handoff."""
+
+  reason = (
+    MocChainTerminationReason.INVALID_INPUT
+    if isinstance(error, (TypeError, ValueError))
+    else MocChainTerminationReason.SOLVER_ERROR
+  )
+  return MocChainTerminationDecision(
+    physical_termination=False,
+    reason=reason,
+    message=f'first-cell research-chain planner failed before continuation: {error}',
+    diagnostics={
+      'continued_cell_callback_invoked': False,
+      'solver_error': type(error).__name__,
+    },
+  )
+
+
+def plan_first_cell_geometry_owned_research_chain(
+  candidate: MocFirstCellCandidateResult,
+  *,
+  start_x_m: float,
+  end_x_m: float,
+  reference: MocTerminalReflectionPatchAmbientClosureChainReference | None = None,
+  mock: MocPrescribedAmbientClosedPostShockChainMock | None = None,
+  policy: MocChainContinuationPolicy | None = None,
+) -> MocFirstCellResearchChainPlannerResult:
+  """Exercise a continued chain from a locally closed first-cell candidate.
+
+  The default path uses the solver-generated reflected terminal-patch
+  remesher.  Supplying ``mock`` selects the prescribed next-shock planner
+  instead.  These are intentionally research adapters: the first-cell
+  candidate must pass its independent local audit, but its canonical,
+  Euler/free-boundary, external-validation, and product gates remain closed.
+  """
+
+  if not isinstance(candidate, MocFirstCellCandidateResult):
+    raise TypeError('candidate must be a MocFirstCellCandidateResult')
+  if reference is not None and not isinstance(
+    reference,
+    MocTerminalReflectionPatchAmbientClosureChainReference,
+  ):
+    raise TypeError(
+      'reference must be a '
+      'MocTerminalReflectionPatchAmbientClosureChainReference or None'
+    )
+  if mock is not None and not isinstance(
+    mock,
+    MocPrescribedAmbientClosedPostShockChainMock,
+  ):
+    raise TypeError(
+      'mock must be a MocPrescribedAmbientClosedPostShockChainMock or None'
+    )
+  if reference is not None and mock is not None:
+    raise ValueError('reference and mock are mutually exclusive')
+
+  planner_kind = (
+    MocChainPlannerKind.PRESCRIBED_BOUNDARY_MOCK
+    if mock is not None
+    else MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
+  )
+  continuation_model = (
+    'prescribed-ambient-closed-post-shock-chain-mock'
+    if mock is not None
+    else 'terminal-reflection-patch-ambient-closure-chain-reference'
+  )
+  claim_status = (
+    'geometry-owned-first-cell-to-prescribed-chain-mock; '
+    'canonical-reflected-free-boundary-and-external-validation-pending'
+    if mock is not None
+    else
+    'geometry-owned-first-cell-to-reflected-patch-research-chain; '
+    'canonical-reflected-free-boundary-and-external-validation-pending'
+  )
+
+  candidate_measurement = None
+  measurement_error: str | None = None
+  try:
+    # Keep validation imports local because validation imports this planner
+    # module for its planner-result measurements.
+    from exhaust_plume.validation.moc_measurements import (
+      measure_first_cell_geometry_owned_candidate,
+    )
+
+    candidate_measurement = measure_first_cell_geometry_owned_candidate(candidate)
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    measurement_error = str(error)
+
+  candidate_ready = bool(
+    candidate.local_physical_closure_verified
+    and candidate.field is not None
+    and candidate_measurement is not None
+    and candidate_measurement.converged
+    and candidate_measurement.physical_closure_verified
+    and candidate_measurement.chain_promotion_blocked
+    and candidate_measurement.production_claim_allowed is False
+  )
+  fields: list[MocPhysicalPostShockFieldResult] = []
+  if candidate.field is not None:
+    fields.append(candidate.field)
+  diagnostics: dict[str, Any] = {
+    'planner_model': 'first-cell-geometry-owned-research-chain',
+    'continuation_model': continuation_model,
+    'first_cell_source': 'geometry-owned-candidate-local-physical-field',
+    'candidate_local_physical_closure_verified': (
+      candidate.local_physical_closure_verified
+    ),
+    'candidate_independent_measurement_verified': (
+      False if candidate_measurement is None else candidate_measurement.converged
+    ),
+    'candidate_measurement_error': measurement_error,
+    'continued_cell_callback_invoked': False,
+    'canonical_free_boundary_verified': False,
+    'canonical_euler_verified': False,
+    'external_validation_verified': False,
+    'chain_promotion_blocked': True,
+    'production_claim_allowed': False,
+    'fidelity_boundary': (
+      'research-only local first-cell handoff; no basic/reduced-provider '
+      'promotion'
+    ),
+  }
+
+  if not candidate_ready:
+    diagnostics.update({
+      'handoff_blocked_before_continuation': True,
+      'handoff_block_reason': (
+        'candidate local field or independent first-cell measurement did not '
+        'pass'
+      ),
+    })
+    return MocFirstCellResearchChainPlannerResult(
+      candidate=candidate,
+      chain_planner=None,
+      termination=candidate.as_chain_termination_decision(),
+      planner_kind=planner_kind,
+      claim_status=claim_status,
+      physical_fields=tuple(fields),
+      candidate_measurement=candidate_measurement,
+      diagnostics=diagnostics,
+    )
+
+  assert candidate.field is not None
+
+  def observe(
+    solved: MocPhysicalPostShockFieldContinuationSolve,
+    _current: MocChainCell,
+  ) -> None:
+    fields.append(solved.field)
+    diagnostics['continued_cell_callback_invoked'] = True
+
+  try:
+    if mock is not None:
+      planner = plan_prescribed_ambient_closed_post_shock_chain_mock(
+        candidate.field,
+        start_x_m=start_x_m,
+        end_x_m=end_x_m,
+        mock=mock,
+        policy=policy,
+        _field_observer=observe,
+      )
+    else:
+      planner = plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closure(
+        candidate.field,
+        start_x_m=start_x_m,
+        end_x_m=end_x_m,
+        reference=reference,
+        policy=policy,
+        _field_observer=observe,
+      )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    termination = _research_chain_solver_failure(error)
+    diagnostics.update({
+      'handoff_blocked_before_continuation': False,
+      'continuation_solver_failure': str(error),
+      'continued_field_count': len(fields),
+    })
+    return MocFirstCellResearchChainPlannerResult(
+      candidate=candidate,
+      chain_planner=None,
+      termination=termination,
+      planner_kind=planner_kind,
+      claim_status=claim_status,
+      physical_fields=tuple(fields),
+      candidate_measurement=candidate_measurement,
+      diagnostics=diagnostics,
+    )
+
+  termination = _chain_planner_termination(planner)
+  diagnostics.update({
+    'handoff_blocked_before_continuation': False,
+    'continued_field_count': len(fields),
+    'continued_cell_count': planner.chain.cell_count - 1,
+    'chain_termination_reason': planner.chain.termination_reason.value,
+    'chain_physical_termination': planner.chain.physical_termination,
+    'first_cell_field_identity_verified': bool(
+      fields and fields[0] is candidate.field
+    ),
+  })
+
+  chain_planner_measurement = None
+  physical_field_chain_measurement = None
+  research_chain_measurement = None
+  try:
+    from exhaust_plume.validation.moc_measurements import (
+      measure_first_cell_geometry_owned_research_chain,
+    )
+
+    research_chain_measurement = measure_first_cell_geometry_owned_research_chain(
+      candidate,
+      planner,
+      tuple(fields),
+    )
+    chain_planner_measurement = (
+      research_chain_measurement.chain_planner_measurement
+    )
+    physical_field_chain_measurement = (
+      research_chain_measurement.physical_field_chain_measurement
+    )
+    candidate_measurement = research_chain_measurement.candidate_measurement
+    diagnostics.update({
+      'research_chain_measurement_status': research_chain_measurement.status.value,
+      'research_chain_measurement_converged': research_chain_measurement.converged,
+    })
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    diagnostics['research_chain_measurement_error'] = str(error)
+
+  return MocFirstCellResearchChainPlannerResult(
+    candidate=candidate,
+    chain_planner=planner,
+    termination=termination,
+    planner_kind=planner_kind,
+    claim_status=claim_status,
+    physical_fields=tuple(fields),
+    candidate_measurement=candidate_measurement,
+    chain_planner_measurement=chain_planner_measurement,
+    physical_field_chain_measurement=physical_field_chain_measurement,
+    research_chain_measurement=research_chain_measurement,
+    diagnostics=diagnostics,
   )
 ####
 

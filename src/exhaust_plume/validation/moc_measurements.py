@@ -151,6 +151,7 @@ __all__ = (
   'MOC_FIRST_CELL_CANDIDATE_OPERATOR_ID',
   'MOC_FIRST_CELL_FREE_BOUNDARY_CORRECTION_OPERATOR_ID',
   'MOC_FIRST_CELL_FREE_BOUNDARY_CORRECTION_REFINEMENT_OPERATOR_ID',
+  'MOC_FIRST_CELL_RESEARCH_CHAIN_OPERATOR_ID',
   'MocCausticRemeshMeasurement',
   'MocCausticRemeshMeasurementStatus',
   'MocCausticRemeshObservation',
@@ -207,6 +208,8 @@ __all__ = (
   'MocFirstCellFreeBoundaryCorrectionMeasurementStatus',
   'MocFirstCellFreeBoundaryCorrectionRefinementMeasurement',
   'MocFirstCellFreeBoundaryCorrectionRefinementMeasurementStatus',
+  'MocFirstCellResearchChainMeasurement',
+  'MocFirstCellResearchChainMeasurementStatus',
   'measure_moc_caustic_remesh',
   'measure_moc_chain_planner',
   'measure_moc_reflected_domain_remesh',
@@ -231,6 +234,7 @@ __all__ = (
   'measure_first_cell_geometry_owned_candidate',
   'measure_first_cell_free_boundary_correction',
   'measure_first_cell_free_boundary_correction_refinement',
+  'measure_first_cell_geometry_owned_research_chain',
 )
 
 
@@ -251,6 +255,9 @@ MOC_FIRST_CELL_FREE_BOUNDARY_CORRECTION_OPERATOR_ID = (
 )
 MOC_FIRST_CELL_FREE_BOUNDARY_CORRECTION_REFINEMENT_OPERATOR_ID = (
   'op.moc.first-cell-free-boundary-correction-refinement'
+)
+MOC_FIRST_CELL_RESEARCH_CHAIN_OPERATOR_ID = (
+  'op.moc.first-cell-geometry-owned-research-chain'
 )
 MOC_CAUSTIC_REMESH_OPERATOR_ID = 'op.moc.caustic-remesh'
 MOC_CHAIN_PLANNER_OPERATOR_ID = 'op.moc.chain-planner'
@@ -2363,6 +2370,427 @@ def measure_first_cell_free_boundary_correction_refinement(
     production_claim_allowed=False,
     fidelity_isolation_verified=fidelity_isolation_verified,
     physical_closure_verified=physical_closure_verified,
+    message=message,
+  )
+####
+
+
+class MocFirstCellResearchChainMeasurementStatus(str, Enum):
+  """Outcome of independently auditing a first-cell-to-chain handoff."""
+
+  CONVERGED = 'converged'
+  INVALID_INPUT = 'invalid_input'
+  CANDIDATE_FAILURE = 'candidate_measurement_failure'
+  CHAIN_FAILURE = 'continued_chain_measurement_failure'
+  FIELD_CHAIN_FAILURE = 'physical_field_chain_measurement_failure'
+  CONSISTENCY_FAILURE = 'handoff_consistency_failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocFirstCellResearchChainMeasurement:
+  """Independent evidence for a local first-cell research continuation.
+
+  The operator receives the candidate, planner trace, and retained physical
+  fields separately.  It remeasures each component and checks that the exact
+  candidate field is the first field in the chain, that at least one fresh
+  continuation was accepted, and that the planner and physical-field audits
+  agree on every handoff.  A passing result is still research evidence only.
+  """
+
+  status: MocFirstCellResearchChainMeasurementStatus
+  operator_id: str = MOC_FIRST_CELL_RESEARCH_CHAIN_OPERATOR_ID
+  planner_kind: str | None = None
+  candidate_status: str | None = None
+  field_count: int = 0
+  continued_cell_count: int = 0
+  candidate_measurement: MocFirstCellCandidateMeasurement | None = None
+  chain_planner_measurement: 'MocChainPlannerMeasurement | None' = None
+  physical_field_chain_measurement: MocPhysicalFieldChainMeasurement | None = None
+  first_cell_field_identity_verified: bool = False
+  candidate_handoff_verified: bool = False
+  continued_cell_count_verified: bool = False
+  handoff_links_verified: bool | None = None
+  research_chain_resolved: bool = False
+  physical_closure_verified: bool = False
+  canonical_free_boundary_verified: bool = False
+  canonical_euler_verified: bool = False
+  external_validation_verified: bool = False
+  chain_promotion_blocked: bool = True
+  production_claim_allowed: bool = False
+  fidelity_isolation_verified: bool = False
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocFirstCellResearchChainMeasurementStatus,
+    ):
+      raise TypeError(
+        'status must be a MocFirstCellResearchChainMeasurementStatus'
+      )
+    for name in ('field_count', 'continued_cell_count'):
+      value = getattr(self, name)
+      if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f'{name} must be a nonnegative integer')
+    if self.candidate_measurement is not None and not isinstance(
+      self.candidate_measurement,
+      MocFirstCellCandidateMeasurement,
+    ):
+      raise TypeError(
+        'candidate_measurement must be a MocFirstCellCandidateMeasurement or None'
+      )
+    if self.chain_planner_measurement is not None and not isinstance(
+      self.chain_planner_measurement,
+      MocChainPlannerMeasurement,
+    ):
+      raise TypeError(
+        'chain_planner_measurement must be a MocChainPlannerMeasurement or None'
+      )
+    if self.physical_field_chain_measurement is not None and not isinstance(
+      self.physical_field_chain_measurement,
+      MocPhysicalFieldChainMeasurement,
+    ):
+      raise TypeError(
+        'physical_field_chain_measurement must be a '
+        'MocPhysicalFieldChainMeasurement or None'
+      )
+    for name in (
+      'first_cell_field_identity_verified',
+      'candidate_handoff_verified',
+      'continued_cell_count_verified',
+      'research_chain_resolved',
+      'physical_closure_verified',
+      'canonical_free_boundary_verified',
+      'canonical_euler_verified',
+      'external_validation_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+      'fidelity_isolation_verified',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+    if self.handoff_links_verified is not None and not isinstance(
+      self.handoff_links_verified,
+      bool,
+    ):
+      raise TypeError('handoff_links_verified must be a bool or None')
+    object.__setattr__(self, 'planner_kind', (
+      None if self.planner_kind is None else str(self.planner_kind)
+    ))
+    object.__setattr__(self, 'candidate_status', (
+      None if self.candidate_status is None else str(self.candidate_status)
+    ))
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocFirstCellResearchChainMeasurementStatus.CONVERGED
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'operator_id': self.operator_id,
+      'converged': self.converged,
+      'planner_kind': self.planner_kind,
+      'candidate_status': self.candidate_status,
+      'counts': {
+        'physical_fields': self.field_count,
+        'continued_cells': self.continued_cell_count,
+      },
+      'checks': {
+        'first_cell_field_identity_verified': (
+          self.first_cell_field_identity_verified
+        ),
+        'candidate_handoff_verified': self.candidate_handoff_verified,
+        'continued_cell_count_verified': self.continued_cell_count_verified,
+        'handoff_links_verified': self.handoff_links_verified,
+        'research_chain_resolved': self.research_chain_resolved,
+        'physical_closure_verified': self.physical_closure_verified,
+        'fidelity_isolation_verified': self.fidelity_isolation_verified,
+      },
+      'candidate_measurement': (
+        None
+        if self.candidate_measurement is None
+        else self.candidate_measurement.as_report()
+      ),
+      'chain_planner_measurement': (
+        None
+        if self.chain_planner_measurement is None
+        else self.chain_planner_measurement.as_report()
+      ),
+      'physical_field_chain_measurement': (
+        None
+        if self.physical_field_chain_measurement is None
+        else self.physical_field_chain_measurement.as_report()
+      ),
+      'canonical_free_boundary_verified': self.canonical_free_boundary_verified,
+      'canonical_euler_verified': self.canonical_euler_verified,
+      'external_validation_verified': self.external_validation_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'message': self.message,
+    }
+  ####
+
+
+def _first_cell_research_chain_measurement_failure(
+  status: MocFirstCellResearchChainMeasurementStatus,
+  *,
+  planner_kind: str | None = None,
+  candidate_status: str | None = None,
+  field_count: int = 0,
+  continued_cell_count: int = 0,
+  candidate_measurement: MocFirstCellCandidateMeasurement | None = None,
+  chain_planner_measurement: 'MocChainPlannerMeasurement | None' = None,
+  physical_field_chain_measurement: MocPhysicalFieldChainMeasurement | None = None,
+  first_cell_field_identity_verified: bool = False,
+  candidate_handoff_verified: bool = False,
+  continued_cell_count_verified: bool = False,
+  handoff_links_verified: bool | None = None,
+  research_chain_resolved: bool = False,
+  physical_closure_verified: bool = False,
+  fidelity_isolation_verified: bool = False,
+  message: str,
+) -> MocFirstCellResearchChainMeasurement:
+  return MocFirstCellResearchChainMeasurement(
+    status=status,
+    planner_kind=planner_kind,
+    candidate_status=candidate_status,
+    field_count=field_count,
+    continued_cell_count=continued_cell_count,
+    candidate_measurement=candidate_measurement,
+    chain_planner_measurement=chain_planner_measurement,
+    physical_field_chain_measurement=physical_field_chain_measurement,
+    first_cell_field_identity_verified=first_cell_field_identity_verified,
+    candidate_handoff_verified=candidate_handoff_verified,
+    continued_cell_count_verified=continued_cell_count_verified,
+    handoff_links_verified=handoff_links_verified,
+    research_chain_resolved=research_chain_resolved,
+    physical_closure_verified=physical_closure_verified,
+    canonical_free_boundary_verified=False,
+    canonical_euler_verified=False,
+    external_validation_verified=False,
+    chain_promotion_blocked=True,
+    production_claim_allowed=False,
+    fidelity_isolation_verified=fidelity_isolation_verified,
+    message=message,
+  )
+####
+
+
+def measure_first_cell_geometry_owned_research_chain(
+  candidate: MocFirstCellCandidateResult,
+  planner: MocChainPlannerResult | None,
+  physical_fields: Sequence[MocPhysicalPostShockFieldResult],
+  *,
+  shock_residual_tolerance_rad: float = 1.0e-8,
+  pressure_residual_tolerance: float = 1.0e-8,
+  position_tolerance_m: float = 1.0e-8,
+  state_tolerance: float = 1.0e-9,
+  invariant_tolerance: float = 1.0e-8,
+) -> MocFirstCellResearchChainMeasurement:
+  """Independently audit a candidate field and its continued-chain prefix.
+
+  The operator never calls a planner or solver.  It remeasures the candidate,
+  planner trace, and every retained physical field, then verifies that the
+  candidate object itself is the exact first field and that at least one
+  downstream cell was accepted with matching handoff links.
+  """
+
+  if not isinstance(candidate, MocFirstCellCandidateResult):
+    return _first_cell_research_chain_measurement_failure(
+      MocFirstCellResearchChainMeasurementStatus.INVALID_INPUT,
+      message='candidate must be a MocFirstCellCandidateResult',
+    )
+  if planner is not None and not isinstance(planner, MocChainPlannerResult):
+    return _first_cell_research_chain_measurement_failure(
+      MocFirstCellResearchChainMeasurementStatus.INVALID_INPUT,
+      candidate_status=candidate.status.value,
+      message='planner must be a MocChainPlannerResult or None',
+    )
+  try:
+    fields = tuple(physical_fields)
+  except TypeError:
+    return _first_cell_research_chain_measurement_failure(
+      MocFirstCellResearchChainMeasurementStatus.INVALID_INPUT,
+      planner_kind=(None if planner is None else planner.planner_kind.value),
+      candidate_status=candidate.status.value,
+      message='physical_fields must be an iterable of physical field results',
+    )
+  if any(not isinstance(field, MocPhysicalPostShockFieldResult) for field in fields):
+    return _first_cell_research_chain_measurement_failure(
+      MocFirstCellResearchChainMeasurementStatus.INVALID_INPUT,
+      planner_kind=(None if planner is None else planner.planner_kind.value),
+      candidate_status=candidate.status.value,
+      field_count=len(fields),
+      message='physical_fields must contain only physical post-shock fields',
+    )
+  for name, value in (
+    ('shock_residual_tolerance_rad', shock_residual_tolerance_rad),
+    ('pressure_residual_tolerance', pressure_residual_tolerance),
+    ('position_tolerance_m', position_tolerance_m),
+    ('state_tolerance', state_tolerance),
+    ('invariant_tolerance', invariant_tolerance),
+  ):
+    if not isfinite(float(value)) or float(value) <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+
+  candidate_measurement = measure_first_cell_geometry_owned_candidate(
+    candidate,
+    shock_residual_tolerance_rad=shock_residual_tolerance_rad,
+    pressure_residual_tolerance=pressure_residual_tolerance,
+    position_tolerance_m=position_tolerance_m,
+  )
+  chain_planner_measurement = None
+  if planner is not None:
+    chain_planner_measurement = measure_moc_chain_planner(
+      planner,
+      position_tolerance_m=position_tolerance_m,
+    )
+  physical_field_chain_measurement = None
+  if fields:
+    physical_field_chain_measurement = measure_moc_ambient_closed_physical_field_chain(
+      fields,
+      position_tolerance_m=position_tolerance_m,
+      state_tolerance=state_tolerance,
+      invariant_tolerance=invariant_tolerance,
+      pressure_tolerance=pressure_residual_tolerance,
+      tangent_tolerance=pressure_residual_tolerance,
+    )
+
+  planner_kind = None if planner is None else planner.planner_kind.value
+  candidate_status = candidate.status.value
+  continued_cell_count = (
+    0 if planner is None else max(0, planner.chain.cell_count - 1)
+  )
+  first_cell_field_identity_verified = bool(
+    candidate.field is not None
+    and fields
+    and fields[0] is candidate.field
+  )
+  candidate_handoff_verified = bool(
+    first_cell_field_identity_verified
+    and candidate.local_physical_closure_verified
+    and candidate_measurement.converged
+    and candidate_measurement.physical_closure_verified
+  )
+  continued_cell_count_verified = bool(
+    planner is not None
+    and continued_cell_count >= 1
+    and planner.chain.cell_count == len(fields)
+  )
+  planner_verified = bool(
+    chain_planner_measurement is not None
+    and chain_planner_measurement.converged
+    and chain_planner_measurement.termination_verified
+    and chain_planner_measurement.fidelity_isolation_verified
+    and chain_planner_measurement.production_claim_allowed is False
+  )
+  field_chain_verified = bool(
+    physical_field_chain_measurement is not None
+    and physical_field_chain_measurement.converged
+    and physical_field_chain_measurement.handoff_links_verified is True
+    and physical_field_chain_measurement.fresh_domain_verified
+    and physical_field_chain_measurement.chain_promotion_blocked
+    and physical_field_chain_measurement.production_claim_allowed is False
+  )
+  handoff_values = tuple(
+    value
+    for value in (
+      None
+      if chain_planner_measurement is None
+      else chain_planner_measurement.handoff_links_verified,
+      None
+      if physical_field_chain_measurement is None
+      else physical_field_chain_measurement.handoff_links_verified,
+    )
+    if value is not None
+  )
+  handoff_links_verified = (
+    False if any(value is False for value in handoff_values)
+    else True if len(handoff_values) == 2 and all(value is True for value in handoff_values)
+    else None
+  )
+  research_chain_resolved = bool(
+    planner is not None
+    and continued_cell_count >= 1
+    and planner.chain.resolved
+  )
+  physical_closure_verified = bool(
+    physical_field_chain_measurement is not None
+    and physical_field_chain_measurement.physical_closure_verified
+  )
+  fidelity_isolation_verified = bool(
+    candidate_measurement.canonical_free_boundary_verified is False
+    and candidate_measurement.canonical_euler_verified is False
+    and candidate_measurement.external_validation_verified is False
+    and candidate_measurement.chain_promotion_blocked
+    and candidate_measurement.production_claim_allowed is False
+    and (planner is None or planner.production_claim_allowed is False)
+    and (
+      physical_field_chain_measurement is None
+      or (
+        physical_field_chain_measurement.chain_promotion_blocked
+        and physical_field_chain_measurement.production_claim_allowed is False
+      )
+    )
+  )
+  all_checks = bool(
+    candidate_handoff_verified
+    and continued_cell_count_verified
+    and planner_verified
+    and field_chain_verified
+    and handoff_links_verified is True
+    and research_chain_resolved
+    and fidelity_isolation_verified
+  )
+  if not candidate_measurement.converged:
+    status = MocFirstCellResearchChainMeasurementStatus.CANDIDATE_FAILURE
+    message = (
+      'independent first-cell candidate measurement failed before the '
+      f'continued-chain audit: {candidate_measurement.message}'
+    )
+  elif planner is None or not planner_verified or not continued_cell_count_verified:
+    status = MocFirstCellResearchChainMeasurementStatus.CHAIN_FAILURE
+    message = (
+      'continued-chain planner evidence is missing, unresolved, or contains '
+      'no accepted cell after the first-cell candidate'
+    )
+  elif not field_chain_verified:
+    status = MocFirstCellResearchChainMeasurementStatus.FIELD_CHAIN_FAILURE
+    message = (
+      'independent physical-field chain measurement failed exact handoff, '
+      'fresh-domain, or local closure checks'
+    )
+  elif not all_checks:
+    status = MocFirstCellResearchChainMeasurementStatus.CONSISTENCY_FAILURE
+    message = 'first-cell-to-chain handoff metadata is internally inconsistent'
+  else:
+    status = MocFirstCellResearchChainMeasurementStatus.CONVERGED
+    message = (
+      'independent candidate, planner, physical-field, exact-handoff, and '
+      'fresh-domain audits passed; canonical free-boundary and product gates '
+      'remain closed'
+    )
+  return _first_cell_research_chain_measurement_failure(
+    status,
+    planner_kind=planner_kind,
+    candidate_status=candidate_status,
+    field_count=len(fields),
+    continued_cell_count=continued_cell_count,
+    candidate_measurement=candidate_measurement,
+    chain_planner_measurement=chain_planner_measurement,
+    physical_field_chain_measurement=physical_field_chain_measurement,
+    first_cell_field_identity_verified=first_cell_field_identity_verified,
+    candidate_handoff_verified=candidate_handoff_verified,
+    continued_cell_count_verified=continued_cell_count_verified,
+    handoff_links_verified=handoff_links_verified,
+    research_chain_resolved=research_chain_resolved,
+    physical_closure_verified=physical_closure_verified,
+    fidelity_isolation_verified=fidelity_isolation_verified,
     message=message,
   )
 ####

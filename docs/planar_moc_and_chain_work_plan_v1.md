@@ -2341,3 +2341,31 @@ neither may consume this research correction as a production first cell. The
 next physics gate is a globally remeshed reflected shock whose residual can
 straddle zero, followed by an independently closed post-shock field and
 sample-count refinement.
+
+## First-cell research handoff into a continued chain
+
+The geometry-owned first-cell candidate now has an explicit research-chain
+planner, `plan_first_cell_geometry_owned_research_chain`. It first reruns the
+independent local candidate measurement, then uses the exact retained physical
+field as the seed for either the solver-generated terminal-reflection-patch
+continuation or the existing prescribed ambient-closed planner mock. Accepted
+continued fields are observed and retained beside the candidate rather than
+reconstructed from chain geometry.
+
+The standalone primitive report currently exercises the reflected-patch path
+with a two-cell prefix: the geometry-owned candidate is cell 1, one fresh
+reflected/remeshed physical field is cell 2, and the configured reference stop
+is recorded as `solver-returned-no-next-cell`. The independent
+`op.moc.first-cell-geometry-owned-research-chain` operator remeasures the
+candidate, planner trace, exact centerline handoff, cell count, and fresh
+downstream physical-field domain. Its passing result is a research-chain
+audit, not canonical free-boundary evidence.
+
+The optional prescribed mock remains a separate mode. It may consume the
+same local candidate field only as a bounded handoff fixture; if its explicit
+next shock leaves that finite field, the planner returns the typed
+`upstream-field-boundary` stop and does not extrapolate. Both modes preserve
+`canonical_free_boundary_verified=false`, `canonical_euler_verified=false`,
+`chain_promotion_blocked=true`, and `production_claim_allowed=false`. No fast
+visualization, signature, ray, or focal-plane-array provider consumes this
+research-chain result.
