@@ -284,6 +284,19 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert euler_companion_chain_audit['physical_closure_verified'] is False
   assert euler_companion_chain_audit['chain_promotion_blocked'] is True
   assert euler_companion_chain_audit['production_claim_allowed'] is False
+  euler_companion_chain_refinement = euler_companion_chain_mock['refinement']
+  assert euler_companion_chain_refinement['status'] == 'converged'
+  assert euler_companion_chain_refinement['resolutions'] == [9, 17, 33]
+  assert euler_companion_chain_refinement['field_count'] == 3
+  assert euler_companion_chain_refinement['continued_field_count'] == 2
+  assert euler_companion_chain_refinement['checks']['topology_verified'] is True
+  assert euler_companion_chain_refinement['checks']['geometry_shape_verified'] is True
+  assert euler_companion_chain_refinement['checks']['handoff_links_verified'] is True
+  assert euler_companion_chain_refinement['checks']['termination_sensitivity_verified'] is True
+  assert euler_companion_chain_refinement['checks']['refinement_convergence_verified'] is True
+  assert euler_companion_chain_refinement['physical_closure_verified'] is False
+  assert euler_companion_chain_refinement['chain_promotion_blocked'] is True
+  assert euler_companion_chain_refinement['production_claim_allowed'] is False
   assert first_cell_research_chain['planner_kind'] == 'upstream-coupled-research'
   assert first_cell_research_chain['resolved'] is True
   assert first_cell_research_chain['cell_count'] == 3

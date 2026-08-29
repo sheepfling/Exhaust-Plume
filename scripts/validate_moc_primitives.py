@@ -284,9 +284,12 @@ from exhaust_plume.validation.moc_euler import (  # noqa: E402
   MocEulerAmbientCompanionBoundaryAuditStatus,
   MocEulerCompanionFieldAuditStatus,
   MocEulerCompanionFieldChainAuditStatus,
+  MocEulerCompanionFieldChainRefinementCase,
+  MocEulerCompanionFieldChainRefinementMeasurementStatus,
   measure_moc_ambient_companion_boundary,
   measure_moc_euler_companion_field,
   measure_moc_euler_companion_field_chain,
+  measure_moc_euler_companion_field_chain_refinement,
 )
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput  # noqa: E402
 from exhaust_plume.models.nozzle.exit_state import derive_ambient_state, derive_uniform_nozzle_exit  # noqa: E402
@@ -368,6 +371,61 @@ def _refinement_diagnostic(
     'interpretation': 'open-lattice-only; physical first-cell closure remains pending',
     'metrics': metrics,
   }
+
+
+def _euler_companion_field_fixture(sample_count: int) -> Any:
+  """Build one bounded Euler companion strip at a declared resolution."""
+
+  if (
+    isinstance(sample_count, bool)
+    or not isinstance(sample_count, int)
+    or sample_count < 2
+  ):
+    raise ValueError('sample_count must be an integer of at least two')
+  compression = solve_attached_compression_to_turn(
+    upstream_mach=2.0,
+    gamma=1.4,
+    upstream_pressure_Pa=100000.0,
+    target_turn_rad=0.2,
+  )
+  if compression.beta_rad is None:
+    raise RuntimeError('Euler companion refinement fixture could not resolve beta')
+  shock_angle = 0.2 - compression.beta_rad
+  points = tuple(
+    (
+      0.5 + index * (-0.5 / (sample_count - 1) / tan(shock_angle)),
+      0.5 - index * (0.5 / (sample_count - 1)),
+    )
+    for index in range(sample_count)
+  )
+  shock_boundary = fit_euler_consistent_shock_boundary(
+    tuple(
+      CharacteristicState(
+        x_m=point[0],
+        y_m=point[1],
+        theta_rad=0.2,
+        mach=2.0,
+        gamma=1.4,
+      )
+      for point in points
+    ),
+    (100000.0,) * sample_count,
+    points,
+    (0.0,) * sample_count,
+  )
+  ambient_pressure = shock_boundary.downstream_total_pressure_Pa[0] / (
+    1.0 + 0.5 * (1.4 - 1.0) * 2.0**2
+  ) ** (1.4 / (1.4 - 1.0))
+  companion = solve_euler_ambient_companion_boundary_reference(
+    shock_boundary,
+    ambient_pressure,
+    separation_m=0.8,
+    seed_flow_angle_rad=0.0,
+  )
+  return assemble_euler_consistent_companion_characteristic_strip(
+    shock_boundary,
+    companion.samples,
+  )
 
 
 def _sampled_attached_shock_gate() -> tuple[Any, Any, Any]:
@@ -9802,6 +9860,32 @@ def build_moc_primitive_report() -> dict[str, Any]:
       euler_companion_field_chain_mock,
     )
   )
+  euler_companion_field_chain_refinement = None
+  euler_companion_field_chain_refinement_error = None
+  try:
+    euler_companion_field_chain_refinement_cases = tuple(
+      MocEulerCompanionFieldChainRefinementCase(
+        resolution=sample_count,
+        chain=plan_euler_companion_field_chain_mock(
+          _euler_companion_field_fixture(sample_count),
+          mock=MocEulerCompanionFieldChainMock(
+            total_field_count=3,
+            axial_translation_m=2.0,
+          ),
+        ),
+      )
+      for sample_count in (9, 17, 33)
+    )
+    euler_companion_field_chain_refinement = (
+      measure_moc_euler_companion_field_chain_refinement(
+        euler_companion_field_chain_refinement_cases,
+        expected_resolutions=(9, 17, 33),
+      )
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    euler_companion_field_chain_refinement_error = (
+      f'{type(error).__name__}: {error}'
+    )
   euler_companion_chain_planner = None
   euler_companion_chain_planner_measurement = None
   if solver_generated_shock.field is not None and solver_generated_shock.field.converged:
@@ -10008,6 +10092,12 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'independent_audit': (
           euler_companion_field_chain_mock_measurement.as_report()
         ),
+        'refinement': (
+          None
+          if euler_companion_field_chain_refinement is None
+          else euler_companion_field_chain_refinement.as_report()
+        ),
+        'refinement_error': euler_companion_field_chain_refinement_error,
       },
       'chain_boundary_probe': (
         None
@@ -10854,6 +10944,32 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or not euler_companion_field_chain_mock_measurement.chain_promotion_blocked
     or euler_companion_field_chain_mock_measurement.production_claim_allowed
   )
+  euler_companion_field_chain_refinement_failure = (
+    euler_companion_field_chain_refinement is None
+    or euler_companion_field_chain_refinement.status
+    is not MocEulerCompanionFieldChainRefinementMeasurementStatus.CONVERGED
+    or not euler_companion_field_chain_refinement.converged
+    or euler_companion_field_chain_refinement.resolutions != (9, 17, 33)
+    or euler_companion_field_chain_refinement.field_count != 3
+    or euler_companion_field_chain_refinement.continued_field_count != 2
+    or not euler_companion_field_chain_refinement.expected_resolutions_verified
+    or not euler_companion_field_chain_refinement.resolution_order_verified
+    or not euler_companion_field_chain_refinement.field_count_consistent
+    or not euler_companion_field_chain_refinement.continued_field_count_consistent
+    or not euler_companion_field_chain_refinement.step_count_consistent
+    or not euler_companion_field_chain_refinement.sample_resolution_verified
+    or not euler_companion_field_chain_refinement.topology_verified
+    or not euler_companion_field_chain_refinement.geometry_shape_verified
+    or not euler_companion_field_chain_refinement.field_euler_audits_verified
+    or euler_companion_field_chain_refinement.handoff_links_verified is not True
+    or euler_companion_field_chain_refinement.termination_sensitivity_verified is not True
+    or not euler_companion_field_chain_refinement.fidelity_flags_verified
+    or not euler_companion_field_chain_refinement.cell_residual_trend_verified
+    or not euler_companion_field_chain_refinement.refinement_convergence_verified
+    or euler_companion_field_chain_refinement.physical_closure_verified
+    or not euler_companion_field_chain_refinement.chain_promotion_blocked
+    or euler_companion_field_chain_refinement.production_claim_allowed
+  )
   failures = [
     *round_trip_failures,
     *resolution_failures,
@@ -11014,6 +11130,21 @@ def build_moc_primitive_report() -> dict[str, Any]:
         ),
       }
     ] if euler_companion_field_chain_mock_failure else []),
+    *([
+      {
+        'case': 'euler_companion_field_chain_refinement',
+        'status': (
+          'missing'
+          if euler_companion_field_chain_refinement is None
+          else euler_companion_field_chain_refinement.status.value
+        ),
+        'message': (
+          euler_companion_field_chain_refinement_error
+          or 'Euler companion-field chain refinement did not preserve '
+          'resolution/topology/geometry evidence and its open fidelity boundary'
+        ),
+      }
+    ] if euler_companion_field_chain_refinement_failure else []),
     *([
       {
         'case': 'compression_normal_shock_limit_failure',

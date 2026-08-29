@@ -1222,3 +1222,12 @@ freshness, frontier links, and termination while preserving
 `production_claim_allowed=false`. Replacing this fixture with a production
 continuation still requires global reflected/free-boundary closure, entropy
 transport, refinement, and indexed external validation.
+
+The companion sequence also has an independent
+`op.moc.euler-companion-field-chain-refinement` gate. It compares declared
+9/17/33-sample cases, verifies that every retained strip has the expected
+node/cell resolution and valid topology, checks common boundary endpoints and
+fresh domains, and requires the independently measured conservative residual
+trend to remain bounded. Passing this gate validates numerical stability of
+the open planner fixture only; it cannot turn an open frontier into a
+physical shock-cell perimeter or change any product-provider fidelity claim.

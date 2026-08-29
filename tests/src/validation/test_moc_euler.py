@@ -32,11 +32,14 @@ from exhaust_plume.validation import (
   MocEulerAmbientCompanionBoundaryAuditStatus,
   MocEulerCompanionFieldAuditStatus,
   MocEulerCompanionFieldChainAuditStatus,
+  MocEulerCompanionFieldChainRefinementCase,
+  MocEulerCompanionFieldChainRefinementMeasurementStatus,
   MocPhysicalFieldEulerAuditStatus,
   measure_moc_ambient_companion_boundary,
   measure_moc_chain_planner,
   measure_moc_euler_companion_field,
   measure_moc_euler_companion_field_chain,
+  measure_moc_euler_companion_field_chain_refinement,
   measure_moc_physical_field_euler_audit,
 )
 
@@ -73,6 +76,51 @@ def _canonical_field():
   assert result.field is not None
   assert result.field.physical_closure_verified
   return result.field
+
+
+def _euler_companion_field_for_resolution(sample_count: int):
+  compression = solve_attached_compression_to_turn(
+    upstream_mach=2.0,
+    gamma=1.4,
+    upstream_pressure_Pa=100000.0,
+    target_turn_rad=0.2,
+  )
+  assert compression.beta_rad is not None
+  shock_angle = 0.2 - compression.beta_rad
+  points = tuple(
+    (
+      0.5 + index * (-0.5 / (sample_count - 1) / tan(shock_angle)),
+      0.5 - index * (0.5 / (sample_count - 1)),
+    )
+    for index in range(sample_count)
+  )
+  shock_boundary = fit_euler_consistent_shock_boundary(
+    tuple(
+      CharacteristicState(
+        x_m=point[0],
+        y_m=point[1],
+        theta_rad=0.2,
+        mach=2.0,
+        gamma=1.4,
+      )
+      for point in points
+    ),
+    (100000.0,) * sample_count,
+    points,
+    (0.0,) * sample_count,
+  )
+  ambient_pressure = shock_boundary.downstream_total_pressure_Pa[0] / (
+    1.0 + 0.5 * (1.4 - 1.0) * 2.0**2
+  ) ** (1.4 / (1.4 - 1.0))
+  companion = solve_euler_ambient_companion_boundary_reference(
+    shock_boundary,
+    ambient_pressure,
+    separation_m=0.8,
+  )
+  return assemble_euler_consistent_companion_characteristic_strip(
+    shock_boundary,
+    companion.samples,
+  )
 
 
 def test_euler_audit_reports_nonconservative_reference_and_retains_cells() -> None:
@@ -595,3 +643,75 @@ def test_euler_companion_field_chain_mock_repeats_open_frontiers_without_promoti
   assert audit.physical_closure_verified is False
   assert audit.chain_promotion_blocked
   assert audit.production_claim_allowed is False
+
+
+def test_euler_companion_field_chain_refinement_remeasures_topology_and_shape() -> None:
+  cases = tuple(
+    MocEulerCompanionFieldChainRefinementCase(
+      resolution=sample_count,
+      chain=plan_euler_companion_field_chain_mock(
+        _euler_companion_field_for_resolution(sample_count),
+        mock=MocEulerCompanionFieldChainMock(
+          total_field_count=3,
+          axial_translation_m=2.0,
+        ),
+      ),
+    )
+    for sample_count in (9, 17, 33)
+  )
+
+  measurement = measure_moc_euler_companion_field_chain_refinement(
+    cases,
+    expected_resolutions=(9, 17, 33),
+  )
+
+  assert measurement.status is (
+    MocEulerCompanionFieldChainRefinementMeasurementStatus.CONVERGED
+  )
+  assert measurement.converged
+  assert measurement.resolutions == (9, 17, 33)
+  assert measurement.expected_resolutions_verified
+  assert measurement.resolution_order_verified
+  assert measurement.field_count == 3
+  assert measurement.continued_field_count == 2
+  assert measurement.field_count_consistent
+  assert measurement.continued_field_count_consistent
+  assert measurement.step_count_consistent
+  assert measurement.sample_resolution_verified
+  assert measurement.topology_verified
+  assert measurement.geometry_shape_verified
+  assert measurement.field_euler_audits_verified
+  assert measurement.handoff_links_verified is True
+  assert measurement.termination_sensitivity_verified is True
+  assert measurement.fidelity_flags_verified
+  assert measurement.cell_residual_trend_verified
+  assert measurement.refinement_convergence_verified
+  assert measurement.field_node_counts == ((9, 9, 9), (17, 17, 17), (33, 33, 33))
+  assert measurement.field_cell_counts == ((8, 8, 8), (16, 16, 16), (32, 32, 32))
+  assert all(
+    residual <= 1.0e-10
+    for residual in (
+      *measurement.axial_extent_residuals_m,
+      *measurement.shock_endpoint_residuals_m,
+      *measurement.companion_endpoint_residuals_m,
+      *measurement.interior_endpoint_residuals_m,
+    )
+  )
+  assert measurement.maximum_cell_euler_residuals[0] > (
+    measurement.maximum_cell_euler_residuals[-1]
+  )
+  assert measurement.physical_closure_verified is False
+  assert measurement.chain_promotion_blocked
+  assert measurement.production_claim_allowed is False
+  assert measurement.as_report()['operator_id'] == (
+    'op.moc.euler-companion-field-chain-refinement'
+  )
+
+  out_of_order = measure_moc_euler_companion_field_chain_refinement(
+    tuple(reversed(cases)),
+    expected_resolutions=(9, 17, 33),
+  )
+  assert out_of_order.status is (
+    MocEulerCompanionFieldChainRefinementMeasurementStatus.RESOLUTION_FAILURE
+  )
+  assert not out_of_order.converged

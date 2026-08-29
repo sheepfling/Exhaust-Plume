@@ -2497,6 +2497,18 @@ termination. Its passing status means the local sequence contract is stable;
 `production_claim_allowed` remain false, and the fast/basic visualization,
 signature, ray-transfer, and focal-plane-array providers remain untouched.
 
+The separate
+`op.moc.euler-companion-field-chain-refinement` measurement now remeasures
+the same open sequence at 9, 17, and 33 shock samples. It requires the
+declared resolution to match every retained boundary/interior array,
+rechecks connected non-manifold-free strip topology, compares corresponding
+field endpoints and axial domains, requires non-increasing local conservative
+residuals, and repeats the exact handoff and typed-stop checks. The generated
+sequence passes with maximum cell residuals decreasing from approximately
+`0.00654` to `0.00349` to `0.00180`. This is numerical evidence for the
+bounded open-field planner seam only; it does not close the physical
+reflected/free-boundary or entropy problem.
+
 The next gate is a solver-owned continuation that replaces the translated
 fixture with a globally remeshed reflected field, transports entropy, and
 supplies a physically closed downstream/free-boundary perimeter. Only after

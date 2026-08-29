@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from enum import Enum
 from hashlib import sha256
 from math import cos, hypot, isfinite, sin, sqrt
-from typing import Any
+from typing import Any, Sequence
 
 from exhaust_plume.models.moc.physical_cell import (
   MocPhysicalPostShockFieldResult,
@@ -52,6 +52,11 @@ __all__ = (
   'MocEulerCompanionFieldChainAuditStatus',
   'MocEulerCompanionFieldChainAudit',
   'measure_moc_euler_companion_field_chain',
+  'MOC_EULER_COMPANION_FIELD_CHAIN_REFINEMENT_OPERATOR_ID',
+  'MocEulerCompanionFieldChainRefinementCase',
+  'MocEulerCompanionFieldChainRefinementMeasurementStatus',
+  'MocEulerCompanionFieldChainRefinementMeasurement',
+  'measure_moc_euler_companion_field_chain_refinement',
 )
 
 
@@ -2074,5 +2079,860 @@ def measure_moc_euler_companion_field_chain(
       'local field evidence, fresh domains, exact frontier links, and the '
       'typed non-physical stop; reflected/free-boundary and entropy closure '
       'remain pending'
+    ),
+  )
+
+
+MOC_EULER_COMPANION_FIELD_CHAIN_REFINEMENT_OPERATOR_ID = (
+  'op.moc.euler-companion-field-chain-refinement'
+)
+_EULER_CHAIN_REFINEMENT_FAILURE_RESIDUAL = 1.0e300
+
+
+class MocEulerCompanionFieldChainRefinementMeasurementStatus(str, Enum):
+  """Outcome of comparing independently measured open-field resolutions."""
+
+  CONVERGED = 'converged'
+  INVALID_INPUT = 'invalid_input'
+  RESOLUTION_FAILURE = 'resolution_failure'
+  CASE_FAILURE = 'case_failure'
+  CONSISTENCY_FAILURE = 'consistency_failure'
+  TOPOLOGY_FAILURE = 'topology_failure'
+  GEOMETRY_FAILURE = 'geometry_failure'
+  SENSITIVITY_FAILURE = 'sensitivity_failure'
+  TERMINATION_FAILURE = 'termination_failure'
+  FIDELITY_FAILURE = 'fidelity_failure'
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerCompanionFieldChainRefinementCase:
+  """One declared resolution of an open Euler-field chain.
+
+  ``resolution`` is caller-owned metadata, normally the number of retained
+  shock/companion samples in every field of the chain.  The independent
+  operator checks that the retained arrays actually match this declaration;
+  it never infers a resolution from a cell count or repairs a mismatch.
+  ``chain`` is typed at the operator boundary to avoid importing the planner
+  module while this validation module is imported by the planner.
+  """
+
+  resolution: int
+  chain: Any
+
+  def __post_init__(self) -> None:
+    if (
+      isinstance(self.resolution, bool)
+      or not isinstance(self.resolution, int)
+      or self.resolution < 2
+    ):
+      raise ValueError('resolution must be an integer of at least two')
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerCompanionFieldChainRefinementMeasurement:
+  """Independent topology, geometry, and sensitivity evidence.
+
+  A passing result means that the already-returned open-field sequence is
+  locally reproducible over the declared resolutions.  It does not mean that
+  the companion boundary is a solved reflected/free boundary, and it never
+  authorizes promotion to a physical ``MocChainCell``.
+  """
+
+  status: MocEulerCompanionFieldChainRefinementMeasurementStatus
+  cases: tuple[MocEulerCompanionFieldChainRefinementCase, ...] = ()
+  chain_audits: tuple[MocEulerCompanionFieldChainAudit, ...] = ()
+  resolutions: tuple[int, ...] = ()
+  expected_resolutions: tuple[int, ...] = ()
+  field_count: int | None = None
+  continued_field_count: int | None = None
+  expected_resolutions_verified: bool = False
+  resolution_order_verified: bool = False
+  field_count_consistent: bool = False
+  continued_field_count_consistent: bool = False
+  step_count_consistent: bool = False
+  sample_resolution_verified: bool = False
+  topology_verified: bool = False
+  geometry_shape_verified: bool = False
+  field_euler_audits_verified: bool = False
+  handoff_links_verified: bool | None = None
+  termination_sensitivity_verified: bool | None = None
+  fidelity_flags_verified: bool = False
+  cell_residual_trend_verified: bool = False
+  refinement_convergence_verified: bool = False
+  field_node_counts: tuple[tuple[int, ...], ...] = ()
+  field_cell_counts: tuple[tuple[int, ...], ...] = ()
+  maximum_cell_euler_residuals: tuple[float, ...] = ()
+  axial_extent_residuals_m: tuple[float, ...] = ()
+  shock_endpoint_residuals_m: tuple[float, ...] = ()
+  companion_endpoint_residuals_m: tuple[float, ...] = ()
+  interior_endpoint_residuals_m: tuple[float, ...] = ()
+  endpoint_tolerance_m: float = 1.0e-10
+  cell_residual_tolerance: float = 1.0e-2
+  cell_residual_trend_tolerance: float = 1.0e-12
+  physical_closure_verified: bool = False
+  chain_promotion_blocked: bool = True
+  production_claim_allowed: bool = False
+  claim_status: str = 'not_accepted'
+  message: str = ''
+  operator_id: str = MOC_EULER_COMPANION_FIELD_CHAIN_REFINEMENT_OPERATOR_ID
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocEulerCompanionFieldChainRefinementMeasurementStatus,
+    ):
+      raise TypeError(
+        'status must be a '
+        'MocEulerCompanionFieldChainRefinementMeasurementStatus'
+      )
+    cases = tuple(self.cases)
+    audits = tuple(self.chain_audits)
+    if len(cases) != len(audits):
+      raise ValueError('cases and chain_audits must have equal lengths')
+    if any(
+      not isinstance(case, MocEulerCompanionFieldChainRefinementCase)
+      for case in cases
+    ):
+      raise TypeError(
+        'cases must contain MocEulerCompanionFieldChainRefinementCase values'
+      )
+    if any(
+      not isinstance(audit, MocEulerCompanionFieldChainAudit)
+      for audit in audits
+    ):
+      raise TypeError(
+        'chain_audits must contain MocEulerCompanionFieldChainAudit values'
+      )
+    object.__setattr__(self, 'cases', cases)
+    object.__setattr__(self, 'chain_audits', audits)
+    resolutions = tuple(case.resolution for case in cases)
+    if self.resolutions and tuple(self.resolutions) != resolutions:
+      raise ValueError('resolutions must match the declared refinement cases')
+    object.__setattr__(self, 'resolutions', resolutions)
+    expected = tuple(int(value) for value in self.expected_resolutions)
+    if any(value < 2 for value in expected):
+      raise ValueError('expected_resolutions must contain values of at least two')
+    object.__setattr__(self, 'expected_resolutions', expected)
+    for name in (
+      'field_count',
+      'continued_field_count',
+    ):
+      value = getattr(self, name)
+      if value is None:
+        continue
+      if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f'{name} must be a nonnegative integer when supplied')
+    for name in (
+      'endpoint_tolerance_m',
+      'cell_residual_tolerance',
+      'cell_residual_trend_tolerance',
+    ):
+      value = float(getattr(self, name))
+      if not isfinite(value) or value <= 0.0:
+        raise ValueError(f'{name} must be finite and positive')
+      object.__setattr__(self, name, value)
+    for name in (
+      'maximum_cell_euler_residuals',
+      'axial_extent_residuals_m',
+      'shock_endpoint_residuals_m',
+      'companion_endpoint_residuals_m',
+      'interior_endpoint_residuals_m',
+    ):
+      values = tuple(float(value) for value in getattr(self, name))
+      if any(not isfinite(value) or value < 0.0 for value in values):
+        raise ValueError(f'{name} must contain finite nonnegative values')
+      object.__setattr__(self, name, values)
+    for name in (
+      'expected_resolutions_verified',
+      'resolution_order_verified',
+      'field_count_consistent',
+      'continued_field_count_consistent',
+      'step_count_consistent',
+      'sample_resolution_verified',
+      'topology_verified',
+      'geometry_shape_verified',
+      'field_euler_audits_verified',
+      'fidelity_flags_verified',
+      'cell_residual_trend_verified',
+      'refinement_convergence_verified',
+      'physical_closure_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+    for name in (
+      'handoff_links_verified',
+      'termination_sensitivity_verified',
+    ):
+      value = getattr(self, name)
+      if value is not None and not isinstance(value, bool):
+        raise TypeError(f'{name} must be a bool or None')
+    for name in ('field_node_counts', 'field_cell_counts'):
+      rows = tuple(tuple(int(value) for value in row) for row in getattr(self, name))
+      if any(
+        any(value < 0 for value in row)
+        for row in rows
+      ):
+        raise ValueError(f'{name} must contain nonnegative integer counts')
+      object.__setattr__(self, name, rows)
+    object.__setattr__(self, 'claim_status', str(self.claim_status))
+    object.__setattr__(self, 'message', str(self.message))
+    operator_id = str(self.operator_id)
+    if not operator_id:
+      raise ValueError('operator_id must be a non-empty string')
+    object.__setattr__(self, 'operator_id', operator_id)
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocEulerCompanionFieldChainRefinementMeasurementStatus.CONVERGED
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'operator_id': self.operator_id,
+      'converged': self.converged,
+      'case_count': len(self.cases),
+      'resolutions': list(self.resolutions),
+      'expected_resolutions': list(self.expected_resolutions),
+      'field_count': self.field_count,
+      'continued_field_count': self.continued_field_count,
+      'field_node_counts': [list(row) for row in self.field_node_counts],
+      'field_cell_counts': [list(row) for row in self.field_cell_counts],
+      'cases': [
+        {
+          'resolution': case.resolution,
+          'chain_audit': audit.as_report(),
+        }
+        for case, audit in zip(self.cases, self.chain_audits, strict=True)
+      ],
+      'checks': {
+        'expected_resolutions_verified': self.expected_resolutions_verified,
+        'resolution_order_verified': self.resolution_order_verified,
+        'field_count_consistent': self.field_count_consistent,
+        'continued_field_count_consistent': (
+          self.continued_field_count_consistent
+        ),
+        'step_count_consistent': self.step_count_consistent,
+        'sample_resolution_verified': self.sample_resolution_verified,
+        'topology_verified': self.topology_verified,
+        'geometry_shape_verified': self.geometry_shape_verified,
+        'field_euler_audits_verified': self.field_euler_audits_verified,
+        'handoff_links_verified': self.handoff_links_verified,
+        'termination_sensitivity_verified': (
+          self.termination_sensitivity_verified
+        ),
+        'fidelity_flags_verified': self.fidelity_flags_verified,
+        'cell_residual_trend_verified': self.cell_residual_trend_verified,
+        'refinement_convergence_verified': self.refinement_convergence_verified,
+        'physical_closure_verified': self.physical_closure_verified,
+        'chain_promotion_blocked': self.chain_promotion_blocked,
+        'production_claim_allowed': self.production_claim_allowed,
+      },
+      'residuals': {
+        'maximum_cell_euler_residuals': list(
+          self.maximum_cell_euler_residuals
+        ),
+        'axial_extent_residuals_m': list(self.axial_extent_residuals_m),
+        'shock_endpoint_residuals_m': list(self.shock_endpoint_residuals_m),
+        'companion_endpoint_residuals_m': list(
+          self.companion_endpoint_residuals_m
+        ),
+        'interior_endpoint_residuals_m': list(
+          self.interior_endpoint_residuals_m
+        ),
+      },
+      'declared_tolerances': {
+        'endpoint_tolerance_m': self.endpoint_tolerance_m,
+        'cell_residual_tolerance': self.cell_residual_tolerance,
+        'cell_residual_trend_tolerance': self.cell_residual_trend_tolerance,
+      },
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'canonical_free_boundary_verified': False,
+      'canonical_euler_verified': False,
+      'external_validation_verified': False,
+      'claim_status': self.claim_status,
+      'message': self.message,
+    }
+
+
+def _euler_companion_field_chain_refinement_failure(
+  status: MocEulerCompanionFieldChainRefinementMeasurementStatus,
+  message: str,
+  *,
+  cases: Sequence[MocEulerCompanionFieldChainRefinementCase] = (),
+  chain_audits: Sequence[MocEulerCompanionFieldChainAudit] = (),
+  expected_resolutions: Sequence[int] = (),
+  field_count: int | None = None,
+  continued_field_count: int | None = None,
+  expected_resolutions_verified: bool = False,
+  resolution_order_verified: bool = False,
+  field_count_consistent: bool = False,
+  continued_field_count_consistent: bool = False,
+  step_count_consistent: bool = False,
+  sample_resolution_verified: bool = False,
+  topology_verified: bool = False,
+  geometry_shape_verified: bool = False,
+  field_euler_audits_verified: bool = False,
+  handoff_links_verified: bool | None = None,
+  termination_sensitivity_verified: bool | None = None,
+  fidelity_flags_verified: bool = False,
+  cell_residual_trend_verified: bool = False,
+  refinement_convergence_verified: bool = False,
+  field_node_counts: Sequence[Sequence[int]] = (),
+  field_cell_counts: Sequence[Sequence[int]] = (),
+  maximum_cell_euler_residuals: Sequence[float] = (),
+  axial_extent_residuals_m: Sequence[float] = (),
+  shock_endpoint_residuals_m: Sequence[float] = (),
+  companion_endpoint_residuals_m: Sequence[float] = (),
+  interior_endpoint_residuals_m: Sequence[float] = (),
+  endpoint_tolerance_m: float = 1.0e-10,
+  cell_residual_tolerance: float = 1.0e-2,
+  cell_residual_trend_tolerance: float = 1.0e-12,
+) -> MocEulerCompanionFieldChainRefinementMeasurement:
+  valid_cases = tuple(
+    case
+    for case in cases
+    if isinstance(case, MocEulerCompanionFieldChainRefinementCase)
+  )
+  valid_audits = tuple(
+    audit
+    for audit in chain_audits
+    if isinstance(audit, MocEulerCompanionFieldChainAudit)
+  )
+  paired_count = min(len(valid_cases), len(valid_audits))
+  return MocEulerCompanionFieldChainRefinementMeasurement(
+    status=status,
+    cases=valid_cases[:paired_count],
+    chain_audits=valid_audits[:paired_count],
+    expected_resolutions=tuple(expected_resolutions),
+    field_count=field_count,
+    continued_field_count=continued_field_count,
+    expected_resolutions_verified=expected_resolutions_verified,
+    resolution_order_verified=resolution_order_verified,
+    field_count_consistent=field_count_consistent,
+    continued_field_count_consistent=continued_field_count_consistent,
+    step_count_consistent=step_count_consistent,
+    sample_resolution_verified=sample_resolution_verified,
+    topology_verified=topology_verified,
+    geometry_shape_verified=geometry_shape_verified,
+    field_euler_audits_verified=field_euler_audits_verified,
+    handoff_links_verified=handoff_links_verified,
+    termination_sensitivity_verified=termination_sensitivity_verified,
+    fidelity_flags_verified=fidelity_flags_verified,
+    cell_residual_trend_verified=cell_residual_trend_verified,
+    refinement_convergence_verified=refinement_convergence_verified,
+    field_node_counts=tuple(tuple(row) for row in field_node_counts),
+    field_cell_counts=tuple(tuple(row) for row in field_cell_counts),
+    maximum_cell_euler_residuals=tuple(maximum_cell_euler_residuals),
+    axial_extent_residuals_m=tuple(axial_extent_residuals_m),
+    shock_endpoint_residuals_m=tuple(shock_endpoint_residuals_m),
+    companion_endpoint_residuals_m=tuple(companion_endpoint_residuals_m),
+    interior_endpoint_residuals_m=tuple(interior_endpoint_residuals_m),
+    endpoint_tolerance_m=endpoint_tolerance_m,
+    cell_residual_tolerance=cell_residual_tolerance,
+    cell_residual_trend_tolerance=cell_residual_trend_tolerance,
+    message=message,
+  )
+
+
+def _euler_field_endpoint_pair(
+  field: Any,
+  attribute: str,
+) -> tuple[tuple[float, float], tuple[float, float]] | None:
+  try:
+    points = tuple(getattr(field, attribute))
+  except (AttributeError, TypeError):
+    return None
+  if len(points) < 2:
+    return None
+  try:
+    first = (float(points[0][0]), float(points[0][1]))
+    last = (float(points[-1][0]), float(points[-1][1]))
+  except (IndexError, TypeError, ValueError):
+    return None
+  if not all(isfinite(value) for point in (first, last) for value in point):
+    return None
+  return first, last
+
+
+def _euler_endpoint_residual(
+  previous: tuple[tuple[float, float], tuple[float, float]] | None,
+  current: tuple[tuple[float, float], tuple[float, float]] | None,
+) -> float:
+  if previous is None or current is None:
+    return _EULER_CHAIN_REFINEMENT_FAILURE_RESIDUAL
+  return max(
+    hypot(
+      current[index][0] - previous[index][0],
+      current[index][1] - previous[index][1],
+    )
+    for index in (0, 1)
+  )
+
+
+def measure_moc_euler_companion_field_chain_refinement(
+  cases: Sequence[MocEulerCompanionFieldChainRefinementCase],
+  *,
+  expected_resolutions: Sequence[int] | None = None,
+  endpoint_tolerance_m: float = 1.0e-10,
+  cell_residual_tolerance: float = 1.0e-2,
+  cell_residual_trend_tolerance: float = 1.0e-12,
+  shock_residual_tolerance: float = 1.0e-8,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  pressure_tolerance: float = 1.0e-10,
+) -> MocEulerCompanionFieldChainRefinementMeasurement:
+  """Independently compare an open Euler-field chain across resolutions.
+
+  The operator remeasures every retained field and chain trace.  It checks
+  that the declared resolution matches all boundary/interior arrays, that
+  every field retains an independently verified connected strip topology,
+  that corresponding field endpoints remain geometrically stable, that the
+  local conservative residual does not worsen, and that exact handoff and
+  typed-stop metadata survive refinement.  It never invokes a continuation
+  callback or solves a new field.
+  """
+
+  tolerance_values = (
+    endpoint_tolerance_m,
+    cell_residual_tolerance,
+    cell_residual_trend_tolerance,
+    shock_residual_tolerance,
+    position_tolerance_m,
+    invariant_tolerance,
+    pressure_tolerance,
+  )
+  if any(
+    not isfinite(float(value)) or float(value) <= 0.0
+    for value in tolerance_values
+  ):
+    raise ValueError('Euler chain refinement tolerances must be finite and positive')
+  try:
+    items = tuple(cases)
+  except TypeError:
+    return _euler_companion_field_chain_refinement_failure(
+      MocEulerCompanionFieldChainRefinementMeasurementStatus.INVALID_INPUT,
+      'refinement cases must be iterable',
+    )
+  expected = ()
+  if expected_resolutions is not None:
+    try:
+      expected = tuple(expected_resolutions)
+    except TypeError:
+      return _euler_companion_field_chain_refinement_failure(
+        MocEulerCompanionFieldChainRefinementMeasurementStatus.INVALID_INPUT,
+        'expected_resolutions must be iterable',
+      )
+    if any(
+      isinstance(value, bool)
+      or not isinstance(value, int)
+      or value < 2
+      for value in expected
+    ):
+      return _euler_companion_field_chain_refinement_failure(
+        MocEulerCompanionFieldChainRefinementMeasurementStatus.INVALID_INPUT,
+        'expected_resolutions must contain integers of at least two',
+        expected_resolutions=expected,
+      )
+  if len(items) < 2:
+    return _euler_companion_field_chain_refinement_failure(
+      MocEulerCompanionFieldChainRefinementMeasurementStatus.INVALID_INPUT,
+      'at least two Euler companion-field refinement cases are required',
+      expected_resolutions=expected,
+    )
+  if any(
+    not isinstance(case, MocEulerCompanionFieldChainRefinementCase)
+    for case in items
+  ):
+    return _euler_companion_field_chain_refinement_failure(
+      MocEulerCompanionFieldChainRefinementMeasurementStatus.INVALID_INPUT,
+      'refinement cases must contain '
+      'MocEulerCompanionFieldChainRefinementCase values',
+      cases=items,
+      expected_resolutions=expected,
+    )
+  resolutions = tuple(case.resolution for case in items)
+  expected_verified = not expected or expected == resolutions
+  if not expected_verified:
+    return _euler_companion_field_chain_refinement_failure(
+      MocEulerCompanionFieldChainRefinementMeasurementStatus.RESOLUTION_FAILURE,
+      'refinement cases do not match the expected resolution sequence',
+      cases=items,
+      expected_resolutions=expected,
+    )
+  resolution_order_verified = all(
+    right > left
+    for left, right in zip(resolutions, resolutions[1:])
+  )
+  if not resolution_order_verified:
+    return _euler_companion_field_chain_refinement_failure(
+      MocEulerCompanionFieldChainRefinementMeasurementStatus.RESOLUTION_FAILURE,
+      'refinement resolutions must be strictly increasing from coarse to fine',
+      cases=items,
+      expected_resolutions=expected,
+      expected_resolutions_verified=True,
+    )
+
+  from exhaust_plume.models.moc.planner import (
+    MocEulerCompanionFieldChainPlannerResult,
+  )
+
+  if any(
+    not isinstance(case.chain, MocEulerCompanionFieldChainPlannerResult)
+    for case in items
+  ):
+    return _euler_companion_field_chain_refinement_failure(
+      MocEulerCompanionFieldChainRefinementMeasurementStatus.INVALID_INPUT,
+      'refinement cases must contain Euler companion-field chain planner results',
+      cases=items,
+      expected_resolutions=expected,
+      expected_resolutions_verified=True,
+      resolution_order_verified=True,
+    )
+
+  chain_audits = tuple(
+    measure_moc_euler_companion_field_chain(case.chain)
+    for case in items
+  )
+  if any(
+    not audit.converged or not audit.local_sequence_verified
+    for audit in chain_audits
+  ):
+    return _euler_companion_field_chain_refinement_failure(
+      MocEulerCompanionFieldChainRefinementMeasurementStatus.CASE_FAILURE,
+      'one or more Euler companion-field chains failed independent sequence audit',
+      cases=items,
+      chain_audits=chain_audits,
+      expected_resolutions=expected,
+      expected_resolutions_verified=True,
+      resolution_order_verified=True,
+    )
+
+  chains = tuple(case.chain for case in items)
+  field_counts = tuple(chain.field_count for chain in chains)
+  continued_counts = tuple(chain.continued_field_count for chain in chains)
+  step_counts = tuple(len(chain.steps) for chain in chains)
+  field_count_consistent = len(set(field_counts)) == 1 and field_counts[0] > 0
+  continued_field_count_consistent = (
+    len(set(continued_counts)) == 1
+    and continued_counts[0] >= 0
+  )
+  step_count_consistent = all(
+    step_count == field_count
+    for step_count, field_count in zip(step_counts, field_counts, strict=True)
+  )
+  if not (
+    field_count_consistent
+    and continued_field_count_consistent
+    and step_count_consistent
+  ):
+    return _euler_companion_field_chain_refinement_failure(
+      MocEulerCompanionFieldChainRefinementMeasurementStatus.CONSISTENCY_FAILURE,
+      'refinement cases must retain the same field/step sequence shape',
+      cases=items,
+      chain_audits=chain_audits,
+      expected_resolutions=expected,
+      field_count=field_counts[0] if field_counts else None,
+      continued_field_count=(continued_counts[0] if continued_counts else None),
+      expected_resolutions_verified=True,
+      resolution_order_verified=True,
+      field_count_consistent=field_count_consistent,
+      continued_field_count_consistent=continued_field_count_consistent,
+      step_count_consistent=step_count_consistent,
+    )
+
+  field_audits = tuple(
+    tuple(
+      measure_moc_euler_companion_field(
+        field,
+        shock_residual_tolerance=shock_residual_tolerance,
+        cell_residual_tolerance=cell_residual_tolerance,
+        position_tolerance_m=position_tolerance_m,
+        invariant_tolerance=invariant_tolerance,
+        pressure_tolerance=pressure_tolerance,
+      )
+      for field in chain.fields
+    )
+    for chain in chains
+  )
+  field_euler_audits_verified = all(
+    audit.converged
+    and audit.local_euler_consistency_verified
+    and audit.field_topology_verified
+    for audits in field_audits
+    for audit in audits
+  )
+  field_node_counts = tuple(
+    tuple(field.node_count for field in chain.fields)
+    for chain in chains
+  )
+  field_cell_counts = tuple(
+    tuple(field.cell_count for field in chain.fields)
+    for chain in chains
+  )
+  sample_resolution_verified = all(
+    all(
+      len(field.shock_boundary_points_m) == case.resolution
+      and len(field.shock_boundary_states) == case.resolution
+      and len(field.shock_boundary_total_pressure_Pa) == case.resolution
+      and len(field.companion_boundary_points_m) == case.resolution
+      and len(field.companion_boundary_states) == case.resolution
+      and len(field.companion_boundary_total_pressure_Pa) == case.resolution
+      and len(field.interior_points_m) == case.resolution
+      and len(field.interior_states) == case.resolution
+      and len(field.interior_total_pressure_Pa) == case.resolution
+      and len(field.nodes) == case.resolution
+      and len(field.cells) == case.resolution - 1
+      for field in case.chain.fields
+    )
+    for case in items
+  )
+  topology_verified = bool(
+    sample_resolution_verified
+    and field_euler_audits_verified
+    and all(
+      field.topology.connected
+      and field.topology.forms_closed_zone
+      and field.topology.nonmanifold_edge_count == 0
+      for chain in chains
+      for field in chain.fields
+    )
+  )
+
+  axial_extent_residuals: list[float] = []
+  shock_endpoint_residuals: list[float] = []
+  companion_endpoint_residuals: list[float] = []
+  interior_endpoint_residuals: list[float] = []
+  geometry_shape_verified = True
+  for previous, current in zip(chains, chains[1:]):
+    if previous.field_count != current.field_count:
+      geometry_shape_verified = False
+      axial_extent_residuals.append(_EULER_CHAIN_REFINEMENT_FAILURE_RESIDUAL)
+      shock_endpoint_residuals.append(_EULER_CHAIN_REFINEMENT_FAILURE_RESIDUAL)
+      companion_endpoint_residuals.append(
+        _EULER_CHAIN_REFINEMENT_FAILURE_RESIDUAL
+      )
+      interior_endpoint_residuals.append(
+        _EULER_CHAIN_REFINEMENT_FAILURE_RESIDUAL
+      )
+      continue
+    extent_residual = 0.0
+    shock_residual = 0.0
+    companion_residual = 0.0
+    interior_residual = 0.0
+    for previous_field, current_field in zip(
+      previous.fields,
+      current.fields,
+      strict=True,
+    ):
+      previous_extent = _euler_chain_field_x_extent(previous_field)
+      current_extent = _euler_chain_field_x_extent(current_field)
+      if previous_extent is None or current_extent is None:
+        extent_residual = _EULER_CHAIN_REFINEMENT_FAILURE_RESIDUAL
+      else:
+        extent_residual = max(
+          extent_residual,
+          abs(current_extent[0] - previous_extent[0]),
+          abs(current_extent[1] - previous_extent[1]),
+        )
+      shock_residual = max(
+        shock_residual,
+        _euler_endpoint_residual(
+          _euler_field_endpoint_pair(
+            previous_field,
+            'shock_boundary_points_m',
+          ),
+          _euler_field_endpoint_pair(current_field, 'shock_boundary_points_m'),
+        ),
+      )
+      companion_residual = max(
+        companion_residual,
+        _euler_endpoint_residual(
+          _euler_field_endpoint_pair(
+            previous_field,
+            'companion_boundary_points_m',
+          ),
+          _euler_field_endpoint_pair(
+            current_field,
+            'companion_boundary_points_m',
+          ),
+        ),
+      )
+      interior_residual = max(
+        interior_residual,
+        _euler_endpoint_residual(
+          _euler_field_endpoint_pair(previous_field, 'interior_points_m'),
+          _euler_field_endpoint_pair(current_field, 'interior_points_m'),
+        ),
+      )
+    axial_extent_residuals.append(extent_residual)
+    shock_endpoint_residuals.append(shock_residual)
+    companion_endpoint_residuals.append(companion_residual)
+    interior_endpoint_residuals.append(interior_residual)
+  geometry_shape_verified = bool(
+    geometry_shape_verified
+    and all(
+      residual <= float(endpoint_tolerance_m)
+      for residual in (
+        *axial_extent_residuals,
+        *shock_endpoint_residuals,
+        *companion_endpoint_residuals,
+        *interior_endpoint_residuals,
+      )
+    )
+  )
+
+  maximum_cell_euler_residuals = tuple(
+    max(
+      (
+        audit.maximum_cell_euler_residual or 0.0
+        for audit in audits_for_case
+      ),
+      default=_EULER_CHAIN_REFINEMENT_FAILURE_RESIDUAL,
+    )
+    for audits_for_case in field_audits
+  )
+  cell_residual_trend_verified = bool(
+    all(
+      current <= previous + float(cell_residual_trend_tolerance)
+      for previous, current in zip(
+        maximum_cell_euler_residuals,
+        maximum_cell_euler_residuals[1:],
+      )
+    )
+    and all(
+      residual <= float(cell_residual_tolerance)
+      for residual in maximum_cell_euler_residuals
+    )
+  )
+  handoff_links_verified = all(
+    audit.handoff_links_verified is True
+    for audit in chain_audits
+  )
+  termination_values = tuple(
+    (
+      chain.termination.reason.value,
+      chain.termination.physical_termination,
+    )
+    for chain in chains
+  )
+  termination_sensitivity_verified = bool(
+    len(set(termination_values)) == 1
+    and all(not physical for _, physical in termination_values)
+  )
+  fidelity_flags_verified = all(
+    not chain.physical_closure_verified
+    and chain.chain_promotion_blocked
+    and not chain.production_claim_allowed
+    and audit.fidelity_flags_verified
+    and all(
+      not field.physical_closure_verified
+      and field.chain_promotion_blocked
+      and not field.production_claim_allowed
+      for field in chain.fields
+    )
+    for chain, audit in zip(chains, chain_audits, strict=True)
+  )
+  refinement_convergence_verified = bool(
+    expected_verified
+    and resolution_order_verified
+    and field_count_consistent
+    and continued_field_count_consistent
+    and step_count_consistent
+    and sample_resolution_verified
+    and topology_verified
+    and geometry_shape_verified
+    and field_euler_audits_verified
+    and handoff_links_verified
+    and termination_sensitivity_verified
+    and fidelity_flags_verified
+    and cell_residual_trend_verified
+  )
+
+  common = {
+    'cases': items,
+    'chain_audits': chain_audits,
+    'expected_resolutions': expected,
+    'field_count': field_counts[0],
+    'continued_field_count': continued_counts[0],
+    'expected_resolutions_verified': True,
+    'resolution_order_verified': True,
+    'field_count_consistent': field_count_consistent,
+    'continued_field_count_consistent': continued_field_count_consistent,
+    'step_count_consistent': step_count_consistent,
+    'sample_resolution_verified': sample_resolution_verified,
+    'topology_verified': topology_verified,
+    'geometry_shape_verified': geometry_shape_verified,
+    'field_euler_audits_verified': field_euler_audits_verified,
+    'handoff_links_verified': handoff_links_verified,
+    'termination_sensitivity_verified': termination_sensitivity_verified,
+    'fidelity_flags_verified': fidelity_flags_verified,
+    'cell_residual_trend_verified': cell_residual_trend_verified,
+    'refinement_convergence_verified': refinement_convergence_verified,
+    'field_node_counts': field_node_counts,
+    'field_cell_counts': field_cell_counts,
+    'maximum_cell_euler_residuals': maximum_cell_euler_residuals,
+    'axial_extent_residuals_m': axial_extent_residuals,
+    'shock_endpoint_residuals_m': shock_endpoint_residuals,
+    'companion_endpoint_residuals_m': companion_endpoint_residuals,
+    'interior_endpoint_residuals_m': interior_endpoint_residuals,
+    'endpoint_tolerance_m': endpoint_tolerance_m,
+    'cell_residual_tolerance': cell_residual_tolerance,
+    'cell_residual_trend_tolerance': cell_residual_trend_tolerance,
+  }
+  if not field_euler_audits_verified:
+    return _euler_companion_field_chain_refinement_failure(
+      MocEulerCompanionFieldChainRefinementMeasurementStatus.CASE_FAILURE,
+      'one or more retained fields failed independent Euler remeasurement',
+      **common,
+    )
+  if not sample_resolution_verified or not topology_verified:
+    return _euler_companion_field_chain_refinement_failure(
+      MocEulerCompanionFieldChainRefinementMeasurementStatus.TOPOLOGY_FAILURE,
+      'refinement cases failed independent resolution or topology checks',
+      **common,
+    )
+  if not geometry_shape_verified:
+    return _euler_companion_field_chain_refinement_failure(
+      MocEulerCompanionFieldChainRefinementMeasurementStatus.GEOMETRY_FAILURE,
+      'corresponding open-field boundary endpoints changed beyond tolerance',
+      **common,
+    )
+  if not cell_residual_trend_verified:
+    return _euler_companion_field_chain_refinement_failure(
+      MocEulerCompanionFieldChainRefinementMeasurementStatus.SENSITIVITY_FAILURE,
+      'open-field conservative residuals did not remain bounded or non-increasing',
+      **common,
+    )
+  if not handoff_links_verified or not termination_sensitivity_verified:
+    return _euler_companion_field_chain_refinement_failure(
+      MocEulerCompanionFieldChainRefinementMeasurementStatus.TERMINATION_FAILURE,
+      'handoff or typed termination metadata changed across refinement',
+      **common,
+    )
+  if not fidelity_flags_verified:
+    return _euler_companion_field_chain_refinement_failure(
+      MocEulerCompanionFieldChainRefinementMeasurementStatus.FIDELITY_FAILURE,
+      'refinement sequence weakened its open-field fidelity boundary',
+      **common,
+    )
+  return MocEulerCompanionFieldChainRefinementMeasurement(
+    status=MocEulerCompanionFieldChainRefinementMeasurementStatus.CONVERGED,
+    **common,
+    claim_status=(
+      'independent-open-euler-companion-field-chain-refinement; '
+      'reflected-free-boundary, entropy closure, and external validation remain pending'
+    ),
+    physical_closure_verified=False,
+    chain_promotion_blocked=True,
+    production_claim_allowed=False,
+    message=(
+      'independent Euler companion-field chain refinement verified retained '
+      'resolution/topology shape, stable endpoints, bounded decreasing cell '
+      'residuals, exact frontier links, and a typed non-physical stop; '
+      'physical reflected closure remains pending'
     ),
   )
