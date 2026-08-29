@@ -10,15 +10,18 @@ from exhaust_plume.models.moc import (
   MocEulerAmbientFirstWedgeRemeshStatus,
   MocEulerAmbientFirstWedgeCharacteristicStatus,
   MocEulerAmbientFirstWedgeCharacteristicFieldStatus,
+  MocEulerAmbientFirstWedgeEntropyCarryStatus,
   MocEulerAmbientPhysicalFieldStatus,
   assemble_euler_ambient_physical_field,
   fit_euler_consistent_shock_boundary,
   plan_euler_ambient_first_wedge_remesh_mock,
   plan_euler_ambient_first_wedge_characteristic_remesh,
   plan_euler_ambient_first_wedge_characteristic_field,
+  plan_euler_ambient_first_wedge_entropy_carry,
   remesh_euler_ambient_first_wedge,
   remesh_euler_ambient_first_wedge_characteristic_field,
   solve_euler_ambient_first_wedge_characteristic_remesh,
+  solve_euler_ambient_first_wedge_entropy_carry,
   solve_attached_compression_to_turn,
   validate_moc_mesh,
 )
@@ -35,6 +38,7 @@ from exhaust_plume.validation import (
   measure_moc_euler_ambient_first_wedge_characteristic_audit,
   measure_moc_euler_ambient_first_wedge_terminal_characteristic_audit,
   measure_moc_euler_ambient_first_wedge_characteristic_field_audit,
+  measure_moc_euler_ambient_first_wedge_entropy_carry,
   measure_moc_euler_ambient_first_wedge_remesh_refinement,
   measure_moc_euler_ambient_physical_field,
   measure_moc_euler_ambient_physical_field_refinement,
@@ -662,6 +666,105 @@ def test_terminal_characteristic_field_planner_records_retile_without_chain() ->
   assert planner.physical_closure_verified is False
   assert planner.chain_promotion_blocked
   assert planner.production_claim_allowed is False
+
+
+def test_entropy_carry_solver_closes_source_equations_and_preserves_axis_lineage() -> None:
+  shock = _shaped_exact_shock()
+  physical_field = assemble_euler_ambient_physical_field(
+    shock,
+    shock.downstream_static_pressure_Pa[0],
+  )
+  candidate = solve_euler_ambient_first_wedge_characteristic_remesh(
+    physical_field,
+  )
+  original_vertices = candidate.vertices_xr_m
+  original_pressures = candidate.total_pressure_Pa
+
+  result = solve_euler_ambient_first_wedge_entropy_carry(candidate)
+
+  assert result.status is MocEulerAmbientFirstWedgeEntropyCarryStatus.EULER_RESIDUAL_FAILURE
+  assert result.incoming_characteristic_geometry_verified
+  assert result.pressure_lineage_verified
+  assert result.characteristic_geometry_verified
+  assert result.variable_entropy_compatibility_verified
+  assert result.axis_streamline_entropy_verified
+  assert result.cell_euler_residual_finite
+  assert not result.cell_euler_residual_verified
+  assert result.maximum_entropy_compatibility_residual is not None
+  assert result.maximum_entropy_compatibility_residual < 1.0e-8
+  assert result.cell_euler_residual is not None
+  assert result.cell_euler_residual > 1.0e-2
+  assert result.total_pressure_Pa[0] == result.total_pressure_Pa[2]
+  assert result.total_pressure_Pa[2] != original_pressures[2]
+  assert candidate.vertices_xr_m == original_vertices
+  assert candidate.total_pressure_Pa == original_pressures
+  assert result.physical_closure_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  assert result.as_chain_termination_decision().reason is (
+    MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+  )
+
+
+def test_entropy_carry_audit_recomputes_raw_gates_and_planner_stops() -> None:
+  shock = _shaped_exact_shock()
+  physical_field = assemble_euler_ambient_physical_field(
+    shock,
+    shock.downstream_static_pressure_Pa[0],
+  )
+  candidate = solve_euler_ambient_first_wedge_characteristic_remesh(
+    physical_field,
+  )
+  result = solve_euler_ambient_first_wedge_entropy_carry(candidate)
+
+  audit = measure_moc_euler_ambient_first_wedge_entropy_carry(result)
+
+  assert audit.status.value == (
+    'euler_ambient_first_wedge_entropy_euler_residual_failure'
+  )
+  assert audit.solver_status_consistent
+  assert audit.topology_verified
+  assert audit.state_samples_finite
+  assert audit.pressure_lineage_verified
+  assert audit.incoming_characteristic_geometry_verified
+  assert audit.characteristic_geometry_verified
+  assert audit.variable_entropy_compatibility_verified
+  assert audit.axis_streamline_entropy_verified
+  assert audit.cell_euler_residual_finite
+  assert not audit.cell_euler_residual_verified
+  assert audit.maximum_entropy_compatibility_residual is not None
+  assert audit.maximum_entropy_compatibility_residual < 1.0e-8
+  assert audit.as_report()['operator_id'] == (
+    'op.moc.euler-ambient-first-wedge-entropy-carry-audit'
+  )
+
+  tampered = replace(
+    result,
+    status=MocEulerAmbientFirstWedgeEntropyCarryStatus.CONVERGED_LOCAL_ENTROPY_CARRY,
+    cell_euler_residual=0.0,
+    cell_euler_residual_verified=True,
+  )
+  tampered_audit = measure_moc_euler_ambient_first_wedge_entropy_carry(tampered)
+  assert tampered_audit.status.value == (
+    'euler_ambient_first_wedge_entropy_euler_residual_failure'
+  )
+  assert not tampered_audit.solver_status_consistent
+  assert not tampered_audit.cell_euler_residual_verified
+
+  planner = plan_euler_ambient_first_wedge_entropy_carry(candidate)
+  assert planner.attempted
+  assert planner.resolved
+  assert planner.entropy_carry is not None
+  assert planner.step is not None
+  assert planner.step.result_kind == (
+    'solver-owned-terminal-entropy-carrying-trial'
+  )
+  assert planner.step.result_variable_entropy_compatibility_verified
+  assert planner.step.result_axis_streamline_entropy_verified
+  assert not planner.step.result_cell_euler_residual_verified
+  assert planner.physical_chain_cell_count == 0
+  assert planner.termination.reason is MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+  assert planner.as_report()['diagnostics']['entropy_carry_consumed_as_chain_cell'] is False
 
 
 def test_first_wedge_remesh_planner_records_ladder_and_stops_before_chain() -> None:

@@ -113,6 +113,10 @@ from exhaust_plume.models.moc.euler_terminal_wedge import (
   solve_euler_ambient_first_wedge_characteristic_remesh,
   remesh_euler_ambient_first_wedge_characteristic_field,
 )
+from exhaust_plume.models.moc.euler_entropy_carry import (
+  MocEulerAmbientFirstWedgeEntropyCarryResult,
+  solve_euler_ambient_first_wedge_entropy_carry,
+)
 from exhaust_plume.models.moc.euler_physical_field import (
   MocEulerAmbientPhysicalFieldResult,
 )
@@ -231,6 +235,9 @@ __all__ = (
   'MocEulerAmbientFirstWedgeCharacteristicFieldPlannerStep',
   'MocEulerAmbientFirstWedgeCharacteristicFieldPlannerResult',
   'plan_euler_ambient_first_wedge_characteristic_field',
+  'MocEulerAmbientFirstWedgeEntropyCarryPlannerStep',
+  'MocEulerAmbientFirstWedgeEntropyCarryPlannerResult',
+  'plan_euler_ambient_first_wedge_entropy_carry',
   'MocEulerPostShockFieldContinuationSolve',
   'MocEulerPostShockFieldChainStep',
   'MocEulerPostShockFieldChainPlannerResult',
@@ -10947,6 +10954,287 @@ def plan_euler_ambient_first_wedge_characteristic_field(
     result_production_claim_allowed=field_retile.production_claim_allowed,
   )
   return result(field_retile.as_chain_termination_decision())
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerAmbientFirstWedgeEntropyCarryPlannerStep:
+  """One entropy-carrying terminal trial before chain promotion."""
+
+  source_candidate_status: str
+  result_status: str
+  result_kind: str
+  result_converged: bool
+  result_solver_iterations: int
+  result_characteristic_edge_count: int
+  result_incoming_characteristic_geometry_verified: bool
+  result_pressure_lineage_verified: bool
+  result_characteristic_geometry_verified: bool
+  result_variable_entropy_compatibility_verified: bool
+  result_axis_streamline_entropy_verified: bool
+  result_cell_euler_residual_finite: bool
+  result_cell_euler_residual_verified: bool
+  result_physical_closure_verified: bool
+  result_chain_promotion_blocked: bool
+  result_production_claim_allowed: bool
+
+  def __post_init__(self) -> None:
+    for name in (
+      'source_candidate_status',
+      'result_status',
+      'result_kind',
+    ):
+      value = getattr(self, name)
+      if not isinstance(value, str) or not value:
+        raise ValueError(f'{name} must be a non-empty string')
+    for name in ('result_solver_iterations', 'result_characteristic_edge_count'):
+      value = getattr(self, name)
+      if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f'{name} must be a nonnegative integer')
+    for name in (
+      'result_converged',
+      'result_incoming_characteristic_geometry_verified',
+      'result_pressure_lineage_verified',
+      'result_characteristic_geometry_verified',
+      'result_variable_entropy_compatibility_verified',
+      'result_axis_streamline_entropy_verified',
+      'result_cell_euler_residual_finite',
+      'result_cell_euler_residual_verified',
+      'result_physical_closure_verified',
+      'result_chain_promotion_blocked',
+      'result_production_claim_allowed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'source_candidate_status': self.source_candidate_status,
+      'result_status': self.result_status,
+      'result_kind': self.result_kind,
+      'result_converged': self.result_converged,
+      'result_solver_iterations': self.result_solver_iterations,
+      'result_characteristic_edge_count': self.result_characteristic_edge_count,
+      'checks': {
+        'incoming_characteristic_geometry_verified': (
+          self.result_incoming_characteristic_geometry_verified
+        ),
+        'pressure_lineage_verified': self.result_pressure_lineage_verified,
+        'characteristic_geometry_verified': (
+          self.result_characteristic_geometry_verified
+        ),
+        'variable_entropy_compatibility_verified': (
+          self.result_variable_entropy_compatibility_verified
+        ),
+        'axis_streamline_entropy_verified': (
+          self.result_axis_streamline_entropy_verified
+        ),
+        'cell_euler_residual_finite': self.result_cell_euler_residual_finite,
+        'cell_euler_residual_verified': self.result_cell_euler_residual_verified,
+        'physical_closure_verified': self.result_physical_closure_verified,
+        'chain_promotion_blocked': self.result_chain_promotion_blocked,
+        'production_claim_allowed': self.result_production_claim_allowed,
+      },
+    }
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerAmbientFirstWedgeEntropyCarryPlannerResult:
+  """An entropy-carrying local trial and its explicit pre-chain stop."""
+
+  seed: MocEulerAmbientFirstWedgeCharacteristicResult
+  entropy_carry: MocEulerAmbientFirstWedgeEntropyCarryResult | None
+  step: MocEulerAmbientFirstWedgeEntropyCarryPlannerStep | None
+  termination: MocChainTerminationDecision
+  planner_kind: MocChainPlannerKind
+  claim_status: str
+  diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.seed,
+      MocEulerAmbientFirstWedgeCharacteristicResult,
+    ):
+      raise TypeError(
+        'seed must be a MocEulerAmbientFirstWedgeCharacteristicResult'
+      )
+    if self.entropy_carry is not None and not isinstance(
+      self.entropy_carry,
+      MocEulerAmbientFirstWedgeEntropyCarryResult,
+    ):
+      raise TypeError(
+        'entropy_carry must be a '
+        'MocEulerAmbientFirstWedgeEntropyCarryResult or None'
+      )
+    if self.step is not None and not isinstance(
+      self.step,
+      MocEulerAmbientFirstWedgeEntropyCarryPlannerStep,
+    ):
+      raise TypeError(
+        'step must be a MocEulerAmbientFirstWedgeEntropyCarryPlannerStep or None'
+      )
+    if (self.entropy_carry is None) != (self.step is None):
+      raise ValueError('entropy_carry and step must be supplied together')
+    if not isinstance(self.termination, MocChainTerminationDecision):
+      raise TypeError('termination must be a MocChainTerminationDecision')
+    if self.planner_kind is not MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH:
+      raise ValueError(
+        'entropy-carrying planner must use the upstream-coupled research '
+        'planner kind'
+      )
+    object.__setattr__(self, 'claim_status', str(self.claim_status))
+    object.__setattr__(
+      self,
+      'diagnostics',
+      MappingProxyType(dict(self.diagnostics)),
+    )
+
+  @property
+  def attempted(self) -> bool:
+    return self.entropy_carry is not None
+
+  @property
+  def resolved(self) -> bool:
+    return bool(
+      self.entropy_carry is not None
+      and self.termination.reason is MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+    )
+
+  @property
+  def physical_chain_cell_count(self) -> int:
+    return 0
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    return False
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    return True
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    return False
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'planner_kind': self.planner_kind.value,
+      'planning_only': True,
+      'claim_status': self.claim_status,
+      'attempted': self.attempted,
+      'resolved': self.resolved,
+      'physical_chain_cell_count': self.physical_chain_cell_count,
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'entropy_carry': (
+        None
+        if self.entropy_carry is None
+        else self.entropy_carry.as_report()
+      ),
+      'step': None if self.step is None else self.step.as_report(),
+      'termination': self.termination.as_report(),
+      'diagnostics': dict(self.diagnostics),
+    }
+
+
+def plan_euler_ambient_first_wedge_entropy_carry(
+  seed: MocEulerAmbientFirstWedgeCharacteristicResult,
+  *,
+  position_tolerance_m: float = 1.0e-10,
+  characteristic_residual_tolerance: float = 1.0e-8,
+  edge_alignment_tolerance: float = 0.25,
+  cell_residual_tolerance: float = 1.0e-2,
+  pressure_lineage_tolerance: float = 1.0e-8,
+  maximum_iterations: int = 24,
+) -> MocEulerAmbientFirstWedgeEntropyCarryPlannerResult:
+  """Plan one entropy-carrying terminal trial and stop before a chain cell."""
+
+  if not isinstance(seed, MocEulerAmbientFirstWedgeCharacteristicResult):
+    raise TypeError(
+      'seed must be a MocEulerAmbientFirstWedgeCharacteristicResult'
+    )
+  entropy_carry: MocEulerAmbientFirstWedgeEntropyCarryResult | None = None
+  step: MocEulerAmbientFirstWedgeEntropyCarryPlannerStep | None = None
+
+  def result(
+    termination: MocChainTerminationDecision,
+  ) -> MocEulerAmbientFirstWedgeEntropyCarryPlannerResult:
+    return MocEulerAmbientFirstWedgeEntropyCarryPlannerResult(
+      seed=seed,
+      entropy_carry=entropy_carry,
+      step=step,
+      termination=termination,
+      planner_kind=MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH,
+      claim_status=(
+        'solver-owned-terminal-entropy-carrying-planner; characteristic '
+        'subcell refinement, reflected free-boundary continuation, and '
+        'external validation pending'
+      ),
+      diagnostics={
+        'planner_model': 'euler-ambient-first-wedge-entropy-carry',
+        'entropy_carry_consumed_as_chain_cell': False,
+        'physical_chain_cell_count': 0,
+        'local_entropy_policy': (
+          'preserve-axis-shock-lineage-and-ambient-off-axis-lineage; '
+          'never-create-moc-chain-cell'
+        ),
+        'independent_audit_required': True,
+        'physical_closure_verified': False,
+        'chain_promotion_blocked': True,
+        'production_claim_allowed': False,
+      },
+    )
+
+  try:
+    entropy_carry = solve_euler_ambient_first_wedge_entropy_carry(
+      seed,
+      position_tolerance_m=position_tolerance_m,
+      characteristic_residual_tolerance=characteristic_residual_tolerance,
+      edge_alignment_tolerance=edge_alignment_tolerance,
+      cell_residual_tolerance=cell_residual_tolerance,
+      pressure_lineage_tolerance=pressure_lineage_tolerance,
+      maximum_iterations=maximum_iterations,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return result(
+      MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_ERROR,
+        message=f'entropy-carrying planner raised: {error}',
+        diagnostics={
+          'planner_model': 'euler-ambient-first-wedge-entropy-carry',
+          'solver_error': type(error).__name__,
+          'entropy_carry_consumed_as_chain_cell': False,
+        },
+      )
+    )
+  step = MocEulerAmbientFirstWedgeEntropyCarryPlannerStep(
+    source_candidate_status=seed.status.value,
+    result_status=entropy_carry.status.value,
+    result_kind='solver-owned-terminal-entropy-carrying-trial',
+    result_converged=entropy_carry.converged,
+    result_solver_iterations=entropy_carry.solver_iterations,
+    result_characteristic_edge_count=len(entropy_carry.characteristic_edges),
+    result_incoming_characteristic_geometry_verified=(
+      entropy_carry.incoming_characteristic_geometry_verified
+    ),
+    result_pressure_lineage_verified=entropy_carry.pressure_lineage_verified,
+    result_characteristic_geometry_verified=(
+      entropy_carry.characteristic_geometry_verified
+    ),
+    result_variable_entropy_compatibility_verified=(
+      entropy_carry.variable_entropy_compatibility_verified
+    ),
+    result_axis_streamline_entropy_verified=(
+      entropy_carry.axis_streamline_entropy_verified
+    ),
+    result_cell_euler_residual_finite=entropy_carry.cell_euler_residual_finite,
+    result_cell_euler_residual_verified=entropy_carry.cell_euler_residual_verified,
+    result_physical_closure_verified=entropy_carry.physical_closure_verified,
+    result_chain_promotion_blocked=entropy_carry.chain_promotion_blocked,
+    result_production_claim_allowed=entropy_carry.production_claim_allowed,
+  )
+  return result(entropy_carry.as_chain_termination_decision())
 
 
 @dataclass(frozen=True, slots=True)

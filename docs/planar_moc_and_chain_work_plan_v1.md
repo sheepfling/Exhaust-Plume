@@ -1682,6 +1682,28 @@ remeshing, mixed-regime, refinement, and external validation acceptance, and
 it cannot promote or mutate the basic, reduced-order, signature, ray, or FPA
 providers.
 
+## Local entropy-carrying terminal trial checkpoint
+
+`solve_euler_ambient_first_wedge_entropy_carry` is the next solver-owned
+terminal seam after the two-cell retile. It keeps the first ambient-source
+total pressure on the off-axis node, carries the terminal shock total pressure
+along the centerline, and solves the off-axis flow angle/reflected-axis Mach
+pair against the generalized variable-entropy source on both terminal
+characteristic edges. The reference trial drives those two source residuals
+below `1e-8` while retaining the incoming ambient `C-` geometry and exact
+pressure lineages; it does not copy the off-axis entropy onto the axis.
+
+`measure_moc_euler_ambient_first_wedge_entropy_carry` independently rebuilds
+the incoming and terminal characteristic geometry, pressure lineage, entropy
+source residuals, topology, and coarse-cell Euler residual from the returned
+raw samples. On the canonical fixture the trial is intentionally an
+`euler_ambient_first_wedge_entropy_euler_residual_failure` with a coarse-cell
+residual of approximately `0.01598`. The corresponding planner records the
+successful entropy-source closure but stops with `FIDELITY_NOT_ALLOWED` and
+zero physical chain cells. The next physical gate is characteristic subcell
+refinement with internal family closure, followed by coupling that local
+field to the reflected free boundary and indexed external observations.
+
 The reflected-domain remesh seam is now implemented as a separate research
 lane. `MocReflectedDomainRemeshRequest` preserves the prior outgoing `C-`
 front as an exact reflection anchor and requires independently supplied

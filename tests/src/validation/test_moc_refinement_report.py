@@ -126,6 +126,9 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   characteristic_field = report['geometry_cases'][
     'euler_ambient_first_wedge_characteristic_field'
   ]
+  entropy_carry = report['geometry_cases'][
+    'euler_ambient_first_wedge_entropy_carry'
+  ]
   ambient_attachment = report['geometry_cases']['ambient_attachment_closure_probe']
   ambient_transition = report['geometry_cases']['ambient_attachment_transition_probe']
   ambient_closure = report['geometry_cases']['ambient_pressure_closure_probe']
@@ -221,6 +224,29 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
     'cell_euler_residuals_finite': True,
     'cell_euler_residuals_verified': False,
     'retiled_field_status_barrier_verified': True,
+    'solver_status_consistent': True,
+    'physical_closure_verified': False,
+    'chain_promotion_blocked': True,
+    'production_claim_allowed': False,
+  }
+  assert entropy_carry['planner']['resolved'] is True
+  assert entropy_carry['planner']['physical_chain_cell_count'] == 0
+  assert entropy_carry['planner']['entropy_carry']['status'] == (
+    'euler_ambient_first_wedge_entropy_euler_residual_failure'
+  )
+  assert entropy_carry['independent_audit']['status'] == (
+    'euler_ambient_first_wedge_entropy_euler_residual_failure'
+  )
+  assert entropy_carry['independent_audit']['checks'] == {
+    'topology_verified': True,
+    'state_samples_finite': True,
+    'pressure_lineage_verified': True,
+    'incoming_characteristic_geometry_verified': True,
+    'characteristic_geometry_verified': True,
+    'variable_entropy_compatibility_verified': True,
+    'axis_streamline_entropy_verified': True,
+    'cell_euler_residual_finite': True,
+    'cell_euler_residual_verified': False,
     'solver_status_consistent': True,
     'physical_closure_verified': False,
     'chain_promotion_blocked': True,

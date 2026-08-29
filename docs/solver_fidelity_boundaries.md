@@ -72,6 +72,21 @@ multi-cell entropy-carrying reflected-field continuation followed by
 refinement and indexed external observations. No lower-fidelity product lane
 may consume or learn from this retiled diagnostic.
 
+The separate
+`solve_euler_ambient_first_wedge_entropy_carry` trial is the first local seam
+that actually carries the nonuniform entropy source through the reflected
+terminal wedge. It preserves shock total pressure on the axis and ambient
+source pressure at the off-axis node, then solves the terminal angle/Mach
+pair until both generalized characteristic source residuals close. Its
+companion `op.moc.euler-ambient-first-wedge-entropy-carry-audit` recomputes
+those gates from raw vertices, states, pressures, and an independent Euler
+flux residual. The canonical trial passes the source and lineage gates but
+remains above the coarse-cell Euler tolerance, so its planner remains
+research-only, `FIDELITY_NOT_ALLOWED`, and contributes no `MocChainCell`.
+Internal characteristic subcell closure, the reflected free boundary,
+refinement, and external validation are still required before a continued
+shock-cell chain can consume this lane.
+
 The reference lane also accepts an explicit
 ``MocMixedRegimeControlSection`` handoff. This is a transverse, scalar,
 flux-bearing input—not a ``CharacteristicState`` boundary. The section-aware

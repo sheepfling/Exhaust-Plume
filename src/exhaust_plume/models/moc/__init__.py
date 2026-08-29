@@ -376,6 +376,11 @@ from exhaust_plume.models.moc.euler_terminal_wedge import (
   MocEulerAmbientFirstWedgeCharacteristicFieldResult,
   remesh_euler_ambient_first_wedge_characteristic_field,
 )
+from exhaust_plume.models.moc.euler_entropy_carry import (
+  MocEulerAmbientFirstWedgeEntropyCarryStatus,
+  MocEulerAmbientFirstWedgeEntropyCarryResult,
+  solve_euler_ambient_first_wedge_entropy_carry,
+)
 from exhaust_plume.models.moc.ambient_shock_strip import (
   MocAmbientShockBoundaryMarchStatus,
   MocAmbientShockBoundaryMarchResult,
@@ -521,6 +526,9 @@ from exhaust_plume.models.moc.planner import (
   MocEulerAmbientFirstWedgeCharacteristicFieldPlannerStep,
   MocEulerAmbientFirstWedgeCharacteristicFieldPlannerResult,
   plan_euler_ambient_first_wedge_characteristic_field,
+  MocEulerAmbientFirstWedgeEntropyCarryPlannerStep,
+  MocEulerAmbientFirstWedgeEntropyCarryPlannerResult,
+  plan_euler_ambient_first_wedge_entropy_carry,
   MocEulerPostShockFieldContinuationSolve,
   MocEulerPostShockFieldChainStep,
   MocEulerPostShockFieldChainPlannerResult,
@@ -705,6 +713,9 @@ __all__ = (
   'MocEulerAmbientFirstWedgeCharacteristicFieldPlannerStep',
   'MocEulerAmbientFirstWedgeCharacteristicFieldPlannerResult',
   'plan_euler_ambient_first_wedge_characteristic_field',
+  'MocEulerAmbientFirstWedgeEntropyCarryPlannerStep',
+  'MocEulerAmbientFirstWedgeEntropyCarryPlannerResult',
+  'plan_euler_ambient_first_wedge_entropy_carry',
   'MocEulerPostShockFieldContinuationSolve',
   'MocEulerPostShockFieldChainStep',
   'MocEulerPostShockFieldChainPlannerResult',
@@ -970,6 +981,9 @@ __all__ = (
   'MocEulerAmbientFirstWedgeCharacteristicFieldStatus',
   'MocEulerAmbientFirstWedgeCharacteristicFieldResult',
   'remesh_euler_ambient_first_wedge_characteristic_field',
+  'MocEulerAmbientFirstWedgeEntropyCarryStatus',
+  'MocEulerAmbientFirstWedgeEntropyCarryResult',
+  'solve_euler_ambient_first_wedge_entropy_carry',
   'MocEulerPostShockFieldStatus',
   'MocEulerPostShockFieldResult',
   'assemble_euler_post_shock_field',

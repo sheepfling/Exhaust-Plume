@@ -273,6 +273,13 @@ from exhaust_plume.validation.moc_euler_characteristic import (
   MocEulerAmbientFirstWedgeCharacteristicFieldAudit,
   measure_moc_euler_ambient_first_wedge_characteristic_field_audit,
 )
+from exhaust_plume.validation.moc_euler_entropy import (
+  MOC_EULER_AMBIENT_FIRST_WEDGE_ENTROPY_CARRY_AUDIT_OPERATOR_ID,
+  MocEulerAmbientFirstWedgeEntropyCarryAuditStatus,
+  MocEulerAmbientFirstWedgeEntropyCarryEdgeAudit,
+  MocEulerAmbientFirstWedgeEntropyCarryAudit,
+  measure_moc_euler_ambient_first_wedge_entropy_carry,
+)
 from exhaust_plume.validation.lane_contracts import (
   SignatureLaneInvariantReport,
   VisualLaneInvariantReport,
@@ -481,6 +488,11 @@ __all__ = (
   'MocEulerAmbientFirstWedgeCharacteristicFieldAuditStatus',
   'MocEulerAmbientFirstWedgeCharacteristicFieldAudit',
   'measure_moc_euler_ambient_first_wedge_characteristic_field_audit',
+  'MOC_EULER_AMBIENT_FIRST_WEDGE_ENTROPY_CARRY_AUDIT_OPERATOR_ID',
+  'MocEulerAmbientFirstWedgeEntropyCarryAuditStatus',
+  'MocEulerAmbientFirstWedgeEntropyCarryEdgeAudit',
+  'MocEulerAmbientFirstWedgeEntropyCarryAudit',
+  'measure_moc_euler_ambient_first_wedge_entropy_carry',
   'SignatureLaneInvariantReport',
   'VisualLaneInvariantReport',
   'MACH_DISK_FEATURE_OPERATOR_ID',
