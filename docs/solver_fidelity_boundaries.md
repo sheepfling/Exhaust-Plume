@@ -910,3 +910,37 @@ independent measurement, but do not attach it as a new supersonic cell or feed
 it to the visualization, signature, ray, or focal-plane-array providers. The
 next physics gate is a coupled reflected shock/ambient/free-boundary solve
 whose entropy transport is solved rather than assigned by a caller-owned map.
+
+## Solver-owned variable-entropy/free-boundary research reference
+
+The next higher-fidelity lane is
+`moc.mixed-regime-variable-entropy-free-boundary`. It takes the typed
+shock-interface entropy handoff and a vertical downstream control section,
+derives its own reverse source pressure/gamma profile, and solves a structured
+triangular stream-tube reference with an iterated outer height. Streamline IDs,
+source arc coordinates, transported total pressure, free-boundary samples,
+and residual histories are retained in the typed result instead of being
+hidden in a caller-owned map.
+
+Its acceptance surface is deliberately split. Settled cells must satisfy the
+mapped continuity, entropy-advection, and mass-flow checks, while connector and
+entrance regularization residuals remain reported separately. Transverse
+momentum is measured for every cell and is expected to remain nonzero until a
+coupled transverse solve exists. The independent
+`op.moc.mixed-regime-variable-entropy-free-boundary` operator rebuilds the
+source profile, topology, boundary condition, pressure transport, and all
+reported metrics from the typed inputs.
+
+The standalone stress case uses a derived pressure-loss lineage because the
+current production handoff's outer sample can exceed the terminal total
+pressure; a scalar no-gain perimeter cannot accept that input. This derived
+case is explicitly labeled and does not rewrite the production handoff or
+count as external validation.
+
+This remains a research reference only. It does not close the entrance seam,
+transverse Euler momentum, shock fitting, or canonical reflected free-boundary
+coupling, so its physical/canonical flags remain false and chain promotion
+remains blocked. The basic visual, signature, ray, and focal-plane-array
+providers are unchanged and cannot consume its cells. The next gate is a
+solver-owned coupled 2-D Euler/MOC/free-boundary implementation with
+refinement and indexed external observations.

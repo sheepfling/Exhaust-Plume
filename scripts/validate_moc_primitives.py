@@ -33,6 +33,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocMixedRegimePlanarPotentialReference,
   MocMixedRegimePlanarFrozenProfileReference,
   MocMixedRegimeEntropyTransportStatus,
+  MocMixedRegimeVariableEntropyFreeBoundaryStatus,
   MocSolverGeneratedMixedRegimeClosureReference,
   MocInvariantClosureFamily,
   MocFreeBoundaryShockResult,
@@ -140,6 +141,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_marched_attached_shock_with_constant_invariant_closure,
   solve_mixed_regime_compressible_potential_field,
   solve_mixed_regime_entropy_transport_boundary,
+  solve_mixed_regime_variable_entropy_free_boundary,
   solve_mixed_regime_planar_free_boundary_reference,
   solve_mixed_regime_subsonic_field,
   solve_reflected_boundary_trace_extension,
@@ -206,6 +208,7 @@ from exhaust_plume.validation.moc_measurements import (  # noqa: E402
   MocMixedRegimePlanarFreeBoundaryRefinementCase,
   MocMixedRegimeEntropyHandoffMeasurementStatus,
   MocMixedRegimeEntropyTransportMeasurementStatus,
+  MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus,
   MocReflectedDomainRemeshMeasurementStatus,
   MocReflectedDomainOuterSourceMeasurementStatus,
   MocTerminalClosureObservation,
@@ -226,6 +229,7 @@ from exhaust_plume.validation.moc_measurements import (  # noqa: E402
   measure_mixed_regime_planar_free_boundary_refinement,
   measure_mixed_regime_entropy_handoff,
   measure_mixed_regime_entropy_transport_boundary,
+  measure_mixed_regime_variable_entropy_free_boundary,
   measure_mixed_regime_compressible_potential_field,
   measure_moc_terminal_closure,
   measure_moc_shock_cell,
@@ -2976,6 +2980,101 @@ def _mixed_regime_boundary_probe(
       entropy_transport,
     )
   )
+  # The production-generated terminal may carry a nonuniform upstream
+  # pressure field whose outer oblique samples exceed the centerline normal
+  # terminal pressure.  That is valid handoff evidence, but it is not legal
+  # input to the scalar no-gain perimeter contract.  Keep this next reference
+  # lane explicit with a derived pressure-lineage stress fixture rather than
+  # silently changing the production-generated request.
+  variable_entropy_patch = (
+    MocPostShockBoundaryState(
+      point_m=(terminal_x - 0.2, terminal_y + 0.2),
+      state=CharacteristicState(
+        x_m=terminal_x - 0.2,
+        y_m=terminal_y + 0.2,
+        theta_rad=0.1,
+        mach=2.0,
+        gamma=terminal.upstream_state.gamma,
+      ),
+      upstream_total_pressure_Pa=0.99 * terminal.downstream_total_pressure_Pa,
+      downstream_total_pressure_Pa=0.95 * terminal.downstream_total_pressure_Pa,
+    ),
+    MocPostShockBoundaryState(
+      point_m=(terminal_x - 0.1, terminal_y + 0.1),
+      state=CharacteristicState(
+        x_m=terminal_x - 0.1,
+        y_m=terminal_y + 0.1,
+        theta_rad=0.05,
+        mach=2.0,
+        gamma=terminal.upstream_state.gamma,
+      ),
+      upstream_total_pressure_Pa=0.98 * terminal.downstream_total_pressure_Pa,
+      downstream_total_pressure_Pa=0.90 * terminal.downstream_total_pressure_Pa,
+    ),
+  )
+  variable_entropy_request = replace(
+    perimeter_request,
+    supersonic_patch=variable_entropy_patch,
+  )
+  variable_entropy_handoff = variable_entropy_request.entropy_handoff()
+  variable_entropy_fractions = (0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0)
+  variable_entropy_section_height_m = 0.05
+  variable_entropy_section_x = terminal_x + 0.02
+  variable_entropy_control_samples = tuple(
+    MocMixedRegimeFieldSample(
+      point_m=(
+        variable_entropy_section_x,
+        terminal_y + fraction * variable_entropy_section_height_m,
+      ),
+      mach=terminal.downstream_mach,
+      flow_angle_rad=terminal.downstream_flow_angle_rad,
+      static_pressure_Pa=(
+        variable_entropy_handoff.total_pressure_at_arc_length(
+          variable_entropy_handoff.cumulative_arc_length_m[-1]
+          * (1.0 - fraction)
+        )
+        / (
+          1.0
+          + 0.5
+          * (terminal.upstream_state.gamma - 1.0)
+          * terminal.downstream_mach**2
+        ) ** (
+          terminal.upstream_state.gamma
+          / (terminal.upstream_state.gamma - 1.0)
+        )
+      ),
+      total_pressure_Pa=variable_entropy_handoff.total_pressure_at_arc_length(
+        variable_entropy_handoff.cumulative_arc_length_m[-1]
+        * (1.0 - fraction)
+      ),
+      gamma=terminal.upstream_state.gamma,
+    )
+    for fraction in variable_entropy_fractions
+  )
+  variable_entropy_control_section = MocMixedRegimeControlSection(
+    points_m=tuple(sample.point_m for sample in variable_entropy_control_samples),
+    samples=variable_entropy_control_samples,
+    normal_angle_rad=0.0,
+  )
+  variable_entropy_reference = solve_mixed_regime_variable_entropy_free_boundary(
+    variable_entropy_request,
+    variable_entropy_handoff,
+    variable_entropy_control_section,
+    ambient_pressure_Pa=(
+      0.98 * variable_entropy_handoff.samples[0].downstream_total_pressure_Pa
+    ),
+    downstream_length_m=0.2,
+    initial_outlet_height_m=0.04,
+    axial_station_count=7,
+  )
+  variable_entropy_measurement = (
+    measure_mixed_regime_variable_entropy_free_boundary(
+      variable_entropy_request,
+      variable_entropy_handoff,
+      variable_entropy_control_section,
+      variable_entropy_reference,
+    )
+  )
   planar_section_mach = terminal.downstream_mach + 0.01
   planar_section_static_pressure = terminal.downstream_total_pressure_Pa / (
     1.0 + 0.5 * (terminal.upstream_state.gamma - 1.0)
@@ -3369,6 +3468,29 @@ def _mixed_regime_boundary_probe(
       and entropy_transport_measurement.physical_closure_verified is False
       and entropy_transport_measurement.chain_promotion_blocked
       and entropy_transport_measurement.production_claim_allowed is False
+      and variable_entropy_reference.status is (
+        MocMixedRegimeVariableEntropyFreeBoundaryStatus.CONVERGED_REFERENCE
+      )
+      and variable_entropy_reference.converged
+      and variable_entropy_reference.source_streamline_mapping_verified
+      and variable_entropy_reference.entropy_transport_verified
+      and variable_entropy_reference.continuity_verified
+      and variable_entropy_reference.free_boundary_condition_verified
+      and variable_entropy_reference.field_topology_verified
+      and variable_entropy_reference.physical_closure_verified is False
+      and variable_entropy_reference.canonical_free_boundary_verified is False
+      and variable_entropy_reference.canonical_euler_verified is False
+      and variable_entropy_reference.chain_promotion_blocked
+      and variable_entropy_reference.production_claim_allowed is False
+      and variable_entropy_measurement.status is (
+        MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus.CONVERGED
+      )
+      and variable_entropy_measurement.converged
+      and variable_entropy_measurement.reference_verified
+      and variable_entropy_measurement.physical_closure_verified is False
+      and variable_entropy_measurement.canonical_euler_verified is False
+      and variable_entropy_measurement.chain_promotion_blocked
+      and variable_entropy_measurement.production_claim_allowed is False
       and control_section_requirement.status.value == 'invalid_input'
       and not control_section_requirement.physical_closure_verified
       and control_section_requirement.chain_promotion_blocked
@@ -3494,6 +3616,18 @@ def _mixed_regime_boundary_probe(
     'mixed_regime_entropy_transport': entropy_transport.as_report(),
     'mixed_regime_entropy_transport_measurement': (
       entropy_transport_measurement.as_report()
+    ),
+    'mixed_regime_variable_entropy_reference_request': (
+      variable_entropy_request.as_report()
+    ),
+    'mixed_regime_variable_entropy_reference_control_section': (
+      variable_entropy_control_section.as_report()
+    ),
+    'mixed_regime_variable_entropy_reference': (
+      variable_entropy_reference.as_report()
+    ),
+    'mixed_regime_variable_entropy_reference_measurement': (
+      variable_entropy_measurement.as_report()
     ),
     'mixed_regime_entropy_transport_source_arc_length_m': (
       entropy_transport_source_arc_length_m
@@ -7615,6 +7749,47 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or mixed_regime_entropy_transport_measurement.get('chain_promotion_blocked') is not True
     or mixed_regime_entropy_transport_measurement.get('production_claim_allowed') is not False
   )
+  mixed_regime_variable_entropy_reference = mixed_regime_boundary_probe.get(
+    'mixed_regime_variable_entropy_reference',
+  )
+  mixed_regime_variable_entropy_reference_measurement = (
+    mixed_regime_boundary_probe.get(
+      'mixed_regime_variable_entropy_reference_measurement',
+    )
+  )
+  mixed_regime_variable_entropy_reference_failure = (
+    not isinstance(mixed_regime_variable_entropy_reference, dict)
+    or mixed_regime_variable_entropy_reference.get('status') != (
+      MocMixedRegimeVariableEntropyFreeBoundaryStatus.CONVERGED_REFERENCE.value
+    )
+    or mixed_regime_variable_entropy_reference.get('converged') is not True
+    or mixed_regime_variable_entropy_reference.get(
+      'source_streamline_mapping_verified'
+    ) is not True
+    or mixed_regime_variable_entropy_reference.get('entropy_transport_verified') is not True
+    or mixed_regime_variable_entropy_reference.get('continuity_verified') is not True
+    or mixed_regime_variable_entropy_reference.get('free_boundary_condition_verified') is not True
+    or mixed_regime_variable_entropy_reference.get('field_topology_verified') is not True
+    or mixed_regime_variable_entropy_reference.get('physical_closure_verified') is not False
+    or mixed_regime_variable_entropy_reference.get('canonical_free_boundary_verified') is not False
+    or mixed_regime_variable_entropy_reference.get('canonical_euler_verified') is not False
+    or mixed_regime_variable_entropy_reference.get('chain_promotion_blocked') is not True
+    or mixed_regime_variable_entropy_reference.get('production_claim_allowed') is not False
+    or not isinstance(mixed_regime_variable_entropy_reference_measurement, dict)
+    or mixed_regime_variable_entropy_reference_measurement.get('status') != (
+      MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus.CONVERGED.value
+    )
+    or mixed_regime_variable_entropy_reference_measurement.get('converged') is not True
+    or mixed_regime_variable_entropy_reference_measurement.get('reference_verified') is not True
+    or mixed_regime_variable_entropy_reference_measurement.get('physical_closure_verified') is not False
+    or mixed_regime_variable_entropy_reference_measurement.get('canonical_euler_verified') is not False
+    or mixed_regime_variable_entropy_reference_measurement.get('chain_promotion_blocked') is not True
+    or mixed_regime_variable_entropy_reference_measurement.get('production_claim_allowed') is not False
+  )
+  mixed_regime_boundary_failure = bool(
+    mixed_regime_boundary_failure
+    or mixed_regime_variable_entropy_reference_failure
+  )
   parameterized_planar_free_boundary_refinement_probe = (
     mixed_regime_boundary_probe.get(
       'parameterized_planar_free_boundary_refinement',
@@ -9844,6 +10019,21 @@ def build_moc_primitive_report() -> dict[str, Any]:
         ),
       }
     ] if mixed_regime_entropy_transport_failure else []),
+    *([
+      {
+        'case': 'mixed_regime_variable_entropy_free_boundary',
+        'status': str(
+          mixed_regime_variable_entropy_reference.get('status', 'missing')
+          if isinstance(mixed_regime_variable_entropy_reference, dict)
+          else 'missing'
+        ),
+        'message': str(
+          mixed_regime_variable_entropy_reference.get('message', '')
+          if isinstance(mixed_regime_variable_entropy_reference, dict)
+          else ''
+        ),
+      }
+    ] if mixed_regime_variable_entropy_reference_failure else []),
     *([
       {
         'case': 'parameterized_planar_free_boundary_refinement',

@@ -68,6 +68,10 @@ from exhaust_plume.models.moc.mixed_regime_entropy_transport import (
   MocMixedRegimeEntropyTransportResult,
   MocMixedRegimeEntropyTransportStatus,
 )
+from exhaust_plume.models.moc.mixed_regime_variable_entropy import (
+  MocMixedRegimeVariableEntropyFreeBoundaryResult,
+  MocMixedRegimeVariableEntropyFreeBoundaryStatus,
+)
 from exhaust_plume.models.moc.primitives import (
   CharacteristicFamily,
   CharacteristicPointResult,
@@ -130,6 +134,7 @@ __all__ = (
   'MOC_MIXED_REGIME_POTENTIAL_OPERATOR_ID',
   'MOC_MIXED_REGIME_ENTROPY_HANDOFF_OPERATOR_ID',
   'MOC_MIXED_REGIME_ENTROPY_TRANSPORT_OPERATOR_ID',
+  'MOC_MIXED_REGIME_VARIABLE_ENTROPY_FREE_BOUNDARY_OPERATOR_ID',
   'MOC_SHOCK_CELL_CHAIN_OPERATOR_ID',
   'MOC_SHOCK_CELL_CHAIN_REFINEMENT_OPERATOR_ID',
   'MOC_SHOCK_CELL_GEOMETRY_OPERATOR_ID',
@@ -171,6 +176,8 @@ __all__ = (
   'MocMixedRegimeEntropyHandoffMeasurementStatus',
   'MocMixedRegimeEntropyTransportMeasurement',
   'MocMixedRegimeEntropyTransportMeasurementStatus',
+  'MocMixedRegimeVariableEntropyFreeBoundaryMeasurement',
+  'MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus',
   'MocTerminalClosureMeasurement',
   'MocTerminalClosureMeasurementStatus',
   'MocTerminalClosureObservation',
@@ -198,6 +205,7 @@ __all__ = (
   'measure_mixed_regime_control_section',
   'measure_mixed_regime_entropy_handoff',
   'measure_mixed_regime_entropy_transport_boundary',
+  'measure_mixed_regime_variable_entropy_free_boundary',
   'measure_moc_terminal_closure',
   'measure_moc_shock_cell',
   'measure_moc_shock_cell_chain',
@@ -254,6 +262,9 @@ MOC_MIXED_REGIME_ENTROPY_HANDOFF_OPERATOR_ID = (
 )
 MOC_MIXED_REGIME_ENTROPY_TRANSPORT_OPERATOR_ID = (
   'op.moc.mixed-regime-entropy-transport-boundary'
+)
+MOC_MIXED_REGIME_VARIABLE_ENTROPY_FREE_BOUNDARY_OPERATOR_ID = (
+  'op.moc.mixed-regime-variable-entropy-free-boundary'
 )
 
 Point = tuple[float, float]
@@ -1440,6 +1451,1269 @@ def measure_mixed_regime_entropy_transport_boundary(
       'independent measurement reproduced the explicit entropy source map, '
       'scalar field pressure lineage, and terminal seam; coupled Euler/free-'
       'boundary closure remains separate'
+    ),
+  )
+####
+
+
+class MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus(str, Enum):
+  """Outcome of independently measuring the variable-entropy reference."""
+
+  CONVERGED = 'converged'
+  INVALID_INPUT = 'invalid_input'
+  REQUEST_FAILURE = 'variable-entropy-request-failure'
+  HANDOFF_FAILURE = 'variable-entropy-handoff-failure'
+  CONTROL_SECTION_FAILURE = 'variable-entropy-control-section-failure'
+  GEOMETRY_FAILURE = 'variable-entropy-geometry-failure'
+  FIELD_FAILURE = 'variable-entropy-field-failure'
+  TOPOLOGY_FAILURE = 'variable-entropy-topology-failure'
+  MAPPING_FAILURE = 'variable-entropy-source-mapping-failure'
+  CONDITION_FAILURE = 'variable-entropy-condition-failure'
+  RESIDUAL_FAILURE = 'variable-entropy-residual-failure'
+  CONSISTENCY_FAILURE = 'variable-entropy-consistency-failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocMixedRegimeVariableEntropyFreeBoundaryMeasurement:
+  """Independent evidence for the solver-owned variable-entropy reference.
+
+  The operator treats the solver result as data.  It reconstructs the reverse
+  entropy map, structured stream-tube node layout, closed mesh perimeter,
+  ambient/tangency condition, and reported local residuals.  It never calls
+  the variable-entropy solver and never converts this reference into a
+  canonical Euler or continued-chain acceptance.
+  """
+
+  status: MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus
+  operator_id: str = MOC_MIXED_REGIME_VARIABLE_ENTROPY_FREE_BOUNDARY_OPERATOR_ID
+  reference: MocMixedRegimeVariableEntropyFreeBoundaryResult | None = None
+  request_verified: bool = False
+  handoff_verified: bool = False
+  control_section_verified: bool = False
+  source_streamline_mapping_verified: bool = False
+  field_boundary_verified: bool = False
+  downstream_condition_verified: bool = False
+  field_topology_verified: bool = False
+  continuity_verified: bool = False
+  entropy_transport_verified: bool = False
+  free_boundary_condition_verified: bool = False
+  reported_flags_verified: bool = False
+  reference_model_verified: bool = False
+  physical_closure_verified: bool = False
+  canonical_free_boundary_verified: bool = False
+  canonical_euler_verified: bool = False
+  chain_promotion_blocked: bool = True
+  production_claim_allowed: bool = False
+  node_count: int = 0
+  cell_count: int = 0
+  axial_station_count: int = 0
+  transverse_station_count: int = 0
+  streamline_count: int = 0
+  maximum_source_arc_residual_m: float | None = None
+  maximum_source_pressure_residual_Pa: float | None = None
+  maximum_source_gamma_residual: float | None = None
+  maximum_continuity_residual: float | None = None
+  maximum_connector_continuity_residual: float | None = None
+  maximum_entrance_continuity_residual: float | None = None
+  maximum_entropy_advection_residual: float | None = None
+  maximum_entrance_entropy_advection_residual: float | None = None
+  maximum_transverse_momentum_residual: float | None = None
+  maximum_mass_flow_residual: float | None = None
+  maximum_entrance_mass_flow_residual: float | None = None
+  maximum_free_boundary_pressure_residual_Pa: float | None = None
+  maximum_free_boundary_tangent_residual_rad: float | None = None
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus,
+    ):
+      raise TypeError(
+        'status must be a '
+        'MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus'
+      )
+    if self.reference is not None and not isinstance(
+      self.reference,
+      MocMixedRegimeVariableEntropyFreeBoundaryResult,
+    ):
+      raise TypeError(
+        'reference must be a '
+        'MocMixedRegimeVariableEntropyFreeBoundaryResult or None'
+      )
+    for name in (
+      'node_count',
+      'cell_count',
+      'axial_station_count',
+      'transverse_station_count',
+      'streamline_count',
+    ):
+      value = getattr(self, name)
+      if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f'{name} must be a nonnegative integer')
+    for name in (
+      'maximum_source_arc_residual_m',
+      'maximum_source_pressure_residual_Pa',
+      'maximum_source_gamma_residual',
+      'maximum_continuity_residual',
+      'maximum_connector_continuity_residual',
+      'maximum_entrance_continuity_residual',
+      'maximum_entropy_advection_residual',
+      'maximum_entrance_entropy_advection_residual',
+      'maximum_transverse_momentum_residual',
+      'maximum_mass_flow_residual',
+      'maximum_entrance_mass_flow_residual',
+      'maximum_free_boundary_pressure_residual_Pa',
+      'maximum_free_boundary_tangent_residual_rad',
+    ):
+      value = getattr(self, name)
+      if value is not None:
+        numeric = float(value)
+        if not isfinite(numeric) or numeric < 0.0:
+          raise ValueError(f'{name} must be finite and nonnegative when supplied')
+        object.__setattr__(self, name, numeric)
+    for name in (
+      'request_verified',
+      'handoff_verified',
+      'control_section_verified',
+      'source_streamline_mapping_verified',
+      'field_boundary_verified',
+      'downstream_condition_verified',
+      'field_topology_verified',
+      'continuity_verified',
+      'entropy_transport_verified',
+      'free_boundary_condition_verified',
+      'reported_flags_verified',
+      'reference_model_verified',
+      'physical_closure_verified',
+      'canonical_free_boundary_verified',
+      'canonical_euler_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def converged(self) -> bool:
+    return self.status is (
+      MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus.CONVERGED
+    )
+  ####
+
+  @property
+  def reference_verified(self) -> bool:
+    """Whether all independent local gates passed."""
+
+    return bool(
+      self.converged
+      and self.request_verified
+      and self.handoff_verified
+      and self.control_section_verified
+      and self.source_streamline_mapping_verified
+      and self.field_boundary_verified
+      and self.downstream_condition_verified
+      and self.field_topology_verified
+      and self.continuity_verified
+      and self.entropy_transport_verified
+      and self.free_boundary_condition_verified
+      and self.reported_flags_verified
+      and self.reference_model_verified
+      and self.physical_closure_verified is False
+      and self.canonical_free_boundary_verified is False
+      and self.canonical_euler_verified is False
+      and self.chain_promotion_blocked
+      and self.production_claim_allowed is False
+    )
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'operator_id': self.operator_id,
+      'converged': self.converged,
+      'reference_verified': self.reference_verified,
+      'request_verified': self.request_verified,
+      'handoff_verified': self.handoff_verified,
+      'control_section_verified': self.control_section_verified,
+      'source_streamline_mapping_verified': self.source_streamline_mapping_verified,
+      'field_boundary_verified': self.field_boundary_verified,
+      'downstream_condition_verified': self.downstream_condition_verified,
+      'field_topology_verified': self.field_topology_verified,
+      'continuity_verified': self.continuity_verified,
+      'entropy_transport_verified': self.entropy_transport_verified,
+      'free_boundary_condition_verified': self.free_boundary_condition_verified,
+      'reported_flags_verified': self.reported_flags_verified,
+      'reference_model_verified': self.reference_model_verified,
+      'physical_closure_verified': self.physical_closure_verified,
+      'canonical_free_boundary_verified': self.canonical_free_boundary_verified,
+      'canonical_euler_verified': self.canonical_euler_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'counts': {
+        'node_count': self.node_count,
+        'cell_count': self.cell_count,
+        'axial_station_count': self.axial_station_count,
+        'transverse_station_count': self.transverse_station_count,
+        'streamline_count': self.streamline_count,
+      },
+      'source_residuals': {
+        'maximum_source_arc_residual_m': self.maximum_source_arc_residual_m,
+        'maximum_source_pressure_residual_Pa': (
+          self.maximum_source_pressure_residual_Pa
+        ),
+        'maximum_source_gamma_residual': self.maximum_source_gamma_residual,
+      },
+      'field_residuals': {
+        'maximum_continuity_residual': self.maximum_continuity_residual,
+        'maximum_connector_continuity_residual': (
+          self.maximum_connector_continuity_residual
+        ),
+        'maximum_entrance_continuity_residual': (
+          self.maximum_entrance_continuity_residual
+        ),
+        'maximum_entropy_advection_residual': (
+          self.maximum_entropy_advection_residual
+        ),
+        'maximum_entrance_entropy_advection_residual': (
+          self.maximum_entrance_entropy_advection_residual
+        ),
+        'maximum_transverse_momentum_residual': (
+          self.maximum_transverse_momentum_residual
+        ),
+        'maximum_mass_flow_residual': self.maximum_mass_flow_residual,
+        'maximum_entrance_mass_flow_residual': (
+          self.maximum_entrance_mass_flow_residual
+        ),
+        'maximum_free_boundary_pressure_residual_Pa': (
+          self.maximum_free_boundary_pressure_residual_Pa
+        ),
+        'maximum_free_boundary_tangent_residual_rad': (
+          self.maximum_free_boundary_tangent_residual_rad
+        ),
+      },
+      'reference': None if self.reference is None else self.reference.as_report(),
+      'claim_status': (
+        'independent-variable-entropy-free-boundary-reference-measurement; '
+        'mapped-continuity-and-entropy-evidence-only; canonical-2d-euler-'
+        'free-boundary-and-external-validation-pending'
+      ),
+      'message': self.message,
+    }
+  ####
+
+
+def _variable_entropy_measurement_failure(
+  status: MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus,
+  *,
+  reference: MocMixedRegimeVariableEntropyFreeBoundaryResult | None = None,
+  message: str,
+  **kwargs: object,
+) -> MocMixedRegimeVariableEntropyFreeBoundaryMeasurement:
+  return MocMixedRegimeVariableEntropyFreeBoundaryMeasurement(
+    status=status,
+    reference=reference,
+    physical_closure_verified=False,
+    canonical_free_boundary_verified=False,
+    canonical_euler_verified=False,
+    chain_promotion_blocked=True,
+    production_claim_allowed=False,
+    message=message,
+    **kwargs,
+  )
+####
+
+
+def _variable_entropy_profile_value(
+  handoff: MocMixedRegimeEntropyHandoffResult,
+  coordinate: float,
+  attribute: str,
+) -> float:
+  """Interpolate a handoff attribute without using the solver helper."""
+
+  arc = handoff.cumulative_arc_length_m
+  samples = handoff.samples
+  if len(arc) != len(samples) or len(samples) < 2:
+    raise ValueError('entropy handoff must expose a complete ordered profile')
+  if coordinate < arc[0] or coordinate > arc[-1]:
+    raise ValueError('source coordinate lies outside the handoff profile')
+  if coordinate <= arc[0]:
+    return float(getattr(samples[0], attribute))
+  if coordinate >= arc[-1]:
+    return float(getattr(samples[-1], attribute))
+  for first_arc, second_arc, first, second in zip(
+    arc,
+    arc[1:],
+    samples,
+    samples[1:],
+    strict=True,
+  ):
+    if coordinate <= second_arc:
+      fraction = (coordinate - first_arc) / (second_arc - first_arc)
+      first_value = float(getattr(first, attribute))
+      second_value = float(getattr(second, attribute))
+      return first_value + fraction * (second_value - first_value)
+  return float(getattr(samples[-1], attribute))
+####
+
+
+def _variable_entropy_triangle_gradients(
+  points: Sequence[Point],
+  values: Sequence[float],
+) -> tuple[float, float, float]:
+  if len(points) != 3 or len(values) != 3:
+    raise ValueError('variable-entropy residuals require triangular cells')
+  (x1, y1), (x2, y2), (x3, y3) = points
+  denominator = (
+    x1 * (y2 - y3)
+    + x2 * (y3 - y1)
+    + x3 * (y1 - y2)
+  )
+  if not isfinite(denominator) or abs(denominator) <= 1.0e-20:
+    raise ValueError('variable-entropy residual cell has zero area')
+  gradient_x = (
+    values[0] * (y2 - y3)
+    + values[1] * (y3 - y1)
+    + values[2] * (y1 - y2)
+  ) / denominator
+  gradient_y = (
+    values[0] * (x3 - x2)
+    + values[1] * (x1 - x3)
+    + values[2] * (x2 - x1)
+  ) / denominator
+  diameter = max(
+    hypot(points[1][0] - points[0][0], points[1][1] - points[0][1]),
+    hypot(points[2][0] - points[1][0], points[2][1] - points[1][1]),
+    hypot(points[0][0] - points[2][0], points[0][1] - points[2][1]),
+  )
+  return gradient_x, gradient_y, diameter
+####
+
+
+def _variable_entropy_mass_flux_factor(mach: float, gamma: float) -> float:
+  return mach * (
+    1.0 + 0.5 * (gamma - 1.0) * mach * mach
+  ) ** (-(gamma + 1.0) / (2.0 * (gamma - 1.0)))
+####
+
+
+def _variable_entropy_normalized_density(
+  total_pressure_Pa: float,
+  reference_total_pressure_Pa: float,
+  mach: float,
+  gamma: float,
+) -> float:
+  enthalpy_factor = 1.0 + 0.5 * (gamma - 1.0) * mach * mach
+  return (
+    total_pressure_Pa / reference_total_pressure_Pa
+  ) ** (1.0 / gamma) * enthalpy_factor ** (-1.0 / (gamma - 1.0))
+####
+
+
+def _variable_entropy_metric_close(
+  first: float | None,
+  second: float | None,
+  tolerance: float,
+) -> bool:
+  return bool(
+    first is not None
+    and second is not None
+    and abs(float(first) - float(second))
+    <= tolerance * max(1.0, abs(float(first)), abs(float(second)))
+  )
+####
+
+
+def measure_mixed_regime_variable_entropy_free_boundary(
+  request: MocMixedRegimePerimeterRequest,
+  handoff: MocMixedRegimeEntropyHandoffResult,
+  control_section: MocMixedRegimeControlSection,
+  reference: MocMixedRegimeVariableEntropyFreeBoundaryResult,
+  *,
+  position_tolerance_m: float = 1.0e-8,
+  state_tolerance: float = 1.0e-8,
+  pressure_tolerance: float = 1.0e-8,
+  tangent_tolerance_rad: float = 2.0e-2,
+  residual_tolerance: float = 1.0e-7,
+  continuity_tolerance: float = 0.25,
+  entropy_transport_tolerance: float = 0.25,
+) -> MocMixedRegimeVariableEntropyFreeBoundaryMeasurement:
+  """Independently remeasure the solver-owned variable-entropy reference."""
+
+  if not isinstance(request, MocMixedRegimePerimeterRequest):
+    return _variable_entropy_measurement_failure(
+      MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus.INVALID_INPUT,
+      message='request must be a MocMixedRegimePerimeterRequest',
+    )
+  if not isinstance(handoff, MocMixedRegimeEntropyHandoffResult):
+    return _variable_entropy_measurement_failure(
+      MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus.INVALID_INPUT,
+      message='handoff must be a MocMixedRegimeEntropyHandoffResult',
+    )
+  if not isinstance(control_section, MocMixedRegimeControlSection):
+    return _variable_entropy_measurement_failure(
+      MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus.INVALID_INPUT,
+      message='control_section must be a MocMixedRegimeControlSection',
+    )
+  if not isinstance(
+    reference,
+    MocMixedRegimeVariableEntropyFreeBoundaryResult,
+  ):
+    return _variable_entropy_measurement_failure(
+      MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus.INVALID_INPUT,
+      message=(
+        'reference must be a '
+        'MocMixedRegimeVariableEntropyFreeBoundaryResult'
+      ),
+    )
+  for name, value in (
+    ('position_tolerance_m', position_tolerance_m),
+    ('state_tolerance', state_tolerance),
+    ('pressure_tolerance', pressure_tolerance),
+    ('tangent_tolerance_rad', tangent_tolerance_rad),
+    ('residual_tolerance', residual_tolerance),
+    ('continuity_tolerance', continuity_tolerance),
+    ('entropy_transport_tolerance', entropy_transport_tolerance),
+  ):
+    if not isfinite(float(value)) or float(value) <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+  position_tolerance_m = float(position_tolerance_m)
+  state_tolerance = float(state_tolerance)
+  pressure_tolerance = float(pressure_tolerance)
+  tangent_tolerance_rad = float(tangent_tolerance_rad)
+  residual_tolerance = float(residual_tolerance)
+  continuity_tolerance = float(continuity_tolerance)
+  entropy_transport_tolerance = float(entropy_transport_tolerance)
+
+  request_verified = reference.request == request
+  if not request_verified:
+    return _variable_entropy_measurement_failure(
+      MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus.REQUEST_FAILURE,
+      reference=reference,
+      message='reference did not retain the exact mixed-regime request',
+    )
+  handoff_verified = reference.handoff == handoff
+  if not handoff_verified:
+    return _variable_entropy_measurement_failure(
+      MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus.REQUEST_FAILURE,
+      reference=reference,
+      request_verified=True,
+      message='reference did not retain the exact entropy handoff',
+    )
+  control_identity_verified = reference.control_section == control_section
+  if not control_identity_verified:
+    return _variable_entropy_measurement_failure(
+      MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus.REQUEST_FAILURE,
+      reference=reference,
+      request_verified=True,
+      handoff_verified=True,
+      message='reference did not retain the exact control section',
+    )
+
+  handoff_measurement = measure_mixed_regime_entropy_handoff(
+    request,
+    handoff,
+    position_tolerance_m=position_tolerance_m,
+    pressure_tolerance=pressure_tolerance,
+  )
+  if not handoff_measurement.handoff_verified:
+    return _variable_entropy_measurement_failure(
+      MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus.HANDOFF_FAILURE,
+      reference=reference,
+      request_verified=True,
+      handoff_verified=False,
+      message=(
+        'independent entropy handoff measurement failed before the field '
+        f'audit: {handoff_measurement.message}'
+      ),
+    )
+
+  control_measurement = measure_mixed_regime_control_section(
+    request,
+    control_section,
+    position_tolerance_m=position_tolerance_m,
+    state_tolerance=state_tolerance,
+    pressure_tolerance=pressure_tolerance,
+  )
+  control_section_verified = bool(
+    control_measurement.converged
+    and reference.control_section_validation is not None
+    and reference.control_section_validation.converged
+    and reference.control_section_validation.request == request
+    and reference.control_section_validation.section == control_section
+  )
+  if not control_section_verified:
+    return _variable_entropy_measurement_failure(
+      MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus.CONTROL_SECTION_FAILURE,
+      reference=reference,
+      request_verified=True,
+      handoff_verified=True,
+      message=(
+        'independent control-section measurement failed: '
+        f'{control_measurement.message}'
+      ),
+    )
+
+  try:
+    terminal_x, terminal_y = request.terminal_point_m
+    section_x = control_section.points_m[0][0]
+    inlet_height = control_section.points_m[-1][1] - control_section.points_m[0][1]
+    fractions = tuple(
+      (point[1] - terminal_y) / inlet_height
+      for point in control_section.points_m
+    )
+    interface_length = handoff.cumulative_arc_length_m[-1]
+    source_arc_by_fraction = tuple(
+      interface_length * (1.0 - fraction) for fraction in fractions
+    )
+    source_pressure_by_fraction = tuple(
+      _variable_entropy_profile_value(
+        handoff,
+        coordinate,
+        'downstream_total_pressure_Pa',
+      )
+      for coordinate in source_arc_by_fraction
+    )
+    source_gamma_by_fraction = tuple(
+      _variable_entropy_profile_value(handoff, coordinate, 'gamma')
+      for coordinate in source_arc_by_fraction
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return _variable_entropy_measurement_failure(
+      MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus.GEOMETRY_FAILURE,
+      reference=reference,
+      request_verified=True,
+      handoff_verified=True,
+      control_section_verified=True,
+      message=f'could not reconstruct control-section source geometry: {error}',
+    )
+  if len(fractions) < 3 or inlet_height <= position_tolerance_m:
+    return _variable_entropy_measurement_failure(
+      MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus.GEOMETRY_FAILURE,
+      reference=reference,
+      request_verified=True,
+      handoff_verified=True,
+      control_section_verified=True,
+      message='reference measurement requires at least three positive streamlines',
+    )
+
+  axial_count = reference.axial_station_count
+  transverse_count = reference.transverse_station_count
+  expected_node_count = 1 + axial_count * transverse_count
+  expected_cell_count = (
+    transverse_count - 1
+    + 2 * (axial_count - 1) * (transverse_count - 1)
+  )
+  if (
+    axial_count < 5
+    or transverse_count != len(fractions)
+    or reference.node_count != expected_node_count
+    or reference.cell_count != expected_cell_count
+  ):
+    return _variable_entropy_measurement_failure(
+      MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus.FIELD_FAILURE,
+      reference=reference,
+      request_verified=True,
+      handoff_verified=True,
+      control_section_verified=True,
+      node_count=0 if reference.field is None else reference.field.node_count,
+      cell_count=0 if reference.field is None else reference.field.cell_count,
+      axial_station_count=axial_count,
+      transverse_station_count=transverse_count,
+      message='reference node/cell counts do not match its declared structured mesh',
+    )
+
+  field = reference.field
+  boundary = reference.boundary
+  condition = reference.downstream_condition
+  if field is None or boundary is None or condition is None:
+    return _variable_entropy_measurement_failure(
+      MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus.FIELD_FAILURE,
+      reference=reference,
+      request_verified=True,
+      handoff_verified=True,
+      control_section_verified=True,
+      axial_station_count=axial_count,
+      transverse_station_count=transverse_count,
+      message='reference must retain its field, scalar boundary, and downstream condition',
+    )
+
+  def grid_index(station: int, transverse: int) -> int:
+    return 1 + station * transverse_count + transverse
+
+  expected_initial_heights = tuple(
+    inlet_height
+    + (reference.initial_outlet_height_m - inlet_height)
+    * station
+    / (axial_count - 1)
+    for station in range(axial_count)
+  )
+  expected_heights = tuple(
+    reference.field.nodes[grid_index(station, transverse_count - 1)].point_m[1]
+    - terminal_y
+    for station in range(axial_count)
+  )
+  expected_free_boundary_points = tuple(
+    reference.field.nodes[grid_index(station, transverse_count - 1)].point_m
+    for station in range(axial_count)
+  )
+  initial_geometry_verified = bool(
+    len(reference.initial_free_boundary_heights_m) == axial_count
+    and all(
+      _variable_entropy_metric_close(
+        value,
+        expected,
+        residual_tolerance,
+      )
+      for value, expected in zip(
+        reference.initial_free_boundary_heights_m,
+        expected_initial_heights,
+        strict=True,
+      )
+    )
+  )
+  free_boundary_geometry_verified = bool(
+    len(reference.free_boundary_heights_m) == axial_count
+    and len(reference.free_boundary_points_m) == axial_count
+    and all(
+      _variable_entropy_metric_close(value, expected, residual_tolerance)
+      for value, expected in zip(
+        reference.free_boundary_heights_m,
+        expected_heights,
+        strict=True,
+      )
+    )
+    and all(
+      hypot(point[0] - expected[0], point[1] - expected[1])
+      <= position_tolerance_m
+      for point, expected in zip(
+        reference.free_boundary_points_m,
+        expected_free_boundary_points,
+        strict=True,
+      )
+    )
+    and reference.outlet_height_m is not None
+    and _variable_entropy_metric_close(
+      reference.outlet_height_m,
+      expected_heights[-1],
+      residual_tolerance,
+    )
+  )
+  if not initial_geometry_verified or not free_boundary_geometry_verified:
+    return _variable_entropy_measurement_failure(
+      MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus.GEOMETRY_FAILURE,
+      reference=reference,
+      request_verified=True,
+      handoff_verified=True,
+      control_section_verified=True,
+      axial_station_count=axial_count,
+      transverse_station_count=transverse_count,
+      message='reported free-boundary geometry does not reproduce the structured map',
+    )
+
+  expected_streamline_ids = (0, *(
+    transverse
+    for _station in range(axial_count)
+    for transverse in range(transverse_count)
+  ))
+  expected_node_arc = (
+    interface_length,
+    *(
+      source_arc_by_fraction[transverse]
+      for _station in range(axial_count)
+      for transverse in range(transverse_count)
+    ),
+  )
+  expected_node_pressure = (
+    request.terminal_downstream_total_pressure_Pa,
+    *(
+      source_pressure_by_fraction[transverse]
+      for _station in range(axial_count)
+      for transverse in range(transverse_count)
+    ),
+  )
+  expected_node_gamma = (
+    request.terminal.upstream_state.gamma,
+    *(
+      source_gamma_by_fraction[transverse]
+      for _station in range(axial_count)
+      for transverse in range(transverse_count)
+    ),
+  )
+  field_nodes = field.nodes
+  node_geometry_verified = True
+  node_state_verified = True
+  node_arc_residuals: list[float] = []
+  node_pressure_residuals: list[float] = []
+  node_gamma_residuals: list[float] = []
+  for node_index, (sample, expected_arc, expected_pressure, expected_gamma) in enumerate(
+    zip(
+      field_nodes,
+      expected_node_arc,
+      expected_node_pressure,
+      expected_node_gamma,
+      strict=True,
+    )
+  ):
+    if node_index == 0:
+      expected_point = request.terminal_point_m
+    else:
+      relative = node_index - 1
+      station = relative // transverse_count
+      transverse = relative % transverse_count
+      dx = reference.downstream_length_m / (axial_count - 1)
+      expected_point = (
+        section_x + station * dx,
+        terminal_y + fractions[transverse] * expected_heights[station],
+      )
+    node_geometry_verified = bool(
+      node_geometry_verified
+      and hypot(
+        sample.point_m[0] - expected_point[0],
+        sample.point_m[1] - expected_point[1],
+      ) <= position_tolerance_m
+    )
+    node_state_verified = bool(
+      node_state_verified
+      and 0.0 < sample.mach < 1.0
+      and sample.static_pressure_Pa > 0.0
+      and sample.total_pressure_Pa > 0.0
+      and sample.gamma > 1.0
+    )
+    node_arc_residuals.append(
+      abs(reference.source_arc_length_m[node_index] - expected_arc)
+      if node_index < len(reference.source_arc_length_m)
+      else float('inf')
+    )
+    node_pressure_residuals.append(
+      max(
+        abs(sample.total_pressure_Pa - expected_pressure),
+        abs(reference.transported_total_pressure_Pa[node_index] - expected_pressure)
+        if node_index < len(reference.transported_total_pressure_Pa)
+        else float('inf'),
+      )
+    )
+    node_gamma_residuals.append(abs(sample.gamma - expected_gamma))
+  source_arrays_verified = bool(
+    len(reference.source_arc_length_m) == expected_node_count
+    and len(reference.streamline_ids) == expected_node_count
+    and len(reference.transported_total_pressure_Pa) == expected_node_count
+    and tuple(reference.streamline_ids) == expected_streamline_ids
+    and len(reference.transverse_fractions) == transverse_count
+    and all(
+      _variable_entropy_metric_close(value, expected, residual_tolerance)
+      for value, expected in zip(
+        reference.transverse_fractions,
+        fractions,
+        strict=True,
+      )
+    )
+    and len(reference.source_arc_length_by_transverse_index_m) == transverse_count
+    and len(reference.source_total_pressure_by_transverse_index_Pa) == transverse_count
+    and len(reference.source_gamma_by_transverse_index) == transverse_count
+    and all(
+      _variable_entropy_metric_close(value, expected, residual_tolerance)
+      for value, expected in zip(
+        reference.source_arc_length_by_transverse_index_m,
+        source_arc_by_fraction,
+        strict=True,
+      )
+    )
+    and all(
+      _variable_entropy_metric_close(value, expected, residual_tolerance)
+      for value, expected in zip(
+        reference.source_total_pressure_by_transverse_index_Pa,
+        source_pressure_by_fraction,
+        strict=True,
+      )
+    )
+    and all(
+      _variable_entropy_metric_close(value, expected, residual_tolerance)
+      for value, expected in zip(
+        reference.source_gamma_by_transverse_index,
+        source_gamma_by_fraction,
+        strict=True,
+      )
+    )
+  )
+  maximum_source_arc_residual = max(node_arc_residuals, default=None)
+  maximum_source_pressure_residual = max(node_pressure_residuals, default=None)
+  maximum_source_gamma_residual = max(node_gamma_residuals, default=None)
+  source_streamline_mapping_verified = bool(
+    source_arrays_verified
+    and node_geometry_verified
+    and node_state_verified
+    and maximum_source_arc_residual is not None
+    and maximum_source_arc_residual <= residual_tolerance
+    and maximum_source_pressure_residual is not None
+    and maximum_source_pressure_residual
+    <= pressure_tolerance * max(
+      1.0,
+      abs(request.terminal_downstream_total_pressure_Pa),
+      max(source_pressure_by_fraction, default=1.0),
+    )
+    and maximum_source_gamma_residual is not None
+    and maximum_source_gamma_residual <= state_tolerance
+  )
+  if not source_streamline_mapping_verified:
+    return _variable_entropy_measurement_failure(
+      MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus.MAPPING_FAILURE,
+      reference=reference,
+      request_verified=True,
+      handoff_verified=True,
+      control_section_verified=True,
+      node_count=len(field_nodes),
+      cell_count=len(field.cells),
+      axial_station_count=axial_count,
+      transverse_station_count=transverse_count,
+      streamline_count=len(set(reference.streamline_ids)),
+      maximum_source_arc_residual_m=maximum_source_arc_residual,
+      maximum_source_pressure_residual_Pa=maximum_source_pressure_residual,
+      maximum_source_gamma_residual=maximum_source_gamma_residual,
+      message='independent reverse entropy and streamline mapping audit failed',
+    )
+
+  perimeter_indices = [0, grid_index(0, transverse_count - 1)]
+  perimeter_indices.extend(
+    grid_index(station, transverse_count - 1)
+    for station in range(1, axial_count)
+  )
+  perimeter_indices.extend(
+    grid_index(axial_count - 1, transverse)
+    for transverse in range(transverse_count - 2, -1, -1)
+  )
+  perimeter_indices.extend(
+    grid_index(station, 0)
+    for station in range(axial_count - 2, -1, -1)
+  )
+  perimeter_indices.append(0)
+  expected_perimeter_points = tuple(
+    field_nodes[index].point_m for index in perimeter_indices
+  )
+  expected_perimeter_samples = tuple(field_nodes[index] for index in perimeter_indices)
+  perimeter_layout_verified = bool(
+    boundary.perimeter_points_m == expected_perimeter_points
+    and boundary.subsonic_samples == expected_perimeter_samples
+    and field.boundary == boundary
+  )
+  rechecked_boundary = validate_mixed_regime_boundary(
+    request.terminal,
+    request.supersonic_patch,
+    supersonic_patch_converged=True,
+    subsonic_samples=expected_perimeter_samples,
+    perimeter_points_m=expected_perimeter_points,
+    position_tolerance_m=position_tolerance_m,
+    state_tolerance=state_tolerance,
+    pressure_tolerance=pressure_tolerance,
+  )
+  field_boundary_verified = bool(
+    perimeter_layout_verified
+    and rechecked_boundary.converged
+    and boundary.converged
+    and boundary.terminal == request.terminal
+    and boundary.supersonic_patch == request.supersonic_patch
+    and field.status is MocMixedRegimeFieldStatus.CONVERGED_ELLIPTIC_FIELD
+    and field.model == reference.model
+    and field.downstream_condition is None
+  )
+  if not field_boundary_verified:
+    return _variable_entropy_measurement_failure(
+      MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus.FIELD_FAILURE,
+      reference=reference,
+      request_verified=True,
+      handoff_verified=True,
+      control_section_verified=True,
+      source_streamline_mapping_verified=True,
+      node_count=len(field_nodes),
+      cell_count=len(field.cells),
+      axial_station_count=axial_count,
+      transverse_station_count=transverse_count,
+      streamline_count=transverse_count,
+      maximum_source_arc_residual_m=maximum_source_arc_residual,
+      maximum_source_pressure_residual_Pa=maximum_source_pressure_residual,
+      maximum_source_gamma_residual=maximum_source_gamma_residual,
+      message='independent scalar perimeter or field seam audit failed',
+    )
+
+  expected_condition_edges = tuple(range(4, axial_count))
+  expected_condition_samples = tuple(range(4, axial_count + 1))
+  rechecked_condition = validate_mixed_regime_downstream_condition(
+    rechecked_boundary,
+    MocMixedRegimeDownstreamConditionKind.AMBIENT_PRESSURE_FREE_BOUNDARY,
+    ambient_pressure_Pa=reference.ambient_pressure_Pa,
+    condition_edge_indices=expected_condition_edges,
+    condition_sample_indices=expected_condition_samples,
+    position_tolerance_m=position_tolerance_m,
+    tangent_tolerance_rad=tangent_tolerance_rad,
+    pressure_tolerance=pressure_tolerance,
+  )
+  downstream_condition_verified = bool(
+    rechecked_condition.converged
+    and condition.boundary == boundary
+    and condition.condition_kind
+    is MocMixedRegimeDownstreamConditionKind.AMBIENT_PRESSURE_FREE_BOUNDARY
+    and condition.condition_edge_indices == expected_condition_edges
+    and condition.condition_sample_indices == expected_condition_samples
+  )
+  if not downstream_condition_verified:
+    return _variable_entropy_measurement_failure(
+      MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus.CONDITION_FAILURE,
+      reference=reference,
+      request_verified=True,
+      handoff_verified=True,
+      control_section_verified=True,
+      source_streamline_mapping_verified=True,
+      field_boundary_verified=True,
+      node_count=len(field_nodes),
+      cell_count=len(field.cells),
+      axial_station_count=axial_count,
+      transverse_station_count=transverse_count,
+      streamline_count=transverse_count,
+      maximum_source_arc_residual_m=maximum_source_arc_residual,
+      maximum_source_pressure_residual_Pa=maximum_source_pressure_residual,
+      maximum_source_gamma_residual=maximum_source_gamma_residual,
+      maximum_free_boundary_pressure_residual_Pa=(
+        rechecked_condition.maximum_pressure_residual_Pa
+      ),
+      maximum_free_boundary_tangent_residual_rad=(
+        rechecked_condition.maximum_tangent_residual_rad
+      ),
+      message='independent ambient free-boundary condition audit failed',
+    )
+
+  topology = validate_moc_mesh(field.cells)
+  field_topology_verified = bool(
+    topology == field.topology
+    and topology.forms_closed_zone
+    and not topology.nonmanifold_edge_count
+  )
+  if not field_topology_verified:
+    return _variable_entropy_measurement_failure(
+      MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus.TOPOLOGY_FAILURE,
+      reference=reference,
+      request_verified=True,
+      handoff_verified=True,
+      control_section_verified=True,
+      source_streamline_mapping_verified=True,
+      field_boundary_verified=True,
+      downstream_condition_verified=True,
+      node_count=len(field_nodes),
+      cell_count=len(field.cells),
+      axial_station_count=axial_count,
+      transverse_station_count=transverse_count,
+      streamline_count=transverse_count,
+      message=f'independent variable-entropy mesh topology failed: {topology.message}',
+    )
+
+  node_indices_by_point = {sample.point_m: index for index, sample in enumerate(field_nodes)}
+  connector_continuity: list[float] = []
+  entrance_continuity: list[float] = []
+  continuity: list[float] = []
+  entrance_entropy: list[float] = []
+  entropy: list[float] = []
+  transverse_momentum: list[float] = []
+  cell_layout_verified = True
+  reference_total_pressure = request.terminal_downstream_total_pressure_Pa
+  for cell in field.cells:
+    if not isinstance(cell, MocCharacteristicCell) or len(cell.vertices_xr_m) != 3:
+      cell_layout_verified = False
+      continue
+    try:
+      indices = tuple(node_indices_by_point[point] for point in cell.vertices_xr_m)
+    except KeyError:
+      cell_layout_verified = False
+      continue
+    samples = tuple(field_nodes[index] for index in indices)
+    points = tuple(sample.point_m for sample in samples)
+    densities = tuple(
+      _variable_entropy_normalized_density(
+        sample.total_pressure_Pa,
+        reference_total_pressure,
+        sample.mach,
+        sample.gamma,
+      )
+      for sample in samples
+    )
+    speeds = tuple(
+      sample.mach
+      / sqrt(1.0 + 0.5 * (sample.gamma - 1.0) * sample.mach * sample.mach)
+      for sample in samples
+    )
+    velocity = tuple(
+      (speed * cos(sample.flow_angle_rad), speed * sin(sample.flow_angle_rad))
+      for speed, sample in zip(speeds, samples, strict=True)
+    )
+    mass_velocity = tuple(
+      (density * vector[0], density * vector[1])
+      for density, vector in zip(densities, velocity, strict=True)
+    )
+    mass_x_x, _mass_x_y, diameter = _variable_entropy_triangle_gradients(
+      points,
+      tuple(vector[0] for vector in mass_velocity),
+    )
+    _mass_y_x, mass_y_y, _ = _variable_entropy_triangle_gradients(
+      points,
+      tuple(vector[1] for vector in mass_velocity),
+    )
+    continuity_residual = abs(mass_x_x + mass_y_y) * diameter / max(
+      1.0e-12,
+      max(hypot(*vector) for vector in mass_velocity),
+    )
+    entropy_x, entropy_y, _ = _variable_entropy_triangle_gradients(
+      points,
+      tuple(log(sample.total_pressure_Pa) for sample in samples),
+    )
+    center_velocity = (
+      sum(vector[0] for vector in velocity) / 3.0,
+      sum(vector[1] for vector in velocity) / 3.0,
+    )
+    entropy_residual = abs(
+      center_velocity[0] * entropy_x + center_velocity[1] * entropy_y
+    ) * diameter / max(1.0e-12, hypot(*center_velocity))
+    _pressure_x, pressure_y, _ = _variable_entropy_triangle_gradients(
+      points,
+      tuple(sample.static_pressure_Pa / reference_total_pressure for sample in samples),
+    )
+    velocity_y_x, velocity_y_y, _ = _variable_entropy_triangle_gradients(
+      points,
+      tuple(vector[1] for vector in velocity),
+    )
+    transverse_residual = abs(
+      center_velocity[0] * velocity_y_x
+      + center_velocity[1] * velocity_y_y
+      + pressure_y / max(1.0e-12, sum(densities) / 3.0)
+    ) * diameter
+    is_connector = cell.cell_kind == 'variable-entropy-terminal-connector'
+    is_streamtube = cell.cell_kind == 'variable-entropy-streamtube'
+    station_index = (
+      cell.boundary_indices[0]
+      if is_streamtube and cell.boundary_indices
+      else -1
+    )
+    is_entrance = is_connector or station_index < 3
+    cell_layout_verified = bool(cell_layout_verified and (is_connector or is_streamtube))
+    if is_connector:
+      connector_continuity.append(continuity_residual)
+    elif is_entrance:
+      entrance_continuity.append(continuity_residual)
+    else:
+      continuity.append(continuity_residual)
+    if is_entrance:
+      entrance_entropy.append(entropy_residual)
+    else:
+      entropy.append(entropy_residual)
+    transverse_momentum.append(transverse_residual)
+
+  mass_flow: list[float] = []
+  entrance_mass_flow: list[float] = []
+  for station in range(axial_count):
+    height = expected_heights[station]
+    for transverse in range(transverse_count):
+      sample = field_nodes[grid_index(station, transverse)]
+      speed = sample.mach / sqrt(
+        1.0 + 0.5 * (sample.gamma - 1.0) * sample.mach * sample.mach
+      )
+      local_flux = (
+        _variable_entropy_normalized_density(
+          sample.total_pressure_Pa,
+          reference_total_pressure,
+          sample.mach,
+          sample.gamma,
+        )
+        * speed
+        * cos(sample.flow_angle_rad)
+        * height
+      )
+      inlet_sample = control_section.samples[transverse]
+      inlet_speed = inlet_sample.mach / sqrt(
+        1.0
+        + 0.5 * (inlet_sample.gamma - 1.0)
+        * inlet_sample.mach
+        * inlet_sample.mach
+      )
+      inlet_flux = (
+        _variable_entropy_normalized_density(
+          source_pressure_by_fraction[transverse],
+          reference_total_pressure,
+          inlet_sample.mach,
+          inlet_sample.gamma,
+        )
+        * inlet_speed
+        * cos(inlet_sample.flow_angle_rad)
+        * inlet_height
+      )
+      mass_residual = abs(local_flux - inlet_flux) / max(
+        1.0e-12,
+        abs(inlet_flux),
+      )
+      if station < 3:
+        entrance_mass_flow.append(mass_residual)
+      else:
+        mass_flow.append(mass_residual)
+
+  maximum_continuity = max(continuity, default=0.0)
+  maximum_connector_continuity = max(connector_continuity, default=0.0)
+  maximum_entrance_continuity = max(entrance_continuity, default=0.0)
+  maximum_entropy = max(entropy, default=0.0)
+  maximum_entrance_entropy = max(entrance_entropy, default=0.0)
+  maximum_transverse = max(transverse_momentum, default=0.0)
+  maximum_mass_flow = max(mass_flow, default=0.0)
+  maximum_entrance_mass_flow = max(entrance_mass_flow, default=0.0)
+  maximum_free_boundary_pressure = rechecked_condition.maximum_pressure_residual_Pa
+  maximum_free_boundary_tangent = rechecked_condition.maximum_tangent_residual_rad
+  continuity_verified = bool(
+    cell_layout_verified
+    and maximum_continuity <= continuity_tolerance
+    and maximum_connector_continuity <= 10.0 * continuity_tolerance
+  )
+  entropy_transport_verified = maximum_entropy <= entropy_transport_tolerance
+  free_boundary_condition_verified = bool(
+    rechecked_condition.converged
+    and maximum_free_boundary_pressure is not None
+    and maximum_free_boundary_tangent is not None
+  )
+  residuals_verified = all(
+    (
+      _variable_entropy_metric_close(
+        reported,
+        measured,
+        residual_tolerance,
+      )
+      for reported, measured in (
+        (reference.maximum_continuity_residual, maximum_continuity),
+        (reference.maximum_connector_continuity_residual, maximum_connector_continuity),
+        (reference.maximum_entrance_continuity_residual, maximum_entrance_continuity),
+        (reference.maximum_entropy_advection_residual, maximum_entropy),
+        (
+          reference.maximum_entrance_entropy_advection_residual,
+          maximum_entrance_entropy,
+        ),
+        (reference.maximum_transverse_momentum_residual, maximum_transverse),
+        (reference.maximum_mass_flow_residual, maximum_mass_flow),
+        (
+          reference.maximum_entrance_mass_flow_residual,
+          maximum_entrance_mass_flow,
+        ),
+        (reference.maximum_free_boundary_pressure_residual_Pa, maximum_free_boundary_pressure),
+        (reference.maximum_free_boundary_tangent_residual_rad, maximum_free_boundary_tangent),
+      )
+    )
+  )
+  reference_model_verified = bool(
+    reference.status is MocMixedRegimeVariableEntropyFreeBoundaryStatus.CONVERGED_REFERENCE
+    and reference.model == 'solver-owned-streamline-variable-entropy-free-boundary-reference'
+    and reference.field is field
+    and field.model == reference.model
+    and field.physical_closure_verified is False
+    and field.chain_promotion_blocked
+    and reference.physical_closure_verified is False
+    and reference.canonical_free_boundary_verified is False
+    and reference.canonical_euler_verified is False
+    and reference.chain_promotion_blocked
+    and reference.production_claim_allowed is False
+  )
+  reported_flags_verified = bool(
+    reference.source_streamline_mapping_verified == source_streamline_mapping_verified
+    and reference.entropy_transport_verified == entropy_transport_verified
+    and reference.continuity_verified == continuity_verified
+    and reference.free_boundary_condition_verified
+    == free_boundary_condition_verified
+    and reference.field_topology_verified == field_topology_verified
+    and residuals_verified
+  )
+  if not (
+    continuity_verified
+    and entropy_transport_verified
+    and free_boundary_condition_verified
+    and residuals_verified
+    and reference_model_verified
+  ):
+    status = (
+      MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus.RESIDUAL_FAILURE
+      if not (continuity_verified and entropy_transport_verified)
+      else MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus.CONSISTENCY_FAILURE
+    )
+    return _variable_entropy_measurement_failure(
+      status,
+      reference=reference,
+      request_verified=True,
+      handoff_verified=True,
+      control_section_verified=True,
+      source_streamline_mapping_verified=source_streamline_mapping_verified,
+      field_boundary_verified=True,
+      downstream_condition_verified=True,
+      field_topology_verified=field_topology_verified,
+      continuity_verified=continuity_verified,
+      entropy_transport_verified=entropy_transport_verified,
+      free_boundary_condition_verified=free_boundary_condition_verified,
+      reported_flags_verified=reported_flags_verified,
+      reference_model_verified=reference_model_verified,
+      node_count=len(field_nodes),
+      cell_count=len(field.cells),
+      axial_station_count=axial_count,
+      transverse_station_count=transverse_count,
+      streamline_count=transverse_count,
+      maximum_source_arc_residual_m=maximum_source_arc_residual,
+      maximum_source_pressure_residual_Pa=maximum_source_pressure_residual,
+      maximum_source_gamma_residual=maximum_source_gamma_residual,
+      maximum_continuity_residual=maximum_continuity,
+      maximum_connector_continuity_residual=maximum_connector_continuity,
+      maximum_entrance_continuity_residual=maximum_entrance_continuity,
+      maximum_entropy_advection_residual=maximum_entropy,
+      maximum_entrance_entropy_advection_residual=maximum_entrance_entropy,
+      maximum_transverse_momentum_residual=maximum_transverse,
+      maximum_mass_flow_residual=maximum_mass_flow,
+      maximum_entrance_mass_flow_residual=maximum_entrance_mass_flow,
+      maximum_free_boundary_pressure_residual_Pa=maximum_free_boundary_pressure,
+      maximum_free_boundary_tangent_residual_rad=maximum_free_boundary_tangent,
+      message='independent variable-entropy residual or fidelity audit failed',
+    )
+  return MocMixedRegimeVariableEntropyFreeBoundaryMeasurement(
+    status=MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus.CONVERGED,
+    reference=reference,
+    request_verified=True,
+    handoff_verified=True,
+    control_section_verified=True,
+    source_streamline_mapping_verified=True,
+    field_boundary_verified=True,
+    downstream_condition_verified=True,
+    field_topology_verified=True,
+    continuity_verified=True,
+    entropy_transport_verified=True,
+    free_boundary_condition_verified=True,
+    reported_flags_verified=reported_flags_verified,
+    reference_model_verified=True,
+    physical_closure_verified=False,
+    canonical_free_boundary_verified=False,
+    canonical_euler_verified=False,
+    chain_promotion_blocked=True,
+    production_claim_allowed=False,
+    node_count=len(field_nodes),
+    cell_count=len(field.cells),
+    axial_station_count=axial_count,
+    transverse_station_count=transverse_count,
+    streamline_count=transverse_count,
+    maximum_source_arc_residual_m=maximum_source_arc_residual,
+    maximum_source_pressure_residual_Pa=maximum_source_pressure_residual,
+    maximum_source_gamma_residual=maximum_source_gamma_residual,
+    maximum_continuity_residual=maximum_continuity,
+    maximum_connector_continuity_residual=maximum_connector_continuity,
+    maximum_entrance_continuity_residual=maximum_entrance_continuity,
+    maximum_entropy_advection_residual=maximum_entropy,
+    maximum_entrance_entropy_advection_residual=maximum_entrance_entropy,
+    maximum_transverse_momentum_residual=maximum_transverse,
+    maximum_mass_flow_residual=maximum_mass_flow,
+    maximum_entrance_mass_flow_residual=maximum_entrance_mass_flow,
+    maximum_free_boundary_pressure_residual_Pa=maximum_free_boundary_pressure,
+    maximum_free_boundary_tangent_residual_rad=maximum_free_boundary_tangent,
+    message=(
+      'independent measurement reproduced the solver-owned reverse entropy '
+      'map, structured scalar field, closed mesh perimeter, ambient/tangency '
+      'condition, and declared local residuals; canonical 2-D Euler/free-'
+      'boundary closure remains pending'
     ),
   )
 ####

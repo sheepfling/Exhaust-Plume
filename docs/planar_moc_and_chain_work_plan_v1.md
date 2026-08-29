@@ -2215,3 +2215,41 @@ seed. All promotion and product flags remain blocked. The next implementation
 step is to replace the caller-owned map with a coupled reflected downstream
 field that advects entropy while solving the ambient/free boundary, then add
 refinement and indexed external observations.
+
+## Solver-owned variable-entropy free-boundary reference checkpoint
+
+The next research seam is now implemented as
+`solve_mixed_regime_variable_entropy_free_boundary`. It consumes the typed
+terminal shock/entropy handoff and a vertical downstream control section, then
+constructs its source pressure/gamma profile internally, transports total
+pressure along explicitly labeled streamlines, and iterates the outer height
+against the ambient-pressure condition. The returned triangular stream-tube
+mesh retains source arc coordinates, streamline IDs, transported pressure,
+free-boundary points, and residual histories as auditable solver-owned data.
+
+The result intentionally separates settled downstream checks from the entrance
+regularization seam. Settled cells are checked for mapped continuity, entropy
+advection, and mass-flow consistency; connector, entrance, and transverse-
+momentum residuals remain visible rather than being folded into a single
+acceptance number. The independent
+`op.moc.mixed-regime-variable-entropy-free-boundary` measurement reconstructs
+the source profile and node layout, rechecks the control-section/ambient
+condition, topology, and residuals, and verifies the returned fidelity flags.
+
+The standalone validation uses a derived pressure-lineage stress fixture
+because the current production-generated handoff contains an outer sample with
+total pressure above the terminal value, which violates the scalar no-gain
+perimeter required by this reference. The fixture preserves the same terminal
+seam and applies a documented pressure-loss patch; it does not mutate the
+production handoff or imply external validation coverage.
+
+This checkpoint remains below the canonical boundary: transverse momentum is
+not closed, the entrance regularization is not a converged coupled solution,
+and the free boundary is not a shock-fitted canonical Euler boundary. Thus
+`physical_closure_verified=false`,
+`canonical_free_boundary_verified=false`,
+`canonical_euler_verified=false`, `chain_promotion_blocked=true`, and
+`production_claim_allowed=false` remain mandatory. The next physics gate is a
+genuinely coupled reflected 2-D Euler/MOC/free-boundary solve, followed by
+refinement and indexed external observations; no basic visualization,
+signature, ray, or focal-plane-array provider consumes this lane.
