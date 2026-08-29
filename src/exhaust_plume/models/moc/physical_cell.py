@@ -1369,6 +1369,24 @@ class MocPhysicalPostShockTerminalPatchTransitionResult:
       )
     return self.mixed_regime_request
 
+  def mixed_regime_entropy_handoff(self):
+    """Return the solver-owned entropy profile for this terminal seam.
+
+    The profile is derived from the retained exact terminal request.  It is
+    an input artifact for the future downstream entropy solver and does not
+    alter this transition's terminal, closure, or chain-promotion status.
+    """
+
+    from exhaust_plume.models.moc.mixed_regime_entropy import (
+      MocMixedRegimeEntropyHandoffResult,
+    )
+
+    request = self.as_mixed_regime_perimeter_request()
+    result = request.entropy_handoff()
+    if not isinstance(result, MocMixedRegimeEntropyHandoffResult):
+      raise TypeError('mixed-regime entropy handoff returned an invalid result')
+    return result
+
   def with_mixed_regime_field(
     self,
     mixed_regime_field: MocMixedRegimeFieldResult,
@@ -1477,6 +1495,11 @@ class MocPhysicalPostShockTerminalPatchTransitionResult:
         None
         if self.mixed_regime_request is None
         else self.mixed_regime_request.as_report()
+      ),
+      'mixed_regime_entropy_handoff': (
+        None
+        if self.mixed_regime_request is None
+        else self.mixed_regime_entropy_handoff().as_report()
       ),
       'mixed_regime_field': (
         None

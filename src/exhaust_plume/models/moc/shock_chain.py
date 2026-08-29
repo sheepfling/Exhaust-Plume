@@ -356,6 +356,25 @@ class MocTerminalShockCellFieldResult:
     )
   ####
 
+  def mixed_regime_entropy_handoff(self):
+    """Return the exact pressure-loss profile at the mixed-regime seam.
+
+    This is a solver-owned interface artifact, not a downstream field.  It
+    carries the oblique-shock patch and terminal normal-shock entropy data to
+    the next solver while preserving the terminal chain stop.
+    """
+
+    from exhaust_plume.models.moc.mixed_regime_entropy import (
+      MocMixedRegimeEntropyHandoffResult,
+    )
+
+    request = self.mixed_regime_perimeter_request()
+    result = request.entropy_handoff()
+    if not isinstance(result, MocMixedRegimeEntropyHandoffResult):
+      raise TypeError('mixed-regime entropy handoff returned an invalid result')
+    return result
+  ####
+
   def validate_mixed_regime_downstream_condition(
     self,
     subsonic_samples: Sequence[MocMixedRegimeFieldSample],
@@ -634,6 +653,11 @@ class MocTerminalShockCellFieldResult:
         None
         if self.mixed_regime_field is None
         else self.mixed_regime_field.as_report()
+      ),
+      'mixed_regime_entropy_handoff': (
+        None
+        if not self.converged or self.terminal_normal_shock is None
+        else self.mixed_regime_entropy_handoff().as_report()
       ),
       'source_strip_cell_count': self.source_strip_cell_count,
       'source_patch_cell_count': self.source_patch_cell_count,

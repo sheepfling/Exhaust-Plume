@@ -59,6 +59,11 @@ from exhaust_plume.models.moc.chain import (
 )
 from exhaust_plume.models.moc.planner import MocChainPlannerResult
 from exhaust_plume.models.moc.compression import MocNormalShockTerminalResult
+from exhaust_plume.models.moc.mixed_regime_entropy import (
+  MocMixedRegimeEntropyHandoffResult,
+  MocMixedRegimeEntropyInterfaceKind,
+  MocMixedRegimeEntropyInterfaceSample,
+)
 from exhaust_plume.models.moc.primitives import (
   CharacteristicFamily,
   CharacteristicPointResult,
@@ -119,6 +124,7 @@ __all__ = (
   'MOC_MIXED_REGIME_PLANAR_FREE_BOUNDARY_REFINEMENT_OPERATOR_ID',
   'MOC_MIXED_REGIME_CONTROL_SECTION_OPERATOR_ID',
   'MOC_MIXED_REGIME_POTENTIAL_OPERATOR_ID',
+  'MOC_MIXED_REGIME_ENTROPY_HANDOFF_OPERATOR_ID',
   'MOC_SHOCK_CELL_CHAIN_OPERATOR_ID',
   'MOC_SHOCK_CELL_CHAIN_REFINEMENT_OPERATOR_ID',
   'MOC_SHOCK_CELL_GEOMETRY_OPERATOR_ID',
@@ -156,6 +162,8 @@ __all__ = (
   'MocMixedRegimePlanarFreeBoundaryRefinementMeasurementStatus',
   'MocMixedRegimeControlSectionMeasurement',
   'MocMixedRegimeControlSectionMeasurementStatus',
+  'MocMixedRegimeEntropyHandoffMeasurement',
+  'MocMixedRegimeEntropyHandoffMeasurementStatus',
   'MocTerminalClosureMeasurement',
   'MocTerminalClosureMeasurementStatus',
   'MocTerminalClosureObservation',
@@ -181,6 +189,7 @@ __all__ = (
   'measure_mixed_regime_planar_free_boundary_reference',
   'measure_mixed_regime_planar_free_boundary_refinement',
   'measure_mixed_regime_control_section',
+  'measure_mixed_regime_entropy_handoff',
   'measure_moc_terminal_closure',
   'measure_moc_shock_cell',
   'measure_moc_shock_cell_chain',
@@ -232,8 +241,564 @@ MOC_MIXED_REGIME_CONTROL_SECTION_OPERATOR_ID = (
   'op.moc.mixed-regime-control-section'
 )
 MOC_MIXED_REGIME_POTENTIAL_OPERATOR_ID = 'op.moc.mixed-regime-compressible-potential'
+MOC_MIXED_REGIME_ENTROPY_HANDOFF_OPERATOR_ID = (
+  'op.moc.mixed-regime-entropy-handoff'
+)
 
 Point = tuple[float, float]
+
+
+class MocMixedRegimeEntropyHandoffMeasurementStatus(str, Enum):
+  """Outcome of independently measuring the reflected entropy handoff."""
+
+  CONVERGED = 'converged'
+  INVALID_INPUT = 'invalid_input'
+  REQUEST_FAILURE = 'entropy-handoff-request-failure'
+  HANDOFF_FAILURE = 'entropy-handoff-result-failure'
+  SAMPLE_FAILURE = 'entropy-handoff-sample-failure'
+  GEOMETRY_FAILURE = 'entropy-handoff-geometry-failure'
+  PRESSURE_FAILURE = 'entropy-handoff-pressure-failure'
+  CONSISTENCY_FAILURE = 'entropy-handoff-consistency-failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocMixedRegimeEntropyHandoffMeasurement:
+  """Independent evidence for a pressure-loss-aware terminal interface.
+
+  The operator reconstructs expected interface samples from the request and
+  compares them with the returned handoff.  It does not use the handoff's
+  convenience flags or recompute the handoff by calling its builder.
+  """
+
+  status: MocMixedRegimeEntropyHandoffMeasurementStatus
+  operator_id: str = MOC_MIXED_REGIME_ENTROPY_HANDOFF_OPERATOR_ID
+  handoff: MocMixedRegimeEntropyHandoffResult | None = None
+  request_verified: bool = False
+  sample_count: int = 0
+  expected_sample_count: int = 0
+  terminal_sample_index: int | None = None
+  interface_geometry_verified: bool = False
+  terminal_seam_verified: bool = False
+  shock_loss_verified: bool = False
+  entropy_profile_verified: bool = False
+  handoff_metrics_verified: bool = False
+  maximum_interface_point_residual_m: float | None = None
+  maximum_cumulative_arc_length_residual_m: float | None = None
+  minimum_total_pressure_ratio: float | None = None
+  maximum_entropy_production_nondimensional: float | None = None
+  maximum_total_pressure_gain_Pa: float | None = None
+  physical_closure_verified: bool = False
+  chain_promotion_blocked: bool = True
+  production_claim_allowed: bool = False
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocMixedRegimeEntropyHandoffMeasurementStatus,
+    ):
+      raise TypeError(
+        'status must be a MocMixedRegimeEntropyHandoffMeasurementStatus'
+      )
+    if self.handoff is not None and not isinstance(
+      self.handoff,
+      MocMixedRegimeEntropyHandoffResult,
+    ):
+      raise TypeError(
+        'handoff must be a MocMixedRegimeEntropyHandoffResult or None'
+      )
+    for name in (
+      'sample_count',
+      'expected_sample_count',
+    ):
+      value = getattr(self, name)
+      if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f'{name} must be a nonnegative integer')
+    if self.terminal_sample_index is not None:
+      if (
+        isinstance(self.terminal_sample_index, bool)
+        or not isinstance(self.terminal_sample_index, int)
+        or self.terminal_sample_index < 0
+      ):
+        raise ValueError(
+          'terminal_sample_index must be a nonnegative integer when supplied'
+        )
+    for name in (
+      'maximum_interface_point_residual_m',
+      'maximum_cumulative_arc_length_residual_m',
+      'minimum_total_pressure_ratio',
+      'maximum_entropy_production_nondimensional',
+      'maximum_total_pressure_gain_Pa',
+    ):
+      value = getattr(self, name)
+      if value is not None:
+        numeric = float(value)
+        if not isfinite(numeric) or numeric < 0.0:
+          raise ValueError(f'{name} must be finite and nonnegative when supplied')
+        object.__setattr__(self, name, numeric)
+    for name in (
+      'request_verified',
+      'interface_geometry_verified',
+      'terminal_seam_verified',
+      'shock_loss_verified',
+      'entropy_profile_verified',
+      'handoff_metrics_verified',
+      'physical_closure_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocMixedRegimeEntropyHandoffMeasurementStatus.CONVERGED
+  ####
+
+  @property
+  def handoff_verified(self) -> bool:
+    return bool(
+      self.converged
+      and self.request_verified
+      and self.interface_geometry_verified
+      and self.terminal_seam_verified
+      and self.shock_loss_verified
+      and self.entropy_profile_verified
+      and self.handoff_metrics_verified
+    )
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'operator_id': self.operator_id,
+      'converged': self.converged,
+      'handoff_verified': self.handoff_verified,
+      'request_verified': self.request_verified,
+      'sample_count': self.sample_count,
+      'expected_sample_count': self.expected_sample_count,
+      'terminal_sample_index': self.terminal_sample_index,
+      'interface_geometry_verified': self.interface_geometry_verified,
+      'terminal_seam_verified': self.terminal_seam_verified,
+      'shock_loss_verified': self.shock_loss_verified,
+      'entropy_profile_verified': self.entropy_profile_verified,
+      'handoff_metrics_verified': self.handoff_metrics_verified,
+      'maximum_interface_point_residual_m': self.maximum_interface_point_residual_m,
+      'maximum_cumulative_arc_length_residual_m': (
+        self.maximum_cumulative_arc_length_residual_m
+      ),
+      'minimum_total_pressure_ratio': self.minimum_total_pressure_ratio,
+      'maximum_entropy_production_nondimensional': (
+        self.maximum_entropy_production_nondimensional
+      ),
+      'maximum_total_pressure_gain_Pa': self.maximum_total_pressure_gain_Pa,
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'message': self.message,
+    }
+  ####
+
+
+def _entropy_handoff_measurement_failure(
+  status: MocMixedRegimeEntropyHandoffMeasurementStatus,
+  *,
+  handoff: MocMixedRegimeEntropyHandoffResult | None = None,
+  request_verified: bool = False,
+  sample_count: int = 0,
+  expected_sample_count: int = 0,
+  terminal_sample_index: int | None = None,
+  interface_geometry_verified: bool = False,
+  terminal_seam_verified: bool = False,
+  shock_loss_verified: bool = False,
+  entropy_profile_verified: bool = False,
+  handoff_metrics_verified: bool = False,
+  maximum_interface_point_residual_m: float | None = None,
+  maximum_cumulative_arc_length_residual_m: float | None = None,
+  minimum_total_pressure_ratio: float | None = None,
+  maximum_entropy_production_nondimensional: float | None = None,
+  maximum_total_pressure_gain_Pa: float | None = None,
+  message: str,
+) -> MocMixedRegimeEntropyHandoffMeasurement:
+  return MocMixedRegimeEntropyHandoffMeasurement(
+    status=status,
+    handoff=handoff,
+    request_verified=request_verified,
+    sample_count=sample_count,
+    expected_sample_count=expected_sample_count,
+    terminal_sample_index=terminal_sample_index,
+    interface_geometry_verified=interface_geometry_verified,
+    terminal_seam_verified=terminal_seam_verified,
+    shock_loss_verified=shock_loss_verified,
+    entropy_profile_verified=entropy_profile_verified,
+    handoff_metrics_verified=handoff_metrics_verified,
+    maximum_interface_point_residual_m=maximum_interface_point_residual_m,
+    maximum_cumulative_arc_length_residual_m=(
+      maximum_cumulative_arc_length_residual_m
+    ),
+    minimum_total_pressure_ratio=minimum_total_pressure_ratio,
+    maximum_entropy_production_nondimensional=(
+      maximum_entropy_production_nondimensional
+    ),
+    maximum_total_pressure_gain_Pa=maximum_total_pressure_gain_Pa,
+    physical_closure_verified=False,
+    chain_promotion_blocked=True,
+    production_claim_allowed=False,
+    message=message,
+  )
+
+
+def _entropy_close(first: float, second: float, tolerance: float) -> bool:
+  return abs(float(first) - float(second)) <= tolerance * max(
+    1.0,
+    abs(float(first)),
+    abs(float(second)),
+  )
+
+
+def measure_mixed_regime_entropy_handoff(
+  request: MocMixedRegimePerimeterRequest,
+  handoff: MocMixedRegimeEntropyHandoffResult,
+  *,
+  position_tolerance_m: float = 1.0e-9,
+  pressure_tolerance: float = 1.0e-8,
+) -> MocMixedRegimeEntropyHandoffMeasurement:
+  """Independently remeasure a reflected shock-interface entropy handoff."""
+
+  if not isinstance(request, MocMixedRegimePerimeterRequest):
+    return _entropy_handoff_measurement_failure(
+      MocMixedRegimeEntropyHandoffMeasurementStatus.INVALID_INPUT,
+      message='request must be a MocMixedRegimePerimeterRequest',
+    )
+  if not isinstance(handoff, MocMixedRegimeEntropyHandoffResult):
+    return _entropy_handoff_measurement_failure(
+      MocMixedRegimeEntropyHandoffMeasurementStatus.INVALID_INPUT,
+      message='handoff must be a MocMixedRegimeEntropyHandoffResult',
+    )
+  for name, value in (
+    ('position_tolerance_m', position_tolerance_m),
+    ('pressure_tolerance', pressure_tolerance),
+  ):
+    if not isfinite(float(value)) or float(value) <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+  if handoff.request != request:
+    return _entropy_handoff_measurement_failure(
+      MocMixedRegimeEntropyHandoffMeasurementStatus.REQUEST_FAILURE,
+      handoff=handoff,
+      message='entropy handoff did not retain the exact perimeter request',
+    )
+  if handoff.status.value != 'converged-reflected-downstream-entropy-handoff':
+    return _entropy_handoff_measurement_failure(
+      MocMixedRegimeEntropyHandoffMeasurementStatus.HANDOFF_FAILURE,
+      handoff=handoff,
+      message=f'entropy handoff is not converged: {handoff.message}',
+    )
+
+  terminal = request.terminal
+  terminal_values = (
+    terminal.shock_point_m,
+    terminal.downstream_mach,
+    terminal.downstream_flow_angle_rad,
+    terminal.upstream_total_pressure_Pa,
+    terminal.downstream_total_pressure_Pa,
+    terminal.upstream_state,
+  )
+  if any(value is None for value in terminal_values):
+    return _entropy_handoff_measurement_failure(
+      MocMixedRegimeEntropyHandoffMeasurementStatus.REQUEST_FAILURE,
+      handoff=handoff,
+      message='request terminal does not expose complete entropy data',
+    )
+  (
+    terminal_point,
+    terminal_mach,
+    terminal_angle,
+    terminal_upstream_pressure,
+    terminal_downstream_pressure,
+    terminal_upstream_state,
+  ) = terminal_values
+  assert terminal_point is not None
+  assert terminal_mach is not None
+  assert terminal_angle is not None
+  assert terminal_upstream_pressure is not None
+  assert terminal_downstream_pressure is not None
+  assert terminal_upstream_state is not None
+
+  expected: list[MocMixedRegimeEntropyInterfaceSample] = []
+  for index, patch_sample in enumerate(request.supersonic_patch):
+    if not isinstance(patch_sample, MocPostShockBoundaryState):
+      return _entropy_handoff_measurement_failure(
+        MocMixedRegimeEntropyHandoffMeasurementStatus.REQUEST_FAILURE,
+        handoff=handoff,
+        message=f'request patch sample {index} has an invalid type',
+      )
+    try:
+      expected.append(MocMixedRegimeEntropyInterfaceSample(
+        point_m=patch_sample.point_m,
+        downstream_mach=patch_sample.state.mach,
+        downstream_flow_angle_rad=patch_sample.state.theta_rad,
+        gamma=patch_sample.state.gamma,
+        upstream_total_pressure_Pa=patch_sample.upstream_total_pressure_Pa,
+        downstream_total_pressure_Pa=patch_sample.downstream_total_pressure_Pa,
+        interface_kind=MocMixedRegimeEntropyInterfaceKind.OBLIQUE_SHOCK,
+      ))
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      return _entropy_handoff_measurement_failure(
+        MocMixedRegimeEntropyHandoffMeasurementStatus.REQUEST_FAILURE,
+        handoff=handoff,
+        message=f'request patch sample {index} could not be measured: {error}',
+      )
+  try:
+    expected.append(MocMixedRegimeEntropyInterfaceSample(
+      point_m=terminal_point,
+      downstream_mach=terminal_mach,
+      downstream_flow_angle_rad=terminal_angle,
+      gamma=terminal_upstream_state.gamma,
+      upstream_total_pressure_Pa=terminal_upstream_pressure,
+      downstream_total_pressure_Pa=terminal_downstream_pressure,
+      interface_kind=MocMixedRegimeEntropyInterfaceKind.NORMAL_SHOCK_TERMINAL,
+    ))
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return _entropy_handoff_measurement_failure(
+      MocMixedRegimeEntropyHandoffMeasurementStatus.REQUEST_FAILURE,
+      handoff=handoff,
+      message=f'request terminal could not be measured: {error}',
+    )
+
+  expected_tuple = tuple(expected)
+  measured_tuple = handoff.samples
+  common = {
+    'handoff': handoff,
+    'request_verified': True,
+    'sample_count': len(measured_tuple),
+    'expected_sample_count': len(expected_tuple),
+    'terminal_sample_index': handoff.terminal_sample_index,
+  }
+  if len(measured_tuple) != len(expected_tuple):
+    return _entropy_handoff_measurement_failure(
+      MocMixedRegimeEntropyHandoffMeasurementStatus.SAMPLE_FAILURE,
+      message=(
+        'entropy handoff sample count does not match the exact patch plus '
+        f'terminal count: measured={len(measured_tuple)}, '
+        f'expected={len(expected_tuple)}'
+      ),
+      **common,
+    )
+  if handoff.terminal_sample_index != len(expected_tuple) - 1:
+    return _entropy_handoff_measurement_failure(
+      MocMixedRegimeEntropyHandoffMeasurementStatus.CONSISTENCY_FAILURE,
+      message='entropy handoff terminal index is not the final interface sample',
+      **common,
+    )
+  maximum_point_residual = max(
+    hypot(measured.point_m[0] - expected.point_m[0], measured.point_m[1] - expected.point_m[1])
+    for measured, expected in zip(measured_tuple, expected_tuple, strict=True)
+  )
+  scalar_fields = (
+    'downstream_mach',
+    'downstream_flow_angle_rad',
+    'gamma',
+    'upstream_total_pressure_Pa',
+    'downstream_total_pressure_Pa',
+  )
+  scalar_consistent = all(
+    _entropy_close(
+      getattr(measured, field_name),
+      getattr(expected, field_name),
+      pressure_tolerance if 'pressure' in field_name else position_tolerance_m,
+    )
+    for measured, expected in zip(measured_tuple, expected_tuple, strict=True)
+    for field_name in scalar_fields
+  )
+  kind_consistent = all(
+    measured.interface_kind is expected.interface_kind
+    for measured, expected in zip(measured_tuple, expected_tuple, strict=True)
+  )
+  sample_consistent = (
+    maximum_point_residual <= position_tolerance_m
+    and scalar_consistent
+    and kind_consistent
+  )
+  if not sample_consistent:
+    return _entropy_handoff_measurement_failure(
+      MocMixedRegimeEntropyHandoffMeasurementStatus.SAMPLE_FAILURE,
+      maximum_interface_point_residual_m=maximum_point_residual,
+      message='entropy handoff samples do not reproduce the request source data',
+      **common,
+    )
+
+  points = tuple(sample.point_m for sample in measured_tuple)
+  segment_lengths = tuple(
+    hypot(second[0] - first[0], second[1] - first[1])
+    for first, second in zip(points[:-1], points[1:], strict=True)
+  )
+  geometry_verified = bool(
+    len(handoff.interface_points_m) == len(points)
+    and all(
+      hypot(measured[0] - expected[0], measured[1] - expected[1])
+      <= position_tolerance_m
+      for measured, expected in zip(
+        handoff.interface_points_m,
+        points,
+        strict=True,
+      )
+    )
+    and all(length > position_tolerance_m for length in segment_lengths)
+  )
+  expected_arc = [0.0]
+  for length in segment_lengths:
+    expected_arc.append(expected_arc[-1] + length)
+  maximum_arc_residual: float | None = (
+    max(
+      abs(measured - expected)
+      for measured, expected in zip(
+        handoff.cumulative_arc_length_m,
+        expected_arc,
+        strict=True,
+      )
+    )
+    if len(handoff.cumulative_arc_length_m) == len(expected_arc)
+    else None
+  )
+  geometry_verified = bool(
+    geometry_verified
+    and maximum_arc_residual is not None
+    and maximum_arc_residual <= position_tolerance_m
+  )
+  if not geometry_verified:
+    return _entropy_handoff_measurement_failure(
+      MocMixedRegimeEntropyHandoffMeasurementStatus.GEOMETRY_FAILURE,
+      interface_geometry_verified=False,
+      maximum_interface_point_residual_m=maximum_point_residual,
+      maximum_cumulative_arc_length_residual_m=maximum_arc_residual,
+      message='entropy handoff interface path or cumulative arc length failed independent geometry checks',
+      **common,
+    )
+
+  pressure_gain = max(
+    max(
+      0.0,
+      sample.downstream_total_pressure_Pa
+      - sample.upstream_total_pressure_Pa,
+    )
+    for sample in measured_tuple
+  )
+  pressure_loss_verified = all(
+    sample.downstream_total_pressure_Pa
+    < sample.upstream_total_pressure_Pa
+    for sample in measured_tuple
+  )
+  entropy_values = tuple(
+    log(sample.upstream_total_pressure_Pa / sample.downstream_total_pressure_Pa)
+    for sample in measured_tuple
+  )
+  entropy_profile_verified = all(
+    isfinite(value) and value > 0.0 for value in entropy_values
+  )
+  minimum_ratio = min(sample.total_pressure_ratio for sample in measured_tuple)
+  maximum_entropy = max(entropy_values)
+  terminal = measured_tuple[-1]
+  terminal_seam_verified = bool(
+    terminal.interface_kind is MocMixedRegimeEntropyInterfaceKind.NORMAL_SHOCK_TERMINAL
+    and terminal.point_m == terminal_point
+    and _entropy_close(terminal.downstream_mach, terminal_mach, position_tolerance_m)
+    and _entropy_close(terminal.downstream_flow_angle_rad, terminal_angle, position_tolerance_m)
+    and _entropy_close(
+      terminal.upstream_total_pressure_Pa,
+      terminal_upstream_pressure,
+      pressure_tolerance,
+    )
+    and _entropy_close(
+      terminal.downstream_total_pressure_Pa,
+      terminal_downstream_pressure,
+      pressure_tolerance,
+    )
+  )
+  reported_metrics = (
+    handoff.interface_geometry_verified
+    and handoff.terminal_seam_verified
+    and handoff.shock_loss_verified
+    and handoff.entropy_transport_verified
+    and handoff.maximum_interface_segment_length_m is not None
+    and handoff.minimum_total_pressure_ratio is not None
+    and handoff.maximum_entropy_production_nondimensional is not None
+    and handoff.maximum_total_pressure_gain_Pa is not None
+  )
+  handoff_metrics_verified = bool(
+    reported_metrics
+    and _entropy_close(
+      handoff.maximum_interface_segment_length_m,
+      max(segment_lengths),
+      position_tolerance_m,
+    )
+    and _entropy_close(
+      handoff.minimum_total_pressure_ratio,
+      minimum_ratio,
+      pressure_tolerance,
+    )
+    and _entropy_close(
+      handoff.maximum_entropy_production_nondimensional,
+      maximum_entropy,
+      pressure_tolerance,
+    )
+    and _entropy_close(
+      handoff.maximum_total_pressure_gain_Pa,
+      pressure_gain,
+      pressure_tolerance,
+    )
+  )
+  if not (
+    terminal_seam_verified
+    and pressure_loss_verified
+    and entropy_profile_verified
+    and handoff_metrics_verified
+  ):
+    return _entropy_handoff_measurement_failure(
+      MocMixedRegimeEntropyHandoffMeasurementStatus.PRESSURE_FAILURE,
+      interface_geometry_verified=True,
+      terminal_seam_verified=terminal_seam_verified,
+      shock_loss_verified=pressure_loss_verified,
+      entropy_profile_verified=entropy_profile_verified,
+      handoff_metrics_verified=handoff_metrics_verified,
+      maximum_interface_point_residual_m=maximum_point_residual,
+      maximum_cumulative_arc_length_residual_m=maximum_arc_residual,
+      minimum_total_pressure_ratio=minimum_ratio,
+      maximum_entropy_production_nondimensional=maximum_entropy,
+      maximum_total_pressure_gain_Pa=pressure_gain,
+      message='entropy handoff pressure-loss or terminal-seam checks failed',
+      **common,
+    )
+  return MocMixedRegimeEntropyHandoffMeasurement(
+    status=MocMixedRegimeEntropyHandoffMeasurementStatus.CONVERGED,
+    handoff=handoff,
+    request_verified=True,
+    sample_count=len(measured_tuple),
+    expected_sample_count=len(expected_tuple),
+    terminal_sample_index=handoff.terminal_sample_index,
+    interface_geometry_verified=True,
+    terminal_seam_verified=True,
+    shock_loss_verified=True,
+    entropy_profile_verified=True,
+    handoff_metrics_verified=True,
+    maximum_interface_point_residual_m=maximum_point_residual,
+    maximum_cumulative_arc_length_residual_m=maximum_arc_residual,
+    minimum_total_pressure_ratio=minimum_ratio,
+    maximum_entropy_production_nondimensional=maximum_entropy,
+    maximum_total_pressure_gain_Pa=pressure_gain,
+    physical_closure_verified=False,
+    chain_promotion_blocked=True,
+    production_claim_allowed=False,
+    message=(
+      'independent entropy-interface measurement reproduced the exact shock '
+      'patch and terminal, arc-length ordering, strict total-pressure loss, '
+      'and entropy coordinate; downstream entropy transport and free-boundary '
+      'closure remain pending'
+    ),
+  )
+####
 
 
 class MocShockCellMeasurementStatus(str, Enum):

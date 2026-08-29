@@ -84,6 +84,13 @@ from exhaust_plume.models.moc.mixed_regime_planar_free_boundary import (
   MocMixedRegimePlanarFreeBoundaryReference,
   solve_mixed_regime_planar_free_boundary_reference,
 )
+from exhaust_plume.models.moc.mixed_regime_entropy import (
+  MocMixedRegimeEntropyInterfaceKind,
+  MocMixedRegimeEntropyInterfaceSample,
+  MocMixedRegimeEntropyHandoffStatus,
+  MocMixedRegimeEntropyHandoffResult,
+  build_mixed_regime_entropy_handoff,
+)
 from exhaust_plume.models.moc.boundary import (
   MocFreeBoundaryPointResult,
   MocFreeBoundaryResult,
@@ -516,7 +523,12 @@ __all__ = (
   'MocMixedRegimePlanarFreeBoundaryStatus',
   'MocMixedRegimePlanarFreeBoundaryResult',
   'MocMixedRegimePlanarFreeBoundaryReference',
+  'MocMixedRegimeEntropyInterfaceKind',
+  'MocMixedRegimeEntropyInterfaceSample',
+  'MocMixedRegimeEntropyHandoffStatus',
+  'MocMixedRegimeEntropyHandoffResult',
   'solve_mixed_regime_planar_free_boundary_reference',
+  'build_mixed_regime_entropy_handoff',
   'MocChainPlannerKind',
   'MocAmbientClosedChainSourceMode',
   'MocChainPlannerResult',

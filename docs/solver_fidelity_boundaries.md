@@ -835,3 +835,30 @@ and ``production_claim_allowed=false``. A genuine reflected 2-D
 shock/ambient/free-boundary entropy solve, followed by refinement and indexed
 external observations, is still required before any product or continued-cell
 promotion.
+
+## Reflected shock-interface entropy handoff
+
+The terminal mixed-regime request now has a solver-owned
+`MocMixedRegimeEntropyHandoffResult`. It retains the exact ordered oblique
+shock patch and scalar normal-shock endpoint as an open interface profile. At
+each sample it carries downstream Mach/flow angle/gamma, upstream and
+downstream total pressure, the local total-pressure ratio, and
+``log(p0_up/p0_down)`` as the fixed-total-temperature nondimensional entropy
+production coordinate. Cumulative arc length is retained so a future
+downstream solver can interpolate only inside the solved shock interface.
+
+`build_mixed_regime_entropy_handoff` rejects missing terminal data, invalid
+regime transitions, zero-length interface segments, and any total-pressure
+gain. The convenience methods on the terminal field and transition expose the
+same artifact without changing their terminal-stop semantics. The handoff is
+an entropy input contract, not entropy advection: it has
+`physical_closure_verified=false`, `canonical_free_boundary_verified=false`,
+`chain_promotion_blocked=true`, and `production_claim_allowed=false`.
+
+The independent `op.moc.mixed-regime-entropy-handoff` measurement reconstructs
+the expected patch-plus-terminal samples from the request, remeasures arc
+length and pressure loss, and rejects changed sample data or stale summary
+metrics. This local gate passes in the standalone report. A coupled
+subsonic entropy-transport/free-boundary solve, numerical refinement, and
+indexed external observations remain required before any continued shock-cell
+chain or product provider can consume the result.

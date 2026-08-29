@@ -22,7 +22,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from enum import Enum
 from math import atan2, cos, exp, hypot, isfinite, log, pi, sin, sqrt
-from typing import Callable, Sequence
+from typing import TYPE_CHECKING, Callable, Sequence
 
 import numpy as np
 
@@ -33,6 +33,11 @@ from exhaust_plume.models.moc.compression import (
 from exhaust_plume.models.moc.post_shock import MocPostShockBoundaryState
 from exhaust_plume.models.moc.topology import MocTopologyResult, validate_moc_mesh
 from exhaust_plume.models.moc.zone import MocCharacteristicCell
+
+if TYPE_CHECKING:
+  from exhaust_plume.models.moc.mixed_regime_entropy import (
+    MocMixedRegimeEntropyHandoffResult,
+  )
 
 __all__ = (
   'MocMixedRegimeBoundaryStatus',
@@ -345,6 +350,21 @@ class MocMixedRegimePerimeterRequest:
         'no geometry was inferred from the open supersonic zone'
       ),
     }
+  ####
+
+  def entropy_handoff(self) -> 'MocMixedRegimeEntropyHandoffResult':
+    """Build the solver-owned shock-interface entropy profile.
+
+    The import is local to keep the mixed-regime request and entropy-handoff
+    modules acyclic.  The returned profile is an open interface handoff; it
+    does not close the downstream perimeter or authorize chain continuation.
+    """
+
+    from exhaust_plume.models.moc.mixed_regime_entropy import (
+      build_mixed_regime_entropy_handoff,
+    )
+
+    return build_mixed_regime_entropy_handoff(self)
   ####
 
 

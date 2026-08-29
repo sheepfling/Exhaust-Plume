@@ -202,6 +202,7 @@ from exhaust_plume.validation.moc_measurements import (  # noqa: E402
   MocMixedRegimeFreeBoundaryRefinementCase,
   MocMixedRegimeFreeBoundaryRefinementMeasurementStatus,
   MocMixedRegimePlanarFreeBoundaryRefinementCase,
+  MocMixedRegimeEntropyHandoffMeasurementStatus,
   MocReflectedDomainRemeshMeasurementStatus,
   MocReflectedDomainOuterSourceMeasurementStatus,
   MocTerminalClosureObservation,
@@ -220,6 +221,7 @@ from exhaust_plume.validation.moc_measurements import (  # noqa: E402
   measure_mixed_regime_free_boundary_reference,
   measure_mixed_regime_free_boundary_refinement,
   measure_mixed_regime_planar_free_boundary_refinement,
+  measure_mixed_regime_entropy_handoff,
   measure_mixed_regime_compressible_potential_field,
   measure_moc_terminal_closure,
   measure_moc_shock_cell,
@@ -2917,6 +2919,11 @@ def _mixed_regime_boundary_probe(
   terminal_x, terminal_y = terminal.shock_point_m
   perimeter_mock = MocPrescribedMixedRegimeClosureMock(radial_divisions=2)
   perimeter_request = field.mixed_regime_perimeter_request()
+  entropy_handoff = perimeter_request.entropy_handoff()
+  entropy_handoff_measurement = measure_mixed_regime_entropy_handoff(
+    perimeter_request,
+    entropy_handoff,
+  )
   control_section_requirement = validate_mixed_regime_control_section(
     perimeter_request,
     None,
@@ -3303,6 +3310,21 @@ def _mixed_regime_boundary_probe(
       and terminal_attachment_measurement.chain_promotion_blocked
       and contract_fixture.physical_closure_verified is False
       and contract_fixture.chain_promotion_blocked
+      and entropy_handoff.status.value == (
+        'converged-reflected-downstream-entropy-handoff'
+      )
+      and entropy_handoff.converged
+      and entropy_handoff.entropy_transport_verified
+      and entropy_handoff.physical_closure_verified is False
+      and entropy_handoff.chain_promotion_blocked
+      and entropy_handoff.production_claim_allowed is False
+      and entropy_handoff_measurement.status is (
+        MocMixedRegimeEntropyHandoffMeasurementStatus.CONVERGED
+      )
+      and entropy_handoff_measurement.converged
+      and entropy_handoff_measurement.handoff_verified
+      and entropy_handoff_measurement.physical_closure_verified is False
+      and entropy_handoff_measurement.chain_promotion_blocked
       and control_section_requirement.status.value == 'invalid_input'
       and not control_section_requirement.physical_closure_verified
       and control_section_requirement.chain_promotion_blocked
@@ -3421,6 +3443,10 @@ def _mixed_regime_boundary_probe(
     ),
     'mixed_regime_closure_mock': perimeter_mock.as_report(),
     'scalar_perimeter_contract_fixture': contract_fixture.as_report(),
+    'mixed_regime_entropy_handoff': entropy_handoff.as_report(),
+    'mixed_regime_entropy_handoff_measurement': (
+      entropy_handoff_measurement.as_report()
+    ),
     'explicit_downstream_perimeter_solver': explicit_perimeter_closure.as_report(),
     'downstream_condition_contract': contract_condition.as_report(),
     'downstream_condition_positive_wall_fixture': wall_condition.as_report(),
@@ -7489,6 +7515,24 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or mixed_regime_boundary_probe.get('physical_closure_verified') is not False
     or mixed_regime_boundary_probe.get('chain_promotion_blocked') is not True
   )
+  mixed_regime_entropy_handoff = mixed_regime_boundary_probe.get(
+    'mixed_regime_entropy_handoff',
+  )
+  mixed_regime_entropy_handoff_measurement = mixed_regime_boundary_probe.get(
+    'mixed_regime_entropy_handoff_measurement',
+  )
+  mixed_regime_entropy_handoff_failure = (
+    not isinstance(mixed_regime_entropy_handoff, dict)
+    or mixed_regime_entropy_handoff.get('converged') is not True
+    or mixed_regime_entropy_handoff.get('entropy_transport_verified') is not True
+    or mixed_regime_entropy_handoff.get('physical_closure_verified') is not False
+    or mixed_regime_entropy_handoff.get('chain_promotion_blocked') is not True
+    or not isinstance(mixed_regime_entropy_handoff_measurement, dict)
+    or mixed_regime_entropy_handoff_measurement.get('converged') is not True
+    or mixed_regime_entropy_handoff_measurement.get('handoff_verified') is not True
+    or mixed_regime_entropy_handoff_measurement.get('physical_closure_verified') is not False
+    or mixed_regime_entropy_handoff_measurement.get('chain_promotion_blocked') is not True
+  )
   parameterized_planar_free_boundary_refinement_probe = (
     mixed_regime_boundary_probe.get(
       'parameterized_planar_free_boundary_refinement',
@@ -9682,6 +9726,21 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'message': str(mixed_regime_boundary_probe.get('message', '')),
       }
     ] if mixed_regime_boundary_failure else []),
+    *([
+      {
+        'case': 'mixed_regime_entropy_handoff',
+        'status': str(
+          mixed_regime_entropy_handoff.get('status', 'missing')
+          if isinstance(mixed_regime_entropy_handoff, dict)
+          else 'missing'
+        ),
+        'message': str(
+          mixed_regime_entropy_handoff.get('message', '')
+          if isinstance(mixed_regime_entropy_handoff, dict)
+          else ''
+        ),
+      }
+    ] if mixed_regime_entropy_handoff_failure else []),
     *([
       {
         'case': 'parameterized_planar_free_boundary_refinement',

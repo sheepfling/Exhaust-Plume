@@ -2132,3 +2132,23 @@ shock/ambient boundary, followed by refinement and indexed external
 observations; neither this operator nor its local field may seed a continued
 shock-cell chain or alter the basic visualization, signature, ray, or
 focal-plane-array providers.
+
+## Reflected shock-interface entropy handoff checkpoint
+
+The terminal request now exposes a typed
+`solver-owned-reflected-shock-interface-entropy-handoff`. It concatenates the
+validated oblique-shock patch with the scalar normal-shock endpoint and carries
+the sample-wise upstream/downstream total-pressure pair, downstream regime,
+flow angle, gamma, and cumulative shock-interface arc length. The handoff
+provides bounded pressure/entropy interpolation for the next downstream
+solver; it does not invent a subsonic `CharacteristicState`, close a
+perimeter, or extrapolate past the measured interface.
+
+The independent `op.moc.mixed-regime-entropy-handoff` operator rebuilds those
+samples from the exact terminal request, checks path ordering and terminal
+identity, and recomputes strict shock loss and the nondimensional entropy
+coordinate. The standalone fixture passes this measurement with all 17
+interface samples, while the handoff remains explicitly non-physical and
+non-promotable. The next physics task is to advect this pressure/entropy
+profile through a solver-owned subsonic field while solving the reflected
+ambient free boundary; only that coupled result can feed a continued cell.
