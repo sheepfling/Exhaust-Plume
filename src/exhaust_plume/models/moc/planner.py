@@ -100,6 +100,9 @@ from exhaust_plume.models.moc.euler_characteristic_field import (
   MocEulerCompanionFieldResult,
   assemble_euler_consistent_companion_characteristic_strip,
 )
+from exhaust_plume.models.moc.euler_ambient_field import (
+  MocEulerAmbientShockFieldResult,
+)
 from exhaust_plume.models.moc.mixed_regime import (
   MocMixedRegimeClosureResult,
   MocMixedRegimeControlSection,
@@ -173,6 +176,10 @@ __all__ = (
   'MocEulerCompanionFieldContinuationSolve',
   'MocEulerCompanionFieldChainStep',
   'MocEulerCompanionFieldChainPlannerResult',
+  'MocEulerAmbientShockFieldContinuationSolve',
+  'MocEulerAmbientShockFieldChainStep',
+  'MocEulerAmbientShockFieldChainPlannerResult',
+  'MocEulerAmbientShockFieldPlannerResult',
   'MocFirstCellTerminalClosurePlannerResult',
   'MocFirstCellFreeBoundaryCorrectionPlannerResult',
   'MocFirstCellResearchChainPlannerResult',
@@ -194,6 +201,10 @@ __all__ = (
   'plan_euler_companion_field_chain',
   'MocEulerCompanionFieldChainMock',
   'plan_euler_companion_field_chain_mock',
+  'plan_euler_ambient_shock_field_reference',
+  'plan_euler_ambient_shock_field_chain',
+  'MocEulerAmbientShockFieldChainMock',
+  'plan_euler_ambient_shock_field_chain_mock',
   'plan_post_shock_characteristic_chain',
   'plan_post_shock_field_chain',
   'plan_source_strip_shock_chain',
@@ -767,6 +778,176 @@ def _translate_euler_companion_field(
     position_tolerance_m=field.position_tolerance_m,
     invariant_tolerance=field.invariant_tolerance,
     pressure_tolerance=field.pressure_tolerance,
+  )
+
+
+def _euler_ambient_shock_field_fingerprint(
+  field: MocEulerAmbientShockFieldResult,
+) -> str:
+  """Return a deterministic identity for an exact open shock-field result."""
+
+  def state_payload(state: CharacteristicState) -> str:
+    return '|'.join(
+      value.hex()
+      for value in (
+        state.x_m,
+        state.y_m,
+        state.theta_rad,
+        state.mach,
+        state.gamma,
+      )
+    )
+
+  payload = [
+    f'status:{field.status.value}',
+    f'ambient-pressure:{field.ambient_pressure_Pa!r}',
+  ]
+  if field.shock_boundary is not None:
+    payload.append('shock')
+    payload.extend(
+      f'{state_payload(state)}|{point[0].hex()}|{point[1].hex()}'
+      for state, point in zip(
+        field.shock_boundary.downstream_states,
+        field.shock_boundary.shock_points_m,
+        strict=True,
+      )
+    )
+  if field.ambient_march is not None:
+    payload.append('ambient')
+    payload.extend(
+      f'{state_payload(sample.state)}|{sample.point_m[0].hex()}|'
+      f'{sample.point_m[1].hex()}|{sample.total_pressure_Pa.hex()}'
+      for sample in field.ambient_march.boundary_samples
+    )
+  if field.field is not None:
+    payload.append('companion:' + _euler_companion_field_fingerprint(field.field))
+  return sha256('\n'.join(payload).encode('ascii')).hexdigest()
+
+
+def _euler_ambient_shock_field_x_extent(
+  field: MocEulerAmbientShockFieldResult,
+) -> tuple[float, float] | None:
+  """Return the x extent of every retained exact open-field boundary."""
+
+  points: tuple[tuple[float, float], ...] = ()
+  if field.shock_boundary is not None:
+    points += tuple(field.shock_boundary.shock_points_m)
+  if field.ambient_march is not None:
+    points += tuple(field.ambient_march.points_m)
+  if field.field is not None:
+    points += (
+      *field.field.shock_boundary_points_m,
+      *field.field.companion_boundary_points_m,
+      *field.field.interior_points_m,
+    )
+  if not points:
+    return None
+  values = tuple(float(point[0]) for point in points)
+  if not all(isfinite(value) for value in values):
+    return None
+  return min(values), max(values)
+
+
+def _translate_euler_ambient_shock_field(
+  field: MocEulerAmbientShockFieldResult,
+  offset_x_m: float,
+) -> MocEulerAmbientShockFieldResult:
+  """Translate a converged exact open field for the deterministic mock.
+
+  This fixture preserves the exact field's retained state and pressure data
+  while rebuilding its companion strip on a fresh translated domain.  It is
+  a planner exercise only: the translated result is not a replacement for a
+  reflected/free-boundary solve.
+  """
+
+  if not isinstance(field, MocEulerAmbientShockFieldResult):
+    raise TypeError('field must be a MocEulerAmbientShockFieldResult')
+  if not field.converged:
+    raise ValueError('field must be converged before the mock can translate it')
+  if (
+    field.shock_boundary is None
+    or field.ambient_march is None
+    or field.field is None
+  ):
+    raise ValueError(
+      'converged exact ambient shock field must retain shock, ambient, and '
+      'companion results'
+    )
+  offset = float(offset_x_m)
+  if not isfinite(offset) or offset <= 0.0:
+    raise ValueError('offset_x_m must be finite and positive')
+
+  def translated_state(state: CharacteristicState) -> CharacteristicState:
+    return replace(state, x_m=state.x_m + offset)
+
+  def translated_point(
+    point: tuple[float, float] | None,
+  ) -> tuple[float, float] | None:
+    if point is None:
+      return None
+    return point[0] + offset, point[1]
+
+  shock = field.shock_boundary
+  translated_shock = replace(
+    shock,
+    upstream_states=tuple(
+      translated_state(state) for state in shock.upstream_states
+    ),
+    downstream_states=tuple(
+      translated_state(state) for state in shock.downstream_states
+    ),
+    shock_points_m=tuple(
+      (point[0] + offset, point[1]) for point in shock.shock_points_m
+    ),
+  )
+
+  march = field.ambient_march
+  translated_samples = tuple(
+    replace(
+      sample,
+      point_m=(sample.point_m[0] + offset, sample.point_m[1]),
+      state=translated_state(sample.state),
+    )
+    for sample in march.boundary_samples
+  )
+  translated_point_results = tuple(
+    replace(
+      point_result,
+      state=(
+        None
+        if point_result.state is None
+        else translated_state(point_result.state)
+      ),
+      point_m=translated_point(point_result.point_m),
+    )
+    for point_result in march.point_results
+  )
+  translated_ambient_boundary = replace(
+    march.ambient_boundary,
+    points_m=tuple(
+      (point[0] + offset, point[1])
+      for point in march.ambient_boundary.points_m
+    ),
+    states=tuple(
+      translated_state(state) for state in march.ambient_boundary.states
+    ),
+  )
+  translated_march = replace(
+    march,
+    shock_boundary=translated_shock,
+    boundary_samples=translated_samples,
+    point_results=translated_point_results,
+    ambient_boundary=translated_ambient_boundary,
+  )
+  translated_companion = _translate_euler_companion_field(
+    field.field,
+    offset,
+  )
+  return replace(
+    field,
+    shock_boundary=translated_shock,
+    ambient_march=translated_march,
+    field=translated_companion,
   )
 
 
@@ -1565,6 +1746,439 @@ class MocEulerCompanionFieldChainMock:
       self.axial_translation_m,
     )
     return MocEulerCompanionFieldContinuationSolve(
+      field=translated,
+      incoming_handoff=handoff,
+    )
+  ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerAmbientShockFieldPlannerResult:
+  """Planner boundary for an exact ambient-coupled Euler field.
+
+  The ambient-coupled result can retain a shock, an independently checked
+  pressure boundary, and an open characteristic strip.  It still does not
+  own the reflected/free-boundary perimeter required by ``MocChainCell``.
+  This wrapper makes that stop available to planning code without relabeling
+  the field as a physical shock cell.
+  """
+
+  field: MocEulerAmbientShockFieldResult
+  termination: MocChainTerminationDecision
+  planner_kind: MocChainPlannerKind
+  claim_status: str
+  diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.field, MocEulerAmbientShockFieldResult):
+      raise TypeError(
+        'field must be a MocEulerAmbientShockFieldResult'
+      )
+    if not isinstance(self.termination, MocChainTerminationDecision):
+      raise TypeError(
+        'termination must be a MocChainTerminationDecision'
+      )
+    expected = self.field.as_chain_termination_decision()
+    if self.termination != expected:
+      raise ValueError(
+        'termination must match field.as_chain_termination_decision()'
+      )
+    if self.planner_kind is not MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH:
+      raise ValueError(
+        'Euler ambient shock field planning must use the upstream-coupled '
+        'research planner kind'
+      )
+    object.__setattr__(self, 'claim_status', str(self.claim_status))
+    object.__setattr__(self, 'diagnostics', MappingProxyType(dict(self.diagnostics)))
+  ####
+
+  @property
+  def resolved(self) -> bool:
+    """Whether the exact ambient-coupled field assembled locally."""
+
+    return self.field.converged
+  ####
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    return False
+  ####
+
+  @property
+  def physical_termination(self) -> bool:
+    return self.termination.physical_termination
+  ####
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    return True
+  ####
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    return False
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'planner_kind': self.planner_kind.value,
+      'planning_only': True,
+      'production_claim_allowed': self.production_claim_allowed,
+      'claim_status': self.claim_status,
+      'resolved': self.resolved,
+      'physical_closure_verified': self.physical_closure_verified,
+      'physical_termination': self.physical_termination,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'termination': self.termination.as_report(),
+      'field': self.field.as_report(),
+      'diagnostics': dict(self.diagnostics),
+    }
+  ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerAmbientShockFieldContinuationSolve:
+  """One open exact ambient-field continuation and its consumed frontier."""
+
+  field: MocEulerAmbientShockFieldResult
+  incoming_handoff: tuple[MocChainBoundarySample, ...]
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.field, MocEulerAmbientShockFieldResult):
+      raise TypeError(
+        'field must be a MocEulerAmbientShockFieldResult'
+      )
+    handoff = tuple(self.incoming_handoff)
+    if not handoff:
+      raise ValueError('incoming_handoff must contain state-carrying samples')
+    if any(not isinstance(sample, MocChainBoundarySample) for sample in handoff):
+      raise TypeError(
+        'incoming_handoff must contain MocChainBoundarySample values'
+      )
+    object.__setattr__(self, 'incoming_handoff', handoff)
+  ####
+
+  @property
+  def outgoing_handoff(self) -> tuple[MocChainBoundarySample, ...]:
+    return self.field.downstream_handoff
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'field_status': self.field.status.value,
+      'field_converged': self.field.converged,
+      'incoming_handoff_sample_count': len(self.incoming_handoff),
+      'incoming_handoff_fingerprint': _handoff_fingerprint(
+        self.incoming_handoff
+      ),
+      'outgoing_handoff_sample_count': len(self.outgoing_handoff),
+      'outgoing_handoff_fingerprint': _handoff_fingerprint(
+        self.outgoing_handoff
+      ),
+      'field_fingerprint': _euler_ambient_shock_field_fingerprint(self.field),
+      'physical_closure_verified': False,
+      'chain_promotion_blocked': True,
+      'production_claim_allowed': False,
+    }
+  ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerAmbientShockFieldChainStep:
+  """One callback attempt in an exact open ambient-field sequence."""
+
+  next_field_index: int
+  incoming_handoff_sample_count: int
+  incoming_handoff_fingerprint: str | None
+  incoming_handoff_link_verified: bool
+  result_kind: str = 'not-recorded'
+  result_status: str | None = None
+  result_field_status: str | None = None
+  result_field_fingerprint: str | None = None
+  result_handoff_sample_count: int | None = None
+  result_handoff_fingerprint: str | None = None
+  result_termination_reason: MocChainTerminationReason | None = None
+  result_physical_termination: bool | None = None
+
+  def __post_init__(self) -> None:
+    if (
+      isinstance(self.next_field_index, bool)
+      or not isinstance(self.next_field_index, int)
+      or self.next_field_index < 2
+    ):
+      raise ValueError('next_field_index must be an integer of at least two')
+    if (
+      isinstance(self.incoming_handoff_sample_count, bool)
+      or not isinstance(self.incoming_handoff_sample_count, int)
+      or self.incoming_handoff_sample_count < 0
+    ):
+      raise ValueError('incoming_handoff_sample_count must be nonnegative')
+    if not isinstance(self.incoming_handoff_link_verified, bool):
+      raise TypeError('incoming_handoff_link_verified must be a bool')
+    if not isinstance(self.result_kind, str) or not self.result_kind:
+      raise ValueError('result_kind must be a non-empty string')
+    for name in (
+      'incoming_handoff_fingerprint',
+      'result_status',
+      'result_field_status',
+      'result_field_fingerprint',
+      'result_handoff_fingerprint',
+    ):
+      value = getattr(self, name)
+      if value is not None and not isinstance(value, str):
+        raise TypeError(f'{name} must be a string or None')
+    if self.result_handoff_sample_count is not None:
+      if (
+        isinstance(self.result_handoff_sample_count, bool)
+        or not isinstance(self.result_handoff_sample_count, int)
+        or self.result_handoff_sample_count < 0
+      ):
+        raise ValueError('result_handoff_sample_count must be nonnegative')
+    if self.result_termination_reason is not None and not isinstance(
+      self.result_termination_reason,
+      MocChainTerminationReason,
+    ):
+      raise TypeError(
+        'result_termination_reason must be a MocChainTerminationReason or None'
+      )
+    if self.result_physical_termination is not None and not isinstance(
+      self.result_physical_termination,
+      bool,
+    ):
+      raise TypeError('result_physical_termination must be a bool or None')
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'next_field_index': self.next_field_index,
+      'incoming_handoff_sample_count': self.incoming_handoff_sample_count,
+      'incoming_handoff_fingerprint': self.incoming_handoff_fingerprint,
+      'incoming_handoff_link_verified': self.incoming_handoff_link_verified,
+      'result_kind': self.result_kind,
+      'result_status': self.result_status,
+      'result_field_status': self.result_field_status,
+      'result_field_fingerprint': self.result_field_fingerprint,
+      'result_handoff_sample_count': self.result_handoff_sample_count,
+      'result_handoff_fingerprint': self.result_handoff_fingerprint,
+      'result_termination_reason': (
+        None
+        if self.result_termination_reason is None
+        else self.result_termination_reason.value
+      ),
+      'result_physical_termination': self.result_physical_termination,
+    }
+  ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerAmbientShockFieldChainPlannerResult:
+  """A research-only sequence of exact open ambient shock fields."""
+
+  seed: MocEulerAmbientShockFieldResult
+  fields: tuple[MocEulerAmbientShockFieldResult, ...]
+  steps: tuple[MocEulerAmbientShockFieldChainStep, ...]
+  termination: MocChainTerminationDecision
+  planner_kind: MocChainPlannerKind
+  claim_status: str
+  diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.seed, MocEulerAmbientShockFieldResult):
+      raise TypeError('seed must be a MocEulerAmbientShockFieldResult')
+    fields = tuple(self.fields)
+    if not fields:
+      raise ValueError('fields must retain the seed field')
+    if fields[0] is not self.seed:
+      raise ValueError('fields must retain seed as their first entry')
+    if any(
+      not isinstance(field, MocEulerAmbientShockFieldResult)
+      for field in fields
+    ):
+      raise TypeError(
+        'fields must contain MocEulerAmbientShockFieldResult values'
+      )
+    steps = tuple(self.steps)
+    if any(
+      not isinstance(step, MocEulerAmbientShockFieldChainStep)
+      for step in steps
+    ):
+      raise TypeError(
+        'steps must contain MocEulerAmbientShockFieldChainStep values'
+      )
+    if not isinstance(self.termination, MocChainTerminationDecision):
+      raise TypeError(
+        'termination must be a MocChainTerminationDecision'
+      )
+    if self.planner_kind is not MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH:
+      raise ValueError(
+        'Euler ambient shock field chains must use the upstream-coupled '
+        'research planner kind'
+      )
+    object.__setattr__(self, 'fields', fields)
+    object.__setattr__(self, 'steps', steps)
+    object.__setattr__(self, 'claim_status', str(self.claim_status))
+    object.__setattr__(self, 'diagnostics', MappingProxyType(dict(self.diagnostics)))
+  ####
+
+  @property
+  def field_count(self) -> int:
+    return len(self.fields)
+  ####
+
+  @property
+  def continued_field_count(self) -> int:
+    return max(0, len(self.fields) - 1)
+  ####
+
+  @property
+  def resolved(self) -> bool:
+    return bool(
+      self.fields
+      and all(field.converged for field in self.fields)
+      and self.termination.reason is MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL
+    )
+  ####
+
+  @property
+  def handoff_links_verified(self) -> bool | None:
+    if not self.steps:
+      return None
+    return all(step.incoming_handoff_link_verified for step in self.steps)
+  ####
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    return False
+  ####
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    return True
+  ####
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    return False
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'planner_kind': self.planner_kind.value,
+      'planning_only': True,
+      'claim_status': self.claim_status,
+      'resolved': self.resolved,
+      'field_count': self.field_count,
+      'continued_field_count': self.continued_field_count,
+      'handoff_links_verified': self.handoff_links_verified,
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'fields': [field.as_report() for field in self.fields],
+      'steps': [step.as_report() for step in self.steps],
+      'termination': self.termination.as_report(),
+      'diagnostics': dict(self.diagnostics),
+    }
+  ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerAmbientShockFieldChainMock:
+  """Deterministic translated exact-open-field sequence fixture.
+
+  A converged exact ambient field is translated and its companion strip is
+  rebuilt on each fresh domain.  A failed seed or field remains a typed stop;
+  the mock never turns an attachment or entropy failure into a chain cell.
+  """
+
+  total_field_count: int = 3
+  axial_translation_m: float = 2.0
+  model: str = 'translated-euler-ambient-shock-field-chain-mock'
+
+  def __post_init__(self) -> None:
+    if (
+      isinstance(self.total_field_count, bool)
+      or not isinstance(self.total_field_count, int)
+      or self.total_field_count < 1
+    ):
+      raise ValueError('total_field_count must be a positive integer')
+    if not isfinite(float(self.axial_translation_m)) or self.axial_translation_m <= 0.0:
+      raise ValueError('axial_translation_m must be finite and positive')
+    model = str(self.model)
+    if not model:
+      raise ValueError('model must be a non-empty string')
+    object.__setattr__(self, 'axial_translation_m', float(self.axial_translation_m))
+    object.__setattr__(self, 'model', model)
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'model': self.model,
+      'planning_only': True,
+      'total_field_count_including_seed': self.total_field_count,
+      'axial_translation_m': self.axial_translation_m,
+      'fresh_domain_policy': (
+        'translated-x-domain-reassembled-by-exact-ambient-shock-field-mock'
+      ),
+      'incoming_handoff_policy': (
+        'exact-open-downstream-frontier-recorded-but-not-reinterpreted-as-a-'
+        'physical-shock-upstream-state'
+      ),
+      'physical_closure_verified': False,
+      'chain_promotion_blocked': True,
+      'production_claim_allowed': False,
+      'claim_status': (
+        'deterministic-open-euler-ambient-shock-field-sequence-mock; '
+        'reflected-free-boundary-and-entropy-closure-pending'
+      ),
+    }
+  ####
+
+  def solve_next(
+    self,
+    current: MocEulerAmbientShockFieldResult,
+    next_field_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+  ) -> (
+    MocEulerAmbientShockFieldContinuationSolve
+    | MocChainTerminationDecision
+  ):
+    """Return one fresh translated exact field or a typed mock stop."""
+
+    if not isinstance(current, MocEulerAmbientShockFieldResult):
+      raise TypeError('current must be a MocEulerAmbientShockFieldResult')
+    if (
+      isinstance(next_field_index, bool)
+      or not isinstance(next_field_index, int)
+      or next_field_index < 2
+    ):
+      raise ValueError('next_field_index must be an integer of at least two')
+    handoff = tuple(incoming_handoff)
+    if handoff != current.downstream_handoff:
+      raise ValueError(
+        'incoming_handoff must exactly match current.downstream_handoff'
+      )
+    if next_field_index > self.total_field_count:
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
+        message=(
+          'Euler ambient shock field chain mock exhausted its configured '
+          f'{self.total_field_count}-field sequence'
+        ),
+        diagnostics={
+          'continuation_model': self.model,
+          'next_field_index': next_field_index,
+          'incoming_handoff_sample_count': len(handoff),
+          'incoming_handoff_fingerprint': _handoff_fingerprint(handoff),
+        },
+      )
+    if not current.converged:
+      return current.as_chain_termination_decision()
+    translated = _translate_euler_ambient_shock_field(
+      current,
+      self.axial_translation_m,
+    )
+    return MocEulerAmbientShockFieldContinuationSolve(
       field=translated,
       incoming_handoff=handoff,
     )
@@ -8598,6 +9212,474 @@ def plan_euler_companion_field_chain_mock(
     claim_status=(
       'deterministic-euler-companion-field-chain-mock; '
       'reflected-free-boundary-and-entropy-closure-pending'
+    ),
+  )
+  ####
+
+
+def plan_euler_ambient_shock_field_reference(
+  field: MocEulerAmbientShockFieldResult,
+  *,
+  claim_status: str | None = None,
+) -> MocEulerAmbientShockFieldPlannerResult:
+  """Expose an exact ambient shock field through the planner boundary."""
+
+  if not isinstance(field, MocEulerAmbientShockFieldResult):
+    raise TypeError('field must be a MocEulerAmbientShockFieldResult')
+  termination = field.as_chain_termination_decision()
+  return MocEulerAmbientShockFieldPlannerResult(
+    field=field,
+    termination=termination,
+    planner_kind=MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH,
+    claim_status=(
+      'solver-generated-euler-ambient-shock-field-planner; '
+      'attachment-aware-first-cell-and-reflected-free-boundary-closure-pending'
+      if claim_status is None
+      else claim_status
+    ),
+    diagnostics={
+      'planner_model': 'euler-ambient-shock-field-boundary-planner',
+      'continued_cell_callback_invoked': False,
+      'field_status': field.status.value,
+      'field_converged': field.converged,
+      'field_fingerprint': _euler_ambient_shock_field_fingerprint(field),
+      'field_chain_termination_reason': termination.reason.value,
+      'ambient_boundary_verified': field.ambient_boundary_verified,
+      'entropy_lineage_verified': field.entropy_lineage_verified,
+      'local_field_verified': field.local_field_verified,
+      'chain_promotion_blocked': True,
+      'canonical_free_boundary_verified': False,
+      'canonical_euler_verified': False,
+      'external_validation_verified': False,
+    },
+  )
+  ####
+
+
+def plan_euler_ambient_shock_field_chain(
+  seed: MocEulerAmbientShockFieldResult,
+  solve_next: Callable[
+    [
+      MocEulerAmbientShockFieldResult,
+      int,
+      tuple[MocChainBoundarySample, ...],
+    ],
+    MocEulerAmbientShockFieldContinuationSolve
+    | MocChainTerminationDecision
+    | None,
+  ],
+  *,
+  total_field_count: int,
+  position_tolerance_m: float = 1.0e-10,
+  claim_status: str | None = None,
+) -> MocEulerAmbientShockFieldChainPlannerResult:
+  """Continue exact ambient shock fields without creating physical cells.
+
+  A callback may append only another converged, locally audited open field
+  with a fresh downstream domain.  Attachment-aware first-cell closure,
+  entropy transport, and reflected/free-boundary closure remain explicit
+  fidelity gates rather than being inferred from a translated topology.
+  """
+
+  if not isinstance(seed, MocEulerAmbientShockFieldResult):
+    raise TypeError('seed must be a MocEulerAmbientShockFieldResult')
+  if not callable(solve_next):
+    raise TypeError('solve_next must be callable')
+  if (
+    isinstance(total_field_count, bool)
+    or not isinstance(total_field_count, int)
+    or total_field_count < 1
+  ):
+    raise ValueError('total_field_count must be a positive integer')
+  tolerance = float(position_tolerance_m)
+  if not isfinite(tolerance) or tolerance <= 0.0:
+    raise ValueError('position_tolerance_m must be finite and positive')
+
+  fields: list[MocEulerAmbientShockFieldResult] = [seed]
+  steps: list[MocEulerAmbientShockFieldChainStep] = []
+
+  def result(
+    termination: MocChainTerminationDecision,
+  ) -> MocEulerAmbientShockFieldChainPlannerResult:
+    return MocEulerAmbientShockFieldChainPlannerResult(
+      seed=seed,
+      fields=tuple(fields),
+      steps=tuple(steps),
+      termination=termination,
+      planner_kind=MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH,
+      claim_status=(
+        'euler-ambient-shock-field-chain-sequence; attachment-aware-first-'
+        'cell, reflected-free-boundary, and entropy closure pending'
+        if claim_status is None
+        else claim_status
+      ),
+      diagnostics={
+        'planner_model': 'euler-ambient-shock-field-chain',
+        'total_field_count_requested': total_field_count,
+        'accepted_field_count': len(fields),
+        'open_field_promotion_policy': 'never-create-moc-chain-cell',
+        'fresh_domain_tolerance_m': tolerance,
+        'physical_closure_verified': False,
+        'chain_promotion_blocked': True,
+        'production_claim_allowed': False,
+      },
+    )
+
+  if not seed.converged:
+    return result(seed.as_chain_termination_decision())
+  if not seed.state_sampling_available:
+    return result(
+      MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.STATE_NOT_CARRIED,
+        message=(
+          'exact ambient shock field chain requires a state-carrying '
+          'downstream frontier on its seed field'
+        ),
+        diagnostics={
+          'seed_field_status': seed.status.value,
+          'seed_field_fingerprint': _euler_ambient_shock_field_fingerprint(seed),
+        },
+      )
+    )
+
+  def append_step(
+    next_field_index: int,
+    incoming: tuple[MocChainBoundarySample, ...],
+    **values: Any,
+  ) -> None:
+    steps.append(
+      MocEulerAmbientShockFieldChainStep(
+        next_field_index=next_field_index,
+        incoming_handoff_sample_count=len(incoming),
+        incoming_handoff_fingerprint=_handoff_fingerprint(incoming),
+        incoming_handoff_link_verified=values.pop(
+          'incoming_handoff_link_verified',
+          False,
+        ),
+        **values,
+      )
+    )
+
+  for next_field_index in range(2, total_field_count + 2):
+    current = fields[-1]
+    incoming = current.downstream_handoff
+    if not incoming:
+      termination = MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.STATE_NOT_CARRIED,
+        message=(
+          'exact ambient shock field did not retain a state-carrying '
+          'frontier for continued planning'
+        ),
+        diagnostics={
+          'current_field_index': len(fields),
+          'current_field_status': current.status.value,
+        },
+      )
+      append_step(
+        next_field_index,
+        incoming,
+        result_kind='termination-returned',
+        result_status='state-boundary',
+        result_termination_reason=termination.reason,
+        result_physical_termination=False,
+      )
+      return result(termination)
+    try:
+      solved = solve_next(current, next_field_index, incoming)
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      termination = MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_ERROR,
+        message=f'exact ambient shock field continuation raised: {error}',
+        diagnostics={
+          'current_field_index': len(fields),
+          'current_field_status': current.status.value,
+          'solver_error': type(error).__name__,
+        },
+      )
+      append_step(
+        next_field_index,
+        incoming,
+        incoming_handoff_link_verified=True,
+        result_kind='solver-error',
+        result_status=type(error).__name__,
+        result_termination_reason=termination.reason,
+        result_physical_termination=False,
+      )
+      return result(termination)
+
+    if solved is None:
+      termination = MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
+        message=(
+          'exact ambient shock field continuation returned no next field'
+        ),
+        diagnostics={
+          'current_field_index': len(fields),
+          'current_field_status': current.status.value,
+        },
+      )
+      append_step(
+        next_field_index,
+        incoming,
+        incoming_handoff_link_verified=True,
+        result_kind='termination-returned',
+        result_status='none',
+        result_termination_reason=termination.reason,
+        result_physical_termination=False,
+      )
+      return result(termination)
+
+    if isinstance(solved, MocChainTerminationDecision):
+      if solved.physical_termination:
+        termination = MocChainTerminationDecision(
+          physical_termination=False,
+          reason=MocChainTerminationReason.FIDELITY_NOT_ALLOWED,
+          message=(
+            'an open exact ambient shock field cannot declare physical '
+            'termination before reflected/free-boundary closure'
+          ),
+          diagnostics={
+            **dict(solved.diagnostics),
+            'returned_physical_termination': True,
+          },
+        )
+      else:
+        termination = solved
+      append_step(
+        next_field_index,
+        incoming,
+        incoming_handoff_link_verified=True,
+        result_kind='termination-returned',
+        result_status='decision',
+        result_termination_reason=termination.reason,
+        result_physical_termination=termination.physical_termination,
+      )
+      return result(termination)
+
+    if not isinstance(solved, MocEulerAmbientShockFieldContinuationSolve):
+      termination = MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.INVALID_INPUT,
+        message=(
+          'exact ambient shock field continuation must return a continuation '
+          'solve, typed termination, or None'
+        ),
+        diagnostics={'returned_type': type(solved).__name__},
+      )
+      append_step(
+        next_field_index,
+        incoming,
+        incoming_handoff_link_verified=True,
+        result_kind='invalid-result-returned',
+        result_status=type(solved).__name__,
+        result_termination_reason=termination.reason,
+        result_physical_termination=False,
+      )
+      return result(termination)
+
+    next_field = solved.field
+    field_fingerprint = _euler_ambient_shock_field_fingerprint(next_field)
+    if solved.incoming_handoff != incoming:
+      termination = MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.STATE_NOT_CARRIED,
+        message=(
+          'exact ambient shock field continuation did not retain the exact '
+          'incoming frontier'
+        ),
+        diagnostics={
+          'expected_incoming_handoff_fingerprint': _handoff_fingerprint(incoming),
+          'returned_incoming_handoff_fingerprint': _handoff_fingerprint(
+            solved.incoming_handoff
+          ),
+        },
+      )
+      append_step(
+        next_field_index,
+        incoming,
+        incoming_handoff_link_verified=False,
+        result_kind='handoff-rejected',
+        result_status=next_field.status.value,
+        result_field_status=next_field.status.value,
+        result_field_fingerprint=field_fingerprint,
+        result_termination_reason=termination.reason,
+        result_physical_termination=False,
+      )
+      return result(termination)
+    if next_field is current:
+      termination = MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.STATE_NOT_CARRIED,
+        message=(
+          'exact ambient shock field continuation reused the current field '
+          'object'
+        ),
+        diagnostics={'field_fingerprint': field_fingerprint},
+      )
+      append_step(
+        next_field_index,
+        incoming,
+        incoming_handoff_link_verified=True,
+        result_kind='field-reuse-rejected',
+        result_status=next_field.status.value,
+        result_field_status=next_field.status.value,
+        result_field_fingerprint=field_fingerprint,
+        result_termination_reason=termination.reason,
+        result_physical_termination=False,
+      )
+      return result(termination)
+    if not next_field.converged:
+      termination = next_field.as_chain_termination_decision()
+      append_step(
+        next_field_index,
+        incoming,
+        incoming_handoff_link_verified=True,
+        result_kind='field-rejected',
+        result_status=next_field.status.value,
+        result_field_status=next_field.status.value,
+        result_field_fingerprint=field_fingerprint,
+        result_termination_reason=termination.reason,
+        result_physical_termination=termination.physical_termination,
+      )
+      return result(termination)
+    if not (
+      next_field.ambient_boundary_verified
+      and next_field.entropy_lineage_verified
+      and next_field.local_field_verified
+      and next_field.field is not None
+      and next_field.field.converged
+    ):
+      termination = MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.FIDELITY_NOT_ALLOWED,
+        message=(
+          'next exact ambient shock field lacks its local shock, ambient, '
+          'entropy, or companion-field contract evidence'
+        ),
+        diagnostics={
+          'field_fingerprint': field_fingerprint,
+          'ambient_boundary_verified': next_field.ambient_boundary_verified,
+          'entropy_lineage_verified': next_field.entropy_lineage_verified,
+          'local_field_verified': next_field.local_field_verified,
+        },
+      )
+      append_step(
+        next_field_index,
+        incoming,
+        incoming_handoff_link_verified=True,
+        result_kind='field-rejected',
+        result_status=next_field.status.value,
+        result_field_status=next_field.status.value,
+        result_field_fingerprint=field_fingerprint,
+        result_termination_reason=termination.reason,
+        result_physical_termination=False,
+      )
+      return result(termination)
+
+    current_extent = _euler_ambient_shock_field_x_extent(current)
+    next_extent = _euler_ambient_shock_field_x_extent(next_field)
+    if (
+      current_extent is None
+      or next_extent is None
+      or next_extent[0] <= current_extent[1] + tolerance
+    ):
+      termination = MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
+        message=(
+          'next exact ambient shock field does not occupy a fresh downstream '
+          'domain; no overlap or backtracking was accepted'
+        ),
+        diagnostics={
+          'current_field_x_extent_m': current_extent,
+          'next_field_x_extent_m': next_extent,
+          'position_tolerance_m': tolerance,
+        },
+      )
+      append_step(
+        next_field_index,
+        incoming,
+        incoming_handoff_link_verified=True,
+        result_kind='fresh-domain-rejected',
+        result_status=next_field.status.value,
+        result_field_status=next_field.status.value,
+        result_field_fingerprint=field_fingerprint,
+        result_termination_reason=termination.reason,
+        result_physical_termination=False,
+      )
+      return result(termination)
+
+    outgoing = next_field.downstream_handoff
+    if not outgoing:
+      termination = MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.STATE_NOT_CARRIED,
+        message='accepted exact ambient shock field has no outgoing frontier',
+        diagnostics={'field_fingerprint': field_fingerprint},
+      )
+      append_step(
+        next_field_index,
+        incoming,
+        incoming_handoff_link_verified=True,
+        result_kind='field-rejected',
+        result_status=next_field.status.value,
+        result_field_status=next_field.status.value,
+        result_field_fingerprint=field_fingerprint,
+        result_termination_reason=termination.reason,
+        result_physical_termination=False,
+      )
+      return result(termination)
+
+    fields.append(next_field)
+    append_step(
+      next_field_index,
+      incoming,
+      incoming_handoff_link_verified=True,
+      result_kind='field-solve-returned',
+      result_status=next_field.status.value,
+      result_field_status=next_field.status.value,
+      result_field_fingerprint=field_fingerprint,
+      result_handoff_sample_count=len(outgoing),
+      result_handoff_fingerprint=_handoff_fingerprint(outgoing),
+    )
+
+  termination = MocChainTerminationDecision(
+    physical_termination=False,
+    reason=MocChainTerminationReason.MAX_CELL_LIMIT,
+    message=(
+      'exact ambient shock field chain reached its configured field limit'
+    ),
+    diagnostics={'total_field_count': total_field_count},
+  )
+  return result(termination)
+  ####
+
+
+def plan_euler_ambient_shock_field_chain_mock(
+  seed: MocEulerAmbientShockFieldResult,
+  *,
+  mock: MocEulerAmbientShockFieldChainMock | None = None,
+  position_tolerance_m: float = 1.0e-10,
+) -> MocEulerAmbientShockFieldChainPlannerResult:
+  """Run the translated exact-open-field sequence fixture."""
+
+  fixture = (
+    MocEulerAmbientShockFieldChainMock() if mock is None else mock
+  )
+  if not isinstance(fixture, MocEulerAmbientShockFieldChainMock):
+    raise TypeError('mock must be a MocEulerAmbientShockFieldChainMock')
+  return plan_euler_ambient_shock_field_chain(
+    seed,
+    fixture.solve_next,
+    total_field_count=fixture.total_field_count,
+    position_tolerance_m=position_tolerance_m,
+    claim_status=(
+      'deterministic-euler-ambient-shock-field-chain-mock; attachment-aware-'
+      'first-cell, reflected-free-boundary, and entropy closure pending'
     ),
   )
   ####

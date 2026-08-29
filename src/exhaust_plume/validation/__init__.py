@@ -226,6 +226,10 @@ from exhaust_plume.validation.moc_euler import (
   MocEulerAmbientShockFieldAuditStatus,
   MocEulerAmbientShockFieldAudit,
   measure_moc_euler_ambient_shock_field,
+  MOC_EULER_AMBIENT_SHOCK_FIELD_CHAIN_AUDIT_OPERATOR_ID,
+  MocEulerAmbientShockFieldChainAuditStatus,
+  MocEulerAmbientShockFieldChainAudit,
+  measure_moc_euler_ambient_shock_field_chain,
 )
 from exhaust_plume.validation.lane_contracts import (
   SignatureLaneInvariantReport,
@@ -504,6 +508,10 @@ __all__ = (
   'MocEulerAmbientShockFieldAuditStatus',
   'MocEulerAmbientShockFieldAudit',
   'measure_moc_euler_ambient_shock_field',
+  'MOC_EULER_AMBIENT_SHOCK_FIELD_CHAIN_AUDIT_OPERATOR_ID',
+  'MocEulerAmbientShockFieldChainAuditStatus',
+  'MocEulerAmbientShockFieldChainAudit',
+  'measure_moc_euler_ambient_shock_field_chain',
   'measure_moc_ambient_companion_boundary',
   'measure_moc_terminal_closure',
   'write_validity_report_csv',

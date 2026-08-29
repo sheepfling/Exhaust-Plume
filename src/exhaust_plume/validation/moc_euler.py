@@ -65,6 +65,10 @@ __all__ = (
   'MocEulerAmbientShockFieldAuditStatus',
   'MocEulerAmbientShockFieldAudit',
   'measure_moc_euler_ambient_shock_field',
+  'MOC_EULER_AMBIENT_SHOCK_FIELD_CHAIN_AUDIT_OPERATOR_ID',
+  'MocEulerAmbientShockFieldChainAuditStatus',
+  'MocEulerAmbientShockFieldChainAudit',
+  'measure_moc_euler_ambient_shock_field_chain',
 )
 
 
@@ -79,6 +83,9 @@ MOC_EULER_AMBIENT_COMPANION_BOUNDARY_AUDIT_OPERATOR_ID = (
 )
 MOC_EULER_AMBIENT_SHOCK_FIELD_AUDIT_OPERATOR_ID = (
   'op.moc.euler-ambient-shock-field-audit'
+)
+MOC_EULER_AMBIENT_SHOCK_FIELD_CHAIN_AUDIT_OPERATOR_ID = (
+  'op.moc.euler-ambient-shock-field-chain-audit'
 )
 
 
@@ -3640,4 +3647,410 @@ def measure_moc_euler_ambient_shock_field(
     pressure_tolerance=pressure_tolerance_value,
     tangent_tolerance=tangent_tolerance_value,
     message=message,
+  )
+
+
+class MocEulerAmbientShockFieldChainAuditStatus(str, Enum):
+  """Outcome of independently measuring an exact open-field sequence."""
+
+  CONVERGED_LOCAL_AUDIT = 'converged_euler_ambient_shock_field_chain_audit'
+  INVALID_INPUT = 'invalid_input'
+  FIELD_FAILURE = 'euler_ambient_shock_field_chain_field_failure'
+  HANDOFF_FAILURE = 'euler_ambient_shock_field_chain_handoff_failure'
+  DOMAIN_FAILURE = 'euler_ambient_shock_field_chain_domain_failure'
+  TERMINATION_FAILURE = 'euler_ambient_shock_field_chain_termination_failure'
+  FLAG_FAILURE = 'euler_ambient_shock_field_chain_flag_failure'
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerAmbientShockFieldChainAudit:
+  """Independent evidence for a repeated exact open ambient-field path."""
+
+  status: MocEulerAmbientShockFieldChainAuditStatus
+  field_count: int
+  continued_field_count: int
+  step_count: int
+  field_statuses: tuple[str, ...]
+  field_audits_verified: bool
+  fresh_domains_verified: bool
+  handoff_links_verified: bool
+  termination_verified: bool
+  fidelity_flags_verified: bool
+  physical_closure_verified: bool = False
+  chain_promotion_blocked: bool = True
+  production_claim_allowed: bool = False
+  message: str = ''
+  operator_id: str = MOC_EULER_AMBIENT_SHOCK_FIELD_CHAIN_AUDIT_OPERATOR_ID
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocEulerAmbientShockFieldChainAuditStatus,
+    ):
+      raise TypeError(
+        'status must be a MocEulerAmbientShockFieldChainAuditStatus'
+      )
+    for name in (
+      'field_count',
+      'continued_field_count',
+      'step_count',
+    ):
+      value = getattr(self, name)
+      if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f'{name} must be a nonnegative integer')
+    statuses = tuple(str(value) for value in self.field_statuses)
+    if len(statuses) != self.field_count:
+      raise ValueError('field_statuses must match field_count')
+    object.__setattr__(self, 'field_statuses', statuses)
+    for name in (
+      'field_audits_verified',
+      'fresh_domains_verified',
+      'handoff_links_verified',
+      'termination_verified',
+      'fidelity_flags_verified',
+      'physical_closure_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+    operator_id = str(self.operator_id)
+    if not operator_id:
+      raise ValueError('operator_id must be a non-empty string')
+    object.__setattr__(self, 'operator_id', operator_id)
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocEulerAmbientShockFieldChainAuditStatus.CONVERGED_LOCAL_AUDIT
+  ####
+
+  @property
+  def local_sequence_verified(self) -> bool:
+    return bool(
+      self.converged
+      and self.field_audits_verified
+      and self.fresh_domains_verified
+      and self.handoff_links_verified
+      and self.termination_verified
+      and self.fidelity_flags_verified
+    )
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'operator_id': self.operator_id,
+      'status': self.status.value,
+      'converged': self.converged,
+      'field_count': self.field_count,
+      'continued_field_count': self.continued_field_count,
+      'step_count': self.step_count,
+      'field_statuses': list(self.field_statuses),
+      'checks': {
+        'field_audits_verified': self.field_audits_verified,
+        'fresh_domains_verified': self.fresh_domains_verified,
+        'handoff_links_verified': self.handoff_links_verified,
+        'termination_verified': self.termination_verified,
+        'fidelity_flags_verified': self.fidelity_flags_verified,
+        'local_sequence_verified': self.local_sequence_verified,
+        'physical_closure_verified': self.physical_closure_verified,
+        'chain_promotion_blocked': self.chain_promotion_blocked,
+        'production_claim_allowed': self.production_claim_allowed,
+      },
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'canonical_free_boundary_verified': False,
+      'canonical_euler_verified': False,
+      'external_validation_verified': False,
+      'claim_status': (
+        'independent-exact-euler-ambient-shock-field-chain-audit; '
+        'attachment-aware remesh, reflected closure, and external validation '
+        'remain pending'
+      ),
+      'message': self.message,
+    }
+  ####
+
+
+def _ambient_shock_field_chain_audit_failure(
+  status: MocEulerAmbientShockFieldChainAuditStatus,
+  message: str,
+  *,
+  field_count: int = 0,
+  continued_field_count: int = 0,
+  step_count: int = 0,
+  field_statuses: tuple[str, ...] = (),
+  field_audits_verified: bool = False,
+  fresh_domains_verified: bool = False,
+  handoff_links_verified: bool = False,
+  termination_verified: bool = False,
+  fidelity_flags_verified: bool = False,
+) -> MocEulerAmbientShockFieldChainAudit:
+  return MocEulerAmbientShockFieldChainAudit(
+    status=status,
+    field_count=field_count,
+    continued_field_count=continued_field_count,
+    step_count=step_count,
+    field_statuses=field_statuses,
+    field_audits_verified=field_audits_verified,
+    fresh_domains_verified=fresh_domains_verified,
+    handoff_links_verified=handoff_links_verified,
+    termination_verified=termination_verified,
+    fidelity_flags_verified=fidelity_flags_verified,
+    message=message,
+  )
+
+
+def _ambient_shock_field_chain_fingerprint(field: Any) -> str | None:
+  if not isinstance(field, MocEulerAmbientShockFieldResult):
+    return None
+
+  def state_payload(state: Any) -> str:
+    return '|'.join(
+      float(value).hex()
+      for value in (
+        state.x_m,
+        state.y_m,
+        state.theta_rad,
+        state.mach,
+        state.gamma,
+      )
+    )
+
+  payload = [
+    f'status:{field.status.value}',
+    f'ambient-pressure:{field.ambient_pressure_Pa!r}',
+  ]
+  if field.shock_boundary is not None:
+    payload.append('shock')
+    payload.extend(
+      f'{state_payload(state)}|{float(point[0]).hex()}|'
+      f'{float(point[1]).hex()}'
+      for state, point in zip(
+        field.shock_boundary.downstream_states,
+        field.shock_boundary.shock_points_m,
+        strict=True,
+      )
+    )
+  if field.ambient_march is not None:
+    payload.append('ambient')
+    payload.extend(
+      f'{state_payload(sample.state)}|{float(sample.point_m[0]).hex()}|'
+      f'{float(sample.point_m[1]).hex()}|{float(sample.total_pressure_Pa).hex()}'
+      for sample in field.ambient_march.boundary_samples
+    )
+  if field.field is not None:
+    nested = _euler_chain_field_fingerprint(field.field)
+    if nested is None:
+      return None
+    payload.append('companion:' + nested)
+  return sha256('\n'.join(payload).encode('ascii')).hexdigest()
+
+
+def _ambient_shock_field_chain_x_extent(
+  field: Any,
+) -> tuple[float, float] | None:
+  if not isinstance(field, MocEulerAmbientShockFieldResult):
+    return None
+  points: list[tuple[float, float]] = []
+  if field.shock_boundary is not None:
+    points.extend(field.shock_boundary.shock_points_m)
+  if field.ambient_march is not None:
+    points.extend(field.ambient_march.points_m)
+  if field.field is not None:
+    points.extend(field.field.shock_boundary_points_m)
+    points.extend(field.field.companion_boundary_points_m)
+    points.extend(field.field.interior_points_m)
+  if not points:
+    return None
+  values = tuple(float(point[0]) for point in points)
+  if not all(isfinite(value) for value in values):
+    return None
+  return min(values), max(values)
+
+
+def measure_moc_euler_ambient_shock_field_chain(
+  chain: Any,
+  *,
+  shock_residual_tolerance: float = 1.0e-8,
+  cell_residual_tolerance: float = 1.0e-2,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  pressure_tolerance: float = 1.0e-8,
+  tangent_tolerance: float = 1.0e-8,
+) -> MocEulerAmbientShockFieldChainAudit:
+  """Remeasure an exact ambient-field sequence without invoking callbacks."""
+
+  from exhaust_plume.models.moc.planner import (
+    MocEulerAmbientShockFieldChainPlannerResult,
+  )
+
+  if not isinstance(chain, MocEulerAmbientShockFieldChainPlannerResult):
+    return _ambient_shock_field_chain_audit_failure(
+      MocEulerAmbientShockFieldChainAuditStatus.INVALID_INPUT,
+      'chain must be a MocEulerAmbientShockFieldChainPlannerResult',
+    )
+  fields = tuple(chain.fields)
+  steps = tuple(chain.steps)
+  field_statuses = tuple(field.status.value for field in fields)
+  if not fields or any(
+    not isinstance(field, MocEulerAmbientShockFieldResult)
+    for field in fields
+  ):
+    return _ambient_shock_field_chain_audit_failure(
+      MocEulerAmbientShockFieldChainAuditStatus.INVALID_INPUT,
+      'chain must retain one or more exact ambient shock fields',
+      field_count=len(fields),
+      continued_field_count=max(0, len(fields) - 1),
+      step_count=len(steps),
+      field_statuses=field_statuses,
+    )
+
+  field_audits = tuple(
+    measure_moc_euler_ambient_shock_field(
+      field,
+      shock_residual_tolerance=shock_residual_tolerance,
+      cell_residual_tolerance=cell_residual_tolerance,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+      pressure_tolerance=pressure_tolerance,
+      tangent_tolerance=tangent_tolerance,
+    )
+    for field in fields
+  )
+  field_audits_verified = all(
+    audit.converged and audit.local_consistency_verified
+    for audit in field_audits
+  )
+  if not field_audits_verified:
+    return _ambient_shock_field_chain_audit_failure(
+      MocEulerAmbientShockFieldChainAuditStatus.FIELD_FAILURE,
+      'one or more exact ambient shock fields failed its local audit',
+      field_count=len(fields),
+      continued_field_count=max(0, len(fields) - 1),
+      step_count=len(steps),
+      field_statuses=field_statuses,
+    )
+
+  extents = tuple(_ambient_shock_field_chain_x_extent(field) for field in fields)
+  fresh_domains_verified = all(
+    previous is not None
+    and current is not None
+    and current[0] > previous[1] + position_tolerance_m
+    for previous, current in zip(extents, extents[1:])
+  )
+  if not fresh_domains_verified:
+    return _ambient_shock_field_chain_audit_failure(
+      MocEulerAmbientShockFieldChainAuditStatus.DOMAIN_FAILURE,
+      'exact ambient shock fields do not occupy fresh downstream domains',
+      field_count=len(fields),
+      continued_field_count=max(0, len(fields) - 1),
+      step_count=len(steps),
+      field_statuses=field_statuses,
+      field_audits_verified=True,
+    )
+
+  handoff_links_verified = bool(steps)
+  for index, step in enumerate(steps):
+    expected_index = index + 2
+    if index >= len(fields):
+      handoff_links_verified = False
+      continue
+    incoming = fields[index].downstream_handoff
+    handoff_links_verified = handoff_links_verified and bool(
+      step.next_field_index == expected_index
+      and step.incoming_handoff_sample_count == len(incoming)
+      and step.incoming_handoff_fingerprint == _euler_chain_handoff_fingerprint(incoming)
+      and step.incoming_handoff_link_verified
+    )
+    if step.result_kind == 'field-solve-returned':
+      if index + 1 >= len(fields):
+        handoff_links_verified = False
+        continue
+      next_field = fields[index + 1]
+      handoff_links_verified = handoff_links_verified and bool(
+        step.result_field_status == next_field.status.value
+        and step.result_field_fingerprint
+        == _ambient_shock_field_chain_fingerprint(next_field)
+        and step.result_handoff_sample_count == len(next_field.downstream_handoff)
+        and step.result_handoff_fingerprint
+        == _euler_chain_handoff_fingerprint(next_field.downstream_handoff)
+      )
+  if not handoff_links_verified:
+    return _ambient_shock_field_chain_audit_failure(
+      MocEulerAmbientShockFieldChainAuditStatus.HANDOFF_FAILURE,
+      'exact ambient shock field frontier links failed independent remeasurement',
+      field_count=len(fields),
+      continued_field_count=max(0, len(fields) - 1),
+      step_count=len(steps),
+      field_statuses=field_statuses,
+      field_audits_verified=True,
+      fresh_domains_verified=True,
+    )
+
+  termination_verified = bool(
+    steps
+    and steps[-1].result_termination_reason is chain.termination.reason
+    and steps[-1].result_physical_termination
+    is chain.termination.physical_termination
+  )
+  if not termination_verified:
+    return _ambient_shock_field_chain_audit_failure(
+      MocEulerAmbientShockFieldChainAuditStatus.TERMINATION_FAILURE,
+      'chain termination metadata did not match its final planner step',
+      field_count=len(fields),
+      continued_field_count=max(0, len(fields) - 1),
+      step_count=len(steps),
+      field_statuses=field_statuses,
+      field_audits_verified=True,
+      fresh_domains_verified=True,
+      handoff_links_verified=True,
+    )
+
+  fidelity_flags_verified = bool(
+    not chain.physical_closure_verified
+    and chain.chain_promotion_blocked
+    and not chain.production_claim_allowed
+    and all(
+      not field.physical_closure_verified
+      and field.chain_promotion_blocked
+      and not field.production_claim_allowed
+      and field.ambient_boundary_verified
+      and field.entropy_lineage_verified
+      and field.local_field_verified
+      for field in fields
+    )
+  )
+  if not fidelity_flags_verified:
+    return _ambient_shock_field_chain_audit_failure(
+      MocEulerAmbientShockFieldChainAuditStatus.FLAG_FAILURE,
+      'exact ambient shock field sequence weakened its fidelity boundary',
+      field_count=len(fields),
+      continued_field_count=max(0, len(fields) - 1),
+      step_count=len(steps),
+      field_statuses=field_statuses,
+      field_audits_verified=True,
+      fresh_domains_verified=True,
+      handoff_links_verified=True,
+      termination_verified=True,
+    )
+  return MocEulerAmbientShockFieldChainAudit(
+    status=MocEulerAmbientShockFieldChainAuditStatus.CONVERGED_LOCAL_AUDIT,
+    field_count=len(fields),
+    continued_field_count=max(0, len(fields) - 1),
+    step_count=len(steps),
+    field_statuses=field_statuses,
+    field_audits_verified=True,
+    fresh_domains_verified=True,
+    handoff_links_verified=True,
+    termination_verified=True,
+    fidelity_flags_verified=True,
+    message=(
+      'independent exact-Euler ambient shock-field sequence audit reproduced '
+      'local field evidence, fresh domains, exact frontier links, and the '
+      'typed non-physical stop; attachment-aware remesh and reflected closure '
+      'remain pending'
+    ),
   )

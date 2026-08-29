@@ -15,6 +15,7 @@ from exhaust_plume.models.moc import (
   MocEulerAmbientBoundaryMarchStatus,
   MocEulerAmbientCompanionBoundaryStatus,
   MocEulerAmbientShockFieldStatus,
+  MocEulerAmbientShockFieldChainMock,
   MocEulerCompanionFieldStatus,
   MocEulerShockBoundaryOrientation,
   MocEulerShockBoundaryStatus,
@@ -25,6 +26,8 @@ from exhaust_plume.models.moc import (
   plan_euler_companion_field_chain_probe,
   plan_euler_companion_field_chain_mock,
   plan_euler_companion_field_reference,
+  plan_euler_ambient_shock_field_chain_mock,
+  plan_euler_ambient_shock_field_reference,
   solve_euler_ambient_companion_boundary_reference,
   solve_attached_compression_to_turn,
   solve_marched_attached_shock_field,
@@ -35,6 +38,7 @@ from exhaust_plume.models.moc import (
 from exhaust_plume.validation import (
   MocEulerAmbientCompanionBoundaryAuditStatus,
   MocEulerAmbientShockFieldAuditStatus,
+  MocEulerAmbientShockFieldChainAuditStatus,
   MocEulerCompanionFieldAuditStatus,
   MocEulerCompanionFieldChainAuditStatus,
   MocEulerCompanionFieldChainRefinementCase,
@@ -42,6 +46,7 @@ from exhaust_plume.validation import (
   MocPhysicalFieldEulerAuditStatus,
   measure_moc_ambient_companion_boundary,
   measure_moc_euler_ambient_shock_field,
+  measure_moc_euler_ambient_shock_field_chain,
   measure_moc_chain_planner,
   measure_moc_euler_companion_field,
   measure_moc_euler_companion_field_chain,
@@ -368,6 +373,43 @@ def test_exact_euler_ambient_field_blocks_generic_attachment_stencil() -> None:
   assert audit.maximum_ambient_pressure_residual < 1.0e-10
   assert audit.as_report()['operator_id'] == (
     'op.moc.euler-ambient-shock-field-audit'
+  )
+
+
+def test_exact_euler_ambient_field_planner_retains_attachment_stop() -> None:
+  shock_boundary, ambient_pressure = _euler_exact_ambient_fixture()
+  field = assemble_euler_ambient_shock_field(
+    shock_boundary,
+    ambient_pressure,
+  )
+
+  reference = plan_euler_ambient_shock_field_reference(field)
+  chain = plan_euler_ambient_shock_field_chain_mock(
+    field,
+    mock=MocEulerAmbientShockFieldChainMock(
+      total_field_count=3,
+      axial_translation_m=2.0,
+    ),
+  )
+  audit = measure_moc_euler_ambient_shock_field_chain(chain)
+
+  assert reference.resolved is False
+  assert reference.termination.reason is MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+  assert reference.diagnostics['continued_cell_callback_invoked'] is False
+  assert chain.field_count == 1
+  assert chain.continued_field_count == 0
+  assert chain.steps == ()
+  assert chain.termination.reason is MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+  assert chain.chain_promotion_blocked
+  assert chain.physical_closure_verified is False
+  assert chain.production_claim_allowed is False
+  assert audit.status is MocEulerAmbientShockFieldChainAuditStatus.FIELD_FAILURE
+  assert not audit.converged
+  assert audit.field_count == 1
+  assert audit.field_audits_verified is False
+  assert audit.chain_promotion_blocked
+  assert audit.as_report()['operator_id'] == (
+    'op.moc.euler-ambient-shock-field-chain-audit'
   )
 
 
