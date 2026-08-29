@@ -2708,7 +2708,7 @@ physical chain cells, and stops with ``FIDELITY_NOT_ALLOWED``. The next gate
 is a multi-cell entropy-carrying terminal remesh coupled to the complete
 ambient/reflected free boundary.
 
-The next local field seam now retilees that corrected triangle together with
+The next local field seam now applies a retile to that corrected triangle and
 the immediately adjacent centerline strip. The solver replaces only the two
 affected cells and the matching centerline sample, retains the untouched
 field cells, and exposes the raw snapshot for visualization and audit. The

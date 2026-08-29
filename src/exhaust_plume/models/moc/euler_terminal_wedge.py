@@ -1118,7 +1118,7 @@ def solve_euler_ambient_first_wedge_characteristic_remesh(
 
 
 class MocEulerAmbientFirstWedgeCharacteristicFieldStatus(str, Enum):
-  """Outcome of retileing the first wedge and its adjacent centerline strip."""
+  """Outcome of the first-wedge and adjacent centerline-strip retile."""
 
   CONVERGED_LOCAL_RETILE = (
     'converged_euler_ambient_first_wedge_characteristic_field_retile'
