@@ -5,8 +5,11 @@ from math import tan
 
 from exhaust_plume.models.moc import (
   CharacteristicState,
+  MocChainBoundarySample,
+  MocEulerCompanionFieldStatus,
   MocEulerShockBoundaryOrientation,
   MocEulerShockBoundaryStatus,
+  assemble_euler_consistent_companion_characteristic_strip,
   fit_euler_consistent_shock_boundary,
   solve_attached_compression_to_turn,
   solve_marched_attached_shock_field,
@@ -198,3 +201,85 @@ def test_euler_consistent_shock_curve_rejects_reference_turn_direction() -> None
   assert result.status is MocEulerShockBoundaryStatus.NONCOMPRESSIVE_TURN
   assert not result.converged
   assert result.chain_promotion_blocked
+
+
+def test_euler_companion_strip_uses_explicit_second_characteristic_boundary() -> None:
+  compression = solve_attached_compression_to_turn(
+    upstream_mach=2.0,
+    gamma=1.4,
+    upstream_pressure_Pa=100000.0,
+    target_turn_rad=0.2,
+  )
+  assert compression.beta_rad is not None
+  shock_angle = 0.2 - compression.beta_rad
+  points = tuple(
+    (0.5 + index * (-0.1 / tan(shock_angle)), 0.5 - index * 0.1)
+    for index in range(6)
+  )
+  upstream_states = tuple(
+    CharacteristicState(
+      x_m=point[0],
+      y_m=point[1],
+      theta_rad=0.2,
+      mach=2.0,
+      gamma=1.4,
+    )
+    for point in points
+  )
+  shock_boundary = fit_euler_consistent_shock_boundary(
+    upstream_states,
+    (100000.0,) * len(points),
+    points,
+    (0.0,) * len(points),
+  )
+  companion = tuple(
+    MocChainBoundarySample(
+      CharacteristicState(
+        x_m=point[0],
+        y_m=point[1] + 0.5,
+        theta_rad=0.0,
+        mach=2.0,
+        gamma=1.4,
+      ),
+      pressure,
+    )
+    for point, pressure in zip(
+      points,
+      shock_boundary.downstream_total_pressure_Pa,
+      strict=True,
+    )
+  )
+
+  field = assemble_euler_consistent_companion_characteristic_strip(
+    shock_boundary,
+    companion,
+  )
+
+  assert field.status is MocEulerCompanionFieldStatus.CONVERGED_OPEN_COMPANION_FIELD
+  assert field.converged
+  assert field.node_count == len(points)
+  assert field.cell_count == len(points) - 1
+  assert field.topology.connected
+  assert field.topology.forms_closed_zone
+  assert field.shock_boundary_local_euler_verified
+  assert field.companion_boundary_contract_verified
+  assert field.pressure_lineage_verified
+  assert field.state_sampling_available
+  assert field.physical_closure_verified is False
+  assert field.chain_promotion_blocked
+  report = field.as_report()
+  assert report['shock_boundary_orientation'] == 'mixed-characteristic-boundary'
+  assert report['topology_forms_closed_zone'] is True
+
+  bad_companion = list(companion)
+  bad_companion[0] = MocChainBoundarySample(
+    bad_companion[0].state,
+    bad_companion[0].total_pressure_Pa * 1.01,
+  )
+  rejected = assemble_euler_consistent_companion_characteristic_strip(
+    shock_boundary,
+    bad_companion,
+  )
+  assert rejected.status is MocEulerCompanionFieldStatus.PRESSURE_FAILURE
+  assert not rejected.converged
+  assert rejected.chain_promotion_blocked

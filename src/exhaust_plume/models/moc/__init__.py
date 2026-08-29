@@ -47,6 +47,11 @@ from exhaust_plume.models.moc.euler_shock_boundary import (
   fit_euler_consistent_shock_boundary,
   solve_euler_consistent_attached_shock_segment,
 )
+from exhaust_plume.models.moc.euler_characteristic_field import (
+  MocEulerCompanionFieldStatus,
+  MocEulerCompanionFieldResult,
+  assemble_euler_consistent_companion_characteristic_strip,
+)
 from exhaust_plume.models.moc.mixed_regime import (
   MocMixedRegimeBoundaryResult,
   MocMixedRegimeBoundaryStatus,
@@ -829,6 +834,9 @@ __all__ = (
   'MocEulerShockBoundaryCurveResult',
   'fit_euler_consistent_shock_boundary',
   'solve_euler_consistent_attached_shock_segment',
+  'MocEulerCompanionFieldStatus',
+  'MocEulerCompanionFieldResult',
+  'assemble_euler_consistent_companion_characteristic_strip',
   'validate_mixed_regime_boundary',
   'validate_mixed_regime_downstream_condition',
   'solve_mixed_regime_downstream_condition',

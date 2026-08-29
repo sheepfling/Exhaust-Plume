@@ -870,6 +870,17 @@ The next implementation gate is an orientation-aware post-shock
 characteristic field on this shock Cauchy curve, followed by reflected
 free-boundary coupling and indexed external validation.
 
+`assemble_euler_consistent_companion_characteristic_strip` is the bounded
+next step. It takes one explicit companion boundary, intersects its `C-`
+characteristics with the shock curve's `C+` characteristics, checks every
+compatibility residual and forward margin, and validates the resulting
+one-layer polygon strip. The companion pressure must match the shock's
+downstream total-pressure lineage; this prevents an implicit entropy reset.
+The result is an open companion-conditioned strip only: its topology and
+state sampling are useful evidence, but ambient closure, reflected-shock
+coupling, variable entropy transport, and continued-cell promotion remain
+blocked.
+
 ## Parameterized planar free-boundary research boundary
 
 The current higher-fidelity downstream experiment is isolated under the exact
