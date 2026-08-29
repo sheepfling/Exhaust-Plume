@@ -9462,6 +9462,8 @@ def plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closu
     [MocMixedRegimePerimeterRequest],
     MocMixedRegimeFieldResult | None,
   ] | None = None,
+  control_section: MocMixedRegimeControlSection | None = None,
+  use_integrated_flux: bool = False,
   attach_mixed_regime_field: bool = False,
   free_boundary_refinement_sample_counts: Sequence[int] | None = None,
 ) -> MocAmbientClosedPostShockChainTerminalPlannerResult:
@@ -9507,6 +9509,23 @@ def plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closu
     )
   if not isinstance(attach_mixed_regime_field, bool):
     raise TypeError('attach_mixed_regime_field must be a bool')
+  if control_section is not None and not isinstance(
+    control_section,
+    MocMixedRegimeControlSection,
+  ):
+    raise TypeError(
+      'control_section must be a MocMixedRegimeControlSection or None'
+    )
+  if not isinstance(use_integrated_flux, bool):
+    raise TypeError('use_integrated_flux must be a bool')
+  if control_section is not None and solver is None:
+    raise ValueError('control_section requires the solver-generated reference')
+  if use_integrated_flux and control_section is None:
+    raise ValueError('use_integrated_flux requires a control_section')
+  if use_integrated_flux and solver is None:
+    raise ValueError('use_integrated_flux requires the solver-generated reference')
+  if control_section is not None and (mock is not None or solve_field is not None):
+    raise ValueError('control_section is supported only by the solver-generated reference')
 
   captured_field: MocPhysicalPostShockFieldResult | None = None
   captured_fields: list[MocPhysicalPostShockFieldResult] = [seed]
@@ -9644,6 +9663,8 @@ def plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closu
     mock=mock,
     solver=solver,
     solve_field=solve_field,
+    control_section=control_section,
+    use_integrated_flux=use_integrated_flux,
     attach_mixed_regime_field=attach_mixed_regime_field,
     free_boundary_refinement_sample_counts=(
       free_boundary_refinement_sample_counts
@@ -9936,6 +9957,8 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
     [MocMixedRegimePerimeterRequest],
     MocMixedRegimeFieldResult | None,
   ] | None = None,
+  control_section: MocMixedRegimeControlSection | None = None,
+  use_integrated_flux: bool = False,
   attach_mixed_regime_field: bool = False,
   free_boundary_refinement_sample_counts: Sequence[int] | None = None,
   claim_status: str | None = None,
@@ -9954,6 +9977,10 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
   ``free_boundary_refinement_sample_counts`` optionally reruns the
   solver-owned reference at increasing perimeter resolutions and records the
   independent refinement measurement; it is valid only with ``solver``.
+  ``control_section`` is accepted only with ``solver``.  The default section
+  mode requires terminal-equivalent scalar states; ``use_integrated_flux``
+  selects the explicitly named distributed-flux quasi-one-dimensional
+  reference for a varying section.
   """
 
   if not isinstance(seed, MocPhysicalPostShockFieldResult):
@@ -9974,6 +10001,23 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
     )
   if solve_field is not None and not callable(solve_field):
     raise TypeError('solve_field must be callable when supplied')
+  if control_section is not None and not isinstance(
+    control_section,
+    MocMixedRegimeControlSection,
+  ):
+    raise TypeError(
+      'control_section must be a MocMixedRegimeControlSection or None'
+    )
+  if control_section is not None and solver is None:
+    raise ValueError('control_section requires the solver-generated reference')
+  if not isinstance(use_integrated_flux, bool):
+    raise TypeError('use_integrated_flux must be a bool')
+  if use_integrated_flux and control_section is None:
+    raise ValueError('use_integrated_flux requires a control_section')
+  if use_integrated_flux and solver is None:
+    raise ValueError('use_integrated_flux requires the solver-generated reference')
+  if control_section is not None and (mock is not None or solve_field is not None):
+    raise ValueError('control_section is supported only by the solver-generated reference')
   if not isinstance(attach_mixed_regime_field, bool):
     raise TypeError('attach_mixed_regime_field must be a bool')
   refinement_counts: tuple[int, ...] = ()
@@ -10092,6 +10136,14 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
   elif solver is not None:
     diagnostics['mixed_regime_solver_mode'] = 'solver-generated-reference'
     diagnostics['solver_generated_mixed_regime_reference'] = solver.as_report()
+    diagnostics['control_section_supplied'] = control_section is not None
+    diagnostics['control_section_flux_mode'] = (
+      'integrated-flux-quasi-1d-reference'
+      if use_integrated_flux
+      else 'terminal-equivalent-geometric-measure'
+    )
+    if control_section is not None:
+      diagnostics['control_section'] = control_section.as_report()
   else:
     diagnostics['mixed_regime_solver_mode'] = 'caller-supplied-field'
 
@@ -10110,7 +10162,13 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
       if mock is not None:
         mixed_regime_closure = mock.solve(request)
       elif solver is not None:
-        mixed_regime_reference = solver.solve(request)
+        mixed_regime_reference = (
+          solver.solve_from_control_section_flux(request, control_section)
+          if use_integrated_flux
+          else solver.solve_from_control_section(request, control_section)
+          if control_section is not None
+          else solver.solve(request)
+        )
         mixed_regime_closure = mixed_regime_reference.closure
       else:
         assert solve_field is not None
@@ -10229,10 +10287,16 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
               refinement_cases = tuple(
                 MocMixedRegimeFreeBoundaryRefinementCase(
                   resolution=count,
-                  result=replace(
-                    solver,
-                    free_boundary_sample_count=count,
-                  ).solve(request)
+                  result=(
+                    replace(solver, free_boundary_sample_count=count)
+                    .solve_from_control_section_flux(request, control_section)
+                    if use_integrated_flux
+                    else replace(solver, free_boundary_sample_count=count)
+                    .solve_from_control_section(request, control_section)
+                    if control_section is not None
+                    else replace(solver, free_boundary_sample_count=count)
+                    .solve(request)
+                  ),
                 )
                 for count in refinement_counts
               )

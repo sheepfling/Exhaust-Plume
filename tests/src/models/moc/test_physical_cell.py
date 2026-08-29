@@ -747,6 +747,99 @@ def test_continued_chain_planner_keeps_scalar_terminal_reference_separate() -> N
   assert planner.production_claim_allowed is False
 
 
+def test_continued_chain_planner_accepts_integrated_control_section_reference() -> None:
+  field = _canonical_ambient_closed_field()
+  fixture = MocTerminalReflectionPatchAmbientClosureChainReference(
+    total_cell_count=3,
+  )
+  prefix_probe = (
+    plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closure_with_mixed_regime(
+      field,
+      start_x_m=0.5,
+      end_x_m=8.0,
+      terminal_end_x_m=5.0,
+      reference=fixture,
+      policy=MocChainContinuationPolicy(max_cells=5, require_state_carry=True),
+      mock=MocPrescribedMixedRegimeClosureMock(),
+    )
+  )
+  assert prefix_probe.terminal_planner is not None
+  transition = prefix_probe.terminal_planner.transition
+  assert transition is not None
+  request = transition.as_mixed_regime_perimeter_request()
+  terminal = request.terminal
+  assert terminal.downstream_mach is not None
+  assert terminal.downstream_flow_angle_rad is not None
+  assert terminal.downstream_pressure_Pa is not None
+  assert terminal.downstream_total_pressure_Pa is not None
+  assert terminal.upstream_state is not None
+  terminal_x, terminal_y = request.terminal_point_m
+  points = (
+    (terminal_x + 0.02, terminal_y - 0.01),
+    (terminal_x + 0.02, terminal_y),
+    (terminal_x + 0.02, terminal_y + 0.01),
+  )
+  varying_mach = terminal.downstream_mach + 0.01
+  gamma = terminal.upstream_state.gamma
+  varying_static_pressure = terminal.downstream_total_pressure_Pa / (
+    1.0 + 0.5 * (gamma - 1.0) * varying_mach**2
+  ) ** (gamma / (gamma - 1.0))
+  section = MocMixedRegimeControlSection(
+    points_m=points,
+    samples=tuple(
+      MocMixedRegimeFieldSample(
+        point_m=point,
+        mach=varying_mach,
+        flow_angle_rad=terminal.downstream_flow_angle_rad,
+        static_pressure_Pa=varying_static_pressure,
+        total_pressure_Pa=terminal.downstream_total_pressure_Pa,
+        gamma=gamma,
+      )
+      for point in points
+    ),
+    normal_angle_rad=0.0,
+  )
+
+  planner = (
+    plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closure_with_mixed_regime(
+      field,
+      start_x_m=0.5,
+      end_x_m=8.0,
+      terminal_end_x_m=5.0,
+      reference=MocTerminalReflectionPatchAmbientClosureChainReference(
+        total_cell_count=3,
+      ),
+      policy=MocChainContinuationPolicy(max_cells=5, require_state_carry=True),
+      solver=MocSolverGeneratedMixedRegimeClosureReference(
+        ambient_pressure_ratio=0.9,
+      ),
+      control_section=section,
+      use_integrated_flux=True,
+    )
+  )
+
+  assert planner.resolved
+  assert planner.physical_termination
+  assert planner.physical_closure_verified is False
+  assert planner.mixed_regime_model_closure_verified
+  assert planner.terminal_planner is not None
+  assert planner.terminal_planner.mixed_regime_reference is not None
+  assert planner.diagnostics['terminal_report']['diagnostics'][
+    'control_section_flux_mode'
+  ] == 'integrated-flux-quasi-1d-reference'
+  free_boundary = planner.terminal_planner.mixed_regime_reference
+  assert free_boundary.model == (
+    'solver-owned-control-section-flux-quasi-1d-reference'
+  )
+  assert free_boundary.control_section_projection_verified is False
+  assert free_boundary.control_section_flux_verified
+  assert planner.terminal_planner.diagnostics[
+    'free_boundary_reference_audit_accepted'
+  ] is True
+  assert planner.chain_promotion_blocked
+  assert planner.production_claim_allowed is False
+
+
 def test_continued_chain_planner_does_not_fabricate_terminal_after_prefix_stop() -> None:
   field = _canonical_ambient_closed_field()
 

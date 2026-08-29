@@ -2030,3 +2030,20 @@ visualization development, but it remains a quasi-one-dimensional reduction:
 the downstream 2-D perimeter/entropy coupling, refinement, and external
 indexed observations are still release gates. The terminal remains a stop and
 cannot seed another shock cell; no product/provider lane consumes this result.
+
+## Continued-chain control-section handoff checkpoint
+
+The combined continued-chain planner now carries an explicit downstream
+control section through the accepted supersonic prefix and into the terminal
+mixed-regime handoff. The scalar section path remains the strict default and
+requires terminal-equivalent states; the opt-in integrated-flux path records
+the distributed section and its flux identity while naming the result as a
+quasi-one-dimensional reduction. Refinement reruns use the same selected mode,
+so a resolution sweep cannot silently switch the downstream fidelity.
+
+The terminal remains evidence beside the shock-cell prefix: its free-boundary
+model is independently audited, the chain promotion gate remains blocked, and
+the fast basic visualization/reduced-order providers are unchanged. This
+extends the planner mock and continued-cell orchestration seam, but does not
+close the canonical reflected 2-D free-boundary/entropy solve or provide the
+missing indexed external observations required for promotion.
