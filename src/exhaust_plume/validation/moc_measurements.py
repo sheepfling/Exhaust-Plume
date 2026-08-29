@@ -99,6 +99,8 @@ from exhaust_plume.models.moc.reflected_domain import (
   MocReflectedDomainAlternatingSourceResult,
   MocReflectedDomainAlternatingSourceStatus,
   MocReflectedDomainAlternatingPhysicalFieldResult,
+  MocReflectedDomainSolverOwnedFirstCellResult,
+  MocReflectedDomainSolverOwnedFirstCellStatus,
   MocReflectedDomainOuterSourceResult,
   MocReflectedDomainOuterSourceStatus,
   MocReflectedDomainRemeshResult,
@@ -135,6 +137,7 @@ __all__ = (
   'MOC_REFLECTED_DOMAIN_OUTER_SOURCE_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_ALTERNATING_SOURCE_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_ALTERNATING_PHYSICAL_FIELD_OPERATOR_ID',
+  'MOC_REFLECTED_DOMAIN_SOLVER_OWNED_FIRST_CELL_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_ALTERNATING_PHYSICAL_FIELD_CHAIN_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_ALTERNATING_PHYSICAL_FIELD_CHAIN_REFINEMENT_OPERATOR_ID',
   'MOC_MIXED_REGIME_FREE_BOUNDARY_OPERATOR_ID',
@@ -169,6 +172,8 @@ __all__ = (
   'MocReflectedDomainAlternatingSourceMeasurementStatus',
   'MocReflectedDomainAlternatingPhysicalFieldMeasurement',
   'MocReflectedDomainAlternatingPhysicalFieldMeasurementStatus',
+  'MocReflectedDomainSolverOwnedFirstCellMeasurement',
+  'MocReflectedDomainSolverOwnedFirstCellMeasurementStatus',
   'MocReflectedDomainAlternatingPhysicalFieldChainMeasurement',
   'MocReflectedDomainAlternatingPhysicalFieldChainMeasurementStatus',
   'MocReflectedDomainAlternatingPhysicalFieldChainRefinementCase',
@@ -223,6 +228,7 @@ __all__ = (
   'measure_moc_reflected_domain_outer_source_curve',
   'measure_moc_reflected_domain_alternating_source',
   'measure_moc_reflected_domain_alternating_physical_field_chain',
+  'measure_moc_reflected_domain_solver_owned_first_cell',
   'measure_moc_reflected_domain_alternating_physical_field_chain_refinement',
   'measure_mixed_regime_compressible_potential_field',
   'measure_mixed_regime_free_boundary_reference',
@@ -281,6 +287,9 @@ MOC_REFLECTED_DOMAIN_ALTERNATING_SOURCE_OPERATOR_ID = (
 )
 MOC_REFLECTED_DOMAIN_ALTERNATING_PHYSICAL_FIELD_OPERATOR_ID = (
   'op.moc.reflected-domain-alternating-physical-field'
+)
+MOC_REFLECTED_DOMAIN_SOLVER_OWNED_FIRST_CELL_OPERATOR_ID = (
+  'op.moc.reflected-domain-solver-owned-first-cell'
 )
 MOC_REFLECTED_DOMAIN_ALTERNATING_PHYSICAL_FIELD_CHAIN_OPERATOR_ID = (
   'op.moc.reflected-domain-alternating-physical-field-chain'
@@ -7440,6 +7449,105 @@ class MocReflectedDomainAlternatingPhysicalFieldMeasurement:
       'shock_sample_count': self.shock_sample_count,
       'canonical_reflected_domain_closed': False,
       'claim_status': self.claim_status,
+      'message': self.message,
+    }
+  ####
+
+
+class MocReflectedDomainSolverOwnedFirstCellMeasurementStatus(str, Enum):
+  """Outcome of independently auditing the solver-owned first cell."""
+
+  CONVERGED = 'converged'
+  INVALID_INPUT = 'invalid_input'
+  SOURCE_FAILURE = 'source_failure'
+  TRIAL_FAILURE = 'trial_failure'
+  CLOSURE_FAILURE = 'closure_failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainSolverOwnedFirstCellMeasurement:
+  """Independent evidence for the source-owned first-cell endpoint shoot.
+
+  This operator remeasures the generated source band, every retained physical
+  trial, and the selected endpoint residual.  A typed no-bracket result can
+  therefore be accepted as a reproducible research audit while remaining
+  explicitly non-physical and non-promotable.
+  """
+
+  status: MocReflectedDomainSolverOwnedFirstCellMeasurementStatus
+  operator_id: str
+  solver_status: str | None
+  source_measurement: MocReflectedDomainAlternatingSourceMeasurement | None
+  trial_count: int
+  target_centerline_verified: bool
+  amplitude_bracket_verified: bool
+  trial_amplitudes_verified: bool
+  trial_residuals_verified: bool
+  selected_trial_verified: bool
+  selected_field_measurement: (
+    MocReflectedDomainAlternatingPhysicalFieldMeasurement | None
+  )
+  selected_field_verified: bool
+  scalar_endpoint_verified: bool
+  physical_closure_verified: bool
+  canonical_free_boundary_verified: bool
+  canonical_euler_verified: bool
+  external_validation_verified: bool
+  chain_promotion_blocked: bool
+  production_claim_allowed: bool
+  fidelity_isolation_verified: bool
+  selected_amplitude: float | None
+  selected_residual_m: float | None
+  minimum_absolute_residual_m: float | None
+  message: str
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocReflectedDomainSolverOwnedFirstCellMeasurementStatus.CONVERGED
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'operator_id': self.operator_id,
+      'converged': self.converged,
+      'solver_status': self.solver_status,
+      'source_measurement': (
+        None
+        if self.source_measurement is None
+        else self.source_measurement.as_report()
+      ),
+      'trial_count': self.trial_count,
+      'selected_amplitude': self.selected_amplitude,
+      'selected_residual_m': self.selected_residual_m,
+      'minimum_absolute_residual_m': self.minimum_absolute_residual_m,
+      'selected_field_measurement': (
+        None
+        if self.selected_field_measurement is None
+        else self.selected_field_measurement.as_report()
+      ),
+      'checks': {
+        'target_centerline_verified': self.target_centerline_verified,
+        'amplitude_bracket_verified': self.amplitude_bracket_verified,
+        'trial_amplitudes_verified': self.trial_amplitudes_verified,
+        'trial_residuals_verified': self.trial_residuals_verified,
+        'selected_trial_verified': self.selected_trial_verified,
+        'selected_field_verified': self.selected_field_verified,
+        'scalar_endpoint_verified': self.scalar_endpoint_verified,
+        'physical_closure_verified': self.physical_closure_verified,
+        'canonical_free_boundary_verified': self.canonical_free_boundary_verified,
+        'canonical_euler_verified': self.canonical_euler_verified,
+        'external_validation_verified': self.external_validation_verified,
+        'chain_promotion_blocked': self.chain_promotion_blocked,
+        'production_claim_allowed': self.production_claim_allowed,
+        'fidelity_isolation_verified': self.fidelity_isolation_verified,
+      },
+      'canonical_reflected_domain_closed': False,
+      'claim_status': (
+        'independent-solver-owned-first-cell-audit; '
+        'local-research-reference-only'
+      ),
       'message': self.message,
     }
   ####
@@ -15640,6 +15748,346 @@ def measure_moc_reflected_domain_alternating_physical_field(
   if bounded_physical_field_verified:
     object.__setattr__(measurement, 'physical_closure_verified', True)
   return measurement
+####
+
+
+def _reflected_domain_solver_owned_first_cell_measurement_failure(
+  status: MocReflectedDomainSolverOwnedFirstCellMeasurementStatus,
+  message: str,
+  *,
+  solver_status: str | None = None,
+  source_measurement: MocReflectedDomainAlternatingSourceMeasurement | None = None,
+  trial_count: int = 0,
+  target_centerline_verified: bool = False,
+  amplitude_bracket_verified: bool = False,
+  trial_amplitudes_verified: bool = False,
+  trial_residuals_verified: bool = False,
+  selected_trial_verified: bool = False,
+  selected_field_measurement: (
+    MocReflectedDomainAlternatingPhysicalFieldMeasurement | None
+  ) = None,
+  selected_field_verified: bool = False,
+  scalar_endpoint_verified: bool = False,
+  physical_closure_verified: bool = False,
+  fidelity_isolation_verified: bool = False,
+  selected_amplitude: float | None = None,
+  selected_residual_m: float | None = None,
+  minimum_absolute_residual_m: float | None = None,
+) -> MocReflectedDomainSolverOwnedFirstCellMeasurement:
+  return MocReflectedDomainSolverOwnedFirstCellMeasurement(
+    status=status,
+    operator_id=MOC_REFLECTED_DOMAIN_SOLVER_OWNED_FIRST_CELL_OPERATOR_ID,
+    solver_status=solver_status,
+    source_measurement=source_measurement,
+    trial_count=trial_count,
+    target_centerline_verified=target_centerline_verified,
+    amplitude_bracket_verified=amplitude_bracket_verified,
+    trial_amplitudes_verified=trial_amplitudes_verified,
+    trial_residuals_verified=trial_residuals_verified,
+    selected_trial_verified=selected_trial_verified,
+    selected_field_measurement=selected_field_measurement,
+    selected_field_verified=selected_field_verified,
+    scalar_endpoint_verified=scalar_endpoint_verified,
+    physical_closure_verified=physical_closure_verified,
+    canonical_free_boundary_verified=False,
+    canonical_euler_verified=False,
+    external_validation_verified=False,
+    chain_promotion_blocked=True,
+    production_claim_allowed=False,
+    fidelity_isolation_verified=fidelity_isolation_verified,
+    selected_amplitude=selected_amplitude,
+    selected_residual_m=selected_residual_m,
+    minimum_absolute_residual_m=minimum_absolute_residual_m,
+    message=message,
+  )
+####
+
+
+def measure_moc_reflected_domain_solver_owned_first_cell(
+  result: MocReflectedDomainSolverOwnedFirstCellResult,
+  *,
+  endpoint_tolerance_m: float = 1.0e-6,
+  position_tolerance_m: float = 1.0e-8,
+) -> MocReflectedDomainSolverOwnedFirstCellMeasurement:
+  """Independently audit a solver-owned first-cell endpoint iteration.
+
+  The operator recomputes source-band evidence, remeasures every retained
+  physical trial, and derives each endpoint residual from the raw shock field.
+  It recognizes a reproducible no-bracket result as a successful research
+  audit, while only a measured root can satisfy the scalar endpoint gate.
+  Neither outcome closes the canonical reflected free boundary or authorizes
+  chain promotion.
+  """
+
+  for name, value in (
+    ('endpoint_tolerance_m', endpoint_tolerance_m),
+    ('position_tolerance_m', position_tolerance_m),
+  ):
+    if not isfinite(float(value)) or float(value) <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+  if not isinstance(
+    result,
+    MocReflectedDomainSolverOwnedFirstCellResult,
+  ):
+    return _reflected_domain_solver_owned_first_cell_measurement_failure(
+      MocReflectedDomainSolverOwnedFirstCellMeasurementStatus.INVALID_INPUT,
+      'result must be a MocReflectedDomainSolverOwnedFirstCellResult',
+    )
+
+  endpoint_tolerance = float(endpoint_tolerance_m)
+  position_tolerance = float(position_tolerance_m)
+  solver_status = getattr(result.status, 'value', str(result.status))
+  source_band = result.source_band
+  source_measurement = (
+    None
+    if source_band is None
+    else measure_moc_reflected_domain_alternating_source(source_band)
+  )
+  source_verified = bool(
+    source_measurement is not None and source_measurement.converged
+  )
+  trial_count = len(result.trials)
+
+  target_centerline_verified = False
+  if (
+    source_band is not None
+    and isinstance(result.outer_source_index, int)
+    and not isinstance(result.outer_source_index, bool)
+    and 0 <= result.outer_source_index < len(source_band.outer_source_states)
+    and isinstance(result.target_centerline_index, int)
+    and not isinstance(result.target_centerline_index, bool)
+    and 0 <= result.target_centerline_index
+    < len(source_band.centerline_source_states)
+    and result.target_centerline_point_m is not None
+  ):
+    target_state = source_band.centerline_source_states[
+      result.target_centerline_index
+    ]
+    outer_state = source_band.outer_source_states[result.outer_source_index]
+    target_centerline_verified = bool(
+      _caustic_points_match(
+        (result.target_centerline_point_m,),
+        ((target_state.x_m, target_state.y_m),),
+        position_tolerance_m=position_tolerance,
+      )
+      and abs(target_state.y_m - source_band.target_centerline_y_m)
+      <= position_tolerance
+      and target_state.x_m > outer_state.x_m + position_tolerance
+    )
+
+  amplitude_bracket_verified = False
+  bracket = result.compression_amplitude_bracket
+  if bracket is not None and len(bracket) == 2:
+    lower, upper = (float(bracket[0]), float(bracket[1]))
+    amplitude_bracket_verified = bool(
+      isfinite(lower)
+      and isfinite(upper)
+      and lower > 0.0
+      and upper > lower
+    )
+
+  def amplitude_matches(first: float, second: float) -> bool:
+    return abs(first - second) <= 1.0e-12 * max(1.0, abs(first), abs(second))
+
+  trial_amplitudes_verified = bool(
+    amplitude_bracket_verified
+    and trial_count >= 2
+    and bracket is not None
+    and amplitude_matches(result.trials[0].compression_amplitude_rad, bracket[0])
+    and amplitude_matches(result.trials[1].compression_amplitude_rad, bracket[1])
+    and all(
+      bracket[0] <= trial.compression_amplitude_rad <= bracket[1]
+      for trial in result.trials
+    )
+    and len({trial.compression_amplitude_rad for trial in result.trials})
+    == trial_count
+  )
+
+  trial_residuals_verified = bool(
+    target_centerline_verified and trial_count > 0
+  )
+  if source_band is not None and result.target_centerline_point_m is not None:
+    target_x = result.target_centerline_point_m[0]
+    source_fingerprint = _alternating_source_geometry_fingerprint(source_band)
+    for trial in result.trials:
+      physical_field = trial.physical_field
+      if physical_field is None:
+        trial_residuals_verified = trial_residuals_verified and bool(
+          trial.endpoint_m is None and trial.residual_m is None
+        )
+        continue
+      trial_measurement = measure_moc_reflected_domain_alternating_physical_field(
+        physical_field
+      )
+      trial_source_verified = bool(
+        physical_field.source_band is not None
+        and _alternating_source_geometry_fingerprint(
+          physical_field.source_band
+        )
+        == source_fingerprint
+      )
+      raw_field = physical_field.field
+      if raw_field is None or not raw_field.shock_boundary_points_m:
+        trial_residuals_verified = trial_residuals_verified and bool(
+          trial.endpoint_m is None and trial.residual_m is None
+        )
+        continue
+      expected_endpoint = raw_field.shock_boundary_points_m[-1]
+      expected_residual = expected_endpoint[0] - target_x
+      trial_residuals_verified = trial_residuals_verified and bool(
+        trial_source_verified
+        and trial_measurement.converged
+        and trial.endpoint_m is not None
+        and trial.residual_m is not None
+        and hypot(
+          trial.endpoint_m[0] - expected_endpoint[0],
+          trial.endpoint_m[1] - expected_endpoint[1],
+        )
+        <= endpoint_tolerance
+        and abs(trial.residual_m - expected_residual) <= endpoint_tolerance
+      )
+  else:
+    trial_residuals_verified = False
+
+  selected_trial_verified = False
+  selected_field_measurement = None
+  selected_field_verified = False
+  selected_trial = None
+  if (
+    isinstance(result.selected_trial_index, int)
+    and not isinstance(result.selected_trial_index, bool)
+    and 0 <= result.selected_trial_index < trial_count
+  ):
+    selected_trial = result.trials[result.selected_trial_index]
+    selected_trial_verified = bool(
+      result.selected_physical_field is selected_trial.physical_field
+      and result.selected_compression_amplitude_rad is not None
+      and amplitude_matches(
+        result.selected_compression_amplitude_rad,
+        selected_trial.compression_amplitude_rad,
+      )
+      and (
+        (result.closure_residual_m is None and selected_trial.residual_m is None)
+        or (
+          result.closure_residual_m is not None
+          and selected_trial.residual_m is not None
+          and abs(result.closure_residual_m - selected_trial.residual_m)
+          <= endpoint_tolerance
+        )
+      )
+    )
+    if result.selected_physical_field is not None:
+      selected_field_measurement = (
+        measure_moc_reflected_domain_alternating_physical_field(
+          result.selected_physical_field
+        )
+      )
+      selected_field_verified = bool(
+        selected_trial_verified
+        and selected_field_measurement.converged
+        and source_band is not None
+        and result.selected_physical_field.source_band is not None
+        and _alternating_source_geometry_fingerprint(
+          result.selected_physical_field.source_band
+        )
+        == _alternating_source_geometry_fingerprint(source_band)
+      )
+
+  residuals = tuple(
+    trial.residual_m
+    for trial in result.trials
+    if trial.residual_m is not None and isfinite(trial.residual_m)
+  )
+  minimum_absolute_residual = (
+    None if not residuals else min(abs(value) for value in residuals)
+  )
+  scalar_endpoint_verified = bool(
+    result.status is MocReflectedDomainSolverOwnedFirstCellStatus.CONVERGED_CENTERLINE_ENDPOINT
+    and selected_field_verified
+    and result.closure_residual_m is not None
+    and abs(result.closure_residual_m) <= endpoint_tolerance
+  )
+  no_bracket_outcome_verified = bool(
+    result.status
+    is MocReflectedDomainSolverOwnedFirstCellStatus.BOUNDARY_BRACKET_FAILURE
+    and selected_field_verified
+    and trial_residuals_verified
+    and len(residuals) >= 2
+    and all(abs(value) > endpoint_tolerance for value in residuals)
+    and (
+      all(value > 0.0 for value in residuals)
+      or all(value < 0.0 for value in residuals)
+    )
+  )
+  physical_closure_verified = bool(
+    source_verified
+    and target_centerline_verified
+    and trial_amplitudes_verified
+    and trial_residuals_verified
+    and scalar_endpoint_verified
+    and selected_field_verified
+  )
+  fidelity_isolation_verified = bool(
+    not result.canonical_free_boundary_verified
+    and not result.canonical_euler_verified
+    and not result.external_validation_verified
+    and result.chain_promotion_blocked
+    and not result.production_claim_allowed
+    and (
+      selected_field_measurement is None
+      or selected_field_measurement.chain_promotion_blocked
+    )
+  )
+
+  if not source_verified:
+    status = MocReflectedDomainSolverOwnedFirstCellMeasurementStatus.SOURCE_FAILURE
+    message = 'alternating source band failed independent measurement'
+  elif not target_centerline_verified or not amplitude_bracket_verified:
+    status = MocReflectedDomainSolverOwnedFirstCellMeasurementStatus.CLOSURE_FAILURE
+    message = 'solver-owned centerline target or amplitude bracket failed measurement'
+  elif not trial_amplitudes_verified or not trial_residuals_verified:
+    status = MocReflectedDomainSolverOwnedFirstCellMeasurementStatus.TRIAL_FAILURE
+    message = 'one or more retained endpoint trials failed independent measurement'
+  elif not selected_trial_verified or not selected_field_verified:
+    status = MocReflectedDomainSolverOwnedFirstCellMeasurementStatus.TRIAL_FAILURE
+    message = 'selected endpoint trial failed independent physical-field measurement'
+  elif scalar_endpoint_verified:
+    status = MocReflectedDomainSolverOwnedFirstCellMeasurementStatus.CONVERGED
+    message = (
+      'solver-owned endpoint root and all retained local physical trials passed '
+      'independent measurement; canonical free-boundary validation remains pending'
+    )
+  elif no_bracket_outcome_verified:
+    status = MocReflectedDomainSolverOwnedFirstCellMeasurementStatus.CONVERGED
+    message = (
+      'solver-owned endpoint bracket and retained no-root residuals passed '
+      'independent measurement; local field remains a non-promotable research '
+      'reference'
+    )
+  else:
+    status = MocReflectedDomainSolverOwnedFirstCellMeasurementStatus.CLOSURE_FAILURE
+    message = 'solver-owned endpoint outcome failed independent closure measurement'
+
+  return _reflected_domain_solver_owned_first_cell_measurement_failure(
+    status,
+    message,
+    solver_status=solver_status,
+    source_measurement=source_measurement,
+    trial_count=trial_count,
+    target_centerline_verified=target_centerline_verified,
+    amplitude_bracket_verified=amplitude_bracket_verified,
+    trial_amplitudes_verified=trial_amplitudes_verified,
+    trial_residuals_verified=trial_residuals_verified,
+    selected_trial_verified=selected_trial_verified,
+    selected_field_measurement=selected_field_measurement,
+    selected_field_verified=selected_field_verified,
+    scalar_endpoint_verified=scalar_endpoint_verified,
+    physical_closure_verified=physical_closure_verified,
+    fidelity_isolation_verified=fidelity_isolation_verified,
+    selected_amplitude=result.selected_compression_amplitude_rad,
+    selected_residual_m=result.closure_residual_m,
+    minimum_absolute_residual_m=minimum_absolute_residual,
+  )
 ####
 
 

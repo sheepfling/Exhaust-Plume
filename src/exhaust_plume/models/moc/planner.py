@@ -8913,6 +8913,68 @@ def plan_reflected_domain_alternating_source_chain_from_physical_field(
       diagnostics=payload,
     )
 
+  if total_cell_count == 1:
+    def configured_prefix_stop(
+      _current: MocChainCell,
+      next_cell_index: int,
+      _incoming_handoff: tuple[MocChainBoundarySample, ...],
+    ) -> MocChainTerminationDecision:
+      return decision(
+        MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
+        (
+          'alternating source chain reached its configured one-cell research '
+          'prefix before deriving a downstream source band'
+        ),
+        next_cell_index=next_cell_index,
+        diagnostics={'termination_model': 'configured-cell-count'},
+      )
+
+    prefix_policy = policy
+    if (
+      isinstance(prefix_policy, MocChainContinuationPolicy)
+      and prefix_policy.max_cells < 2
+    ):
+      prefix_policy = replace(prefix_policy, max_cells=2)
+    planner = plan_ambient_closed_post_shock_chain(
+      seed,
+      configured_prefix_stop,
+      start_x_m=start_x_m,
+      end_x_m=end_x_m,
+      policy=prefix_policy,
+      require_upstream_shock_coupling=True,
+      claim_status=(
+        'alternating-reflected-source fresh-band physical shock-chain sequence; '
+        'bounded research continuation; canonical free-boundary validation and '
+        'production promotion pending'
+      ),
+    )
+    diagnostics = dict(planner.diagnostics)
+    diagnostics.update({
+      'source_derivation_model': (
+        'accepted-field -> open-shock-ambient-strip -> '
+        'centerline-reflection-patch -> alternating-source-band'
+      ),
+      'source_derivation_automatic': True,
+      'source_sample_count': source_sample_count,
+      'configured_total_cell_count': total_cell_count,
+      'alternating_source_initial_band': None,
+      'alternating_source_attempt_count': 0,
+      'alternating_source_attempts': [],
+      'alternating_source_reuse_policy': (
+        'fresh-alternating-source-band-and-exact-incoming-handoff-required-per-cell'
+      ),
+      'source_projection_failure_policy': (
+        'typed-open-physical-closure-or-upstream-field-stop; '
+        'never-reuse-or-extrapolate-a-prior-source-band'
+      ),
+      'use_outer_seed_attachment': True,
+      'use_trace_referenced_profile': use_trace_referenced_profile,
+      'canonical_reflected_domain_closed': False,
+      'canonical_free_boundary_pending': True,
+      'external_validation_pending': True,
+    })
+    return replace(planner, diagnostics=diagnostics)
+
   def invalid_source(
     message: str,
     handoff: tuple[MocChainBoundarySample, ...],

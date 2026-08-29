@@ -2389,3 +2389,41 @@ next shock leaves that finite field, the planner returns the typed
 `chain_promotion_blocked=true`, and `production_claim_allowed=false`. No fast
 visualization, signature, ray, or focal-plane-array provider consumes this
 research-chain result.
+
+## Solver-owned first-cell endpoint reference
+
+The next local boundary experiment is now explicit in
+`solve_reflected_domain_solver_owned_first_cell`. It consumes a generated
+alternating source band and varies a local compression amplitude; each trial
+generates its shock and post-shock field from that source band, then compares
+the raw shock endpoint with the next solver-generated centerline source
+state. No caller-supplied shock curve is used, and every trial, including a
+failed trial, is retained.
+
+The independent
+`op.moc.reflected-domain-solver-owned-first-cell` measurement recomputes the
+source-band audit, trial physical fields, endpoint coordinates, scalar
+residuals, selected-trial linkage, and fidelity metadata. A reproducible
+same-sign amplitude bracket is a successful research audit of the no-bracket
+boundary; it is not a physical endpoint closure. The current standalone
+fixture records two locally complete trials with a typed
+`solver_owned_first_cell_boundary_bracket_failure` result and zero validation
+failures.
+
+This reference remains deliberately below the canonical boundary. Its local
+compression family is still a research control, the reflected global shock
+topology and mixed-regime downstream closure are not solved, and refinement
+and external observations are still required. The result therefore keeps
+`canonical_free_boundary_verified=false`,
+`canonical_euler_verified=false`, `external_validation_verified=false`,
+`chain_promotion_blocked=true`, and `production_claim_allowed=false`.
+The one-cell `total_cell_count=1` planner edge now stops before attempting a
+source projection, while larger prefixes continue to require fresh source
+bands, exact centerline handoffs, independent field audits, and explicit
+typed termination.
+
+The next physics gate is a globally remeshed reflected shock whose endpoint
+residual can straddle zero, followed by a coupled post-shock field with
+sample-count refinement and indexed external validation. Until those gates
+pass, the fast visualization and reduced-order shock-train lanes remain
+unchanged and are not trained or relabeled from this research lane.

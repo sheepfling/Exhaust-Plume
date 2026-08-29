@@ -46,6 +46,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocReflectedDomainRemeshRequest,
   MocReflectedDomainAlternatingSourceStatus,
   MocReflectedDomainAlternatingPhysicalFieldStatus,
+  MocReflectedDomainSolverOwnedFirstCellStatus,
   MocReflectedDomainRemeshStatus,
   build_reflected_domain_remesh_request_from_outer_source,
   MocReflectedTracePolarity,
@@ -105,6 +106,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_reflected_domain_remesh,
   solve_reflected_domain_alternating_source,
   solve_reflected_domain_alternating_physical_field,
+  solve_reflected_domain_solver_owned_first_cell,
   solve_reflected_domain_outer_source_curve,
   plan_terminal_reflection_patch_chain,
   MocShockBoundaryFitResult,
@@ -207,6 +209,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
 from exhaust_plume.validation.moc_measurements import (  # noqa: E402
   MocReflectedDomainAlternatingSourceMeasurementStatus,
   MocReflectedDomainAlternatingPhysicalFieldMeasurementStatus,
+  MocReflectedDomainSolverOwnedFirstCellMeasurementStatus,
   MocCausticRemeshMeasurementStatus,
   MocCausticRemeshObservation,
   MocMixedRegimeFreeBoundaryMeasurementStatus,
@@ -238,6 +241,7 @@ from exhaust_plume.validation.moc_measurements import (  # noqa: E402
   measure_moc_reflected_domain_remesh,
   measure_moc_reflected_domain_alternating_source,
   measure_moc_reflected_domain_alternating_physical_field,
+  measure_moc_reflected_domain_solver_owned_first_cell,
   measure_moc_reflected_domain_alternating_physical_field_chain_refinement,
   measure_moc_reflected_domain_outer_source_curve,
   measure_mixed_regime_control_section,
@@ -682,6 +686,28 @@ def _reflected_domain_remesh_probe(
     alternating_source_error = f'{type(error).__name__}: {error}'
     alternating_physical_field_error = f'{type(error).__name__}: {error}'
 
+  solver_owned_first_cell = None
+  solver_owned_first_cell_measurement = None
+  solver_owned_first_cell_error = None
+  try:
+    if alternating_source is None:
+      raise ValueError('alternating source fixture did not converge')
+    solver_owned_first_cell = solve_reflected_domain_solver_owned_first_cell(
+      alternating_source,
+      outer_source_index=2,
+      target_centerline_index=3,
+      compression_amplitude_lower_rad=0.007,
+      compression_amplitude_upper_rad=0.03,
+      sample_count=9,
+    )
+    solver_owned_first_cell_measurement = (
+      measure_moc_reflected_domain_solver_owned_first_cell(
+        solver_owned_first_cell,
+      )
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    solver_owned_first_cell_error = f'{type(error).__name__}: {error}'
+
   (
     alternating_physical_field_chain_refinement,
     alternating_physical_field_chain_refinement_error,
@@ -882,6 +908,28 @@ def _reflected_domain_remesh_probe(
     and alternating_physical_field_measurement.physical_closure_verified
     and alternating_physical_field_measurement.chain_promotion_blocked
     and alternating_physical_field_measurement.production_claim_allowed is False
+    and solver_owned_first_cell is not None
+    and solver_owned_first_cell.status is (
+      MocReflectedDomainSolverOwnedFirstCellStatus.BOUNDARY_BRACKET_FAILURE
+    )
+    and solver_owned_first_cell.converged is False
+    and solver_owned_first_cell.local_physical_field_verified
+    and solver_owned_first_cell.physical_closure_verified is False
+    and solver_owned_first_cell.canonical_free_boundary_verified is False
+    and solver_owned_first_cell.canonical_euler_verified is False
+    and solver_owned_first_cell.external_validation_verified is False
+    and solver_owned_first_cell.chain_promotion_blocked
+    and solver_owned_first_cell.production_claim_allowed is False
+    and solver_owned_first_cell_measurement is not None
+    and solver_owned_first_cell_measurement.status is (
+      MocReflectedDomainSolverOwnedFirstCellMeasurementStatus.CONVERGED
+    )
+    and solver_owned_first_cell_measurement.trial_residuals_verified
+    and solver_owned_first_cell_measurement.selected_trial_verified
+    and solver_owned_first_cell_measurement.selected_field_verified
+    and solver_owned_first_cell_measurement.scalar_endpoint_verified is False
+    and solver_owned_first_cell_measurement.physical_closure_verified is False
+    and solver_owned_first_cell_measurement.fidelity_isolation_verified
     and alternating_physical_field_chain_refinement is not None
     and alternating_physical_field_chain_refinement.converged
     and alternating_physical_field_chain_refinement.resolution_order_verified
@@ -972,6 +1020,17 @@ def _reflected_domain_remesh_probe(
       else alternating_physical_field_measurement.as_report()
     ),
     'alternating_physical_field_error': alternating_physical_field_error,
+    'solver_owned_first_cell': (
+      None
+      if solver_owned_first_cell is None
+      else solver_owned_first_cell.as_report()
+    ),
+    'solver_owned_first_cell_independent_measurement': (
+      None
+      if solver_owned_first_cell_measurement is None
+      else solver_owned_first_cell_measurement.as_report()
+    ),
+    'solver_owned_first_cell_error': solver_owned_first_cell_error,
     'alternating_physical_field_chain_refinement': (
       None
       if alternating_physical_field_chain_refinement is None
@@ -9010,6 +9069,49 @@ def build_moc_primitive_report() -> dict[str, Any]:
       ) is not True
     )
   )
+  solver_owned_first_cell_failure = (
+    ambient_shock_strip_probe.get('accepted') is True
+    and (
+      not isinstance(reflected_domain_remesh_probe, dict)
+      or not isinstance(
+        reflected_domain_remesh_probe.get('solver_owned_first_cell'),
+        dict,
+      )
+      or reflected_domain_remesh_probe['solver_owned_first_cell'].get('status')
+      != MocReflectedDomainSolverOwnedFirstCellStatus.BOUNDARY_BRACKET_FAILURE.value
+      or reflected_domain_remesh_probe['solver_owned_first_cell'].get(
+        'local_physical_field_verified'
+      ) is not True
+      or reflected_domain_remesh_probe['solver_owned_first_cell'].get(
+        'physical_closure_verified'
+      ) is not False
+      or not isinstance(
+        reflected_domain_remesh_probe.get(
+          'solver_owned_first_cell_independent_measurement'
+        ),
+        dict,
+      )
+      or reflected_domain_remesh_probe[
+        'solver_owned_first_cell_independent_measurement'
+      ].get('status')
+      != MocReflectedDomainSolverOwnedFirstCellMeasurementStatus.CONVERGED.value
+      or reflected_domain_remesh_probe[
+        'solver_owned_first_cell_independent_measurement'
+      ].get('checks', {}).get('trial_residuals_verified') is not True
+      or reflected_domain_remesh_probe[
+        'solver_owned_first_cell_independent_measurement'
+      ].get('checks', {}).get('selected_field_verified') is not True
+      or reflected_domain_remesh_probe[
+        'solver_owned_first_cell_independent_measurement'
+      ].get('checks', {}).get('scalar_endpoint_verified') is not False
+      or reflected_domain_remesh_probe[
+        'solver_owned_first_cell_independent_measurement'
+      ].get('checks', {}).get('physical_closure_verified') is not False
+      or reflected_domain_remesh_probe[
+        'solver_owned_first_cell_independent_measurement'
+      ].get('checks', {}).get('fidelity_isolation_verified') is not True
+    )
+  )
   reflected_domain_alternating_physical_field_chain_refinement_failure = (
     ambient_shock_strip_probe.get('accepted') is True
     and (
@@ -10991,6 +11093,31 @@ def build_moc_primitive_report() -> dict[str, Any]:
         ),
       }
     ] if reflected_domain_alternating_physical_field_failure else []),
+    *([
+      {
+        'case': 'solver_generated_reflected_domain_solver_owned_first_cell',
+        'status': str(
+          reflected_domain_remesh_probe.get(
+            'solver_owned_first_cell',
+            {},
+          ).get('status', 'missing')
+          if isinstance(reflected_domain_remesh_probe, dict)
+          else 'missing'
+        ),
+        'message': str(
+          reflected_domain_remesh_probe.get(
+            'solver_owned_first_cell_error',
+            '',
+          )
+          or reflected_domain_remesh_probe.get(
+            'solver_owned_first_cell_independent_measurement',
+            {},
+          ).get('message', '')
+          if isinstance(reflected_domain_remesh_probe, dict)
+          else 'solver-owned first-cell probe missing'
+        ),
+      }
+    ] if solver_owned_first_cell_failure else []),
     *([
       {
         'case': 'solver_generated_reflected_domain_alternating_physical_field_chain_refinement',

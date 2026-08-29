@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Sequence
 
 if TYPE_CHECKING:
   from exhaust_plume.models.moc.coupled import MocAmbientPhysicalFieldResult
+  from exhaust_plume.models.moc.physical_cell import MocPhysicalPostShockFieldResult
 
 from exhaust_plume.models.moc.ambient_boundary import (
   MocAmbientBoundarySample,
@@ -74,6 +75,9 @@ __all__ = (
   'MocReflectedDomainAlternatingSourceResult',
   'MocReflectedDomainAlternatingPhysicalFieldStatus',
   'MocReflectedDomainAlternatingPhysicalFieldResult',
+  'MocReflectedDomainSolverOwnedFirstCellStatus',
+  'MocReflectedDomainSolverOwnedFirstCellTrial',
+  'MocReflectedDomainSolverOwnedFirstCellResult',
   'MocReflectedDomainRemeshStatus',
   'MocReflectedDomainRemeshRequest',
   'MocReflectedDomainRemeshResult',
@@ -161,6 +165,20 @@ class MocReflectedDomainAlternatingPhysicalFieldStatus(str, Enum):
   SOURCE_FIELD_FAILURE = 'alternating_physical_source_field_failure'
   SHOCK_FAILURE = 'alternating_physical_shock_failure'
   FIELD_FAILURE = 'alternating_physical_field_failure'
+
+
+class MocReflectedDomainSolverOwnedFirstCellStatus(str, Enum):
+  """Outcome of the source-owned first-cell endpoint iteration."""
+
+  CONVERGED_CENTERLINE_ENDPOINT = (
+    'converged_solver_owned_centerline_endpoint'
+  )
+  INVALID_INPUT = 'invalid_input'
+  SOURCE_FIELD_FAILURE = 'solver_owned_first_cell_source_failure'
+  FIELD_FAILURE = 'solver_owned_first_cell_field_failure'
+  BOUNDARY_BRACKET_FAILURE = 'solver_owned_first_cell_boundary_bracket_failure'
+  SHOOTING_FAILURE = 'solver_owned_first_cell_shooting_failure'
+  ITERATION_LIMIT = 'solver_owned_first_cell_iteration_limit'
 ####
 
 
@@ -1170,6 +1188,371 @@ class MocReflectedDomainAlternatingPhysicalFieldResult:
   ####
 
 
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainSolverOwnedFirstCellTrial:
+  """One retained compression-control trial for the first-cell solve.
+
+  The trial contains no prescribed shock geometry.  Its shock and field are
+  generated from the bounded alternating source band for the retained
+  compression amplitude.  A missing field is retained as an invalid trial so
+  the caller can distinguish a solver-domain failure from a physical root.
+  """
+
+  compression_amplitude_rad: float
+  physical_field: MocReflectedDomainAlternatingPhysicalFieldResult | None
+  endpoint_m: tuple[float, float] | None
+  residual_m: float | None
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    amplitude = float(self.compression_amplitude_rad)
+    if not isfinite(amplitude) or amplitude <= 0.0:
+      raise ValueError(
+        'compression_amplitude_rad must be finite and positive'
+      )
+    object.__setattr__(self, 'compression_amplitude_rad', amplitude)
+    if self.physical_field is not None and not isinstance(
+      self.physical_field,
+      MocReflectedDomainAlternatingPhysicalFieldResult,
+    ):
+      raise TypeError(
+        'physical_field must be a '
+        'MocReflectedDomainAlternatingPhysicalFieldResult or None'
+      )
+    if self.endpoint_m is not None:
+      point = (float(self.endpoint_m[0]), float(self.endpoint_m[1]))
+      if not all(isfinite(value) for value in point):
+        raise ValueError('endpoint_m must contain finite coordinates')
+      object.__setattr__(self, 'endpoint_m', point)
+    if self.residual_m is not None:
+      residual = float(self.residual_m)
+      if not isfinite(residual):
+        raise ValueError('residual_m must be finite when supplied')
+      object.__setattr__(self, 'residual_m', residual)
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def converged(self) -> bool:
+    """Whether this trial produced a complete local physical field."""
+
+    return bool(
+      self.physical_field is not None
+      and self.physical_field.converged
+      and self.physical_field.field is not None
+      and self.residual_m is not None
+    )
+  ####
+
+  def as_report(self) -> dict[str, object]:
+    return {
+      'compression_amplitude_rad': self.compression_amplitude_rad,
+      'converged': self.converged,
+      'endpoint_m': self.endpoint_m,
+      'residual_m': self.residual_m,
+      'physical_field': (
+        None
+        if self.physical_field is None
+        else self.physical_field.as_report()
+      ),
+      'message': self.message,
+    }
+  ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainSolverOwnedFirstCellResult:
+  """Source-owned first-cell endpoint iteration result.
+
+  The solver chooses a shock curve by coupling the generated alternating
+  source band to a local compression-control family and iterates that control
+  until the shock endpoint aligns with the next solver-generated centerline
+  source state.  This removes the caller's shock-geometry seed from the
+  first-cell path, while deliberately retaining the local compression family
+  and source remesh as research boundary conditions.
+
+  A converged result is a state-carrying local physical field, not a canonical
+  reflected Euler/free-boundary solution.  The independent measurement must
+  pass before the retained field is used as a research-chain seed.
+  """
+
+  status: MocReflectedDomainSolverOwnedFirstCellStatus
+  source_band: MocReflectedDomainAlternatingSourceResult | None
+  outer_source_index: int | None
+  target_centerline_index: int | None
+  target_centerline_point_m: tuple[float, float] | None
+  compression_amplitude_bracket: tuple[float, float] | None
+  selected_trial_index: int | None
+  selected_compression_amplitude_rad: float | None
+  selected_physical_field: MocReflectedDomainAlternatingPhysicalFieldResult | None
+  closure_residual_m: float | None
+  shooting_iterations: int
+  trials: tuple[MocReflectedDomainSolverOwnedFirstCellTrial, ...]
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocReflectedDomainSolverOwnedFirstCellStatus,
+    ):
+      raise TypeError(
+        'status must be a MocReflectedDomainSolverOwnedFirstCellStatus'
+      )
+    if self.source_band is not None and not isinstance(
+      self.source_band,
+      MocReflectedDomainAlternatingSourceResult,
+    ):
+      raise TypeError(
+        'source_band must be a '
+        'MocReflectedDomainAlternatingSourceResult or None'
+      )
+    for name in ('outer_source_index', 'target_centerline_index'):
+      value = getattr(self, name)
+      if value is not None and (
+        isinstance(value, bool) or not isinstance(value, int) or value < 0
+      ):
+        raise ValueError(f'{name} must be a nonnegative integer when supplied')
+    if self.target_centerline_point_m is not None:
+      point = (
+        float(self.target_centerline_point_m[0]),
+        float(self.target_centerline_point_m[1]),
+      )
+      if not all(isfinite(value) for value in point):
+        raise ValueError(
+          'target_centerline_point_m must contain finite coordinates'
+        )
+      object.__setattr__(self, 'target_centerline_point_m', point)
+    if self.compression_amplitude_bracket is not None:
+      bracket = (
+        float(self.compression_amplitude_bracket[0]),
+        float(self.compression_amplitude_bracket[1]),
+      )
+      if (
+        not all(isfinite(value) and value > 0.0 for value in bracket)
+        or bracket[0] >= bracket[1]
+      ):
+        raise ValueError(
+          'compression_amplitude_bracket must contain two ordered positive values'
+        )
+      object.__setattr__(self, 'compression_amplitude_bracket', bracket)
+    if self.selected_trial_index is not None and (
+      isinstance(self.selected_trial_index, bool)
+      or not isinstance(self.selected_trial_index, int)
+      or self.selected_trial_index < 0
+    ):
+      raise ValueError(
+        'selected_trial_index must be a nonnegative integer when supplied'
+      )
+    if self.selected_compression_amplitude_rad is not None:
+      amplitude = float(self.selected_compression_amplitude_rad)
+      if not isfinite(amplitude) or amplitude <= 0.0:
+        raise ValueError(
+          'selected_compression_amplitude_rad must be finite and positive'
+        )
+      object.__setattr__(self, 'selected_compression_amplitude_rad', amplitude)
+    if self.selected_physical_field is not None and not isinstance(
+      self.selected_physical_field,
+      MocReflectedDomainAlternatingPhysicalFieldResult,
+    ):
+      raise TypeError(
+        'selected_physical_field must be a '
+        'MocReflectedDomainAlternatingPhysicalFieldResult or None'
+      )
+    if self.closure_residual_m is not None:
+      residual = float(self.closure_residual_m)
+      if not isfinite(residual):
+        raise ValueError('closure_residual_m must be finite when supplied')
+      object.__setattr__(self, 'closure_residual_m', residual)
+    if (
+      isinstance(self.shooting_iterations, bool)
+      or not isinstance(self.shooting_iterations, int)
+      or self.shooting_iterations < 0
+    ):
+      raise ValueError('shooting_iterations must be a nonnegative integer')
+    trials = tuple(self.trials)
+    if any(
+      not isinstance(trial, MocReflectedDomainSolverOwnedFirstCellTrial)
+      for trial in trials
+    ):
+      raise TypeError(
+        'trials must contain MocReflectedDomainSolverOwnedFirstCellTrial values'
+      )
+    if self.selected_trial_index is not None and self.selected_trial_index >= len(trials):
+      raise ValueError('selected_trial_index must select a retained trial')
+    object.__setattr__(self, 'trials', trials)
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def converged(self) -> bool:
+    """Whether endpoint shooting and the selected field both converged."""
+
+    return bool(
+      self.status
+      is MocReflectedDomainSolverOwnedFirstCellStatus.CONVERGED_CENTERLINE_ENDPOINT
+      and self.selected_physical_field is not None
+      and self.selected_physical_field.converged
+      and self.selected_physical_field.physical_closure_verified
+      and self.closure_residual_m is not None
+    )
+  ####
+
+  @property
+  def local_physical_field_verified(self) -> bool:
+    """Whether the selected trial retained a complete local field."""
+
+    return bool(
+      self.selected_physical_field is not None
+      and self.selected_physical_field.converged
+      and self.selected_physical_field.physical_closure_verified
+      and self.selected_physical_field.state_sampling_available
+      and self.selected_physical_field.upstream_coupling_verified
+    )
+  ####
+
+  @property
+  def field(self) -> MocPhysicalPostShockFieldResult | None:
+    """Return the selected raw physical field, when one was retained."""
+
+    return (
+      None
+      if self.selected_physical_field is None
+      else self.selected_physical_field.field
+    )
+  ####
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    """Require both the scalar endpoint gate and local field gates."""
+
+    return bool(self.converged and self.local_physical_field_verified)
+  ####
+
+  @property
+  def state_sampling_available(self) -> bool:
+    return bool(
+      self.selected_physical_field is not None
+      and self.selected_physical_field.state_sampling_available
+    )
+  ####
+
+  @property
+  def upstream_coupling_verified(self) -> bool:
+    return bool(
+      self.selected_physical_field is not None
+      and self.selected_physical_field.upstream_coupling_verified
+    )
+  ####
+
+  @property
+  def canonical_free_boundary_verified(self) -> bool:
+    """The reflected global free-boundary solve remains an open gate."""
+
+    return False
+  ####
+
+  @property
+  def canonical_euler_verified(self) -> bool:
+    """The coupled two-dimensional Euler residual remains open."""
+
+    return False
+  ####
+
+  @property
+  def external_validation_verified(self) -> bool:
+    return False
+  ####
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    """Require independent measurement before chain promotion."""
+
+    return True
+  ####
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    return False
+  ####
+
+  def as_chain_termination_decision(self) -> MocChainTerminationDecision:
+    """Represent unresolved endpoint closure as a non-physical chain stop."""
+
+    if self.converged:
+      reason = MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+      message = (
+        'solver-owned first-cell endpoint field is locally closed but remains '
+        'a research result; canonical reflected free-boundary, Euler, and '
+        'external-validation gates block chain promotion'
+      )
+    elif self.status is MocReflectedDomainSolverOwnedFirstCellStatus.INVALID_INPUT:
+      reason = MocChainTerminationReason.INVALID_INPUT
+      message = 'solver-owned first-cell endpoint iteration rejected its inputs'
+    elif self.status is MocReflectedDomainSolverOwnedFirstCellStatus.SOURCE_FIELD_FAILURE:
+      reason = MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+      message = (
+        'solver-owned first-cell endpoint iteration could not sample its '
+        'bounded alternating source band'
+      )
+    else:
+      reason = MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+      message = (
+        'solver-owned first-cell endpoint iteration did not close; no '
+        'continued cell may be inferred from its trial fields'
+      )
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=reason,
+      message=message,
+      diagnostics={
+        'solver_owned_first_cell_status': self.status.value,
+        'local_physical_field_verified': self.local_physical_field_verified,
+        'canonical_free_boundary_verified': self.canonical_free_boundary_verified,
+        'canonical_euler_verified': self.canonical_euler_verified,
+        'external_validation_verified': self.external_validation_verified,
+        'chain_promotion_blocked': self.chain_promotion_blocked,
+        'production_claim_allowed': self.production_claim_allowed,
+      },
+    )
+  ####
+
+  def as_report(self) -> dict[str, object]:
+    return {
+      'status': self.status.value,
+      'converged': self.converged,
+      'local_physical_field_verified': self.local_physical_field_verified,
+      'physical_closure_verified': self.physical_closure_verified,
+      'state_sampling_available': self.state_sampling_available,
+      'upstream_coupling_verified': self.upstream_coupling_verified,
+      'canonical_free_boundary_verified': self.canonical_free_boundary_verified,
+      'canonical_euler_verified': self.canonical_euler_verified,
+      'external_validation_verified': self.external_validation_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'chain_promotion_decision': self.as_chain_termination_decision().as_report(),
+      'source_band': (
+        None if self.source_band is None else self.source_band.as_report()
+      ),
+      'outer_source_index': self.outer_source_index,
+      'target_centerline_index': self.target_centerline_index,
+      'target_centerline_point_m': self.target_centerline_point_m,
+      'compression_amplitude_bracket': self.compression_amplitude_bracket,
+      'selected_trial_index': self.selected_trial_index,
+      'selected_compression_amplitude_rad': self.selected_compression_amplitude_rad,
+      'selected_physical_field': (
+        None
+        if self.selected_physical_field is None
+        else self.selected_physical_field.as_report()
+      ),
+      'closure_residual_m': self.closure_residual_m,
+      'shooting_iterations': self.shooting_iterations,
+      'trial_count': len(self.trials),
+      'trials': tuple(trial.as_report() for trial in self.trials),
+      'message': self.message,
+    }
+  ####
+
+
 def _static_pressure_from_total_pressure(
   state: CharacteristicState,
   total_pressure_Pa: float,
@@ -2146,6 +2529,420 @@ def solve_reflected_domain_alternating_physical_field(
     field_result=field_result,
   )
 ####
+
+
+def solve_reflected_domain_solver_owned_first_cell(
+  source_band: MocReflectedDomainAlternatingSourceResult,
+  *,
+  outer_source_index: int = 0,
+  target_centerline_index: int | None = None,
+  compression_amplitude_lower_rad: float = 0.005,
+  compression_amplitude_upper_rad: float = 0.05,
+  closure_tolerance_m: float = 1.0e-6,
+  incoming_handoff: Sequence[MocChainBoundarySample] | None = None,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-9,
+  invariant_tolerance: float = 1.0e-10,
+  attachment_pressure_tolerance: float = 1.0e-8,
+  pressure_tolerance: float = 1.0e-8,
+  tangent_tolerance: float = 1.0e-8,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  maximum_boundary_iterations: int = 16,
+  maximum_shooting_iterations: int = 40,
+) -> MocReflectedDomainSolverOwnedFirstCellResult:
+  """Iterate a solver-generated first-cell endpoint without shock geometry.
+
+  The alternating source band owns both the candidate outer source row and the
+  next centerline source row.  For one selected outer source point, this
+  routine generates a physical shock field for each compression amplitude and
+  adjusts that amplitude until the shock endpoint aligns with the next
+  solver-generated centerline source point.  The endpoint target is therefore
+  a local characteristic-interface condition, not a caller-prescribed shock
+  curve.
+
+  The compression family is intentionally explicit and local.  It is a
+  research free-boundary reference, not the canonical reflected Euler solve:
+  the upstream alternating remesh, local compression envelope, mixed-regime
+  continuation, refinement, and external validation remain separate gates.
+  Every failed or successful trial is retained, and a missing field is never
+  replaced with an extrapolated state.
+  """
+
+  resolved_target_index: int | None = None
+
+  def failure(
+    status: MocReflectedDomainSolverOwnedFirstCellStatus,
+    message: str,
+    *,
+    target_point: tuple[float, float] | None = None,
+    bracket: tuple[float, float] | None = None,
+    selected_index: int | None = None,
+    selected_amplitude: float | None = None,
+    selected_field: MocReflectedDomainAlternatingPhysicalFieldResult | None = None,
+    residual: float | None = None,
+    iterations: int = 0,
+    trials: Sequence[MocReflectedDomainSolverOwnedFirstCellTrial] = (),
+  ) -> MocReflectedDomainSolverOwnedFirstCellResult:
+    return MocReflectedDomainSolverOwnedFirstCellResult(
+      status=status,
+      source_band=(
+        source_band
+        if isinstance(source_band, MocReflectedDomainAlternatingSourceResult)
+        else None
+      ),
+      outer_source_index=(
+        outer_source_index
+        if isinstance(outer_source_index, int)
+        and not isinstance(outer_source_index, bool)
+        and outer_source_index >= 0
+        else None
+      ),
+      target_centerline_index=(
+        resolved_target_index
+        if isinstance(resolved_target_index, int)
+        and not isinstance(resolved_target_index, bool)
+        and resolved_target_index >= 0
+        else None
+      ),
+      target_centerline_point_m=target_point,
+      compression_amplitude_bracket=bracket,
+      selected_trial_index=selected_index,
+      selected_compression_amplitude_rad=selected_amplitude,
+      selected_physical_field=selected_field,
+      closure_residual_m=residual,
+      shooting_iterations=iterations,
+      trials=tuple(trials),
+      message=message,
+    )
+
+  if not isinstance(source_band, MocReflectedDomainAlternatingSourceResult):
+    return failure(
+      MocReflectedDomainSolverOwnedFirstCellStatus.INVALID_INPUT,
+      'source_band must be a MocReflectedDomainAlternatingSourceResult',
+    )
+  if (
+    isinstance(outer_source_index, bool)
+    or not isinstance(outer_source_index, int)
+    or outer_source_index < 0
+    or outer_source_index >= len(source_band.outer_source_states)
+  ):
+    return failure(
+      MocReflectedDomainSolverOwnedFirstCellStatus.INVALID_INPUT,
+      'outer_source_index must select a generated outer source state',
+    )
+  resolved_target_index = (
+    outer_source_index + 1
+    if target_centerline_index is None
+    else target_centerline_index
+  )
+  if (
+    isinstance(resolved_target_index, bool)
+    or not isinstance(resolved_target_index, int)
+    or resolved_target_index < 0
+    or resolved_target_index >= len(source_band.centerline_source_states)
+  ):
+    return failure(
+      MocReflectedDomainSolverOwnedFirstCellStatus.INVALID_INPUT,
+      'target_centerline_index must select a generated centerline source state',
+    )
+  try:
+    lower_amplitude = float(compression_amplitude_lower_rad)
+    upper_amplitude = float(compression_amplitude_upper_rad)
+    closure_tolerance = float(closure_tolerance_m)
+    resolved_position_tolerance = float(position_tolerance_m)
+    resolved_invariant_tolerance = float(invariant_tolerance)
+    resolved_attachment_pressure_tolerance = float(attachment_pressure_tolerance)
+    resolved_pressure_tolerance = float(pressure_tolerance)
+    resolved_tangent_tolerance = float(tangent_tolerance)
+    resolved_shock_angle_tolerance = float(shock_angle_tolerance_rad)
+  except (TypeError, ValueError):
+    return failure(
+      MocReflectedDomainSolverOwnedFirstCellStatus.INVALID_INPUT,
+      'solver-owned first-cell tolerances and amplitude bounds must be numeric',
+    )
+  if (
+    not all(
+      isfinite(value) and value > 0.0
+      for value in (
+        lower_amplitude,
+        upper_amplitude,
+        closure_tolerance,
+        resolved_position_tolerance,
+        resolved_invariant_tolerance,
+        resolved_attachment_pressure_tolerance,
+        resolved_pressure_tolerance,
+        resolved_tangent_tolerance,
+        resolved_shock_angle_tolerance,
+      )
+    )
+    or lower_amplitude >= upper_amplitude
+  ):
+    invalid_bracket = (
+      (lower_amplitude, upper_amplitude)
+      if all(
+        isfinite(value) and value > 0.0
+        for value in (lower_amplitude, upper_amplitude)
+      )
+      and lower_amplitude < upper_amplitude
+      else None
+    )
+    return failure(
+      MocReflectedDomainSolverOwnedFirstCellStatus.INVALID_INPUT,
+      'amplitude bounds and solver tolerances must be finite, positive, and ordered',
+      bracket=invalid_bracket,
+    )
+  if isinstance(sample_count, bool) or not isinstance(sample_count, int) or sample_count < 3:
+    return failure(
+      MocReflectedDomainSolverOwnedFirstCellStatus.INVALID_INPUT,
+      'sample_count must be an integer of at least three',
+      bracket=(lower_amplitude, upper_amplitude),
+    )
+  for name, value in (
+    ('maximum_segment_iterations', maximum_segment_iterations),
+    ('maximum_boundary_iterations', maximum_boundary_iterations),
+    ('maximum_shooting_iterations', maximum_shooting_iterations),
+  ):
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+      return failure(
+        MocReflectedDomainSolverOwnedFirstCellStatus.INVALID_INPUT,
+        f'{name} must be a positive integer',
+        bracket=(lower_amplitude, upper_amplitude),
+      )
+  if not isinstance(branch, ShockBranch):
+    return failure(
+      MocReflectedDomainSolverOwnedFirstCellStatus.INVALID_INPUT,
+      'branch must be a ShockBranch',
+      bracket=(lower_amplitude, upper_amplitude),
+    )
+  if not source_band.source_field_verified:
+    return failure(
+      MocReflectedDomainSolverOwnedFirstCellStatus.SOURCE_FIELD_FAILURE,
+      'solver-owned first-cell iteration requires a verified bounded source band',
+      bracket=(lower_amplitude, upper_amplitude),
+    )
+  resolved_handoff = source_band.incoming_handoff
+  if incoming_handoff is not None:
+    try:
+      resolved_handoff = tuple(incoming_handoff)
+    except TypeError:
+      return failure(
+        MocReflectedDomainSolverOwnedFirstCellStatus.INVALID_INPUT,
+        'incoming_handoff must be an iterable of MocChainBoundarySample values',
+        bracket=(lower_amplitude, upper_amplitude),
+      )
+    if any(
+      not isinstance(sample, MocChainBoundarySample)
+      for sample in resolved_handoff
+    ):
+      return failure(
+        MocReflectedDomainSolverOwnedFirstCellStatus.INVALID_INPUT,
+        'incoming_handoff must contain MocChainBoundarySample values',
+        bracket=(lower_amplitude, upper_amplitude),
+      )
+  if resolved_handoff != source_band.incoming_handoff:
+    return failure(
+      MocReflectedDomainSolverOwnedFirstCellStatus.INVALID_INPUT,
+      'incoming_handoff must exactly match the source band handoff',
+      bracket=(lower_amplitude, upper_amplitude),
+    )
+  source_state = source_band.outer_source_states[outer_source_index]
+  target_state = source_band.centerline_source_states[resolved_target_index]
+  target_point = (target_state.x_m, target_state.y_m)
+  if (
+    abs(target_state.y_m - source_band.target_centerline_y_m)
+    > resolved_position_tolerance
+    or target_state.x_m <= source_state.x_m + resolved_position_tolerance
+  ):
+    return failure(
+      MocReflectedDomainSolverOwnedFirstCellStatus.SOURCE_FIELD_FAILURE,
+      'selected source and centerline states do not define a downstream endpoint',
+      target_point=target_point,
+      bracket=(lower_amplitude, upper_amplitude),
+    )
+
+  trials: list[MocReflectedDomainSolverOwnedFirstCellTrial] = []
+
+  def evaluate(amplitude: float) -> MocReflectedDomainSolverOwnedFirstCellTrial:
+    try:
+      physical_field = solve_reflected_domain_alternating_physical_field(
+        source_band,
+        amplitude,
+        outer_source_index=outer_source_index,
+        use_outer_seed_attachment=False,
+        target_centerline_y_m=source_band.target_centerline_y_m,
+        target_centerline_flow_angle_rad=(
+          source_band.target_centerline_flow_angle_rad
+        ),
+        sample_count=sample_count,
+        branch=branch,
+        position_tolerance_m=resolved_position_tolerance,
+        invariant_tolerance=resolved_invariant_tolerance,
+        attachment_pressure_tolerance=resolved_attachment_pressure_tolerance,
+        pressure_tolerance=resolved_pressure_tolerance,
+        tangent_tolerance=resolved_tangent_tolerance,
+        shock_angle_tolerance_rad=resolved_shock_angle_tolerance,
+        maximum_segment_iterations=maximum_segment_iterations,
+        maximum_boundary_iterations=maximum_boundary_iterations,
+        maximum_shooting_iterations=maximum_shooting_iterations,
+        incoming_handoff=resolved_handoff,
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      return MocReflectedDomainSolverOwnedFirstCellTrial(
+        compression_amplitude_rad=amplitude,
+        physical_field=None,
+        endpoint_m=None,
+        residual_m=None,
+        message=f'physical-field trial raised: {error}',
+      )
+    endpoint = None
+    residual = None
+    if physical_field.field is not None and physical_field.field.shock_boundary_points_m:
+      endpoint = physical_field.field.shock_boundary_points_m[-1]
+      residual = endpoint[0] - target_point[0]
+    if (
+      residual is None
+      or not physical_field.converged
+      or not physical_field.physical_closure_verified
+    ):
+      return MocReflectedDomainSolverOwnedFirstCellTrial(
+        compression_amplitude_rad=amplitude,
+        physical_field=physical_field,
+        endpoint_m=endpoint,
+        residual_m=residual,
+        message=(
+          'physical-field trial did not produce a complete local field: '
+          f'{physical_field.message}'
+        ),
+      )
+    return MocReflectedDomainSolverOwnedFirstCellTrial(
+      compression_amplitude_rad=amplitude,
+      physical_field=physical_field,
+      endpoint_m=endpoint,
+      residual_m=residual,
+      message='complete local physical field retained for endpoint iteration',
+    )
+
+  def best_trial_index() -> int | None:
+    valid = tuple(
+      (index, abs(trial.residual_m))
+      for index, trial in enumerate(trials)
+      if trial.residual_m is not None and trial.converged
+    )
+    return None if not valid else min(valid, key=lambda item: item[1])[0]
+
+  def result_for(
+    status: MocReflectedDomainSolverOwnedFirstCellStatus,
+    message: str,
+    iterations: int,
+  ) -> MocReflectedDomainSolverOwnedFirstCellResult:
+    selected_index = best_trial_index()
+    selected_trial = (
+      None if selected_index is None else trials[selected_index]
+    )
+    return failure(
+      status,
+      message,
+      target_point=target_point,
+      bracket=(lower_amplitude, upper_amplitude),
+      selected_index=selected_index,
+      selected_amplitude=(
+        None
+        if selected_trial is None
+        else selected_trial.compression_amplitude_rad
+      ),
+      selected_field=(
+        None if selected_trial is None else selected_trial.physical_field
+      ),
+      residual=(None if selected_trial is None else selected_trial.residual_m),
+      iterations=iterations,
+      trials=trials,
+    )
+
+  lower_trial = evaluate(lower_amplitude)
+  trials.append(lower_trial)
+  if (
+    lower_trial.residual_m is not None
+    and abs(lower_trial.residual_m) <= closure_tolerance
+    and lower_trial.converged
+  ):
+    return result_for(
+      MocReflectedDomainSolverOwnedFirstCellStatus.CONVERGED_CENTERLINE_ENDPOINT,
+      'solver-owned first-cell endpoint aligned at the lower amplitude bound',
+      0,
+    )
+  upper_trial = evaluate(upper_amplitude)
+  trials.append(upper_trial)
+  if (
+    upper_trial.residual_m is not None
+    and abs(upper_trial.residual_m) <= closure_tolerance
+    and upper_trial.converged
+  ):
+    return result_for(
+      MocReflectedDomainSolverOwnedFirstCellStatus.CONVERGED_CENTERLINE_ENDPOINT,
+      'solver-owned first-cell endpoint aligned at the upper amplitude bound',
+      0,
+    )
+  if lower_trial.residual_m is None or upper_trial.residual_m is None:
+    return result_for(
+      MocReflectedDomainSolverOwnedFirstCellStatus.FIELD_FAILURE,
+      (
+        'both compression-amplitude bracket endpoints must produce a complete '
+        'local physical field: '
+        f'lower={lower_trial.message}; upper={upper_trial.message}'
+      ),
+      0,
+    )
+  if lower_trial.residual_m * upper_trial.residual_m > 0.0:
+    return result_for(
+      MocReflectedDomainSolverOwnedFirstCellStatus.BOUNDARY_BRACKET_FAILURE,
+      (
+        'compression-amplitude bracket does not straddle the solver-owned '
+        f'centerline endpoint residual: lower={lower_trial.residual_m}, '
+        f'upper={upper_trial.residual_m}'
+      ),
+      0,
+    )
+
+  current_lower = lower_amplitude
+  current_upper = upper_amplitude
+  current_lower_residual = lower_trial.residual_m
+  completed_iterations = 0
+  for iteration in range(1, maximum_shooting_iterations + 1):
+    midpoint = 0.5 * (current_lower + current_upper)
+    midpoint_trial = evaluate(midpoint)
+    trials.append(midpoint_trial)
+    completed_iterations = iteration
+    if midpoint_trial.residual_m is None or not midpoint_trial.converged:
+      return result_for(
+        MocReflectedDomainSolverOwnedFirstCellStatus.SHOOTING_FAILURE,
+        (
+          'solver-owned endpoint iteration encountered an invalid midpoint '
+          'and stopped without extrapolating the source field: '
+          f'{midpoint_trial.message}'
+        ),
+        iteration,
+      )
+    if abs(midpoint_trial.residual_m) <= closure_tolerance:
+      return result_for(
+        MocReflectedDomainSolverOwnedFirstCellStatus.CONVERGED_CENTERLINE_ENDPOINT,
+        'solver-owned first-cell endpoint aligned in the bounded amplitude shoot',
+        iteration,
+      )
+    if current_lower_residual * midpoint_trial.residual_m <= 0.0:
+      current_upper = midpoint
+    else:
+      current_lower = midpoint
+      current_lower_residual = midpoint_trial.residual_m
+  return result_for(
+    MocReflectedDomainSolverOwnedFirstCellStatus.ITERATION_LIMIT,
+    (
+      'solver-owned first-cell endpoint iteration reached its amplitude '
+      f'shoot limit after {completed_iterations} iterations'
+    ),
+    completed_iterations,
+  )
 
 
 def solve_reflected_domain_outer_source_curve(

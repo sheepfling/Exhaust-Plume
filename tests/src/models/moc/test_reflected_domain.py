@@ -18,6 +18,7 @@ from exhaust_plume.models.moc import (
   MocReflectedDomainRemeshRequest,
   MocReflectedDomainAlternatingSourceStatus,
   MocReflectedDomainAlternatingPhysicalFieldStatus,
+  MocReflectedDomainSolverOwnedFirstCellStatus,
   MocReflectedDomainOuterSourceStatus,
   MocReflectedDomainRemeshStatus,
   MocSolverGeneratedAmbientClosedPostShockChainReference,
@@ -37,6 +38,7 @@ from exhaust_plume.models.moc import (
   solve_reflected_domain_remesh,
   solve_reflected_domain_alternating_source,
   solve_reflected_domain_alternating_physical_field,
+  solve_reflected_domain_solver_owned_first_cell,
   solve_reflected_domain_outer_source_curve,
   solve_underexpanded_expansion_fan,
   solve_uniform_attached_shock_field,
@@ -52,12 +54,14 @@ from exhaust_plume.validation.moc_measurements import (
   MocReflectedDomainAlternatingPhysicalFieldChainRefinementMeasurementStatus,
   MocReflectedDomainAlternatingPhysicalFieldChainMeasurementStatus,
   MocReflectedDomainAlternatingSourceMeasurementStatus,
+  MocReflectedDomainSolverOwnedFirstCellMeasurementStatus,
   MocReflectedDomainOuterSourceMeasurementStatus,
   MocReflectedDomainRemeshMeasurementStatus,
   measure_moc_reflected_domain_alternating_source,
   measure_moc_reflected_domain_alternating_physical_field_chain_refinement,
   measure_moc_reflected_domain_alternating_physical_field_chain,
   measure_moc_reflected_domain_alternating_physical_field,
+  measure_moc_reflected_domain_solver_owned_first_cell,
   measure_moc_reflected_domain_outer_source_curve,
   measure_moc_reflected_domain_remesh,
 )
@@ -730,6 +734,94 @@ def test_reflected_domain_alternating_source_chain_projects_fresh_bands_automati
     and attempt['fresh_source_geometry'] is True
     for attempt in attempts
   )
+
+
+def test_reflected_domain_alternating_source_chain_one_cell_prefix_skips_source_projection():
+  seed = _canonical_field()
+
+  planner = plan_reflected_domain_alternating_source_chain_from_physical_field(
+    seed,
+    start_x_m=0.5,
+    end_x_m=1.0,
+    compression_amplitude_rad=0.05,
+    total_cell_count=1,
+    policy=MocChainContinuationPolicy(max_cells=1, require_state_carry=True),
+  )
+
+  assert planner.chain.resolved
+  assert planner.chain.cell_count == 1
+  assert planner.chain.termination_reason is (
+    MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL
+  )
+  assert planner.chain.physical_termination is False
+  assert planner.diagnostics['configured_total_cell_count'] == 1
+  assert planner.diagnostics['alternating_source_initial_band'] is None
+  assert planner.diagnostics['alternating_source_attempt_count'] == 0
+  assert planner.diagnostics['alternating_source_attempts'] == []
+  assert planner.production_claim_allowed is False
+
+
+def test_solver_owned_first_cell_retains_auditable_no_bracket_without_geometry():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  source = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+  )
+  result = solve_reflected_domain_solver_owned_first_cell(
+    source,
+    outer_source_index=2,
+    target_centerline_index=3,
+    compression_amplitude_lower_rad=0.007,
+    compression_amplitude_upper_rad=0.03,
+    sample_count=9,
+  )
+
+  assert result.status is (
+    MocReflectedDomainSolverOwnedFirstCellStatus.BOUNDARY_BRACKET_FAILURE
+  )
+  assert result.converged is False
+  assert len(result.trials) == 2
+  assert all(trial.physical_field is not None for trial in result.trials)
+  assert all(trial.converged for trial in result.trials)
+  assert result.selected_physical_field is not None
+  assert result.local_physical_field_verified
+  assert result.physical_closure_verified is False
+  assert result.canonical_free_boundary_verified is False
+  assert result.canonical_euler_verified is False
+  assert result.external_validation_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+
+  measurement = measure_moc_reflected_domain_solver_owned_first_cell(result)
+
+  assert measurement.status is (
+    MocReflectedDomainSolverOwnedFirstCellMeasurementStatus.CONVERGED
+  )
+  assert measurement.converged
+  assert measurement.target_centerline_verified
+  assert measurement.amplitude_bracket_verified
+  assert measurement.trial_amplitudes_verified
+  assert measurement.trial_residuals_verified
+  assert measurement.selected_trial_verified
+  assert measurement.selected_field_verified
+  assert measurement.scalar_endpoint_verified is False
+  assert measurement.physical_closure_verified is False
+  assert measurement.canonical_free_boundary_verified is False
+  assert measurement.canonical_euler_verified is False
+  assert measurement.external_validation_verified is False
+  assert measurement.chain_promotion_blocked
+  assert measurement.production_claim_allowed is False
+  assert measurement.fidelity_isolation_verified
+
+  invalid = solve_reflected_domain_solver_owned_first_cell(
+    source,
+    compression_amplitude_lower_rad=float('nan'),
+    compression_amplitude_upper_rad=0.03,
+  )
+  assert invalid.status is MocReflectedDomainSolverOwnedFirstCellStatus.INVALID_INPUT
+  assert invalid.compression_amplitude_bracket is None
 
 
 def test_reflected_domain_alternating_physical_field_chain_refinement_is_research_only():
