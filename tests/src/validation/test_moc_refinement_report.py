@@ -261,6 +261,29 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert euler_companion_chain_probe['planner_measurement']['checks']['termination_verified'] is True
   assert euler_companion_chain_probe['planner_measurement']['checks']['fidelity_isolation_verified'] is True
   assert euler_companion_chain_probe['planner_measurement']['physical_termination'] is False
+  euler_companion_chain_mock = euler_companion['open_field_chain_mock']
+  assert euler_companion_chain_mock['planner_kind'] == 'upstream-coupled-research'
+  assert euler_companion_chain_mock['resolved'] is True
+  assert euler_companion_chain_mock['field_count'] == 3
+  assert euler_companion_chain_mock['continued_field_count'] == 2
+  assert euler_companion_chain_mock['handoff_links_verified'] is True
+  assert euler_companion_chain_mock['termination']['reason'] == (
+    'solver-returned-no-next-cell'
+  )
+  assert euler_companion_chain_mock['physical_closure_verified'] is False
+  assert euler_companion_chain_mock['chain_promotion_blocked'] is True
+  assert euler_companion_chain_mock['production_claim_allowed'] is False
+  euler_companion_chain_audit = euler_companion_chain_mock['independent_audit']
+  assert euler_companion_chain_audit['operator_id'] == (
+    'op.moc.euler-companion-field-chain-audit'
+  )
+  assert euler_companion_chain_audit['status'] == (
+    'converged_euler_companion_field_chain_audit'
+  )
+  assert euler_companion_chain_audit['checks']['local_sequence_verified'] is True
+  assert euler_companion_chain_audit['physical_closure_verified'] is False
+  assert euler_companion_chain_audit['chain_promotion_blocked'] is True
+  assert euler_companion_chain_audit['production_claim_allowed'] is False
   assert first_cell_research_chain['planner_kind'] == 'upstream-coupled-research'
   assert first_cell_research_chain['resolved'] is True
   assert first_cell_research_chain['cell_count'] == 3

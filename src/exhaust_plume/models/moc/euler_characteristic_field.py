@@ -394,6 +394,30 @@ class MocEulerCompanionFieldResult:
   ####
 
   @property
+  def downstream_handoff(self) -> tuple[MocChainBoundarySample, ...]:
+    """Return the carried open-field frontier for a future solver.
+
+    The interior intersections form the downstream frontier of this
+    one-layer strip.  They are state-carrying samples, but they are not a
+    physical chain-cell perimeter: the companion/free-boundary and entropy
+    closure are still unsolved.  Returning an empty tuple for an incomplete
+    field makes that boundary explicit to planners without allowing them to
+    manufacture a handoff from geometry alone.
+    """
+
+    if not self.state_sampling_available:
+      return ()
+    return tuple(
+      MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
+      for state, pressure in zip(
+        self.interior_states,
+        self.interior_total_pressure_Pa,
+        strict=True,
+      )
+    )
+  ####
+
+  @property
   def cell_count(self) -> int:
     return len(self.cells)
   ####
@@ -534,6 +558,8 @@ class MocEulerCompanionFieldResult:
       'maximum_absolute_invariant_residual': self.maximum_absolute_invariant_residual,
       'minimum_forward_margin_m': self.minimum_forward_margin_m,
       'maximum_companion_pressure_residual': self.maximum_companion_pressure_residual,
+      'downstream_handoff_sample_count': len(self.downstream_handoff),
+      'downstream_handoff_available': bool(self.downstream_handoff),
       'position_tolerance_m': self.position_tolerance_m,
       'invariant_tolerance': self.invariant_tolerance,
       'pressure_tolerance': self.pressure_tolerance,

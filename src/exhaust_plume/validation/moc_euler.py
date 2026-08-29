@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from hashlib import sha256
 from math import cos, hypot, isfinite, sin, sqrt
 from typing import Any
 
@@ -47,6 +48,10 @@ __all__ = (
   'MocEulerAmbientCompanionBoundaryAuditStatus',
   'MocEulerAmbientCompanionBoundaryAudit',
   'measure_moc_ambient_companion_boundary',
+  'MOC_EULER_COMPANION_FIELD_CHAIN_AUDIT_OPERATOR_ID',
+  'MocEulerCompanionFieldChainAuditStatus',
+  'MocEulerCompanionFieldChainAudit',
+  'measure_moc_euler_companion_field_chain',
 )
 
 
@@ -1657,4 +1662,417 @@ def measure_moc_physical_field_euler_audit(
     field_topology_verified=topology_verified,
     residual_tolerance=cell_tolerance,
     message=message,
+  )
+
+
+MOC_EULER_COMPANION_FIELD_CHAIN_AUDIT_OPERATOR_ID = (
+  'op.moc.euler-companion-field-chain-audit'
+)
+
+
+class MocEulerCompanionFieldChainAuditStatus(str, Enum):
+  """Outcome of independently measuring an open Euler-field sequence."""
+
+  CONVERGED_LOCAL_AUDIT = 'converged_euler_companion_field_chain_audit'
+  INVALID_INPUT = 'invalid_input'
+  FIELD_FAILURE = 'euler_companion_field_chain_field_failure'
+  HANDOFF_FAILURE = 'euler_companion_field_chain_handoff_failure'
+  DOMAIN_FAILURE = 'euler_companion_field_chain_domain_failure'
+  TERMINATION_FAILURE = 'euler_companion_field_chain_termination_failure'
+  FLAG_FAILURE = 'euler_companion_field_chain_flag_failure'
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerCompanionFieldChainAudit:
+  """Independent evidence for a repeated open Euler companion-field path."""
+
+  status: MocEulerCompanionFieldChainAuditStatus
+  field_count: int
+  continued_field_count: int
+  step_count: int
+  field_statuses: tuple[str, ...]
+  field_audits_verified: bool
+  fresh_domains_verified: bool
+  handoff_links_verified: bool
+  termination_verified: bool
+  fidelity_flags_verified: bool
+  physical_closure_verified: bool = False
+  chain_promotion_blocked: bool = True
+  production_claim_allowed: bool = False
+  message: str = ''
+  operator_id: str = MOC_EULER_COMPANION_FIELD_CHAIN_AUDIT_OPERATOR_ID
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocEulerCompanionFieldChainAuditStatus,
+    ):
+      raise TypeError(
+        'status must be a MocEulerCompanionFieldChainAuditStatus'
+      )
+    for name in (
+      'field_count',
+      'continued_field_count',
+      'step_count',
+    ):
+      value = getattr(self, name)
+      if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f'{name} must be a nonnegative integer')
+    statuses = tuple(str(value) for value in self.field_statuses)
+    if len(statuses) != self.field_count:
+      raise ValueError('field_statuses must match field_count')
+    object.__setattr__(self, 'field_statuses', statuses)
+    for name in (
+      'field_audits_verified',
+      'fresh_domains_verified',
+      'handoff_links_verified',
+      'termination_verified',
+      'fidelity_flags_verified',
+      'physical_closure_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+    operator_id = str(self.operator_id)
+    if not operator_id:
+      raise ValueError('operator_id must be a non-empty string')
+    object.__setattr__(self, 'operator_id', operator_id)
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocEulerCompanionFieldChainAuditStatus.CONVERGED_LOCAL_AUDIT
+  ####
+
+  @property
+  def local_sequence_verified(self) -> bool:
+    return bool(
+      self.converged
+      and self.field_audits_verified
+      and self.fresh_domains_verified
+      and self.handoff_links_verified
+      and self.termination_verified
+      and self.fidelity_flags_verified
+    )
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'operator_id': self.operator_id,
+      'status': self.status.value,
+      'converged': self.converged,
+      'field_count': self.field_count,
+      'continued_field_count': self.continued_field_count,
+      'step_count': self.step_count,
+      'field_statuses': list(self.field_statuses),
+      'checks': {
+        'field_audits_verified': self.field_audits_verified,
+        'fresh_domains_verified': self.fresh_domains_verified,
+        'handoff_links_verified': self.handoff_links_verified,
+        'termination_verified': self.termination_verified,
+        'fidelity_flags_verified': self.fidelity_flags_verified,
+        'local_sequence_verified': self.local_sequence_verified,
+        'physical_closure_verified': self.physical_closure_verified,
+        'chain_promotion_blocked': self.chain_promotion_blocked,
+        'production_claim_allowed': self.production_claim_allowed,
+      },
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'canonical_free_boundary_verified': False,
+      'canonical_euler_verified': False,
+      'external_validation_verified': False,
+      'claim_status': (
+        'independent-open-euler-companion-field-chain-audit; reflected-free-'
+        'boundary, entropy closure, and external validation remain pending'
+      ),
+      'message': self.message,
+    }
+  ####
+
+
+def _euler_chain_handoff_fingerprint(samples: Any) -> str | None:
+  try:
+    handoff = tuple(samples)
+  except TypeError:
+    return None
+  if not handoff:
+    return None
+  payload = '\n'.join(
+    '|'.join(
+      value.hex()
+      for value in (
+        sample.state.x_m,
+        sample.state.y_m,
+        sample.state.theta_rad,
+        sample.state.mach,
+        sample.state.gamma,
+        float(sample.total_pressure_Pa),
+      )
+    )
+    for sample in handoff
+  )
+  return sha256(payload.encode('ascii')).hexdigest()
+
+
+def _euler_chain_field_fingerprint(field: Any) -> str | None:
+  if field is None:
+    return None
+
+  def state_payload(state: Any) -> str:
+    return '|'.join(
+      float(value).hex()
+      for value in (
+        state.x_m,
+        state.y_m,
+        state.theta_rad,
+        state.mach,
+        state.gamma,
+      )
+    )
+
+  try:
+    payload = [f'status:{field.status.value}']
+    for label, states, pressures in (
+      (
+        'shock',
+        field.shock_boundary_states,
+        field.shock_boundary_total_pressure_Pa,
+      ),
+      (
+        'companion',
+        field.companion_boundary_states,
+        field.companion_boundary_total_pressure_Pa,
+      ),
+      ('interior', field.interior_states, field.interior_total_pressure_Pa),
+    ):
+      payload.append(label)
+      payload.extend(
+        f'{state_payload(state)}|{float(pressure).hex()}'
+        for state, pressure in zip(states, pressures, strict=True)
+      )
+  except (AttributeError, TypeError, ValueError):
+    return None
+  return sha256('\n'.join(payload).encode('ascii')).hexdigest()
+
+
+def _euler_chain_field_x_extent(field: Any) -> tuple[float, float] | None:
+  try:
+    points = (
+      *field.shock_boundary_points_m,
+      *field.companion_boundary_points_m,
+      *field.interior_points_m,
+    )
+    values = tuple(float(point[0]) for point in points)
+  except (AttributeError, TypeError, ValueError, IndexError):
+    return None
+  if not values or not all(isfinite(value) for value in values):
+    return None
+  return min(values), max(values)
+
+
+def _euler_companion_field_chain_audit_failure(
+  status: MocEulerCompanionFieldChainAuditStatus,
+  message: str,
+  *,
+  field_count: int = 0,
+  continued_field_count: int = 0,
+  step_count: int = 0,
+  field_statuses: tuple[str, ...] = (),
+  field_audits_verified: bool = False,
+  fresh_domains_verified: bool = False,
+  handoff_links_verified: bool = False,
+  termination_verified: bool = False,
+  fidelity_flags_verified: bool = False,
+) -> MocEulerCompanionFieldChainAudit:
+  return MocEulerCompanionFieldChainAudit(
+    status=status,
+    field_count=field_count,
+    continued_field_count=continued_field_count,
+    step_count=step_count,
+    field_statuses=field_statuses,
+    field_audits_verified=field_audits_verified,
+    fresh_domains_verified=fresh_domains_verified,
+    handoff_links_verified=handoff_links_verified,
+    termination_verified=termination_verified,
+    fidelity_flags_verified=fidelity_flags_verified,
+    message=message,
+  )
+
+
+def measure_moc_euler_companion_field_chain(
+  chain: Any,
+) -> MocEulerCompanionFieldChainAudit:
+  """Recompute the open-field sequence and exact frontier links.
+
+  The measurement uses only retained field samples and planner metadata.  It
+  never invokes the continuation callback or a solver, and a passing audit is
+  still explicitly below physical chain-cell promotion.
+  """
+
+  from exhaust_plume.models.moc.euler_characteristic_field import (
+    MocEulerCompanionFieldResult,
+  )
+  from exhaust_plume.models.moc.planner import (
+    MocEulerCompanionFieldChainPlannerResult,
+  )
+
+  if not isinstance(chain, MocEulerCompanionFieldChainPlannerResult):
+    return _euler_companion_field_chain_audit_failure(
+      MocEulerCompanionFieldChainAuditStatus.INVALID_INPUT,
+      'chain must be a MocEulerCompanionFieldChainPlannerResult',
+    )
+  fields = tuple(chain.fields)
+  steps = tuple(chain.steps)
+  if not fields or any(
+    not isinstance(field, MocEulerCompanionFieldResult)
+    for field in fields
+  ):
+    return _euler_companion_field_chain_audit_failure(
+      MocEulerCompanionFieldChainAuditStatus.INVALID_INPUT,
+      'chain must retain one or more Euler companion fields',
+      field_count=len(fields),
+      continued_field_count=max(0, len(fields) - 1),
+      step_count=len(steps),
+      field_statuses=tuple(field.status.value for field in fields),
+    )
+
+  field_audits = tuple(measure_moc_euler_companion_field(field) for field in fields)
+  field_audits_verified = all(
+    audit.converged and audit.local_euler_consistency_verified
+    for audit in field_audits
+  )
+  if not field_audits_verified:
+    return _euler_companion_field_chain_audit_failure(
+      MocEulerCompanionFieldChainAuditStatus.FIELD_FAILURE,
+      'one or more open Euler companion fields failed its local audit',
+      field_count=len(fields),
+      continued_field_count=max(0, len(fields) - 1),
+      step_count=len(steps),
+      field_statuses=tuple(field.status.value for field in fields),
+      field_audits_verified=False,
+    )
+
+  fresh_domains_verified = True
+  extents = tuple(_euler_chain_field_x_extent(field) for field in fields)
+  for previous, current in zip(extents, extents[1:]):
+    fresh_domains_verified = fresh_domains_verified and bool(
+      previous is not None
+      and current is not None
+      and current[0] > previous[1] + 1.0e-10
+    )
+  if not fresh_domains_verified:
+    return _euler_companion_field_chain_audit_failure(
+      MocEulerCompanionFieldChainAuditStatus.DOMAIN_FAILURE,
+      'open Euler companion fields do not occupy fresh downstream domains',
+      field_count=len(fields),
+      continued_field_count=max(0, len(fields) - 1),
+      step_count=len(steps),
+      field_statuses=tuple(field.status.value for field in fields),
+      field_audits_verified=True,
+      fresh_domains_verified=False,
+    )
+
+  handoff_links_verified = bool(steps)
+  for index, step in enumerate(steps):
+    expected_index = index + 2
+    handoff = fields[index].downstream_handoff if index < len(fields) else ()
+    expected_fingerprint = _euler_chain_handoff_fingerprint(handoff)
+    handoff_links_verified = handoff_links_verified and bool(
+      step.next_field_index == expected_index
+      and step.incoming_handoff_fingerprint == expected_fingerprint
+      and step.incoming_handoff_link_verified
+    )
+    if step.result_kind == 'field-solve-returned':
+      if index + 1 >= len(fields):
+        handoff_links_verified = False
+        continue
+      next_field = fields[index + 1]
+      handoff_links_verified = handoff_links_verified and bool(
+        step.result_field_status == next_field.status.value
+        and step.result_handoff_sample_count == len(next_field.downstream_handoff)
+        and step.result_handoff_fingerprint == _euler_chain_handoff_fingerprint(
+          next_field.downstream_handoff
+        )
+        and step.result_field_fingerprint == _euler_chain_field_fingerprint(
+          next_field
+        )
+      )
+  if not handoff_links_verified:
+    return _euler_companion_field_chain_audit_failure(
+      MocEulerCompanionFieldChainAuditStatus.HANDOFF_FAILURE,
+      'open Euler companion field frontier links failed independent remeasurement',
+      field_count=len(fields),
+      continued_field_count=max(0, len(fields) - 1),
+      step_count=len(steps),
+      field_statuses=tuple(field.status.value for field in fields),
+      field_audits_verified=True,
+      fresh_domains_verified=True,
+      handoff_links_verified=False,
+    )
+
+  termination_verified = bool(
+    steps
+    and steps[-1].result_termination_reason is chain.termination.reason
+    and steps[-1].result_physical_termination
+    is chain.termination.physical_termination
+  )
+  if not termination_verified:
+    return _euler_companion_field_chain_audit_failure(
+      MocEulerCompanionFieldChainAuditStatus.TERMINATION_FAILURE,
+      'chain termination metadata did not match its final planner step',
+      field_count=len(fields),
+      continued_field_count=max(0, len(fields) - 1),
+      step_count=len(steps),
+      field_statuses=tuple(field.status.value for field in fields),
+      field_audits_verified=True,
+      fresh_domains_verified=True,
+      handoff_links_verified=True,
+      termination_verified=False,
+    )
+
+  fidelity_flags_verified = bool(
+    not chain.physical_closure_verified
+    and chain.chain_promotion_blocked
+    and not chain.production_claim_allowed
+    and all(
+      not field.physical_closure_verified
+      and field.chain_promotion_blocked
+      and not field.production_claim_allowed
+      for field in fields
+    )
+  )
+  if not fidelity_flags_verified:
+    return _euler_companion_field_chain_audit_failure(
+      MocEulerCompanionFieldChainAuditStatus.FLAG_FAILURE,
+      'open Euler companion field sequence weakened its fidelity boundary',
+      field_count=len(fields),
+      continued_field_count=max(0, len(fields) - 1),
+      step_count=len(steps),
+      field_statuses=tuple(field.status.value for field in fields),
+      field_audits_verified=True,
+      fresh_domains_verified=True,
+      handoff_links_verified=True,
+      termination_verified=True,
+      fidelity_flags_verified=False,
+    )
+  return MocEulerCompanionFieldChainAudit(
+    status=MocEulerCompanionFieldChainAuditStatus.CONVERGED_LOCAL_AUDIT,
+    field_count=len(fields),
+    continued_field_count=max(0, len(fields) - 1),
+    step_count=len(steps),
+    field_statuses=tuple(field.status.value for field in fields),
+    field_audits_verified=True,
+    fresh_domains_verified=True,
+    handoff_links_verified=True,
+    termination_verified=True,
+    fidelity_flags_verified=True,
+    message=(
+      'independent open Euler companion-field sequence audit reproduced '
+      'local field evidence, fresh domains, exact frontier links, and the '
+      'typed non-physical stop; reflected/free-boundary and entropy closure '
+      'remain pending'
+    ),
   )

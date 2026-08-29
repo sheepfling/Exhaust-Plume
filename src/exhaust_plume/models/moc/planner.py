@@ -98,6 +98,7 @@ from exhaust_plume.models.moc.euler_shock_boundary import (
 )
 from exhaust_plume.models.moc.euler_characteristic_field import (
   MocEulerCompanionFieldResult,
+  assemble_euler_consistent_companion_characteristic_strip,
 )
 from exhaust_plume.models.moc.mixed_regime import (
   MocMixedRegimeClosureResult,
@@ -169,6 +170,9 @@ __all__ = (
   'MocAmbientClosedChainSourceMode',
   'MocChainPlannerStep',
   'MocChainPlannerResult',
+  'MocEulerCompanionFieldContinuationSolve',
+  'MocEulerCompanionFieldChainStep',
+  'MocEulerCompanionFieldChainPlannerResult',
   'MocFirstCellTerminalClosurePlannerResult',
   'MocFirstCellFreeBoundaryCorrectionPlannerResult',
   'MocFirstCellResearchChainPlannerResult',
@@ -187,6 +191,9 @@ __all__ = (
   'MocPhysicalPostShockTerminalPatchPlannerResult',
   'MocAmbientClosedPostShockChainTerminalPlannerResult',
   'plan_moc_chain',
+  'plan_euler_companion_field_chain',
+  'MocEulerCompanionFieldChainMock',
+  'plan_euler_companion_field_chain_mock',
   'plan_post_shock_characteristic_chain',
   'plan_post_shock_field_chain',
   'plan_source_strip_shock_chain',
@@ -650,6 +657,119 @@ def _handoff_fingerprint(
   return sha256(payload.encode('ascii')).hexdigest()
 
 
+def _euler_companion_field_fingerprint(
+  field: MocEulerCompanionFieldResult,
+) -> str:
+  """Return a deterministic identity for an open Euler field domain."""
+
+  def state_payload(state: CharacteristicState) -> str:
+    return '|'.join(
+      value.hex()
+      for value in (
+        state.x_m,
+        state.y_m,
+        state.theta_rad,
+        state.mach,
+        state.gamma,
+      )
+    )
+
+  payload = [f'status:{field.status.value}']
+  for label, states, pressures in (
+    (
+      'shock',
+      field.shock_boundary_states,
+      field.shock_boundary_total_pressure_Pa,
+    ),
+    (
+      'companion',
+      field.companion_boundary_states,
+      field.companion_boundary_total_pressure_Pa,
+    ),
+    ('interior', field.interior_states, field.interior_total_pressure_Pa),
+  ):
+    payload.append(label)
+    payload.extend(
+      f'{state_payload(state)}|{pressure.hex()}'
+      for state, pressure in zip(states, pressures, strict=True)
+    )
+  return sha256('\n'.join(payload).encode('ascii')).hexdigest()
+
+
+def _euler_companion_field_x_extent(
+  field: MocEulerCompanionFieldResult,
+) -> tuple[float, float] | None:
+  points = (
+    *field.shock_boundary_points_m,
+    *field.companion_boundary_points_m,
+    *field.interior_points_m,
+  )
+  if not points:
+    return None
+  values = tuple(float(point[0]) for point in points)
+  if not all(isfinite(value) for value in values):
+    return None
+  return min(values), max(values)
+
+
+def _translate_euler_companion_field(
+  field: MocEulerCompanionFieldResult,
+  offset_x_m: float,
+) -> MocEulerCompanionFieldResult:
+  """Translate one open field for the deterministic continuation mock.
+
+  The helper rebuilds the translated strip through the real Euler
+  characteristic assembler.  It is deliberately a planner fixture: the
+  translated field is not a physical solution of the missing downstream
+  boundary problem and its incoming frontier is recorded by the continuation
+  wrapper rather than inferred as a new shock solve.
+  """
+
+  if not isinstance(field, MocEulerCompanionFieldResult):
+    raise TypeError('field must be a MocEulerCompanionFieldResult')
+  if field.shock_boundary is None:
+    raise ValueError('field must retain its Euler shock boundary')
+  offset = float(offset_x_m)
+  if not isfinite(offset) or offset <= 0.0:
+    raise ValueError('offset_x_m must be finite and positive')
+
+  def translated_state(state: CharacteristicState) -> CharacteristicState:
+    return replace(state, x_m=state.x_m + offset)
+
+  shock_boundary = field.shock_boundary
+  translated_shock = replace(
+    shock_boundary,
+    upstream_states=tuple(
+      translated_state(state) for state in shock_boundary.upstream_states
+    ),
+    downstream_states=tuple(
+      translated_state(state) for state in shock_boundary.downstream_states
+    ),
+    shock_points_m=tuple(
+      (point[0] + offset, point[1])
+      for point in shock_boundary.shock_points_m
+    ),
+  )
+  companion = tuple(
+    MocChainBoundarySample(
+      state=translated_state(state),
+      total_pressure_Pa=pressure,
+    )
+    for state, pressure in zip(
+      field.companion_boundary_states,
+      field.companion_boundary_total_pressure_Pa,
+      strict=True,
+    )
+  )
+  return assemble_euler_consistent_companion_characteristic_strip(
+    translated_shock,
+    companion,
+    position_tolerance_m=field.position_tolerance_m,
+    invariant_tolerance=field.invariant_tolerance,
+    pressure_tolerance=field.pressure_tolerance,
+  )
+
+
 def _characteristic_strip_fingerprint(
   strip: MocSourceCharacteristicStripResult | None,
 ) -> str | None:
@@ -1087,6 +1207,367 @@ class MocEulerCompanionFieldPlannerResult:
       'field': self.field.as_report(),
       'diagnostics': dict(self.diagnostics),
     }
+  ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerCompanionFieldContinuationSolve:
+  """One open Euler-field continuation result and its consumed frontier.
+
+  The frontier is retained beside the new field because the Euler companion
+  strip does not yet have the physical perimeter required by
+  ``MocChainCell``.  A future reflected-field solver can replace this
+  research wrapper without changing the exact-handoff contract.
+  """
+
+  field: MocEulerCompanionFieldResult
+  incoming_handoff: tuple[MocChainBoundarySample, ...]
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.field, MocEulerCompanionFieldResult):
+      raise TypeError(
+        'field must be a MocEulerCompanionFieldResult'
+      )
+    handoff = tuple(self.incoming_handoff)
+    if not handoff:
+      raise ValueError('incoming_handoff must contain state-carrying samples')
+    if any(not isinstance(sample, MocChainBoundarySample) for sample in handoff):
+      raise TypeError(
+        'incoming_handoff must contain MocChainBoundarySample values'
+      )
+    object.__setattr__(self, 'incoming_handoff', handoff)
+  ####
+
+  @property
+  def outgoing_handoff(self) -> tuple[MocChainBoundarySample, ...]:
+    """Return the new open field's bounded downstream frontier."""
+
+    return self.field.downstream_handoff
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'field_status': self.field.status.value,
+      'field_converged': self.field.converged,
+      'incoming_handoff_sample_count': len(self.incoming_handoff),
+      'incoming_handoff_fingerprint': _handoff_fingerprint(
+        self.incoming_handoff
+      ),
+      'outgoing_handoff_sample_count': len(self.outgoing_handoff),
+      'outgoing_handoff_fingerprint': _handoff_fingerprint(
+        self.outgoing_handoff
+      ),
+      'field_fingerprint': _euler_companion_field_fingerprint(self.field),
+      'physical_closure_verified': False,
+      'chain_promotion_blocked': True,
+      'production_claim_allowed': False,
+    }
+  ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerCompanionFieldChainStep:
+  """One callback attempt in an open Euler-field continuation sequence."""
+
+  next_field_index: int
+  incoming_handoff_sample_count: int
+  incoming_handoff_fingerprint: str | None
+  incoming_handoff_link_verified: bool
+  result_kind: str = 'not-recorded'
+  result_status: str | None = None
+  result_field_status: str | None = None
+  result_field_fingerprint: str | None = None
+  result_handoff_sample_count: int | None = None
+  result_handoff_fingerprint: str | None = None
+  result_termination_reason: MocChainTerminationReason | None = None
+  result_physical_termination: bool | None = None
+
+  def __post_init__(self) -> None:
+    if (
+      isinstance(self.next_field_index, bool)
+      or not isinstance(self.next_field_index, int)
+      or self.next_field_index < 2
+    ):
+      raise ValueError('next_field_index must be an integer of at least two')
+    if (
+      isinstance(self.incoming_handoff_sample_count, bool)
+      or not isinstance(self.incoming_handoff_sample_count, int)
+      or self.incoming_handoff_sample_count < 0
+    ):
+      raise ValueError('incoming_handoff_sample_count must be nonnegative')
+    if not isinstance(self.incoming_handoff_link_verified, bool):
+      raise TypeError('incoming_handoff_link_verified must be a bool')
+    if not isinstance(self.result_kind, str) or not self.result_kind:
+      raise ValueError('result_kind must be a non-empty string')
+    for name in (
+      'incoming_handoff_fingerprint',
+      'result_status',
+      'result_field_status',
+      'result_field_fingerprint',
+      'result_handoff_fingerprint',
+    ):
+      value = getattr(self, name)
+      if value is not None and not isinstance(value, str):
+        raise TypeError(f'{name} must be a string or None')
+    if self.result_handoff_sample_count is not None:
+      if (
+        isinstance(self.result_handoff_sample_count, bool)
+        or not isinstance(self.result_handoff_sample_count, int)
+        or self.result_handoff_sample_count < 0
+      ):
+        raise ValueError('result_handoff_sample_count must be nonnegative')
+    if self.result_termination_reason is not None and not isinstance(
+      self.result_termination_reason,
+      MocChainTerminationReason,
+    ):
+      raise TypeError(
+        'result_termination_reason must be a MocChainTerminationReason or None'
+      )
+    if self.result_physical_termination is not None and not isinstance(
+      self.result_physical_termination,
+      bool,
+    ):
+      raise TypeError('result_physical_termination must be a bool or None')
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'next_field_index': self.next_field_index,
+      'incoming_handoff_sample_count': self.incoming_handoff_sample_count,
+      'incoming_handoff_fingerprint': self.incoming_handoff_fingerprint,
+      'incoming_handoff_link_verified': self.incoming_handoff_link_verified,
+      'result_kind': self.result_kind,
+      'result_status': self.result_status,
+      'result_field_status': self.result_field_status,
+      'result_field_fingerprint': self.result_field_fingerprint,
+      'result_handoff_sample_count': self.result_handoff_sample_count,
+      'result_handoff_fingerprint': self.result_handoff_fingerprint,
+      'result_termination_reason': (
+        None
+        if self.result_termination_reason is None
+        else self.result_termination_reason.value
+      ),
+      'result_physical_termination': self.result_physical_termination,
+    }
+  ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerCompanionFieldChainPlannerResult:
+  """A research-only sequence of open Euler companion fields.
+
+  This is intentionally not a ``MocChainResult``.  Each field has a bounded
+  characteristic frontier, but the reflected/free-boundary and entropy
+  closure needed to make a physical shock cell remains unsolved.  The result
+  exists to exercise repeated exact state/pressure handoffs without allowing
+  an open field to become a chain cell.
+  """
+
+  seed: MocEulerCompanionFieldResult
+  fields: tuple[MocEulerCompanionFieldResult, ...]
+  steps: tuple[MocEulerCompanionFieldChainStep, ...]
+  termination: MocChainTerminationDecision
+  planner_kind: MocChainPlannerKind
+  claim_status: str
+  diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.seed, MocEulerCompanionFieldResult):
+      raise TypeError('seed must be a MocEulerCompanionFieldResult')
+    fields = tuple(self.fields)
+    if not fields:
+      raise ValueError('fields must retain the seed field')
+    if fields[0] is not self.seed:
+      raise ValueError('fields must retain seed as their first entry')
+    if any(
+      not isinstance(field, MocEulerCompanionFieldResult)
+      for field in fields
+    ):
+      raise TypeError(
+        'fields must contain MocEulerCompanionFieldResult values'
+      )
+    steps = tuple(self.steps)
+    if any(
+      not isinstance(step, MocEulerCompanionFieldChainStep)
+      for step in steps
+    ):
+      raise TypeError(
+        'steps must contain MocEulerCompanionFieldChainStep values'
+      )
+    if not isinstance(self.termination, MocChainTerminationDecision):
+      raise TypeError(
+        'termination must be a MocChainTerminationDecision'
+      )
+    if self.planner_kind is not MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH:
+      raise ValueError(
+        'Euler companion field chains must use the upstream-coupled research '
+        'planner kind'
+      )
+    object.__setattr__(self, 'fields', fields)
+    object.__setattr__(self, 'steps', steps)
+    object.__setattr__(self, 'claim_status', str(self.claim_status))
+    object.__setattr__(self, 'diagnostics', MappingProxyType(dict(self.diagnostics)))
+  ####
+
+  @property
+  def field_count(self) -> int:
+    return len(self.fields)
+  ####
+
+  @property
+  def continued_field_count(self) -> int:
+    return max(0, len(self.fields) - 1)
+  ####
+
+  @property
+  def resolved(self) -> bool:
+    """Whether the configured local field sequence reached its mock stop."""
+
+    return bool(
+      self.fields
+      and all(field.converged for field in self.fields)
+      and self.termination.reason is MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL
+    )
+  ####
+
+  @property
+  def handoff_links_verified(self) -> bool | None:
+    if not self.steps:
+      return None
+    return all(step.incoming_handoff_link_verified for step in self.steps)
+  ####
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    return False
+  ####
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    return True
+  ####
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    return False
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'planner_kind': self.planner_kind.value,
+      'planning_only': True,
+      'claim_status': self.claim_status,
+      'resolved': self.resolved,
+      'field_count': self.field_count,
+      'continued_field_count': self.continued_field_count,
+      'handoff_links_verified': self.handoff_links_verified,
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'fields': [field.as_report() for field in self.fields],
+      'steps': [step.as_report() for step in self.steps],
+      'termination': self.termination.as_report(),
+      'diagnostics': dict(self.diagnostics),
+    }
+  ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerCompanionFieldChainMock:
+  """Deterministic multi-strip fixture for the open Euler planner seam.
+
+  Each accepted strip is rebuilt by translating the previous strip in ``x``
+  and re-running the Euler companion-field assembler.  This exercises fresh
+  domains and repeated frontier bookkeeping, but it does not claim that the
+  translated strip consumed a solved reflected shock or entropy field.  The
+  fixture therefore remains below ``MocChainCell`` promotion.
+  """
+
+  total_field_count: int = 3
+  axial_translation_m: float = 2.0
+  model: str = 'translated-euler-companion-field-chain-mock'
+
+  def __post_init__(self) -> None:
+    if (
+      isinstance(self.total_field_count, bool)
+      or not isinstance(self.total_field_count, int)
+      or self.total_field_count < 1
+    ):
+      raise ValueError('total_field_count must be a positive integer')
+    if not isfinite(float(self.axial_translation_m)) or self.axial_translation_m <= 0.0:
+      raise ValueError('axial_translation_m must be finite and positive')
+    model = str(self.model)
+    if not model:
+      raise ValueError('model must be a non-empty string')
+    object.__setattr__(self, 'axial_translation_m', float(self.axial_translation_m))
+    object.__setattr__(self, 'model', model)
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'model': self.model,
+      'planning_only': True,
+      'total_field_count_including_seed': self.total_field_count,
+      'axial_translation_m': self.axial_translation_m,
+      'fresh_domain_policy': 'translated-x-domain-reassembled-by-euler-strip-solver',
+      'incoming_handoff_policy': (
+        'exact-open-downstream-frontier-recorded-but-not-reinterpreted-as-a-'
+        'physical-shock-upstream-state'
+      ),
+      'physical_closure_verified': False,
+      'chain_promotion_blocked': True,
+      'production_claim_allowed': False,
+      'claim_status': (
+        'deterministic-open-euler-field-sequence-mock; '
+        'reflected-free-boundary-and-entropy-closure-pending'
+      ),
+    }
+  ####
+
+  def solve_next(
+    self,
+    current: MocEulerCompanionFieldResult,
+    next_field_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+  ) -> MocEulerCompanionFieldContinuationSolve | MocChainTerminationDecision:
+    """Return one fresh translated strip or the configured mock stop."""
+
+    if not isinstance(current, MocEulerCompanionFieldResult):
+      raise TypeError('current must be a MocEulerCompanionFieldResult')
+    if (
+      isinstance(next_field_index, bool)
+      or not isinstance(next_field_index, int)
+      or next_field_index < 2
+    ):
+      raise ValueError('next_field_index must be an integer of at least two')
+    handoff = tuple(incoming_handoff)
+    if handoff != current.downstream_handoff:
+      raise ValueError(
+        'incoming_handoff must exactly match current.downstream_handoff'
+      )
+    if next_field_index > self.total_field_count:
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
+        message=(
+          'Euler companion field chain mock exhausted its configured '
+          f'{self.total_field_count}-field sequence'
+        ),
+        diagnostics={
+          'continuation_model': self.model,
+          'next_field_index': next_field_index,
+          'incoming_handoff_sample_count': len(handoff),
+          'incoming_handoff_fingerprint': _handoff_fingerprint(handoff),
+        },
+      )
+    translated = _translate_euler_companion_field(
+      current,
+      self.axial_translation_m,
+    )
+    return MocEulerCompanionFieldContinuationSolve(
+      field=translated,
+      incoming_handoff=handoff,
+    )
   ####
 
 
@@ -7686,6 +8167,438 @@ def plan_euler_companion_field_chain_probe(
       ),
       'upstream_field_replacement_policy': 'never-replace-on-boundary-probe',
     },
+  )
+  ####
+
+
+def plan_euler_companion_field_chain(
+  seed: MocEulerCompanionFieldResult,
+  solve_next: Callable[
+    [
+      MocEulerCompanionFieldResult,
+      int,
+      tuple[MocChainBoundarySample, ...],
+    ],
+    MocEulerCompanionFieldContinuationSolve
+    | MocChainTerminationDecision
+    | None,
+  ],
+  *,
+  total_field_count: int,
+  position_tolerance_m: float = 1.0e-10,
+  claim_status: str | None = None,
+) -> MocEulerCompanionFieldChainPlannerResult:
+  """Continue open Euler fields through an exact-frontier planner seam.
+
+  This planner is deliberately separate from ``plan_ambient_closed_post_shock_chain``:
+  an Euler companion strip has a bounded numerical frontier, but it does not
+  have the physical reflected/free-boundary perimeter required for a
+  ``MocChainCell``.  A callback may therefore append only another validated
+  open field or return a typed non-physical stop.
+  """
+
+  if not isinstance(seed, MocEulerCompanionFieldResult):
+    raise TypeError('seed must be a MocEulerCompanionFieldResult')
+  if not callable(solve_next):
+    raise TypeError('solve_next must be callable')
+  if (
+    isinstance(total_field_count, bool)
+    or not isinstance(total_field_count, int)
+    or total_field_count < 1
+  ):
+    raise ValueError('total_field_count must be a positive integer')
+  tolerance = float(position_tolerance_m)
+  if not isfinite(tolerance) or tolerance <= 0.0:
+    raise ValueError('position_tolerance_m must be finite and positive')
+
+  fields: list[MocEulerCompanionFieldResult] = [seed]
+  steps: list[MocEulerCompanionFieldChainStep] = []
+
+  def result(
+    termination: MocChainTerminationDecision,
+  ) -> MocEulerCompanionFieldChainPlannerResult:
+    return MocEulerCompanionFieldChainPlannerResult(
+      seed=seed,
+      fields=tuple(fields),
+      steps=tuple(steps),
+      termination=termination,
+      planner_kind=MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH,
+      claim_status=(
+        'euler-companion-field-chain-sequence; reflected-free-boundary-and-'
+        'entropy-closure-pending'
+        if claim_status is None
+        else claim_status
+      ),
+      diagnostics={
+        'planner_model': 'euler-companion-field-chain',
+        'total_field_count_requested': total_field_count,
+        'accepted_field_count': len(fields),
+        'open_field_promotion_policy': 'never-create-moc-chain-cell',
+        'fresh_domain_tolerance_m': tolerance,
+        'physical_closure_verified': False,
+        'chain_promotion_blocked': True,
+        'production_claim_allowed': False,
+      },
+    )
+
+  if not seed.converged:
+    return result(seed.as_chain_termination_decision())
+  if not seed.state_sampling_available:
+    return result(
+      MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.STATE_NOT_CARRIED,
+        message=(
+          'Euler companion field chain requires a state-carrying downstream '
+          'frontier on its seed field'
+        ),
+        diagnostics={
+          'seed_field_status': seed.status.value,
+          'seed_field_fingerprint': _euler_companion_field_fingerprint(seed),
+        },
+      )
+    )
+
+  def append_step(
+    next_field_index: int,
+    incoming: tuple[MocChainBoundarySample, ...],
+    **values: Any,
+  ) -> None:
+    steps.append(
+      MocEulerCompanionFieldChainStep(
+        next_field_index=next_field_index,
+        incoming_handoff_sample_count=len(incoming),
+        incoming_handoff_fingerprint=_handoff_fingerprint(incoming),
+        incoming_handoff_link_verified=values.pop(
+          'incoming_handoff_link_verified',
+          False,
+        ),
+        **values,
+      )
+    )
+
+  for next_field_index in range(2, total_field_count + 2):
+    current = fields[-1]
+    incoming = current.downstream_handoff
+    if not incoming:
+      termination = MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.STATE_NOT_CARRIED,
+        message=(
+          'Euler companion field did not retain a state-carrying frontier '
+          'for continued planning'
+        ),
+        diagnostics={
+          'current_field_index': len(fields),
+          'current_field_status': current.status.value,
+        },
+      )
+      append_step(
+        next_field_index,
+        incoming,
+        result_kind='termination-returned',
+        result_status='state-boundary',
+        result_termination_reason=termination.reason,
+        result_physical_termination=False,
+      )
+      return result(termination)
+    try:
+      solved = solve_next(current, next_field_index, incoming)
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      termination = MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_ERROR,
+        message=f'Euler companion field continuation raised: {error}',
+        diagnostics={
+          'current_field_index': len(fields),
+          'current_field_status': current.status.value,
+          'solver_error': type(error).__name__,
+        },
+      )
+      append_step(
+        next_field_index,
+        incoming,
+        incoming_handoff_link_verified=True,
+        result_kind='solver-error',
+        result_status=type(error).__name__,
+        result_termination_reason=termination.reason,
+        result_physical_termination=False,
+      )
+      return result(termination)
+
+    if solved is None:
+      termination = MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
+        message='Euler companion field continuation returned no next field',
+        diagnostics={
+          'current_field_index': len(fields),
+          'current_field_status': current.status.value,
+        },
+      )
+      append_step(
+        next_field_index,
+        incoming,
+        incoming_handoff_link_verified=True,
+        result_kind='termination-returned',
+        result_status='none',
+        result_termination_reason=termination.reason,
+        result_physical_termination=False,
+      )
+      return result(termination)
+
+    if isinstance(solved, MocChainTerminationDecision):
+      if solved.physical_termination:
+        termination = MocChainTerminationDecision(
+          physical_termination=False,
+          reason=MocChainTerminationReason.FIDELITY_NOT_ALLOWED,
+          message=(
+            'an open Euler companion field cannot declare physical '
+            'termination before reflected/free-boundary closure'
+          ),
+          diagnostics={
+            **dict(solved.diagnostics),
+            'returned_physical_termination': True,
+          },
+        )
+      else:
+        termination = solved
+      append_step(
+        next_field_index,
+        incoming,
+        incoming_handoff_link_verified=True,
+        result_kind='termination-returned',
+        result_status='decision',
+        result_termination_reason=termination.reason,
+        result_physical_termination=termination.physical_termination,
+      )
+      return result(termination)
+
+    if not isinstance(solved, MocEulerCompanionFieldContinuationSolve):
+      termination = MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.INVALID_INPUT,
+        message=(
+          'Euler companion field continuation must return a continuation '
+          'solve, typed termination, or None'
+        ),
+        diagnostics={'returned_type': type(solved).__name__},
+      )
+      append_step(
+        next_field_index,
+        incoming,
+        incoming_handoff_link_verified=True,
+        result_kind='invalid-result-returned',
+        result_status=type(solved).__name__,
+        result_termination_reason=termination.reason,
+        result_physical_termination=False,
+      )
+      return result(termination)
+
+    next_field = solved.field
+    field_fingerprint = _euler_companion_field_fingerprint(next_field)
+    if solved.incoming_handoff != incoming:
+      termination = MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.STATE_NOT_CARRIED,
+        message=(
+          'Euler companion field continuation did not retain the exact '
+          'incoming frontier'
+        ),
+        diagnostics={
+          'expected_incoming_handoff_fingerprint': _handoff_fingerprint(incoming),
+          'returned_incoming_handoff_fingerprint': _handoff_fingerprint(
+            solved.incoming_handoff
+          ),
+        },
+      )
+      append_step(
+        next_field_index,
+        incoming,
+        incoming_handoff_link_verified=False,
+        result_kind='handoff-rejected',
+        result_status=next_field.status.value,
+        result_field_status=next_field.status.value,
+        result_field_fingerprint=field_fingerprint,
+        result_termination_reason=termination.reason,
+        result_physical_termination=False,
+      )
+      return result(termination)
+    if next_field is current:
+      termination = MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.STATE_NOT_CARRIED,
+        message='Euler companion field continuation reused the current field object',
+        diagnostics={'field_fingerprint': field_fingerprint},
+      )
+      append_step(
+        next_field_index,
+        incoming,
+        incoming_handoff_link_verified=True,
+        result_kind='field-reuse-rejected',
+        result_status=next_field.status.value,
+        result_field_status=next_field.status.value,
+        result_field_fingerprint=field_fingerprint,
+        result_termination_reason=termination.reason,
+        result_physical_termination=False,
+      )
+      return result(termination)
+    if not next_field.converged:
+      termination = next_field.as_chain_termination_decision()
+      append_step(
+        next_field_index,
+        incoming,
+        incoming_handoff_link_verified=True,
+        result_kind='field-rejected',
+        result_status=next_field.status.value,
+        result_field_status=next_field.status.value,
+        result_field_fingerprint=field_fingerprint,
+        result_termination_reason=termination.reason,
+        result_physical_termination=termination.physical_termination,
+      )
+      return result(termination)
+    if not next_field.state_sampling_available:
+      termination = MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.STATE_NOT_CARRIED,
+        message='next Euler companion field has no bounded downstream frontier',
+        diagnostics={'field_fingerprint': field_fingerprint},
+      )
+      append_step(
+        next_field_index,
+        incoming,
+        incoming_handoff_link_verified=True,
+        result_kind='field-rejected',
+        result_status=next_field.status.value,
+        result_field_status=next_field.status.value,
+        result_field_fingerprint=field_fingerprint,
+        result_termination_reason=termination.reason,
+        result_physical_termination=False,
+      )
+      return result(termination)
+    if not (
+      next_field.shock_boundary_local_euler_verified
+      and next_field.companion_boundary_contract_verified
+      and next_field.pressure_lineage_verified
+    ):
+      termination = MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.FIDELITY_NOT_ALLOWED,
+        message=(
+          'next Euler companion field lacks its local shock/companion '
+          'contract evidence'
+        ),
+        diagnostics={'field_fingerprint': field_fingerprint},
+      )
+      append_step(
+        next_field_index,
+        incoming,
+        incoming_handoff_link_verified=True,
+        result_kind='field-rejected',
+        result_status=next_field.status.value,
+        result_field_status=next_field.status.value,
+        result_field_fingerprint=field_fingerprint,
+        result_termination_reason=termination.reason,
+        result_physical_termination=False,
+      )
+      return result(termination)
+    current_extent = _euler_companion_field_x_extent(current)
+    next_extent = _euler_companion_field_x_extent(next_field)
+    if (
+      current_extent is None
+      or next_extent is None
+      or next_extent[0] <= current_extent[1] + tolerance
+    ):
+      termination = MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
+        message=(
+          'next Euler companion field does not occupy a fresh downstream '
+          'domain; no overlap or backtracking was accepted'
+        ),
+        diagnostics={
+          'current_field_x_extent_m': current_extent,
+          'next_field_x_extent_m': next_extent,
+          'position_tolerance_m': tolerance,
+        },
+      )
+      append_step(
+        next_field_index,
+        incoming,
+        incoming_handoff_link_verified=True,
+        result_kind='fresh-domain-rejected',
+        result_status=next_field.status.value,
+        result_field_status=next_field.status.value,
+        result_field_fingerprint=field_fingerprint,
+        result_termination_reason=termination.reason,
+        result_physical_termination=False,
+      )
+      return result(termination)
+
+    outgoing = next_field.downstream_handoff
+    if not outgoing:
+      termination = MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.STATE_NOT_CARRIED,
+        message='accepted Euler companion field has no outgoing frontier',
+        diagnostics={'field_fingerprint': field_fingerprint},
+      )
+      append_step(
+        next_field_index,
+        incoming,
+        incoming_handoff_link_verified=True,
+        result_kind='field-rejected',
+        result_status=next_field.status.value,
+        result_field_status=next_field.status.value,
+        result_field_fingerprint=field_fingerprint,
+        result_termination_reason=termination.reason,
+        result_physical_termination=False,
+      )
+      return result(termination)
+
+    fields.append(next_field)
+    append_step(
+      next_field_index,
+      incoming,
+      incoming_handoff_link_verified=True,
+      result_kind='field-solve-returned',
+      result_status=next_field.status.value,
+      result_field_status=next_field.status.value,
+      result_field_fingerprint=field_fingerprint,
+      result_handoff_sample_count=len(outgoing),
+      result_handoff_fingerprint=_handoff_fingerprint(outgoing),
+    )
+
+  termination = MocChainTerminationDecision(
+    physical_termination=False,
+    reason=MocChainTerminationReason.MAX_CELL_LIMIT,
+    message='Euler companion field chain reached its configured field limit',
+    diagnostics={'total_field_count': total_field_count},
+  )
+  return result(termination)
+  ####
+
+
+def plan_euler_companion_field_chain_mock(
+  seed: MocEulerCompanionFieldResult,
+  *,
+  mock: MocEulerCompanionFieldChainMock | None = None,
+  position_tolerance_m: float = 1.0e-10,
+) -> MocEulerCompanionFieldChainPlannerResult:
+  """Run the translated open-field sequence fixture."""
+
+  fixture = MocEulerCompanionFieldChainMock() if mock is None else mock
+  if not isinstance(fixture, MocEulerCompanionFieldChainMock):
+    raise TypeError('mock must be a MocEulerCompanionFieldChainMock')
+  return plan_euler_companion_field_chain(
+    seed,
+    fixture.solve_next,
+    total_field_count=fixture.total_field_count,
+    position_tolerance_m=position_tolerance_m,
+    claim_status=(
+      'deterministic-euler-companion-field-chain-mock; '
+      'reflected-free-boundary-and-entropy-closure-pending'
+    ),
   )
   ####
 

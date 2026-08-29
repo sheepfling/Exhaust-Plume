@@ -2474,6 +2474,35 @@ from the reflected field. Once that exists, the same chain handoff and
 external review contracts can audit a multi-cell sequence without changing
 the fast visualization or reduced-order providers.
 
+## Open Euler field-chain planner mock checkpoint
+
+The Euler companion-field lane now exposes a typed downstream handoff made
+from its solver-carried interior state and pressure samples. That handoff is
+an open frontier, not a physical cell perimeter. A separate
+`plan_euler_companion_field_chain` consumes only a converged, state-carrying
+open field, requires an exact handoff fingerprint at every continuation, and
+retains each fresh field in a typed step trace. It never constructs a
+`MocChainCell` and rejects a callback that claims physical termination for
+this open lane.
+
+`MocEulerCompanionFieldChainMock` provides a deterministic three-field
+translated-strip sequence for planner, visualization, and topology tests.
+The mock exercises repeated downstream frontiers and a typed
+`solver-returned-no-next-cell` stop, but it is not a physical continuation
+law and does not imply solved reflected/free-boundary or entropy closure.
+`op.moc.euler-companion-field-chain-audit` independently remeasures every
+field, fresh axial domain, exact frontier link, result fingerprint, and
+termination. Its passing status means the local sequence contract is stable;
+`physical_closure_verified`, `chain_promotion_blocked`, and
+`production_claim_allowed` remain false, and the fast/basic visualization,
+signature, ray-transfer, and focal-plane-array providers remain untouched.
+
+The next gate is a solver-owned continuation that replaces the translated
+fixture with a globally remeshed reflected field, transports entropy, and
+supplies a physically closed downstream/free-boundary perimeter. Only after
+that gate, refinement, and indexed external observations pass may the same
+handoff machinery be considered for a physical continued shock-cell chain.
+
 ## Ambient companion-boundary audit checkpoint
 
 The solver-owned ambient companion reference now has an independent

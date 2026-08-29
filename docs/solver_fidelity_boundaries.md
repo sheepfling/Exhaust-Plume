@@ -1207,3 +1207,18 @@ retain `canonical_free_boundary_verified=false`,
 `production_claim_allowed=false`. No product/provider lane is allowed to
 consume the result until the globally coupled reflected free-boundary solve,
 refinement, and indexed external observations are closed.
+
+The Euler companion-field continuation seam is similarly explicit. A
+converged open Euler strip may expose a downstream state/pressure frontier to
+`plan_euler_companion_field_chain`, which requires exact handoff identity and
+fresh downstream domains for each step. The deterministic
+`MocEulerCompanionFieldChainMock` is limited to planner/visualization and
+topology testing: it repeats translated open strips and ends with a typed
+`solver-returned-no-next-cell` result, but it never creates a physical
+`MocChainCell`. The independent
+`op.moc.euler-companion-field-chain-audit` must agree on local fields, domain
+freshness, frontier links, and termination while preserving
+`physical_closure_verified=false`, `chain_promotion_blocked=true`, and
+`production_claim_allowed=false`. Replacing this fixture with a production
+continuation still requires global reflected/free-boundary closure, entropy
+transport, refinement, and indexed external validation.

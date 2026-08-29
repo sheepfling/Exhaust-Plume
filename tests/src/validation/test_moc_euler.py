@@ -3,12 +3,15 @@ from __future__ import annotations
 from dataclasses import replace
 from math import tan
 
+import pytest
+
 from exhaust_plume.models.moc import (
   CharacteristicState,
   MocChainBoundarySample,
   MocChainPlannerKind,
   MocChainStatus,
   MocChainTerminationReason,
+  MocEulerCompanionFieldChainMock,
   MocEulerAmbientCompanionBoundaryStatus,
   MocEulerCompanionFieldStatus,
   MocEulerShockBoundaryOrientation,
@@ -16,6 +19,7 @@ from exhaust_plume.models.moc import (
   assemble_euler_consistent_companion_characteristic_strip,
   fit_euler_consistent_shock_boundary,
   plan_euler_companion_field_chain_probe,
+  plan_euler_companion_field_chain_mock,
   plan_euler_companion_field_reference,
   solve_euler_ambient_companion_boundary_reference,
   solve_attached_compression_to_turn,
@@ -27,10 +31,12 @@ from exhaust_plume.models.moc import (
 from exhaust_plume.validation import (
   MocEulerAmbientCompanionBoundaryAuditStatus,
   MocEulerCompanionFieldAuditStatus,
+  MocEulerCompanionFieldChainAuditStatus,
   MocPhysicalFieldEulerAuditStatus,
   measure_moc_ambient_companion_boundary,
   measure_moc_chain_planner,
   measure_moc_euler_companion_field,
+  measure_moc_euler_companion_field_chain,
   measure_moc_physical_field_euler_audit,
 )
 
@@ -513,3 +519,79 @@ def test_euler_companion_field_has_a_typed_planner_boundary_without_chain_promot
   assert planner_audit.fidelity_isolation_verified
   assert planner_audit.physical_termination is False
   assert planner_audit.production_claim_allowed is False
+
+
+def test_euler_companion_field_chain_mock_repeats_open_frontiers_without_promotion() -> None:
+  compression = solve_attached_compression_to_turn(
+    upstream_mach=2.0,
+    gamma=1.4,
+    upstream_pressure_Pa=100000.0,
+    target_turn_rad=0.2,
+  )
+  assert compression.beta_rad is not None
+  shock_angle = 0.2 - compression.beta_rad
+  points = tuple(
+    (0.5 + index * (-0.1 / tan(shock_angle)), 0.5 - index * 0.1)
+    for index in range(6)
+  )
+  shock_boundary = fit_euler_consistent_shock_boundary(
+    tuple(
+      CharacteristicState(
+        x_m=point[0],
+        y_m=point[1],
+        theta_rad=0.2,
+        mach=2.0,
+        gamma=1.4,
+      )
+      for point in points
+    ),
+    (100000.0,) * len(points),
+    points,
+    (0.0,) * len(points),
+  )
+  ambient_pressure = shock_boundary.downstream_total_pressure_Pa[0] / (
+    1.0 + 0.5 * (1.4 - 1.0) * 2.0**2
+  ) ** (1.4 / (1.4 - 1.0))
+  companion = solve_euler_ambient_companion_boundary_reference(
+    shock_boundary,
+    ambient_pressure,
+    separation_m=0.8,
+  )
+  field = assemble_euler_consistent_companion_characteristic_strip(
+    shock_boundary,
+    companion.samples,
+  )
+
+  planner = plan_euler_companion_field_chain_mock(
+    field,
+    mock=MocEulerCompanionFieldChainMock(
+      total_field_count=3,
+      axial_translation_m=2.0,
+    ),
+  )
+  audit = measure_moc_euler_companion_field_chain(planner)
+
+  assert planner.resolved
+  assert planner.field_count == 3
+  assert planner.continued_field_count == 2
+  assert planner.handoff_links_verified is True
+  assert planner.termination.reason is MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL
+  assert [step.result_kind for step in planner.steps] == [
+    'field-solve-returned',
+    'field-solve-returned',
+    'termination-returned',
+  ]
+  assert [field.shock_boundary_points_m[0][0] for field in planner.fields] == pytest.approx(
+    (0.5, 2.5, 4.5)
+  )
+  assert planner.physical_closure_verified is False
+  assert planner.chain_promotion_blocked
+  assert planner.production_claim_allowed is False
+  assert audit.status is MocEulerCompanionFieldChainAuditStatus.CONVERGED_LOCAL_AUDIT
+  assert audit.local_sequence_verified
+  assert audit.as_report()['operator_id'] == (
+    'op.moc.euler-companion-field-chain-audit'
+  )
+  assert audit.physical_closure_verified is False
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False

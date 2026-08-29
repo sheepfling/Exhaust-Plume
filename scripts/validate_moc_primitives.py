@@ -68,6 +68,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocChainTerminationReason,
   MocChainStatus,
   MocEulerAmbientCompanionBoundaryStatus,
+  MocEulerCompanionFieldChainMock,
   MocEulerCompanionFieldStatus,
   solve_euler_ambient_companion_boundary_reference,
   MocEulerShockBoundaryOrientation,
@@ -132,6 +133,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   assemble_euler_consistent_companion_characteristic_strip,
   plan_euler_companion_field_reference,
   plan_euler_companion_field_chain_probe,
+  plan_euler_companion_field_chain_mock,
   solve_euler_consistent_attached_shock_segment,
   solve_attached_shock_to_centerline,
   solve_terminal_compression_candidate,
@@ -281,8 +283,10 @@ from exhaust_plume.validation.moc_external_comparisons import (  # noqa: E402
 from exhaust_plume.validation.moc_euler import (  # noqa: E402
   MocEulerAmbientCompanionBoundaryAuditStatus,
   MocEulerCompanionFieldAuditStatus,
+  MocEulerCompanionFieldChainAuditStatus,
   measure_moc_ambient_companion_boundary,
   measure_moc_euler_companion_field,
+  measure_moc_euler_companion_field_chain,
 )
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput  # noqa: E402
 from exhaust_plume.models.nozzle.exit_state import derive_ambient_state, derive_uniform_nozzle_exit  # noqa: E402
@@ -9786,6 +9790,18 @@ def build_moc_primitive_report() -> dict[str, Any]:
   euler_companion_field_planner = plan_euler_companion_field_reference(
     euler_companion_field,
   )
+  euler_companion_field_chain_mock = plan_euler_companion_field_chain_mock(
+    euler_companion_field,
+    mock=MocEulerCompanionFieldChainMock(
+      total_field_count=3,
+      axial_translation_m=2.0,
+    ),
+  )
+  euler_companion_field_chain_mock_measurement = (
+    measure_moc_euler_companion_field_chain(
+      euler_companion_field_chain_mock,
+    )
+  )
   euler_companion_chain_planner = None
   euler_companion_chain_planner_measurement = None
   if solver_generated_shock.field is not None and solver_generated_shock.field.converged:
@@ -9987,6 +10003,12 @@ def build_moc_primitive_report() -> dict[str, Any]:
       ),
       'independent_audit': euler_companion_field_audit.as_report(),
       'planner': euler_companion_field_planner.as_report(),
+      'open_field_chain_mock': {
+        **euler_companion_field_chain_mock.as_report(),
+        'independent_audit': (
+          euler_companion_field_chain_mock_measurement.as_report()
+        ),
+      },
       'chain_boundary_probe': (
         None
         if euler_companion_chain_planner is None
@@ -10813,6 +10835,25 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or euler_companion_chain_planner_measurement.physical_termination
     or euler_companion_chain_planner_measurement.production_claim_allowed
   )
+  euler_companion_field_chain_mock_failure = (
+    euler_companion_field_chain_mock.planner_kind
+    is not MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
+    or not euler_companion_field_chain_mock.resolved
+    or euler_companion_field_chain_mock.field_count != 3
+    or euler_companion_field_chain_mock.continued_field_count != 2
+    or euler_companion_field_chain_mock.handoff_links_verified is not True
+    or euler_companion_field_chain_mock.termination.reason
+    is not MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL
+    or euler_companion_field_chain_mock.physical_closure_verified
+    or not euler_companion_field_chain_mock.chain_promotion_blocked
+    or euler_companion_field_chain_mock.production_claim_allowed
+    or euler_companion_field_chain_mock_measurement.status
+    is not MocEulerCompanionFieldChainAuditStatus.CONVERGED_LOCAL_AUDIT
+    or not euler_companion_field_chain_mock_measurement.local_sequence_verified
+    or euler_companion_field_chain_mock_measurement.physical_closure_verified
+    or not euler_companion_field_chain_mock_measurement.chain_promotion_blocked
+    or euler_companion_field_chain_mock_measurement.production_claim_allowed
+  )
   failures = [
     *round_trip_failures,
     *resolution_failures,
@@ -10963,6 +11004,16 @@ def build_moc_primitive_report() -> dict[str, Any]:
         ),
       }
     ] if euler_companion_chain_planner_failure else []),
+    *([
+      {
+        'case': 'euler_companion_field_chain_mock',
+        'status': euler_companion_field_chain_mock.termination.reason.value,
+        'message': (
+          'Euler companion-field chain mock did not preserve fresh open '
+          'fields, exact frontier links, and its non-physical stop'
+        ),
+      }
+    ] if euler_companion_field_chain_mock_failure else []),
     *([
       {
         'case': 'compression_normal_shock_limit_failure',
