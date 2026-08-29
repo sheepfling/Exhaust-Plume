@@ -77,6 +77,9 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   generated_chain_refinement = report['geometry_cases'][
     'solver_generated_chain_refinement'
   ]
+  generated_chain_external_validation = report['geometry_cases'][
+    'solver_generated_chain_external_validation'
+  ]
   generated_chain_planner = report['geometry_cases']['solver_generated_chain_planner']
   generated_chain_terminal = report['geometry_cases']['solver_generated_chain_terminal_probe']
   field_coupled_chain_planner = report['geometry_cases'][
@@ -188,6 +191,31 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
     'area_tolerance_m2': 1.5e-3,
     'maximum_radius_tolerance_m': 5.0e-4,
   }
+  assert generated_chain_external_validation['status'] == (
+    'blocked-missing-external-observations'
+  )
+  assert generated_chain_external_validation['comparison_operator_id'] == (
+    'op.moc.shock-cell-external-comparison'
+  )
+  assert generated_chain_external_validation['dataset_status'] == (
+    'no-indexed-moc-dataset-bound'
+  )
+  assert generated_chain_external_validation['dataset_count'] == 0
+  assert generated_chain_external_validation['datasets'] == []
+  assert generated_chain_external_validation['comparison'] is None
+  assert generated_chain_external_validation['accepted_external_claim'] is False
+  assert generated_chain_external_validation['claim_status'] == 'not_accepted'
+  assert generated_chain_external_validation['split_audit']['status'] == (
+    'blocked-missing-split'
+  )
+  assert generated_chain_external_validation['split_audit']['dataset_count'] == 0
+  assert generated_chain_external_validation['split_audit']['verified'] is False
+  assert generated_chain_external_validation['model_chain_measurement']['status'] == (
+    'converged'
+  )
+  assert 'no synthetic observations' in generated_chain_external_validation[
+    'conversion_policy'
+  ]
   assert generated_chain_planner['planner_kind'] == 'solver-generated-reference'
   assert generated_chain_planner['planning_only'] is True
   assert generated_chain_planner['production_claim_allowed'] is False

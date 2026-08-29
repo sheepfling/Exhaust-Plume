@@ -223,6 +223,10 @@ from exhaust_plume.validation.moc_measurements import (  # noqa: E402
   measure_moc_shock_cell_chain,
   measure_moc_shock_cell_chain_refinement,
 )
+from exhaust_plume.validation.moc_external_comparisons import (  # noqa: E402
+  MOC_SHOCK_CELL_EXTERNAL_COMPARISON_OPERATOR_ID,
+  audit_moc_external_validation_splits,
+)
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput  # noqa: E402
 from exhaust_plume.models.nozzle.exit_state import derive_ambient_state, derive_uniform_nozzle_exit  # noqa: E402
 from exhaust_plume.util.aero.shock_validity import ShockBranch, ShockSolveStatus  # noqa: E402
@@ -3758,6 +3762,48 @@ def _alternating_physical_field_chain_refinement_probe(
   return measurement, None
 
 
+def _solver_generated_chain_external_validation_probe(
+  chain_measurement: Any,
+) -> dict[str, Any]:
+  """Report the external-comparison gate without inventing observations.
+
+  The standalone artifact does not receive a provider-bound indexed external
+  shock-cell dataset.  Keep that absence explicit so pressure-position or
+  Mach-disk data cannot be silently reinterpreted as cell geometry.
+  """
+
+  split_audit = audit_moc_external_validation_splits(())
+  return {
+    'status': 'blocked-missing-external-observations',
+    'comparison_operator_id': MOC_SHOCK_CELL_EXTERNAL_COMPARISON_OPERATOR_ID,
+    'dataset_status': 'no-indexed-moc-dataset-bound',
+    'dataset_count': 0,
+    'datasets': [],
+    'split_audit': split_audit.as_report(),
+    'comparison': None,
+    'model_chain_measurement': (
+      None
+      if chain_measurement is None
+      else chain_measurement.as_report()
+    ),
+    'accepted_external_claim': False,
+    'claim_status': 'not_accepted',
+    'source_requirement': (
+      'indexed shock-cell observations with cell_index, '
+      'axial-transverse-m coordinates in metres, feature provenance, and '
+      'calibration/validation split metadata'
+    ),
+    'conversion_policy': (
+      'no synthetic observations or Mach-disk pressure-position points are '
+      'converted into shock-cell geometry'
+    ),
+    'message': (
+      'no indexed MOC shock-cell observation set is bound to this report; '
+      'external residuals and calibration/validation claims remain blocked'
+    ),
+  }
+
+
 def _solver_generated_free_boundary_refinement_probe(
   request: Any,
   solver: Any,
@@ -7067,6 +7113,11 @@ def build_moc_primitive_report() -> dict[str, Any]:
     solver_generated_chain_measurement = measure_moc_shock_cell_chain(
       solver_generated_chain_measurement_observations,
     )
+  solver_generated_chain_external_validation = (
+    _solver_generated_chain_external_validation_probe(
+      solver_generated_chain_measurement,
+    )
+  )
   caustic_upstream_remesh_chain_sequence = (
     _caustic_upstream_remesh_chain_sequence_probe(
       caustic_shock_seed,
@@ -8458,6 +8509,9 @@ def build_moc_primitive_report() -> dict[str, Any]:
       None
       if solver_generated_chain_refinement_measurement is None
       else solver_generated_chain_refinement_measurement.as_report()
+    ),
+    'solver_generated_chain_external_validation': (
+      solver_generated_chain_external_validation
     ),
     'solver_generated_chain_planner': {
       'planner_kind': (

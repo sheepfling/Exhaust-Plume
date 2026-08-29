@@ -1987,3 +1987,26 @@ visible in the same artifact used by the broader primitive gate. It does not
 turn numerical repeatability into physical closure: the canonical reflected
 free-boundary/mixed-regime coupling, external observations, and product
 promotion remain open release gates.
+
+## Standalone external-observation gate checkpoint
+
+The standalone report now carries an explicit external-validation record next
+to the solver-generated continued-chain measurement. It invokes the split
+governance operator with no bound datasets and reports the result as
+`blocked-missing-external-observations`; this status is intentionally outside
+the local primitive failure list because it is a known release gate, not a
+failed numerical solve.
+
+The external adapter requires indexed shock-cell observations with
+`cell_index`, axial-transverse coordinates in metres, feature provenance, and
+disjoint calibration/validation case metadata. The current intake evidence is
+not bound to that schema. In particular, pressure-position or Mach-disk points
+must not be converted into shock-cell geometry without an explicit extraction
+and provenance binding. Until a real indexed calibration and validation set is
+attached, the comparison is `None`, the split audit is not verified, and no
+external or product claim is accepted.
+
+This checkpoint closes the reporting seam only. Canonical reflected-domain
+mixed-regime/free-boundary coupling, external indexed observations, and
+provider promotion remain open; the fast visualization, signature, ray, and
+focal-plane-array lanes are unchanged.
