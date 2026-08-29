@@ -2079,3 +2079,28 @@ remesher and mixed-regime/free-boundary solve. Until those gates, refinement,
 and indexed external observations pass, all alternating results remain
 research-only and isolated from visualization, signature, ray, and
 focal-plane-array providers.
+
+## Parameterized 2-D free-boundary reference checkpoint
+
+The mixed-regime seam now has a separately named
+`parameterized-2d-compressible-potential-free-boundary-reference`. It takes an
+explicit terminal request and scalar control section, represents the
+downstream envelope with a parameterized nondecreasing/concave set of height
+samples, and iterates those heights against signed finite-element normal-flow
+residuals from the nonlinear compressible-potential field. Downstream length,
+outlet height, radial resolution, and free-boundary sample count remain
+explicit inputs; the single-field reference also requires uniform isentropic
+total pressure and gamma across the control section.
+
+The independent
+`op.moc.mixed-regime-planar-free-boundary-reference` measurement reconstructs
+the perimeter from the reported shape, rechecks the terminal/control-section
+and ambient-pressure/tangency seams, and independently measures the retained
+field's normal-flow residual. Uniform and nontrivial ambient-pressure cases
+are covered by focused tests, including tampered-geometry and tampered-field
+rejections.
+
+This is local 2-D potential-flow evidence, not canonical reflected-MOC
+closure. It cannot seed another supersonic shock cell, remains blocked from
+all production providers, and still requires canonical mixed-regime coupling,
+refinement, and indexed external observations before any promotion decision.

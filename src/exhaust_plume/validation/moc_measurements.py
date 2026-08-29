@@ -32,6 +32,9 @@ from exhaust_plume.models.moc.mixed_regime import (
   validate_mixed_regime_boundary,
   validate_mixed_regime_downstream_condition,
 )
+from exhaust_plume.models.moc.mixed_regime_planar_free_boundary import (
+  MocMixedRegimePlanarFreeBoundaryResult,
+)
 from exhaust_plume.models.moc.caustic_bridge import (
   MocCausticUpstreamBridge,
   sample_caustic_upstream_bridge,
@@ -112,6 +115,7 @@ __all__ = (
   'MOC_REFLECTED_DOMAIN_ALTERNATING_PHYSICAL_FIELD_CHAIN_REFINEMENT_OPERATOR_ID',
   'MOC_MIXED_REGIME_FREE_BOUNDARY_OPERATOR_ID',
   'MOC_MIXED_REGIME_FREE_BOUNDARY_REFINEMENT_OPERATOR_ID',
+  'MOC_MIXED_REGIME_PLANAR_FREE_BOUNDARY_OPERATOR_ID',
   'MOC_MIXED_REGIME_CONTROL_SECTION_OPERATOR_ID',
   'MOC_MIXED_REGIME_POTENTIAL_OPERATOR_ID',
   'MOC_SHOCK_CELL_CHAIN_OPERATOR_ID',
@@ -144,6 +148,8 @@ __all__ = (
   'MocMixedRegimeFreeBoundaryRefinementCase',
   'MocMixedRegimeFreeBoundaryRefinementMeasurement',
   'MocMixedRegimeFreeBoundaryRefinementMeasurementStatus',
+  'MocMixedRegimePlanarFreeBoundaryMeasurement',
+  'MocMixedRegimePlanarFreeBoundaryMeasurementStatus',
   'MocMixedRegimeControlSectionMeasurement',
   'MocMixedRegimeControlSectionMeasurementStatus',
   'MocTerminalClosureMeasurement',
@@ -168,6 +174,7 @@ __all__ = (
   'measure_mixed_regime_compressible_potential_field',
   'measure_mixed_regime_free_boundary_reference',
   'measure_mixed_regime_free_boundary_refinement',
+  'measure_mixed_regime_planar_free_boundary_reference',
   'measure_mixed_regime_control_section',
   'measure_moc_terminal_closure',
   'measure_moc_shock_cell',
@@ -209,6 +216,9 @@ MOC_MIXED_REGIME_FREE_BOUNDARY_OPERATOR_ID = (
 )
 MOC_MIXED_REGIME_FREE_BOUNDARY_REFINEMENT_OPERATOR_ID = (
   'op.moc.mixed-regime-free-boundary-refinement'
+)
+MOC_MIXED_REGIME_PLANAR_FREE_BOUNDARY_OPERATOR_ID = (
+  'op.moc.mixed-regime-planar-free-boundary-reference'
 )
 MOC_MIXED_REGIME_CONTROL_SECTION_OPERATOR_ID = (
   'op.moc.mixed-regime-control-section'
@@ -460,6 +470,111 @@ class MocMixedRegimePotentialMeasurement:
       'claim_status': (
         'independent-explicit-perimeter-potential-reference-measurement; '
         'not-canonical-free-boundary-validation'
+      ),
+      'message': self.message,
+    }
+  ####
+
+
+class MocMixedRegimePlanarFreeBoundaryMeasurementStatus(str, Enum):
+  """Outcome of the independent parameterized planar free-boundary audit."""
+
+  CONVERGED = 'converged_parameterized_planar_free_boundary_measurement'
+  INVALID_INPUT = 'invalid_input'
+  CONTROL_SECTION_FAILURE = 'control_section_failure'
+  GEOMETRY_FAILURE = 'geometry_failure'
+  CONDITION_FAILURE = 'condition_failure'
+  FIELD_FAILURE = 'field_failure'
+  RESIDUAL_FAILURE = 'planar_free_boundary_residual_failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocMixedRegimePlanarFreeBoundaryMeasurement:
+  """Independent evidence for the bounded 2-D free-boundary reference.
+
+  This operator treats the solver result as data.  It reconstructs the
+  discrete envelope from the reported geometry, revalidates the terminal and
+  control-section seams, rechecks the ambient/tangency condition, and routes
+  the retained nonlinear field through the independent potential measurement.
+  A passing record is local reference evidence only; it is not canonical MOC
+  validation or permission to expose a production provider.
+  """
+
+  status: MocMixedRegimePlanarFreeBoundaryMeasurementStatus
+  operator_id: str
+  model: str | None
+  solver_status: str | None
+  potential_measurement_status: str | None
+  node_count: int
+  cell_count: int
+  topology: MocTopologyResult
+  request_verified: bool
+  control_section_verified: bool
+  perimeter_spec_verified: bool
+  boundary_verified: bool
+  downstream_condition_verified: bool
+  field_measurement_verified: bool
+  shape_geometry_verified: bool
+  free_boundary_residual_verified: bool
+  physical_closure_verified: bool
+  chain_promotion_blocked: bool
+  production_claim_allowed: bool
+  maximum_boundary_normal_velocity_residual: float | None
+  independent_boundary_normal_velocity_residual: float | None
+  maximum_tangent_residual_rad: float | None
+  maximum_pressure_residual_Pa: float | None
+  message: str
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocMixedRegimePlanarFreeBoundaryMeasurementStatus.CONVERGED
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'operator_id': self.operator_id,
+      'converged': self.converged,
+      'model': self.model,
+      'solver_status': self.solver_status,
+      'potential_measurement_status': self.potential_measurement_status,
+      'node_count': self.node_count,
+      'cell_count': self.cell_count,
+      'topology': {
+        'status': self.topology.status.value,
+        'connected': self.topology.connected,
+        'forms_closed_zone': self.topology.forms_closed_zone,
+        'boundary_edge_count': self.topology.boundary_edge_count,
+        'boundary_component_count': self.topology.boundary_component_count,
+        'nonmanifold_edge_count': self.topology.nonmanifold_edge_count,
+      },
+      'checks': {
+        'request_verified': self.request_verified,
+        'control_section_verified': self.control_section_verified,
+        'perimeter_spec_verified': self.perimeter_spec_verified,
+        'boundary_verified': self.boundary_verified,
+        'downstream_condition_verified': self.downstream_condition_verified,
+        'field_measurement_verified': self.field_measurement_verified,
+        'shape_geometry_verified': self.shape_geometry_verified,
+        'free_boundary_residual_verified': self.free_boundary_residual_verified,
+      },
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'residuals': {
+        'maximum_boundary_normal_velocity_residual': (
+          self.maximum_boundary_normal_velocity_residual
+        ),
+        'independent_boundary_normal_velocity_residual': (
+          self.independent_boundary_normal_velocity_residual
+        ),
+        'maximum_tangent_residual_rad': self.maximum_tangent_residual_rad,
+        'maximum_pressure_residual_Pa': self.maximum_pressure_residual_Pa,
+      },
+      'claim_status': (
+        'independent-parameterized-2d-compressible-potential-free-boundary-'
+        'reference-measurement; not-canonical-moc-validation'
       ),
       'message': self.message,
     }
@@ -4744,6 +4859,583 @@ def measure_mixed_regime_compressible_potential_field(
       'perimeter, radial layout, nonlinear mass, circulation, applicable '
       'no-penetration, and subsonic gates; it remains a non-canonical scalar '
       'reference'
+    ),
+  )
+####
+
+
+def _planar_free_boundary_measurement_failure(
+  status: MocMixedRegimePlanarFreeBoundaryMeasurementStatus,
+  *,
+  result: MocMixedRegimePlanarFreeBoundaryResult | None = None,
+  topology: MocTopologyResult | None = None,
+  potential_measurement: MocMixedRegimePotentialMeasurement | None = None,
+  request_verified: bool = False,
+  control_section_verified: bool = False,
+  perimeter_spec_verified: bool = False,
+  boundary_verified: bool = False,
+  downstream_condition_verified: bool = False,
+  field_measurement_verified: bool = False,
+  shape_geometry_verified: bool = False,
+  free_boundary_residual_verified: bool = False,
+  physical_closure_verified: bool = False,
+  maximum_boundary_normal_velocity_residual: float | None = None,
+  independent_boundary_normal_velocity_residual: float | None = None,
+  maximum_tangent_residual_rad: float | None = None,
+  maximum_pressure_residual_Pa: float | None = None,
+  message: str,
+) -> MocMixedRegimePlanarFreeBoundaryMeasurement:
+  field = None if result is None else result.field
+  return MocMixedRegimePlanarFreeBoundaryMeasurement(
+    status=status,
+    operator_id=MOC_MIXED_REGIME_PLANAR_FREE_BOUNDARY_OPERATOR_ID,
+    model=None if result is None else result.model,
+    solver_status=None if result is None else result.status.value,
+    potential_measurement_status=(
+      None if potential_measurement is None
+      else potential_measurement.status.value
+    ),
+    node_count=0 if field is None else len(field.nodes),
+    cell_count=0 if field is None else len(field.cells),
+    topology=_empty_topology() if topology is None else topology,
+    request_verified=request_verified,
+    control_section_verified=control_section_verified,
+    perimeter_spec_verified=perimeter_spec_verified,
+    boundary_verified=boundary_verified,
+    downstream_condition_verified=downstream_condition_verified,
+    field_measurement_verified=field_measurement_verified,
+    shape_geometry_verified=shape_geometry_verified,
+    free_boundary_residual_verified=free_boundary_residual_verified,
+    physical_closure_verified=physical_closure_verified,
+    chain_promotion_blocked=True,
+    production_claim_allowed=False,
+    maximum_boundary_normal_velocity_residual=(
+      maximum_boundary_normal_velocity_residual
+    ),
+    independent_boundary_normal_velocity_residual=(
+      independent_boundary_normal_velocity_residual
+    ),
+    maximum_tangent_residual_rad=maximum_tangent_residual_rad,
+    maximum_pressure_residual_Pa=maximum_pressure_residual_Pa,
+    message=message,
+  )
+
+
+def measure_mixed_regime_planar_free_boundary_reference(
+  result: MocMixedRegimePlanarFreeBoundaryResult,
+  *,
+  position_tolerance_m: float = 1.0e-9,
+  state_tolerance: float = 1.0e-8,
+  pressure_tolerance: float = 1.0e-8,
+  normal_flux_tolerance: float = 1.0e-8,
+  tangent_tolerance_rad: float = 2.0e-2,
+  thermodynamic_tolerance: float = 1.0e-8,
+  potential_tolerance: float = 1.0e-8,
+  residual_tolerance: float = 1.0e-8,
+  velocity_tolerance: float = 1.0e-8,
+  mesh_vertex_tolerance_m: float = 1.0e-12,
+) -> MocMixedRegimePlanarFreeBoundaryMeasurement:
+  """Independently measure the parameterized planar free-boundary reference.
+
+  The result is treated as data.  This operator reconstructs the expected
+  terminal/centerline/envelope perimeter from the declared shape samples,
+  revalidates the scalar seams and selected ambient condition, and sends the
+  retained field through the independent compressible-potential measurement.
+  A passing record is local research evidence only; it does not establish a
+  canonical reflected-MOC free boundary or permit chain promotion.
+  """
+
+  if not isinstance(result, MocMixedRegimePlanarFreeBoundaryResult):
+    return _planar_free_boundary_measurement_failure(
+      MocMixedRegimePlanarFreeBoundaryMeasurementStatus.INVALID_INPUT,
+      message=(
+        'result must be a MocMixedRegimePlanarFreeBoundaryResult'
+      ),
+    )
+  for name, value in (
+    ('position_tolerance_m', position_tolerance_m),
+    ('state_tolerance', state_tolerance),
+    ('pressure_tolerance', pressure_tolerance),
+    ('normal_flux_tolerance', normal_flux_tolerance),
+    ('tangent_tolerance_rad', tangent_tolerance_rad),
+    ('thermodynamic_tolerance', thermodynamic_tolerance),
+    ('potential_tolerance', potential_tolerance),
+    ('residual_tolerance', residual_tolerance),
+    ('velocity_tolerance', velocity_tolerance),
+    ('mesh_vertex_tolerance_m', mesh_vertex_tolerance_m),
+  ):
+    if not isfinite(float(value)) or float(value) <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+
+  expected_model = (
+    'parameterized-2d-compressible-potential-free-boundary-reference'
+  )
+  if result.model != expected_model:
+    return _planar_free_boundary_measurement_failure(
+      MocMixedRegimePlanarFreeBoundaryMeasurementStatus.INVALID_INPUT,
+      result=result,
+      message=(
+        'planar free-boundary measurement requires the explicitly named '
+        f'research model, received {result.model!r}'
+      ),
+    )
+  if not result.converged:
+    return _planar_free_boundary_measurement_failure(
+      MocMixedRegimePlanarFreeBoundaryMeasurementStatus.FIELD_FAILURE,
+      result=result,
+      message=(
+        'planar free-boundary measurement requires a converged returned '
+        f'field and handoff: {result.message}'
+      ),
+    )
+
+  request = result.request
+  control_section = result.control_section
+  field = result.field
+  boundary = result.boundary
+  specification = result.perimeter_spec
+  condition = result.downstream_condition
+  if not isinstance(control_section, MocMixedRegimeControlSection):
+    return _planar_free_boundary_measurement_failure(
+      MocMixedRegimePlanarFreeBoundaryMeasurementStatus.CONTROL_SECTION_FAILURE,
+      result=result,
+      message='planar free-boundary result did not retain its control section',
+    )
+  try:
+    independent_control_section = validate_mixed_regime_control_section(
+      request,
+      control_section,
+      position_tolerance_m=position_tolerance_m,
+      state_tolerance=state_tolerance,
+      pressure_tolerance=pressure_tolerance,
+      normal_flux_tolerance=normal_flux_tolerance,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return _planar_free_boundary_measurement_failure(
+      MocMixedRegimePlanarFreeBoundaryMeasurementStatus.CONTROL_SECTION_FAILURE,
+      result=result,
+      message=f'control section could not be independently remeasured: {error}',
+    )
+  control_section_verified = bool(
+    independent_control_section.converged
+    and independent_control_section.request == request
+    and independent_control_section.section == control_section
+    and result.control_section_validation == independent_control_section
+  )
+  if not control_section_verified:
+    return _planar_free_boundary_measurement_failure(
+      MocMixedRegimePlanarFreeBoundaryMeasurementStatus.CONTROL_SECTION_FAILURE,
+      result=result,
+      control_section_verified=False,
+      message=(
+        'independent control-section validation failed or did not match the '
+        f'reported validation: {independent_control_section.message}'
+      ),
+    )
+
+  if not isinstance(boundary, MocMixedRegimeBoundaryResult):
+    return _planar_free_boundary_measurement_failure(
+      MocMixedRegimePlanarFreeBoundaryMeasurementStatus.GEOMETRY_FAILURE,
+      result=result,
+      control_section_verified=control_section_verified,
+      message='planar free-boundary result did not retain its scalar boundary',
+    )
+  if not isinstance(specification, MocMixedRegimeDownstreamPerimeterSpec):
+    return _planar_free_boundary_measurement_failure(
+      MocMixedRegimePlanarFreeBoundaryMeasurementStatus.GEOMETRY_FAILURE,
+      result=result,
+      control_section_verified=control_section_verified,
+      message=(
+        'planar free-boundary result did not retain its perimeter specification'
+      ),
+    )
+  if not isinstance(field, MocMixedRegimeFieldResult):
+    return _planar_free_boundary_measurement_failure(
+      MocMixedRegimePlanarFreeBoundaryMeasurementStatus.FIELD_FAILURE,
+      result=result,
+      control_section_verified=control_section_verified,
+      message='planar free-boundary result did not retain its potential field',
+    )
+  if not isinstance(condition, MocMixedRegimeDownstreamConditionResult):
+    return _planar_free_boundary_measurement_failure(
+      MocMixedRegimePlanarFreeBoundaryMeasurementStatus.CONDITION_FAILURE,
+      result=result,
+      control_section_verified=control_section_verified,
+      message=(
+        'planar free-boundary result did not retain its downstream condition'
+      ),
+    )
+
+  request_verified = bool(
+    field.boundary == boundary
+    and field.control_section == control_section
+    and boundary.terminal == request.terminal
+    and boundary.supersonic_patch == request.supersonic_patch
+    and boundary.supersonic_patch_sample_count == len(request.supersonic_patch)
+  )
+  if not request_verified:
+    return _planar_free_boundary_measurement_failure(
+      MocMixedRegimePlanarFreeBoundaryMeasurementStatus.GEOMETRY_FAILURE,
+      result=result,
+      request_verified=False,
+      control_section_verified=control_section_verified,
+      message=(
+        'planar free-boundary field does not retain the exact requested '
+        'terminal, supersonic patch, and control-section seams'
+      ),
+    )
+
+  try:
+    independent_boundary = validate_mixed_regime_boundary(
+      request.terminal,
+      request.supersonic_patch,
+      supersonic_patch_converged=True,
+      subsonic_samples=boundary.subsonic_samples,
+      perimeter_points_m=boundary.perimeter_points_m,
+      position_tolerance_m=position_tolerance_m,
+      state_tolerance=state_tolerance,
+      pressure_tolerance=pressure_tolerance,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return _planar_free_boundary_measurement_failure(
+      MocMixedRegimePlanarFreeBoundaryMeasurementStatus.GEOMETRY_FAILURE,
+      result=result,
+      request_verified=request_verified,
+      control_section_verified=control_section_verified,
+      message=f'scalar perimeter could not be independently remeasured: {error}',
+    )
+  boundary_verified = independent_boundary.converged
+  if not boundary_verified:
+    return _planar_free_boundary_measurement_failure(
+      MocMixedRegimePlanarFreeBoundaryMeasurementStatus.GEOMETRY_FAILURE,
+      result=result,
+      request_verified=request_verified,
+      control_section_verified=control_section_verified,
+      boundary_verified=False,
+      message=(
+        'independent scalar perimeter validation failed: '
+        f'{independent_boundary.message}'
+      ),
+    )
+
+  def same_points(
+    first: Sequence[tuple[float, float]],
+    second: Sequence[tuple[float, float]],
+  ) -> bool:
+    return bool(
+      len(first) == len(second)
+      and all(
+        hypot(left[0] - right[0], left[1] - right[1])
+        <= position_tolerance_m
+        for left, right in zip(first, second, strict=True)
+      )
+    )
+
+  shape_geometry_verified = False
+  expected_points: tuple[tuple[float, float], ...] = ()
+  shape = tuple(result.shape_heights_m)
+  try:
+    sample_count = result.free_boundary_sample_count
+    centerline_count = result.centerline_sample_count
+    if len(shape) != sample_count:
+      raise ValueError(
+        'shape_heights_m does not match free_boundary_sample_count'
+      )
+    segment_length = result.downstream_length_m / sample_count
+    free_ascending = tuple(
+      (
+        request.terminal_point_m[0] + segment_length * index,
+        request.terminal_point_m[1] + shape[index - 1],
+      )
+      for index in range(1, sample_count + 1)
+    )
+    centerline = tuple(
+      (
+        request.terminal_point_m[0]
+        + result.downstream_length_m * index / centerline_count,
+        request.terminal_point_m[1],
+      )
+      for index in range(1, centerline_count + 1)
+    )
+    expected_points = (
+      request.terminal_point_m,
+      *centerline,
+      *tuple(reversed(free_ascending)),
+      request.terminal_point_m,
+    )
+    slopes = tuple(
+      (second - first) / segment_length
+      for first, second in zip(shape[:-1], shape[1:], strict=True)
+    )
+    shape_geometry_verified = bool(
+      all(isfinite(value) and value > position_tolerance_m for value in shape)
+      and abs(shape[-1] - result.outlet_height_m) <= position_tolerance_m
+      and all(
+        second >= first - position_tolerance_m
+        for first, second in zip(shape[:-1], shape[1:], strict=True)
+      )
+      and all(
+        second <= first + position_tolerance_m
+        for first, second in zip(slopes[:-1], slopes[1:], strict=True)
+      )
+      and same_points(specification.perimeter_points_m, expected_points)
+      and same_points(boundary.perimeter_points_m, expected_points)
+    )
+  except (ArithmeticError, FloatingPointError, IndexError, TypeError, ValueError):
+    shape_geometry_verified = False
+  if not shape_geometry_verified:
+    return _planar_free_boundary_measurement_failure(
+      MocMixedRegimePlanarFreeBoundaryMeasurementStatus.GEOMETRY_FAILURE,
+      result=result,
+      request_verified=request_verified,
+      control_section_verified=control_section_verified,
+      boundary_verified=boundary_verified,
+      message=(
+        'reported free-boundary shape heights do not reconstruct the explicit '
+        'terminal/centerline/envelope perimeter'
+      ),
+    )
+
+  free_start_index = 1 + result.centerline_sample_count
+  expected_condition_edges = tuple(
+    range(
+      free_start_index,
+      free_start_index + result.free_boundary_sample_count - 1,
+    )
+  )
+  expected_condition_samples = tuple(
+    range(
+      free_start_index,
+      free_start_index + result.free_boundary_sample_count,
+    )
+  )
+  pressure_scale = max(1.0, abs(result.ambient_pressure_Pa))
+  perimeter_spec_verified = bool(
+    specification.model == result.model
+    and specification.condition_kind is (
+      MocMixedRegimeDownstreamConditionKind.AMBIENT_PRESSURE_FREE_BOUNDARY
+    )
+    and same_points(specification.perimeter_points_m, boundary.perimeter_points_m)
+    and specification.ambient_pressure_Pa is not None
+    and abs(specification.ambient_pressure_Pa - result.ambient_pressure_Pa)
+    <= pressure_tolerance * pressure_scale
+    and specification.condition_edge_indices == expected_condition_edges
+    and specification.condition_sample_indices == expected_condition_samples
+  )
+  if not perimeter_spec_verified:
+    return _planar_free_boundary_measurement_failure(
+      MocMixedRegimePlanarFreeBoundaryMeasurementStatus.GEOMETRY_FAILURE,
+      result=result,
+      request_verified=request_verified,
+      control_section_verified=control_section_verified,
+      boundary_verified=boundary_verified,
+      shape_geometry_verified=shape_geometry_verified,
+      message=(
+        'reported perimeter specification does not match the reconstructed '
+        'free-boundary geometry or selected condition edges'
+      ),
+    )
+
+  try:
+    independent_condition = validate_mixed_regime_downstream_condition(
+      independent_boundary,
+      specification.condition_kind,
+      ambient_pressure_Pa=specification.ambient_pressure_Pa,
+      condition_edge_indices=specification.condition_edge_indices,
+      condition_sample_indices=specification.condition_sample_indices,
+      position_tolerance_m=position_tolerance_m,
+      tangent_tolerance_rad=tangent_tolerance_rad,
+      pressure_tolerance=pressure_tolerance,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return _planar_free_boundary_measurement_failure(
+      MocMixedRegimePlanarFreeBoundaryMeasurementStatus.CONDITION_FAILURE,
+      result=result,
+      request_verified=request_verified,
+      control_section_verified=control_section_verified,
+      boundary_verified=boundary_verified,
+      perimeter_spec_verified=perimeter_spec_verified,
+      shape_geometry_verified=shape_geometry_verified,
+      message=f'downstream condition could not be independently remeasured: {error}',
+    )
+  downstream_condition_verified = bool(
+    independent_condition.converged
+    and condition.converged
+    and condition.boundary == boundary
+    and condition.condition_kind is specification.condition_kind
+    and condition.condition_edge_indices == expected_condition_edges
+    and condition.condition_sample_indices == expected_condition_samples
+    and field.downstream_condition == condition
+  )
+  if not downstream_condition_verified:
+    return _planar_free_boundary_measurement_failure(
+      MocMixedRegimePlanarFreeBoundaryMeasurementStatus.CONDITION_FAILURE,
+      result=result,
+      request_verified=request_verified,
+      control_section_verified=control_section_verified,
+      boundary_verified=boundary_verified,
+      perimeter_spec_verified=perimeter_spec_verified,
+      downstream_condition_verified=False,
+      shape_geometry_verified=shape_geometry_verified,
+      maximum_tangent_residual_rad=(
+        independent_condition.maximum_tangent_residual_rad
+      ),
+      maximum_pressure_residual_Pa=(
+        independent_condition.maximum_pressure_residual_Pa
+      ),
+      message=(
+        'downstream condition did not pass the independent tangent/pressure '
+        f'check: {independent_condition.message}'
+      ),
+    )
+
+  try:
+    potential_measurement = measure_mixed_regime_compressible_potential_field(
+      field,
+      position_tolerance_m=position_tolerance_m,
+      thermodynamic_tolerance=thermodynamic_tolerance,
+      potential_tolerance=potential_tolerance,
+      residual_tolerance=residual_tolerance,
+      velocity_tolerance=velocity_tolerance,
+      mesh_vertex_tolerance_m=mesh_vertex_tolerance_m,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return _planar_free_boundary_measurement_failure(
+      MocMixedRegimePlanarFreeBoundaryMeasurementStatus.FIELD_FAILURE,
+      result=result,
+      request_verified=request_verified,
+      control_section_verified=control_section_verified,
+      perimeter_spec_verified=perimeter_spec_verified,
+      boundary_verified=boundary_verified,
+      downstream_condition_verified=downstream_condition_verified,
+      shape_geometry_verified=shape_geometry_verified,
+      maximum_tangent_residual_rad=(
+        independent_condition.maximum_tangent_residual_rad
+      ),
+      maximum_pressure_residual_Pa=(
+        independent_condition.maximum_pressure_residual_Pa
+      ),
+      message=f'independent potential measurement failed: {error}',
+    )
+  topology = potential_measurement.topology
+  field_measurement_verified = bool(
+    potential_measurement.converged
+    and potential_measurement.reference_model_verified
+    and potential_measurement.downstream_condition_verified
+  )
+  if not field_measurement_verified:
+    return _planar_free_boundary_measurement_failure(
+      MocMixedRegimePlanarFreeBoundaryMeasurementStatus.FIELD_FAILURE,
+      result=result,
+      topology=topology,
+      potential_measurement=potential_measurement,
+      request_verified=request_verified,
+      control_section_verified=control_section_verified,
+      perimeter_spec_verified=perimeter_spec_verified,
+      boundary_verified=boundary_verified,
+      downstream_condition_verified=downstream_condition_verified,
+      shape_geometry_verified=shape_geometry_verified,
+      maximum_tangent_residual_rad=(
+        independent_condition.maximum_tangent_residual_rad
+      ),
+      maximum_pressure_residual_Pa=(
+        independent_condition.maximum_pressure_residual_Pa
+      ),
+      independent_boundary_normal_velocity_residual=(
+        potential_measurement.maximum_boundary_normal_velocity_residual
+      ),
+      message=(
+        'independent compressible-potential field measurement failed its '
+        f'local gates: {potential_measurement.message}'
+      ),
+    )
+
+  independent_residual = (
+    potential_measurement.maximum_boundary_normal_velocity_residual
+  )
+  reported_residual = result.maximum_boundary_normal_velocity_residual
+  field_reported_residual = field.maximum_boundary_normal_velocity_residual
+  stored_residuals = tuple(result.signed_free_boundary_residuals)
+  stored_vector_maximum = (
+    max((abs(value) for value in stored_residuals), default=None)
+  )
+
+  def residual_matches(actual: float | None, expected: float | None) -> bool:
+    return bool(
+      actual is not None
+      and expected is not None
+      and isfinite(float(actual))
+      and isfinite(float(expected))
+      and abs(actual - expected)
+      <= residual_tolerance * max(1.0, abs(actual), abs(expected))
+    )
+
+  free_boundary_residual_verified = bool(
+    len(stored_residuals) == result.free_boundary_sample_count - 1
+    and independent_residual is not None
+    and isfinite(float(independent_residual))
+    and independent_residual <= velocity_tolerance
+    and residual_matches(reported_residual, independent_residual)
+    and residual_matches(field_reported_residual, independent_residual)
+    and residual_matches(stored_vector_maximum, reported_residual)
+  )
+  physical_closure_verified = bool(
+    result.converged
+    and result.field is not None
+    and result.field.physical_closure_verified
+    and isinstance(result.closure, MocMixedRegimeClosureResult)
+    and result.closure.converged
+    and result.closure.request == request
+    and result.closure.field == field
+    and result.closure.downstream_condition == condition
+    and result.closure.perimeter_spec == specification
+    and request_verified
+    and control_section_verified
+    and perimeter_spec_verified
+    and boundary_verified
+    and downstream_condition_verified
+    and field_measurement_verified
+    and shape_geometry_verified
+    and free_boundary_residual_verified
+  )
+  metrics = {
+    'topology': topology,
+    'potential_measurement': potential_measurement,
+    'request_verified': request_verified,
+    'control_section_verified': control_section_verified,
+    'perimeter_spec_verified': perimeter_spec_verified,
+    'boundary_verified': boundary_verified,
+    'downstream_condition_verified': downstream_condition_verified,
+    'field_measurement_verified': field_measurement_verified,
+    'shape_geometry_verified': shape_geometry_verified,
+    'free_boundary_residual_verified': free_boundary_residual_verified,
+    'physical_closure_verified': physical_closure_verified,
+    'maximum_boundary_normal_velocity_residual': reported_residual,
+    'independent_boundary_normal_velocity_residual': independent_residual,
+    'maximum_tangent_residual_rad': independent_condition.maximum_tangent_residual_rad,
+    'maximum_pressure_residual_Pa': independent_condition.maximum_pressure_residual_Pa,
+  }
+  if not physical_closure_verified:
+    return _planar_free_boundary_measurement_failure(
+      MocMixedRegimePlanarFreeBoundaryMeasurementStatus.RESIDUAL_FAILURE,
+      result=result,
+      **metrics,
+      message=(
+        'independent planar free-boundary reference gates failed: '
+        f'field={field_measurement_verified}, '
+        f'geometry={shape_geometry_verified}, '
+        f'normal_residual={free_boundary_residual_verified}'
+      ),
+    )
+  return _planar_free_boundary_measurement_failure(
+    MocMixedRegimePlanarFreeBoundaryMeasurementStatus.CONVERGED,
+    result=result,
+    **metrics,
+    message=(
+      'independent parameterized planar free-boundary measurement passed the '
+      'exact seam, reconstructed geometry, tangent/pressure condition, '
+      'potential-field, and normal-residual gates; canonical promotion remains '
+      'blocked'
     ),
   )
 ####

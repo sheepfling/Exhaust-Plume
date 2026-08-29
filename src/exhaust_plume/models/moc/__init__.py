@@ -78,6 +78,12 @@ from exhaust_plume.models.moc.mixed_regime_planar import (
   solve_mixed_regime_planar_potential_reference,
   solve_mixed_regime_planar_frozen_profile_reference,
 )
+from exhaust_plume.models.moc.mixed_regime_planar_free_boundary import (
+  MocMixedRegimePlanarFreeBoundaryStatus,
+  MocMixedRegimePlanarFreeBoundaryResult,
+  MocMixedRegimePlanarFreeBoundaryReference,
+  solve_mixed_regime_planar_free_boundary_reference,
+)
 from exhaust_plume.models.moc.boundary import (
   MocFreeBoundaryPointResult,
   MocFreeBoundaryResult,
@@ -507,6 +513,10 @@ __all__ = (
   'run_mixed_regime_planar_field_solver',
   'solve_mixed_regime_planar_potential_reference',
   'solve_mixed_regime_planar_frozen_profile_reference',
+  'MocMixedRegimePlanarFreeBoundaryStatus',
+  'MocMixedRegimePlanarFreeBoundaryResult',
+  'MocMixedRegimePlanarFreeBoundaryReference',
+  'solve_mixed_regime_planar_free_boundary_reference',
   'MocChainPlannerKind',
   'MocAmbientClosedChainSourceMode',
   'MocChainPlannerResult',

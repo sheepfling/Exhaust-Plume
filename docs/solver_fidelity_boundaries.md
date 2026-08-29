@@ -792,3 +792,27 @@ domain/typed-stop gates. The profile mode remains a bounded research
 experiment, with canonical reflected remeshing, mixed-regime/free-boundary
 coupling, refinement, external observations, and product promotion still
 blocked.
+
+## Parameterized planar free-boundary research boundary
+
+The current higher-fidelity downstream experiment is isolated under the exact
+model name `parameterized-2d-compressible-potential-free-boundary-reference`.
+It solves a nonlinear compressible potential field on an explicit radial mesh
+while iterating a discrete concave free-boundary envelope until the selected
+boundary-normal velocity residual closes. Its terminal request, scalar
+control section, perimeter, ambient pressure, and local field are all retained
+as typed evidence.
+
+The matching independent measurement operator rebuilds the expected
+terminal/centerline/envelope perimeter, reruns the scalar seam and physical
+condition validators, and compares the reported normal residual against an
+independent finite-element reconstruction. A passing measurement verifies
+only this bounded research model. Uniform control-section total pressure and
+gamma, explicit downstream length/outlet height, and the axis-aligned current
+parameterization are intentional fidelity boundaries.
+
+The result keeps `canonical_free_boundary_verified=false`,
+`chain_promotion_blocked=true`, and `production_claim_allowed=false`.
+Canonical reflected-MOC/free-boundary coupling, numerical refinement, and
+indexed external observations remain release gates; the fast visualization,
+signature, ray, and focal-plane-array providers do not consume this lane.
