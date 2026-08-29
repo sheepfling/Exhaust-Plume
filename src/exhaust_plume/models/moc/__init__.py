@@ -39,6 +39,11 @@ from exhaust_plume.models.moc.compression import (
   solve_attached_shock_to_centerline,
   solve_normal_shock_terminal,
 )
+from exhaust_plume.models.moc.euler_shock_boundary import (
+  MocEulerShockBoundaryStatus,
+  MocEulerShockBoundaryResult,
+  solve_euler_consistent_attached_shock_segment,
+)
 from exhaust_plume.models.moc.mixed_regime import (
   MocMixedRegimeBoundaryResult,
   MocMixedRegimeBoundaryStatus,
@@ -815,6 +820,9 @@ __all__ = (
   'solve_attached_shock_to_centerline',
   'solve_overexpanded_lip_shock',
   'solve_normal_shock_terminal',
+  'MocEulerShockBoundaryStatus',
+  'MocEulerShockBoundaryResult',
+  'solve_euler_consistent_attached_shock_segment',
   'validate_mixed_regime_boundary',
   'validate_mixed_regime_downstream_condition',
   'solve_mixed_regime_downstream_condition',

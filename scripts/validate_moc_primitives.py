@@ -124,6 +124,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   prandtl_meyer_angle_rad,
   solve_attached_compression_to_pressure,
   solve_attached_compression_to_turn,
+  solve_euler_consistent_attached_shock_segment,
   solve_attached_shock_to_centerline,
   solve_terminal_compression_candidate,
   assemble_terminal_trace_centerline_patch,
@@ -9695,6 +9696,17 @@ def build_moc_primitive_report() -> dict[str, Any]:
     upstream_pressure_Pa=100000.0,
     target_turn_rad=1.0,
   )
+  euler_consistent_shock_segment = solve_euler_consistent_attached_shock_segment(
+    CharacteristicState(
+      x_m=0.5,
+      y_m=0.5,
+      theta_rad=0.2,
+      mach=2.0,
+      gamma=1.4,
+    ),
+    100000.0,
+    0.0,
+  )
   normal_shock_terminal = solve_normal_shock_terminal(
     CharacteristicState(
       x_m=1.25,
@@ -9859,6 +9871,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'status': compression_limit_case.status.value,
         'shock_status': compression_limit_case.shock_status.value,
       },
+    },
+    'euler_consistent_attached_shock_segment': {
+      **euler_consistent_shock_segment.as_report(),
+      'claim_status': (
+        'local-euler-shock-segment-only; post-shock-field-and-'
+        'reflected-free-boundary-pending'
+      ),
     },
     'attached_turn_compression_foundation': {
       'status': turn_compression.status.value,
@@ -10680,6 +10699,18 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'message': compression.message,
       }
     ] if not compression.converged else []),
+    *([
+      {
+        'case': 'euler_consistent_attached_shock_segment',
+        'status': euler_consistent_shock_segment.status.value,
+        'message': euler_consistent_shock_segment.message,
+      }
+    ] if (
+      not euler_consistent_shock_segment.converged
+      or not euler_consistent_shock_segment.local_euler_verified
+      or euler_consistent_shock_segment.physical_closure_verified
+      or not euler_consistent_shock_segment.chain_promotion_blocked
+    ) else []),
     *([
       {
         'case': 'compression_normal_shock_limit_failure',
@@ -11953,6 +11984,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'replace the provisional alternating-source compression envelope with a canonical reflected free-boundary remesher and mixed-regime closure',
       'replace the provisional constant-invariant boundary with a physically validated downstream closure and a straddling canonical bracket',
       'complete and independently validate the canonical reflected-MOC mixed-regime downstream closure after the open oblique supersonic patch; the affine projected potential reference remains research-only',
+      'assemble a downstream physical characteristic field on the correct side of the locally Euler-consistent shock Cauchy curve',
       'production next-cell shock fitting that consumes the typed state/total-pressure handoff without a geometric template',
       'grid/refinement convergence for the assembled reflected zone and mild attached-overexpanded cases',
       'external measurement-operator comparison using the independent MOC extraction before provider integration',

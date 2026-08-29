@@ -851,6 +851,25 @@ current planner therefore remains a one-cell research prefix with
 shock/free-boundary construction whose stored shock geometry, downstream
 state, characteristic orientation, and Euler residuals close together.
 
+## Locally Euler-consistent shock-segment checkpoint
+
+`solve_euler_consistent_attached_shock_segment` is the first isolated physics
+primitive for that next construction. It accepts a supersonic upstream state,
+an upstream total-pressure scale, and a downstream angle that turns toward a
+descending shock. It uses the attached compression solver for the weak/strong
+branch, positions the segment from its actual tangent, reconstructs the
+downstream state at the target ordinate, and checks normalized
+Rankine--Hugoniot mass, momentum, and energy jumps.
+
+The primitive's `converged_local_euler_shock` status means only that one shock
+segment closes locally. It deliberately leaves physical/canonical closure
+false and chain promotion blocked. The older attached-shock reference keeps
+its compatibility behavior unchanged; its opposite-sign turn convention is
+rejected by this lane as `noncompressive_turn` rather than silently repaired.
+The next implementation gate is an orientation-aware post-shock
+characteristic field on this shock Cauchy curve, followed by reflected
+free-boundary coupling and indexed external validation.
+
 ## Parameterized planar free-boundary research boundary
 
 The current higher-fidelity downstream experiment is isolated under the exact

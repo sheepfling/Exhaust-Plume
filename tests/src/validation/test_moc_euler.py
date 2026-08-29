@@ -4,8 +4,10 @@ from dataclasses import replace
 
 from exhaust_plume.models.moc import (
   CharacteristicState,
+  MocEulerShockBoundaryStatus,
   solve_marched_attached_shock_field,
   solve_marched_attached_shock_with_ambient_centerline_physical_field,
+  solve_euler_consistent_attached_shock_segment,
 )
 from exhaust_plume.validation import (
   MocPhysicalFieldEulerAuditStatus,
@@ -84,3 +86,46 @@ def test_euler_audit_rejects_an_open_or_incomplete_field() -> None:
   audit = measure_moc_physical_field_euler_audit(shock)
 
   assert audit.status is MocPhysicalFieldEulerAuditStatus.INVALID_INPUT
+
+
+def test_euler_consistent_shock_segment_closes_its_local_jump() -> None:
+  segment = solve_euler_consistent_attached_shock_segment(
+    CharacteristicState(
+      x_m=0.5,
+      y_m=0.5,
+      theta_rad=0.2,
+      mach=2.0,
+      gamma=1.4,
+    ),
+    100000.0,
+    0.0,
+  )
+
+  assert segment.status is MocEulerShockBoundaryStatus.CONVERGED_LOCAL_SHOCK
+  assert segment.converged
+  assert segment.local_euler_verified
+  assert segment.shock_end_m is not None
+  assert segment.shock_end_m[0] > segment.shock_start_m[0]
+  assert segment.shock_end_m[1] == 0.0
+  assert segment.maximum_shock_jump_residual is not None
+  assert segment.maximum_shock_jump_residual < 1.0e-10
+  assert segment.physical_closure_verified is False
+  assert segment.chain_promotion_blocked
+
+
+def test_euler_consistent_shock_segment_rejects_the_reference_turn_direction() -> None:
+  segment = solve_euler_consistent_attached_shock_segment(
+    CharacteristicState(
+      x_m=0.5,
+      y_m=0.5,
+      theta_rad=-0.2,
+      mach=2.0,
+      gamma=1.4,
+    ),
+    100000.0,
+    0.0,
+  )
+
+  assert segment.status is MocEulerShockBoundaryStatus.NONCOMPRESSIVE_TURN
+  assert segment.converged is False
+  assert segment.chain_promotion_blocked
