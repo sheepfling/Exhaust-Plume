@@ -221,6 +221,15 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   )
   assert generated_chain_external_validation['promotion_review']['external_validation_verified'] is False
   assert generated_chain_external_validation['promotion_review']['chain_promotion_allowed'] is False
+  euler_companion = report['geometry_cases'][
+    'euler_consistent_companion_characteristic_strip'
+  ]
+  assert euler_companion['solver_owned_ambient_companion_boundary']['status'] == (
+    'converged_ambient_companion_boundary'
+  )
+  assert euler_companion['solver_owned_ambient_companion_boundary'][
+    'chain_promotion_blocked'
+  ] is True
   assert first_cell_research_chain['planner_kind'] == 'upstream-coupled-research'
   assert first_cell_research_chain['resolved'] is True
   assert first_cell_research_chain['cell_count'] == 3

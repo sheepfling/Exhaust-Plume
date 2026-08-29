@@ -7,11 +7,13 @@ from exhaust_plume.models.moc import (
   CharacteristicState,
   MocChainBoundarySample,
   MocChainTerminationReason,
+  MocEulerAmbientCompanionBoundaryStatus,
   MocEulerCompanionFieldStatus,
   MocEulerShockBoundaryOrientation,
   MocEulerShockBoundaryStatus,
   assemble_euler_consistent_companion_characteristic_strip,
   fit_euler_consistent_shock_boundary,
+  solve_euler_ambient_companion_boundary_reference,
   solve_attached_compression_to_turn,
   solve_marched_attached_shock_field,
   solve_marched_attached_shock_with_ambient_centerline_physical_field,
@@ -204,6 +206,75 @@ def test_euler_consistent_shock_curve_rejects_reference_turn_direction() -> None
   assert result.status is MocEulerShockBoundaryStatus.NONCOMPRESSIVE_TURN
   assert not result.converged
   assert result.chain_promotion_blocked
+
+
+def test_solver_owned_ambient_companion_boundary_feeds_the_open_strip() -> None:
+  compression = solve_attached_compression_to_turn(
+    upstream_mach=2.0,
+    gamma=1.4,
+    upstream_pressure_Pa=100000.0,
+    target_turn_rad=0.2,
+  )
+  assert compression.beta_rad is not None
+  shock_angle = 0.2 - compression.beta_rad
+  points = tuple(
+    (0.5 + index * (-0.1 / tan(shock_angle)), 0.5 - index * 0.1)
+    for index in range(6)
+  )
+  upstream_states = tuple(
+    CharacteristicState(
+      x_m=point[0],
+      y_m=point[1],
+      theta_rad=0.2,
+      mach=2.0,
+      gamma=1.4,
+    )
+    for point in points
+  )
+  shock_boundary = fit_euler_consistent_shock_boundary(
+    upstream_states,
+    (100000.0,) * len(points),
+    points,
+    (0.0,) * len(points),
+  )
+
+  ambient_pressure = shock_boundary.downstream_total_pressure_Pa[0] / (
+    1.0 + 0.5 * (1.4 - 1.0) * 2.0**2
+  ) ** (1.4 / (1.4 - 1.0))
+  companion = solve_euler_ambient_companion_boundary_reference(
+    shock_boundary,
+    ambient_pressure,
+    separation_m=0.8,
+    seed_flow_angle_rad=0.0,
+  )
+
+  assert companion.status is MocEulerAmbientCompanionBoundaryStatus.CONVERGED_AMBIENT_COMPANION_BOUNDARY
+  assert companion.converged
+  assert companion.state_sampling_available
+  assert len(companion.samples) == len(points)
+  assert companion.maximum_static_pressure_residual is not None
+  assert companion.maximum_static_pressure_residual < 1.0e-12
+  assert companion.maximum_companion_invariant_residual is not None
+  assert companion.maximum_companion_invariant_residual < 1.0e-12
+  assert companion.minimum_shock_clearance_m is not None
+  assert companion.minimum_shock_clearance_m > 0.79
+  assert companion.physical_closure_verified is False
+  assert companion.chain_promotion_blocked
+
+  field = assemble_euler_consistent_companion_characteristic_strip(
+    shock_boundary,
+    companion.samples,
+  )
+  assert field.converged
+  assert field.companion_boundary_contract_verified
+  assert field.pressure_lineage_verified
+  audit = measure_moc_euler_companion_field(field)
+  assert audit.status is MocEulerCompanionFieldAuditStatus.CONVERGED_LOCAL_AUDIT
+  assert audit.cell_euler_residuals_verified
+  assert field.as_chain_termination_decision().reason is (
+    MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+  )
+  assert companion.as_report()['status'] == 'converged_ambient_companion_boundary'
 
 
 def test_euler_companion_strip_uses_explicit_second_characteristic_boundary() -> None:

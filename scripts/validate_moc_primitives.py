@@ -67,7 +67,9 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocChainTerminationDecision,
   MocChainTerminationReason,
   MocChainStatus,
+  MocEulerAmbientCompanionBoundaryStatus,
   MocEulerCompanionFieldStatus,
+  solve_euler_ambient_companion_boundary_reference,
   MocEulerShockBoundaryOrientation,
   MocChainPlannerKind,
   MocCausticFamilyBandEnvelopeStatus,
@@ -9754,26 +9756,20 @@ def build_moc_primitive_report() -> dict[str, Any]:
     euler_curve_points,
     (0.0,) * len(euler_curve_points),
   )
-  euler_companion_boundary = tuple(
-    MocChainBoundarySample(
-      CharacteristicState(
-        x_m=point[0],
-        y_m=point[1] + 0.5,
-        theta_rad=0.0,
-        mach=2.0,
-        gamma=1.4,
-      ),
-      pressure,
-    )
-    for point, pressure in zip(
-      euler_curve_points,
-      euler_consistent_shock_boundary.downstream_total_pressure_Pa,
-      strict=True,
+  euler_ambient_pressure = euler_consistent_shock_boundary.downstream_total_pressure_Pa[0] / (
+    1.0 + 0.5 * (1.4 - 1.0) * 2.0**2
+  ) ** (1.4 / (1.4 - 1.0))
+  euler_ambient_companion_boundary = (
+    solve_euler_ambient_companion_boundary_reference(
+      euler_consistent_shock_boundary,
+      euler_ambient_pressure,
+      separation_m=0.8,
+      seed_flow_angle_rad=0.0,
     )
   )
   euler_companion_field = assemble_euler_consistent_companion_characteristic_strip(
     euler_consistent_shock_boundary,
-    euler_companion_boundary,
+    euler_ambient_companion_boundary.samples,
   )
   euler_companion_field_audit = measure_moc_euler_companion_field(
     euler_companion_field,
@@ -9959,6 +9955,9 @@ def build_moc_primitive_report() -> dict[str, Any]:
     },
     'euler_consistent_companion_characteristic_strip': {
       **euler_companion_field.as_report(),
+      'solver_owned_ambient_companion_boundary': (
+        euler_ambient_companion_boundary.as_report()
+      ),
       'independent_audit': euler_companion_field_audit.as_report(),
       'claim_status': (
         'open-companion-conditioned-characteristic-strip; ambient-free-'
@@ -10810,6 +10809,20 @@ def build_moc_primitive_report() -> dict[str, Any]:
       or not euler_consistent_shock_boundary.companion_boundary_required
       or euler_consistent_shock_boundary.physical_closure_verified
       or not euler_consistent_shock_boundary.chain_promotion_blocked
+    ) else []),
+    *([
+      {
+        'case': 'euler_solver_owned_ambient_companion_boundary',
+        'status': euler_ambient_companion_boundary.status.value,
+        'message': euler_ambient_companion_boundary.message,
+      }
+    ] if (
+      euler_ambient_companion_boundary.status
+      is not MocEulerAmbientCompanionBoundaryStatus.CONVERGED_AMBIENT_COMPANION_BOUNDARY
+      or not euler_ambient_companion_boundary.converged
+      or not euler_ambient_companion_boundary.state_sampling_available
+      or euler_ambient_companion_boundary.physical_closure_verified
+      or not euler_ambient_companion_boundary.chain_promotion_blocked
     ) else []),
     *([
       {
@@ -12116,7 +12129,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'replace the provisional constant-invariant boundary with a physically validated downstream closure and a straddling canonical bracket',
       'complete and independently validate the canonical reflected-MOC mixed-regime downstream closure after the open oblique supersonic patch; the affine projected potential reference remains research-only',
       'assemble a downstream physical characteristic field on the correct side of the locally Euler-consistent shock Cauchy curve',
-      'replace the prescribed companion-boundary strip with a solver-owned companion field and close its ambient/reflected boundary conditions',
+      'replace the bounded solver-owned companion-boundary reference with a globally coupled Euler/free-boundary field and close its ambient/reflected boundary conditions',
       'production next-cell shock fitting that consumes the typed state/total-pressure handoff without a geometric template',
       'grid/refinement convergence for the assembled reflected zone and mild attached-overexpanded cases',
       'external measurement-operator comparison using the independent MOC extraction before provider integration',

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from math import isfinite
+from math import isfinite, tan
 from typing import Any, Sequence
 
 from exhaust_plume.models.moc.chain import (
@@ -28,11 +28,16 @@ from exhaust_plume.models.moc.primitives import (
   CharacteristicState,
   MocPrimitiveStatus,
   interior_characteristic_point,
+  prandtl_meyer_angle_rad,
+  supersonic_mach_from_stagnation_pressure_ratio,
 )
 from exhaust_plume.models.moc.topology import MocTopologyResult, validate_moc_mesh
 from exhaust_plume.models.moc.zone import MocCharacteristicCell, MocCharacteristicNode
 
 __all__ = (
+  'MocEulerAmbientCompanionBoundaryStatus',
+  'MocEulerAmbientCompanionBoundaryResult',
+  'solve_euler_ambient_companion_boundary_reference',
   'MocEulerCompanionFieldStatus',
   'MocEulerCompanionFieldResult',
   'assemble_euler_consistent_companion_characteristic_strip',
@@ -52,6 +57,174 @@ class MocEulerCompanionFieldStatus(str, Enum):
   INVARIANT_FAILURE = 'invariant_failure'
   TOPOLOGY_FAILURE = 'topology_failure'
 ####
+
+
+class MocEulerAmbientCompanionBoundaryStatus(str, Enum):
+  """Outcome of deriving an ambient-conditioned companion trace."""
+
+  CONVERGED_AMBIENT_COMPANION_BOUNDARY = (
+    'converged_ambient_companion_boundary'
+  )
+  INVALID_INPUT = 'invalid_input'
+  SHOCK_BOUNDARY_REQUIRED = 'shock_boundary_required'
+  AMBIENT_PRESSURE_FAILURE = 'ambient_pressure_failure'
+  GEOMETRY_FAILURE = 'geometry_failure'
+  INVARIANT_FAILURE = 'invariant_failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerAmbientCompanionBoundaryResult:
+  """A solver-derived ambient/isobaric companion boundary reference.
+
+  The trace uses the shock's downstream total-pressure samples to invert the
+  ambient static pressure and carries one seeded ``C-`` invariant along the
+  resulting streamline-like boundary.  The seed separation and invariant
+  are explicit research inputs; this result is not a globally coupled
+  reflected free-boundary solution and cannot promote a chain cell.
+  """
+
+  status: MocEulerAmbientCompanionBoundaryStatus
+  shock_boundary: MocEulerShockBoundaryCurveResult | None = None
+  ambient_pressure_Pa: float | None = None
+  samples: tuple[MocChainBoundarySample, ...] = ()
+  static_pressure_residuals: tuple[float, ...] = ()
+  companion_invariant_residuals: tuple[float, ...] = ()
+  geometry_residuals_m: tuple[float, ...] = ()
+  seed_k_minus_rad: float | None = None
+  seed_flow_angle_rad: float | None = None
+  separation_m: float | None = None
+  minimum_shock_clearance_m: float | None = None
+  maximum_static_pressure_residual: float | None = None
+  maximum_companion_invariant_residual: float | None = None
+  maximum_geometry_residual_m: float | None = None
+  position_tolerance_m: float = 1.0e-10
+  invariant_tolerance: float = 1.0e-10
+  pressure_tolerance: float = 1.0e-10
+  physical_closure_verified: bool = False
+  chain_promotion_blocked: bool = True
+  production_claim_allowed: bool = False
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.status, MocEulerAmbientCompanionBoundaryStatus):
+      raise TypeError(
+        'status must be a MocEulerAmbientCompanionBoundaryStatus'
+      )
+    if self.shock_boundary is not None and not isinstance(
+      self.shock_boundary,
+      MocEulerShockBoundaryCurveResult,
+    ):
+      raise TypeError(
+        'shock_boundary must be a MocEulerShockBoundaryCurveResult or None'
+      )
+    for name in (
+      'position_tolerance_m',
+      'invariant_tolerance',
+      'pressure_tolerance',
+    ):
+      value = float(getattr(self, name))
+      if not isfinite(value) or value <= 0.0:
+        raise ValueError(f'{name} must be finite and positive')
+      object.__setattr__(self, name, value)
+    if self.ambient_pressure_Pa is not None:
+      pressure = float(self.ambient_pressure_Pa)
+      if not isfinite(pressure) or pressure <= 0.0:
+        raise ValueError('ambient_pressure_Pa must be finite and positive')
+      object.__setattr__(self, 'ambient_pressure_Pa', pressure)
+    samples = tuple(self.samples)
+    if any(not isinstance(sample, MocChainBoundarySample) for sample in samples):
+      raise TypeError('samples must contain MocChainBoundarySample values')
+    object.__setattr__(self, 'samples', samples)
+    expected = len(samples)
+    for name in (
+      'static_pressure_residuals',
+      'companion_invariant_residuals',
+      'geometry_residuals_m',
+    ):
+      values = tuple(float(value) for value in getattr(self, name))
+      if len(values) != expected:
+        raise ValueError(f'{name} must match the companion sample count')
+      if any(not isfinite(value) or value < 0.0 for value in values):
+        raise ValueError(f'{name} must contain finite nonnegative values')
+      object.__setattr__(self, name, values)
+    for name in (
+      'seed_k_minus_rad',
+      'seed_flow_angle_rad',
+      'separation_m',
+      'minimum_shock_clearance_m',
+      'maximum_static_pressure_residual',
+      'maximum_companion_invariant_residual',
+      'maximum_geometry_residual_m',
+    ):
+      value = getattr(self, name)
+      if value is None:
+        continue
+      numeric = float(value)
+      if not isfinite(numeric) or (
+        numeric < 0.0 and name not in ('seed_k_minus_rad', 'seed_flow_angle_rad')
+      ):
+        raise ValueError(f'{name} must be finite and valid when supplied')
+      object.__setattr__(self, name, numeric)
+    for name in (
+      'physical_closure_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+    object.__setattr__(self, 'message', str(self.message))
+    ####
+
+  @property
+  def converged(self) -> bool:
+    """Whether every derived ambient companion sample passed its checks."""
+
+    return self.status is MocEulerAmbientCompanionBoundaryStatus.CONVERGED_AMBIENT_COMPANION_BOUNDARY
+  ####
+
+  @property
+  def state_sampling_available(self) -> bool:
+    return bool(self.converged and self.samples)
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'converged': self.converged,
+      'state_sampling_available': self.state_sampling_available,
+      'shock_boundary_status': (
+        None if self.shock_boundary is None else self.shock_boundary.status.value
+      ),
+      'ambient_pressure_Pa': self.ambient_pressure_Pa,
+      'sample_count': len(self.samples),
+      'points_m': [list(sample.point_m) for sample in self.samples],
+      'mach': [sample.state.mach for sample in self.samples],
+      'flow_angles_rad': [sample.state.theta_rad for sample in self.samples],
+      'total_pressure_Pa': [
+        sample.total_pressure_Pa for sample in self.samples
+      ],
+      'static_pressure_residuals': list(self.static_pressure_residuals),
+      'companion_invariant_residuals': list(self.companion_invariant_residuals),
+      'geometry_residuals_m': list(self.geometry_residuals_m),
+      'seed_k_minus_rad': self.seed_k_minus_rad,
+      'seed_flow_angle_rad': self.seed_flow_angle_rad,
+      'separation_m': self.separation_m,
+      'minimum_shock_clearance_m': self.minimum_shock_clearance_m,
+      'maximum_static_pressure_residual': self.maximum_static_pressure_residual,
+      'maximum_companion_invariant_residual': (
+        self.maximum_companion_invariant_residual
+      ),
+      'maximum_geometry_residual_m': self.maximum_geometry_residual_m,
+      'position_tolerance_m': self.position_tolerance_m,
+      'invariant_tolerance': self.invariant_tolerance,
+      'pressure_tolerance': self.pressure_tolerance,
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'message': self.message,
+    }
+  ####
 
 
 @dataclass(frozen=True, slots=True)
@@ -371,6 +544,452 @@ class MocEulerCompanionFieldResult:
       'message': self.message,
     }
   ####
+
+
+def solve_euler_ambient_companion_boundary_reference(
+  shock_boundary: MocEulerShockBoundaryCurveResult,
+  ambient_pressure_Pa: float,
+  *,
+  separation_m: float = 0.5,
+  seed_flow_angle_rad: float = 0.0,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  pressure_tolerance: float = 1.0e-10,
+) -> MocEulerAmbientCompanionBoundaryResult:
+  """Derive an ambient-conditioned companion trace from shock data.
+
+  The shock downstream total-pressure lineage determines the supersonic Mach
+  number at the requested ambient pressure.  A single seeded ``C-``
+  invariant then determines the boundary flow angle, and the boundary is
+  advanced as a streamline-like curve using that angle.  This is a bounded
+  solver-owned reference for the missing second boundary; the separation and
+  seed angle remain explicit parameters, and the result is intentionally not
+  a globally coupled physical closure.
+  """
+
+  defaults = {
+    'position_tolerance_m': 1.0e-10,
+    'invariant_tolerance': 1.0e-10,
+    'pressure_tolerance': 1.0e-10,
+  }
+  if not isinstance(shock_boundary, MocEulerShockBoundaryCurveResult):
+    return MocEulerAmbientCompanionBoundaryResult(
+      status=MocEulerAmbientCompanionBoundaryStatus.INVALID_INPUT,
+      message='shock_boundary must be a MocEulerShockBoundaryCurveResult',
+      **defaults,
+    )
+  try:
+    ambient_pressure = float(ambient_pressure_Pa)
+    separation = float(separation_m)
+    seed_angle = float(seed_flow_angle_rad)
+    position_tolerance = float(position_tolerance_m)
+    invariant_tolerance_value = float(invariant_tolerance)
+    pressure_tolerance_value = float(pressure_tolerance)
+  except (TypeError, ValueError):
+    return MocEulerAmbientCompanionBoundaryResult(
+      status=MocEulerAmbientCompanionBoundaryStatus.INVALID_INPUT,
+      shock_boundary=shock_boundary,
+      message=(
+        'ambient companion pressure, separation, seed angle, and tolerances '
+        'must be numeric'
+      ),
+      **defaults,
+    )
+  for name, value in (
+    ('position_tolerance_m', position_tolerance),
+    ('invariant_tolerance', invariant_tolerance_value),
+    ('pressure_tolerance', pressure_tolerance_value),
+  ):
+    if not isfinite(value) or value <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+  if not isfinite(ambient_pressure) or ambient_pressure <= 0.0:
+    return MocEulerAmbientCompanionBoundaryResult(
+      status=MocEulerAmbientCompanionBoundaryStatus.INVALID_INPUT,
+      shock_boundary=shock_boundary,
+      ambient_pressure_Pa=ambient_pressure,
+      position_tolerance_m=position_tolerance,
+      invariant_tolerance=invariant_tolerance_value,
+      pressure_tolerance=pressure_tolerance_value,
+      message='ambient_pressure_Pa must be finite and positive',
+    )
+  if not isfinite(separation) or separation <= position_tolerance:
+    return MocEulerAmbientCompanionBoundaryResult(
+      status=MocEulerAmbientCompanionBoundaryStatus.INVALID_INPUT,
+      shock_boundary=shock_boundary,
+      ambient_pressure_Pa=ambient_pressure,
+      separation_m=separation,
+      position_tolerance_m=position_tolerance,
+      invariant_tolerance=invariant_tolerance_value,
+      pressure_tolerance=pressure_tolerance_value,
+      message='separation_m must be finite and greater than position tolerance',
+    )
+  if not isfinite(seed_angle):
+    return MocEulerAmbientCompanionBoundaryResult(
+      status=MocEulerAmbientCompanionBoundaryStatus.INVALID_INPUT,
+      shock_boundary=shock_boundary,
+      ambient_pressure_Pa=ambient_pressure,
+      separation_m=separation,
+      seed_flow_angle_rad=seed_angle,
+      position_tolerance_m=position_tolerance,
+      invariant_tolerance=invariant_tolerance_value,
+      pressure_tolerance=pressure_tolerance_value,
+      message='seed_flow_angle_rad must be finite',
+    )
+  if not shock_boundary.converged or not shock_boundary.local_euler_verified:
+    return MocEulerAmbientCompanionBoundaryResult(
+      status=MocEulerAmbientCompanionBoundaryStatus.SHOCK_BOUNDARY_REQUIRED,
+      shock_boundary=shock_boundary,
+      ambient_pressure_Pa=ambient_pressure,
+      separation_m=separation,
+      seed_flow_angle_rad=seed_angle,
+      position_tolerance_m=position_tolerance,
+      invariant_tolerance=invariant_tolerance_value,
+      pressure_tolerance=pressure_tolerance_value,
+      message='ambient companion boundary requires a locally Euler-verified shock curve',
+    )
+  if shock_boundary.orientation is not MocEulerShockBoundaryOrientation.MIXED_CHARACTERISTIC_BOUNDARY:
+    return MocEulerAmbientCompanionBoundaryResult(
+      status=MocEulerAmbientCompanionBoundaryStatus.SHOCK_BOUNDARY_REQUIRED,
+      shock_boundary=shock_boundary,
+      ambient_pressure_Pa=ambient_pressure,
+      separation_m=separation,
+      seed_flow_angle_rad=seed_angle,
+      position_tolerance_m=position_tolerance,
+      invariant_tolerance=invariant_tolerance_value,
+      pressure_tolerance=pressure_tolerance_value,
+      message=(
+        'ambient companion boundary reference requires the mixed-'
+        'characteristic shock orientation'
+      ),
+    )
+  points = tuple(shock_boundary.shock_points_m)
+  pressures = tuple(shock_boundary.downstream_total_pressure_Pa)
+  states = tuple(shock_boundary.downstream_states)
+  if len(points) < 2 or len(points) != len(pressures) or len(points) != len(states):
+    return MocEulerAmbientCompanionBoundaryResult(
+      status=MocEulerAmbientCompanionBoundaryStatus.GEOMETRY_FAILURE,
+      shock_boundary=shock_boundary,
+      ambient_pressure_Pa=ambient_pressure,
+      separation_m=separation,
+      seed_flow_angle_rad=seed_angle,
+      position_tolerance_m=position_tolerance,
+      invariant_tolerance=invariant_tolerance_value,
+      pressure_tolerance=pressure_tolerance_value,
+      message='shock curve must contain at least two aligned points and states',
+    )
+  if any(
+    points[index + 1][0] <= points[index][0] + position_tolerance
+    for index in range(len(points) - 1)
+  ):
+    return MocEulerAmbientCompanionBoundaryResult(
+      status=MocEulerAmbientCompanionBoundaryStatus.GEOMETRY_FAILURE,
+      shock_boundary=shock_boundary,
+      ambient_pressure_Pa=ambient_pressure,
+      separation_m=separation,
+      seed_flow_angle_rad=seed_angle,
+      position_tolerance_m=position_tolerance,
+      invariant_tolerance=invariant_tolerance_value,
+      pressure_tolerance=pressure_tolerance_value,
+      message='shock curve must advance strictly downstream in x',
+    )
+  gamma = states[0].gamma
+  if any(abs(state.gamma - gamma) > invariant_tolerance_value for state in states):
+    return MocEulerAmbientCompanionBoundaryResult(
+      status=MocEulerAmbientCompanionBoundaryStatus.INVARIANT_FAILURE,
+      shock_boundary=shock_boundary,
+      ambient_pressure_Pa=ambient_pressure,
+      separation_m=separation,
+      seed_flow_angle_rad=seed_angle,
+      position_tolerance_m=position_tolerance,
+      invariant_tolerance=invariant_tolerance_value,
+      pressure_tolerance=pressure_tolerance_value,
+      message='shock downstream states must use one gamma',
+    )
+  first_ratio = pressures[0] / ambient_pressure
+  if not isfinite(first_ratio) or first_ratio <= 1.0:
+    return MocEulerAmbientCompanionBoundaryResult(
+      status=MocEulerAmbientCompanionBoundaryStatus.AMBIENT_PRESSURE_FAILURE,
+      shock_boundary=shock_boundary,
+      ambient_pressure_Pa=ambient_pressure,
+      separation_m=separation,
+      seed_flow_angle_rad=seed_angle,
+      position_tolerance_m=position_tolerance,
+      invariant_tolerance=invariant_tolerance_value,
+      pressure_tolerance=pressure_tolerance_value,
+      message='ambient pressure must be below every shock downstream total pressure',
+    )
+  try:
+    first_inverse = supersonic_mach_from_stagnation_pressure_ratio(
+      first_ratio,
+      gamma,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return MocEulerAmbientCompanionBoundaryResult(
+      status=MocEulerAmbientCompanionBoundaryStatus.AMBIENT_PRESSURE_FAILURE,
+      shock_boundary=shock_boundary,
+      ambient_pressure_Pa=ambient_pressure,
+      separation_m=separation,
+      seed_flow_angle_rad=seed_angle,
+      position_tolerance_m=position_tolerance,
+      invariant_tolerance=invariant_tolerance_value,
+      pressure_tolerance=pressure_tolerance_value,
+      message=f'ambient Mach inversion failed: {error}',
+    )
+  if not first_inverse.converged or first_inverse.value is None:
+    return MocEulerAmbientCompanionBoundaryResult(
+      status=MocEulerAmbientCompanionBoundaryStatus.AMBIENT_PRESSURE_FAILURE,
+      shock_boundary=shock_boundary,
+      ambient_pressure_Pa=ambient_pressure,
+      separation_m=separation,
+      seed_flow_angle_rad=seed_angle,
+      position_tolerance_m=position_tolerance,
+      invariant_tolerance=invariant_tolerance_value,
+      pressure_tolerance=pressure_tolerance_value,
+      message=first_inverse.message,
+    )
+  first_nu = prandtl_meyer_angle_rad(first_inverse.value, gamma)
+  seed_k_minus = seed_angle + first_nu
+  samples: list[MocChainBoundarySample] = []
+  static_pressure_residuals: list[float] = []
+  invariant_residuals: list[float] = []
+  geometry_residuals: list[float] = []
+  clearances: list[float] = []
+  previous_theta: float | None = None
+  previous_y: float | None = None
+  for index, (point, total_pressure, _downstream_state) in enumerate(
+    zip(points, pressures, states, strict=True)
+  ):
+    ratio = total_pressure / ambient_pressure
+    if not isfinite(ratio) or ratio <= 1.0:
+      return MocEulerAmbientCompanionBoundaryResult(
+        status=MocEulerAmbientCompanionBoundaryStatus.AMBIENT_PRESSURE_FAILURE,
+        shock_boundary=shock_boundary,
+        ambient_pressure_Pa=ambient_pressure,
+        samples=tuple(samples),
+        static_pressure_residuals=tuple(static_pressure_residuals),
+        companion_invariant_residuals=tuple(invariant_residuals),
+        geometry_residuals_m=tuple(geometry_residuals),
+        seed_k_minus_rad=seed_k_minus,
+        seed_flow_angle_rad=seed_angle,
+        separation_m=separation,
+        minimum_shock_clearance_m=min(clearances, default=None),
+        maximum_static_pressure_residual=max(static_pressure_residuals, default=None),
+        maximum_companion_invariant_residual=max(invariant_residuals, default=None),
+        maximum_geometry_residual_m=max(geometry_residuals, default=None),
+        position_tolerance_m=position_tolerance,
+        invariant_tolerance=invariant_tolerance_value,
+        pressure_tolerance=pressure_tolerance_value,
+        message=f'shock sample {index} cannot support an ambient supersonic state',
+      )
+    try:
+      inverse = supersonic_mach_from_stagnation_pressure_ratio(ratio, gamma)
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      return MocEulerAmbientCompanionBoundaryResult(
+        status=MocEulerAmbientCompanionBoundaryStatus.AMBIENT_PRESSURE_FAILURE,
+        shock_boundary=shock_boundary,
+        ambient_pressure_Pa=ambient_pressure,
+        samples=tuple(samples),
+        static_pressure_residuals=tuple(static_pressure_residuals),
+        companion_invariant_residuals=tuple(invariant_residuals),
+        geometry_residuals_m=tuple(geometry_residuals),
+        seed_k_minus_rad=seed_k_minus,
+        seed_flow_angle_rad=seed_angle,
+        separation_m=separation,
+        minimum_shock_clearance_m=min(clearances, default=None),
+        maximum_static_pressure_residual=max(static_pressure_residuals, default=None),
+        maximum_companion_invariant_residual=max(invariant_residuals, default=None),
+        maximum_geometry_residual_m=max(geometry_residuals, default=None),
+        position_tolerance_m=position_tolerance,
+        invariant_tolerance=invariant_tolerance_value,
+        pressure_tolerance=pressure_tolerance_value,
+        message=f'ambient Mach inversion failed at sample {index}: {error}',
+      )
+    if not inverse.converged or inverse.value is None:
+      return MocEulerAmbientCompanionBoundaryResult(
+        status=MocEulerAmbientCompanionBoundaryStatus.AMBIENT_PRESSURE_FAILURE,
+        shock_boundary=shock_boundary,
+        ambient_pressure_Pa=ambient_pressure,
+        samples=tuple(samples),
+        static_pressure_residuals=tuple(static_pressure_residuals),
+        companion_invariant_residuals=tuple(invariant_residuals),
+        geometry_residuals_m=tuple(geometry_residuals),
+        seed_k_minus_rad=seed_k_minus,
+        seed_flow_angle_rad=seed_angle,
+        separation_m=separation,
+        minimum_shock_clearance_m=min(clearances, default=None),
+        maximum_static_pressure_residual=max(static_pressure_residuals, default=None),
+        maximum_companion_invariant_residual=max(invariant_residuals, default=None),
+        maximum_geometry_residual_m=max(geometry_residuals, default=None),
+        position_tolerance_m=position_tolerance,
+        invariant_tolerance=invariant_tolerance_value,
+        pressure_tolerance=pressure_tolerance_value,
+        message=f'ambient Mach inversion failed at sample {index}: {inverse.message}',
+      )
+    mach = inverse.value
+    nu = prandtl_meyer_angle_rad(mach, gamma)
+    theta = seed_k_minus - nu
+    try:
+      tangent = tan(theta)
+    except (ArithmeticError, FloatingPointError, ValueError) as error:
+      return MocEulerAmbientCompanionBoundaryResult(
+        status=MocEulerAmbientCompanionBoundaryStatus.GEOMETRY_FAILURE,
+        shock_boundary=shock_boundary,
+        ambient_pressure_Pa=ambient_pressure,
+        samples=tuple(samples),
+        static_pressure_residuals=tuple(static_pressure_residuals),
+        companion_invariant_residuals=tuple(invariant_residuals),
+        geometry_residuals_m=tuple(geometry_residuals),
+        seed_k_minus_rad=seed_k_minus,
+        seed_flow_angle_rad=seed_angle,
+        separation_m=separation,
+        minimum_shock_clearance_m=min(clearances, default=None),
+        maximum_static_pressure_residual=max(static_pressure_residuals, default=None),
+        maximum_companion_invariant_residual=max(invariant_residuals, default=None),
+        maximum_geometry_residual_m=max(geometry_residuals, default=None),
+        position_tolerance_m=position_tolerance,
+        invariant_tolerance=invariant_tolerance_value,
+        pressure_tolerance=pressure_tolerance_value,
+        message=f'ambient companion tangent failed at sample {index}: {error}',
+      )
+    if not isfinite(tangent):
+      return MocEulerAmbientCompanionBoundaryResult(
+        status=MocEulerAmbientCompanionBoundaryStatus.GEOMETRY_FAILURE,
+        shock_boundary=shock_boundary,
+        ambient_pressure_Pa=ambient_pressure,
+        samples=tuple(samples),
+        static_pressure_residuals=tuple(static_pressure_residuals),
+        companion_invariant_residuals=tuple(invariant_residuals),
+        geometry_residuals_m=tuple(geometry_residuals),
+        seed_k_minus_rad=seed_k_minus,
+        seed_flow_angle_rad=seed_angle,
+        separation_m=separation,
+        minimum_shock_clearance_m=min(clearances, default=None),
+        maximum_static_pressure_residual=max(static_pressure_residuals, default=None),
+        maximum_companion_invariant_residual=max(invariant_residuals, default=None),
+        maximum_geometry_residual_m=max(geometry_residuals, default=None),
+        position_tolerance_m=position_tolerance,
+        invariant_tolerance=invariant_tolerance_value,
+        pressure_tolerance=pressure_tolerance_value,
+        message=f'ambient companion tangent is non-finite at sample {index}',
+      )
+    companion_y = (
+      point[1] + separation
+      if index == 0
+      else previous_y
+      + 0.5 * (previous_theta + theta) * (point[0] - points[index - 1][0])
+    )
+    if not isfinite(companion_y):
+      return MocEulerAmbientCompanionBoundaryResult(
+        status=MocEulerAmbientCompanionBoundaryStatus.GEOMETRY_FAILURE,
+        shock_boundary=shock_boundary,
+        ambient_pressure_Pa=ambient_pressure,
+        samples=tuple(samples),
+        static_pressure_residuals=tuple(static_pressure_residuals),
+        companion_invariant_residuals=tuple(invariant_residuals),
+        geometry_residuals_m=tuple(geometry_residuals),
+        seed_k_minus_rad=seed_k_minus,
+        seed_flow_angle_rad=seed_angle,
+        separation_m=separation,
+        minimum_shock_clearance_m=min(clearances, default=None),
+        maximum_static_pressure_residual=max(static_pressure_residuals, default=None),
+        maximum_companion_invariant_residual=max(invariant_residuals, default=None),
+        maximum_geometry_residual_m=max(geometry_residuals, default=None),
+        position_tolerance_m=position_tolerance,
+        invariant_tolerance=invariant_tolerance_value,
+        pressure_tolerance=pressure_tolerance_value,
+        message=f'ambient companion point is non-finite at sample {index}',
+      )
+    clearance = companion_y - point[1]
+    if clearance <= position_tolerance:
+      return MocEulerAmbientCompanionBoundaryResult(
+        status=MocEulerAmbientCompanionBoundaryStatus.GEOMETRY_FAILURE,
+        shock_boundary=shock_boundary,
+        ambient_pressure_Pa=ambient_pressure,
+        samples=tuple(samples),
+        static_pressure_residuals=tuple(static_pressure_residuals),
+        companion_invariant_residuals=tuple(invariant_residuals),
+        geometry_residuals_m=tuple(geometry_residuals),
+        seed_k_minus_rad=seed_k_minus,
+        seed_flow_angle_rad=seed_angle,
+        separation_m=separation,
+        minimum_shock_clearance_m=min(clearances, default=None),
+        maximum_static_pressure_residual=max(static_pressure_residuals, default=None),
+        maximum_companion_invariant_residual=max(invariant_residuals, default=None),
+        maximum_geometry_residual_m=max(geometry_residuals, default=None),
+        position_tolerance_m=position_tolerance,
+        invariant_tolerance=invariant_tolerance_value,
+        pressure_tolerance=pressure_tolerance_value,
+        message=f'ambient companion boundary crosses the shock at sample {index}',
+      )
+    static_pressure = total_pressure / (
+      1.0 + 0.5 * (gamma - 1.0) * mach * mach
+    ) ** (gamma / (gamma - 1.0))
+    pressure_residual = abs(static_pressure - ambient_pressure) / ambient_pressure
+    invariant_residual = abs(theta + nu - seed_k_minus)
+    geometry_residual = (
+      0.0
+      if index == 0
+      else abs(
+        (companion_y - previous_y)
+        - 0.5 * (previous_theta + theta) * (point[0] - points[index - 1][0])
+      )
+    )
+    sample = MocChainBoundarySample(
+      state=CharacteristicState(
+        x_m=point[0],
+        y_m=companion_y,
+        theta_rad=theta,
+        mach=mach,
+        gamma=gamma,
+      ),
+      total_pressure_Pa=total_pressure,
+    )
+    samples.append(sample)
+    static_pressure_residuals.append(pressure_residual)
+    invariant_residuals.append(invariant_residual)
+    geometry_residuals.append(geometry_residual)
+    clearances.append(clearance)
+    previous_theta = theta
+    previous_y = companion_y
+  maximum_pressure_residual = max(static_pressure_residuals, default=0.0)
+  maximum_invariant_residual = max(invariant_residuals, default=0.0)
+  maximum_geometry_residual = max(geometry_residuals, default=0.0)
+  if maximum_pressure_residual > pressure_tolerance_value:
+    status = MocEulerAmbientCompanionBoundaryStatus.AMBIENT_PRESSURE_FAILURE
+    message = 'ambient companion static-pressure residual exceeded tolerance'
+  elif maximum_invariant_residual > invariant_tolerance_value:
+    status = MocEulerAmbientCompanionBoundaryStatus.INVARIANT_FAILURE
+    message = 'ambient companion C- invariant residual exceeded tolerance'
+  elif maximum_geometry_residual > position_tolerance:
+    status = MocEulerAmbientCompanionBoundaryStatus.GEOMETRY_FAILURE
+    message = 'ambient companion streamline geometry residual exceeded tolerance'
+  else:
+    status = MocEulerAmbientCompanionBoundaryStatus.CONVERGED_AMBIENT_COMPANION_BOUNDARY
+    message = (
+      'ambient-conditioned companion boundary derived from shock total-pressure '
+      'lineage; global reflected free-boundary closure remains pending'
+    )
+  return MocEulerAmbientCompanionBoundaryResult(
+    status=status,
+    shock_boundary=shock_boundary,
+    ambient_pressure_Pa=ambient_pressure,
+    samples=tuple(samples),
+    static_pressure_residuals=tuple(static_pressure_residuals),
+    companion_invariant_residuals=tuple(invariant_residuals),
+    geometry_residuals_m=tuple(geometry_residuals),
+    seed_k_minus_rad=seed_k_minus,
+    seed_flow_angle_rad=seed_angle,
+    separation_m=separation,
+    minimum_shock_clearance_m=min(clearances, default=None),
+    maximum_static_pressure_residual=maximum_pressure_residual,
+    maximum_companion_invariant_residual=maximum_invariant_residual,
+    maximum_geometry_residual_m=maximum_geometry_residual,
+    position_tolerance_m=position_tolerance,
+    invariant_tolerance=invariant_tolerance_value,
+    pressure_tolerance=pressure_tolerance_value,
+    message=message,
+  )
+####
 
 
 def _failure(

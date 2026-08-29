@@ -881,6 +881,16 @@ state sampling are useful evidence, but ambient closure, reflected-shock
 coupling, variable entropy transport, and continued-cell promotion remain
 blocked.
 
+`solve_euler_ambient_companion_boundary_reference` supplies a separate
+solver-owned research reference for that missing boundary. It derives the
+supersonic Mach trace from each shock downstream total-pressure sample and the
+ambient static pressure, carries one explicitly seeded `C-` invariant, and
+advances the companion as a bounded streamline-like curve. This removes the
+need to prescribe every companion sample while keeping the seed separation,
+seed angle, and finite-domain parameterization visible. It is still not a
+globally coupled reflected free-boundary solve; feeding its samples into the
+strip therefore remains open-field evidence and cannot promote a chain cell.
+
 `op.moc.euler-companion-field-audit` rebuilds the shock flux jumps and
 finite-volume cell residuals from the retained upstream/downstream curve,
 rechecks the strip cells and one-perimeter topology, and verifies that the
