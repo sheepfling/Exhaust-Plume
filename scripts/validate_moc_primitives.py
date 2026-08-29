@@ -272,6 +272,10 @@ from exhaust_plume.validation.moc_external_comparisons import (  # noqa: E402
   MOC_SHOCK_CELL_EXTERNAL_COMPARISON_OPERATOR_ID,
   audit_moc_external_validation_splits,
 )
+from exhaust_plume.validation.moc_euler import (  # noqa: E402
+  MocEulerCompanionFieldAuditStatus,
+  measure_moc_euler_companion_field,
+)
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput  # noqa: E402
 from exhaust_plume.models.nozzle.exit_state import derive_ambient_state, derive_uniform_nozzle_exit  # noqa: E402
 from exhaust_plume.util.aero.shock_validity import ShockBranch, ShockSolveStatus  # noqa: E402
@@ -9763,6 +9767,9 @@ def build_moc_primitive_report() -> dict[str, Any]:
     euler_consistent_shock_boundary,
     euler_companion_boundary,
   )
+  euler_companion_field_audit = measure_moc_euler_companion_field(
+    euler_companion_field,
+  )
   normal_shock_terminal = solve_normal_shock_terminal(
     CharacteristicState(
       x_m=1.25,
@@ -9944,6 +9951,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
     },
     'euler_consistent_companion_characteristic_strip': {
       **euler_companion_field.as_report(),
+      'independent_audit': euler_companion_field_audit.as_report(),
       'claim_status': (
         'open-companion-conditioned-characteristic-strip; ambient-free-'
         'boundary-and-continued-chain-pending'
@@ -10812,6 +10820,19 @@ def build_moc_primitive_report() -> dict[str, Any]:
       or not euler_companion_field.pressure_lineage_verified
       or euler_companion_field.physical_closure_verified
       or not euler_companion_field.chain_promotion_blocked
+    ) else []),
+    *([
+      {
+        'case': 'euler_consistent_companion_characteristic_strip_audit',
+        'status': euler_companion_field_audit.status.value,
+        'message': euler_companion_field_audit.message,
+      }
+    ] if (
+      euler_companion_field_audit.status is not MocEulerCompanionFieldAuditStatus.CONVERGED_LOCAL_AUDIT
+      or not euler_companion_field_audit.local_euler_consistency_verified
+      or euler_companion_field_audit.physical_closure_verified
+      or not euler_companion_field_audit.chain_promotion_blocked
+      or euler_companion_field_audit.production_claim_allowed
     ) else []),
     *([
       {

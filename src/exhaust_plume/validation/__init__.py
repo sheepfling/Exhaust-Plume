@@ -200,6 +200,10 @@ from exhaust_plume.validation.moc_euler import (
   MocPhysicalFieldEulerAuditStatus,
   MocPhysicalFieldEulerAudit,
   measure_moc_physical_field_euler_audit,
+  MOC_EULER_COMPANION_FIELD_AUDIT_OPERATOR_ID,
+  MocEulerCompanionFieldAuditStatus,
+  MocEulerCompanionFieldAudit,
+  measure_moc_euler_companion_field,
 )
 from exhaust_plume.validation.lane_contracts import (
   SignatureLaneInvariantReport,
@@ -453,6 +457,10 @@ __all__ = (
   'compare_moc_shock_cell_chain_to_external',
   'audit_moc_external_validation_splits',
   'measure_moc_physical_field_euler_audit',
+  'MOC_EULER_COMPANION_FIELD_AUDIT_OPERATOR_ID',
+  'MocEulerCompanionFieldAuditStatus',
+  'MocEulerCompanionFieldAudit',
+  'measure_moc_euler_companion_field',
   'measure_moc_terminal_closure',
   'write_validity_report_csv',
   'write_validity_report_json',

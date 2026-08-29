@@ -63,11 +63,14 @@ class MocEulerCompanionFieldResult:
   nodes: tuple[MocCharacteristicNode, ...]
   cells: tuple[MocCharacteristicCell, ...]
   topology: MocTopologyResult
+  shock_boundary: MocEulerShockBoundaryCurveResult | None = None
   shock_boundary_points_m: tuple[tuple[float, float], ...] = ()
   companion_boundary_points_m: tuple[tuple[float, float], ...] = ()
   interior_points_m: tuple[tuple[float, float], ...] = ()
   shock_boundary_states: tuple[CharacteristicState, ...] = ()
+  shock_boundary_total_pressure_Pa: tuple[float, ...] = ()
   companion_boundary_states: tuple[CharacteristicState, ...] = ()
+  companion_boundary_total_pressure_Pa: tuple[float, ...] = ()
   interior_states: tuple[CharacteristicState, ...] = ()
   interior_total_pressure_Pa: tuple[float, ...] = ()
   point_results: tuple[CharacteristicPointResult, ...] = ()
@@ -107,8 +110,20 @@ class MocEulerCompanionFieldResult:
       raise ValueError('nodes and interior pressures must have equal lengths')
     if len(self.shock_boundary_points_m) != len(self.shock_boundary_states):
       raise ValueError('shock boundary points and states must have equal lengths')
+    if self.shock_boundary_total_pressure_Pa and len(
+      self.shock_boundary_total_pressure_Pa
+    ) != len(self.shock_boundary_points_m):
+      raise ValueError(
+        'shock boundary points and pressures must have equal lengths'
+      )
     if len(self.companion_boundary_points_m) != len(self.companion_boundary_states):
       raise ValueError('companion boundary points and states must have equal lengths')
+    if self.companion_boundary_total_pressure_Pa and len(
+      self.companion_boundary_total_pressure_Pa
+    ) != len(self.companion_boundary_points_m):
+      raise ValueError(
+        'companion boundary points and pressures must have equal lengths'
+      )
     if len(self.interior_points_m) != len(self.nodes):
       raise ValueError('interior points and nodes must have equal lengths')
     for name, states in (
@@ -133,6 +148,15 @@ class MocEulerCompanionFieldResult:
       for value in self.interior_total_pressure_Pa
     ):
       raise ValueError('interior total pressures must be finite and positive')
+    for name, pressures in (
+      ('shock_boundary_total_pressure_Pa', self.shock_boundary_total_pressure_Pa),
+      (
+        'companion_boundary_total_pressure_Pa',
+        self.companion_boundary_total_pressure_Pa,
+      ),
+    ):
+      if any(not isfinite(float(value)) or value <= 0.0 for value in pressures):
+        raise ValueError(f'{name} must contain finite positive values')
     for name in (
       'maximum_geometry_residual_m',
       'maximum_absolute_invariant_residual',
@@ -152,6 +176,13 @@ class MocEulerCompanionFieldResult:
     ):
       raise TypeError(
         'shock_boundary_orientation must be a MocEulerShockBoundaryOrientation'
+      )
+    if self.shock_boundary is not None and not isinstance(
+      self.shock_boundary,
+      MocEulerShockBoundaryCurveResult,
+    ):
+      raise TypeError(
+        'shock_boundary must be a MocEulerShockBoundaryCurveResult when supplied'
       )
     for name in (
       'shock_boundary_local_euler_verified',
@@ -202,6 +233,9 @@ class MocEulerCompanionFieldResult:
       'state_sampling_available': self.state_sampling_available,
       'node_count': self.node_count,
       'cell_count': self.cell_count,
+      'shock_boundary_status': (
+        None if self.shock_boundary is None else self.shock_boundary.status.value
+      ),
       'shock_boundary_sample_count': len(self.shock_boundary_points_m),
       'companion_boundary_sample_count': len(self.companion_boundary_points_m),
       'interior_sample_count': len(self.interior_points_m),
@@ -216,6 +250,11 @@ class MocEulerCompanionFieldResult:
         else self.shock_boundary_orientation.value
       ),
       'shock_boundary_local_euler_verified': self.shock_boundary_local_euler_verified,
+      'shock_boundary_maximum_jump_residual': (
+        None
+        if self.shock_boundary is None
+        else self.shock_boundary.maximum_shock_jump_residual
+      ),
       'companion_boundary_contract_verified': self.companion_boundary_contract_verified,
       'pressure_lineage_verified': self.pressure_lineage_verified,
       'topology_status': self.topology.status.value,
@@ -623,11 +662,16 @@ def assemble_euler_consistent_companion_characteristic_strip(
     nodes=tuple(nodes),
     cells=cell_tuple,
     topology=topology,
+    shock_boundary=shock_boundary,
     shock_boundary_points_m=shock_boundary.shock_points_m,
     companion_boundary_points_m=tuple(sample.point_m for sample in companion),
     interior_points_m=tuple(interior_points),
     shock_boundary_states=shock_boundary.downstream_states,
+    shock_boundary_total_pressure_Pa=shock_boundary.downstream_total_pressure_Pa,
     companion_boundary_states=tuple(sample.state for sample in companion),
+    companion_boundary_total_pressure_Pa=tuple(
+      sample.total_pressure_Pa for sample in companion
+    ),
     interior_states=tuple(interior_states),
     interior_total_pressure_Pa=tuple(interior_pressures),
     point_results=tuple(point_results),

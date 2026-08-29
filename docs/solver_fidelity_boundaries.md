@@ -881,6 +881,13 @@ state sampling are useful evidence, but ambient closure, reflected-shock
 coupling, variable entropy transport, and continued-cell promotion remain
 blocked.
 
+`op.moc.euler-companion-field-audit` rebuilds the shock flux jumps and
+finite-volume cell residuals from the retained upstream/downstream curve,
+rechecks the strip cells and one-perimeter topology, and verifies that the
+companion and interior pressure traces did not reset entropy. A passing audit
+is still local evidence for this open strip; it does not establish a closed
+physical cell.
+
 The global reflected-remesh planner records this boundary-fit diagnostic for
 each retained attempt as well as the independent Euler audit. On the current
 reference fixture the corrected fit stops at `noncompressive_turn`, because

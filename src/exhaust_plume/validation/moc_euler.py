@@ -24,17 +24,28 @@ from typing import Any
 from exhaust_plume.models.moc.physical_cell import (
   MocPhysicalPostShockFieldResult,
 )
+from exhaust_plume.models.moc.euler_characteristic_field import (
+  MocEulerCompanionFieldResult,
+)
+from exhaust_plume.models.moc.topology import validate_moc_mesh
 
 __all__ = (
   'MOC_PHYSICAL_FIELD_EULER_AUDIT_OPERATOR_ID',
   'MocPhysicalFieldEulerAuditStatus',
   'MocPhysicalFieldEulerAudit',
   'measure_moc_physical_field_euler_audit',
+  'MOC_EULER_COMPANION_FIELD_AUDIT_OPERATOR_ID',
+  'MocEulerCompanionFieldAuditStatus',
+  'MocEulerCompanionFieldAudit',
+  'measure_moc_euler_companion_field',
 )
 
 
 MOC_PHYSICAL_FIELD_EULER_AUDIT_OPERATOR_ID = (
   'op.moc.physical-field-euler-audit'
+)
+MOC_EULER_COMPANION_FIELD_AUDIT_OPERATOR_ID = (
+  'op.moc.euler-companion-field-audit'
 )
 
 
@@ -420,6 +431,523 @@ def _failure(
     cell_euler_residuals_verified=cell_euler_residuals_verified,
     field_topology_verified=field_topology_verified,
     residual_tolerance=residual_tolerance,
+    message=message,
+  )
+
+
+class MocEulerCompanionFieldAuditStatus(str, Enum):
+  """Outcome of independently auditing an open companion strip."""
+
+  CONVERGED_LOCAL_AUDIT = 'converged_companion_field_audit'
+  INVALID_INPUT = 'invalid_input'
+  FIELD_FAILURE = 'companion_field_audit_field_failure'
+  SHOCK_JUMP_FAILURE = 'companion_field_audit_shock_jump_failure'
+  BOUNDARY_FAILURE = 'companion_field_audit_boundary_failure'
+  TOPOLOGY_FAILURE = 'companion_field_audit_topology_failure'
+  CELL_RESIDUAL_FAILURE = 'companion_field_audit_cell_residual_failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerCompanionFieldAudit:
+  """Independent evidence for the open Euler shock/companion strip."""
+
+  status: MocEulerCompanionFieldAuditStatus
+  field_status: str | None
+  shock_sample_count: int
+  cell_count: int
+  shock_jump_mass_residuals: tuple[float, ...]
+  shock_jump_momentum_residuals: tuple[float, ...]
+  shock_jump_energy_residuals: tuple[float, ...]
+  cell_euler_residuals: tuple[float, ...]
+  maximum_shock_jump_mass_residual: float | None
+  maximum_shock_jump_momentum_residual: float | None
+  maximum_shock_jump_energy_residual: float | None
+  maximum_cell_euler_residual: float | None
+  shock_jump_verified: bool
+  cell_euler_residuals_finite: bool
+  cell_euler_residuals_verified: bool
+  field_topology_verified: bool
+  boundary_geometry_verified: bool
+  pressure_lineage_verified: bool
+  promotion_flags_verified: bool
+  shock_residual_tolerance: float
+  cell_residual_tolerance: float
+  canonical_euler_verified: bool = False
+  physical_closure_verified: bool = False
+  chain_promotion_blocked: bool = True
+  production_claim_allowed: bool = False
+  message: str = ''
+  operator_id: str = MOC_EULER_COMPANION_FIELD_AUDIT_OPERATOR_ID
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.status, MocEulerCompanionFieldAuditStatus):
+      raise TypeError('status must be a MocEulerCompanionFieldAuditStatus')
+    for name in ('shock_sample_count', 'cell_count'):
+      value = getattr(self, name)
+      if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f'{name} must be a nonnegative integer')
+    for name in ('shock_residual_tolerance', 'cell_residual_tolerance'):
+      value = float(getattr(self, name))
+      if not isfinite(value) or value <= 0.0:
+        raise ValueError(f'{name} must be finite and positive')
+      object.__setattr__(self, name, value)
+    for name in (
+      'shock_jump_mass_residuals',
+      'shock_jump_momentum_residuals',
+      'shock_jump_energy_residuals',
+      'cell_euler_residuals',
+    ):
+      values = tuple(float(value) for value in getattr(self, name))
+      if any(not isfinite(value) or value < 0.0 for value in values):
+        raise ValueError(f'{name} must contain finite nonnegative values')
+      object.__setattr__(self, name, values)
+    for name in (
+      'maximum_shock_jump_mass_residual',
+      'maximum_shock_jump_momentum_residual',
+      'maximum_shock_jump_energy_residual',
+      'maximum_cell_euler_residual',
+    ):
+      value = getattr(self, name)
+      if value is None:
+        continue
+      numeric = float(value)
+      if not isfinite(numeric) or numeric < 0.0:
+        raise ValueError(f'{name} must be finite and nonnegative when supplied')
+      object.__setattr__(self, name, numeric)
+    for name in (
+      'shock_jump_verified',
+      'cell_euler_residuals_finite',
+      'cell_euler_residuals_verified',
+      'field_topology_verified',
+      'boundary_geometry_verified',
+      'pressure_lineage_verified',
+      'promotion_flags_verified',
+      'canonical_euler_verified',
+      'physical_closure_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+    if self.field_status is not None:
+      object.__setattr__(self, 'field_status', str(self.field_status))
+    operator_id = str(self.operator_id)
+    if not operator_id:
+      raise ValueError('operator_id must be a non-empty string')
+    object.__setattr__(self, 'operator_id', operator_id)
+    object.__setattr__(self, 'message', str(self.message))
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocEulerCompanionFieldAuditStatus.CONVERGED_LOCAL_AUDIT
+
+  @property
+  def local_euler_consistency_verified(self) -> bool:
+    return bool(
+      self.converged
+      and self.shock_jump_verified
+      and self.cell_euler_residuals_verified
+      and self.field_topology_verified
+      and self.boundary_geometry_verified
+      and self.pressure_lineage_verified
+      and self.promotion_flags_verified
+    )
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'operator_id': self.operator_id,
+      'converged': self.converged,
+      'field_status': self.field_status,
+      'shock_sample_count': self.shock_sample_count,
+      'cell_count': self.cell_count,
+      'shock_jump_mass_residuals': list(self.shock_jump_mass_residuals),
+      'shock_jump_momentum_residuals': list(self.shock_jump_momentum_residuals),
+      'shock_jump_energy_residuals': list(self.shock_jump_energy_residuals),
+      'cell_euler_residuals': list(self.cell_euler_residuals),
+      'maximum_shock_jump_mass_residual': self.maximum_shock_jump_mass_residual,
+      'maximum_shock_jump_momentum_residual': self.maximum_shock_jump_momentum_residual,
+      'maximum_shock_jump_energy_residual': self.maximum_shock_jump_energy_residual,
+      'maximum_cell_euler_residual': self.maximum_cell_euler_residual,
+      'checks': {
+        'shock_jump_verified': self.shock_jump_verified,
+        'cell_euler_residuals_finite': self.cell_euler_residuals_finite,
+        'cell_euler_residuals_verified': self.cell_euler_residuals_verified,
+        'field_topology_verified': self.field_topology_verified,
+        'boundary_geometry_verified': self.boundary_geometry_verified,
+        'pressure_lineage_verified': self.pressure_lineage_verified,
+        'promotion_flags_verified': self.promotion_flags_verified,
+        'local_euler_consistency_verified': self.local_euler_consistency_verified,
+        'canonical_euler_verified': self.canonical_euler_verified,
+        'physical_closure_verified': self.physical_closure_verified,
+        'chain_promotion_blocked': self.chain_promotion_blocked,
+        'production_claim_allowed': self.production_claim_allowed,
+      },
+      'shock_residual_tolerance': self.shock_residual_tolerance,
+      'cell_residual_tolerance': self.cell_residual_tolerance,
+      'canonical_free_boundary_verified': False,
+      'external_validation_verified': False,
+      'claim_status': (
+        'independent-open-companion-strip audit; ambient/reflected free-boundary '
+        'closure and external validation remain pending'
+      ),
+      'message': self.message,
+    }
+
+
+def _companion_audit_failure(
+  status: MocEulerCompanionFieldAuditStatus,
+  message: str,
+  *,
+  field_status: str | None = None,
+  shock_sample_count: int = 0,
+  cell_count: int = 0,
+  shock_jump_mass_residuals: tuple[float, ...] = (),
+  shock_jump_momentum_residuals: tuple[float, ...] = (),
+  shock_jump_energy_residuals: tuple[float, ...] = (),
+  cell_euler_residuals: tuple[float, ...] = (),
+  shock_jump_verified: bool = False,
+  cell_euler_residuals_finite: bool = False,
+  cell_euler_residuals_verified: bool = False,
+  field_topology_verified: bool = False,
+  boundary_geometry_verified: bool = False,
+  pressure_lineage_verified: bool = False,
+  promotion_flags_verified: bool = False,
+  shock_residual_tolerance: float = 1.0e-8,
+  cell_residual_tolerance: float = 1.0e-2,
+) -> MocEulerCompanionFieldAudit:
+  maxima = tuple(
+    max(values) if values else None
+    for values in (
+      shock_jump_mass_residuals,
+      shock_jump_momentum_residuals,
+      shock_jump_energy_residuals,
+      cell_euler_residuals,
+    )
+  )
+  return MocEulerCompanionFieldAudit(
+    status=status,
+    field_status=field_status,
+    shock_sample_count=shock_sample_count,
+    cell_count=cell_count,
+    shock_jump_mass_residuals=shock_jump_mass_residuals,
+    shock_jump_momentum_residuals=shock_jump_momentum_residuals,
+    shock_jump_energy_residuals=shock_jump_energy_residuals,
+    cell_euler_residuals=cell_euler_residuals,
+    maximum_shock_jump_mass_residual=maxima[0],
+    maximum_shock_jump_momentum_residual=maxima[1],
+    maximum_shock_jump_energy_residual=maxima[2],
+    maximum_cell_euler_residual=maxima[3],
+    shock_jump_verified=shock_jump_verified,
+    cell_euler_residuals_finite=cell_euler_residuals_finite,
+    cell_euler_residuals_verified=cell_euler_residuals_verified,
+    field_topology_verified=field_topology_verified,
+    boundary_geometry_verified=boundary_geometry_verified,
+    pressure_lineage_verified=pressure_lineage_verified,
+    promotion_flags_verified=promotion_flags_verified,
+    shock_residual_tolerance=shock_residual_tolerance,
+    cell_residual_tolerance=cell_residual_tolerance,
+    message=message,
+  )
+
+
+def measure_moc_euler_companion_field(
+  field: MocEulerCompanionFieldResult,
+  *,
+  shock_residual_tolerance: float = 1.0e-8,
+  cell_residual_tolerance: float = 1.0e-2,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  pressure_tolerance: float = 1.0e-10,
+) -> MocEulerCompanionFieldAudit:
+  """Rebuild local shock, strip, topology, and pressure evidence independently."""
+
+  if not isinstance(field, MocEulerCompanionFieldResult):
+    return _companion_audit_failure(
+      MocEulerCompanionFieldAuditStatus.INVALID_INPUT,
+      'field must be a MocEulerCompanionFieldResult',
+    )
+  try:
+    shock_tolerance = float(shock_residual_tolerance)
+    cell_tolerance = float(cell_residual_tolerance)
+    position_tolerance = float(position_tolerance_m)
+    invariant_tolerance_value = float(invariant_tolerance)
+    pressure_tolerance_value = float(pressure_tolerance)
+  except (TypeError, ValueError):
+    return _companion_audit_failure(
+      MocEulerCompanionFieldAuditStatus.INVALID_INPUT,
+      'companion-field audit tolerances must be numeric',
+      field_status=field.status.value,
+    )
+  tolerances = (
+    shock_tolerance,
+    cell_tolerance,
+    position_tolerance,
+    invariant_tolerance_value,
+    pressure_tolerance_value,
+  )
+  if any(not isfinite(value) or value <= 0.0 for value in tolerances):
+    raise ValueError('companion-field audit tolerances must be finite and positive')
+  if not field.converged:
+    return _companion_audit_failure(
+      MocEulerCompanionFieldAuditStatus.FIELD_FAILURE,
+      'companion-field audit requires a converged open strip',
+      field_status=field.status.value,
+      shock_sample_count=len(field.shock_boundary_points_m),
+      cell_count=len(field.cells),
+      shock_residual_tolerance=shock_tolerance,
+      cell_residual_tolerance=cell_tolerance,
+    )
+  curve = field.shock_boundary
+  if curve is None or not curve.converged:
+    return _companion_audit_failure(
+      MocEulerCompanionFieldAuditStatus.SHOCK_JUMP_FAILURE,
+      'companion-field audit requires the retained converged shock curve',
+      field_status=field.status.value,
+      shock_sample_count=len(field.shock_boundary_points_m),
+      cell_count=len(field.cells),
+      shock_residual_tolerance=shock_tolerance,
+      cell_residual_tolerance=cell_tolerance,
+    )
+  shock_points = tuple(field.shock_boundary_points_m)
+  boundary_geometry_verified = bool(
+    len(shock_points) >= 2
+    and len(shock_points) == len(field.shock_boundary_states)
+    and len(shock_points) == len(field.shock_boundary_total_pressure_Pa)
+    and len(shock_points) == len(field.companion_boundary_points_m)
+    and len(shock_points) == len(field.companion_boundary_states)
+    and len(shock_points) == len(field.companion_boundary_total_pressure_Pa)
+    and len(shock_points) == len(field.interior_points_m)
+    and len(shock_points) == len(field.nodes)
+    and all(
+      len(point) == 2 and all(isfinite(float(value)) for value in point)
+      for point in shock_points
+    )
+  )
+  if not boundary_geometry_verified:
+    return _companion_audit_failure(
+      MocEulerCompanionFieldAuditStatus.BOUNDARY_FAILURE,
+      'companion-field boundary evidence has inconsistent sample counts or geometry',
+      field_status=field.status.value,
+      shock_sample_count=len(shock_points),
+      cell_count=len(field.cells),
+      shock_residual_tolerance=shock_tolerance,
+      cell_residual_tolerance=cell_tolerance,
+    )
+  boundary_geometry_verified = boundary_geometry_verified and all(
+    abs(state.x_m - point[0]) <= position_tolerance
+    and abs(state.y_m - point[1]) <= position_tolerance
+    for state, point in zip(field.shock_boundary_states, shock_points, strict=True)
+  ) and all(
+    abs(state.x_m - point[0]) <= position_tolerance
+    and abs(state.y_m - point[1]) <= position_tolerance
+    for state, point in zip(
+      field.companion_boundary_states,
+      field.companion_boundary_points_m,
+      strict=True,
+    )
+  )
+  curve_geometry_matches = (
+    curve.shock_points_m == shock_points
+    and curve.downstream_states == field.shock_boundary_states
+    and curve.downstream_total_pressure_Pa
+    == field.shock_boundary_total_pressure_Pa
+  )
+  boundary_geometry_verified = boundary_geometry_verified and curve_geometry_matches
+  pressure_lineage_verified = bool(
+    len(field.shock_boundary_total_pressure_Pa) == len(shock_points)
+    and len(field.companion_boundary_total_pressure_Pa) == len(shock_points)
+    and all(
+      abs(companion - shock) <= pressure_tolerance_value * max(1.0, abs(shock))
+      for companion, shock in zip(
+        field.companion_boundary_total_pressure_Pa,
+        field.shock_boundary_total_pressure_Pa,
+        strict=True,
+      )
+    )
+    and all(
+      abs(interior - shock) <= pressure_tolerance_value * max(1.0, abs(shock))
+      for interior, shock in zip(
+        field.interior_total_pressure_Pa,
+        field.shock_boundary_total_pressure_Pa,
+        strict=True,
+      )
+    )
+  )
+  jump_mass: list[float] = []
+  jump_momentum: list[float] = []
+  jump_energy: list[float] = []
+  try:
+    if not (
+      len(curve.upstream_states)
+      == len(curve.upstream_total_pressure_Pa)
+      == len(curve.downstream_states)
+      == len(curve.downstream_total_pressure_Pa)
+      == len(shock_points)
+    ):
+      raise ValueError('retained shock curve evidence sequences have unequal lengths')
+    for index in range(len(shock_points)):
+      mass, momentum, energy = _shock_jump_residuals(
+        curve.upstream_states[index],
+        curve.upstream_total_pressure_Pa[index],
+        curve.downstream_states[index],
+        curve.downstream_total_pressure_Pa[index],
+        _shock_tangent(shock_points, index),
+      )
+      jump_mass.append(mass)
+      jump_momentum.append(momentum)
+      jump_energy.append(energy)
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return _companion_audit_failure(
+      MocEulerCompanionFieldAuditStatus.SHOCK_JUMP_FAILURE,
+      f'companion shock Euler flux reconstruction failed: {error}',
+      field_status=field.status.value,
+      shock_sample_count=len(shock_points),
+      cell_count=len(field.cells),
+      shock_residual_tolerance=shock_tolerance,
+      cell_residual_tolerance=cell_tolerance,
+      boundary_geometry_verified=boundary_geometry_verified,
+      pressure_lineage_verified=pressure_lineage_verified,
+    )
+  maximum_shock_residual = max(
+    (*jump_mass, *jump_momentum, *jump_energy),
+    default=float('inf'),
+  )
+  shock_verified = maximum_shock_residual <= shock_tolerance
+  cells: list[float] = []
+  cell_geometry_verified = len(field.cells) == len(shock_points) - 1
+  try:
+    for index, cell in enumerate(field.cells):
+      expected_vertices = (
+        shock_points[index],
+        shock_points[index + 1],
+        field.interior_points_m[index + 1],
+        field.interior_points_m[index],
+      )
+      vertices = tuple(
+        (float(point[0]), float(point[1]))
+        for point in cell.vertices_xr_m
+      )
+      if len(vertices) != len(expected_vertices) or any(
+        abs(actual[axis] - expected[axis]) > position_tolerance
+        for actual, expected in zip(vertices, expected_vertices, strict=True)
+        for axis in (0, 1)
+      ):
+        cell_geometry_verified = False
+      states = (
+        field.shock_boundary_states[index],
+        field.shock_boundary_states[index + 1],
+        field.interior_states[index + 1],
+        field.interior_states[index],
+      )
+      pressures = (
+        field.shock_boundary_total_pressure_Pa[index],
+        field.shock_boundary_total_pressure_Pa[index + 1],
+        field.interior_total_pressure_Pa[index + 1],
+        field.interior_total_pressure_Pa[index],
+      )
+      cells.append(_cell_flux_residual(vertices, states, pressures))
+  except (ArithmeticError, FloatingPointError, IndexError, TypeError, ValueError) as error:
+    return _companion_audit_failure(
+      MocEulerCompanionFieldAuditStatus.CELL_RESIDUAL_FAILURE,
+      f'companion cell Euler flux reconstruction failed: {error}',
+      field_status=field.status.value,
+      shock_sample_count=len(shock_points),
+      cell_count=len(field.cells),
+      shock_jump_mass_residuals=tuple(jump_mass),
+      shock_jump_momentum_residuals=tuple(jump_momentum),
+      shock_jump_energy_residuals=tuple(jump_energy),
+      shock_jump_verified=shock_verified,
+      boundary_geometry_verified=boundary_geometry_verified and cell_geometry_verified,
+      pressure_lineage_verified=pressure_lineage_verified,
+      shock_residual_tolerance=shock_tolerance,
+      cell_residual_tolerance=cell_tolerance,
+    )
+  cells_finite = all(isfinite(value) for value in cells)
+  maximum_cell_residual = max(cells, default=0.0)
+  cells_verified = cells_finite and maximum_cell_residual <= cell_tolerance
+  independent_topology = validate_moc_mesh(field.cells)
+  field_topology_verified = bool(
+    independent_topology.status is field.topology.status
+    and independent_topology.cell_count == field.topology.cell_count
+    and independent_topology.edge_count == field.topology.edge_count
+    and independent_topology.boundary_edge_count == field.topology.boundary_edge_count
+    and independent_topology.boundary_component_count == field.topology.boundary_component_count
+    and independent_topology.boundary_is_closed_cycle == field.topology.boundary_is_closed_cycle
+    and independent_topology.nonmanifold_edge_count == field.topology.nonmanifold_edge_count
+    and independent_topology.connected == field.topology.connected
+    and independent_topology.forms_closed_zone
+  )
+  node_compatibility_verified = bool(
+    all(
+      result.converged
+      and result.state is not None
+      and result.point_m is not None
+      and abs(result.state.x_m - point[0]) <= position_tolerance
+      and abs(result.state.y_m - point[1]) <= position_tolerance
+      and max(
+        abs(result.invariant_residual_plus or 0.0),
+        abs(result.invariant_residual_minus or 0.0),
+      ) <= invariant_tolerance_value
+      for result, point in zip(field.point_results, field.interior_points_m, strict=True)
+    )
+    and len(field.point_results) == len(field.nodes)
+  )
+  boundary_geometry_verified = boundary_geometry_verified and cell_geometry_verified and node_compatibility_verified
+  promotion_flags_verified = bool(
+    field.shock_boundary_local_euler_verified
+    and field.physical_closure_verified is False
+    and field.chain_promotion_blocked
+    and field.production_claim_allowed is False
+  )
+  if not shock_verified:
+    status = MocEulerCompanionFieldAuditStatus.SHOCK_JUMP_FAILURE
+    message = 'companion shock Rankine--Hugoniot residual exceeded tolerance'
+  elif not boundary_geometry_verified:
+    status = MocEulerCompanionFieldAuditStatus.BOUNDARY_FAILURE
+    message = 'companion strip boundary or compatibility evidence failed independent checks'
+  elif not pressure_lineage_verified:
+    status = MocEulerCompanionFieldAuditStatus.BOUNDARY_FAILURE
+    message = 'companion strip pressure lineage failed independent checks'
+  elif not field_topology_verified:
+    status = MocEulerCompanionFieldAuditStatus.TOPOLOGY_FAILURE
+    message = 'companion strip topology failed independent checks'
+  elif not cells_verified:
+    status = MocEulerCompanionFieldAuditStatus.CELL_RESIDUAL_FAILURE
+    message = 'companion strip conservative cell residual exceeded tolerance'
+  elif not promotion_flags_verified:
+    status = MocEulerCompanionFieldAuditStatus.FIELD_FAILURE
+    message = 'companion strip promotion flags do not preserve the fidelity boundary'
+  else:
+    status = MocEulerCompanionFieldAuditStatus.CONVERGED_LOCAL_AUDIT
+    message = (
+      'independent companion-strip audit verified local shock jumps, finite '
+      'cell residuals, topology, compatibility, and pressure lineage; '
+      'physical closure remains pending'
+    )
+  return MocEulerCompanionFieldAudit(
+    status=status,
+    field_status=field.status.value,
+    shock_sample_count=len(shock_points),
+    cell_count=len(field.cells),
+    shock_jump_mass_residuals=tuple(jump_mass),
+    shock_jump_momentum_residuals=tuple(jump_momentum),
+    shock_jump_energy_residuals=tuple(jump_energy),
+    cell_euler_residuals=tuple(cells),
+    maximum_shock_jump_mass_residual=max(jump_mass, default=None),
+    maximum_shock_jump_momentum_residual=max(jump_momentum, default=None),
+    maximum_shock_jump_energy_residual=max(jump_energy, default=None),
+    maximum_cell_euler_residual=maximum_cell_residual,
+    shock_jump_verified=shock_verified,
+    cell_euler_residuals_finite=cells_finite,
+    cell_euler_residuals_verified=cells_verified,
+    field_topology_verified=field_topology_verified,
+    boundary_geometry_verified=boundary_geometry_verified,
+    pressure_lineage_verified=pressure_lineage_verified,
+    promotion_flags_verified=promotion_flags_verified,
+    shock_residual_tolerance=shock_tolerance,
+    cell_residual_tolerance=cell_tolerance,
     message=message,
   )
 

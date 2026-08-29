@@ -17,7 +17,9 @@ from exhaust_plume.models.moc import (
   solve_euler_consistent_attached_shock_segment,
 )
 from exhaust_plume.validation import (
+  MocEulerCompanionFieldAuditStatus,
   MocPhysicalFieldEulerAuditStatus,
+  measure_moc_euler_companion_field,
   measure_moc_physical_field_euler_audit,
 )
 
@@ -270,6 +272,25 @@ def test_euler_companion_strip_uses_explicit_second_characteristic_boundary() ->
   report = field.as_report()
   assert report['shock_boundary_orientation'] == 'mixed-characteristic-boundary'
   assert report['topology_forms_closed_zone'] is True
+
+  audit = measure_moc_euler_companion_field(field)
+  assert audit.status is MocEulerCompanionFieldAuditStatus.CONVERGED_LOCAL_AUDIT
+  assert audit.converged
+  assert audit.local_euler_consistency_verified
+  assert audit.shock_jump_verified
+  assert audit.cell_euler_residuals_finite
+  assert audit.field_topology_verified
+  assert audit.boundary_geometry_verified
+  assert audit.pressure_lineage_verified
+  assert audit.promotion_flags_verified
+  assert audit.physical_closure_verified is False
+  assert audit.chain_promotion_blocked
+  assert audit.as_report()['operator_id'] == 'op.moc.euler-companion-field-audit'
+
+  spoofed = replace(field, chain_promotion_blocked=False)
+  spoofed_audit = measure_moc_euler_companion_field(spoofed)
+  assert spoofed_audit.status is MocEulerCompanionFieldAuditStatus.FIELD_FAILURE
+  assert not spoofed_audit.local_euler_consistency_verified
 
   bad_companion = list(companion)
   bad_companion[0] = MocChainBoundarySample(
