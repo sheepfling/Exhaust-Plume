@@ -277,7 +277,9 @@ from exhaust_plume.validation.moc_external_comparisons import (  # noqa: E402
   review_moc_shock_cell_external_promotion,
 )
 from exhaust_plume.validation.moc_euler import (  # noqa: E402
+  MocEulerAmbientCompanionBoundaryAuditStatus,
   MocEulerCompanionFieldAuditStatus,
+  measure_moc_ambient_companion_boundary,
   measure_moc_euler_companion_field,
 )
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput  # noqa: E402
@@ -9767,6 +9769,11 @@ def build_moc_primitive_report() -> dict[str, Any]:
       seed_flow_angle_rad=0.0,
     )
   )
+  euler_ambient_companion_boundary_audit = (
+    measure_moc_ambient_companion_boundary(
+      euler_ambient_companion_boundary,
+    )
+  )
   euler_companion_field = assemble_euler_consistent_companion_characteristic_strip(
     euler_consistent_shock_boundary,
     euler_ambient_companion_boundary.samples,
@@ -9957,6 +9964,9 @@ def build_moc_primitive_report() -> dict[str, Any]:
       **euler_companion_field.as_report(),
       'solver_owned_ambient_companion_boundary': (
         euler_ambient_companion_boundary.as_report()
+      ),
+      'solver_owned_ambient_companion_boundary_audit': (
+        euler_ambient_companion_boundary_audit.as_report()
       ),
       'independent_audit': euler_companion_field_audit.as_report(),
       'claim_status': (
@@ -10823,6 +10833,19 @@ def build_moc_primitive_report() -> dict[str, Any]:
       or not euler_ambient_companion_boundary.state_sampling_available
       or euler_ambient_companion_boundary.physical_closure_verified
       or not euler_ambient_companion_boundary.chain_promotion_blocked
+    ) else []),
+    *([
+      {
+        'case': 'euler_solver_owned_ambient_companion_boundary_audit',
+        'status': euler_ambient_companion_boundary_audit.status.value,
+        'message': euler_ambient_companion_boundary_audit.message,
+      }
+    ] if (
+      euler_ambient_companion_boundary_audit.status
+      is not MocEulerAmbientCompanionBoundaryAuditStatus.CONVERGED_LOCAL_AUDIT
+      or not euler_ambient_companion_boundary_audit.converged
+      or not euler_ambient_companion_boundary_audit.local_boundary_consistency_verified
+      or not euler_ambient_companion_boundary_audit.fidelity_flags_verified
     ) else []),
     *([
       {

@@ -2473,3 +2473,21 @@ closure that can supply the missing downstream boundary and entropy transport
 from the reflected field. Once that exists, the same chain handoff and
 external review contracts can audit a multi-cell sequence without changing
 the fast visualization or reduced-order providers.
+
+## Ambient companion-boundary audit checkpoint
+
+The solver-owned ambient companion reference now has an independent
+`op.moc.euler-ambient-companion-boundary-audit` measurement. It reconstructs
+the exact shock/sample alignment, ambient static-pressure residuals, carried
+`C-` invariant, streamline-like geometry and shock clearance, then verifies
+that the solver has kept physical closure false, chain promotion blocked, and
+production claims disabled. The standalone artifact requires this audit next
+to the independent open-strip Euler audit, so a locally consistent companion
+trace cannot silently become a resolved cell.
+
+This remains a bounded research reference. A coupled reflected downstream
+field must still transport entropy, solve the ambient/free boundary, and close
+the mixed-regime perimeter before any continued shock-cell chain can consume
+it. Indexed external observations are also still missing; the promotion
+review therefore remains a hard data gate, and the fast/basic visualization
+and reduced-order providers remain unchanged.

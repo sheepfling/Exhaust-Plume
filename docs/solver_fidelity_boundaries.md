@@ -891,6 +891,12 @@ seed angle, and finite-domain parameterization visible. It is still not a
 globally coupled reflected free-boundary solve; feeding its samples into the
 strip therefore remains open-field evidence and cannot promote a chain cell.
 
+`op.moc.euler-ambient-companion-boundary-audit` independently rebuilds the
+returned sample alignment, ambient-pressure residual, `C-` invariant,
+streamline-like geometry, shock clearance, and fidelity flags. A passing audit
+confirms only local consistency of this bounded reference; it does not close
+the reflected field or authorize continued-cell promotion.
+
 `op.moc.euler-companion-field-audit` rebuilds the shock flux jumps and
 finite-volume cell residuals from the retained upstream/downstream curve,
 rechecks the strip cells and one-perimeter topology, and verifies that the

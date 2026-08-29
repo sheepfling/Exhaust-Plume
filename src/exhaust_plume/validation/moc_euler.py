@@ -25,8 +25,13 @@ from exhaust_plume.models.moc.physical_cell import (
   MocPhysicalPostShockFieldResult,
 )
 from exhaust_plume.models.moc.euler_characteristic_field import (
+  MocEulerAmbientCompanionBoundaryResult,
   MocEulerCompanionFieldResult,
 )
+from exhaust_plume.models.moc.euler_shock_boundary import (
+  MocEulerShockBoundaryOrientation,
+)
+from exhaust_plume.models.moc.primitives import prandtl_meyer_angle_rad
 from exhaust_plume.models.moc.topology import validate_moc_mesh
 
 __all__ = (
@@ -38,6 +43,10 @@ __all__ = (
   'MocEulerCompanionFieldAuditStatus',
   'MocEulerCompanionFieldAudit',
   'measure_moc_euler_companion_field',
+  'MOC_EULER_AMBIENT_COMPANION_BOUNDARY_AUDIT_OPERATOR_ID',
+  'MocEulerAmbientCompanionBoundaryAuditStatus',
+  'MocEulerAmbientCompanionBoundaryAudit',
+  'measure_moc_ambient_companion_boundary',
 )
 
 
@@ -46,6 +55,9 @@ MOC_PHYSICAL_FIELD_EULER_AUDIT_OPERATOR_ID = (
 )
 MOC_EULER_COMPANION_FIELD_AUDIT_OPERATOR_ID = (
   'op.moc.euler-companion-field-audit'
+)
+MOC_EULER_AMBIENT_COMPANION_BOUNDARY_AUDIT_OPERATOR_ID = (
+  'op.moc.euler-ambient-companion-boundary-audit'
 )
 
 
@@ -431,6 +443,473 @@ def _failure(
     cell_euler_residuals_verified=cell_euler_residuals_verified,
     field_topology_verified=field_topology_verified,
     residual_tolerance=residual_tolerance,
+    message=message,
+  )
+
+
+class MocEulerAmbientCompanionBoundaryAuditStatus(str, Enum):
+  """Outcome of independently auditing an ambient companion trace."""
+
+  CONVERGED_LOCAL_AUDIT = 'converged_ambient_companion_boundary_audit'
+  INVALID_INPUT = 'invalid_input'
+  BOUNDARY_FAILURE = 'ambient_companion_boundary_audit_boundary_failure'
+  PRESSURE_FAILURE = 'ambient_companion_boundary_audit_pressure_failure'
+  INVARIANT_FAILURE = 'ambient_companion_boundary_audit_invariant_failure'
+  GEOMETRY_FAILURE = 'ambient_companion_boundary_audit_geometry_failure'
+  FLAG_FAILURE = 'ambient_companion_boundary_audit_flag_failure'
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerAmbientCompanionBoundaryAudit:
+  """Independent evidence for the solver-owned ambient companion trace.
+
+  This audit rebuilds pressure, invariant, and streamline-like geometry from
+  the returned samples.  It intentionally does not call the boundary solver
+  again, and a passing result still describes an open research boundary
+  rather than a globally coupled reflected free-boundary solution.
+  """
+
+  status: MocEulerAmbientCompanionBoundaryAuditStatus
+  boundary_status: str | None
+  sample_count: int
+  static_pressure_residuals: tuple[float, ...]
+  companion_invariant_residuals: tuple[float, ...]
+  geometry_residuals_m: tuple[float, ...]
+  maximum_static_pressure_residual: float | None
+  maximum_companion_invariant_residual: float | None
+  maximum_geometry_residual_m: float | None
+  minimum_shock_clearance_m: float | None
+  sampling_verified: bool
+  pressure_verified: bool
+  invariant_verified: bool
+  geometry_verified: bool
+  fidelity_flags_verified: bool
+  ambient_pressure_Pa: float | None = None
+  separation_m: float | None = None
+  position_tolerance_m: float = 1.0e-10
+  invariant_tolerance: float = 1.0e-10
+  pressure_tolerance: float = 1.0e-10
+  physical_closure_verified: bool = False
+  chain_promotion_blocked: bool = True
+  production_claim_allowed: bool = False
+  message: str = ''
+  operator_id: str = MOC_EULER_AMBIENT_COMPANION_BOUNDARY_AUDIT_OPERATOR_ID
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.status, MocEulerAmbientCompanionBoundaryAuditStatus):
+      raise TypeError(
+        'status must be a MocEulerAmbientCompanionBoundaryAuditStatus'
+      )
+    if self.boundary_status is not None:
+      object.__setattr__(self, 'boundary_status', str(self.boundary_status))
+    if (
+      isinstance(self.sample_count, bool)
+      or not isinstance(self.sample_count, int)
+      or self.sample_count < 0
+    ):
+      raise ValueError('sample_count must be a nonnegative integer')
+    for name in (
+      'position_tolerance_m',
+      'invariant_tolerance',
+      'pressure_tolerance',
+    ):
+      value = float(getattr(self, name))
+      if not isfinite(value) or value <= 0.0:
+        raise ValueError(f'{name} must be finite and positive')
+      object.__setattr__(self, name, value)
+    if self.ambient_pressure_Pa is not None:
+      pressure = float(self.ambient_pressure_Pa)
+      if not isfinite(pressure) or pressure <= 0.0:
+        raise ValueError('ambient_pressure_Pa must be finite and positive')
+      object.__setattr__(self, 'ambient_pressure_Pa', pressure)
+    if self.separation_m is not None:
+      separation = float(self.separation_m)
+      if not isfinite(separation):
+        raise ValueError('separation_m must be finite when supplied')
+      object.__setattr__(self, 'separation_m', separation)
+    for name in (
+      'static_pressure_residuals',
+      'companion_invariant_residuals',
+      'geometry_residuals_m',
+    ):
+      values = tuple(float(value) for value in getattr(self, name))
+      if len(values) != self.sample_count:
+        raise ValueError(f'{name} must match sample_count')
+      if any(not isfinite(value) or value < 0.0 for value in values):
+        raise ValueError(f'{name} must contain finite nonnegative values')
+      object.__setattr__(self, name, values)
+    for name in (
+      'maximum_static_pressure_residual',
+      'maximum_companion_invariant_residual',
+      'maximum_geometry_residual_m',
+    ):
+      value = getattr(self, name)
+      if value is None:
+        continue
+      numeric = float(value)
+      if not isfinite(numeric) or numeric < 0.0:
+        raise ValueError(f'{name} must be finite and nonnegative when supplied')
+      object.__setattr__(self, name, numeric)
+    if self.minimum_shock_clearance_m is not None:
+      clearance = float(self.minimum_shock_clearance_m)
+      if not isfinite(clearance):
+        raise ValueError('minimum_shock_clearance_m must be finite when supplied')
+      object.__setattr__(self, 'minimum_shock_clearance_m', clearance)
+    for name in (
+      'sampling_verified',
+      'pressure_verified',
+      'invariant_verified',
+      'geometry_verified',
+      'fidelity_flags_verified',
+      'physical_closure_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+    operator_id = str(self.operator_id)
+    if not operator_id:
+      raise ValueError('operator_id must be a non-empty string')
+    object.__setattr__(self, 'operator_id', operator_id)
+    object.__setattr__(self, 'message', str(self.message))
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocEulerAmbientCompanionBoundaryAuditStatus.CONVERGED_LOCAL_AUDIT
+
+  @property
+  def local_boundary_consistency_verified(self) -> bool:
+    return bool(
+      self.converged
+      and self.sampling_verified
+      and self.pressure_verified
+      and self.invariant_verified
+      and self.geometry_verified
+      and self.fidelity_flags_verified
+    )
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'operator_id': self.operator_id,
+      'converged': self.converged,
+      'boundary_status': self.boundary_status,
+      'sample_count': self.sample_count,
+      'static_pressure_residuals': list(self.static_pressure_residuals),
+      'companion_invariant_residuals': list(self.companion_invariant_residuals),
+      'geometry_residuals_m': list(self.geometry_residuals_m),
+      'maximum_static_pressure_residual': self.maximum_static_pressure_residual,
+      'maximum_companion_invariant_residual': (
+        self.maximum_companion_invariant_residual
+      ),
+      'maximum_geometry_residual_m': self.maximum_geometry_residual_m,
+      'minimum_shock_clearance_m': self.minimum_shock_clearance_m,
+      'ambient_pressure_Pa': self.ambient_pressure_Pa,
+      'separation_m': self.separation_m,
+      'checks': {
+        'sampling_verified': self.sampling_verified,
+        'pressure_verified': self.pressure_verified,
+        'invariant_verified': self.invariant_verified,
+        'geometry_verified': self.geometry_verified,
+        'fidelity_flags_verified': self.fidelity_flags_verified,
+        'local_boundary_consistency_verified': (
+          self.local_boundary_consistency_verified
+        ),
+        'physical_closure_verified': self.physical_closure_verified,
+        'chain_promotion_blocked': self.chain_promotion_blocked,
+        'production_claim_allowed': self.production_claim_allowed,
+      },
+      'position_tolerance_m': self.position_tolerance_m,
+      'invariant_tolerance': self.invariant_tolerance,
+      'pressure_tolerance': self.pressure_tolerance,
+      'canonical_free_boundary_verified': False,
+      'canonical_euler_verified': False,
+      'external_validation_verified': False,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'claim_status': (
+        'independent-ambient-companion-boundary-audit; global-reflected-'
+        'free-boundary closure and external validation remain pending'
+      ),
+      'message': self.message,
+    }
+
+
+def _ambient_companion_boundary_audit_failure(
+  status: MocEulerAmbientCompanionBoundaryAuditStatus,
+  message: str,
+  *,
+  boundary_status: str | None = None,
+  sample_count: int = 0,
+  static_pressure_residuals: tuple[float, ...] = (),
+  companion_invariant_residuals: tuple[float, ...] = (),
+  geometry_residuals_m: tuple[float, ...] = (),
+  ambient_pressure_Pa: float | None = None,
+  separation_m: float | None = None,
+  minimum_shock_clearance_m: float | None = None,
+  sampling_verified: bool = False,
+  pressure_verified: bool = False,
+  invariant_verified: bool = False,
+  geometry_verified: bool = False,
+  fidelity_flags_verified: bool = False,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  pressure_tolerance: float = 1.0e-10,
+) -> MocEulerAmbientCompanionBoundaryAudit:
+  return MocEulerAmbientCompanionBoundaryAudit(
+    status=status,
+    boundary_status=boundary_status,
+    sample_count=sample_count,
+    static_pressure_residuals=static_pressure_residuals,
+    companion_invariant_residuals=companion_invariant_residuals,
+    geometry_residuals_m=geometry_residuals_m,
+    maximum_static_pressure_residual=max(static_pressure_residuals, default=None),
+    maximum_companion_invariant_residual=max(
+      companion_invariant_residuals,
+      default=None,
+    ),
+    maximum_geometry_residual_m=max(geometry_residuals_m, default=None),
+    minimum_shock_clearance_m=minimum_shock_clearance_m,
+    sampling_verified=sampling_verified,
+    pressure_verified=pressure_verified,
+    invariant_verified=invariant_verified,
+    geometry_verified=geometry_verified,
+    fidelity_flags_verified=fidelity_flags_verified,
+    ambient_pressure_Pa=ambient_pressure_Pa,
+    separation_m=separation_m,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+    pressure_tolerance=pressure_tolerance,
+    message=message,
+  )
+
+
+def measure_moc_ambient_companion_boundary(
+  boundary: MocEulerAmbientCompanionBoundaryResult,
+  *,
+  position_tolerance_m: float | None = None,
+  invariant_tolerance: float | None = None,
+  pressure_tolerance: float | None = None,
+) -> MocEulerAmbientCompanionBoundaryAudit:
+  """Rebuild an ambient companion boundary's local evidence independently."""
+
+  if not isinstance(boundary, MocEulerAmbientCompanionBoundaryResult):
+    return _ambient_companion_boundary_audit_failure(
+      MocEulerAmbientCompanionBoundaryAuditStatus.INVALID_INPUT,
+      'boundary must be a MocEulerAmbientCompanionBoundaryResult',
+    )
+  try:
+    position_tolerance = float(
+      boundary.position_tolerance_m
+      if position_tolerance_m is None
+      else position_tolerance_m
+    )
+    invariant_tolerance_value = float(
+      boundary.invariant_tolerance
+      if invariant_tolerance is None
+      else invariant_tolerance
+    )
+    pressure_tolerance_value = float(
+      boundary.pressure_tolerance
+      if pressure_tolerance is None
+      else pressure_tolerance
+    )
+  except (TypeError, ValueError):
+    return _ambient_companion_boundary_audit_failure(
+      MocEulerAmbientCompanionBoundaryAuditStatus.INVALID_INPUT,
+      'ambient companion boundary audit tolerances must be numeric',
+      boundary_status=boundary.status.value,
+      sample_count=len(boundary.samples),
+    )
+  tolerances = (
+    position_tolerance,
+    invariant_tolerance_value,
+    pressure_tolerance_value,
+  )
+  if any(not isfinite(value) or value <= 0.0 for value in tolerances):
+    raise ValueError(
+      'ambient companion boundary audit tolerances must be finite and positive'
+    )
+  common = {
+    'boundary_status': boundary.status.value,
+    'sample_count': len(boundary.samples),
+    'ambient_pressure_Pa': boundary.ambient_pressure_Pa,
+    'separation_m': boundary.separation_m,
+    'position_tolerance_m': position_tolerance,
+    'invariant_tolerance': invariant_tolerance_value,
+    'pressure_tolerance': pressure_tolerance_value,
+  }
+  if not boundary.converged:
+    return _ambient_companion_boundary_audit_failure(
+      MocEulerAmbientCompanionBoundaryAuditStatus.BOUNDARY_FAILURE,
+      'ambient companion boundary audit requires a converged solver result',
+      **common,
+    )
+  shock = boundary.shock_boundary
+  if (
+    shock is None
+    or not shock.converged
+    or not shock.local_euler_verified
+    or shock.orientation is not MocEulerShockBoundaryOrientation.MIXED_CHARACTERISTIC_BOUNDARY
+  ):
+    return _ambient_companion_boundary_audit_failure(
+      MocEulerAmbientCompanionBoundaryAuditStatus.BOUNDARY_FAILURE,
+      'ambient companion boundary audit requires a converged mixed-characteristic shock curve',
+      **common,
+    )
+  ambient_pressure = boundary.ambient_pressure_Pa
+  separation = boundary.separation_m
+  seed_k_minus = boundary.seed_k_minus_rad
+  if (
+    ambient_pressure is None
+    or separation is None
+    or seed_k_minus is None
+  ):
+    return _ambient_companion_boundary_audit_failure(
+      MocEulerAmbientCompanionBoundaryAuditStatus.BOUNDARY_FAILURE,
+      'ambient companion boundary audit requires ambient pressure, separation, and seeded invariant',
+      **common,
+    )
+  shock_points = tuple(shock.shock_points_m)
+  shock_states = tuple(shock.downstream_states)
+  shock_pressures = tuple(shock.downstream_total_pressure_Pa)
+  samples = tuple(boundary.samples)
+  sampling_verified = bool(
+    len(samples) >= 2
+    and len(samples) == len(shock_points)
+    and len(samples) == len(shock_states)
+    and len(samples) == len(shock_pressures)
+    and all(
+      abs(sample.state.x_m - point[0]) <= position_tolerance
+      and abs(sample.total_pressure_Pa - pressure)
+      <= pressure_tolerance_value * max(1.0, abs(pressure))
+      for sample, point, pressure in zip(
+        samples,
+        shock_points,
+        shock_pressures,
+        strict=True,
+      )
+    )
+    and all(
+      abs(sample.state.gamma - state.gamma) <= invariant_tolerance_value
+      for sample, state in zip(samples, shock_states, strict=True)
+    )
+    and all(
+      shock_points[index + 1][0]
+      > shock_points[index][0] + position_tolerance
+      for index in range(len(shock_points) - 1)
+    )
+  )
+  if not sampling_verified:
+    return _ambient_companion_boundary_audit_failure(
+      MocEulerAmbientCompanionBoundaryAuditStatus.BOUNDARY_FAILURE,
+      'ambient companion boundary sample alignment or downstream ordering failed',
+      sampling_verified=False,
+      **common,
+    )
+  gamma = shock_states[0].gamma
+  pressure_residuals: list[float] = []
+  invariant_residuals: list[float] = []
+  geometry_residuals: list[float] = []
+  clearances: list[float] = []
+  try:
+    for index, (sample, point, total_pressure) in enumerate(
+      zip(samples, shock_points, shock_pressures, strict=True)
+    ):
+      state = sample.state
+      static_pressure = total_pressure / (
+        1.0 + 0.5 * (gamma - 1.0) * state.mach * state.mach
+      ) ** (gamma / (gamma - 1.0))
+      pressure_residuals.append(
+        abs(static_pressure - ambient_pressure) / ambient_pressure
+      )
+      invariant_residuals.append(
+        abs(
+          state.theta_rad
+          + prandtl_meyer_angle_rad(state.mach, gamma)
+          - seed_k_minus
+        )
+      )
+      clearances.append(state.y_m - point[1])
+      if index == 0:
+        geometry_residuals.append(
+          abs((state.y_m - point[1]) - separation)
+        )
+      else:
+        previous = samples[index - 1].state
+        geometry_residuals.append(
+          abs(
+            (state.y_m - previous.y_m)
+            - 0.5 * (previous.theta_rad + state.theta_rad)
+            * (point[0] - shock_points[index - 1][0])
+          )
+        )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return _ambient_companion_boundary_audit_failure(
+      MocEulerAmbientCompanionBoundaryAuditStatus.INVARIANT_FAILURE,
+      f'ambient companion boundary reconstruction failed: {error}',
+      sampling_verified=True,
+      **common,
+    )
+  maximum_pressure = max(pressure_residuals, default=float('inf'))
+  maximum_invariant = max(invariant_residuals, default=float('inf'))
+  maximum_geometry = max(geometry_residuals, default=float('inf'))
+  minimum_clearance = min(clearances, default=None)
+  pressure_verified = maximum_pressure <= pressure_tolerance_value
+  invariant_verified = maximum_invariant <= invariant_tolerance_value
+  geometry_verified = bool(
+    maximum_geometry <= position_tolerance
+    and minimum_clearance is not None
+    and minimum_clearance > position_tolerance
+  )
+  fidelity_flags_verified = bool(
+    boundary.physical_closure_verified is False
+    and boundary.chain_promotion_blocked
+    and boundary.production_claim_allowed is False
+  )
+  if not pressure_verified:
+    status = MocEulerAmbientCompanionBoundaryAuditStatus.PRESSURE_FAILURE
+    message = 'ambient companion boundary static-pressure residual exceeded tolerance'
+  elif not invariant_verified:
+    status = MocEulerAmbientCompanionBoundaryAuditStatus.INVARIANT_FAILURE
+    message = 'ambient companion boundary C- invariant residual exceeded tolerance'
+  elif not geometry_verified:
+    status = MocEulerAmbientCompanionBoundaryAuditStatus.GEOMETRY_FAILURE
+    message = 'ambient companion boundary geometry or shock clearance failed'
+  elif not fidelity_flags_verified:
+    status = MocEulerAmbientCompanionBoundaryAuditStatus.FLAG_FAILURE
+    message = 'ambient companion boundary promotion flags weakened the fidelity boundary'
+  else:
+    status = MocEulerAmbientCompanionBoundaryAuditStatus.CONVERGED_LOCAL_AUDIT
+    message = (
+      'independent ambient companion boundary audit verified sample alignment, '
+      'ambient pressure, C- invariant, geometry, and non-promotion flags; '
+      'global reflected free-boundary closure remains pending'
+    )
+  return MocEulerAmbientCompanionBoundaryAudit(
+    status=status,
+    boundary_status=boundary.status.value,
+    sample_count=len(samples),
+    static_pressure_residuals=tuple(pressure_residuals),
+    companion_invariant_residuals=tuple(invariant_residuals),
+    geometry_residuals_m=tuple(geometry_residuals),
+    maximum_static_pressure_residual=maximum_pressure,
+    maximum_companion_invariant_residual=maximum_invariant,
+    maximum_geometry_residual_m=maximum_geometry,
+    minimum_shock_clearance_m=minimum_clearance,
+    sampling_verified=sampling_verified,
+    pressure_verified=pressure_verified,
+    invariant_verified=invariant_verified,
+    geometry_verified=geometry_verified,
+    fidelity_flags_verified=fidelity_flags_verified,
+    ambient_pressure_Pa=ambient_pressure,
+    separation_m=separation,
+    position_tolerance_m=position_tolerance,
+    invariant_tolerance=invariant_tolerance_value,
+    pressure_tolerance=pressure_tolerance_value,
+    physical_closure_verified=boundary.physical_closure_verified,
+    chain_promotion_blocked=boundary.chain_promotion_blocked,
+    production_claim_allowed=boundary.production_claim_allowed,
     message=message,
   )
 

@@ -20,8 +20,10 @@ from exhaust_plume.models.moc import (
   solve_euler_consistent_attached_shock_segment,
 )
 from exhaust_plume.validation import (
+  MocEulerAmbientCompanionBoundaryAuditStatus,
   MocEulerCompanionFieldAuditStatus,
   MocPhysicalFieldEulerAuditStatus,
+  measure_moc_ambient_companion_boundary,
   measure_moc_euler_companion_field,
   measure_moc_physical_field_euler_audit,
 )
@@ -260,6 +262,19 @@ def test_solver_owned_ambient_companion_boundary_feeds_the_open_strip() -> None:
   assert companion.minimum_shock_clearance_m > 0.79
   assert companion.physical_closure_verified is False
   assert companion.chain_promotion_blocked
+  boundary_audit = measure_moc_ambient_companion_boundary(companion)
+  assert boundary_audit.status is (
+    MocEulerAmbientCompanionBoundaryAuditStatus.CONVERGED_LOCAL_AUDIT
+  )
+  assert boundary_audit.local_boundary_consistency_verified
+  assert boundary_audit.sampling_verified
+  assert boundary_audit.pressure_verified
+  assert boundary_audit.invariant_verified
+  assert boundary_audit.geometry_verified
+  assert boundary_audit.fidelity_flags_verified
+  assert boundary_audit.as_report()['operator_id'] == (
+    'op.moc.euler-ambient-companion-boundary-audit'
+  )
 
   field = assemble_euler_consistent_companion_characteristic_strip(
     shock_boundary,
@@ -275,6 +290,27 @@ def test_solver_owned_ambient_companion_boundary_feeds_the_open_strip() -> None:
     MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
   )
   assert companion.as_report()['status'] == 'converged_ambient_companion_boundary'
+
+  spoofed_boundary = replace(
+    companion,
+    samples=(
+      replace(
+        companion.samples[0],
+        state=replace(
+          companion.samples[0].state,
+          y_m=companion.samples[0].state.y_m + 0.01,
+        ),
+      ),
+      *companion.samples[1:],
+    ),
+  )
+  spoofed_boundary_audit = measure_moc_ambient_companion_boundary(
+    spoofed_boundary
+  )
+  assert spoofed_boundary_audit.status is (
+    MocEulerAmbientCompanionBoundaryAuditStatus.GEOMETRY_FAILURE
+  )
+  assert not spoofed_boundary_audit.local_boundary_consistency_verified
 
 
 def test_euler_companion_strip_uses_explicit_second_characteristic_boundary() -> None:

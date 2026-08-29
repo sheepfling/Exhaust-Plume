@@ -230,6 +230,12 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert euler_companion['solver_owned_ambient_companion_boundary'][
     'chain_promotion_blocked'
   ] is True
+  assert euler_companion['solver_owned_ambient_companion_boundary_audit']['status'] == (
+    'converged_ambient_companion_boundary_audit'
+  )
+  assert euler_companion['solver_owned_ambient_companion_boundary_audit']['checks'][
+    'local_boundary_consistency_verified'
+  ] is True
   assert first_cell_research_chain['planner_kind'] == 'upstream-coupled-research'
   assert first_cell_research_chain['resolved'] is True
   assert first_cell_research_chain['cell_count'] == 3

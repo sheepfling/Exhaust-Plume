@@ -209,6 +209,10 @@ from exhaust_plume.validation.moc_euler import (
   MocEulerCompanionFieldAuditStatus,
   MocEulerCompanionFieldAudit,
   measure_moc_euler_companion_field,
+  MOC_EULER_AMBIENT_COMPANION_BOUNDARY_AUDIT_OPERATOR_ID,
+  MocEulerAmbientCompanionBoundaryAuditStatus,
+  MocEulerAmbientCompanionBoundaryAudit,
+  measure_moc_ambient_companion_boundary,
 )
 from exhaust_plume.validation.lane_contracts import (
   SignatureLaneInvariantReport,
@@ -471,6 +475,10 @@ __all__ = (
   'MocEulerCompanionFieldAuditStatus',
   'MocEulerCompanionFieldAudit',
   'measure_moc_euler_companion_field',
+  'MOC_EULER_AMBIENT_COMPANION_BOUNDARY_AUDIT_OPERATOR_ID',
+  'MocEulerAmbientCompanionBoundaryAuditStatus',
+  'MocEulerAmbientCompanionBoundaryAudit',
+  'measure_moc_ambient_companion_boundary',
   'measure_moc_terminal_closure',
   'write_validity_report_csv',
   'write_validity_report_json',
