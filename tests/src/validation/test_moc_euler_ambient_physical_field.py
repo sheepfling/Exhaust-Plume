@@ -5,15 +5,22 @@ from math import atan2, tan
 from exhaust_plume.models.moc import (
   CharacteristicState,
   MocChainTerminationReason,
+  MocEulerAmbientFirstWedgeRemeshStatus,
   MocEulerAmbientPhysicalFieldStatus,
   assemble_euler_ambient_physical_field,
   fit_euler_consistent_shock_boundary,
+  plan_euler_ambient_first_wedge_remesh_mock,
+  remesh_euler_ambient_first_wedge,
   solve_attached_compression_to_turn,
 )
 from exhaust_plume.validation import (
+  MocEulerAmbientFirstWedgeRemeshRefinementCase,
+  MocEulerAmbientFirstWedgeRemeshRefinementMeasurementStatus,
   MocEulerAmbientPhysicalFieldAuditStatus,
   MocEulerAmbientPhysicalFieldRefinementCase,
   MocEulerAmbientPhysicalFieldRefinementStatus,
+  measure_moc_euler_ambient_first_wedge_remesh,
+  measure_moc_euler_ambient_first_wedge_remesh_refinement,
   measure_moc_euler_ambient_physical_field,
   measure_moc_euler_ambient_physical_field_refinement,
 )
@@ -233,3 +240,137 @@ def test_exact_ambient_physical_field_refinement_requires_first_wedge_remesh() -
   assert not measurement.refinement_convergence_verified
   assert measurement.chain_promotion_blocked
   assert measurement.production_claim_allowed is False
+
+
+def test_first_wedge_remesh_is_bounded_but_not_a_physical_chain_cell() -> None:
+  shock = _shaped_exact_shock()
+  physical_field = assemble_euler_ambient_physical_field(
+    shock,
+    shock.downstream_static_pressure_Pa[0],
+  )
+
+  remesh = remesh_euler_ambient_first_wedge(
+    physical_field,
+    subdivision_level=1,
+  )
+  assert remesh.status is (
+    MocEulerAmbientFirstWedgeRemeshStatus.CONVERGED_DIAGNOSTIC_SUBDIVISION
+  )
+  assert remesh.converged
+  assert remesh.cell_count == 4
+  assert remesh.state_sample_count == 6
+  assert remesh.topology.connected
+  assert remesh.topology.forms_closed_zone
+  assert remesh.topology.nonmanifold_edge_count == 0
+  assert remesh.state_projection_verified
+  assert remesh.pressure_lineage_carried
+  assert remesh.physical_closure_verified is False
+  assert remesh.chain_promotion_blocked
+  assert remesh.production_claim_allowed is False
+  decision = remesh.as_chain_termination_decision()
+  assert decision.reason is MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+  assert decision.physical_termination is False
+  assert decision.diagnostics['required_next_gate'] == (
+    'solver-owned-terminal-wedge-characteristic-remesh-with-'
+    'conservative-euler-cell-closure'
+  )
+
+  audit = measure_moc_euler_ambient_first_wedge_remesh(remesh)
+  assert audit.status.value == (
+    'euler_ambient_first_wedge_remesh_cell_residual_failure'
+  )
+  assert audit.topology_verified
+  assert audit.state_projection_verified
+  assert audit.pressure_lineage_carried
+  assert audit.cell_euler_residuals_finite
+  assert not audit.cell_euler_residuals_verified
+  assert audit.maximum_cell_euler_residual is not None
+  assert audit.maximum_cell_euler_residual > 1.0e-2
+
+
+def test_first_wedge_remesh_refinement_reduces_residual_without_promotion() -> None:
+  shock = _shaped_exact_shock()
+  physical_field = assemble_euler_ambient_physical_field(
+    shock,
+    shock.downstream_static_pressure_Pa[0],
+  )
+  cases = tuple(
+    MocEulerAmbientFirstWedgeRemeshRefinementCase(
+      subdivision_level=level,
+      result=remesh_euler_ambient_first_wedge(
+        physical_field,
+        subdivision_level=level,
+      ),
+    )
+    for level in (1, 2, 3)
+  )
+
+  measurement = measure_moc_euler_ambient_first_wedge_remesh_refinement(
+    cases,
+    expected_subdivision_levels=(1, 2, 3),
+  )
+
+  assert measurement.status is (
+    MocEulerAmbientFirstWedgeRemeshRefinementMeasurementStatus
+    .CELL_RESIDUAL_FAILURE
+  )
+  assert measurement.subdivision_levels == (1, 2, 3)
+  assert measurement.subdivision_side_counts == (2, 4, 8)
+  assert measurement.cell_counts == (4, 16, 64)
+  assert measurement.state_sample_counts == (6, 15, 45)
+  assert measurement.topology_verified
+  assert measurement.state_projection_verified
+  assert measurement.pressure_lineage_verified
+  assert measurement.cell_residuals_finite
+  assert not measurement.cell_residuals_verified
+  assert measurement.subdivision_growth_verified
+  assert measurement.residual_nonincreasing_verified
+  assert not measurement.refinement_convergence_verified
+  assert measurement.physical_closure_verified is False
+  assert measurement.chain_promotion_blocked
+  assert measurement.production_claim_allowed is False
+  assert all(
+    right < left
+    for left, right in zip(
+      measurement.maximum_cell_euler_residuals,
+      measurement.maximum_cell_euler_residuals[1:],
+    )
+  )
+
+
+def test_first_wedge_remesh_planner_records_ladder_and_stops_before_chain() -> None:
+  shock = _shaped_exact_shock()
+  physical_field = assemble_euler_ambient_physical_field(
+    shock,
+    shock.downstream_static_pressure_Pa[0],
+  )
+
+  planner = plan_euler_ambient_first_wedge_remesh_mock(physical_field)
+
+  assert planner.resolved
+  assert planner.remesh_count == 3
+  assert planner.first_wedge_subdivision_verified
+  assert [step.result_cell_count for step in planner.steps] == [4, 16, 64]
+  assert all(
+    step.result_kind == 'diagnostic-remesh-returned'
+    and step.result_converged
+    and step.result_topology_verified
+    and step.result_state_projection_verified
+    and step.result_pressure_lineage_carried
+    and step.result_physical_closure_verified is False
+    and step.result_chain_promotion_blocked
+    and step.result_production_claim_allowed is False
+    for step in planner.steps
+  )
+  assert planner.termination.reason is MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+  assert planner.termination.physical_termination is False
+  assert planner.physical_closure_verified is False
+  assert planner.chain_promotion_blocked
+  assert planner.production_claim_allowed is False
+  report = planner.as_report()
+  assert report['planning_only'] is True
+  assert report['diagnostics']['independent_audit_required'] is True
+  assert report['termination']['diagnostics']['required_next_gate'] == (
+    'independent-remesh-euler-audit-and-solver-owned-terminal-wedge-'
+    'characteristic-closure'
+  )

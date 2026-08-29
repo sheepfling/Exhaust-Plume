@@ -72,6 +72,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocEulerAmbientShockFieldStatus,
   MocEulerAmbientShockFieldChainMock,
   MocEulerAmbientPhysicalFieldStatus,
+  plan_euler_ambient_first_wedge_remesh_mock,
   MocEulerPostShockFieldStatus,
   MocEulerPostShockFieldChainMock,
   MocEulerCompanionFieldChainMock,
@@ -319,6 +320,10 @@ from exhaust_plume.validation.moc_euler_refinement import (  # noqa: E402
   MocEulerAmbientPhysicalFieldRefinementCase,
   MocEulerAmbientPhysicalFieldRefinementStatus,
   measure_moc_euler_ambient_physical_field_refinement,
+  MocEulerAmbientFirstWedgeRemeshRefinementCase,
+  MocEulerAmbientFirstWedgeRemeshRefinementMeasurementStatus,
+  measure_moc_euler_ambient_first_wedge_remesh,
+  measure_moc_euler_ambient_first_wedge_remesh_refinement,
 )
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput  # noqa: E402
 from exhaust_plume.models.nozzle.exit_state import derive_ambient_state, derive_uniform_nozzle_exit  # noqa: E402
@@ -10045,6 +10050,28 @@ def build_moc_primitive_report() -> dict[str, Any]:
       expected_resolutions=(9, 17, 33),
     )
   )
+  euler_ambient_first_wedge_remesh_planner = (
+    plan_euler_ambient_first_wedge_remesh_mock(
+      euler_ambient_physical_field,
+      subdivision_levels=(1, 2, 3),
+    )
+  )
+  euler_ambient_first_wedge_remesh_audits = tuple(
+    measure_moc_euler_ambient_first_wedge_remesh(remesh)
+    for remesh in euler_ambient_first_wedge_remesh_planner.remeshes
+  )
+  euler_ambient_first_wedge_remesh_refinement = (
+    measure_moc_euler_ambient_first_wedge_remesh_refinement(
+      tuple(
+        MocEulerAmbientFirstWedgeRemeshRefinementCase(
+          subdivision_level=remesh.subdivision_level,
+          result=remesh,
+        )
+        for remesh in euler_ambient_first_wedge_remesh_planner.remeshes
+      ),
+      expected_subdivision_levels=(1, 2, 3),
+    )
+  )
   euler_companion_field = assemble_euler_consistent_companion_characteristic_strip(
     euler_consistent_shock_boundary,
     euler_ambient_companion_boundary.samples,
@@ -10386,6 +10413,18 @@ def build_moc_primitive_report() -> dict[str, Any]:
     'euler_ambient_physical_field_refinement': (
       euler_ambient_physical_field_refinement.as_report()
     ),
+    'euler_ambient_first_wedge_remesh': {
+      'planner': euler_ambient_first_wedge_remesh_planner.as_report(),
+      'independent_audits': [
+        audit.as_report()
+        for audit in euler_ambient_first_wedge_remesh_audits
+      ],
+      'refinement': euler_ambient_first_wedge_remesh_refinement.as_report(),
+      'claim_status': (
+        'diagnostic-first-wedge-remesh-ladder; conservative-terminal-wedge-'
+        'closure-and-physical-shock-cell-chain-promotion-pending'
+      ),
+    },
     'attached_turn_compression_foundation': {
       'status': turn_compression.status.value,
       'shock_status': turn_compression.shock_status.value,
@@ -11325,6 +11364,38 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or not euler_ambient_physical_field_refinement.chain_promotion_blocked
     or euler_ambient_physical_field_refinement.production_claim_allowed
   )
+  euler_ambient_first_wedge_remesh_planner_failure = (
+    euler_ambient_first_wedge_remesh_planner.planner_kind
+    is not MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
+    or not euler_ambient_first_wedge_remesh_planner.resolved
+    or euler_ambient_first_wedge_remesh_planner.remesh_count != 3
+    or not euler_ambient_first_wedge_remesh_planner.first_wedge_subdivision_verified
+    or [
+      remesh.cell_count
+      for remesh in euler_ambient_first_wedge_remesh_planner.remeshes
+    ] != [4, 16, 64]
+    or euler_ambient_first_wedge_remesh_planner.termination.reason
+    is not MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+    or euler_ambient_first_wedge_remesh_planner.physical_closure_verified
+    or not euler_ambient_first_wedge_remesh_planner.chain_promotion_blocked
+    or euler_ambient_first_wedge_remesh_planner.production_claim_allowed
+  )
+  euler_ambient_first_wedge_remesh_refinement_failure = (
+    euler_ambient_first_wedge_remesh_refinement.status
+    is not MocEulerAmbientFirstWedgeRemeshRefinementMeasurementStatus.CELL_RESIDUAL_FAILURE
+    or euler_ambient_first_wedge_remesh_refinement.converged
+    or not euler_ambient_first_wedge_remesh_refinement.topology_verified
+    or not euler_ambient_first_wedge_remesh_refinement.state_projection_verified
+    or not euler_ambient_first_wedge_remesh_refinement.pressure_lineage_verified
+    or not euler_ambient_first_wedge_remesh_refinement.cell_residuals_finite
+    or euler_ambient_first_wedge_remesh_refinement.cell_residuals_verified
+    or not euler_ambient_first_wedge_remesh_refinement.subdivision_growth_verified
+    or not euler_ambient_first_wedge_remesh_refinement.residual_nonincreasing_verified
+    or euler_ambient_first_wedge_remesh_refinement.refinement_convergence_verified
+    or euler_ambient_first_wedge_remesh_refinement.physical_closure_verified
+    or not euler_ambient_first_wedge_remesh_refinement.chain_promotion_blocked
+    or euler_ambient_first_wedge_remesh_refinement.production_claim_allowed
+  )
   euler_companion_field_planner_failure = (
     euler_companion_field_planner.planner_kind is not MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
     or not euler_companion_field_planner.resolved
@@ -11567,6 +11638,23 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'message': euler_ambient_physical_field_refinement.message,
       }
     ] if euler_ambient_physical_field_refinement_failure else []),
+    *([
+      {
+        'case': 'euler_ambient_first_wedge_remesh_planner',
+        'status': euler_ambient_first_wedge_remesh_planner.termination.reason.value,
+        'message': (
+          'diagnostic first-wedge remesh planner did not preserve its '
+          'bounded subdivision ladder and fidelity stop'
+        ),
+      }
+    ] if euler_ambient_first_wedge_remesh_planner_failure else []),
+    *([
+      {
+        'case': 'euler_ambient_first_wedge_remesh_refinement',
+        'status': euler_ambient_first_wedge_remesh_refinement.status.value,
+        'message': euler_ambient_first_wedge_remesh_refinement.message,
+      }
+    ] if euler_ambient_first_wedge_remesh_refinement_failure else []),
     *([
       {
         'case': 'euler_solver_owned_ambient_companion_boundary',

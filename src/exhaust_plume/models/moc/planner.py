@@ -103,6 +103,13 @@ from exhaust_plume.models.moc.euler_characteristic_field import (
 from exhaust_plume.models.moc.euler_ambient_field import (
   MocEulerAmbientShockFieldResult,
 )
+from exhaust_plume.models.moc.euler_first_wedge_remesh import (
+  MocEulerAmbientFirstWedgeRemeshResult,
+  remesh_euler_ambient_first_wedge,
+)
+from exhaust_plume.models.moc.euler_physical_field import (
+  MocEulerAmbientPhysicalFieldResult,
+)
 from exhaust_plume.models.moc.euler_post_shock import (
   MocEulerPostShockFieldResult,
   assemble_euler_post_shock_field,
@@ -209,6 +216,9 @@ __all__ = (
   'plan_euler_ambient_shock_field_chain',
   'MocEulerAmbientShockFieldChainMock',
   'plan_euler_ambient_shock_field_chain_mock',
+  'MocEulerAmbientFirstWedgeRemeshPlannerStep',
+  'MocEulerAmbientFirstWedgeRemeshPlannerResult',
+  'plan_euler_ambient_first_wedge_remesh_mock',
   'MocEulerPostShockFieldContinuationSolve',
   'MocEulerPostShockFieldChainStep',
   'MocEulerPostShockFieldChainPlannerResult',
@@ -10087,6 +10097,307 @@ class MocEulerPostShockFieldChainPlannerResult:
       'termination': self.termination.as_report(),
       'diagnostics': dict(self.diagnostics),
     }
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerAmbientFirstWedgeRemeshPlannerStep:
+  """One deterministic local remesh attempt in the pre-chain planner."""
+
+  subdivision_level: int
+  source_field_status: str
+  result_status: str
+  result_kind: str
+  result_converged: bool
+  result_cell_count: int
+  result_state_sample_count: int
+  result_topology_verified: bool
+  result_state_projection_verified: bool
+  result_pressure_lineage_carried: bool
+  result_physical_closure_verified: bool
+  result_chain_promotion_blocked: bool
+  result_production_claim_allowed: bool
+
+  def __post_init__(self) -> None:
+    if (
+      isinstance(self.subdivision_level, bool)
+      or not isinstance(self.subdivision_level, int)
+      or self.subdivision_level < 1
+    ):
+      raise ValueError('subdivision_level must be a positive integer')
+    for name in ('source_field_status', 'result_status', 'result_kind'):
+      value = getattr(self, name)
+      if not isinstance(value, str) or not value:
+        raise ValueError(f'{name} must be a non-empty string')
+    for name in ('result_cell_count', 'result_state_sample_count'):
+      value = getattr(self, name)
+      if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f'{name} must be a nonnegative integer')
+    for name in (
+      'result_converged',
+      'result_topology_verified',
+      'result_state_projection_verified',
+      'result_pressure_lineage_carried',
+      'result_physical_closure_verified',
+      'result_chain_promotion_blocked',
+      'result_production_claim_allowed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'subdivision_level': self.subdivision_level,
+      'source_field_status': self.source_field_status,
+      'result_status': self.result_status,
+      'result_kind': self.result_kind,
+      'result_converged': self.result_converged,
+      'result_cell_count': self.result_cell_count,
+      'result_state_sample_count': self.result_state_sample_count,
+      'checks': {
+        'topology_verified': self.result_topology_verified,
+        'state_projection_verified': self.result_state_projection_verified,
+        'pressure_lineage_carried': self.result_pressure_lineage_carried,
+        'physical_closure_verified': self.result_physical_closure_verified,
+        'chain_promotion_blocked': self.result_chain_promotion_blocked,
+        'production_claim_allowed': self.result_production_claim_allowed,
+      },
+    }
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerAmbientFirstWedgeRemeshPlannerResult:
+  """A research-only first-wedge remesh ladder and explicit chain stop."""
+
+  seed: MocEulerAmbientPhysicalFieldResult
+  remeshes: tuple[MocEulerAmbientFirstWedgeRemeshResult, ...]
+  steps: tuple[MocEulerAmbientFirstWedgeRemeshPlannerStep, ...]
+  termination: MocChainTerminationDecision
+  planner_kind: MocChainPlannerKind
+  claim_status: str
+  diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.seed, MocEulerAmbientPhysicalFieldResult):
+      raise TypeError('seed must be a MocEulerAmbientPhysicalFieldResult')
+    remeshes = tuple(self.remeshes)
+    if any(
+      not isinstance(value, MocEulerAmbientFirstWedgeRemeshResult)
+      for value in remeshes
+    ):
+      raise TypeError(
+        'remeshes must contain MocEulerAmbientFirstWedgeRemeshResult values'
+      )
+    steps = tuple(self.steps)
+    if len(steps) != len(remeshes):
+      raise ValueError('steps must align with remeshes')
+    if any(
+      not isinstance(value, MocEulerAmbientFirstWedgeRemeshPlannerStep)
+      for value in steps
+    ):
+      raise TypeError(
+        'steps must contain MocEulerAmbientFirstWedgeRemeshPlannerStep values'
+      )
+    if not isinstance(self.termination, MocChainTerminationDecision):
+      raise TypeError('termination must be a MocChainTerminationDecision')
+    if self.planner_kind is not MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH:
+      raise ValueError(
+        'first-wedge remesh planner must use the upstream-coupled research '
+        'planner kind'
+      )
+    object.__setattr__(self, 'remeshes', remeshes)
+    object.__setattr__(self, 'steps', steps)
+    object.__setattr__(self, 'claim_status', str(self.claim_status))
+    object.__setattr__(self, 'diagnostics', MappingProxyType(dict(self.diagnostics)))
+
+  @property
+  def remesh_count(self) -> int:
+    return len(self.remeshes)
+
+  @property
+  def resolved(self) -> bool:
+    """Whether every requested diagnostic subdivision assembled."""
+
+    return bool(
+      self.remeshes
+      and all(remesh.converged for remesh in self.remeshes)
+      and self.termination.reason is MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+    )
+
+  @property
+  def first_wedge_subdivision_verified(self) -> bool:
+    if len(self.remeshes) < 2:
+      return False
+    return all(
+      right.cell_count > left.cell_count
+      for left, right in zip(self.remeshes, self.remeshes[1:])
+    )
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    return False
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    return True
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    return False
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'planner_kind': self.planner_kind.value,
+      'planning_only': True,
+      'claim_status': self.claim_status,
+      'resolved': self.resolved,
+      'remesh_count': self.remesh_count,
+      'subdivision_levels': [
+        remesh.subdivision_level for remesh in self.remeshes
+      ],
+      'cell_counts': [remesh.cell_count for remesh in self.remeshes],
+      'first_wedge_subdivision_verified': (
+        self.first_wedge_subdivision_verified
+      ),
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'remeshes': [remesh.as_report() for remesh in self.remeshes],
+      'steps': [step.as_report() for step in self.steps],
+      'termination': self.termination.as_report(),
+      'diagnostics': dict(self.diagnostics),
+    }
+
+
+def plan_euler_ambient_first_wedge_remesh_mock(
+  seed: MocEulerAmbientPhysicalFieldResult,
+  *,
+  subdivision_levels: Sequence[int] = (1, 2, 3),
+  position_tolerance_m: float = 1.0e-10,
+) -> MocEulerAmbientFirstWedgeRemeshPlannerResult:
+  """Run bounded wedge subdivisions and stop before physical promotion.
+
+  This planner is a deterministic research mock around the solver-owned
+  local remesh seam.  It records the growing diagnostic mesh, but does not
+  turn the projected states into ``MocChainCell`` objects.
+  """
+
+  if not isinstance(seed, MocEulerAmbientPhysicalFieldResult):
+    raise TypeError('seed must be a MocEulerAmbientPhysicalFieldResult')
+  try:
+    levels = tuple(subdivision_levels)
+  except TypeError as error:
+    raise ValueError('subdivision_levels must be an iterable of integers') from error
+  if len(levels) < 2 or any(
+    isinstance(level, bool) or not isinstance(level, int) or level < 1
+    for level in levels
+  ):
+    raise ValueError(
+      'subdivision_levels must contain at least two positive integers'
+    )
+  if any(right <= left for left, right in zip(levels, levels[1:])):
+    raise ValueError('subdivision_levels must be strictly increasing')
+  tolerance = float(position_tolerance_m)
+  if not isfinite(tolerance) or tolerance <= 0.0:
+    raise ValueError('position_tolerance_m must be finite and positive')
+
+  remeshes: list[MocEulerAmbientFirstWedgeRemeshResult] = []
+  steps: list[MocEulerAmbientFirstWedgeRemeshPlannerStep] = []
+
+  def result(
+    termination: MocChainTerminationDecision,
+  ) -> MocEulerAmbientFirstWedgeRemeshPlannerResult:
+    return MocEulerAmbientFirstWedgeRemeshPlannerResult(
+      seed=seed,
+      remeshes=tuple(remeshes),
+      steps=tuple(steps),
+      termination=termination,
+      planner_kind=MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH,
+      claim_status=(
+        'deterministic-euler-ambient-first-wedge-remesh-mock; conservative '
+        'terminal-wedge solve, reflected free-boundary closure, and external '
+        'validation pending'
+      ),
+      diagnostics={
+        'planner_model': 'euler-ambient-first-wedge-remesh-mock',
+        'requested_subdivision_levels': levels,
+        'position_tolerance_m': tolerance,
+        'accepted_remesh_count': len(remeshes),
+        'local_remesh_policy': (
+          'bounded-state-projection-only; never-create-moc-chain-cell'
+        ),
+        'independent_audit_required': True,
+        'physical_closure_verified': False,
+        'chain_promotion_blocked': True,
+        'production_claim_allowed': False,
+      },
+    )
+
+  if not seed.converged:
+    return result(seed.as_chain_termination_decision())
+  for level in levels:
+    try:
+      remesh = remesh_euler_ambient_first_wedge(
+        seed,
+        subdivision_level=level,
+        position_tolerance_m=tolerance,
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      termination = MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_ERROR,
+        message=f'first-wedge remesh mock raised: {error}',
+        diagnostics={
+          'planner_model': 'euler-ambient-first-wedge-remesh-mock',
+          'subdivision_level': level,
+          'solver_error': type(error).__name__,
+        },
+      )
+      return result(termination)
+    remeshes.append(remesh)
+    steps.append(
+      MocEulerAmbientFirstWedgeRemeshPlannerStep(
+        subdivision_level=level,
+        source_field_status=seed.status.value,
+        result_status=remesh.status.value,
+        result_kind='diagnostic-remesh-returned',
+        result_converged=remesh.converged,
+        result_cell_count=remesh.cell_count,
+        result_state_sample_count=remesh.state_sample_count,
+        result_topology_verified=bool(
+          remesh.topology.connected
+          and remesh.topology.forms_closed_zone
+          and remesh.topology.nonmanifold_edge_count == 0
+        ),
+        result_state_projection_verified=remesh.state_projection_verified,
+        result_pressure_lineage_carried=remesh.pressure_lineage_carried,
+        result_physical_closure_verified=remesh.physical_closure_verified,
+        result_chain_promotion_blocked=remesh.chain_promotion_blocked,
+        result_production_claim_allowed=remesh.production_claim_allowed,
+      )
+    )
+    if not remesh.converged:
+      return result(remesh.as_chain_termination_decision())
+
+  return result(
+    MocChainTerminationDecision(
+      physical_termination=False,
+      reason=MocChainTerminationReason.FIDELITY_NOT_ALLOWED,
+      message=(
+        'diagnostic first-wedge remesh ladder completed; conservative '
+        'terminal-wedge closure is required before a shock-cell chain can '
+        'consume the result'
+      ),
+      diagnostics={
+        'planner_model': 'euler-ambient-first-wedge-remesh-mock',
+        'subdivision_levels': levels,
+        'cell_counts': tuple(remesh.cell_count for remesh in remeshes),
+        'required_next_gate': (
+          'independent-remesh-euler-audit-and-solver-owned-terminal-wedge-'
+          'characteristic-closure'
+        ),
+      },
+    )
+  )
 
 
 @dataclass(frozen=True, slots=True)

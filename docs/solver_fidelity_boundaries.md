@@ -619,6 +619,19 @@ resolved prefix followed by an explicit configured solver stop. Its endpoint
 is taken from the next field's actual ambient boundary rather than from a
 caller-supplied fabricated interface.
 
+The first reflected centerline wedge now has a separate bounded diagnostic
+remesh lane through ``remesh_euler_ambient_first_wedge`` and
+``plan_euler_ambient_first_wedge_remesh_mock``. Its level-1/2/3 subdivision
+contains 4/16/64 cells and the independently recomputed Euler residual trends
+downward, but the residual gate still fails (approximately 0.114/0.063/0.033
+against a 1e-2 tolerance). The planner therefore terminates with
+``FIDELITY_NOT_ALLOWED`` and never creates a physical chain cell. The remesh
+uses bounded interpolation of the existing field samples; it does not carry
+the missing conservative entropy/characteristic closure and must not be
+advertised as a higher-fidelity solver or product provider. The next required
+gate is a solver-owned terminal-wedge characteristic remesh with conservative
+Euler cell closure, followed by global physical-field and external validation.
+
 This does not close the canonical reflected plume. Further cells need a
 reflected-domain/remeshing method that handles the alternating compression /
 expansion character of the chain, a coupled downstream free-boundary and

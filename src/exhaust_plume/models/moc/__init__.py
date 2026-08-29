@@ -361,6 +361,12 @@ from exhaust_plume.models.moc.euler_physical_field import (
   MocEulerAmbientPhysicalFieldResult,
   assemble_euler_ambient_physical_field,
 )
+from exhaust_plume.models.moc.euler_first_wedge_remesh import (
+  MocEulerAmbientFirstWedgeRemeshStatus,
+  MocEulerAmbientFirstWedgeCellSample,
+  MocEulerAmbientFirstWedgeRemeshResult,
+  remesh_euler_ambient_first_wedge,
+)
 from exhaust_plume.models.moc.ambient_shock_strip import (
   MocAmbientShockBoundaryMarchStatus,
   MocAmbientShockBoundaryMarchResult,
@@ -497,6 +503,9 @@ from exhaust_plume.models.moc.planner import (
   plan_euler_ambient_shock_field_chain,
   MocEulerAmbientShockFieldChainMock,
   plan_euler_ambient_shock_field_chain_mock,
+  MocEulerAmbientFirstWedgeRemeshPlannerStep,
+  MocEulerAmbientFirstWedgeRemeshPlannerResult,
+  plan_euler_ambient_first_wedge_remesh_mock,
   MocEulerPostShockFieldContinuationSolve,
   MocEulerPostShockFieldChainStep,
   MocEulerPostShockFieldChainPlannerResult,
@@ -672,6 +681,9 @@ __all__ = (
   'plan_euler_ambient_shock_field_chain',
   'MocEulerAmbientShockFieldChainMock',
   'plan_euler_ambient_shock_field_chain_mock',
+  'MocEulerAmbientFirstWedgeRemeshPlannerStep',
+  'MocEulerAmbientFirstWedgeRemeshPlannerResult',
+  'plan_euler_ambient_first_wedge_remesh_mock',
   'MocEulerPostShockFieldContinuationSolve',
   'MocEulerPostShockFieldChainStep',
   'MocEulerPostShockFieldChainPlannerResult',
@@ -926,6 +938,10 @@ __all__ = (
   'MocEulerAmbientPhysicalFieldStatus',
   'MocEulerAmbientPhysicalFieldResult',
   'assemble_euler_ambient_physical_field',
+  'MocEulerAmbientFirstWedgeRemeshStatus',
+  'MocEulerAmbientFirstWedgeCellSample',
+  'MocEulerAmbientFirstWedgeRemeshResult',
+  'remesh_euler_ambient_first_wedge',
   'MocEulerPostShockFieldStatus',
   'MocEulerPostShockFieldResult',
   'assemble_euler_post_shock_field',

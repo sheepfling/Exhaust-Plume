@@ -258,6 +258,15 @@ not wait on this research closure.
   returns typed ``UPSTREAM_FIELD_BOUNDARY`` or ``OPEN_PHYSICAL_CLOSURE`` stops
   instead of extrapolating or fabricating a cell. Automatic reflected-domain
   and ambient free-boundary shooting remain pending.
+- Added a bounded first-wedge remesh checkpoint and planner. The solver-owned
+  reflected centerline triangle can be subdivided at levels 1, 2, and 3 into
+  4, 16, and 64 diagnostic cells using only bounded state/total-pressure
+  samples; independent Euler cell residuals decrease across the ladder (about
+  0.114, 0.063, and 0.033) but remain above the 1e-2 acceptance gate. The
+  planner records the ladder and stops with ``FIDELITY_NOT_ALLOWED`` before
+  creating a ``MocChainCell``. This is a measured remesh/state-projection
+  seam, not conservative Euler closure, and it does not alter the basic or
+  reduced-order providers.
 - Added a strict ambient-axis-shoot-to-physical-field bridge. A scalar
   attachment-coordinate pressure root is now rechecked against the complete
   ambient-to-axis pressure/tangency perimeter before the shock/ambient/
