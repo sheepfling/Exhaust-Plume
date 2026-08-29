@@ -2353,13 +2353,22 @@ continued fields are observed and retained beside the candidate rather than
 reconstructed from chain geometry.
 
 The standalone primitive report currently exercises the reflected-patch path
-with a two-cell prefix: the geometry-owned candidate is cell 1, one fresh
-reflected/remeshed physical field is cell 2, and the configured reference stop
+with a three-cell prefix: the geometry-owned candidate is cell 1, followed by
+two fresh reflected/remeshed physical fields. The configured reference stop
 is recorded as `solver-returned-no-next-cell`. The independent
 `op.moc.first-cell-geometry-owned-research-chain` operator remeasures the
-candidate, planner trace, exact centerline handoff, cell count, and fresh
-downstream physical-field domain. Its passing result is a research-chain
-audit, not canonical free-boundary evidence.
+candidate, planner trace, exact centerline handoffs, cell count, and each
+fresh downstream physical-field domain. Its passing result is a
+research-chain audit, not canonical free-boundary evidence.
+
+The companion
+`op.moc.first-cell-geometry-owned-research-chain-refinement` operator now
+repeats that three-cell chain at sample counts 5, 9, and 17. It independently
+remeasures both runs at every resolution, verifies identical typed handoff
+traces on the repeats, and bounds per-cell axial extent, shock-spacing,
+radius, and mesh-area changes across resolution. The standalone gate passes
+these checks; the result is numerical stability evidence for the research
+lane only, not a physical reflected-plume validation claim.
 
 The optional prescribed mock remains a separate mode. It may consume the
 same local candidate field only as a bounded handoff fixture; if its explicit

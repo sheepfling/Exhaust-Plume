@@ -57,7 +57,10 @@ from exhaust_plume.models.moc.chain import (
   MocChainTerminationReason,
   validate_characteristic_trace,
 )
-from exhaust_plume.models.moc.planner import MocChainPlannerResult
+from exhaust_plume.models.moc.planner import (
+  MocChainPlannerResult,
+  MocFirstCellResearchChainPlannerResult,
+)
 from exhaust_plume.models.moc.compression import MocNormalShockTerminalResult
 from exhaust_plume.models.moc.mixed_regime_entropy import (
   MocMixedRegimeEntropyHandoffResult,
@@ -152,6 +155,7 @@ __all__ = (
   'MOC_FIRST_CELL_FREE_BOUNDARY_CORRECTION_OPERATOR_ID',
   'MOC_FIRST_CELL_FREE_BOUNDARY_CORRECTION_REFINEMENT_OPERATOR_ID',
   'MOC_FIRST_CELL_RESEARCH_CHAIN_OPERATOR_ID',
+  'MOC_FIRST_CELL_RESEARCH_CHAIN_REFINEMENT_OPERATOR_ID',
   'MocCausticRemeshMeasurement',
   'MocCausticRemeshMeasurementStatus',
   'MocCausticRemeshObservation',
@@ -210,6 +214,9 @@ __all__ = (
   'MocFirstCellFreeBoundaryCorrectionRefinementMeasurementStatus',
   'MocFirstCellResearchChainMeasurement',
   'MocFirstCellResearchChainMeasurementStatus',
+  'MocFirstCellResearchChainRefinementCase',
+  'MocFirstCellResearchChainRefinementMeasurement',
+  'MocFirstCellResearchChainRefinementMeasurementStatus',
   'measure_moc_caustic_remesh',
   'measure_moc_chain_planner',
   'measure_moc_reflected_domain_remesh',
@@ -235,6 +242,7 @@ __all__ = (
   'measure_first_cell_free_boundary_correction',
   'measure_first_cell_free_boundary_correction_refinement',
   'measure_first_cell_geometry_owned_research_chain',
+  'measure_first_cell_geometry_owned_research_chain_refinement',
 )
 
 
@@ -258,6 +266,9 @@ MOC_FIRST_CELL_FREE_BOUNDARY_CORRECTION_REFINEMENT_OPERATOR_ID = (
 )
 MOC_FIRST_CELL_RESEARCH_CHAIN_OPERATOR_ID = (
   'op.moc.first-cell-geometry-owned-research-chain'
+)
+MOC_FIRST_CELL_RESEARCH_CHAIN_REFINEMENT_OPERATOR_ID = (
+  'op.moc.first-cell-geometry-owned-research-chain-refinement'
 )
 MOC_CAUSTIC_REMESH_OPERATOR_ID = 'op.moc.caustic-remesh'
 MOC_CHAIN_PLANNER_OPERATOR_ID = 'op.moc.chain-planner'
@@ -2792,6 +2803,873 @@ def measure_first_cell_geometry_owned_research_chain(
     physical_closure_verified=physical_closure_verified,
     fidelity_isolation_verified=fidelity_isolation_verified,
     message=message,
+  )
+####
+
+
+class MocFirstCellResearchChainRefinementMeasurementStatus(str, Enum):
+  """Outcome of comparing repeated, refined first-cell chain runs."""
+
+  CONVERGED = 'converged'
+  INVALID_INPUT = 'invalid_input'
+  CASE_FAILURE = 'case_failure'
+  CONSISTENCY_FAILURE = 'consistency_failure'
+  SENSITIVITY_FAILURE = 'sensitivity_failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocFirstCellResearchChainRefinementCase:
+  """One independently repeated chain run at a declared field resolution."""
+
+  sample_count: int
+  planner: MocFirstCellResearchChainPlannerResult
+  repeat_planner: MocFirstCellResearchChainPlannerResult
+
+  def __post_init__(self) -> None:
+    if (
+      isinstance(self.sample_count, bool)
+      or not isinstance(self.sample_count, int)
+      or self.sample_count < 3
+    ):
+      raise ValueError('sample_count must be an integer of at least three')
+    if not isinstance(
+      self.planner,
+      MocFirstCellResearchChainPlannerResult,
+    ):
+      raise TypeError(
+        'planner must be a MocFirstCellResearchChainPlannerResult'
+      )
+    if not isinstance(
+      self.repeat_planner,
+      MocFirstCellResearchChainPlannerResult,
+    ):
+      raise TypeError(
+        'repeat_planner must be a MocFirstCellResearchChainPlannerResult'
+      )
+  ####
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocFirstCellResearchChainRefinementMeasurement:
+  """Independent refinement and determinism evidence for a chain sequence.
+
+  Each case contains two solver runs at the same declared shock/field
+  resolution.  The operator independently remeasures both runs, compares the
+  repeated geometry and handoff trace, then compares the primary runs across
+  increasing resolutions.  This proves only a stable research prefix; it
+  does not close the canonical reflected free boundary or authorize product
+  promotion.
+  """
+
+  status: MocFirstCellResearchChainRefinementMeasurementStatus
+  operator_id: str = MOC_FIRST_CELL_RESEARCH_CHAIN_REFINEMENT_OPERATOR_ID
+  cases: tuple[MocFirstCellResearchChainRefinementCase, ...] = ()
+  chain_measurements: tuple[MocFirstCellResearchChainMeasurement, ...] = ()
+  repeat_chain_measurements: tuple[MocFirstCellResearchChainMeasurement, ...] = ()
+  sample_counts: tuple[int, ...] = ()
+  expected_cell_count: int | None = None
+  cell_count: int | None = None
+  sample_count_order_verified: bool = False
+  expected_sample_counts_verified: bool = True
+  cell_count_consistent: bool = False
+  planner_kind_consistent: bool = False
+  termination_consistency_verified: bool = False
+  geometry_shape_verified: bool = False
+  deterministic_repeats_verified: bool = False
+  handoff_links_verified: bool | None = None
+  physical_closure_verified: bool = False
+  fidelity_isolation_verified: bool = False
+  axial_extent_residuals_m: tuple[float, ...] = ()
+  shock_spacing_residuals_m: tuple[float, ...] = ()
+  maximum_radius_residuals_m: tuple[float, ...] = ()
+  mesh_area_residuals_m2: tuple[float, ...] = ()
+  repeat_axial_extent_residuals_m: tuple[float, ...] = ()
+  repeat_mesh_area_residuals_m2: tuple[float, ...] = ()
+  refinement_convergence_verified: bool = False
+  claim_status: str = 'not_accepted'
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    cases = tuple(self.cases)
+    measurements = tuple(self.chain_measurements)
+    repeat_measurements = tuple(self.repeat_chain_measurements)
+    if len(cases) != len(measurements) or len(cases) != len(repeat_measurements):
+      raise ValueError(
+        'cases and both chain-measurement sequences must have equal lengths'
+      )
+    if any(
+      not isinstance(case, MocFirstCellResearchChainRefinementCase)
+      for case in cases
+    ):
+      raise TypeError(
+        'cases must contain MocFirstCellResearchChainRefinementCase values'
+      )
+    if any(
+      not isinstance(measurement, MocFirstCellResearchChainMeasurement)
+      for measurement in (*measurements, *repeat_measurements)
+    ):
+      raise TypeError(
+        'chain measurements must contain '
+        'MocFirstCellResearchChainMeasurement values'
+      )
+    object.__setattr__(self, 'cases', cases)
+    object.__setattr__(self, 'chain_measurements', measurements)
+    object.__setattr__(self, 'repeat_chain_measurements', repeat_measurements)
+    object.__setattr__(
+      self,
+      'sample_counts',
+      tuple(case.sample_count for case in cases),
+    )
+    if self.expected_cell_count is not None and (
+      isinstance(self.expected_cell_count, bool)
+      or not isinstance(self.expected_cell_count, int)
+      or self.expected_cell_count < 1
+    ):
+      raise ValueError('expected_cell_count must be positive when supplied')
+    if self.cell_count is not None and (
+      isinstance(self.cell_count, bool)
+      or not isinstance(self.cell_count, int)
+      or self.cell_count < 1
+    ):
+      raise ValueError('cell_count must be positive when supplied')
+    for name in (
+      'axial_extent_residuals_m',
+      'shock_spacing_residuals_m',
+      'maximum_radius_residuals_m',
+      'mesh_area_residuals_m2',
+      'repeat_axial_extent_residuals_m',
+      'repeat_mesh_area_residuals_m2',
+    ):
+      values = tuple(float(value) for value in getattr(self, name))
+      if any(not isfinite(value) or value < 0.0 for value in values):
+        raise ValueError(f'{name} must contain finite nonnegative values')
+      object.__setattr__(self, name, values)
+    for name in (
+      'sample_count_order_verified',
+      'expected_sample_counts_verified',
+      'cell_count_consistent',
+      'planner_kind_consistent',
+      'termination_consistency_verified',
+      'geometry_shape_verified',
+      'deterministic_repeats_verified',
+      'physical_closure_verified',
+      'fidelity_isolation_verified',
+      'refinement_convergence_verified',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+    if self.handoff_links_verified is not None and not isinstance(
+      self.handoff_links_verified,
+      bool,
+    ):
+      raise TypeError('handoff_links_verified must be a bool or None')
+  ####
+
+  @property
+  def converged(self) -> bool:
+    return (
+      self.status
+      is MocFirstCellResearchChainRefinementMeasurementStatus.CONVERGED
+    )
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'operator_id': self.operator_id,
+      'converged': self.converged,
+      'case_count': len(self.cases),
+      'sample_counts': list(self.sample_counts),
+      'expected_cell_count': self.expected_cell_count,
+      'cell_count': self.cell_count,
+      'cases': [
+        {
+          'sample_count': case.sample_count,
+          'measurement': measurement.as_report(),
+          'repeat_measurement': repeat_measurement.as_report(),
+          'repeat_axial_extent_residual_m': (
+            self.repeat_axial_extent_residuals_m[index]
+            if index < len(self.repeat_axial_extent_residuals_m) else None
+          ),
+          'repeat_mesh_area_residual_m2': (
+            self.repeat_mesh_area_residuals_m2[index]
+            if index < len(self.repeat_mesh_area_residuals_m2) else None
+          ),
+        }
+        for index, (case, measurement, repeat_measurement) in enumerate(zip(
+          self.cases,
+          self.chain_measurements,
+          self.repeat_chain_measurements,
+          strict=True,
+        ))
+      ],
+      'checks': {
+        'sample_count_order_verified': self.sample_count_order_verified,
+        'expected_sample_counts_verified': self.expected_sample_counts_verified,
+        'cell_count_consistent': self.cell_count_consistent,
+        'planner_kind_consistent': self.planner_kind_consistent,
+        'termination_consistency_verified': (
+          self.termination_consistency_verified
+        ),
+        'geometry_shape_verified': self.geometry_shape_verified,
+        'deterministic_repeats_verified': self.deterministic_repeats_verified,
+        'handoff_links_verified': self.handoff_links_verified,
+        'physical_closure_verified': self.physical_closure_verified,
+        'fidelity_isolation_verified': self.fidelity_isolation_verified,
+        'refinement_convergence_verified': (
+          self.refinement_convergence_verified
+        ),
+      },
+      'residuals': {
+        'axial_extent_residuals_m': list(self.axial_extent_residuals_m),
+        'shock_spacing_residuals_m': list(self.shock_spacing_residuals_m),
+        'maximum_radius_residuals_m': list(self.maximum_radius_residuals_m),
+        'mesh_area_residuals_m2': list(self.mesh_area_residuals_m2),
+        'repeat_axial_extent_residuals_m': list(
+          self.repeat_axial_extent_residuals_m
+        ),
+        'repeat_mesh_area_residuals_m2': list(
+          self.repeat_mesh_area_residuals_m2
+        ),
+      },
+      'canonical_free_boundary_verified': False,
+      'canonical_euler_verified': False,
+      'external_validation_verified': False,
+      'chain_promotion_blocked': True,
+      'production_claim_allowed': False,
+      'claim_status': self.claim_status,
+      'message': self.message,
+    }
+  ####
+
+
+def _first_cell_research_chain_refinement_failure(
+  status: MocFirstCellResearchChainRefinementMeasurementStatus,
+  message: str,
+  *,
+  cases: Sequence[MocFirstCellResearchChainRefinementCase] = (),
+  chain_measurements: Sequence[MocFirstCellResearchChainMeasurement] = (),
+  repeat_chain_measurements: Sequence[MocFirstCellResearchChainMeasurement] = (),
+  expected_cell_count: int | None = None,
+  cell_count: int | None = None,
+  sample_count_order_verified: bool = False,
+  expected_sample_counts_verified: bool = True,
+  cell_count_consistent: bool = False,
+  planner_kind_consistent: bool = False,
+  termination_consistency_verified: bool = False,
+  geometry_shape_verified: bool = False,
+  deterministic_repeats_verified: bool = False,
+  handoff_links_verified: bool | None = None,
+  physical_closure_verified: bool = False,
+  fidelity_isolation_verified: bool = False,
+  axial_extent_residuals_m: Sequence[float] = (),
+  shock_spacing_residuals_m: Sequence[float] = (),
+  maximum_radius_residuals_m: Sequence[float] = (),
+  mesh_area_residuals_m2: Sequence[float] = (),
+  repeat_axial_extent_residuals_m: Sequence[float] = (),
+  repeat_mesh_area_residuals_m2: Sequence[float] = (),
+  refinement_convergence_verified: bool = False,
+) -> MocFirstCellResearchChainRefinementMeasurement:
+  normalized_cases = tuple(cases)
+  normalized_measurements = tuple(chain_measurements)
+  normalized_repeat_measurements = tuple(repeat_chain_measurements)
+  paired_inputs_are_valid = bool(
+    len(normalized_cases) == len(normalized_measurements)
+    and len(normalized_cases) == len(normalized_repeat_measurements)
+    and all(
+      isinstance(case, MocFirstCellResearchChainRefinementCase)
+      for case in normalized_cases
+    )
+    and all(
+      isinstance(measurement, MocFirstCellResearchChainMeasurement)
+      for measurement in (
+        *normalized_measurements,
+        *normalized_repeat_measurements,
+      )
+    )
+  )
+  if not paired_inputs_are_valid:
+    normalized_cases = ()
+    normalized_measurements = ()
+    normalized_repeat_measurements = ()
+  return MocFirstCellResearchChainRefinementMeasurement(
+    status=status,
+    cases=normalized_cases,
+    chain_measurements=normalized_measurements,
+    repeat_chain_measurements=normalized_repeat_measurements,
+    expected_cell_count=expected_cell_count,
+    cell_count=cell_count,
+    sample_count_order_verified=sample_count_order_verified,
+    expected_sample_counts_verified=expected_sample_counts_verified,
+    cell_count_consistent=cell_count_consistent,
+    planner_kind_consistent=planner_kind_consistent,
+    termination_consistency_verified=termination_consistency_verified,
+    geometry_shape_verified=geometry_shape_verified,
+    deterministic_repeats_verified=deterministic_repeats_verified,
+    handoff_links_verified=handoff_links_verified,
+    physical_closure_verified=physical_closure_verified,
+    fidelity_isolation_verified=fidelity_isolation_verified,
+    axial_extent_residuals_m=tuple(axial_extent_residuals_m),
+    shock_spacing_residuals_m=tuple(shock_spacing_residuals_m),
+    maximum_radius_residuals_m=tuple(maximum_radius_residuals_m),
+    mesh_area_residuals_m2=tuple(mesh_area_residuals_m2),
+    repeat_axial_extent_residuals_m=tuple(repeat_axial_extent_residuals_m),
+    repeat_mesh_area_residuals_m2=tuple(repeat_mesh_area_residuals_m2),
+    refinement_convergence_verified=refinement_convergence_verified,
+    claim_status='not_accepted',
+    message=message,
+  )
+####
+
+
+def _research_chain_geometry_metrics(
+  measurement: MocFirstCellResearchChainMeasurement,
+) -> dict[str, tuple[float, ...]] | None:
+  field_chain = measurement.physical_field_chain_measurement
+  if field_chain is None or not field_chain.field_measurements:
+    return None
+  field_measurements = field_chain.field_measurements
+  axial_extents: list[float] = []
+  shock_starts: list[float] = []
+  maximum_radii: list[float] = []
+  mesh_areas: list[float] = []
+  for field_measurement in field_measurements:
+    if (
+      field_measurement.axial_extent_m is None
+      or field_measurement.shock_start_m is None
+      or field_measurement.maximum_radius_m is None
+      or field_measurement.mesh_area_m2 is None
+    ):
+      return None
+    axial_extents.extend(float(value) for value in field_measurement.axial_extent_m)
+    shock_starts.append(float(field_measurement.shock_start_m[0]))
+    maximum_radii.append(float(field_measurement.maximum_radius_m))
+    mesh_areas.append(float(field_measurement.mesh_area_m2))
+  if not all(
+    isfinite(value)
+    for values in (axial_extents, shock_starts, maximum_radii, mesh_areas)
+    for value in values
+  ):
+    return None
+  shock_spacing = tuple(
+    right - left for left, right in zip(shock_starts, shock_starts[1:])
+  )
+  return {
+    'axial_extents': tuple(axial_extents),
+    'shock_spacing': shock_spacing,
+    'maximum_radii': tuple(maximum_radii),
+    'mesh_areas': tuple(mesh_areas),
+  }
+####
+
+
+def _maximum_sequence_residual(
+  left: Sequence[float],
+  right: Sequence[float],
+) -> float | None:
+  if len(left) != len(right):
+    return None
+  values = tuple(abs(float(current) - float(previous)) for previous, current in zip(
+    left,
+    right,
+    strict=True,
+  ))
+  return max(values, default=0.0)
+####
+
+
+def _research_chain_step_signature(
+  result: MocFirstCellResearchChainPlannerResult,
+) -> tuple[tuple[object, ...], ...] | None:
+  planner = result.chain_planner
+  if planner is None:
+    return None
+  return tuple(
+    (
+      step.current_cell_index,
+      step.next_cell_index,
+      step.result_kind,
+      step.result_status,
+      step.result_termination_reason,
+      step.incoming_handoff_fingerprint,
+      step.result_handoff_fingerprint,
+      step.result_consumed_handoff_fingerprint,
+      step.result_end_x_m,
+    )
+    for step in planner.steps
+  )
+####
+
+
+def _research_chain_repeat_verified(
+  primary: MocFirstCellResearchChainPlannerResult,
+  repeat: MocFirstCellResearchChainPlannerResult,
+  primary_measurement: MocFirstCellResearchChainMeasurement,
+  repeat_measurement: MocFirstCellResearchChainMeasurement,
+  *,
+  position_tolerance_m: float,
+  area_tolerance_m2: float,
+) -> tuple[bool, float | None, float | None]:
+  primary_metrics = _research_chain_geometry_metrics(primary_measurement)
+  repeat_metrics = _research_chain_geometry_metrics(repeat_measurement)
+  if primary_metrics is None or repeat_metrics is None:
+    return False, None, None
+  if (
+    primary.planner_kind is not repeat.planner_kind
+    or primary.termination.reason is not repeat.termination.reason
+    or primary.termination.physical_termination
+    != repeat.termination.physical_termination
+    or primary.cell_count != repeat.cell_count
+    or primary.continued_cell_count != repeat.continued_cell_count
+    or primary_measurement.handoff_links_verified is not True
+    or repeat_measurement.handoff_links_verified is not True
+  ):
+    return False, None, None
+  primary_signature = _research_chain_step_signature(primary)
+  repeat_signature = _research_chain_step_signature(repeat)
+  if primary_signature is None or repeat_signature is None:
+    return False, None, None
+  if len(primary_signature) != len(repeat_signature):
+    return False, None, None
+  for left, right in zip(primary_signature, repeat_signature, strict=True):
+    if left[:-1] != right[:-1]:
+      return False, None, None
+  axial_residual = _maximum_sequence_residual(
+    primary_metrics['axial_extents'],
+    repeat_metrics['axial_extents'],
+  )
+  area_residual = _maximum_sequence_residual(
+    primary_metrics['mesh_areas'],
+    repeat_metrics['mesh_areas'],
+  )
+  if axial_residual is None or area_residual is None:
+    return False, axial_residual, area_residual
+  endpoint_ok = axial_residual <= position_tolerance_m
+  area_ok = area_residual <= area_tolerance_m2
+  step_endpoints_match = all(
+    (
+      left[-1] is None
+      and right[-1] is None
+    )
+    or (
+      left[-1] is not None
+      and right[-1] is not None
+      and abs(float(left[-1]) - float(right[-1])) <= position_tolerance_m
+    )
+    for left, right in zip(
+      primary_signature,
+      repeat_signature,
+      strict=True,
+    )
+  )
+  return endpoint_ok and area_ok and step_endpoints_match, axial_residual, area_residual
+####
+
+
+def measure_first_cell_geometry_owned_research_chain_refinement(
+  cases: Sequence[MocFirstCellResearchChainRefinementCase],
+  *,
+  expected_sample_counts: Sequence[int] | None = None,
+  expected_cell_count: int | None = None,
+  endpoint_tolerance_m: float = 2.0e-2,
+  shock_spacing_tolerance_m: float = 2.0e-2,
+  maximum_radius_tolerance_m: float = 1.0e-2,
+  mesh_area_tolerance_m2: float = 5.0e-2,
+  deterministic_tolerance_m: float = 1.0e-12,
+  deterministic_area_tolerance_m2: float = 1.0e-12,
+  position_tolerance_m: float = 1.0e-8,
+  state_tolerance: float = 1.0e-9,
+  invariant_tolerance: float = 1.0e-8,
+) -> MocFirstCellResearchChainRefinementMeasurement:
+  """Independently compare repeated multi-cell research-chain runs.
+
+  The supplied planner results are already solved.  This operator never
+  invokes a planner or solver; it reruns only the immutable measurement
+  operators and compares the resulting chain geometry and recorded handoffs.
+  A successful result therefore establishes deterministic local continuation
+  and numerical sensitivity of the research lane, not canonical free-boundary
+  closure.
+  """
+
+  for name, value in (
+    ('endpoint_tolerance_m', endpoint_tolerance_m),
+    ('shock_spacing_tolerance_m', shock_spacing_tolerance_m),
+    ('maximum_radius_tolerance_m', maximum_radius_tolerance_m),
+    ('mesh_area_tolerance_m2', mesh_area_tolerance_m2),
+    ('deterministic_tolerance_m', deterministic_tolerance_m),
+    ('deterministic_area_tolerance_m2', deterministic_area_tolerance_m2),
+    ('position_tolerance_m', position_tolerance_m),
+    ('state_tolerance', state_tolerance),
+    ('invariant_tolerance', invariant_tolerance),
+  ):
+    if not isfinite(float(value)) or float(value) <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+  if expected_cell_count is not None and (
+    isinstance(expected_cell_count, bool)
+    or not isinstance(expected_cell_count, int)
+    or expected_cell_count < 1
+  ):
+    raise ValueError('expected_cell_count must be positive when supplied')
+  try:
+    items = tuple(cases)
+  except TypeError:
+    return _first_cell_research_chain_refinement_failure(
+      MocFirstCellResearchChainRefinementMeasurementStatus.INVALID_INPUT,
+      'refinement cases must be iterable',
+      expected_cell_count=expected_cell_count,
+    )
+  if len(items) < 2:
+    return _first_cell_research_chain_refinement_failure(
+      MocFirstCellResearchChainRefinementMeasurementStatus.INVALID_INPUT,
+      'at least two repeated chain refinement cases are required',
+      cases=items,
+      expected_cell_count=expected_cell_count,
+    )
+  if any(
+    not isinstance(case, MocFirstCellResearchChainRefinementCase)
+    for case in items
+  ):
+    return _first_cell_research_chain_refinement_failure(
+      MocFirstCellResearchChainRefinementMeasurementStatus.INVALID_INPUT,
+      'refinement cases must contain '
+      'MocFirstCellResearchChainRefinementCase values',
+      cases=items,
+      expected_cell_count=expected_cell_count,
+    )
+  sample_counts = tuple(case.sample_count for case in items)
+  sample_count_order_verified = all(
+    right > left for left, right in zip(sample_counts, sample_counts[1:])
+  )
+  expected_counts = None
+  if expected_sample_counts is not None:
+    try:
+      expected_counts = tuple(expected_sample_counts)
+    except TypeError:
+      return _first_cell_research_chain_refinement_failure(
+        MocFirstCellResearchChainRefinementMeasurementStatus.INVALID_INPUT,
+        'expected_sample_counts must be iterable',
+        cases=items,
+        expected_cell_count=expected_cell_count,
+        sample_count_order_verified=sample_count_order_verified,
+      )
+    if any(
+      isinstance(value, bool) or not isinstance(value, int) or value < 3
+      for value in expected_counts
+    ):
+      return _first_cell_research_chain_refinement_failure(
+        MocFirstCellResearchChainRefinementMeasurementStatus.INVALID_INPUT,
+        'expected_sample_counts must contain integers of at least three',
+        cases=items,
+        expected_cell_count=expected_cell_count,
+        sample_count_order_verified=sample_count_order_verified,
+      )
+  expected_sample_counts_verified = bool(
+    expected_counts is None or sample_counts == expected_counts
+  )
+  if not sample_count_order_verified or not expected_sample_counts_verified:
+    return _first_cell_research_chain_refinement_failure(
+      MocFirstCellResearchChainRefinementMeasurementStatus.CONSISTENCY_FAILURE,
+      'research-chain refinement sample counts must be strictly ordered and '
+      'match the declared expectation',
+      cases=items,
+      expected_cell_count=expected_cell_count,
+      sample_count_order_verified=sample_count_order_verified,
+      expected_sample_counts_verified=expected_sample_counts_verified,
+    )
+
+  def measure_case(
+    result: MocFirstCellResearchChainPlannerResult,
+  ) -> MocFirstCellResearchChainMeasurement:
+    return measure_first_cell_geometry_owned_research_chain(
+      result.candidate,
+      result.chain_planner,
+      result.physical_fields,
+      position_tolerance_m=position_tolerance_m,
+      state_tolerance=state_tolerance,
+      invariant_tolerance=invariant_tolerance,
+    )
+
+  measurements = tuple(measure_case(case.planner) for case in items)
+  repeat_measurements = tuple(
+    measure_case(case.repeat_planner) for case in items
+  )
+  if any(
+    not measurement.converged or not repeat_measurement.converged
+    for measurement, repeat_measurement in zip(
+      measurements,
+      repeat_measurements,
+      strict=True,
+    )
+  ):
+    return _first_cell_research_chain_refinement_failure(
+      MocFirstCellResearchChainRefinementMeasurementStatus.CASE_FAILURE,
+      'one or more repeated research-chain cases failed independent measurement',
+      cases=items,
+      chain_measurements=measurements,
+      repeat_chain_measurements=repeat_measurements,
+      expected_cell_count=expected_cell_count,
+      sample_count_order_verified=True,
+      expected_sample_counts_verified=True,
+    )
+
+  primary_counts = tuple(measurement.field_count for measurement in measurements)
+  repeat_counts = tuple(
+    measurement.field_count for measurement in repeat_measurements
+  )
+  cell_count_consistent = bool(
+    len(set((*primary_counts, *repeat_counts))) == 1
+    and primary_counts[0] > 1
+    and (
+      expected_cell_count is None
+      or primary_counts[0] == expected_cell_count
+    )
+  )
+  planner_kinds = tuple(
+    case.planner.planner_kind for case in items
+  ) + tuple(
+    case.repeat_planner.planner_kind for case in items
+  )
+  planner_kind_consistent = len(set(planner_kinds)) == 1
+  termination_metadata = tuple(
+    (
+      result.termination.reason,
+      result.termination.physical_termination,
+    )
+    for case in items
+    for result in (case.planner, case.repeat_planner)
+  )
+  termination_consistency_verified = bool(
+    len(set(termination_metadata)) == 1
+    and termination_metadata[0][1] is False
+  )
+  metrics = tuple(
+    _research_chain_geometry_metrics(measurement)
+    for measurement in measurements
+  )
+  repeat_metrics = tuple(
+    _research_chain_geometry_metrics(measurement)
+    for measurement in repeat_measurements
+  )
+  if any(metric is None for metric in (*metrics, *repeat_metrics)):
+    return _first_cell_research_chain_refinement_failure(
+      MocFirstCellResearchChainRefinementMeasurementStatus.CASE_FAILURE,
+      'independent research-chain measurements did not expose complete '
+      'finite geometry metrics',
+      cases=items,
+      chain_measurements=measurements,
+      repeat_chain_measurements=repeat_measurements,
+      expected_cell_count=expected_cell_count,
+      cell_count=(primary_counts[0] if primary_counts else None),
+      sample_count_order_verified=True,
+      expected_sample_counts_verified=True,
+      cell_count_consistent=cell_count_consistent,
+      planner_kind_consistent=planner_kind_consistent,
+      termination_consistency_verified=termination_consistency_verified,
+    )
+  resolved_metrics = tuple(metric for metric in metrics if metric is not None)
+  resolved_repeat_metrics = tuple(
+    metric for metric in repeat_metrics if metric is not None
+  )
+  geometry_shape_verified = bool(
+    len({len(metric['axial_extents']) for metric in resolved_metrics}) == 1
+    and len({len(metric['shock_spacing']) for metric in resolved_metrics}) == 1
+    and len({len(metric['maximum_radii']) for metric in resolved_metrics}) == 1
+    and len({len(metric['mesh_areas']) for metric in resolved_metrics}) == 1
+    and all(
+      len(metric['axial_extents']) == len(repeat_metric['axial_extents'])
+      and len(metric['shock_spacing']) == len(repeat_metric['shock_spacing'])
+      and len(metric['maximum_radii']) == len(repeat_metric['maximum_radii'])
+      and len(metric['mesh_areas']) == len(repeat_metric['mesh_areas'])
+      for metric, repeat_metric in zip(
+        resolved_metrics,
+        resolved_repeat_metrics,
+        strict=True,
+      )
+    )
+  )
+  if not geometry_shape_verified:
+    return _first_cell_research_chain_refinement_failure(
+      MocFirstCellResearchChainRefinementMeasurementStatus.CONSISTENCY_FAILURE,
+      'research-chain refinement cases must retain the same per-cell '
+      'geometry shape',
+      cases=items,
+      chain_measurements=measurements,
+      repeat_chain_measurements=repeat_measurements,
+      expected_cell_count=expected_cell_count,
+      cell_count=(primary_counts[0] if primary_counts else None),
+      sample_count_order_verified=True,
+      expected_sample_counts_verified=True,
+      cell_count_consistent=cell_count_consistent,
+      planner_kind_consistent=planner_kind_consistent,
+      termination_consistency_verified=termination_consistency_verified,
+      geometry_shape_verified=False,
+    )
+
+  deterministic_results = tuple(
+    _research_chain_repeat_verified(
+      case.planner,
+      case.repeat_planner,
+      measurement,
+      repeat_measurement,
+      position_tolerance_m=deterministic_tolerance_m,
+      area_tolerance_m2=deterministic_area_tolerance_m2,
+    )
+    for case, measurement, repeat_measurement in zip(
+      items,
+      measurements,
+      repeat_measurements,
+      strict=True,
+    )
+  )
+  deterministic_repeats_verified = all(item[0] for item in deterministic_results)
+  repeat_axial_extent_residuals = tuple(
+    item[1] for item in deterministic_results if item[1] is not None
+  )
+  repeat_mesh_area_residuals = tuple(
+    item[2] for item in deterministic_results if item[2] is not None
+  )
+
+  def adjacent_residuals(key: str) -> tuple[float, ...]:
+    return tuple(
+      residual
+      for left, right in zip(resolved_metrics, resolved_metrics[1:])
+      for residual in (_maximum_sequence_residual(left[key], right[key]),)
+      if residual is not None
+    )
+
+  axial_extent_residuals = adjacent_residuals('axial_extents')
+  shock_spacing_residuals = adjacent_residuals('shock_spacing')
+  maximum_radius_residuals = adjacent_residuals('maximum_radii')
+  mesh_area_residuals = adjacent_residuals('mesh_areas')
+  handoff_values = tuple(
+    measurement.handoff_links_verified
+    for measurement in (*measurements, *repeat_measurements)
+  )
+  handoff_links_verified = (
+    True if all(value is True for value in handoff_values) else False
+  )
+  physical_closure_verified = bool(
+    all(
+      measurement.physical_closure_verified
+      and repeat_measurement.physical_closure_verified
+      for measurement, repeat_measurement in zip(
+        measurements,
+        repeat_measurements,
+        strict=True,
+      )
+    )
+  )
+  fidelity_isolation_verified = bool(
+    all(
+      result.chain_promotion_blocked
+      and result.production_claim_allowed is False
+      and result.canonical_free_boundary_verified is False
+      and result.canonical_euler_verified is False
+      and result.external_validation_verified is False
+      and measurement.fidelity_isolation_verified
+      and repeat_measurement.fidelity_isolation_verified
+      and measurement.chain_promotion_blocked
+      and repeat_measurement.chain_promotion_blocked
+      and measurement.production_claim_allowed is False
+      and repeat_measurement.production_claim_allowed is False
+      for case, measurement, repeat_measurement in zip(
+        items,
+        measurements,
+        repeat_measurements,
+        strict=True,
+      )
+      for result in (case.planner, case.repeat_planner)
+    )
+  )
+  refinement_convergence_verified = bool(
+    cell_count_consistent
+    and planner_kind_consistent
+    and termination_consistency_verified
+    and deterministic_repeats_verified
+    and len(repeat_axial_extent_residuals) == len(items)
+    and len(repeat_mesh_area_residuals) == len(items)
+    and all(
+      residual <= float(endpoint_tolerance_m)
+      for residual in axial_extent_residuals
+    )
+    and all(
+      residual <= float(shock_spacing_tolerance_m)
+      for residual in shock_spacing_residuals
+    )
+    and all(
+      residual <= float(maximum_radius_tolerance_m)
+      for residual in maximum_radius_residuals
+    )
+    and all(
+      residual <= float(mesh_area_tolerance_m2)
+      for residual in mesh_area_residuals
+    )
+    and all(
+      residual <= float(deterministic_tolerance_m)
+      for residual in repeat_axial_extent_residuals
+    )
+    and all(
+      residual <= float(deterministic_area_tolerance_m2)
+      for residual in repeat_mesh_area_residuals
+    )
+  )
+  if (
+    not cell_count_consistent
+    or not planner_kind_consistent
+    or not termination_consistency_verified
+    or not geometry_shape_verified
+  ):
+    status = MocFirstCellResearchChainRefinementMeasurementStatus.CONSISTENCY_FAILURE
+    message = (
+      'repeated research-chain cases do not retain one cell count, planner '
+      'kind, geometry shape, and typed termination outcome'
+    )
+  elif not physical_closure_verified or not fidelity_isolation_verified or not handoff_links_verified:
+    status = MocFirstCellResearchChainRefinementMeasurementStatus.CONSISTENCY_FAILURE
+    message = (
+      'repeated research-chain cases failed independent handoff, physical '
+      'closure, or fidelity-isolation checks'
+    )
+  elif not refinement_convergence_verified:
+    status = MocFirstCellResearchChainRefinementMeasurementStatus.SENSITIVITY_FAILURE
+    message = (
+      'research-chain deterministic-repeat or resolution-sensitivity '
+      'residuals exceeded their declared tolerances'
+    )
+  else:
+    status = MocFirstCellResearchChainRefinementMeasurementStatus.CONVERGED
+    message = (
+      'independent repeated multi-cell research chains are deterministic and '
+      'stable across the declared resolutions; canonical reflected '
+      'free-boundary and product gates remain closed'
+    )
+  return _first_cell_research_chain_refinement_failure(
+    status,
+    message,
+    cases=items,
+    chain_measurements=measurements,
+    repeat_chain_measurements=repeat_measurements,
+    expected_cell_count=expected_cell_count,
+    cell_count=primary_counts[0] if primary_counts else None,
+    sample_count_order_verified=True,
+    expected_sample_counts_verified=True,
+    cell_count_consistent=cell_count_consistent,
+    planner_kind_consistent=planner_kind_consistent,
+    termination_consistency_verified=termination_consistency_verified,
+    geometry_shape_verified=geometry_shape_verified,
+    deterministic_repeats_verified=deterministic_repeats_verified,
+    handoff_links_verified=handoff_links_verified,
+    physical_closure_verified=physical_closure_verified,
+    fidelity_isolation_verified=fidelity_isolation_verified,
+    axial_extent_residuals_m=axial_extent_residuals,
+    shock_spacing_residuals_m=shock_spacing_residuals,
+    maximum_radius_residuals_m=maximum_radius_residuals,
+    mesh_area_residuals_m2=mesh_area_residuals,
+    repeat_axial_extent_residuals_m=repeat_axial_extent_residuals,
+    repeat_mesh_area_residuals_m2=repeat_mesh_area_residuals,
+    refinement_convergence_verified=refinement_convergence_verified,
   )
 ####
 

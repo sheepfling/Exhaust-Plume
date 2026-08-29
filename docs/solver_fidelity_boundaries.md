@@ -1039,9 +1039,17 @@ The handoff retains the candidate field and every accepted downstream field.
 `op.moc.first-cell-geometry-owned-research-chain` independently checks the
 candidate, planner step trace, first-field identity, exact centerline state /
 total-pressure handoffs, fresh downstream domains, and local physical closure.
-The current standalone case passes with one continued cell and an explicit
+The current standalone case passes with two continued cells and an explicit
 configured reference stop. A mock candidate that leaves the bounded field
 returns `upstream-field-boundary`; no state or pressure is extrapolated.
+
+The separate
+`op.moc.first-cell-geometry-owned-research-chain-refinement` measurement
+repeats the three-cell prefix at sample counts 5, 9, and 17. It independently
+checks per-resolution candidate/chain/field evidence, exact repeat handoff
+fingerprints, typed termination consistency, and bounded changes in per-cell
+axial extent, shock spacing, radius, and mesh area. This makes deterministic
+continuation and resolution sensitivity visible without promoting the chain.
 
 This handoff is useful for research visualization and chain-topology work only.
 The candidate seed, reflected-patch continuation, and prescribed mock all

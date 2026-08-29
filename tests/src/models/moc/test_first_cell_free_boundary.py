@@ -23,8 +23,11 @@ from exhaust_plume.validation import (
   MocFirstCellFreeBoundaryCorrectionMeasurementStatus,
   MocFirstCellFreeBoundaryCorrectionRefinementMeasurementStatus,
   MocFirstCellResearchChainMeasurementStatus,
+  MocFirstCellResearchChainRefinementCase,
+  MocFirstCellResearchChainRefinementMeasurementStatus,
   measure_first_cell_free_boundary_correction,
   measure_first_cell_free_boundary_correction_refinement,
+  measure_first_cell_geometry_owned_research_chain_refinement,
 )
 
 
@@ -224,10 +227,10 @@ def test_geometry_owned_candidate_can_seed_reflected_research_chain_without_prom
     start_x_m=0.5,
     end_x_m=8.0,
     reference=MocTerminalReflectionPatchAmbientClosureChainReference(
-      total_cell_count=2,
+      total_cell_count=3,
     ),
     policy=MocChainContinuationPolicy(
-      max_cells=3,
+      max_cells=4,
       require_state_carry=True,
     ),
   )
@@ -236,8 +239,8 @@ def test_geometry_owned_candidate_can_seed_reflected_research_chain_without_prom
   assert planner.planner_kind.value == 'upstream-coupled-research'
   assert planner.chain_planner is not None
   assert planner.chain_planner.chain.resolved
-  assert planner.cell_count == 2
-  assert planner.continued_cell_count == 1
+  assert planner.cell_count == 3
+  assert planner.continued_cell_count == 2
   assert planner.resolved
   assert planner.first_cell_handoff_verified
   assert planner.continued_chain_audit_verified
@@ -260,9 +263,86 @@ def test_geometry_owned_candidate_can_seed_reflected_research_chain_without_prom
   )
   report = planner.as_report()
   assert report['research_audit_accepted'] is True
-  assert report['physical_field_count'] == 2
+  assert report['physical_field_count'] == 3
   assert report['diagnostics']['first_cell_field_identity_verified'] is True
   assert report['diagnostics']['continued_cell_callback_invoked'] is True
+
+
+def test_geometry_owned_research_chain_is_deterministic_over_resolution() -> None:
+  source, _, ambient_pressure = _correction_inputs()
+  cases = []
+  for sample_count in (5, 9, 17):
+    seed = solve_marched_attached_shock_field(
+      source.state_at,
+      source.static_pressure_at,
+      (0.5, 0.5),
+      downstream_flow_angle_at=lambda _index, point: 0.05 * point[1] / 0.5,
+      sample_count=sample_count,
+    )
+    assert seed.shock_fit is not None
+    candidate = solve_first_cell_geometry_owned_candidate(
+      source,
+      tuple(sample.point_m for sample in seed.shock_fit.boundary_states),
+      ambient_pressure,
+    )
+
+    def run_chain() -> MocFirstCellResearchChainPlannerResult:
+      result = plan_first_cell_geometry_owned_research_chain(
+        candidate,
+        start_x_m=0.5,
+        end_x_m=8.0,
+        reference=MocTerminalReflectionPatchAmbientClosureChainReference(
+          total_cell_count=3,
+          sample_count=sample_count,
+        ),
+        policy=MocChainContinuationPolicy(
+          max_cells=4,
+          require_state_carry=True,
+        ),
+      )
+      assert isinstance(result, MocFirstCellResearchChainPlannerResult)
+      return result
+
+    cases.append(
+      MocFirstCellResearchChainRefinementCase(
+        sample_count=sample_count,
+        planner=run_chain(),
+        repeat_planner=run_chain(),
+      )
+    )
+
+  measurement = measure_first_cell_geometry_owned_research_chain_refinement(
+    cases,
+    expected_sample_counts=(5, 9, 17),
+    expected_cell_count=3,
+  )
+
+  assert measurement.status is (
+    MocFirstCellResearchChainRefinementMeasurementStatus.CONVERGED
+  )
+  assert measurement.converged
+  assert measurement.sample_counts == (5, 9, 17)
+  assert measurement.cell_count == 3
+  assert measurement.sample_count_order_verified
+  assert measurement.expected_sample_counts_verified
+  assert measurement.cell_count_consistent
+  assert measurement.planner_kind_consistent
+  assert measurement.termination_consistency_verified
+  assert measurement.geometry_shape_verified
+  assert measurement.deterministic_repeats_verified
+  assert measurement.handoff_links_verified is True
+  assert measurement.physical_closure_verified
+  assert measurement.fidelity_isolation_verified
+  assert measurement.refinement_convergence_verified
+  report = measurement.as_report()
+  assert report['operator_id'] == (
+    'op.moc.first-cell-geometry-owned-research-chain-refinement'
+  )
+  assert report['chain_promotion_blocked'] is True
+  assert report['production_claim_allowed'] is False
+  assert report['canonical_free_boundary_verified'] is False
+  assert report['canonical_euler_verified'] is False
+  assert report['external_validation_verified'] is False
 
 
 def test_geometry_owned_candidate_mock_keeps_bounded_source_stop_typed() -> None:

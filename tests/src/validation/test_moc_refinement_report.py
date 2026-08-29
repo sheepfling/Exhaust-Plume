@@ -110,6 +110,9 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   first_cell_research_chain = ambient_strip[
     'geometry_owned_first_cell_research_chain'
   ]
+  first_cell_research_chain_refinement = ambient_strip[
+    'geometry_owned_first_cell_research_chain_refinement'
+  ]
   first_cell_free_boundary_refinement = ambient_strip[
     'first_cell_terminal_closure_free_boundary_refinement_measurement'
   ]
@@ -215,8 +218,8 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert generated_chain_external_validation['split_audit']['verified'] is False
   assert first_cell_research_chain['planner_kind'] == 'upstream-coupled-research'
   assert first_cell_research_chain['resolved'] is True
-  assert first_cell_research_chain['cell_count'] == 2
-  assert first_cell_research_chain['continued_cell_count'] == 1
+  assert first_cell_research_chain['cell_count'] == 3
+  assert first_cell_research_chain['continued_cell_count'] == 2
   assert first_cell_research_chain['research_audit_accepted'] is True
   assert first_cell_research_chain['first_cell_handoff_verified'] is True
   assert first_cell_research_chain['continued_chain_audit_verified'] is True
@@ -229,6 +232,18 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert first_cell_research_chain['research_chain_measurement']['operator_id'] == (
     'op.moc.first-cell-geometry-owned-research-chain'
   )
+  assert first_cell_research_chain_refinement['status'] == 'converged'
+  assert first_cell_research_chain_refinement['operator_id'] == (
+    'op.moc.first-cell-geometry-owned-research-chain-refinement'
+  )
+  assert first_cell_research_chain_refinement['sample_counts'] == [5, 9, 17]
+  assert first_cell_research_chain_refinement['cell_count'] == 3
+  assert all(first_cell_research_chain_refinement['checks'].values())
+  assert first_cell_research_chain_refinement['chain_promotion_blocked'] is True
+  assert first_cell_research_chain_refinement['production_claim_allowed'] is False
+  assert first_cell_research_chain_refinement['canonical_free_boundary_verified'] is False
+  assert first_cell_research_chain_refinement['canonical_euler_verified'] is False
+  assert first_cell_research_chain_refinement['external_validation_verified'] is False
   assert generated_chain_external_validation['model_chain_measurement']['status'] == (
     'converged'
   )
