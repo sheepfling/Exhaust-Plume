@@ -2291,3 +2291,37 @@ The next implementation seam is to use the accepted local field as an
 explicit research handoff for a deterministic continued-cell audit, then
 replace the seeded geometry with a globally remeshed reflected shock and add
 sample-count refinement before any chain promotion is reconsidered.
+
+## Bounded first-cell shock-shape correction and planner guard
+
+The first geometry-owned candidate now has a separate residual-driven
+correction lane, `solve_first_cell_free_boundary_correction`. It searches a
+bounded one-parameter axial homothety of the seeded shock about its attachment
+point. Every trial is re-solved through the local Rankine--Hugoniot,
+ambient-boundary, and reflected characteristic-field candidate; the carried
+ambient-to-axis static-pressure mismatch is retained as the scalar residual.
+The solver records the initial, endpoint, and bisection trials and returns
+typed `NO_BRACKET`, upstream-field, candidate, and iteration outcomes without
+extrapolating a bounded source.
+
+The independent
+`op.moc.first-cell-free-boundary-correction` measurement reconstructs the
+shape family, recomputes every retained axis residual from the trial field,
+checks the selected-trial linkage, and reuses the independent local candidate
+measurement only for the selected field. The canonical uniform reference
+currently has a same-sign positive residual of about `0.15276` at both shape
+bounds, so the correct evidence is an audited `axis_pressure_no_bracket`
+boundary, not a fabricated corrected root.
+
+`plan_first_cell_free_boundary_correction` exposes the correction-owned chain
+termination decision through a planner guard. It deliberately invokes no
+continued-cell callback and preserves
+`chain_promotion_blocked=true`,
+`canonical_free_boundary_verified=false`,
+`canonical_euler_verified=false`, and
+`production_claim_allowed=false`. The existing prescribed planner mock and
+continued shock-cell chain remain useful for handoff/topology validation, but
+neither may consume this research correction as a production first cell. The
+next physics gate is a globally remeshed reflected shock whose residual can
+straddle zero, followed by an independently closed post-shock field and
+sample-count refinement.

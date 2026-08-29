@@ -74,6 +74,9 @@ from exhaust_plume.models.moc.physical_cell import (
 from exhaust_plume.models.moc.first_cell_closure import (
   MocFirstCellTerminalClosureResult,
 )
+from exhaust_plume.models.moc.first_cell_free_boundary import (
+  MocFirstCellFreeBoundaryCorrectionResult,
+)
 from exhaust_plume.models.moc.post_shock import (
   MocPostShockChainCellSolve,
   MocPostShockCharacteristicFieldResult,
@@ -154,6 +157,7 @@ __all__ = (
   'MocChainPlannerStep',
   'MocChainPlannerResult',
   'MocFirstCellTerminalClosurePlannerResult',
+  'MocFirstCellFreeBoundaryCorrectionPlannerResult',
   'MocCausticUpstreamContinuationPlannerResult',
   'MocPrescribedMixedRegimeClosureMock',
   'MocSolverGeneratedMixedRegimeClosureReference',
@@ -210,6 +214,7 @@ __all__ = (
   'plan_ambient_closed_post_shock_chain_terminal_patch_mock',
   'plan_ambient_closed_post_shock_chain_terminal_patch_reference',
   'plan_first_cell_terminal_closure',
+  'plan_first_cell_free_boundary_correction',
   'plan_prescribed_first_cell_terminal_closure_mock',
   'plan_solver_generated_first_cell_terminal_closure_reference',
   'plan_solver_generated_first_cell_terminal_closure_reference_from_control_section',
@@ -1313,6 +1318,96 @@ class MocSolverGeneratedMixedRegimeClosureReference:
 
 
 @dataclass(frozen=True, slots=True)
+class MocFirstCellFreeBoundaryCorrectionPlannerResult:
+  """Planner guard for a first-cell free-boundary correction.
+
+  A corrected first-cell research result is not itself a chain cell.  This
+  wrapper preserves its typed termination decision at the planner boundary so
+  callers can record an explicit open/fidelity stop without manufacturing a
+  continued-cell handoff.
+  """
+
+  correction: MocFirstCellFreeBoundaryCorrectionResult
+  termination: MocChainTerminationDecision
+  planner_kind: MocChainPlannerKind
+  claim_status: str
+  diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.correction,
+      MocFirstCellFreeBoundaryCorrectionResult,
+    ):
+      raise TypeError(
+        'correction must be a MocFirstCellFreeBoundaryCorrectionResult'
+      )
+    if not isinstance(self.termination, MocChainTerminationDecision):
+      raise TypeError(
+        'termination must be a MocChainTerminationDecision'
+      )
+    if self.termination != self.correction.as_chain_termination_decision():
+      raise ValueError(
+        'termination must preserve the correction-owned chain decision'
+      )
+    if not isinstance(self.planner_kind, MocChainPlannerKind):
+      raise TypeError('planner_kind must be a MocChainPlannerKind')
+    object.__setattr__(self, 'claim_status', str(self.claim_status))
+    object.__setattr__(self, 'diagnostics', MappingProxyType(dict(self.diagnostics)))
+  ####
+
+  @property
+  def resolved(self) -> bool:
+    """Whether the bounded correction reached its local scalar gate."""
+
+    return self.correction.converged
+  ####
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    """Expose only the correction's local physical closure result."""
+
+    return self.correction.physical_closure_verified
+  ####
+
+  @property
+  def physical_termination(self) -> bool:
+    """Whether the correction supplied a physical chain stop."""
+
+    return self.termination.physical_termination
+  ####
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    """A correction guard never creates a continued-cell seed."""
+
+    return self.correction.chain_promotion_blocked
+  ####
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    """Planner guards remain research-only."""
+
+    return False
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'planner_kind': self.planner_kind.value,
+      'planning_only': True,
+      'production_claim_allowed': self.production_claim_allowed,
+      'claim_status': self.claim_status,
+      'resolved': self.resolved,
+      'physical_closure_verified': self.physical_closure_verified,
+      'physical_termination': self.physical_termination,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'termination': self.termination.as_report(),
+      'correction': self.correction.as_report(),
+      'diagnostics': dict(self.diagnostics),
+    }
+  ####
+
+
+@dataclass(frozen=True, slots=True)
 class MocFirstCellTerminalClosurePlannerResult:
   """Planner/audit result for one first-cell terminal closure attempt.
 
@@ -2112,6 +2207,52 @@ class MocCausticUpstreamContinuationPlannerResult:
       'diagnostics': dict(self.diagnostics),
     }
   ####
+
+
+def plan_first_cell_free_boundary_correction(
+  correction: MocFirstCellFreeBoundaryCorrectionResult,
+  *,
+  claim_status: str | None = None,
+) -> MocFirstCellFreeBoundaryCorrectionPlannerResult:
+  """Expose a corrected first cell through the planner safety boundary.
+
+  The correction owns the numerical result and its termination decision.  The
+  planner records that decision without invoking a continued-cell callback;
+  only a later canonical reflected free-boundary gate may authorize such a
+  handoff.
+  """
+
+  if not isinstance(
+    correction,
+    MocFirstCellFreeBoundaryCorrectionResult,
+  ):
+    raise TypeError(
+      'correction must be a MocFirstCellFreeBoundaryCorrectionResult'
+    )
+  termination = correction.as_chain_termination_decision()
+  return MocFirstCellFreeBoundaryCorrectionPlannerResult(
+    correction=correction,
+    termination=termination,
+    planner_kind=MocChainPlannerKind.SOLVER_GENERATED_REFERENCE,
+    claim_status=(
+      'solver-generated-first-cell-free-boundary-correction-guard; '
+      'continued-cell-promotion-and-canonical-reflected-free-boundary-pending'
+      if claim_status is None
+      else claim_status
+    ),
+    diagnostics={
+      'planner_model': 'first-cell-free-boundary-correction-guard',
+      'continued_cell_callback_invoked': False,
+      'correction_status': correction.status.value,
+      'correction_decision_reason': termination.reason.value,
+      'chain_promotion_blocked': correction.chain_promotion_blocked,
+      'canonical_free_boundary_verified': (
+        correction.canonical_free_boundary_verified
+      ),
+      'canonical_euler_verified': correction.canonical_euler_verified,
+      'external_validation_verified': correction.external_validation_verified,
+    },
+  )
 
 
 def plan_first_cell_terminal_closure(

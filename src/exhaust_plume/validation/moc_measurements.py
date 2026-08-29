@@ -88,6 +88,10 @@ from exhaust_plume.models.moc.physical_cell import (
 from exhaust_plume.models.moc.first_cell_candidate import (
   MocFirstCellCandidateResult,
 )
+from exhaust_plume.models.moc.first_cell_free_boundary import (
+  MocFirstCellFreeBoundaryCorrectionResult,
+  MocFirstCellFreeBoundaryCorrectionStatus,
+)
 from exhaust_plume.models.moc.reflected_domain import (
   MocReflectedDomainAlternatingSourceResult,
   MocReflectedDomainAlternatingSourceStatus,
@@ -145,6 +149,7 @@ __all__ = (
   'MOC_AMBIENT_CLOSED_PHYSICAL_FIELD_CHAIN_OPERATOR_ID',
   'MOC_TERMINAL_CLOSURE_OPERATOR_ID',
   'MOC_FIRST_CELL_CANDIDATE_OPERATOR_ID',
+  'MOC_FIRST_CELL_FREE_BOUNDARY_CORRECTION_OPERATOR_ID',
   'MocCausticRemeshMeasurement',
   'MocCausticRemeshMeasurementStatus',
   'MocCausticRemeshObservation',
@@ -197,6 +202,8 @@ __all__ = (
   'MocPhysicalFieldChainMeasurementStatus',
   'MocFirstCellCandidateMeasurement',
   'MocFirstCellCandidateMeasurementStatus',
+  'MocFirstCellFreeBoundaryCorrectionMeasurement',
+  'MocFirstCellFreeBoundaryCorrectionMeasurementStatus',
   'measure_moc_caustic_remesh',
   'measure_moc_chain_planner',
   'measure_moc_reflected_domain_remesh',
@@ -219,6 +226,7 @@ __all__ = (
   'measure_moc_shock_cell_chain_refinement',
   'measure_moc_ambient_closed_physical_field_chain',
   'measure_first_cell_geometry_owned_candidate',
+  'measure_first_cell_free_boundary_correction',
 )
 
 
@@ -233,6 +241,9 @@ MOC_SHOCK_CELL_CHAIN_REFINEMENT_OPERATOR_ID = (
 MOC_TERMINAL_CLOSURE_OPERATOR_ID = 'op.moc.terminal-closure'
 MOC_FIRST_CELL_CANDIDATE_OPERATOR_ID = (
   'op.moc.first-cell-geometry-owned-candidate'
+)
+MOC_FIRST_CELL_FREE_BOUNDARY_CORRECTION_OPERATOR_ID = (
+  'op.moc.first-cell-free-boundary-correction'
 )
 MOC_CAUSTIC_REMESH_OPERATOR_ID = 'op.moc.caustic-remesh'
 MOC_CHAIN_PLANNER_OPERATOR_ID = 'op.moc.chain-planner'
@@ -1259,6 +1270,517 @@ def measure_first_cell_geometry_owned_candidate(
       if converged
       else 'independent physical-field evidence did not pass every gate'
     ),
+  )
+####
+
+
+class MocFirstCellFreeBoundaryCorrectionMeasurementStatus(str, Enum):
+  """Outcome of independently measuring a first-cell shape correction."""
+
+  CONVERGED = 'converged'
+  INVALID_INPUT = 'invalid_input'
+  GEOMETRY_FAILURE = 'correction_geometry_measurement_failure'
+  TRIAL_FAILURE = 'correction_trial_measurement_failure'
+  RESIDUAL_FAILURE = 'correction_residual_measurement_failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocFirstCellFreeBoundaryCorrectionMeasurement:
+  """Independent audit of the bounded axial-shape correction.
+
+  ``CONVERGED`` means that the returned correction outcome and all retained
+  trial data are internally consistent.  It does not mean that a
+  ``NO_BRACKET`` outcome found a physical root.  The canonical reflected
+  free-boundary, Euler, external-validation, and product gates remain false.
+  """
+
+  status: MocFirstCellFreeBoundaryCorrectionMeasurementStatus
+  correction_status: str
+  sample_count: int
+  trial_count: int
+  shape_parameter_name: str
+  shape_family_verified: bool
+  trial_residuals_verified: bool
+  selected_trial_verified: bool
+  scalar_root_verified: bool
+  axis_boundary_verified: bool
+  selected_shape_scale: float | None
+  selected_residual: float | None
+  minimum_absolute_residual: float | None
+  selected_candidate_measurement: MocFirstCellCandidateMeasurement | None
+  canonical_free_boundary_verified: bool
+  canonical_euler_verified: bool
+  external_validation_verified: bool
+  chain_promotion_blocked: bool
+  production_claim_allowed: bool
+  fidelity_isolation_verified: bool
+  physical_closure_verified: bool
+  message: str = ''
+
+  @property
+  def converged(self) -> bool:
+    """Whether the correction record passed this independent audit."""
+
+    return self.status is MocFirstCellFreeBoundaryCorrectionMeasurementStatus.CONVERGED
+  ####
+
+  def as_report(self) -> dict[str, object]:
+    return {
+      'operator_id': MOC_FIRST_CELL_FREE_BOUNDARY_CORRECTION_OPERATOR_ID,
+      'status': self.status.value,
+      'converged': self.converged,
+      'correction_status': self.correction_status,
+      'sample_count': self.sample_count,
+      'trial_count': self.trial_count,
+      'shape_parameter_name': self.shape_parameter_name,
+      'shape_family_verified': self.shape_family_verified,
+      'trial_residuals_verified': self.trial_residuals_verified,
+      'selected_trial_verified': self.selected_trial_verified,
+      'scalar_root_verified': self.scalar_root_verified,
+      'axis_boundary_verified': self.axis_boundary_verified,
+      'selected_shape_scale': self.selected_shape_scale,
+      'selected_residual': self.selected_residual,
+      'minimum_absolute_residual': self.minimum_absolute_residual,
+      'selected_candidate_measurement': (
+        None
+        if self.selected_candidate_measurement is None
+        else self.selected_candidate_measurement.as_report()
+      ),
+      'canonical_free_boundary_verified': self.canonical_free_boundary_verified,
+      'canonical_euler_verified': self.canonical_euler_verified,
+      'external_validation_verified': self.external_validation_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'fidelity_isolation_verified': self.fidelity_isolation_verified,
+      'physical_closure_verified': self.physical_closure_verified,
+      'message': self.message,
+    }
+  ####
+
+
+def _first_cell_free_boundary_measurement_failure(
+  status: MocFirstCellFreeBoundaryCorrectionMeasurementStatus,
+  *,
+  correction_status: str,
+  sample_count: int = 0,
+  trial_count: int = 0,
+  shape_parameter_name: str = '',
+  shape_family_verified: bool = False,
+  trial_residuals_verified: bool = False,
+  selected_trial_verified: bool = False,
+  scalar_root_verified: bool = False,
+  axis_boundary_verified: bool = False,
+  selected_shape_scale: float | None = None,
+  selected_residual: float | None = None,
+  minimum_absolute_residual: float | None = None,
+  selected_candidate_measurement: MocFirstCellCandidateMeasurement | None = None,
+  canonical_free_boundary_verified: bool = False,
+  canonical_euler_verified: bool = False,
+  external_validation_verified: bool = False,
+  chain_promotion_blocked: bool = True,
+  production_claim_allowed: bool = False,
+  fidelity_isolation_verified: bool = False,
+  physical_closure_verified: bool = False,
+  message: str,
+) -> MocFirstCellFreeBoundaryCorrectionMeasurement:
+  return MocFirstCellFreeBoundaryCorrectionMeasurement(
+    status=status,
+    correction_status=correction_status,
+    sample_count=sample_count,
+    trial_count=trial_count,
+    shape_parameter_name=shape_parameter_name,
+    shape_family_verified=shape_family_verified,
+    trial_residuals_verified=trial_residuals_verified,
+    selected_trial_verified=selected_trial_verified,
+    scalar_root_verified=scalar_root_verified,
+    axis_boundary_verified=axis_boundary_verified,
+    selected_shape_scale=selected_shape_scale,
+    selected_residual=selected_residual,
+    minimum_absolute_residual=minimum_absolute_residual,
+    selected_candidate_measurement=selected_candidate_measurement,
+    canonical_free_boundary_verified=canonical_free_boundary_verified,
+    canonical_euler_verified=canonical_euler_verified,
+    external_validation_verified=external_validation_verified,
+    chain_promotion_blocked=chain_promotion_blocked,
+    production_claim_allowed=production_claim_allowed,
+    fidelity_isolation_verified=fidelity_isolation_verified,
+    physical_closure_verified=physical_closure_verified,
+    message=message,
+  )
+####
+
+
+def _correction_measurement_close(
+  actual: float,
+  expected: float,
+  tolerance: float,
+) -> bool:
+  return bool(
+    isfinite(float(actual))
+    and isfinite(float(expected))
+    and abs(float(actual) - float(expected))
+    <= tolerance * max(1.0, abs(float(actual)), abs(float(expected)))
+  )
+####
+
+
+def _remeasure_correction_axis_closure(
+  trial: object,
+  *,
+  position_tolerance_m: float,
+  invariant_tolerance: float,
+  pressure_tolerance: float,
+) -> tuple[float, bool, bool] | None:
+  """Recompute the axis residual from retained trial data only."""
+
+  candidate = getattr(trial, 'candidate', None)
+  march = None if candidate is None else candidate.ambient_march
+  reported_axis = getattr(trial, 'axis_closure', None)
+  if march is None or not march.converged or not march.boundary_samples:
+    return None
+  if reported_axis is None or reported_axis.ambient_pressure_Pa is None:
+    return None
+  source = march.boundary_samples[-1]
+  try:
+    axis = centerline_characteristic_point(
+      source.state,
+      CharacteristicFamily.MINUS,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+    return None
+  axis_candidate_verified = bool(
+    axis.converged
+    and axis.point_m is not None
+    and axis.state is not None
+    and abs(axis.point_m[1]) <= position_tolerance_m
+    and abs(axis.state.theta_rad) <= invariant_tolerance
+  )
+  if not axis_candidate_verified or axis.state is None or axis.point_m is None:
+    return None
+  axis_static = _static_pressure_from_total_pressure_for_measurement(
+    axis.state,
+    source.total_pressure_Pa,
+  )
+  ambient_pressure = float(reported_axis.ambient_pressure_Pa)
+  if not isfinite(ambient_pressure) or ambient_pressure <= 0.0:
+    return None
+  residual = (axis_static - ambient_pressure) / ambient_pressure
+  try:
+    axis_boundary = validate_ambient_pressure_boundary(
+      (
+        *march.boundary_samples,
+        MocAmbientBoundarySample(
+          point_m=axis.point_m,
+          state=axis.state,
+          total_pressure_Pa=source.total_pressure_Pa,
+        ),
+      ),
+      ambient_pressure,
+      position_tolerance_m=position_tolerance_m,
+      pressure_tolerance=pressure_tolerance,
+      tangent_tolerance=pressure_tolerance,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+    return None
+  return float(residual), bool(axis_boundary.converged), axis_candidate_verified
+####
+
+
+def measure_first_cell_free_boundary_correction(
+  correction: MocFirstCellFreeBoundaryCorrectionResult,
+  *,
+  shape_tolerance: float = 1.0e-6,
+  pressure_tolerance: float = 1.0e-8,
+  position_tolerance_m: float = 1.0e-8,
+  invariant_tolerance: float = 1.0e-8,
+) -> MocFirstCellFreeBoundaryCorrectionMeasurement:
+  """Independently remeasure the shape family and axis residual trials.
+
+  The operator does not call the correction solver or its axis-probe helper.
+  It reconstructs each expected axial homothety, recomputes the centerline
+  pressure residual from the retained ambient-boundary sample, and invokes the
+  existing independent first-cell candidate measurement for the selected
+  local field.
+  """
+
+  if not isinstance(correction, MocFirstCellFreeBoundaryCorrectionResult):
+    return _first_cell_free_boundary_measurement_failure(
+      MocFirstCellFreeBoundaryCorrectionMeasurementStatus.INVALID_INPUT,
+      correction_status='invalid-input',
+      message='correction must be a MocFirstCellFreeBoundaryCorrectionResult',
+    )
+  try:
+    shape_tolerance_value = float(shape_tolerance)
+    pressure_tolerance_value = float(pressure_tolerance)
+    position_tolerance_value = float(position_tolerance_m)
+    invariant_tolerance_value = float(invariant_tolerance)
+  except (TypeError, ValueError):
+    return _first_cell_free_boundary_measurement_failure(
+      MocFirstCellFreeBoundaryCorrectionMeasurementStatus.INVALID_INPUT,
+      correction_status=correction.status.value,
+      message='correction measurement tolerances must be numeric',
+    )
+  if not all(
+    isfinite(value) and value > 0.0
+    for value in (
+      shape_tolerance_value,
+      pressure_tolerance_value,
+      position_tolerance_value,
+      invariant_tolerance_value,
+    )
+  ):
+    raise ValueError('correction measurement tolerances must be finite and positive')
+
+  initial_points = correction.initial_shock_points_m
+  shape_family_verified = bool(
+    len(initial_points) >= 3
+    and all(
+      len(point) == 2 and all(isfinite(float(value)) for value in point)
+      for point in initial_points
+    )
+  )
+  trial_residuals_verified = True
+  measured_residuals: list[float] = []
+  for trial in correction.trials:
+    expected_points = tuple(
+      (
+        initial_points[0][0]
+        + trial.shape_scale * (point[0] - initial_points[0][0]),
+        point[1],
+      )
+      for point in initial_points
+    ) if shape_family_verified else ()
+    points_match = bool(
+      len(trial.shock_points_m) == len(expected_points)
+      and all(
+        hypot(actual[0] - expected[0], actual[1] - expected[1])
+        <= position_tolerance_value
+        for actual, expected in zip(
+          trial.shock_points_m,
+          expected_points,
+          strict=True,
+        )
+      )
+    )
+    shape_family_verified = shape_family_verified and points_match
+    candidate = trial.candidate
+    if candidate is not None:
+      shape_family_verified = shape_family_verified and bool(
+        len(candidate.initial_shock_points_m) == len(expected_points)
+        and all(
+          hypot(actual[0] - expected[0], actual[1] - expected[1])
+          <= position_tolerance_value
+          for actual, expected in zip(
+            candidate.initial_shock_points_m,
+            expected_points,
+            strict=True,
+          )
+        )
+      )
+    if trial.axis_closure is None:
+      trial_residuals_verified = trial_residuals_verified and trial.residual is None
+      continue
+    recomputed = _remeasure_correction_axis_closure(
+      trial,
+      position_tolerance_m=position_tolerance_value,
+      invariant_tolerance=invariant_tolerance_value,
+      pressure_tolerance=pressure_tolerance_value,
+    )
+    if recomputed is None or trial.residual is None:
+      trial_residuals_verified = False
+      continue
+    recomputed_residual, recomputed_axis_boundary, recomputed_axis_candidate = recomputed
+    measured_residuals.append(recomputed_residual)
+    trial_residuals_verified = trial_residuals_verified and bool(
+      _correction_measurement_close(
+        trial.residual,
+        recomputed_residual,
+        pressure_tolerance_value,
+      )
+      and trial.axis_closure.axis_candidate_verified == recomputed_axis_candidate
+      and trial.axis_closure.axis_boundary_verified == recomputed_axis_boundary
+      and trial.axis_closure.relative_pressure_residual is not None
+      and _correction_measurement_close(
+        trial.axis_closure.relative_pressure_residual,
+        recomputed_residual,
+        pressure_tolerance_value,
+      )
+    )
+
+  selected_trial = None
+  if correction.selected_shape_scale is not None:
+    selected_trial = next(
+      (
+        trial
+        for trial in correction.trials
+        if _correction_measurement_close(
+          trial.shape_scale,
+          correction.selected_shape_scale,
+          shape_tolerance_value,
+        )
+      ),
+      None,
+    )
+  selected_trial_verified = bool(
+    selected_trial is not None
+    and (
+      (correction.selected_candidate is None and selected_trial.candidate is None)
+      or (
+        correction.selected_candidate is not None
+        and selected_trial.candidate is not None
+        and correction.selected_candidate.status
+        is selected_trial.candidate.status
+        and len(correction.selected_candidate.shock_points_m)
+        == len(selected_trial.candidate.shock_points_m)
+        and all(
+          hypot(actual[0] - expected[0], actual[1] - expected[1])
+          <= position_tolerance_value
+          for actual, expected in zip(
+            correction.selected_candidate.shock_points_m,
+            selected_trial.candidate.shock_points_m,
+            strict=True,
+          )
+        )
+      )
+    )
+    and (
+      (correction.selected_axis_closure is None and selected_trial.axis_closure is None)
+      or (
+        correction.selected_axis_closure is not None
+        and selected_trial.axis_closure is not None
+        and correction.selected_axis_closure.axis_candidate_verified
+        == selected_trial.axis_closure.axis_candidate_verified
+        and correction.selected_axis_closure.axis_boundary_verified
+        == selected_trial.axis_closure.axis_boundary_verified
+      )
+    )
+  )
+
+  selected_candidate_measurement = None
+  if correction.selected_candidate is not None:
+    selected_candidate_measurement = measure_first_cell_geometry_owned_candidate(
+      correction.selected_candidate,
+      pressure_residual_tolerance=pressure_tolerance_value,
+      position_tolerance_m=position_tolerance_value,
+    )
+  selected_residual = (
+    None
+    if selected_trial is None
+    else selected_trial.residual
+  )
+  minimum_absolute_residual = (
+    min((abs(value) for value in measured_residuals), default=None)
+  )
+  scalar_root_verified = bool(
+    correction.status
+    in (
+      MocFirstCellFreeBoundaryCorrectionStatus.CONVERGED_LOCAL_PHYSICAL_BOUNDARY,
+      MocFirstCellFreeBoundaryCorrectionStatus.CONVERGED_SCALAR_AXIS_PRESSURE,
+    )
+    and selected_trial_verified
+    and selected_residual is not None
+    and abs(selected_residual) <= correction.closure_pressure_tolerance
+    and selected_candidate_measurement is not None
+    and selected_candidate_measurement.converged
+  )
+  if correction.status is MocFirstCellFreeBoundaryCorrectionStatus.NO_BRACKET:
+    bracket = correction.shape_parameter_bracket
+    endpoint_trials = () if bracket is None else tuple(
+      trial
+      for trial in correction.trials
+      if _correction_measurement_close(
+        trial.shape_scale,
+        bracket[0],
+        shape_tolerance_value,
+      )
+      or _correction_measurement_close(
+        trial.shape_scale,
+        bracket[1],
+        shape_tolerance_value,
+      )
+    )
+    scalar_root_verified = bool(
+      len(endpoint_trials) >= 2
+      and all(trial.residual is not None for trial in endpoint_trials[:2])
+      and endpoint_trials[0].residual is not None
+      and endpoint_trials[1].residual is not None
+      and endpoint_trials[0].residual * endpoint_trials[1].residual > 0.0
+      and all(
+        abs(trial.residual) > correction.closure_pressure_tolerance
+        for trial in endpoint_trials[:2]
+        if trial.residual is not None
+      )
+    )
+  fidelity_isolation_verified = bool(
+    correction.canonical_free_boundary_verified is False
+    and correction.canonical_euler_verified is False
+    and correction.external_validation_verified is False
+    and correction.chain_promotion_blocked
+    and correction.production_claim_allowed is False
+  )
+  axis_boundary_verified = bool(
+    selected_trial is not None
+    and selected_trial.axis_closure is not None
+    and _remeasure_correction_axis_closure(
+      selected_trial,
+      position_tolerance_m=position_tolerance_value,
+      invariant_tolerance=invariant_tolerance_value,
+      pressure_tolerance=pressure_tolerance_value,
+    ) is not None
+    and selected_trial.axis_closure.axis_boundary_verified
+  )
+  physical_closure_verified = bool(
+    correction.converged
+    and scalar_root_verified
+    and axis_boundary_verified
+    and selected_candidate_measurement is not None
+    and selected_candidate_measurement.physical_closure_verified
+  )
+  if not shape_family_verified:
+    status = MocFirstCellFreeBoundaryCorrectionMeasurementStatus.GEOMETRY_FAILURE
+    message = 'returned shape trials do not reproduce the declared axial family'
+  elif not trial_residuals_verified:
+    status = MocFirstCellFreeBoundaryCorrectionMeasurementStatus.TRIAL_FAILURE
+    message = 'returned axis residuals do not reproduce independent trial measurements'
+  elif not selected_trial_verified or not fidelity_isolation_verified:
+    status = MocFirstCellFreeBoundaryCorrectionMeasurementStatus.RESIDUAL_FAILURE
+    message = 'selected correction trial or fidelity isolation metadata is inconsistent'
+  elif correction.converged and not scalar_root_verified:
+    status = MocFirstCellFreeBoundaryCorrectionMeasurementStatus.RESIDUAL_FAILURE
+    message = 'correction reports convergence without an independently verified scalar root'
+  else:
+    status = MocFirstCellFreeBoundaryCorrectionMeasurementStatus.CONVERGED
+    message = (
+      'independent shape-family, axis-residual, selected-trial, and fidelity '
+      'measurement passed; a no-bracket result remains an explicit open '
+      'free-boundary condition'
+    )
+  return _first_cell_free_boundary_measurement_failure(
+    status,
+    correction_status=correction.status.value,
+    sample_count=len(initial_points),
+    trial_count=len(correction.trials),
+    shape_parameter_name=correction.shape_parameter_name,
+    shape_family_verified=shape_family_verified,
+    trial_residuals_verified=trial_residuals_verified,
+    selected_trial_verified=selected_trial_verified,
+    scalar_root_verified=scalar_root_verified,
+    axis_boundary_verified=axis_boundary_verified,
+    selected_shape_scale=correction.selected_shape_scale,
+    selected_residual=selected_residual,
+    minimum_absolute_residual=minimum_absolute_residual,
+    selected_candidate_measurement=selected_candidate_measurement,
+    canonical_free_boundary_verified=correction.canonical_free_boundary_verified,
+    canonical_euler_verified=correction.canonical_euler_verified,
+    external_validation_verified=correction.external_validation_verified,
+    chain_promotion_blocked=correction.chain_promotion_blocked,
+    production_claim_allowed=correction.production_claim_allowed,
+    fidelity_isolation_verified=fidelity_isolation_verified,
+    physical_closure_verified=physical_closure_verified,
+    message=message,
   )
 ####
 

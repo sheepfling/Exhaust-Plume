@@ -186,6 +186,9 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_marched_attached_shock_with_ambient_axis_closure,
   solve_marched_attached_shock_with_ambient_centerline_physical_field,
   solve_first_cell_geometry_owned_candidate,
+  solve_first_cell_free_boundary_correction,
+  MocFirstCellFreeBoundaryCorrectionStatus,
+  plan_first_cell_free_boundary_correction,
   solve_marched_attached_shock_with_ambient_physical_field,
   solve_ambient_closed_post_shock_chain_cell_from_physical_field_or_termination,
   sample_reflected_zone_along_shock_path,
@@ -212,6 +215,7 @@ from exhaust_plume.validation.moc_measurements import (  # noqa: E402
   MocMixedRegimeEntropyTransportMeasurementStatus,
   MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus,
   MocFirstCellCandidateMeasurementStatus,
+  MocFirstCellFreeBoundaryCorrectionMeasurementStatus,
   MocReflectedDomainRemeshMeasurementStatus,
   MocReflectedDomainOuterSourceMeasurementStatus,
   MocTerminalClosureObservation,
@@ -221,6 +225,7 @@ from exhaust_plume.validation.moc_measurements import (  # noqa: E402
   measure_moc_caustic_remesh,
   measure_moc_ambient_closed_physical_field_chain,
   measure_first_cell_geometry_owned_candidate,
+  measure_first_cell_free_boundary_correction,
   measure_moc_chain_planner,
   measure_moc_reflected_domain_remesh,
   measure_moc_reflected_domain_alternating_source,
@@ -1250,6 +1255,8 @@ def _ambient_shock_strip_probe(
   geometry_owned_first_cell_candidate_accepted = False
   geometry_owned_first_cell_candidate_refinement = []
   geometry_owned_first_cell_candidate_refinement_accepted = False
+  candidate_source = None
+  candidate_seed_points = ()
   if (
     ambient_centerline_physical_field_accepted
     and ambient_centerline_physical_field.ambient_attachment is not None
@@ -1451,6 +1458,97 @@ def _ambient_shock_strip_probe(
         for case in geometry_owned_first_cell_candidate_refinement
       )
     )
+  geometry_owned_first_cell_free_boundary_correction = None
+  geometry_owned_first_cell_free_boundary_correction_measurement = None
+  geometry_owned_first_cell_free_boundary_correction_planner = None
+  geometry_owned_first_cell_free_boundary_correction_accepted = False
+  geometry_owned_first_cell_free_boundary_correction_error = None
+  if (
+    geometry_owned_first_cell_candidate_accepted
+    and candidate_source is not None
+    and candidate_seed_points
+  ):
+    try:
+      geometry_owned_first_cell_free_boundary_correction = (
+        solve_first_cell_free_boundary_correction(
+          candidate_source,
+          candidate_seed_points,
+          ambient_pressure,
+          target_centerline_y_m=0.0,
+          target_centerline_flow_angle_rad=0.0,
+          shape_scale_lower=0.8,
+          shape_scale_upper=1.2,
+          maximum_iterations=12,
+        )
+      )
+      geometry_owned_first_cell_free_boundary_correction_measurement = (
+        measure_first_cell_free_boundary_correction(
+          geometry_owned_first_cell_free_boundary_correction,
+        )
+      )
+      geometry_owned_first_cell_free_boundary_correction_planner = (
+        plan_first_cell_free_boundary_correction(
+          geometry_owned_first_cell_free_boundary_correction,
+        )
+      )
+      correction_decision = (
+        geometry_owned_first_cell_free_boundary_correction
+        .as_chain_termination_decision()
+      )
+      geometry_owned_first_cell_free_boundary_correction_accepted = (
+        geometry_owned_first_cell_free_boundary_correction.status
+        is MocFirstCellFreeBoundaryCorrectionStatus.NO_BRACKET
+        and geometry_owned_first_cell_free_boundary_correction.converged is False
+        and geometry_owned_first_cell_free_boundary_correction.physical_closure_verified
+        is False
+        and geometry_owned_first_cell_free_boundary_correction.canonical_free_boundary_verified
+        is False
+        and geometry_owned_first_cell_free_boundary_correction.canonical_euler_verified
+        is False
+        and geometry_owned_first_cell_free_boundary_correction.external_validation_verified
+        is False
+        and geometry_owned_first_cell_free_boundary_correction.chain_promotion_blocked
+        and geometry_owned_first_cell_free_boundary_correction.production_claim_allowed
+        is False
+        and correction_decision.reason is MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+        and correction_decision.physical_termination is False
+        and geometry_owned_first_cell_free_boundary_correction_measurement.status
+        is MocFirstCellFreeBoundaryCorrectionMeasurementStatus.CONVERGED
+        and geometry_owned_first_cell_free_boundary_correction_measurement.converged
+        and geometry_owned_first_cell_free_boundary_correction_measurement.shape_family_verified
+        and geometry_owned_first_cell_free_boundary_correction_measurement.trial_residuals_verified
+        and geometry_owned_first_cell_free_boundary_correction_measurement.selected_trial_verified
+        and geometry_owned_first_cell_free_boundary_correction_measurement.scalar_root_verified
+        and geometry_owned_first_cell_free_boundary_correction_measurement.axis_boundary_verified
+        is False
+        and geometry_owned_first_cell_free_boundary_correction_measurement.canonical_free_boundary_verified
+        is False
+        and geometry_owned_first_cell_free_boundary_correction_measurement.canonical_euler_verified
+        is False
+        and geometry_owned_first_cell_free_boundary_correction_measurement.external_validation_verified
+        is False
+        and geometry_owned_first_cell_free_boundary_correction_measurement.chain_promotion_blocked
+        and geometry_owned_first_cell_free_boundary_correction_measurement.production_claim_allowed
+        is False
+        and geometry_owned_first_cell_free_boundary_correction_measurement.fidelity_isolation_verified
+        and geometry_owned_first_cell_free_boundary_correction_measurement.physical_closure_verified
+        is False
+        and geometry_owned_first_cell_free_boundary_correction_planner.correction
+        is geometry_owned_first_cell_free_boundary_correction
+        and geometry_owned_first_cell_free_boundary_correction_planner.termination
+        == correction_decision
+        and geometry_owned_first_cell_free_boundary_correction_planner.resolved
+        is False
+        and geometry_owned_first_cell_free_boundary_correction_planner.physical_termination
+        is False
+        and geometry_owned_first_cell_free_boundary_correction_planner.chain_promotion_blocked
+        and geometry_owned_first_cell_free_boundary_correction_planner.production_claim_allowed
+        is False
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      geometry_owned_first_cell_free_boundary_correction_error = (
+        f'{type(error).__name__}: {error}'
+      )
   ambient_centerline_physical_chain_probe = None
   ambient_centerline_physical_chain_probe_accepted = False
   ambient_centerline_physical_chain_mock = None
@@ -2322,6 +2420,27 @@ def _ambient_shock_strip_probe(
     ),
     'geometry_owned_first_cell_candidate_refinement_accepted': (
       geometry_owned_first_cell_candidate_refinement_accepted
+    ),
+    'geometry_owned_first_cell_free_boundary_correction': (
+      None
+      if geometry_owned_first_cell_free_boundary_correction is None
+      else geometry_owned_first_cell_free_boundary_correction.as_report()
+    ),
+    'geometry_owned_first_cell_free_boundary_correction_measurement': (
+      None
+      if geometry_owned_first_cell_free_boundary_correction_measurement is None
+      else geometry_owned_first_cell_free_boundary_correction_measurement.as_report()
+    ),
+    'geometry_owned_first_cell_free_boundary_correction_planner': (
+      None
+      if geometry_owned_first_cell_free_boundary_correction_planner is None
+      else geometry_owned_first_cell_free_boundary_correction_planner.as_report()
+    ),
+    'geometry_owned_first_cell_free_boundary_correction_accepted': (
+      geometry_owned_first_cell_free_boundary_correction_accepted
+    ),
+    'geometry_owned_first_cell_free_boundary_correction_error': (
+      geometry_owned_first_cell_free_boundary_correction_error
     ),
     'ambient_centerline_physical_chain_probe': (
       ambient_centerline_physical_chain_probe
@@ -8109,6 +8228,12 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'geometry_owned_first_cell_candidate_refinement_accepted'
     ) is not True
   )
+  geometry_owned_first_cell_free_boundary_correction_failure = (
+    ambient_shock_strip_probe.get('accepted') is True
+    and ambient_shock_strip_probe.get(
+      'geometry_owned_first_cell_free_boundary_correction_accepted'
+    ) is not True
+  )
   ambient_centerline_physical_chain_failure = (
     ambient_shock_strip_probe.get('accepted') is True
     and ambient_shock_strip_probe.get(
@@ -9852,6 +9977,39 @@ def build_moc_primitive_report() -> dict[str, Any]:
         ),
       }
     ] if geometry_owned_first_cell_candidate_refinement_failure else []),
+    *([
+      {
+        'case': 'solver_generated_geometry_owned_first_cell_free_boundary_correction',
+        'status': str(
+          ambient_shock_strip_probe.get(
+            'geometry_owned_first_cell_free_boundary_correction',
+            {},
+          ).get('status', 'missing')
+        ),
+        'measurement_status': str(
+          ambient_shock_strip_probe.get(
+            'geometry_owned_first_cell_free_boundary_correction_measurement',
+            {},
+          ).get('status', 'missing')
+        ),
+        'planner_termination_reason': str(
+          ambient_shock_strip_probe.get(
+            'geometry_owned_first_cell_free_boundary_correction_planner',
+            {},
+          ).get('termination', {}).get('reason', 'missing')
+        ),
+        'message': str(
+          ambient_shock_strip_probe.get(
+            'geometry_owned_first_cell_free_boundary_correction_error',
+            ''
+          )
+          or ambient_shock_strip_probe.get(
+            'geometry_owned_first_cell_free_boundary_correction',
+            {},
+          ).get('message', '')
+        ),
+      }
+    ] if geometry_owned_first_cell_free_boundary_correction_failure else []),
     *([
       {
         'case': 'solver_generated_ambient_centerline_physical_chain',

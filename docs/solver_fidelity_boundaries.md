@@ -977,3 +977,34 @@ visualization, signature, ray, or focal-plane-array provider consumes it. The
 next gate is a globally remeshed reflected shock/free-boundary solve with
 refinement and indexed external observations, after which a separate chain
 promotion review can be performed.
+
+## Bounded shock-shape correction and continued-chain guard
+
+`solve_first_cell_free_boundary_correction` is a bounded research correction
+around the geometry-owned candidate. Its single shape parameter scales the
+downstream shock abscissae about the attachment point while retaining the
+sample ordinates and centerline target. Each trial invokes the local
+solver-owned candidate and carries the final ambient-boundary `C-` trace to
+the centerline. The resulting relative static-pressure mismatch is the
+declared scalar residual. Endpoint and bisection trials are retained, and a
+bounded upstream-source miss remains a typed boundary failure.
+
+The independent
+`op.moc.first-cell-free-boundary-correction` operator rebuilds the axial shape
+family and axis residuals from retained trial data, then independently
+measures the selected candidate field. On the uniform reference, the lower
+and upper shape bounds both retain a positive residual of approximately
+`0.15276`; the solver therefore reports `axis_pressure_no_bracket`. This is a
+successful audit of an unresolved boundary, not physical free-boundary
+closure.
+
+`plan_first_cell_free_boundary_correction` is a planner guard that forwards
+the correction-owned `open-physical-closure` decision without creating a
+continued-cell handoff. The correction, planner guard, and measurement must
+keep `canonical_free_boundary_verified=false`,
+`canonical_euler_verified=false`, `chain_promotion_blocked=true`, and
+`production_claim_allowed=false`. Existing prescribed planner mocks and
+continued shock-cell chains may validate exact handoffs and topology, but
+cannot promote this local correction. Promotion requires a globally remeshed
+shock, an independently closed post-shock characteristic field, and
+resolution/refinement evidence.
