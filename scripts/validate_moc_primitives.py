@@ -315,6 +315,11 @@ from exhaust_plume.validation.moc_euler import (  # noqa: E402
   measure_moc_euler_companion_field_chain,
   measure_moc_euler_companion_field_chain_refinement,
 )
+from exhaust_plume.validation.moc_euler_refinement import (  # noqa: E402
+  MocEulerAmbientPhysicalFieldRefinementCase,
+  MocEulerAmbientPhysicalFieldRefinementStatus,
+  measure_moc_euler_ambient_physical_field_refinement,
+)
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput  # noqa: E402
 from exhaust_plume.models.nozzle.exit_state import derive_ambient_state, derive_uniform_nozzle_exit  # noqa: E402
 from exhaust_plume.util.aero.shock_validity import ShockBranch, ShockSolveStatus  # noqa: E402
@@ -452,11 +457,11 @@ def _euler_companion_field_fixture(sample_count: int) -> Any:
   )
 
 
-def _euler_ambient_physical_field_fixture() -> Any:
+def _euler_ambient_physical_field_fixture(sample_count: int = 9) -> Any:
   """Build the shaped exact shock used by the physical-field checkpoint."""
 
-  sample_count = 9
-  points = tuple(
+  base_turns = (0.005, 0.14, 0.20, 0.22, 0.22, 0.20, 0.18, 0.17, 0.081637491676426)
+  points = [
     (
       0.5 + 4.93 * distance - 3.36 * distance * distance,
       0.5 - distance,
@@ -465,8 +470,23 @@ def _euler_ambient_physical_field_fixture() -> Any:
       index * 0.5 / (sample_count - 1)
       for index in range(sample_count)
     )
-  )
-  turns = (0.005, 0.14, 0.20, 0.22, 0.22, 0.20, 0.18, 0.17, 0.081637491676426)
+  ]
+  if sample_count != 9:
+    terminal_tangent = -0.5118558424318239
+    step = 0.5 / (sample_count - 1)
+    points[-1] = (
+      points[-2][0] - step / tan(terminal_tangent),
+      points[-1][1],
+    )
+  turns = []
+  for index in range(sample_count):
+    position = (index / (sample_count - 1)) ** 0.2 * 8.0
+    lower = min(int(position), 7)
+    fraction = position - lower
+    turns.append(
+      base_turns[lower] * (1.0 - fraction)
+      + base_turns[lower + 1] * fraction
+    )
   tangent_angles = tuple(
     atan2(second[1] - first[1], second[0] - first[0])
     for first, second in (
@@ -504,7 +524,7 @@ def _euler_ambient_physical_field_fixture() -> Any:
   return fit_euler_consistent_shock_boundary(
     tuple(upstream_states),
     (100000.0,) * sample_count,
-    points,
+    tuple(points),
     tuple(
       state.theta_rad - turn
       for state, turn in zip(upstream_states, turns, strict=True)
@@ -10008,6 +10028,23 @@ def build_moc_primitive_report() -> dict[str, Any]:
       euler_ambient_physical_field,
     )
   )
+  euler_ambient_physical_field_refinement = (
+    measure_moc_euler_ambient_physical_field_refinement(
+      tuple(
+        MocEulerAmbientPhysicalFieldRefinementCase(
+          resolution=resolution,
+          result=(
+            assemble_euler_ambient_physical_field(
+              shock := _euler_ambient_physical_field_fixture(resolution),
+              shock.downstream_static_pressure_Pa[0],
+            )
+          ),
+        )
+        for resolution in (9, 17, 33)
+      ),
+      expected_resolutions=(9, 17, 33),
+    )
+  )
   euler_companion_field = assemble_euler_consistent_companion_characteristic_strip(
     euler_consistent_shock_boundary,
     euler_ambient_companion_boundary.samples,
@@ -10346,6 +10383,9 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'free-boundary, and external validation pending'
       ),
     },
+    'euler_ambient_physical_field_refinement': (
+      euler_ambient_physical_field_refinement.as_report()
+    ),
     'attached_turn_compression_foundation': {
       'status': turn_compression.status.value,
       'shock_status': turn_compression.shock_status.value,
@@ -11271,6 +11311,20 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or not euler_ambient_physical_field_audit.chain_promotion_blocked
     or euler_ambient_physical_field_audit.production_claim_allowed
   )
+  euler_ambient_physical_field_refinement_failure = (
+    euler_ambient_physical_field_refinement.status
+    is not MocEulerAmbientPhysicalFieldRefinementStatus.FIRST_WEDGE_REFINEMENT_FAILURE
+    or euler_ambient_physical_field_refinement.converged
+    or not euler_ambient_physical_field_refinement.resolution_order_verified
+    or not euler_ambient_physical_field_refinement.candidate_fields_verified
+    or not euler_ambient_physical_field_refinement.shock_jumps_verified
+    or euler_ambient_physical_field_refinement.first_wedge_cell_counts
+    != (1, 1, 1)
+    or euler_ambient_physical_field_refinement.first_wedge_subdivision_verified
+    or euler_ambient_physical_field_refinement.refinement_convergence_verified
+    or not euler_ambient_physical_field_refinement.chain_promotion_blocked
+    or euler_ambient_physical_field_refinement.production_claim_allowed
+  )
   euler_companion_field_planner_failure = (
     euler_companion_field_planner.planner_kind is not MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
     or not euler_companion_field_planner.resolved
@@ -11506,6 +11560,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'message': euler_ambient_physical_field_audit.message,
       }
     ] if euler_ambient_physical_field_audit_failure else []),
+    *([
+      {
+        'case': 'euler_ambient_physical_field_refinement',
+        'status': euler_ambient_physical_field_refinement.status.value,
+        'message': euler_ambient_physical_field_refinement.message,
+      }
+    ] if euler_ambient_physical_field_refinement_failure else []),
     *([
       {
         'case': 'euler_solver_owned_ambient_companion_boundary',
@@ -12890,7 +12951,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'replace the bounded solver-owned companion-boundary reference with a globally coupled Euler/free-boundary field and close its ambient/reflected boundary conditions',
       'implement an attachment-aware exact-Euler first interior wedge/remesh; the generic paired-node stencil cannot start at the shared shock/ambient point',
       'add entropy transport for variable post-shock total-pressure lineages before allowing exact-Euler field continuation',
-      'reduce the exact ambient-closed field cell residual under independent refinement before allowing physical chain promotion',
+      'subdivide/remesh the reflected first wedge and reduce the exact ambient-closed field cell residual under independent refinement before allowing physical chain promotion',
       'production next-cell shock fitting that consumes the typed state/total-pressure handoff without a geometric template',
       'grid/refinement convergence for the assembled reflected zone and mild attached-overexpanded cases',
       'external measurement-operator comparison using the independent MOC extraction before provider integration',

@@ -243,6 +243,13 @@ from exhaust_plume.validation.moc_euler import (
   MocEulerPostShockFieldChainAudit,
   measure_moc_euler_post_shock_field_chain,
 )
+from exhaust_plume.validation.moc_euler_refinement import (
+  MOC_EULER_AMBIENT_PHYSICAL_FIELD_REFINEMENT_OPERATOR_ID,
+  MocEulerAmbientPhysicalFieldRefinementStatus,
+  MocEulerAmbientPhysicalFieldRefinementCase,
+  MocEulerAmbientPhysicalFieldRefinementMeasurement,
+  measure_moc_euler_ambient_physical_field_refinement,
+)
 from exhaust_plume.validation.lane_contracts import (
   SignatureLaneInvariantReport,
   VisualLaneInvariantReport,
@@ -425,6 +432,11 @@ __all__ = (
   'MOC_EULER_AMBIENT_PHYSICAL_FIELD_AUDIT_OPERATOR_ID',
   'MocEulerAmbientPhysicalFieldAuditStatus',
   'MocEulerAmbientPhysicalFieldAudit',
+  'MOC_EULER_AMBIENT_PHYSICAL_FIELD_REFINEMENT_OPERATOR_ID',
+  'MocEulerAmbientPhysicalFieldRefinementStatus',
+  'MocEulerAmbientPhysicalFieldRefinementCase',
+  'MocEulerAmbientPhysicalFieldRefinementMeasurement',
+  'measure_moc_euler_ambient_physical_field_refinement',
   'SignatureLaneInvariantReport',
   'VisualLaneInvariantReport',
   'MACH_DISK_FEATURE_OPERATOR_ID',

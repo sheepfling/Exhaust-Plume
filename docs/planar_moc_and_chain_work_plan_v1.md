@@ -2650,3 +2650,23 @@ cells still require independent conservative-cell refinement, a globally
 coupled reflected free-boundary/entropy solve, and indexed external
 validation data. The shaped fixture is retained as a reproducible
 planner/visualization checkpoint while those gates remain open.
+
+## Exact ambient-field first-wedge refinement checkpoint
+
+The independent
+`op.moc.euler-ambient-physical-field-refinement` measurement now compares
+the exact ambient-closed candidate at declared 9, 17, and 33 sample
+resolutions. It remeasures the field and conservative cell residuals rather
+than trusting solver flags, and it separately counts the reflected
+`post-shock-ambient-centerline-triangle` cells. The reference residual maxima
+are approximately `0.189`, `0.178`, and `0.172`, while the first-wedge count
+remains exactly `1, 1, 1`.
+
+That result is a typed
+`euler_ambient_physical_field_refinement_first_wedge_failure`, not a release
+failure: adding samples to the two physical boundary traces does not refine
+the terminal wedge. The next implementation gate is an attachment/terminal
+wedge remesh or characteristic subdivision that retains state and entropy
+lineage on the new cells. Until that gate passes, the exact field remains
+available for visualization and planner diagnostics only; no continued
+shock-cell chain or lower-fidelity provider may consume it.

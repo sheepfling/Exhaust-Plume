@@ -1295,3 +1295,13 @@ basic visualization lane, signature lane, ray-transfer path, or focal-plane
 array path. Promotion additionally requires globally coupled reflected
 free-boundary closure, entropy transport, resolution evidence, and indexed
 external observations.
+
+The companion
+`op.moc.euler-ambient-physical-field-refinement` audit makes the resolution
+boundary explicit. In the current 9/17/33-sample reference, the overall
+residual decreases but the reflected first-wedge topology remains one
+unsplit triangle at every resolution. This is recorded as a first-wedge
+refinement failure and requires a solver-owned remesh/subdivision; it cannot
+be cleared by relabeling the boundary sample count or by promoting a
+planner mock. The fast visual, signature, ray-transfer, and focal-plane-array
+providers remain isolated while that higher-fidelity seam is open.
