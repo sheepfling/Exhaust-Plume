@@ -19,7 +19,9 @@ from exhaust_plume.validation import (
   MocEulerAmbientPhysicalFieldAuditStatus,
   MocEulerAmbientPhysicalFieldRefinementCase,
   MocEulerAmbientPhysicalFieldRefinementStatus,
+  MocEulerAmbientFirstWedgeCharacteristicAuditStatus,
   measure_moc_euler_ambient_first_wedge_remesh,
+  measure_moc_euler_ambient_first_wedge_characteristic_audit,
   measure_moc_euler_ambient_first_wedge_remesh_refinement,
   measure_moc_euler_ambient_physical_field,
   measure_moc_euler_ambient_physical_field_refinement,
@@ -336,6 +338,33 @@ def test_first_wedge_remesh_refinement_reduces_residual_without_promotion() -> N
       measurement.maximum_cell_euler_residuals[1:],
     )
   )
+
+
+def test_first_wedge_characteristic_audit_keeps_entropy_gate_explicit() -> None:
+  shock = _shaped_exact_shock()
+  physical_field = assemble_euler_ambient_physical_field(
+    shock,
+    shock.downstream_static_pressure_Pa[0],
+  )
+  remesh = remesh_euler_ambient_first_wedge(
+    physical_field,
+    subdivision_level=1,
+  )
+
+  audit = measure_moc_euler_ambient_first_wedge_characteristic_audit(remesh)
+
+  assert audit.status is (
+    MocEulerAmbientFirstWedgeCharacteristicAuditStatus.GEOMETRY_FAILURE
+  )
+  assert audit.characteristic_edges
+  assert audit.characteristic_edges_finite
+  assert not audit.edge_alignment_verified
+  assert not audit.characteristic_compatibility_verified
+  assert audit.maximum_compatibility_residual is not None
+  assert audit.maximum_compatibility_residual > 1.0e-8
+  assert audit.physical_closure_verified is False
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False
 
 
 def test_first_wedge_remesh_planner_records_ladder_and_stops_before_chain() -> None:

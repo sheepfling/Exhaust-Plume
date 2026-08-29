@@ -631,6 +631,13 @@ the missing conservative entropy/characteristic closure and must not be
 advertised as a higher-fidelity solver or product provider. The next required
 gate is a solver-owned terminal-wedge characteristic remesh with conservative
 Euler cell closure, followed by global physical-field and external validation.
+The independent
+``op.moc.euler-ambient-first-wedge-characteristic-audit`` now checks the
+variable-entropy compatibility source term and the edge topology separately;
+the canonical levels currently fail because the topological wedge does not
+retain two characteristic-aligned edges per triangle. This is a deliberate
+solver input/geometry failure, not evidence that the interpolated remesh has
+closed the field.
 
 This does not close the canonical reflected plume. Further cells need a
 reflected-domain/remeshing method that handles the alternating compression /

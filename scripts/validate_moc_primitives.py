@@ -325,6 +325,10 @@ from exhaust_plume.validation.moc_euler_refinement import (  # noqa: E402
   measure_moc_euler_ambient_first_wedge_remesh,
   measure_moc_euler_ambient_first_wedge_remesh_refinement,
 )
+from exhaust_plume.validation.moc_euler_characteristic import (  # noqa: E402
+  MocEulerAmbientFirstWedgeCharacteristicAuditStatus,
+  measure_moc_euler_ambient_first_wedge_characteristic_audit,
+)
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput  # noqa: E402
 from exhaust_plume.models.nozzle.exit_state import derive_ambient_state, derive_uniform_nozzle_exit  # noqa: E402
 from exhaust_plume.util.aero.shock_validity import ShockBranch, ShockSolveStatus  # noqa: E402
@@ -10060,6 +10064,10 @@ def build_moc_primitive_report() -> dict[str, Any]:
     measure_moc_euler_ambient_first_wedge_remesh(remesh)
     for remesh in euler_ambient_first_wedge_remesh_planner.remeshes
   )
+  euler_ambient_first_wedge_characteristic_audits = tuple(
+    measure_moc_euler_ambient_first_wedge_characteristic_audit(remesh)
+    for remesh in euler_ambient_first_wedge_remesh_planner.remeshes
+  )
   euler_ambient_first_wedge_remesh_refinement = (
     measure_moc_euler_ambient_first_wedge_remesh_refinement(
       tuple(
@@ -10418,6 +10426,10 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'independent_audits': [
         audit.as_report()
         for audit in euler_ambient_first_wedge_remesh_audits
+      ],
+      'independent_characteristic_audits': [
+        audit.as_report()
+        for audit in euler_ambient_first_wedge_characteristic_audits
       ],
       'refinement': euler_ambient_first_wedge_remesh_refinement.as_report(),
       'claim_status': (
@@ -11396,6 +11408,19 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or not euler_ambient_first_wedge_remesh_refinement.chain_promotion_blocked
     or euler_ambient_first_wedge_remesh_refinement.production_claim_allowed
   )
+  euler_ambient_first_wedge_characteristic_audit_failure = (
+    len(euler_ambient_first_wedge_characteristic_audits) != 3
+    or any(
+      audit.status
+      is not MocEulerAmbientFirstWedgeCharacteristicAuditStatus.GEOMETRY_FAILURE
+      or not audit.characteristic_edges_finite
+      or audit.edge_alignment_verified
+      or audit.characteristic_compatibility_verified
+      or audit.maximum_compatibility_residual is None
+      or audit.maximum_compatibility_residual <= 1.0e-8
+      for audit in euler_ambient_first_wedge_characteristic_audits
+    )
+  )
   euler_companion_field_planner_failure = (
     euler_companion_field_planner.planner_kind is not MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
     or not euler_companion_field_planner.resolved
@@ -11655,6 +11680,16 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'message': euler_ambient_first_wedge_remesh_refinement.message,
       }
     ] if euler_ambient_first_wedge_remesh_refinement_failure else []),
+    *([
+      {
+        'case': 'euler_ambient_first_wedge_characteristic_audit',
+        'status': 'unexpected-characteristic-audit-result',
+        'message': (
+          'the first-wedge characteristic audit did not preserve the '
+          'expected missing variable-entropy characteristic closure gate'
+        ),
+      }
+    ] if euler_ambient_first_wedge_characteristic_audit_failure else []),
     *([
       {
         'case': 'euler_solver_owned_ambient_companion_boundary',

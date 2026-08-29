@@ -267,6 +267,13 @@ not wait on this research closure.
   creating a ``MocChainCell``. This is a measured remesh/state-projection
   seam, not conservative Euler closure, and it does not alter the basic or
   reduced-order providers.
+- Added an independent variable-entropy characteristic audit for the
+  first-wedge remesh. It evaluates the generalized ``K+``/``K-`` source from
+  the carried total-pressure gradient and separately checks that each
+  triangular subcell retains two characteristic-aligned edges. The current
+  canonical remesh fails that edge-topology gate, making the missing
+  entropy-carrying terminal-wedge solve explicit rather than allowing the
+  isentropic projection to be promoted.
 - Added a strict ambient-axis-shoot-to-physical-field bridge. A scalar
   attachment-coordinate pressure root is now rechecked against the complete
   ambient-to-axis pressure/tangency perimeter before the shock/ambient/
