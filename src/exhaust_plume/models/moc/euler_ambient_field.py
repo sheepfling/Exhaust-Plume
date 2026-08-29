@@ -34,6 +34,7 @@ from exhaust_plume.models.moc.chain import (
   MocChainTerminationReason,
 )
 from exhaust_plume.models.moc.euler_characteristic_field import (
+  MocEulerAmbientCompanionBoundaryResult,
   MocEulerCompanionFieldResult,
   assemble_euler_consistent_companion_characteristic_strip,
 )
@@ -60,6 +61,7 @@ __all__ = (
   'MocEulerAmbientShockFieldStatus',
   'MocEulerAmbientShockFieldResult',
   'assemble_euler_ambient_shock_field',
+  'assemble_euler_ambient_shock_field_from_companion',
 )
 
 
@@ -1053,6 +1055,7 @@ class MocEulerAmbientShockFieldResult:
   entropy_lineage_verified: bool
   local_field_verified: bool
   attachment_wedge: MocEulerAmbientAttachmentWedgeResult | None = None
+  ambient_companion_boundary: MocEulerAmbientCompanionBoundaryResult | None = None
   physical_closure_verified: bool = False
   chain_promotion_blocked: bool = True
   production_claim_allowed: bool = False
@@ -1081,6 +1084,19 @@ class MocEulerAmbientShockFieldResult:
     ):
       raise TypeError(
         'attachment_wedge must be a MocEulerAmbientAttachmentWedgeResult or None'
+      )
+    if self.ambient_companion_boundary is not None and not isinstance(
+      self.ambient_companion_boundary,
+      MocEulerAmbientCompanionBoundaryResult,
+    ):
+      raise TypeError(
+        'ambient_companion_boundary must be a '
+        'MocEulerAmbientCompanionBoundaryResult or None'
+      )
+    if self.ambient_march is not None and self.ambient_companion_boundary is not None:
+      raise ValueError(
+        'ambient_march and ambient_companion_boundary are mutually exclusive '
+        'ambient-boundary sources'
       )
     if self.field is not None and not isinstance(
       self.field,
@@ -1189,6 +1205,11 @@ class MocEulerAmbientShockFieldResult:
       'ambient_march': (
         None if self.ambient_march is None else self.ambient_march.as_report()
       ),
+      'ambient_companion_boundary': (
+        None
+        if self.ambient_companion_boundary is None
+        else self.ambient_companion_boundary.as_report()
+      ),
       'attachment_wedge': (
         None
         if self.attachment_wedge is None
@@ -1219,6 +1240,7 @@ def _field_failure(
   *,
   entropy_residuals: Sequence[float] = (),
   attachment_wedge: MocEulerAmbientAttachmentWedgeResult | None = None,
+  ambient_companion_boundary: MocEulerAmbientCompanionBoundaryResult | None = None,
   ambient_boundary_verified: bool = False,
   entropy_lineage_verified: bool = False,
   local_field_verified: bool = False,
@@ -1230,6 +1252,7 @@ def _field_failure(
     shock_boundary=shock_boundary,
     ambient_march=ambient_march,
     attachment_wedge=attachment_wedge,
+    ambient_companion_boundary=ambient_companion_boundary,
     field=None,
     ambient_pressure_Pa=ambient_pressure_Pa,
     entropy_residuals=residuals,
@@ -1238,6 +1261,230 @@ def _field_failure(
     entropy_lineage_verified=entropy_lineage_verified,
     local_field_verified=local_field_verified,
     message=message,
+  )
+
+
+def assemble_euler_ambient_shock_field_from_companion(
+  shock_boundary: MocEulerShockBoundaryCurveResult,
+  companion_boundary: MocEulerAmbientCompanionBoundaryResult,
+  *,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  pressure_tolerance: float = 1.0e-8,
+) -> MocEulerAmbientShockFieldResult:
+  """Assemble an exact open field from an explicit companion trace.
+
+  This is the separated-boundary counterpart to
+  :func:`assemble_euler_ambient_shock_field`.  The companion trace is a
+  solver-owned research reference with a nonzero shock clearance; it is not
+  the shared shock/ambient attachment returned by the physical ambient
+  marcher.  Keeping the two entry points separate prevents a prescribed
+  companion boundary from being mistaken for a solved first-cell free
+  boundary while still allowing planner and handoff code to exercise a
+  state-carrying exact open field.
+
+  The narrow strip remains limited to a constant downstream total-pressure
+  lineage.  Variable shock entropy is retained as an explicit
+  ``ENTROPY_TRANSPORT_REQUIRED`` stop rather than being silently assigned to
+  the companion cells.
+  """
+
+  if not isinstance(shock_boundary, MocEulerShockBoundaryCurveResult):
+    return _field_failure(
+      MocEulerAmbientShockFieldStatus.INVALID_INPUT,
+      None,
+      None,
+      None,
+      message='shock_boundary must be a MocEulerShockBoundaryCurveResult',
+    )
+  if not isinstance(companion_boundary, MocEulerAmbientCompanionBoundaryResult):
+    return _field_failure(
+      MocEulerAmbientShockFieldStatus.INVALID_INPUT,
+      shock_boundary,
+      None,
+      None,
+      message=(
+        'companion_boundary must be a '
+        'MocEulerAmbientCompanionBoundaryResult'
+      ),
+    )
+  try:
+    position_tolerance = float(position_tolerance_m)
+    invariant_tolerance_value = float(invariant_tolerance)
+    pressure_tolerance_value = float(pressure_tolerance)
+  except (TypeError, ValueError):
+    return _field_failure(
+      MocEulerAmbientShockFieldStatus.INVALID_INPUT,
+      shock_boundary,
+      None,
+      companion_boundary.ambient_pressure_Pa,
+      ambient_companion_boundary=companion_boundary,
+      message='explicit companion field tolerances must be numeric',
+    )
+  for name, value in (
+    ('position_tolerance_m', position_tolerance),
+    ('invariant_tolerance', invariant_tolerance_value),
+    ('pressure_tolerance', pressure_tolerance_value),
+  ):
+    if not isfinite(value) or value <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+
+  ambient_pressure = companion_boundary.ambient_pressure_Pa
+  if ambient_pressure is None:
+    return _field_failure(
+      MocEulerAmbientShockFieldStatus.AMBIENT_BOUNDARY_FAILURE,
+      shock_boundary,
+      None,
+      None,
+      ambient_companion_boundary=companion_boundary,
+      message='explicit companion boundary does not retain ambient pressure',
+    )
+  if not shock_boundary.converged or not shock_boundary.local_euler_verified:
+    return _field_failure(
+      MocEulerAmbientShockFieldStatus.SHOCK_BOUNDARY_REQUIRED,
+      shock_boundary,
+      None,
+      ambient_pressure,
+      ambient_companion_boundary=companion_boundary,
+      message=(
+        'explicit companion field requires a locally Euler-verified shock '
+        f'curve: {shock_boundary.message}'
+      ),
+    )
+  if companion_boundary.shock_boundary is not shock_boundary:
+    return _field_failure(
+      MocEulerAmbientShockFieldStatus.AMBIENT_BOUNDARY_FAILURE,
+      shock_boundary,
+      None,
+      ambient_pressure,
+      ambient_companion_boundary=companion_boundary,
+      message=(
+        'explicit companion boundary must be derived from the exact shock '
+        'boundary object supplied to this field assembly'
+      ),
+    )
+  samples = tuple(companion_boundary.samples)
+  shock_count = len(shock_boundary.shock_points_m)
+  if (
+    not companion_boundary.converged
+    or not companion_boundary.state_sampling_available
+    or len(samples) != shock_count
+    or shock_count < 2
+  ):
+    return _field_failure(
+      MocEulerAmbientShockFieldStatus.AMBIENT_BOUNDARY_FAILURE,
+      shock_boundary,
+      None,
+      ambient_pressure,
+      ambient_companion_boundary=companion_boundary,
+      message=(
+        'explicit companion boundary must be converged, state-carrying, and '
+        'aligned with every shock sample'
+      ),
+    )
+  if any(
+    abs(sample.state.gamma - shock_boundary.downstream_states[0].gamma)
+    > invariant_tolerance_value
+    for sample in samples
+  ):
+    return _field_failure(
+      MocEulerAmbientShockFieldStatus.AMBIENT_BOUNDARY_FAILURE,
+      shock_boundary,
+      None,
+      ambient_pressure,
+      ambient_companion_boundary=companion_boundary,
+      message='explicit companion boundary uses a different gamma',
+    )
+  if any(
+    sample.total_pressure_Pa <= 0.0
+    or not isfinite(sample.total_pressure_Pa)
+    or abs(
+      sample.total_pressure_Pa
+      - shock_boundary.downstream_total_pressure_Pa[index]
+    )
+    > pressure_tolerance_value
+    * max(1.0, abs(shock_boundary.downstream_total_pressure_Pa[index]))
+    for index, sample in enumerate(samples)
+  ):
+    return _field_failure(
+      MocEulerAmbientShockFieldStatus.AMBIENT_BOUNDARY_FAILURE,
+      shock_boundary,
+      None,
+      ambient_pressure,
+      ambient_companion_boundary=companion_boundary,
+      message=(
+        'explicit companion boundary total pressure does not match the '
+        'shock downstream pressure lineage'
+      ),
+    )
+
+  shock_pressures = tuple(shock_boundary.downstream_total_pressure_Pa)
+  baseline_pressure = shock_pressures[0]
+  entropy_residuals = tuple(
+    abs(pressure - baseline_pressure) / baseline_pressure
+    for pressure in shock_pressures
+  )
+  maximum_entropy_residual = max(entropy_residuals, default=0.0)
+  if maximum_entropy_residual > pressure_tolerance_value:
+    return _field_failure(
+      MocEulerAmbientShockFieldStatus.ENTROPY_TRANSPORT_REQUIRED,
+      shock_boundary,
+      None,
+      ambient_pressure,
+      ambient_companion_boundary=companion_boundary,
+      entropy_residuals=entropy_residuals,
+      ambient_boundary_verified=True,
+      entropy_lineage_verified=False,
+      message=(
+        'explicit companion field received variable downstream total '
+        'pressure; entropy transport is required before this strip can be '
+        f'assembled (maximum relative residual={maximum_entropy_residual})'
+      ),
+    )
+
+  field = assemble_euler_consistent_companion_characteristic_strip(
+    shock_boundary,
+    samples,
+    position_tolerance_m=position_tolerance,
+    invariant_tolerance=invariant_tolerance_value,
+    pressure_tolerance=pressure_tolerance_value,
+  )
+  if not field.converged:
+    return _field_failure(
+      MocEulerAmbientShockFieldStatus.FIELD_FAILURE,
+      shock_boundary,
+      None,
+      ambient_pressure,
+      ambient_companion_boundary=companion_boundary,
+      entropy_residuals=entropy_residuals,
+      ambient_boundary_verified=True,
+      entropy_lineage_verified=True,
+      local_field_verified=False,
+      message=f'explicit companion strip assembly failed: {field.message}',
+    )
+  return MocEulerAmbientShockFieldResult(
+    status=MocEulerAmbientShockFieldStatus.CONVERGED_OPEN,
+    shock_boundary=shock_boundary,
+    ambient_march=None,
+    ambient_companion_boundary=companion_boundary,
+    field=field,
+    ambient_pressure_Pa=ambient_pressure,
+    entropy_residuals=entropy_residuals,
+    maximum_entropy_residual=maximum_entropy_residual,
+    ambient_boundary_verified=True,
+    entropy_lineage_verified=True,
+    local_field_verified=bool(
+      field.shock_boundary_local_euler_verified
+      and field.companion_boundary_contract_verified
+      and field.pressure_lineage_verified
+      and field.state_sampling_available
+    ),
+    message=(
+      'exact Euler shock and an explicit separated companion boundary formed '
+      'a state-carrying open characteristic strip; shared-attachment '
+      'remeshing, reflected closure, and continued-cell promotion remain '
+      'pending'
+    ),
   )
 
 

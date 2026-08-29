@@ -76,6 +76,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_euler_ambient_companion_boundary_reference,
   MocEulerShockBoundaryOrientation,
   assemble_euler_ambient_shock_field,
+  assemble_euler_ambient_shock_field_from_companion,
   MocChainPlannerKind,
   MocCausticFamilyBandEnvelopeStatus,
   MocCausticShockBridgeStatus,
@@ -9880,6 +9881,31 @@ def build_moc_primitive_report() -> dict[str, Any]:
       euler_ambient_companion_boundary,
     )
   )
+  euler_explicit_companion_ambient_shock_field = (
+    assemble_euler_ambient_shock_field_from_companion(
+      euler_consistent_shock_boundary,
+      euler_ambient_companion_boundary,
+    )
+  )
+  euler_explicit_companion_ambient_shock_field_audit = (
+    measure_moc_euler_ambient_shock_field(
+      euler_explicit_companion_ambient_shock_field,
+    )
+  )
+  euler_explicit_companion_ambient_shock_field_chain_mock = (
+    plan_euler_ambient_shock_field_chain_mock(
+      euler_explicit_companion_ambient_shock_field,
+      mock=MocEulerAmbientShockFieldChainMock(
+        total_field_count=3,
+        axial_translation_m=2.0,
+      ),
+    )
+  )
+  euler_explicit_companion_ambient_shock_field_chain_mock_measurement = (
+    measure_moc_euler_ambient_shock_field_chain(
+      euler_explicit_companion_ambient_shock_field_chain_mock,
+    )
+  )
   euler_companion_field = assemble_euler_consistent_companion_characteristic_strip(
     euler_consistent_shock_boundary,
     euler_ambient_companion_boundary.samples,
@@ -10173,6 +10199,24 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'claim_status': (
         'exact-euler-shock-and-ambient-boundary-passed; shared-attachment-'
         'aware downstream remesh and continued physical shock-cell chain pending'
+      ),
+    },
+    'euler_ambient_shock_field_explicit_companion': {
+      'ambient_pressure_Pa': euler_ambient_pressure,
+      'field_candidate': euler_explicit_companion_ambient_shock_field.as_report(),
+      'independent_audit': (
+        euler_explicit_companion_ambient_shock_field_audit.as_report()
+      ),
+      'open_field_chain_mock': {
+        **euler_explicit_companion_ambient_shock_field_chain_mock.as_report(),
+        'independent_audit': (
+          euler_explicit_companion_ambient_shock_field_chain_mock_measurement.as_report()
+        ),
+      },
+      'claim_status': (
+        'exact-open-separated-companion-field-and-continued-chain-mock; '
+        'shared-attachment-remeshing, entropy transport, reflected closure, '
+        'and physical chain-cell promotion pending'
       ),
     },
     'attached_turn_compression_foundation': {
@@ -11015,6 +11059,43 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or not euler_ambient_shock_field_chain_mock_measurement.chain_promotion_blocked
     or euler_ambient_shock_field_chain_mock_measurement.production_claim_allowed
   )
+  euler_explicit_companion_ambient_shock_field_failure = (
+    euler_explicit_companion_ambient_shock_field.status
+    is not MocEulerAmbientShockFieldStatus.CONVERGED_OPEN
+    or not euler_explicit_companion_ambient_shock_field.converged
+    or euler_explicit_companion_ambient_shock_field.ambient_march is not None
+    or euler_explicit_companion_ambient_shock_field.ambient_companion_boundary
+    is not euler_ambient_companion_boundary
+    or euler_explicit_companion_ambient_shock_field_audit.status
+    is not MocEulerAmbientShockFieldAuditStatus.CONVERGED_LOCAL_AUDIT
+    or not euler_explicit_companion_ambient_shock_field_audit.converged
+    or euler_explicit_companion_ambient_shock_field_audit.ambient_boundary_kind
+    != 'explicit-separated-companion'
+    or not euler_explicit_companion_ambient_shock_field_audit.ambient_boundary_verified
+    or not euler_explicit_companion_ambient_shock_field_audit.companion_field_verified
+    or not euler_explicit_companion_ambient_shock_field_audit.promotion_flags_verified
+  )
+  euler_explicit_companion_ambient_shock_field_chain_mock_failure = (
+    euler_explicit_companion_ambient_shock_field_chain_mock.planner_kind
+    is not MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
+    or not euler_explicit_companion_ambient_shock_field_chain_mock.resolved
+    or euler_explicit_companion_ambient_shock_field_chain_mock.field_count != 3
+    or euler_explicit_companion_ambient_shock_field_chain_mock.continued_field_count != 2
+    or euler_explicit_companion_ambient_shock_field_chain_mock.handoff_links_verified is not True
+    or euler_explicit_companion_ambient_shock_field_chain_mock.termination.reason
+    is not MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL
+    or euler_explicit_companion_ambient_shock_field_chain_mock.physical_closure_verified
+    or not euler_explicit_companion_ambient_shock_field_chain_mock.chain_promotion_blocked
+    or euler_explicit_companion_ambient_shock_field_chain_mock.production_claim_allowed
+    or euler_explicit_companion_ambient_shock_field_chain_mock_measurement.status
+    is not MocEulerAmbientShockFieldChainAuditStatus.CONVERGED_LOCAL_AUDIT
+    or not euler_explicit_companion_ambient_shock_field_chain_mock_measurement.converged
+    or not euler_explicit_companion_ambient_shock_field_chain_mock_measurement.field_audits_verified
+    or not euler_explicit_companion_ambient_shock_field_chain_mock_measurement.local_sequence_verified
+    or euler_explicit_companion_ambient_shock_field_chain_mock_measurement.physical_closure_verified
+    or not euler_explicit_companion_ambient_shock_field_chain_mock_measurement.chain_promotion_blocked
+    or euler_explicit_companion_ambient_shock_field_chain_mock_measurement.production_claim_allowed
+  )
   euler_companion_field_planner_failure = (
     euler_companion_field_planner.planner_kind is not MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
     or not euler_companion_field_planner.resolved
@@ -11200,6 +11281,25 @@ def build_moc_primitive_report() -> dict[str, Any]:
         ),
       }
     ] if euler_ambient_shock_field_chain_mock_failure else []),
+    *([
+      {
+        'case': 'euler_ambient_shock_field_explicit_companion',
+        'status': euler_explicit_companion_ambient_shock_field.status.value,
+        'message': euler_explicit_companion_ambient_shock_field.message,
+      }
+    ] if euler_explicit_companion_ambient_shock_field_failure else []),
+    *([
+      {
+        'case': 'euler_ambient_shock_field_explicit_companion_chain_mock',
+        'status': (
+          euler_explicit_companion_ambient_shock_field_chain_mock.termination.reason.value
+        ),
+        'message': (
+          'explicit companion ambient shock-field chain mock did not '
+          'preserve exact open-field handoffs and its non-physical stop'
+        ),
+      }
+    ] if euler_explicit_companion_ambient_shock_field_chain_mock_failure else []),
     *([
       {
         'case': 'euler_solver_owned_ambient_companion_boundary',

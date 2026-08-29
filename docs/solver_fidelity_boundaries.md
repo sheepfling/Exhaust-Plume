@@ -1231,3 +1231,27 @@ fresh domains, and requires the independently measured conservative residual
 trend to remain bounded. Passing this gate validates numerical stability of
 the open planner fixture only; it cannot turn an open frontier into a
 physical shock-cell perimeter or change any product-provider fidelity claim.
+
+## Explicit companion open-field continuation boundary
+
+The exact ambient shock-field API also exposes
+`assemble_euler_ambient_shock_field_from_companion` for a solver-owned
+companion trace with nonzero shock clearance. This path is intentionally
+separate from the shared shock/ambient attachment marcher: it provides a
+state-carrying open strip for planner, topology, and visualization tests, but
+does not assert that the companion trace is the physical free boundary.
+
+The explicit path retains the shock object's total-pressure lineage and
+requires the companion boundary to be derived from that same object. Its
+independent ambient audit reconstructs pressure, tangent, clearance, and
+`C-`-invariant residuals. `MocEulerAmbientShockFieldChainMock` can translate
+the audited strip into a deterministic three-field sequence with exact
+frontier handoffs; the chain audit ends at a typed
+`solver-returned-no-next-cell` stop and never constructs a `MocChainCell`.
+
+This positive open-chain fixture does not relax the fidelity boundary. The
+shared attachment route still records a no-forward-wedge stop on the exact
+reference, while entropy transport, global reflected/free-boundary closure,
+refinement, and indexed external observations remain required for physical
+chain promotion. Fast/basic, signature, ray-transfer, and focal-plane-array
+providers are not changed or trained from this lane.

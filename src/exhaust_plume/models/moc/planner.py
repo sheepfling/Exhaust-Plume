@@ -819,6 +819,13 @@ def _euler_ambient_shock_field_fingerprint(
       f'{sample.point_m[1].hex()}|{sample.total_pressure_Pa.hex()}'
       for sample in field.ambient_march.boundary_samples
     )
+  if field.ambient_companion_boundary is not None:
+    payload.append('explicit-companion')
+    payload.extend(
+      f'{state_payload(sample.state)}|{sample.point_m[0].hex()}|'
+      f'{sample.point_m[1].hex()}|{sample.total_pressure_Pa.hex()}'
+      for sample in field.ambient_companion_boundary.samples
+    )
   if field.attachment_wedge is not None:
     payload.append('attachment-wedge:' + field.attachment_wedge.status.value)
     payload.extend(
@@ -841,6 +848,10 @@ def _euler_ambient_shock_field_x_extent(
     points += tuple(field.shock_boundary.shock_points_m)
   if field.ambient_march is not None:
     points += tuple(field.ambient_march.points_m)
+  if field.ambient_companion_boundary is not None:
+    points += tuple(
+      sample.point_m for sample in field.ambient_companion_boundary.samples
+    )
   if field.field is not None:
     points += (
       *field.field.shock_boundary_points_m,
@@ -873,12 +884,15 @@ def _translate_euler_ambient_shock_field(
     raise ValueError('field must be converged before the mock can translate it')
   if (
     field.shock_boundary is None
-    or field.ambient_march is None
     or field.field is None
+    or (
+      field.ambient_march is None
+      and field.ambient_companion_boundary is None
+    )
   ):
     raise ValueError(
-      'converged exact ambient shock field must retain shock, ambient, and '
-      'companion results'
+      'converged exact ambient shock field must retain shock, one ambient '
+      'boundary source, and companion results'
     )
   offset = float(offset_x_m)
   if not isfinite(offset) or offset <= 0.0:
@@ -908,44 +922,60 @@ def _translate_euler_ambient_shock_field(
     ),
   )
 
-  march = field.ambient_march
-  translated_samples = tuple(
-    replace(
-      sample,
-      point_m=(sample.point_m[0] + offset, sample.point_m[1]),
-      state=translated_state(sample.state),
+  translated_march = None
+  if field.ambient_march is not None:
+    march = field.ambient_march
+    translated_samples = tuple(
+      replace(
+        sample,
+        point_m=(sample.point_m[0] + offset, sample.point_m[1]),
+        state=translated_state(sample.state),
+      )
+      for sample in march.boundary_samples
     )
-    for sample in march.boundary_samples
-  )
-  translated_point_results = tuple(
-    replace(
-      point_result,
-      state=(
-        None
-        if point_result.state is None
-        else translated_state(point_result.state)
+    translated_point_results = tuple(
+      replace(
+        point_result,
+        state=(
+          None
+          if point_result.state is None
+          else translated_state(point_result.state)
+        ),
+        point_m=translated_point(point_result.point_m),
+      )
+      for point_result in march.point_results
+    )
+    translated_ambient_boundary = replace(
+      march.ambient_boundary,
+      points_m=tuple(
+        (point[0] + offset, point[1])
+        for point in march.ambient_boundary.points_m
       ),
-      point_m=translated_point(point_result.point_m),
+      states=tuple(
+        translated_state(state) for state in march.ambient_boundary.states
+      ),
     )
-    for point_result in march.point_results
-  )
-  translated_ambient_boundary = replace(
-    march.ambient_boundary,
-    points_m=tuple(
-      (point[0] + offset, point[1])
-      for point in march.ambient_boundary.points_m
-    ),
-    states=tuple(
-      translated_state(state) for state in march.ambient_boundary.states
-    ),
-  )
-  translated_march = replace(
-    march,
-    shock_boundary=translated_shock,
-    boundary_samples=translated_samples,
-    point_results=translated_point_results,
-    ambient_boundary=translated_ambient_boundary,
-  )
+    translated_march = replace(
+      march,
+      shock_boundary=translated_shock,
+      boundary_samples=translated_samples,
+      point_results=translated_point_results,
+      ambient_boundary=translated_ambient_boundary,
+    )
+  translated_companion_boundary = None
+  if field.ambient_companion_boundary is not None:
+    companion = field.ambient_companion_boundary
+    translated_companion_boundary = replace(
+      companion,
+      shock_boundary=translated_shock,
+      samples=tuple(
+        replace(
+          sample,
+          state=translated_state(sample.state),
+        )
+        for sample in companion.samples
+      ),
+    )
   translated_wedge = None
   if field.attachment_wedge is not None:
     translated_wedge = replace(
@@ -982,6 +1012,7 @@ def _translate_euler_ambient_shock_field(
     field,
     shock_boundary=translated_shock,
     ambient_march=translated_march,
+    ambient_companion_boundary=translated_companion_boundary,
     attachment_wedge=translated_wedge,
     field=translated_companion,
   )

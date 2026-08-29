@@ -21,6 +21,7 @@ from exhaust_plume.models.moc import (
   MocEulerShockBoundaryOrientation,
   MocEulerShockBoundaryStatus,
   assemble_euler_ambient_shock_field,
+  assemble_euler_ambient_shock_field_from_companion,
   assemble_euler_consistent_companion_characteristic_strip,
   fit_euler_consistent_shock_boundary,
   march_euler_ambient_boundary,
@@ -418,6 +419,51 @@ def test_exact_euler_ambient_field_planner_retains_attachment_stop() -> None:
   assert audit.as_report()['operator_id'] == (
     'op.moc.euler-ambient-shock-field-chain-audit'
   )
+
+
+def test_explicit_companion_exact_field_supports_audited_open_chain_mock() -> None:
+  shock_boundary, ambient_pressure = _euler_exact_ambient_fixture()
+  companion = solve_euler_ambient_companion_boundary_reference(
+    shock_boundary,
+    ambient_pressure,
+    separation_m=0.8,
+  )
+
+  field = assemble_euler_ambient_shock_field_from_companion(
+    shock_boundary,
+    companion,
+  )
+  field_audit = measure_moc_euler_ambient_shock_field(field)
+  chain = plan_euler_ambient_shock_field_chain_mock(
+    field,
+    mock=MocEulerAmbientShockFieldChainMock(
+      total_field_count=3,
+      axial_translation_m=2.0,
+    ),
+  )
+  chain_audit = measure_moc_euler_ambient_shock_field_chain(chain)
+
+  assert field.converged
+  assert field.ambient_march is None
+  assert field.ambient_companion_boundary is companion
+  assert field_audit.converged
+  assert field_audit.ambient_boundary_kind == (
+    'explicit-separated-companion'
+  )
+  assert field_audit.ambient_sample_alignment_verified
+  assert field_audit.ambient_direction_verified
+  assert field_audit.ambient_boundary_verified
+  assert chain.resolved
+  assert chain.field_count == 3
+  assert chain.continued_field_count == 2
+  assert chain.handoff_links_verified
+  assert chain.termination.reason is (
+    MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL
+  )
+  assert chain_audit.converged
+  assert chain_audit.local_sequence_verified
+  assert not chain.physical_closure_verified
+  assert chain.chain_promotion_blocked
 
 
 def test_exact_euler_ambient_march_rejects_reference_ambient_attachment() -> None:

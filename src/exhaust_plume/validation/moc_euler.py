@@ -3013,6 +3013,9 @@ class MocEulerAmbientShockFieldAudit:
   invariant_tolerance: float
   pressure_tolerance: float
   tangent_tolerance: float
+  ambient_boundary_kind: str = 'shock-sourced-march'
+  ambient_companion_invariant_residuals: tuple[float, ...] = ()
+  maximum_ambient_companion_invariant_residual: float | None = None
   physical_closure_verified: bool = False
   chain_promotion_blocked: bool = True
   production_claim_allowed: bool = False
@@ -3070,6 +3073,33 @@ class MocEulerAmbientShockFieldAudit:
       if not isfinite(numeric) or numeric < 0.0:
         raise ValueError(f'{name} must be finite and nonnegative when supplied')
       object.__setattr__(self, name, numeric)
+    companion_residuals = tuple(
+      float(value) for value in self.ambient_companion_invariant_residuals
+    )
+    if any(
+      not isfinite(value) or value < 0.0 for value in companion_residuals
+    ):
+      raise ValueError(
+        'ambient_companion_invariant_residuals must contain finite '
+        'nonnegative values'
+      )
+    object.__setattr__(
+      self,
+      'ambient_companion_invariant_residuals',
+      companion_residuals,
+    )
+    if self.maximum_ambient_companion_invariant_residual is not None:
+      companion_maximum = float(self.maximum_ambient_companion_invariant_residual)
+      if not isfinite(companion_maximum) or companion_maximum < 0.0:
+        raise ValueError(
+          'maximum_ambient_companion_invariant_residual must be finite and '
+          'nonnegative when supplied'
+        )
+      object.__setattr__(
+        self,
+        'maximum_ambient_companion_invariant_residual',
+        companion_maximum,
+      )
     for name in (
       'shock_geometry_verified',
       'shock_jump_verified',
@@ -3091,6 +3121,10 @@ class MocEulerAmbientShockFieldAudit:
     if not operator_id:
       raise ValueError('operator_id must be a non-empty string')
     object.__setattr__(self, 'operator_id', operator_id)
+    boundary_kind = str(self.ambient_boundary_kind)
+    if not boundary_kind:
+      raise ValueError('ambient_boundary_kind must be a non-empty string')
+    object.__setattr__(self, 'ambient_boundary_kind', boundary_kind)
     object.__setattr__(self, 'message', str(self.message))
 
   @property
@@ -3125,6 +3159,10 @@ class MocEulerAmbientShockFieldAudit:
       'shock_jump_energy_residuals': list(self.shock_jump_energy_residuals),
       'ambient_pressure_residuals': list(self.ambient_pressure_residuals),
       'ambient_tangent_residuals': list(self.ambient_tangent_residuals),
+      'ambient_boundary_kind': self.ambient_boundary_kind,
+      'ambient_companion_invariant_residuals': list(
+        self.ambient_companion_invariant_residuals
+      ),
       'incoming_k_plus_residuals': list(self.incoming_k_plus_residuals),
       'entropy_residuals': list(self.entropy_residuals),
       'maximum_shock_jump_mass_residual': (
@@ -3144,6 +3182,9 @@ class MocEulerAmbientShockFieldAudit:
       ),
       'maximum_incoming_k_plus_residual': (
         self.maximum_incoming_k_plus_residual
+      ),
+      'maximum_ambient_companion_invariant_residual': (
+        self.maximum_ambient_companion_invariant_residual
       ),
       'maximum_entropy_residual': self.maximum_entropy_residual,
       'attachment_relative_pressure_residual': (
@@ -3215,6 +3256,9 @@ def _ambient_shock_field_audit_failure(
   invariant_tolerance: float = 1.0e-10,
   pressure_tolerance: float = 1.0e-8,
   tangent_tolerance: float = 1.0e-8,
+  ambient_boundary_kind: str = 'shock-sourced-march',
+  ambient_companion_invariant_residuals: Sequence[float] = (),
+  maximum_ambient_companion_invariant_residual: float | None = None,
 ) -> MocEulerAmbientShockFieldAudit:
   values = (
     tuple(float(value) for value in shock_jump_mass_residuals),
@@ -3246,6 +3290,13 @@ def _ambient_shock_field_audit_failure(
     maximum_ambient_tangent_residual=maxima[4],
     maximum_incoming_k_plus_residual=maxima[5],
     maximum_entropy_residual=maxima[6],
+    ambient_boundary_kind=ambient_boundary_kind,
+    ambient_companion_invariant_residuals=(
+      tuple(float(value) for value in ambient_companion_invariant_residuals)
+    ),
+    maximum_ambient_companion_invariant_residual=(
+      maximum_ambient_companion_invariant_residual
+    ),
     attachment_relative_pressure_residual=attachment_relative_pressure_residual,
     shock_geometry_verified=shock_geometry_verified,
     shock_jump_verified=shock_jump_verified,
@@ -3385,12 +3436,15 @@ def measure_moc_euler_ambient_shock_field(
   ambient_pressure_residuals: list[float] = []
   ambient_tangent_residuals: list[float] = []
   incoming_k_plus_residuals: list[float] = []
+  ambient_companion_invariant_residuals: list[float] = []
   attachment_residual: float | None = None
   ambient_sample_alignment_verified = False
   ambient_direction_verified = False
   ambient_boundary_verified = False
   ambient_count = 0
   ambient_pressure = field.ambient_pressure_Pa
+  ambient_boundary_kind = 'shock-sourced-march'
+  companion_invariant_maximum: float | None = None
   if isinstance(march, MocEulerAmbientBoundaryMarchResult):
     samples = tuple(march.boundary_samples)
     ambient_count = len(samples)
@@ -3510,10 +3564,123 @@ def measure_moc_euler_ambient_shock_field(
       and march.ambient_boundary.converged
       and march_invariant_evidence
     )
+  elif isinstance(
+    field.ambient_companion_boundary,
+    MocEulerAmbientCompanionBoundaryResult,
+  ):
+    ambient_boundary_kind = 'explicit-separated-companion'
+    companion = field.ambient_companion_boundary
+    samples = tuple(companion.samples)
+    ambient_count = len(samples)
+    ambient_sample_alignment_verified = bool(
+      companion.converged
+      and companion.state_sampling_available
+      and companion.shock_boundary is shock
+      and ambient_pressure is not None
+      and companion.ambient_pressure_Pa is not None
+      and abs(companion.ambient_pressure_Pa - ambient_pressure)
+      <= pressure_tolerance_value * max(1.0, abs(ambient_pressure))
+      and ambient_count == shock_count
+      and len(companion.static_pressure_residuals) == ambient_count
+      and len(companion.companion_invariant_residuals) == ambient_count
+      and len(companion.geometry_residuals_m) == ambient_count
+      and all(
+        abs(sample.point_m[0] - shock_points[index][0]) <= position_tolerance
+        and sample.point_m[1] > shock_points[index][1] + position_tolerance
+        for index, sample in enumerate(samples)
+      )
+    ) if ambient_count and shock_count else False
+    if ambient_count == shock_count and shock_count:
+      try:
+        seed_k_minus = companion.seed_k_minus_rad
+        if seed_k_minus is None:
+          raise ValueError('explicit companion boundary is missing seed K-')
+        for sample in samples:
+          state = sample.state
+          pressure_ratio = (
+            1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
+          ) ** (state.gamma / (state.gamma - 1.0))
+          static_pressure = sample.total_pressure_Pa / pressure_ratio
+          if ambient_pressure is None or ambient_pressure <= 0.0:
+            raise ValueError('ambient pressure is missing or non-positive')
+          ambient_pressure_residuals.append(
+            abs(static_pressure - ambient_pressure) / ambient_pressure
+          )
+          ambient_companion_invariant_residuals.append(
+            abs(state.k_minus - seed_k_minus)
+          )
+        for first, second in zip(samples, samples[1:]):
+          dx = second.point_m[0] - first.point_m[0]
+          dy = second.point_m[1] - first.point_m[1]
+          length = hypot(dx, dy)
+          if not isfinite(length) or length <= 0.0:
+            raise ValueError('explicit companion boundary contains a zero-length segment')
+          segment_angle = atan2(dy, dx)
+          flow_angle = 0.5 * (
+            first.state.theta_rad + second.state.theta_rad
+          )
+          ambient_tangent_residuals.append(
+            abs(sin(segment_angle - flow_angle))
+          )
+        ambient_direction_verified = bool(
+          all(
+            second.point_m[0] > first.point_m[0] + position_tolerance
+            for first, second in zip(samples, samples[1:])
+          )
+          and all(
+            (second.point_m[0] - first.point_m[0])
+            * cos(0.5 * (first.state.theta_rad + second.state.theta_rad))
+            + (second.point_m[1] - first.point_m[1])
+            * sin(0.5 * (first.state.theta_rad + second.state.theta_rad))
+            > 0.0
+            for first, second in zip(samples, samples[1:])
+          )
+          and all(
+            sample.point_m[1] > shock_points[index][1] + position_tolerance
+            for index, sample in enumerate(samples)
+          )
+        )
+      except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+        ambient_sample_alignment_verified = False
+    ambient_pressure_maximum = max(ambient_pressure_residuals, default=None)
+    ambient_tangent_maximum = max(ambient_tangent_residuals, default=None)
+    incoming_k_plus_maximum = None
+    companion_invariant_maximum = max(
+      ambient_companion_invariant_residuals,
+      default=None,
+    )
+    companion_invariant_evidence = bool(
+      len(companion.companion_invariant_residuals)
+      == len(ambient_companion_invariant_residuals)
+      and all(
+        abs(declared - reconstructed) <= invariant_tolerance_value
+        for declared, reconstructed in zip(
+          companion.companion_invariant_residuals,
+          ambient_companion_invariant_residuals,
+          strict=True,
+        )
+      )
+    )
+    ambient_boundary_verified = bool(
+      ambient_sample_alignment_verified
+      and ambient_pressure_maximum is not None
+      and ambient_pressure_maximum <= pressure_tolerance_value
+      and (
+        not ambient_tangent_residuals
+        or (
+          ambient_tangent_maximum is not None
+          and ambient_tangent_maximum <= tangent_tolerance_value
+        )
+      )
+      and companion_invariant_maximum is not None
+      and companion_invariant_maximum <= invariant_tolerance_value
+      and companion_invariant_evidence
+    )
   else:
     ambient_pressure_maximum = None
     ambient_tangent_maximum = None
     incoming_k_plus_maximum = None
+    companion_invariant_maximum = None
 
   entropy_residuals: list[float] = []
   entropy_lineage_verified = False
@@ -3565,6 +3732,14 @@ def measure_moc_euler_ambient_shock_field(
         march.physical_closure_verified is False
         and march.chain_promotion_blocked
         and march.production_claim_allowed is False
+      )
+    )
+    and (
+      field.ambient_companion_boundary is None
+      or (
+        field.ambient_companion_boundary.physical_closure_verified is False
+        and field.ambient_companion_boundary.chain_promotion_blocked
+        and field.ambient_companion_boundary.production_claim_allowed is False
       )
     )
     and field.physical_closure_verified is False
@@ -3646,6 +3821,13 @@ def measure_moc_euler_ambient_shock_field(
     invariant_tolerance=invariant_tolerance_value,
     pressure_tolerance=pressure_tolerance_value,
     tangent_tolerance=tangent_tolerance_value,
+    ambient_boundary_kind=ambient_boundary_kind,
+    ambient_companion_invariant_residuals=(
+      tuple(ambient_companion_invariant_residuals)
+    ),
+    maximum_ambient_companion_invariant_residual=(
+      companion_invariant_maximum
+    ),
     message=message,
   )
 
@@ -3841,6 +4023,13 @@ def _ambient_shock_field_chain_fingerprint(field: Any) -> str | None:
       f'{float(sample.point_m[1]).hex()}|{float(sample.total_pressure_Pa).hex()}'
       for sample in field.ambient_march.boundary_samples
     )
+  if field.ambient_companion_boundary is not None:
+    payload.append('explicit-companion')
+    payload.extend(
+      f'{state_payload(sample.state)}|{float(sample.point_m[0]).hex()}|'
+      f'{float(sample.point_m[1]).hex()}|{float(sample.total_pressure_Pa).hex()}'
+      for sample in field.ambient_companion_boundary.samples
+    )
   if field.attachment_wedge is not None:
     payload.append('attachment-wedge:' + field.attachment_wedge.status.value)
     payload.extend(
@@ -3866,6 +4055,10 @@ def _ambient_shock_field_chain_x_extent(
     points.extend(field.shock_boundary.shock_points_m)
   if field.ambient_march is not None:
     points.extend(field.ambient_march.points_m)
+  if field.ambient_companion_boundary is not None:
+    points.extend(
+      sample.point_m for sample in field.ambient_companion_boundary.samples
+    )
   if field.field is not None:
     points.extend(field.field.shock_boundary_points_m)
     points.extend(field.field.companion_boundary_points_m)

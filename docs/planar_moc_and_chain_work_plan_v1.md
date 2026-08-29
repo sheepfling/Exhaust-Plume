@@ -2558,3 +2558,32 @@ interface while leaving the physics gate unchanged: global reflected
 Euler/free-boundary closure, entropy transport, refinement, and indexed
 external observations are still required before a continued Euler chain can
 be claimed.
+
+## Explicit companion open-field chain checkpoint
+
+The exact ambient-field lane now has a separately named
+`assemble_euler_ambient_shock_field_from_companion` route. It accepts only a
+solver-owned, state-carrying companion boundary derived from the same exact
+shock object, checks the downstream total-pressure lineage, and assembles an
+exact open characteristic strip with a positive shock clearance. The
+standard ambient march remains the shared-attachment path; on the reference
+fixture its first interior wedge has no positive forward margin and therefore
+retains `attachment-geometry-failure`.
+
+`MocEulerAmbientShockFieldChainMock` can now consume the explicit separated
+route and carry three fresh open fields through two exact state/pressure
+handoffs. `op.moc.euler-ambient-shock-field-audit` independently identifies
+the `explicit-separated-companion` boundary, reconstructs its ambient
+pressure and `C-` invariant residuals, and verifies the non-promotion flags;
+`op.moc.euler-ambient-shock-field-chain-audit` rechecks every translated
+field, frontier link, and typed `solver-returned-no-next-cell` stop. This is a
+positive continued-chain contract for research visualization and planner
+integration, not a physical shock-cell chain: no `MocChainCell` is created,
+physical closure remains false, and no fast/basic, signature, ray, or
+focal-plane-array provider is changed.
+
+The next higher-fidelity gate is still a globally coupled reflected
+Euler/free-boundary solve with entropy transport, attachment-aware first-cell
+remeshing, refinement, and indexed external observations. The explicit
+companion route is a controlled bridge to that work; it must not be used to
+backfill or silently upgrade the lower-fidelity products.

@@ -66,6 +66,7 @@ from exhaust_plume.models.moc.euler_ambient_field import (
   MocEulerAmbientShockFieldStatus,
   MocEulerAmbientShockFieldResult,
   assemble_euler_ambient_shock_field,
+  assemble_euler_ambient_shock_field_from_companion,
 )
 from exhaust_plume.models.moc.mixed_regime import (
   MocMixedRegimeBoundaryResult,
@@ -899,6 +900,7 @@ __all__ = (
   'MocEulerAmbientShockFieldStatus',
   'MocEulerAmbientShockFieldResult',
   'assemble_euler_ambient_shock_field',
+  'assemble_euler_ambient_shock_field_from_companion',
   'validate_mixed_regime_boundary',
   'validate_mixed_regime_downstream_condition',
   'solve_mixed_regime_downstream_condition',
