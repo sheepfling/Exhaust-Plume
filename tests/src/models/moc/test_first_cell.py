@@ -316,6 +316,48 @@ def test_first_cell_terminal_planner_mock_attaches_exact_seam_and_typed_stop() -
   assert report['chain_promotion_blocked'] is True
 
 
+def test_first_cell_terminal_planner_can_audit_an_explicit_entropy_source_map() -> None:
+  shock_fit, strip, patch = _first_cell_inputs()
+  composite = assemble_first_cell_composite(
+    shock_fit,
+    strip,
+    patch,
+    position_tolerance_m=1.0e-3,
+  )
+  terminal = solve_marched_first_cell_terminal_closure(
+    composite,
+    downstream_flow_angle_rad=0.0,
+    sample_count=17,
+    shock_position_tolerance_m=2.0e-4,
+  )
+  request = terminal.mixed_regime_perimeter_request()
+  handoff = request.entropy_handoff()
+  mock = MocPrescribedMixedRegimeClosureMock(radial_divisions=2)
+  field = mock.solve(request).field
+  assert field is not None
+  assert handoff.terminal_sample_index is not None
+  terminal_arc = handoff.cumulative_arc_length_m[handoff.terminal_sample_index]
+
+  planner = plan_first_cell_terminal_closure(
+    terminal,
+    mock=mock,
+    mixed_regime_entropy_source_arc_length_m=(
+      terminal_arc for _ in field.nodes
+    ),
+    mixed_regime_entropy_streamline_ids=(0 for _ in field.nodes),
+  )
+
+  assert planner.mixed_regime_entropy_transport is not None
+  assert planner.mixed_regime_entropy_transport_verified
+  assert planner.diagnostics['mixed_regime_entropy_transport_measurement'][
+    'transport_verified'
+  ] is True
+  report = planner.as_report()
+  assert report['mixed_regime_entropy_transport_verified'] is True
+  assert report['mixed_regime_entropy_transport']['chain_promotion_blocked'] is True
+  assert report['mixed_regime_entropy_transport']['production_claim_allowed'] is False
+
+
 def test_first_cell_terminal_planner_preserves_open_boundary_without_solver() -> None:
   shock_fit, strip, patch = _first_cell_inputs()
   composite = assemble_first_cell_composite(

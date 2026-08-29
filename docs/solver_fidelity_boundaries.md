@@ -880,3 +880,33 @@ nonuniform schedule to exercise this path. It remains a fixture mapping—not a
 streamline correspondence or entropy/free-boundary solve—and therefore does
 not change the mock's prescribed-boundary fidelity ceiling or authorize chain
 promotion.
+
+## Explicit mixed-regime entropy transport boundary
+
+The mixed-regime research lane now has a typed
+`MocMixedRegimeEntropyTransportResult`. It binds an explicit source arc-length
+and streamline identifier to every node in an already closed scalar field,
+then compares the field's total pressure with the pressure profile carried by
+the shock-interface handoff. Each streamline group must contain at least two
+nodes with one declared source coordinate, and interpolation is bounded to the
+solved interface; source extrapolation and implicit terminal-pressure resets
+are rejected.
+
+The independent
+`op.moc.mixed-regime-entropy-transport-boundary` measurement receives the
+request, handoff, field, and transport result separately. It rebuilds the
+pressure interpolation locally, checks the exact terminal/patch field seam,
+recomputes pressure and entropy-coordinate residuals, and checks the reported
+flags and metrics. The standalone fixture and both planner paths pass this
+measurement with a terminal-source map.
+
+This is a solver-owned Cauchy/streamline boundary reference, not an Euler
+entropy-advection solve. The result remains
+`physical_closure_verified=false`,
+`canonical_free_boundary_verified=false`, `chain_promotion_blocked=true`, and
+`production_claim_allowed=false`. The first-cell, continued terminal, and
+continued-prefix planner reports expose the opt-in transport result and its
+independent measurement, but do not attach it as a new supersonic cell or feed
+it to the visualization, signature, ray, or focal-plane-array providers. The
+next physics gate is a coupled reflected shock/ambient/free-boundary solve
+whose entropy transport is solved rather than assigned by a caller-owned map.

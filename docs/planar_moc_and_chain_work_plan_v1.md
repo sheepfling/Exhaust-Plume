@@ -2189,3 +2189,29 @@ transport, so the mock remains below the resolved physical-chain and product
 claim ceilings. The next physics gate is unchanged: a solver-owned
 subsonic entropy-transport/free-boundary solve must replace the fixture policy
 before any continued-cell promotion.
+
+## Explicit mixed-regime entropy transport boundary checkpoint
+
+The next downstream seam is now represented by
+`MocMixedRegimeEntropyTransportResult`. It accepts a caller-declared source
+arc coordinate and streamline identifier for each node of a solved scalar
+mixed-regime field. The solver checks exact request/handoff/field identity,
+bounded interpolation over the ordered shock-interface pressure profile,
+streamline-group completeness, pressure-lineage residuals, and the terminal
+normal-shock seam. It never infers a streamline or extrapolates entropy data.
+
+The independent
+`op.moc.mixed-regime-entropy-transport-boundary` operator repeats those checks
+from the separate typed inputs, including result-metric consistency. The
+first-cell planner, continued terminal planner, and continued-prefix planner
+can opt into the seam with paired source-coordinate and streamline-id arrays;
+their reports expose the transport result and measurement separately from the
+supersonic chain.
+
+This checkpoint is deliberately below the release boundary. It is an explicit
+solver-owned entropy boundary reference, not a variable-entropy Euler solve,
+not a canonical reflected free-boundary solution, and not another shock-cell
+seed. All promotion and product flags remain blocked. The next implementation
+step is to replace the caller-owned map with a coupled reflected downstream
+field that advects entropy while solving the ambient/free boundary, then add
+refinement and indexed external observations.

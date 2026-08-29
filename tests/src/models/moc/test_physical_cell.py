@@ -715,6 +715,49 @@ def test_continued_chain_planner_runs_one_terminal_mock_from_final_physical_cell
   assert report['terminal_planner']['chain_planner']['chain']['cell_count'] == 1
   assert report['production_claim_allowed'] is False
 
+  assert planner.terminal_planner.mixed_regime_closure is not None
+  transport_field = planner.terminal_planner.mixed_regime_closure.field
+  assert transport_field is not None
+  assert planner.mixed_regime_entropy_handoff is not None
+  assert planner.mixed_regime_entropy_handoff.terminal_sample_index is not None
+  terminal_arc = planner.mixed_regime_entropy_handoff.cumulative_arc_length_m[
+    planner.mixed_regime_entropy_handoff.terminal_sample_index
+  ]
+  planner_with_transport = (
+    plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closure_with_mixed_regime(
+      field,
+      start_x_m=0.5,
+      end_x_m=8.0,
+      terminal_end_x_m=5.0,
+      reference=MocTerminalReflectionPatchAmbientClosureChainReference(
+        total_cell_count=3,
+      ),
+      policy=MocChainContinuationPolicy(max_cells=5, require_state_carry=True),
+      terminal_policy=MocChainContinuationPolicy(
+        max_cells=2,
+        require_state_carry=True,
+      ),
+      mock=MocPrescribedMixedRegimeClosureMock(
+        streamwise_length_m=0.02,
+        transverse_length_m=0.01,
+        radial_divisions=2,
+      ),
+      mixed_regime_entropy_source_arc_length_m=(
+        terminal_arc for _ in transport_field.nodes
+      ),
+      mixed_regime_entropy_streamline_ids=(0 for _ in transport_field.nodes),
+    )
+  )
+  assert planner_with_transport.mixed_regime_entropy_transport is not None
+  assert planner_with_transport.mixed_regime_entropy_transport_verified
+  assert planner_with_transport.terminal_planner is not None
+  assert planner_with_transport.terminal_planner.diagnostics[
+    'mixed_regime_entropy_transport_verified'
+  ] is True
+  assert planner_with_transport.as_report()[
+    'mixed_regime_entropy_transport_verified'
+  ] is True
+
 
 def test_continued_chain_planner_keeps_scalar_terminal_reference_separate() -> None:
   field = _canonical_ambient_closed_field()

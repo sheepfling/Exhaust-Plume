@@ -64,6 +64,10 @@ from exhaust_plume.models.moc.mixed_regime_entropy import (
   MocMixedRegimeEntropyInterfaceKind,
   MocMixedRegimeEntropyInterfaceSample,
 )
+from exhaust_plume.models.moc.mixed_regime_entropy_transport import (
+  MocMixedRegimeEntropyTransportResult,
+  MocMixedRegimeEntropyTransportStatus,
+)
 from exhaust_plume.models.moc.primitives import (
   CharacteristicFamily,
   CharacteristicPointResult,
@@ -125,6 +129,7 @@ __all__ = (
   'MOC_MIXED_REGIME_CONTROL_SECTION_OPERATOR_ID',
   'MOC_MIXED_REGIME_POTENTIAL_OPERATOR_ID',
   'MOC_MIXED_REGIME_ENTROPY_HANDOFF_OPERATOR_ID',
+  'MOC_MIXED_REGIME_ENTROPY_TRANSPORT_OPERATOR_ID',
   'MOC_SHOCK_CELL_CHAIN_OPERATOR_ID',
   'MOC_SHOCK_CELL_CHAIN_REFINEMENT_OPERATOR_ID',
   'MOC_SHOCK_CELL_GEOMETRY_OPERATOR_ID',
@@ -164,6 +169,8 @@ __all__ = (
   'MocMixedRegimeControlSectionMeasurementStatus',
   'MocMixedRegimeEntropyHandoffMeasurement',
   'MocMixedRegimeEntropyHandoffMeasurementStatus',
+  'MocMixedRegimeEntropyTransportMeasurement',
+  'MocMixedRegimeEntropyTransportMeasurementStatus',
   'MocTerminalClosureMeasurement',
   'MocTerminalClosureMeasurementStatus',
   'MocTerminalClosureObservation',
@@ -190,6 +197,7 @@ __all__ = (
   'measure_mixed_regime_planar_free_boundary_refinement',
   'measure_mixed_regime_control_section',
   'measure_mixed_regime_entropy_handoff',
+  'measure_mixed_regime_entropy_transport_boundary',
   'measure_moc_terminal_closure',
   'measure_moc_shock_cell',
   'measure_moc_shock_cell_chain',
@@ -243,6 +251,9 @@ MOC_MIXED_REGIME_CONTROL_SECTION_OPERATOR_ID = (
 MOC_MIXED_REGIME_POTENTIAL_OPERATOR_ID = 'op.moc.mixed-regime-compressible-potential'
 MOC_MIXED_REGIME_ENTROPY_HANDOFF_OPERATOR_ID = (
   'op.moc.mixed-regime-entropy-handoff'
+)
+MOC_MIXED_REGIME_ENTROPY_TRANSPORT_OPERATOR_ID = (
+  'op.moc.mixed-regime-entropy-transport-boundary'
 )
 
 Point = tuple[float, float]
@@ -796,6 +807,639 @@ def measure_mixed_regime_entropy_handoff(
       'patch and terminal, arc-length ordering, strict total-pressure loss, '
       'and entropy coordinate; downstream entropy transport and free-boundary '
       'closure remain pending'
+    ),
+  )
+####
+
+
+class MocMixedRegimeEntropyTransportMeasurementStatus(str, Enum):
+  """Outcome of independently measuring a mixed-regime entropy assignment."""
+
+  CONVERGED = 'converged'
+  INVALID_INPUT = 'invalid_input'
+  REQUEST_FAILURE = 'entropy-transport-request-failure'
+  HANDOFF_FAILURE = 'entropy-transport-handoff-failure'
+  FIELD_FAILURE = 'entropy-transport-field-failure'
+  MAPPING_FAILURE = 'entropy-transport-mapping-failure'
+  RESIDUAL_FAILURE = 'entropy-transport-residual-failure'
+  CONSISTENCY_FAILURE = 'entropy-transport-consistency-failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocMixedRegimeEntropyTransportMeasurement:
+  """Independent evidence for an explicit entropy-to-field assignment.
+
+  The operator receives the request, handoff, field, and transport result as
+  separate values.  It recomputes the carried pressure profile and seam
+  residuals locally; it never calls the transport solver or accepts its
+  convenience flags as proof.
+  """
+
+  status: MocMixedRegimeEntropyTransportMeasurementStatus
+  operator_id: str = MOC_MIXED_REGIME_ENTROPY_TRANSPORT_OPERATOR_ID
+  transport: MocMixedRegimeEntropyTransportResult | None = None
+  request_verified: bool = False
+  handoff_verified: bool = False
+  field_boundary_verified: bool = False
+  source_profile_verified: bool = False
+  streamline_assignment_verified: bool = False
+  terminal_seam_verified: bool = False
+  entropy_transport_verified: bool = False
+  sample_count: int = 0
+  streamline_count: int = 0
+  terminal_node_index: int | None = None
+  maximum_total_pressure_residual_Pa: float | None = None
+  maximum_entropy_coordinate_residual: float | None = None
+  physical_closure_verified: bool = False
+  chain_promotion_blocked: bool = True
+  production_claim_allowed: bool = False
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocMixedRegimeEntropyTransportMeasurementStatus,
+    ):
+      raise TypeError(
+        'status must be a '
+        'MocMixedRegimeEntropyTransportMeasurementStatus'
+      )
+    if self.transport is not None and not isinstance(
+      self.transport,
+      MocMixedRegimeEntropyTransportResult,
+    ):
+      raise TypeError(
+        'transport must be a MocMixedRegimeEntropyTransportResult or None'
+      )
+    for name in ('sample_count', 'streamline_count'):
+      value = getattr(self, name)
+      if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f'{name} must be a nonnegative integer')
+    if self.terminal_node_index is not None:
+      if (
+        isinstance(self.terminal_node_index, bool)
+        or not isinstance(self.terminal_node_index, int)
+        or self.terminal_node_index < 0
+      ):
+        raise ValueError(
+          'terminal_node_index must be a nonnegative integer when supplied'
+        )
+    for name in (
+      'maximum_total_pressure_residual_Pa',
+      'maximum_entropy_coordinate_residual',
+    ):
+      value = getattr(self, name)
+      if value is not None:
+        numeric = float(value)
+        if not isfinite(numeric) or numeric < 0.0:
+          raise ValueError(f'{name} must be finite and nonnegative when supplied')
+        object.__setattr__(self, name, numeric)
+    for name in (
+      'request_verified',
+      'handoff_verified',
+      'field_boundary_verified',
+      'source_profile_verified',
+      'streamline_assignment_verified',
+      'terminal_seam_verified',
+      'entropy_transport_verified',
+      'physical_closure_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocMixedRegimeEntropyTransportMeasurementStatus.CONVERGED
+  ####
+
+  @property
+  def transport_verified(self) -> bool:
+    """Whether every independent assignment gate passed."""
+
+    return bool(
+      self.converged
+      and self.request_verified
+      and self.handoff_verified
+      and self.field_boundary_verified
+      and self.source_profile_verified
+      and self.streamline_assignment_verified
+      and self.terminal_seam_verified
+      and self.entropy_transport_verified
+    )
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'operator_id': self.operator_id,
+      'converged': self.converged,
+      'transport_verified': self.transport_verified,
+      'request_verified': self.request_verified,
+      'handoff_verified': self.handoff_verified,
+      'field_boundary_verified': self.field_boundary_verified,
+      'source_profile_verified': self.source_profile_verified,
+      'streamline_assignment_verified': self.streamline_assignment_verified,
+      'terminal_seam_verified': self.terminal_seam_verified,
+      'entropy_transport_verified': self.entropy_transport_verified,
+      'sample_count': self.sample_count,
+      'streamline_count': self.streamline_count,
+      'terminal_node_index': self.terminal_node_index,
+      'maximum_total_pressure_residual_Pa': (
+        self.maximum_total_pressure_residual_Pa
+      ),
+      'maximum_entropy_coordinate_residual': (
+        self.maximum_entropy_coordinate_residual
+      ),
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'message': self.message,
+    }
+  ####
+
+
+def _entropy_transport_measurement_failure(
+  status: MocMixedRegimeEntropyTransportMeasurementStatus,
+  *,
+  transport: MocMixedRegimeEntropyTransportResult | None = None,
+  request_verified: bool = False,
+  handoff_verified: bool = False,
+  field_boundary_verified: bool = False,
+  source_profile_verified: bool = False,
+  streamline_assignment_verified: bool = False,
+  terminal_seam_verified: bool = False,
+  entropy_transport_verified: bool = False,
+  sample_count: int = 0,
+  streamline_count: int = 0,
+  terminal_node_index: int | None = None,
+  maximum_total_pressure_residual_Pa: float | None = None,
+  maximum_entropy_coordinate_residual: float | None = None,
+  message: str,
+) -> MocMixedRegimeEntropyTransportMeasurement:
+  return MocMixedRegimeEntropyTransportMeasurement(
+    status=status,
+    transport=transport,
+    request_verified=request_verified,
+    handoff_verified=handoff_verified,
+    field_boundary_verified=field_boundary_verified,
+    source_profile_verified=source_profile_verified,
+    streamline_assignment_verified=streamline_assignment_verified,
+    terminal_seam_verified=terminal_seam_verified,
+    entropy_transport_verified=entropy_transport_verified,
+    sample_count=sample_count,
+    streamline_count=streamline_count,
+    terminal_node_index=terminal_node_index,
+    maximum_total_pressure_residual_Pa=maximum_total_pressure_residual_Pa,
+    maximum_entropy_coordinate_residual=maximum_entropy_coordinate_residual,
+    physical_closure_verified=False,
+    chain_promotion_blocked=True,
+    production_claim_allowed=False,
+    message=message,
+  )
+
+
+def _interpolate_entropy_transport_pressure(
+  handoff: MocMixedRegimeEntropyHandoffResult,
+  coordinate: float,
+) -> float:
+  """Interpolate a verified handoff without using its convenience method."""
+
+  if not isfinite(coordinate):
+    raise ValueError('source arc coordinate must be finite')
+  samples = handoff.samples
+  arc = handoff.cumulative_arc_length_m
+  if len(samples) < 2 or len(arc) != len(samples):
+    raise ValueError('entropy handoff must expose a complete sample arc')
+  if coordinate < arc[0] or coordinate > arc[-1]:
+    raise ValueError('source arc coordinate lies outside the handoff arc')
+  if coordinate <= arc[0]:
+    return samples[0].downstream_total_pressure_Pa
+  if coordinate >= arc[-1]:
+    return samples[-1].downstream_total_pressure_Pa
+  for first_arc, second_arc, first, second in zip(
+    arc,
+    arc[1:],
+    samples,
+    samples[1:],
+    strict=True,
+  ):
+    if coordinate <= second_arc:
+      fraction = (coordinate - first_arc) / (second_arc - first_arc)
+      return (
+        first.downstream_total_pressure_Pa
+        + fraction * (
+          second.downstream_total_pressure_Pa
+          - first.downstream_total_pressure_Pa
+        )
+      )
+  return samples[-1].downstream_total_pressure_Pa
+
+
+def measure_mixed_regime_entropy_transport_boundary(
+  request: MocMixedRegimePerimeterRequest,
+  handoff: MocMixedRegimeEntropyHandoffResult,
+  field: MocMixedRegimeFieldResult,
+  transport: MocMixedRegimeEntropyTransportResult,
+  *,
+  position_tolerance_m: float = 1.0e-9,
+  source_arc_length_tolerance_m: float = 1.0e-9,
+  pressure_tolerance: float = 1.0e-8,
+) -> MocMixedRegimeEntropyTransportMeasurement:
+  """Remeasure an explicit mixed-regime entropy transport boundary."""
+
+  if not isinstance(request, MocMixedRegimePerimeterRequest):
+    return _entropy_transport_measurement_failure(
+      MocMixedRegimeEntropyTransportMeasurementStatus.INVALID_INPUT,
+      message='request must be a MocMixedRegimePerimeterRequest',
+    )
+  if not isinstance(handoff, MocMixedRegimeEntropyHandoffResult):
+    return _entropy_transport_measurement_failure(
+      MocMixedRegimeEntropyTransportMeasurementStatus.INVALID_INPUT,
+      message='handoff must be a MocMixedRegimeEntropyHandoffResult',
+    )
+  if not isinstance(field, MocMixedRegimeFieldResult):
+    return _entropy_transport_measurement_failure(
+      MocMixedRegimeEntropyTransportMeasurementStatus.INVALID_INPUT,
+      message='field must be a MocMixedRegimeFieldResult',
+    )
+  if not isinstance(transport, MocMixedRegimeEntropyTransportResult):
+    return _entropy_transport_measurement_failure(
+      MocMixedRegimeEntropyTransportMeasurementStatus.INVALID_INPUT,
+      message='transport must be a MocMixedRegimeEntropyTransportResult',
+    )
+  for name, value in (
+    ('position_tolerance_m', position_tolerance_m),
+    ('source_arc_length_tolerance_m', source_arc_length_tolerance_m),
+    ('pressure_tolerance', pressure_tolerance),
+  ):
+    if not isfinite(float(value)) or float(value) <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+  position_tolerance_m = float(position_tolerance_m)
+  source_arc_length_tolerance_m = float(source_arc_length_tolerance_m)
+  pressure_tolerance = float(pressure_tolerance)
+
+  if transport.request != request:
+    return _entropy_transport_measurement_failure(
+      MocMixedRegimeEntropyTransportMeasurementStatus.REQUEST_FAILURE,
+      transport=transport,
+      message='transport did not retain the exact mixed-regime request',
+    )
+  if transport.handoff != handoff:
+    return _entropy_transport_measurement_failure(
+      MocMixedRegimeEntropyTransportMeasurementStatus.REQUEST_FAILURE,
+      transport=transport,
+      request_verified=True,
+      message='transport did not retain the exact entropy handoff',
+    )
+  if transport.field != field:
+    return _entropy_transport_measurement_failure(
+      MocMixedRegimeEntropyTransportMeasurementStatus.REQUEST_FAILURE,
+      transport=transport,
+      request_verified=True,
+      handoff_verified=True,
+      message='transport did not retain the exact mixed-regime field',
+    )
+
+  handoff_measurement = measure_mixed_regime_entropy_handoff(
+    request,
+    handoff,
+    position_tolerance_m=position_tolerance_m,
+    pressure_tolerance=pressure_tolerance,
+  )
+  if not handoff_measurement.handoff_verified:
+    return _entropy_transport_measurement_failure(
+      MocMixedRegimeEntropyTransportMeasurementStatus.HANDOFF_FAILURE,
+      transport=transport,
+      request_verified=True,
+      handoff_verified=False,
+      message=(
+        'independent entropy-interface measurement failed before transport '
+        f'could be checked: {handoff_measurement.message}'
+      ),
+    )
+
+  boundary = field.boundary
+  field_boundary_verified = bool(
+    field.converged
+    and boundary.converged
+    and boundary.terminal == request.terminal
+    and boundary.supersonic_patch == request.supersonic_patch
+    and field.nodes
+    and all(
+      isinstance(sample, MocMixedRegimeFieldSample)
+      and len(sample.point_m) == 2
+      and all(isfinite(value) for value in sample.point_m)
+      and 0.0 < sample.mach < 1.0
+      and sample.static_pressure_Pa > 0.0
+      and sample.total_pressure_Pa > 0.0
+      and sample.gamma > 1.0
+      for sample in field.nodes
+    )
+  )
+  if not field_boundary_verified:
+    return _entropy_transport_measurement_failure(
+      MocMixedRegimeEntropyTransportMeasurementStatus.FIELD_FAILURE,
+      transport=transport,
+      request_verified=True,
+      handoff_verified=True,
+      message=(
+        'independent field seam checks require a converged scalar field with '
+        'the exact terminal, patch, and finite subsonic nodes'
+      ),
+    )
+
+  source_arc = transport.streamline_source_arc_length_m
+  identifiers = transport.streamline_ids
+  carried = transport.transported_total_pressure_Pa
+  node_count = field.node_count
+  if not (
+    len(source_arc) == node_count
+    and len(identifiers) == node_count
+    and len(carried) == node_count
+  ):
+    return _entropy_transport_measurement_failure(
+      MocMixedRegimeEntropyTransportMeasurementStatus.MAPPING_FAILURE,
+      transport=transport,
+      request_verified=True,
+      handoff_verified=True,
+      field_boundary_verified=True,
+      sample_count=node_count,
+      message=(
+        'transport arrays must each contain exactly one entry per field node'
+      ),
+    )
+  if any(
+    not isfinite(coordinate) or coordinate < 0.0
+    for coordinate in source_arc
+  ) or any(
+    isinstance(identifier, bool)
+    or not isinstance(identifier, int)
+    or identifier < 0
+    for identifier in identifiers
+  ) or any(
+    not isfinite(pressure) or pressure <= 0.0
+    for pressure in carried
+  ):
+    return _entropy_transport_measurement_failure(
+      MocMixedRegimeEntropyTransportMeasurementStatus.MAPPING_FAILURE,
+      transport=transport,
+      request_verified=True,
+      handoff_verified=True,
+      field_boundary_verified=True,
+      sample_count=node_count,
+      streamline_count=len(set(identifiers)),
+      message=(
+        'transport arrays require finite nonnegative source coordinates, '
+        'nonnegative integer streamline identifiers, and positive pressures'
+      ),
+    )
+
+  arc = handoff.cumulative_arc_length_m
+  if len(arc) < 2 or any(
+    second <= first
+    for first, second in zip(arc[:-1], arc[1:], strict=True)
+  ):
+    return _entropy_transport_measurement_failure(
+      MocMixedRegimeEntropyTransportMeasurementStatus.HANDOFF_FAILURE,
+      transport=transport,
+      request_verified=True,
+      handoff_verified=True,
+      field_boundary_verified=True,
+      sample_count=node_count,
+      streamline_count=len(set(identifiers)),
+      message='entropy handoff arc is not a strictly increasing interval',
+    )
+  if any(
+    coordinate < arc[0] - source_arc_length_tolerance_m
+    or coordinate > arc[-1] + source_arc_length_tolerance_m
+    for coordinate in source_arc
+  ):
+    return _entropy_transport_measurement_failure(
+      MocMixedRegimeEntropyTransportMeasurementStatus.MAPPING_FAILURE,
+      transport=transport,
+      request_verified=True,
+      handoff_verified=True,
+      field_boundary_verified=True,
+      source_profile_verified=False,
+      sample_count=node_count,
+      streamline_count=len(set(identifiers)),
+      message='transport source coordinates require interpolation without extrapolation',
+    )
+  coordinate_groups: dict[int, list[float]] = {}
+  for identifier, coordinate in zip(identifiers, source_arc, strict=True):
+    coordinate_groups.setdefault(identifier, []).append(coordinate)
+  streamline_assignment_verified = bool(
+    coordinate_groups
+    and all(
+      len(coordinates) >= 2
+      and max(coordinates) - min(coordinates)
+      <= source_arc_length_tolerance_m
+      for coordinates in coordinate_groups.values()
+    )
+  )
+  if not streamline_assignment_verified:
+    return _entropy_transport_measurement_failure(
+      MocMixedRegimeEntropyTransportMeasurementStatus.MAPPING_FAILURE,
+      transport=transport,
+      request_verified=True,
+      handoff_verified=True,
+      field_boundary_verified=True,
+      source_profile_verified=True,
+      sample_count=node_count,
+      streamline_count=len(coordinate_groups),
+      message=(
+        'each explicit streamline group must contain at least two nodes with '
+        'one common source coordinate'
+      ),
+    )
+
+  try:
+    expected_carried = tuple(
+      _interpolate_entropy_transport_pressure(handoff, coordinate)
+      for coordinate in source_arc
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return _entropy_transport_measurement_failure(
+      MocMixedRegimeEntropyTransportMeasurementStatus.HANDOFF_FAILURE,
+      transport=transport,
+      request_verified=True,
+      handoff_verified=True,
+      field_boundary_verified=True,
+      source_profile_verified=True,
+      streamline_assignment_verified=True,
+      sample_count=node_count,
+      streamline_count=len(coordinate_groups),
+      message=f'could not independently interpolate entropy source profile: {error}',
+    )
+  pressure_residuals = tuple(
+    max(
+      abs(sample.total_pressure_Pa - expected_pressure),
+      abs(measured_pressure - expected_pressure),
+    )
+    for sample, measured_pressure, expected_pressure in zip(
+      field.nodes,
+      carried,
+      expected_carried,
+      strict=True,
+    )
+  )
+  entropy_residuals = tuple(
+    max(
+      abs(log(expected_pressure / sample.total_pressure_Pa)),
+      abs(log(expected_pressure / measured_pressure)),
+    )
+    for sample, measured_pressure, expected_pressure in zip(
+      field.nodes,
+      carried,
+      expected_carried,
+      strict=True,
+    )
+  )
+  maximum_pressure_residual = max(pressure_residuals, default=None)
+  maximum_entropy_residual = max(entropy_residuals, default=None)
+  pressure_verified = all(
+    residual <= pressure_tolerance * max(
+      1.0,
+      abs(sample.total_pressure_Pa),
+      abs(measured_pressure),
+      abs(expected_pressure),
+    )
+    for residual, sample, measured_pressure, expected_pressure in zip(
+      pressure_residuals,
+      field.nodes,
+      carried,
+      expected_carried,
+      strict=True,
+    )
+  )
+  terminal_indices = tuple(
+    index
+    for index, sample in enumerate(field.nodes)
+    if hypot(
+      sample.point_m[0] - request.terminal_point_m[0],
+      sample.point_m[1] - request.terminal_point_m[1],
+    ) <= position_tolerance_m
+  )
+  terminal_index = (
+    transport.terminal_node_index
+    if transport.terminal_node_index in terminal_indices
+    and terminal_indices.count(transport.terminal_node_index) == 1
+    else None
+  )
+  terminal_arc = (
+    arc[handoff.terminal_sample_index]
+    if handoff.terminal_sample_index is not None
+    and 0 <= handoff.terminal_sample_index < len(arc)
+    else None
+  )
+  terminal_seam_verified = bool(
+    len(terminal_indices) == 1
+    and terminal_index == terminal_indices[0]
+    and terminal_arc is not None
+    and abs(source_arc[terminal_index] - terminal_arc)
+    <= source_arc_length_tolerance_m
+    and _entropy_close(
+      field.nodes[terminal_index].total_pressure_Pa,
+      request.terminal_downstream_total_pressure_Pa,
+      pressure_tolerance,
+    )
+    and _entropy_close(
+      carried[terminal_index],
+      request.terminal_downstream_total_pressure_Pa,
+      pressure_tolerance,
+    )
+  )
+  if not pressure_verified or not terminal_seam_verified:
+    return _entropy_transport_measurement_failure(
+      MocMixedRegimeEntropyTransportMeasurementStatus.RESIDUAL_FAILURE,
+      transport=transport,
+      request_verified=True,
+      handoff_verified=True,
+      field_boundary_verified=True,
+      source_profile_verified=True,
+      streamline_assignment_verified=True,
+      terminal_seam_verified=terminal_seam_verified,
+      entropy_transport_verified=False,
+      sample_count=node_count,
+      streamline_count=len(coordinate_groups),
+      terminal_node_index=terminal_index,
+      maximum_total_pressure_residual_Pa=maximum_pressure_residual,
+      maximum_entropy_coordinate_residual=maximum_entropy_residual,
+      message='independent entropy transport pressure or terminal seam residual failed',
+    )
+
+  metrics_verified = bool(
+    transport.status is MocMixedRegimeEntropyTransportStatus.CONVERGED_REFERENCE
+    and transport.model == 'solver-owned-mixed-regime-entropy-transport-boundary'
+    and transport.field_boundary_verified
+    and transport.source_profile_verified
+    and transport.streamline_assignment_verified
+    and transport.terminal_seam_verified
+    and transport.entropy_transport_verified
+    and transport.physical_closure_verified is False
+    and transport.canonical_free_boundary_verified is False
+    and transport.chain_promotion_blocked
+    and transport.production_claim_allowed is False
+    and transport.terminal_node_index == terminal_index
+    and transport.streamline_count == len(coordinate_groups)
+    and transport.node_count == node_count
+    and transport.maximum_total_pressure_residual_Pa is not None
+    and transport.maximum_entropy_coordinate_residual is not None
+    and _entropy_close(
+      transport.maximum_total_pressure_residual_Pa,
+      maximum_pressure_residual,
+      pressure_tolerance,
+    )
+    and _entropy_close(
+      transport.maximum_entropy_coordinate_residual,
+      maximum_entropy_residual,
+      pressure_tolerance,
+    )
+  )
+  if not metrics_verified:
+    return _entropy_transport_measurement_failure(
+      MocMixedRegimeEntropyTransportMeasurementStatus.CONSISTENCY_FAILURE,
+      transport=transport,
+      request_verified=True,
+      handoff_verified=True,
+      field_boundary_verified=True,
+      source_profile_verified=True,
+      streamline_assignment_verified=True,
+      terminal_seam_verified=True,
+      sample_count=node_count,
+      streamline_count=len(coordinate_groups),
+      terminal_node_index=terminal_index,
+      maximum_total_pressure_residual_Pa=maximum_pressure_residual,
+      maximum_entropy_coordinate_residual=maximum_entropy_residual,
+      message='transport result flags or reported residuals failed independent consistency checks',
+    )
+  return MocMixedRegimeEntropyTransportMeasurement(
+    status=MocMixedRegimeEntropyTransportMeasurementStatus.CONVERGED,
+    transport=transport,
+    request_verified=True,
+    handoff_verified=True,
+    field_boundary_verified=True,
+    source_profile_verified=True,
+    streamline_assignment_verified=True,
+    terminal_seam_verified=True,
+    entropy_transport_verified=True,
+    sample_count=node_count,
+    streamline_count=len(coordinate_groups),
+    terminal_node_index=terminal_index,
+    maximum_total_pressure_residual_Pa=maximum_pressure_residual,
+    maximum_entropy_coordinate_residual=maximum_entropy_residual,
+    physical_closure_verified=False,
+    chain_promotion_blocked=True,
+    production_claim_allowed=False,
+    message=(
+      'independent measurement reproduced the explicit entropy source map, '
+      'scalar field pressure lineage, and terminal seam; coupled Euler/free-'
+      'boundary closure remains separate'
     ),
   )
 ####

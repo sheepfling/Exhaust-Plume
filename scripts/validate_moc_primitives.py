@@ -32,6 +32,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocMixedRegimePlanarSolveStatus,
   MocMixedRegimePlanarPotentialReference,
   MocMixedRegimePlanarFrozenProfileReference,
+  MocMixedRegimeEntropyTransportStatus,
   MocSolverGeneratedMixedRegimeClosureReference,
   MocInvariantClosureFamily,
   MocFreeBoundaryShockResult,
@@ -138,6 +139,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_marched_ambient_attachment_shock_cell_transition,
   solve_marched_attached_shock_with_constant_invariant_closure,
   solve_mixed_regime_compressible_potential_field,
+  solve_mixed_regime_entropy_transport_boundary,
   solve_mixed_regime_planar_free_boundary_reference,
   solve_mixed_regime_subsonic_field,
   solve_reflected_boundary_trace_extension,
@@ -203,6 +205,7 @@ from exhaust_plume.validation.moc_measurements import (  # noqa: E402
   MocMixedRegimeFreeBoundaryRefinementMeasurementStatus,
   MocMixedRegimePlanarFreeBoundaryRefinementCase,
   MocMixedRegimeEntropyHandoffMeasurementStatus,
+  MocMixedRegimeEntropyTransportMeasurementStatus,
   MocReflectedDomainRemeshMeasurementStatus,
   MocReflectedDomainOuterSourceMeasurementStatus,
   MocTerminalClosureObservation,
@@ -222,6 +225,7 @@ from exhaust_plume.validation.moc_measurements import (  # noqa: E402
   measure_mixed_regime_free_boundary_refinement,
   measure_mixed_regime_planar_free_boundary_refinement,
   measure_mixed_regime_entropy_handoff,
+  measure_mixed_regime_entropy_transport_boundary,
   measure_mixed_regime_compressible_potential_field,
   measure_moc_terminal_closure,
   measure_moc_shock_cell,
@@ -2947,6 +2951,31 @@ def _mixed_regime_boundary_probe(
   explicit_perimeter_closure = perimeter_mock.solve(perimeter_request)
   explicit_perimeter_field = explicit_perimeter_closure.field
   assert explicit_perimeter_field is not None
+  assert entropy_handoff.terminal_sample_index is not None
+  entropy_terminal_arc_length_m = entropy_handoff.cumulative_arc_length_m[
+    entropy_handoff.terminal_sample_index
+  ]
+  entropy_transport_source_arc_length_m = tuple(
+    entropy_terminal_arc_length_m for _ in explicit_perimeter_field.nodes
+  )
+  entropy_transport_streamline_ids = tuple(
+    0 for _ in explicit_perimeter_field.nodes
+  )
+  entropy_transport = solve_mixed_regime_entropy_transport_boundary(
+    perimeter_request,
+    entropy_handoff,
+    explicit_perimeter_field,
+    entropy_transport_source_arc_length_m,
+    entropy_transport_streamline_ids,
+  )
+  entropy_transport_measurement = (
+    measure_mixed_regime_entropy_transport_boundary(
+      perimeter_request,
+      entropy_handoff,
+      explicit_perimeter_field,
+      entropy_transport,
+    )
+  )
   planar_section_mach = terminal.downstream_mach + 0.01
   planar_section_static_pressure = terminal.downstream_total_pressure_Pa / (
     1.0 + 0.5 * (terminal.upstream_state.gamma - 1.0)
@@ -3325,6 +3354,21 @@ def _mixed_regime_boundary_probe(
       and entropy_handoff_measurement.handoff_verified
       and entropy_handoff_measurement.physical_closure_verified is False
       and entropy_handoff_measurement.chain_promotion_blocked
+      and entropy_transport.status is MocMixedRegimeEntropyTransportStatus.CONVERGED_REFERENCE
+      and entropy_transport.converged
+      and entropy_transport.entropy_transport_verified
+      and entropy_transport.physical_closure_verified is False
+      and entropy_transport.canonical_free_boundary_verified is False
+      and entropy_transport.chain_promotion_blocked
+      and entropy_transport.production_claim_allowed is False
+      and entropy_transport_measurement.status is (
+        MocMixedRegimeEntropyTransportMeasurementStatus.CONVERGED
+      )
+      and entropy_transport_measurement.converged
+      and entropy_transport_measurement.transport_verified
+      and entropy_transport_measurement.physical_closure_verified is False
+      and entropy_transport_measurement.chain_promotion_blocked
+      and entropy_transport_measurement.production_claim_allowed is False
       and control_section_requirement.status.value == 'invalid_input'
       and not control_section_requirement.physical_closure_verified
       and control_section_requirement.chain_promotion_blocked
@@ -3446,6 +3490,16 @@ def _mixed_regime_boundary_probe(
     'mixed_regime_entropy_handoff': entropy_handoff.as_report(),
     'mixed_regime_entropy_handoff_measurement': (
       entropy_handoff_measurement.as_report()
+    ),
+    'mixed_regime_entropy_transport': entropy_transport.as_report(),
+    'mixed_regime_entropy_transport_measurement': (
+      entropy_transport_measurement.as_report()
+    ),
+    'mixed_regime_entropy_transport_source_arc_length_m': (
+      entropy_transport_source_arc_length_m
+    ),
+    'mixed_regime_entropy_transport_streamline_ids': (
+      entropy_transport_streamline_ids
     ),
     'explicit_downstream_perimeter_solver': explicit_perimeter_closure.as_report(),
     'downstream_condition_contract': contract_condition.as_report(),
@@ -7534,6 +7588,33 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or mixed_regime_entropy_handoff_measurement.get('physical_closure_verified') is not False
     or mixed_regime_entropy_handoff_measurement.get('chain_promotion_blocked') is not True
   )
+  mixed_regime_entropy_transport = mixed_regime_boundary_probe.get(
+    'mixed_regime_entropy_transport',
+  )
+  mixed_regime_entropy_transport_measurement = mixed_regime_boundary_probe.get(
+    'mixed_regime_entropy_transport_measurement',
+  )
+  mixed_regime_entropy_transport_failure = (
+    not isinstance(mixed_regime_entropy_transport, dict)
+    or mixed_regime_entropy_transport.get('status') != (
+      MocMixedRegimeEntropyTransportStatus.CONVERGED_REFERENCE.value
+    )
+    or mixed_regime_entropy_transport.get('converged') is not True
+    or mixed_regime_entropy_transport.get('entropy_transport_verified') is not True
+    or mixed_regime_entropy_transport.get('physical_closure_verified') is not False
+    or mixed_regime_entropy_transport.get('canonical_free_boundary_verified') is not False
+    or mixed_regime_entropy_transport.get('chain_promotion_blocked') is not True
+    or mixed_regime_entropy_transport.get('production_claim_allowed') is not False
+    or not isinstance(mixed_regime_entropy_transport_measurement, dict)
+    or mixed_regime_entropy_transport_measurement.get('status') != (
+      MocMixedRegimeEntropyTransportMeasurementStatus.CONVERGED.value
+    )
+    or mixed_regime_entropy_transport_measurement.get('converged') is not True
+    or mixed_regime_entropy_transport_measurement.get('transport_verified') is not True
+    or mixed_regime_entropy_transport_measurement.get('physical_closure_verified') is not False
+    or mixed_regime_entropy_transport_measurement.get('chain_promotion_blocked') is not True
+    or mixed_regime_entropy_transport_measurement.get('production_claim_allowed') is not False
+  )
   parameterized_planar_free_boundary_refinement_probe = (
     mixed_regime_boundary_probe.get(
       'parameterized_planar_free_boundary_refinement',
@@ -9748,6 +9829,21 @@ def build_moc_primitive_report() -> dict[str, Any]:
         ),
       }
     ] if mixed_regime_entropy_handoff_failure else []),
+    *([
+      {
+        'case': 'mixed_regime_entropy_transport',
+        'status': str(
+          mixed_regime_entropy_transport.get('status', 'missing')
+          if isinstance(mixed_regime_entropy_transport, dict)
+          else 'missing'
+        ),
+        'message': str(
+          mixed_regime_entropy_transport.get('message', '')
+          if isinstance(mixed_regime_entropy_transport, dict)
+          else ''
+        ),
+      }
+    ] if mixed_regime_entropy_transport_failure else []),
     *([
       {
         'case': 'parameterized_planar_free_boundary_refinement',

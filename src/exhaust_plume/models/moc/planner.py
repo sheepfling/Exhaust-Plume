@@ -100,6 +100,10 @@ from exhaust_plume.models.moc.mixed_regime import (
 from exhaust_plume.models.moc.mixed_regime_entropy import (
   MocMixedRegimeEntropyHandoffResult,
 )
+from exhaust_plume.models.moc.mixed_regime_entropy_transport import (
+  MocMixedRegimeEntropyTransportResult,
+  solve_mixed_regime_entropy_transport_boundary,
+)
 from exhaust_plume.models.moc.mixed_regime_planar import (
   MocMixedRegimePlanarFieldSolver,
   MocMixedRegimePlanarPotentialReference,
@@ -856,6 +860,60 @@ def _audit_mixed_regime_entropy_handoff(
   return handoff, measurement.as_report(), accepted, None
 
 
+def _audit_mixed_regime_entropy_transport(
+  request: MocMixedRegimePerimeterRequest,
+  handoff: MocMixedRegimeEntropyHandoffResult,
+  field: MocMixedRegimeFieldResult,
+  source_arc_length_m: Sequence[float],
+  streamline_ids: Sequence[int],
+) -> tuple[
+  MocMixedRegimeEntropyTransportResult | None,
+  dict[str, Any] | None,
+  bool,
+  str | None,
+]:
+  """Solve and independently measure one explicit entropy field seam."""
+
+  try:
+    transport = solve_mixed_regime_entropy_transport_boundary(
+      request,
+      handoff,
+      field,
+      source_arc_length_m,
+      streamline_ids,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return None, None, False, f'could not solve entropy transport boundary: {error}'
+  try:
+    # Keep validation imports local: validation imports the planner module.
+    from exhaust_plume.validation.moc_measurements import (
+      measure_mixed_regime_entropy_transport_boundary,
+    )
+
+    measurement = measure_mixed_regime_entropy_transport_boundary(
+      request,
+      handoff,
+      field,
+      transport,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return transport, None, False, f'could not measure entropy transport boundary: {error}'
+  accepted = bool(
+    transport.converged
+    and transport.entropy_transport_verified
+    and transport.chain_promotion_blocked
+    and not transport.physical_closure_verified
+    and not transport.canonical_free_boundary_verified
+    and not transport.production_claim_allowed
+    and measurement.converged
+    and measurement.transport_verified
+    and measurement.chain_promotion_blocked
+    and not measurement.physical_closure_verified
+    and not measurement.production_claim_allowed
+  )
+  return transport, measurement.as_report(), accepted, None
+
+
 @dataclass(frozen=True, slots=True)
 class MocChainPlannerResult:
   """A chain result plus planner provenance and callback audit steps."""
@@ -1273,6 +1331,7 @@ class MocFirstCellTerminalClosurePlannerResult:
   diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
   mixed_regime_planar_handoff: MocMixedRegimePlanarSolveResult | None = None
   mixed_regime_entropy_handoff: MocMixedRegimeEntropyHandoffResult | None = None
+  mixed_regime_entropy_transport: MocMixedRegimeEntropyTransportResult | None = None
 
   def __post_init__(self) -> None:
     if not isinstance(self.terminal, MocFirstCellTerminalClosureResult):
@@ -1309,6 +1368,40 @@ class MocFirstCellTerminalClosurePlannerResult:
         'mixed_regime_entropy_handoff must be a '
         'MocMixedRegimeEntropyHandoffResult or None'
       )
+    if self.mixed_regime_entropy_transport is not None:
+      if not isinstance(
+        self.mixed_regime_entropy_transport,
+        MocMixedRegimeEntropyTransportResult,
+      ):
+        raise TypeError(
+          'mixed_regime_entropy_transport must be a '
+          'MocMixedRegimeEntropyTransportResult or None'
+        )
+      if self.mixed_regime_entropy_handoff is None:
+        raise ValueError(
+          'mixed_regime_entropy_transport requires an entropy handoff'
+        )
+      if self.mixed_regime_entropy_transport.handoff != (
+        self.mixed_regime_entropy_handoff
+      ) or self.mixed_regime_entropy_transport.request != (
+        self.mixed_regime_entropy_handoff.request
+      ):
+        raise ValueError(
+          'mixed_regime_entropy_transport must retain the exact entropy seam'
+        )
+      expected_field = (
+        None
+        if self.mixed_regime_planar_handoff is None
+        else self.mixed_regime_planar_handoff.field
+      )
+      if expected_field is None and self.mixed_regime_closure is not None:
+        expected_field = self.mixed_regime_closure.field
+      if expected_field is not None and (
+        self.mixed_regime_entropy_transport.field != expected_field
+      ):
+        raise ValueError(
+          'mixed_regime_entropy_transport must retain the exact downstream field'
+        )
     if not isinstance(self.planner_kind, MocChainPlannerKind):
       raise TypeError('planner_kind must be a MocChainPlannerKind')
     object.__setattr__(self, 'claim_status', str(self.claim_status))
@@ -1356,6 +1449,15 @@ class MocFirstCellTerminalClosurePlannerResult:
       and self.diagnostics.get('mixed_regime_entropy_handoff_verified') is True
     )
 
+  @property
+  def mixed_regime_entropy_transport_verified(self) -> bool:
+    """Whether the explicit entropy-to-field seam passed its audit."""
+
+    return bool(
+      self.mixed_regime_entropy_transport is not None
+      and self.diagnostics.get('mixed_regime_entropy_transport_verified') is True
+    )
+
   def as_report(self) -> dict[str, Any]:
     return {
       'planner_kind': self.planner_kind.value,
@@ -1368,6 +1470,9 @@ class MocFirstCellTerminalClosurePlannerResult:
       'chain_promotion_blocked': self.chain_promotion_blocked,
       'mixed_regime_entropy_handoff_verified': (
         self.mixed_regime_entropy_handoff_verified
+      ),
+      'mixed_regime_entropy_transport_verified': (
+        self.mixed_regime_entropy_transport_verified
       ),
       'termination': (
         None if self.termination is None else self.termination.as_report()
@@ -1387,6 +1492,11 @@ class MocFirstCellTerminalClosurePlannerResult:
         None
         if self.mixed_regime_entropy_handoff is None
         else self.mixed_regime_entropy_handoff.as_report()
+      ),
+      'mixed_regime_entropy_transport': (
+        None
+        if self.mixed_regime_entropy_transport is None
+        else self.mixed_regime_entropy_transport.as_report()
       ),
       'diagnostics': dict(self.diagnostics),
     }
@@ -1413,6 +1523,7 @@ class MocPhysicalPostShockTerminalPatchPlannerResult:
   diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
   mixed_regime_planar_handoff: MocMixedRegimePlanarSolveResult | None = None
   mixed_regime_entropy_handoff: MocMixedRegimeEntropyHandoffResult | None = None
+  mixed_regime_entropy_transport: MocMixedRegimeEntropyTransportResult | None = None
 
   def __post_init__(self) -> None:
     if not isinstance(self.chain_planner, MocChainPlannerResult):
@@ -1508,6 +1619,40 @@ class MocPhysicalPostShockTerminalPatchPlannerResult:
         raise ValueError(
           'mixed_regime_entropy_handoff must retain the exact transition seam'
         )
+    if self.mixed_regime_entropy_transport is not None:
+      if not isinstance(
+        self.mixed_regime_entropy_transport,
+        MocMixedRegimeEntropyTransportResult,
+      ):
+        raise TypeError(
+          'mixed_regime_entropy_transport must be a '
+          'MocMixedRegimeEntropyTransportResult or None'
+        )
+      if self.mixed_regime_entropy_handoff is None:
+        raise ValueError(
+          'mixed_regime_entropy_transport requires an entropy handoff'
+        )
+      if self.mixed_regime_entropy_transport.handoff != (
+        self.mixed_regime_entropy_handoff
+      ) or self.mixed_regime_entropy_transport.request != (
+        self.mixed_regime_entropy_handoff.request
+      ):
+        raise ValueError(
+          'mixed_regime_entropy_transport must retain the exact entropy seam'
+        )
+      expected_field = (
+        None
+        if self.mixed_regime_planar_handoff is None
+        else self.mixed_regime_planar_handoff.field
+      )
+      if expected_field is None and self.mixed_regime_closure is not None:
+        expected_field = self.mixed_regime_closure.field
+      if expected_field is not None and (
+        self.mixed_regime_entropy_transport.field != expected_field
+      ):
+        raise ValueError(
+          'mixed_regime_entropy_transport must retain the exact downstream field'
+        )
     if not isinstance(self.planner_kind, MocChainPlannerKind):
       raise TypeError('planner_kind must be a MocChainPlannerKind')
     object.__setattr__(self, 'claim_status', str(self.claim_status))
@@ -1588,6 +1733,15 @@ class MocPhysicalPostShockTerminalPatchPlannerResult:
       and self.diagnostics.get('mixed_regime_entropy_handoff_verified') is True
     )
 
+  @property
+  def mixed_regime_entropy_transport_verified(self) -> bool:
+    """Whether the explicit entropy-to-field seam passed its audit."""
+
+    return bool(
+      self.mixed_regime_entropy_transport is not None
+      and self.diagnostics.get('mixed_regime_entropy_transport_verified') is True
+    )
+
   def as_report(self) -> dict[str, Any]:
     return {
       'planner_kind': self.planner_kind.value,
@@ -1627,10 +1781,18 @@ class MocPhysicalPostShockTerminalPatchPlannerResult:
       'mixed_regime_entropy_handoff_verified': (
         self.mixed_regime_entropy_handoff_verified
       ),
+      'mixed_regime_entropy_transport_verified': (
+        self.mixed_regime_entropy_transport_verified
+      ),
       'mixed_regime_entropy_handoff': (
         None
         if self.mixed_regime_entropy_handoff is None
         else self.mixed_regime_entropy_handoff.as_report()
+      ),
+      'mixed_regime_entropy_transport': (
+        None
+        if self.mixed_regime_entropy_transport is None
+        else self.mixed_regime_entropy_transport.as_report()
       ),
       'diagnostics': dict(self.diagnostics),
     }
@@ -1762,6 +1924,27 @@ class MocAmbientClosedPostShockChainTerminalPlannerResult:
     )
 
   @property
+  def mixed_regime_entropy_transport(
+    self,
+  ) -> MocMixedRegimeEntropyTransportResult | None:
+    """Return the optional entropy-to-field seam beside the prefix."""
+
+    return (
+      None
+      if self.terminal_planner is None
+      else self.terminal_planner.mixed_regime_entropy_transport
+    )
+
+  @property
+  def mixed_regime_entropy_transport_verified(self) -> bool:
+    """Whether the terminal entropy-to-field seam passed its audit."""
+
+    return bool(
+      self.terminal_planner is not None
+      and self.terminal_planner.mixed_regime_entropy_transport_verified
+    )
+
+  @property
   def chain_promotion_blocked(self) -> bool:
     """A terminal mixed-regime result cannot seed another shock cell."""
 
@@ -1800,6 +1983,14 @@ class MocAmbientClosedPostShockChainTerminalPlannerResult:
         None
         if self.mixed_regime_entropy_handoff is None
         else self.mixed_regime_entropy_handoff.as_report()
+      ),
+      'mixed_regime_entropy_transport_verified': (
+        self.mixed_regime_entropy_transport_verified
+      ),
+      'mixed_regime_entropy_transport': (
+        None
+        if self.mixed_regime_entropy_transport is None
+        else self.mixed_regime_entropy_transport.as_report()
       ),
       'cell_count': self.cell_count,
       'chain_promotion_blocked': self.chain_promotion_blocked,
@@ -1934,6 +2125,8 @@ def plan_first_cell_terminal_closure(
     MocMixedRegimeFieldResult | None,
   ] | None = None,
   use_integrated_flux: bool = False,
+  mixed_regime_entropy_source_arc_length_m: Sequence[float] | None = None,
+  mixed_regime_entropy_streamline_ids: Sequence[int] | None = None,
   claim_status: str | None = None,
 ) -> MocFirstCellTerminalClosurePlannerResult:
   """Audit a first-cell terminal and optionally submit its exact scalar seam.
@@ -1991,6 +2184,15 @@ def plan_first_cell_terminal_closure(
     raise ValueError('supply only one of mock, solver, or solve_field')
   if solve_field is not None and not callable(solve_field):
     raise TypeError('solve_field must be callable when supplied')
+  if (
+    mixed_regime_entropy_source_arc_length_m is None
+  ) != (
+    mixed_regime_entropy_streamline_ids is None
+  ):
+    raise ValueError(
+      'mixed_regime_entropy_source_arc_length_m and '
+      'mixed_regime_entropy_streamline_ids must be supplied together'
+    )
 
   planner_kind = (
     MocChainPlannerKind.PRESCRIBED_BOUNDARY_MOCK
@@ -2004,6 +2206,11 @@ def plan_first_cell_terminal_closure(
     'mixed_regime_entropy_handoff_requested': False,
     'mixed_regime_entropy_handoff_verified': False,
     'mixed_regime_entropy_handoff_measurement': None,
+    'mixed_regime_entropy_transport_requested': (
+      mixed_regime_entropy_source_arc_length_m is not None
+    ),
+    'mixed_regime_entropy_transport_verified': False,
+    'mixed_regime_entropy_transport_measurement': None,
     'chain_promotion_blocked': terminal.chain_promotion_blocked,
     'terminal_physical_closure_verified': terminal.physical_closure_verified,
   }
@@ -2106,6 +2313,50 @@ def plan_first_cell_terminal_closure(
             mixed_regime_closure.message
           )
 
+  mixed_regime_entropy_transport: MocMixedRegimeEntropyTransportResult | None = None
+  if mixed_regime_entropy_source_arc_length_m is not None:
+    if mixed_regime_entropy_handoff is None:
+      diagnostics['mixed_regime_entropy_transport_skipped'] = (
+        'entropy handoff was not available for the explicit source map'
+      )
+    elif mixed_regime_closure is None or mixed_regime_closure.field is None:
+      diagnostics['mixed_regime_entropy_transport_skipped'] = (
+        'mixed-regime solver did not return a scalar field for the explicit '
+        'source map'
+      )
+    else:
+      transport_request = mixed_regime_entropy_handoff.request
+      if not isinstance(transport_request, MocMixedRegimePerimeterRequest):
+        diagnostics['mixed_regime_entropy_transport_skipped'] = (
+          'entropy handoff did not retain a typed perimeter request'
+        )
+      else:
+        (
+          mixed_regime_entropy_transport,
+          transport_measurement,
+          transport_verified,
+          transport_error,
+        ) = _audit_mixed_regime_entropy_transport(
+          transport_request,
+          mixed_regime_entropy_handoff,
+          mixed_regime_closure.field,
+          mixed_regime_entropy_source_arc_length_m,
+          mixed_regime_entropy_streamline_ids or (),
+        )
+        diagnostics['mixed_regime_entropy_transport_verified'] = (
+          transport_verified
+        )
+        if transport_measurement is not None:
+          diagnostics['mixed_regime_entropy_transport_measurement'] = (
+            transport_measurement
+          )
+        if transport_error is not None:
+          diagnostics['mixed_regime_entropy_transport_error'] = transport_error
+        if mixed_regime_entropy_transport is not None:
+          diagnostics['mixed_regime_entropy_transport'] = (
+            mixed_regime_entropy_transport.as_report()
+          )
+
   try:
     termination = attached_terminal.as_chain_termination_decision()
   except ValueError as error:
@@ -2143,6 +2394,7 @@ def plan_first_cell_terminal_closure(
     ),
     diagnostics=diagnostics,
     mixed_regime_entropy_handoff=mixed_regime_entropy_handoff,
+    mixed_regime_entropy_transport=mixed_regime_entropy_transport,
   )
 
 
@@ -2230,6 +2482,8 @@ def plan_first_cell_terminal_closure_with_planar_handoff(
   pressure_tolerance: float = 1.0e-8,
   normal_flux_tolerance: float = 1.0e-8,
   solver_model: str = 'caller-supplied-planar-mixed-regime-solver',
+  mixed_regime_entropy_source_arc_length_m: Sequence[float] | None = None,
+  mixed_regime_entropy_streamline_ids: Sequence[int] | None = None,
 ) -> MocFirstCellTerminalClosurePlannerResult:
   """Audit a first cell against an explicit downstream planar handoff.
 
@@ -2243,6 +2497,15 @@ def plan_first_cell_terminal_closure_with_planar_handoff(
   if not isinstance(terminal, MocFirstCellTerminalClosureResult):
     raise TypeError(
       'terminal must be a MocFirstCellTerminalClosureResult'
+    )
+  if (
+    mixed_regime_entropy_source_arc_length_m is None
+  ) != (
+    mixed_regime_entropy_streamline_ids is None
+  ):
+    raise ValueError(
+      'mixed_regime_entropy_source_arc_length_m and '
+      'mixed_regime_entropy_streamline_ids must be supplied together'
     )
   request = terminal.mixed_regime_perimeter_request()
   handoff = run_mixed_regime_planar_field_solver(
@@ -2269,6 +2532,43 @@ def plan_first_cell_terminal_closure_with_planar_handoff(
       handoff.physical_closure_verified
     ),
   })
+  mixed_regime_entropy_transport: MocMixedRegimeEntropyTransportResult | None = None
+  if mixed_regime_entropy_source_arc_length_m is not None:
+    entropy_handoff = base.mixed_regime_entropy_handoff
+    if entropy_handoff is None:
+      diagnostics['mixed_regime_entropy_transport_skipped'] = (
+        'entropy handoff was not available for the explicit source map'
+      )
+    elif handoff.field is None:
+      diagnostics['mixed_regime_entropy_transport_skipped'] = (
+        'planar handoff did not return a scalar field for the explicit source map'
+      )
+    else:
+      (
+        mixed_regime_entropy_transport,
+        transport_measurement,
+        transport_verified,
+        transport_error,
+      ) = _audit_mixed_regime_entropy_transport(
+        request,
+        entropy_handoff,
+        handoff.field,
+        mixed_regime_entropy_source_arc_length_m,
+        mixed_regime_entropy_streamline_ids or (),
+      )
+      diagnostics['mixed_regime_entropy_transport_verified'] = (
+        transport_verified
+      )
+      if transport_measurement is not None:
+        diagnostics['mixed_regime_entropy_transport_measurement'] = (
+          transport_measurement
+        )
+      if transport_error is not None:
+        diagnostics['mixed_regime_entropy_transport_error'] = transport_error
+      if mixed_regime_entropy_transport is not None:
+        diagnostics['mixed_regime_entropy_transport'] = (
+          mixed_regime_entropy_transport.as_report()
+        )
   return replace(
     base,
     claim_status=(
@@ -2277,6 +2577,7 @@ def plan_first_cell_terminal_closure_with_planar_handoff(
     ),
     diagnostics=diagnostics,
     mixed_regime_planar_handoff=handoff,
+    mixed_regime_entropy_transport=mixed_regime_entropy_transport,
   )
   ####
 
@@ -9896,6 +10197,8 @@ def plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closu
   use_integrated_flux: bool = False,
   attach_mixed_regime_field: bool = False,
   free_boundary_refinement_sample_counts: Sequence[int] | None = None,
+  mixed_regime_entropy_source_arc_length_m: Sequence[float] | None = None,
+  mixed_regime_entropy_streamline_ids: Sequence[int] | None = None,
 ) -> MocAmbientClosedPostShockChainTerminalPlannerResult:
   """Continue reflected physical cells, then run one terminal handoff.
 
@@ -9956,6 +10259,15 @@ def plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closu
     raise ValueError('use_integrated_flux requires the solver-generated reference')
   if control_section is not None and (mock is not None or solve_field is not None):
     raise ValueError('control_section is supported only by the solver-generated reference')
+  if (
+    mixed_regime_entropy_source_arc_length_m is None
+  ) != (
+    mixed_regime_entropy_streamline_ids is None
+  ):
+    raise ValueError(
+      'mixed_regime_entropy_source_arc_length_m and '
+      'mixed_regime_entropy_streamline_ids must be supplied together'
+    )
 
   (
     prefix,
@@ -10084,6 +10396,10 @@ def plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closu
     free_boundary_refinement_sample_counts=(
       free_boundary_refinement_sample_counts
     ),
+    mixed_regime_entropy_source_arc_length_m=(
+      mixed_regime_entropy_source_arc_length_m
+    ),
+    mixed_regime_entropy_streamline_ids=mixed_regime_entropy_streamline_ids,
   )
   diagnostics.update({
     'terminal_planner_kind': terminal.planner_kind.value,
@@ -10376,6 +10692,8 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
   use_integrated_flux: bool = False,
   attach_mixed_regime_field: bool = False,
   free_boundary_refinement_sample_counts: Sequence[int] | None = None,
+  mixed_regime_entropy_source_arc_length_m: Sequence[float] | None = None,
+  mixed_regime_entropy_streamline_ids: Sequence[int] | None = None,
   claim_status: str | None = None,
 ) -> MocPhysicalPostShockTerminalPatchPlannerResult:
   """Plan the terminal transition and exercise its exact mixed-regime seam.
@@ -10435,6 +10753,15 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
     raise ValueError('control_section is supported only by the solver-generated reference')
   if not isinstance(attach_mixed_regime_field, bool):
     raise TypeError('attach_mixed_regime_field must be a bool')
+  if (
+    mixed_regime_entropy_source_arc_length_m is None
+  ) != (
+    mixed_regime_entropy_streamline_ids is None
+  ):
+    raise ValueError(
+      'mixed_regime_entropy_source_arc_length_m and '
+      'mixed_regime_entropy_streamline_ids must be supplied together'
+    )
   refinement_counts: tuple[int, ...] = ()
   if free_boundary_refinement_sample_counts is not None:
     if solver is None:
@@ -10777,6 +11104,44 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
             transition.mixed_regime_field_complete
           )
 
+  mixed_regime_entropy_transport: MocMixedRegimeEntropyTransportResult | None = None
+  if mixed_regime_entropy_source_arc_length_m is not None:
+    if mixed_regime_entropy_handoff is None:
+      diagnostics['mixed_regime_entropy_transport_skipped'] = (
+        'entropy handoff was not available for the explicit source map'
+      )
+    elif mixed_regime_closure is None or mixed_regime_closure.field is None:
+      diagnostics['mixed_regime_entropy_transport_skipped'] = (
+        'mixed-regime solver did not return a scalar field for the explicit '
+        'source map'
+      )
+    else:
+      (
+        mixed_regime_entropy_transport,
+        transport_measurement,
+        transport_verified,
+        transport_error,
+      ) = _audit_mixed_regime_entropy_transport(
+        transition.mixed_regime_request,
+        mixed_regime_entropy_handoff,
+        mixed_regime_closure.field,
+        mixed_regime_entropy_source_arc_length_m,
+        mixed_regime_entropy_streamline_ids or (),
+      )
+      diagnostics['mixed_regime_entropy_transport_verified'] = (
+        transport_verified
+      )
+      if transport_measurement is not None:
+        diagnostics['mixed_regime_entropy_transport_measurement'] = (
+          transport_measurement
+        )
+      if transport_error is not None:
+        diagnostics['mixed_regime_entropy_transport_error'] = transport_error
+      if mixed_regime_entropy_transport is not None:
+        diagnostics['mixed_regime_entropy_transport'] = (
+          mixed_regime_entropy_transport.as_report()
+        )
+
   return MocPhysicalPostShockTerminalPatchPlannerResult(
     chain_planner=chain_planner,
     transition=transition,
@@ -10788,6 +11153,7 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
     ),
     diagnostics=diagnostics,
     mixed_regime_entropy_handoff=mixed_regime_entropy_handoff,
+    mixed_regime_entropy_transport=mixed_regime_entropy_transport,
   )
 ####
 
@@ -11035,6 +11401,8 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_planar_handoff(
   planar_pressure_tolerance: float = 1.0e-8,
   planar_normal_flux_tolerance: float = 1.0e-8,
   solver_model: str = 'caller-supplied-planar-mixed-regime-solver',
+  mixed_regime_entropy_source_arc_length_m: Sequence[float] | None = None,
+  mixed_regime_entropy_streamline_ids: Sequence[int] | None = None,
   claim_status: str | None = None,
 ) -> MocPhysicalPostShockTerminalPatchPlannerResult:
   """Audit a planar downstream callback after the terminal patch transition.
@@ -11061,6 +11429,15 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_planar_handoff(
     )
   if not callable(solve_field):
     raise TypeError('solve_field must be callable')
+  if (
+    mixed_regime_entropy_source_arc_length_m is None
+  ) != (
+    mixed_regime_entropy_streamline_ids is None
+  ):
+    raise ValueError(
+      'mixed_regime_entropy_source_arc_length_m and '
+      'mixed_regime_entropy_streamline_ids must be supplied together'
+    )
 
   resolved_claim_status = (
     'continued-terminal-patch-explicit-planar-handoff; canonical-reflected-moc-'
@@ -11117,6 +11494,11 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_planar_handoff(
     'mixed_regime_entropy_handoff_requested': False,
     'mixed_regime_entropy_handoff_verified': False,
     'mixed_regime_entropy_handoff_measurement': None,
+    'mixed_regime_entropy_transport_requested': (
+      mixed_regime_entropy_source_arc_length_m is not None
+    ),
+    'mixed_regime_entropy_transport_verified': False,
+    'mixed_regime_entropy_transport_measurement': None,
   }
   diagnostics.update({
     'mixed_regime_planar_handoff_requested': True,
@@ -11172,6 +11554,42 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_planar_handoff(
       handoff.chain_promotion_blocked
     ),
   })
+  mixed_regime_entropy_transport: MocMixedRegimeEntropyTransportResult | None = None
+  if mixed_regime_entropy_source_arc_length_m is not None:
+    if entropy_handoff is None:
+      diagnostics['mixed_regime_entropy_transport_skipped'] = (
+        'entropy handoff was not available for the explicit source map'
+      )
+    elif handoff.field is None:
+      diagnostics['mixed_regime_entropy_transport_skipped'] = (
+        'planar handoff did not return a scalar field for the explicit source map'
+      )
+    else:
+      (
+        mixed_regime_entropy_transport,
+        transport_measurement,
+        transport_verified,
+        transport_error,
+      ) = _audit_mixed_regime_entropy_transport(
+        transition.mixed_regime_request,
+        entropy_handoff,
+        handoff.field,
+        mixed_regime_entropy_source_arc_length_m,
+        mixed_regime_entropy_streamline_ids or (),
+      )
+      diagnostics['mixed_regime_entropy_transport_verified'] = (
+        transport_verified
+      )
+      if transport_measurement is not None:
+        diagnostics['mixed_regime_entropy_transport_measurement'] = (
+          transport_measurement
+        )
+      if transport_error is not None:
+        diagnostics['mixed_regime_entropy_transport_error'] = transport_error
+      if mixed_regime_entropy_transport is not None:
+        diagnostics['mixed_regime_entropy_transport'] = (
+          mixed_regime_entropy_transport.as_report()
+        )
   return MocPhysicalPostShockTerminalPatchPlannerResult(
     chain_planner=chain_planner,
     transition=transition,
@@ -11182,6 +11600,7 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_planar_handoff(
     diagnostics=diagnostics,
     mixed_regime_planar_handoff=handoff,
     mixed_regime_entropy_handoff=entropy_handoff,
+    mixed_regime_entropy_transport=mixed_regime_entropy_transport,
   )
 ####
 
