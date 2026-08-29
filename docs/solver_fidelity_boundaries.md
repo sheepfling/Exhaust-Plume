@@ -81,7 +81,14 @@ as evidence and leaves the terminal's open-closure decision unchanged; this
 is the boundary for a future genuine planar mixed-regime solver, not a relabel
 for the scalar reference. The field result must also retain the exact
 control-section object it consumed; a callback that returns a valid scalar
-field while ignoring that section is rejected as a seam failure.
+field while ignoring that section is rejected as a seam failure. The
+continued-prefix counterpart,
+``plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closure_with_planar_handoff``,
+repeats the same prefix audit and passes the exact terminal request from the
+last accepted physical field into that callback. Its planar result remains
+beside the supersonic chain, with ``physical_closure_verified=false`` and
+``chain_promotion_blocked=true``; it is not a new chain cell or a provider
+promotion path.
 
 ## Planar MOC foundation
 

@@ -49,6 +49,7 @@ from exhaust_plume.models.moc import (
   plan_ambient_closed_post_shock_chain,
   plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closure,
   plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closure_with_mixed_regime,
+  plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closure_with_planar_handoff,
   plan_solver_generated_ambient_closed_post_shock_chain_reference,
   plan_prescribed_ambient_closed_post_shock_chain_mock,
   plan_ambient_closed_post_shock_chain_terminal_patch,
@@ -835,6 +836,97 @@ def test_continued_chain_planner_accepts_integrated_control_section_reference() 
   assert free_boundary.control_section_flux_verified
   assert planner.terminal_planner.diagnostics[
     'free_boundary_reference_audit_accepted'
+  ] is True
+  assert planner.chain_promotion_blocked
+  assert planner.production_claim_allowed is False
+
+
+def test_continued_chain_planner_records_planar_handoff_after_prefix() -> None:
+  field = _canonical_ambient_closed_field()
+  fixture = MocTerminalReflectionPatchAmbientClosureChainReference(
+    total_cell_count=3,
+  )
+  mock = MocPrescribedMixedRegimeClosureMock(
+    streamwise_length_m=0.02,
+    transverse_length_m=0.01,
+    radial_divisions=2,
+  )
+  prefix_probe = (
+    plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closure_with_mixed_regime(
+      field,
+      start_x_m=0.5,
+      end_x_m=8.0,
+      terminal_end_x_m=5.0,
+      reference=fixture,
+      policy=MocChainContinuationPolicy(max_cells=5, require_state_carry=True),
+      mock=mock,
+    )
+  )
+  assert prefix_probe.terminal_planner is not None
+  transition = prefix_probe.terminal_planner.transition
+  assert transition is not None
+  request = transition.as_mixed_regime_perimeter_request()
+  terminal = request.terminal
+  assert terminal.upstream_state is not None
+  terminal_x, terminal_y = request.terminal_point_m
+  section_points = (
+    (terminal_x + 0.02, terminal_y - 0.01),
+    (terminal_x + 0.02, terminal_y),
+    (terminal_x + 0.02, terminal_y + 0.01),
+  )
+  section = MocMixedRegimeControlSection(
+    points_m=section_points,
+    samples=tuple(
+      MocMixedRegimeFieldSample(
+        point_m=point,
+        mach=terminal.downstream_mach,
+        flow_angle_rad=terminal.downstream_flow_angle_rad,
+        static_pressure_Pa=terminal.downstream_pressure_Pa,
+        total_pressure_Pa=terminal.downstream_total_pressure_Pa,
+        gamma=terminal.upstream_state.gamma,
+      )
+      for point in section_points
+    ),
+    normal_angle_rad=0.0,
+  )
+  perimeter_spec = mock.specification(request)
+
+  def solve_field(received_request, received_section, received_spec):
+    assert received_spec == perimeter_spec
+    closure = mock.solve(received_request)
+    assert closure.field is not None
+    return replace(closure.field, control_section=received_section)
+
+  planner = (
+    plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closure_with_planar_handoff(
+      field,
+      start_x_m=0.5,
+      end_x_m=8.0,
+      terminal_end_x_m=5.0,
+      reference=MocTerminalReflectionPatchAmbientClosureChainReference(
+        total_cell_count=3,
+      ),
+      policy=MocChainContinuationPolicy(max_cells=5, require_state_carry=True),
+      control_section=section,
+      perimeter_spec=perimeter_spec,
+      solve_field=solve_field,
+    )
+  )
+
+  assert planner.resolved
+  assert planner.physical_termination
+  assert planner.physical_closure_verified is False
+  assert planner.diagnostics['prefix_planner_audit_accepted'] is True
+  assert planner.diagnostics['prefix_physical_field_audit_accepted'] is True
+  assert planner.terminal_planner is not None
+  handoff = planner.terminal_planner.mixed_regime_planar_handoff
+  assert handoff is not None
+  assert handoff.converged
+  assert handoff.handoff_verified
+  assert handoff.section_is_varying is False
+  assert handoff.physical_closure_verified is False
+  assert planner.diagnostics[
+    'terminal_mixed_regime_planar_handoff_verified'
   ] is True
   assert planner.chain_promotion_blocked
   assert planner.production_claim_allowed is False

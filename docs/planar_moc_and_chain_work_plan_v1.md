@@ -2047,3 +2047,18 @@ the fast basic visualization/reduced-order providers are unchanged. This
 extends the planner mock and continued-cell orchestration seam, but does not
 close the canonical reflected 2-D free-boundary/entropy solve or provide the
 missing indexed external observations required for promotion.
+
+## Continued-chain planar handoff checkpoint
+
+The continued-prefix orchestration now has a dedicated planar handoff entry
+point. It runs the same fresh reflected physical-field prefix audit, passes
+the exact terminal request from the last accepted field to the callback, and
+retains the callback's control-section/perimeter result beside—not inside—the
+supersonic chain. This makes the planner mock, scalar/integrated-flux
+references, and explicit planar callback comparable at the same terminal
+seam.
+
+The callback remains caller-owned research evidence. A passing local planar
+field does not close the canonical reflected free boundary, does not create a
+new shock cell, and cannot promote the basic visualization, reduced-order,
+signature, ray, or focal-plane-array lanes.
