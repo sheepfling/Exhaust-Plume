@@ -16,7 +16,7 @@ promotion.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from hashlib import sha256
 from math import atan2, cos, hypot, isfinite, sin, sqrt
@@ -33,10 +33,17 @@ from exhaust_plume.models.moc.euler_ambient_field import (
   MocEulerAmbientBoundaryMarchResult,
   MocEulerAmbientShockFieldResult,
 )
+from exhaust_plume.models.moc.euler_post_shock import (
+  MocEulerPostShockFieldResult,
+)
 from exhaust_plume.models.moc.euler_shock_boundary import (
   MocEulerShockBoundaryOrientation,
 )
-from exhaust_plume.models.moc.primitives import prandtl_meyer_angle_rad
+from exhaust_plume.models.moc.primitives import (
+  CharacteristicFamily,
+  CharacteristicState,
+  prandtl_meyer_angle_rad,
+)
 from exhaust_plume.models.moc.topology import validate_moc_mesh
 
 __all__ = (
@@ -69,6 +76,14 @@ __all__ = (
   'MocEulerAmbientShockFieldChainAuditStatus',
   'MocEulerAmbientShockFieldChainAudit',
   'measure_moc_euler_ambient_shock_field_chain',
+  'MOC_EULER_POST_SHOCK_FIELD_AUDIT_OPERATOR_ID',
+  'MocEulerPostShockFieldAuditStatus',
+  'MocEulerPostShockFieldAudit',
+  'measure_moc_euler_post_shock_field',
+  'MOC_EULER_POST_SHOCK_FIELD_CHAIN_AUDIT_OPERATOR_ID',
+  'MocEulerPostShockFieldChainAuditStatus',
+  'MocEulerPostShockFieldChainAudit',
+  'measure_moc_euler_post_shock_field_chain',
 )
 
 
@@ -4252,5 +4267,1028 @@ def measure_moc_euler_ambient_shock_field_chain(
       'local field evidence, fresh domains, exact frontier links, and the '
       'typed non-physical stop; attachment-aware remesh and reflected closure '
       'remain pending'
+    ),
+  )
+
+
+MOC_EULER_POST_SHOCK_FIELD_AUDIT_OPERATOR_ID = (
+  'op.moc.euler.post-shock-field-audit'
+)
+MOC_EULER_POST_SHOCK_FIELD_CHAIN_AUDIT_OPERATOR_ID = (
+  'op.moc.euler.post-shock-field-chain-audit'
+)
+
+
+class MocEulerPostShockFieldAuditStatus(str, Enum):
+  """Outcome of independently auditing a local post-shock field."""
+
+  CONVERGED_LOCAL_AUDIT = 'converged_euler_post_shock_field_audit'
+  INVALID_INPUT = 'invalid_input'
+  SHOCK_FAILURE = 'euler_post_shock_field_audit_shock_failure'
+  INVARIANT_FAILURE = 'euler_post_shock_field_audit_invariant_failure'
+  GEOMETRY_FAILURE = 'euler_post_shock_field_audit_geometry_failure'
+  TOPOLOGY_FAILURE = 'euler_post_shock_field_audit_topology_failure'
+  CELL_RESIDUAL_FAILURE = 'euler_post_shock_field_audit_cell_residual_failure'
+  FLAG_FAILURE = 'euler_post_shock_field_audit_flag_failure'
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerPostShockFieldAudit:
+  """Independent geometry, shock-jump, and cell-residual evidence."""
+
+  status: MocEulerPostShockFieldAuditStatus
+  field_status: str | None
+  shock_sample_count: int
+  node_count: int
+  cell_count: int
+  shock_jump_mass_residuals: tuple[float, ...] = ()
+  shock_jump_momentum_residuals: tuple[float, ...] = ()
+  shock_jump_energy_residuals: tuple[float, ...] = ()
+  centerline_invariant_residuals: tuple[float, ...] = ()
+  node_invariant_residuals: tuple[float, ...] = ()
+  cell_euler_residuals: tuple[float, ...] = ()
+  maximum_shock_jump_mass_residual: float | None = None
+  maximum_shock_jump_momentum_residual: float | None = None
+  maximum_shock_jump_energy_residual: float | None = None
+  maximum_centerline_invariant_residual: float | None = None
+  maximum_node_invariant_residual: float | None = None
+  maximum_cell_euler_residual: float | None = None
+  shock_geometry_verified: bool = False
+  shock_jump_verified: bool = False
+  uniform_state_verified: bool = False
+  centerline_geometry_verified: bool = False
+  interior_geometry_verified: bool = False
+  topology_verified: bool = False
+  cell_euler_residuals_finite: bool = False
+  cell_euler_residuals_verified: bool = False
+  fidelity_flags_verified: bool = False
+  shock_residual_tolerance: float = 1.0e-8
+  cell_residual_tolerance: float = 1.0e-8
+  position_tolerance_m: float = 1.0e-10
+  invariant_tolerance: float = 1.0e-10
+  state_tolerance: float = 1.0e-10
+  pressure_tolerance: float = 1.0e-8
+  physical_closure_verified: bool = False
+  chain_promotion_blocked: bool = True
+  production_claim_allowed: bool = False
+  message: str = ''
+  operator_id: str = MOC_EULER_POST_SHOCK_FIELD_AUDIT_OPERATOR_ID
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.status, MocEulerPostShockFieldAuditStatus):
+      raise TypeError(
+        'status must be a MocEulerPostShockFieldAuditStatus'
+      )
+    if self.field_status is not None:
+      object.__setattr__(self, 'field_status', str(self.field_status))
+    for name in ('shock_sample_count', 'node_count', 'cell_count'):
+      value = getattr(self, name)
+      if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f'{name} must be a nonnegative integer')
+    for name in (
+      'shock_jump_mass_residuals',
+      'shock_jump_momentum_residuals',
+      'shock_jump_energy_residuals',
+      'centerline_invariant_residuals',
+      'node_invariant_residuals',
+      'cell_euler_residuals',
+    ):
+      values = tuple(float(value) for value in getattr(self, name))
+      if any(not isfinite(value) or value < 0.0 for value in values):
+        raise ValueError(f'{name} must contain finite nonnegative values')
+      object.__setattr__(self, name, values)
+    for name in (
+      'maximum_shock_jump_mass_residual',
+      'maximum_shock_jump_momentum_residual',
+      'maximum_shock_jump_energy_residual',
+      'maximum_centerline_invariant_residual',
+      'maximum_node_invariant_residual',
+      'maximum_cell_euler_residual',
+    ):
+      value = getattr(self, name)
+      if value is not None:
+        numeric = float(value)
+        if not isfinite(numeric) or numeric < 0.0:
+          raise ValueError(f'{name} must be finite and nonnegative when supplied')
+        object.__setattr__(self, name, numeric)
+    for name in (
+      'shock_residual_tolerance',
+      'cell_residual_tolerance',
+      'position_tolerance_m',
+      'invariant_tolerance',
+      'state_tolerance',
+      'pressure_tolerance',
+    ):
+      value = float(getattr(self, name))
+      if not isfinite(value) or value <= 0.0:
+        raise ValueError(f'{name} must be finite and positive')
+      object.__setattr__(self, name, value)
+    for name in (
+      'shock_geometry_verified',
+      'shock_jump_verified',
+      'uniform_state_verified',
+      'centerline_geometry_verified',
+      'interior_geometry_verified',
+      'topology_verified',
+      'cell_euler_residuals_finite',
+      'cell_euler_residuals_verified',
+      'fidelity_flags_verified',
+      'physical_closure_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+    operator_id = str(self.operator_id)
+    if not operator_id:
+      raise ValueError('operator_id must be a non-empty string')
+    object.__setattr__(self, 'operator_id', operator_id)
+    object.__setattr__(self, 'message', str(self.message))
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocEulerPostShockFieldAuditStatus.CONVERGED_LOCAL_AUDIT
+
+  @property
+  def local_consistency_verified(self) -> bool:
+    return bool(
+      self.converged
+      and self.shock_geometry_verified
+      and self.shock_jump_verified
+      and self.uniform_state_verified
+      and self.centerline_geometry_verified
+      and self.interior_geometry_verified
+      and self.topology_verified
+      and self.cell_euler_residuals_verified
+      and self.fidelity_flags_verified
+    )
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'operator_id': self.operator_id,
+      'converged': self.converged,
+      'local_consistency_verified': self.local_consistency_verified,
+      'field_status': self.field_status,
+      'shock_sample_count': self.shock_sample_count,
+      'node_count': self.node_count,
+      'cell_count': self.cell_count,
+      'shock_jump_mass_residuals': list(self.shock_jump_mass_residuals),
+      'shock_jump_momentum_residuals': list(self.shock_jump_momentum_residuals),
+      'shock_jump_energy_residuals': list(self.shock_jump_energy_residuals),
+      'centerline_invariant_residuals': list(self.centerline_invariant_residuals),
+      'node_invariant_residuals': list(self.node_invariant_residuals),
+      'cell_euler_residuals': list(self.cell_euler_residuals),
+      'maximum_shock_jump_mass_residual': self.maximum_shock_jump_mass_residual,
+      'maximum_shock_jump_momentum_residual': self.maximum_shock_jump_momentum_residual,
+      'maximum_shock_jump_energy_residual': self.maximum_shock_jump_energy_residual,
+      'maximum_centerline_invariant_residual': self.maximum_centerline_invariant_residual,
+      'maximum_node_invariant_residual': self.maximum_node_invariant_residual,
+      'maximum_cell_euler_residual': self.maximum_cell_euler_residual,
+      'checks': {
+        'shock_geometry_verified': self.shock_geometry_verified,
+        'shock_jump_verified': self.shock_jump_verified,
+        'uniform_state_verified': self.uniform_state_verified,
+        'centerline_geometry_verified': self.centerline_geometry_verified,
+        'interior_geometry_verified': self.interior_geometry_verified,
+        'topology_verified': self.topology_verified,
+        'cell_euler_residuals_finite': self.cell_euler_residuals_finite,
+        'cell_euler_residuals_verified': self.cell_euler_residuals_verified,
+        'fidelity_flags_verified': self.fidelity_flags_verified,
+        'local_consistency_verified': self.local_consistency_verified,
+        'physical_closure_verified': self.physical_closure_verified,
+        'chain_promotion_blocked': self.chain_promotion_blocked,
+        'production_claim_allowed': self.production_claim_allowed,
+      },
+      'tolerances': {
+        'shock_residual_tolerance': self.shock_residual_tolerance,
+        'cell_residual_tolerance': self.cell_residual_tolerance,
+        'position_tolerance_m': self.position_tolerance_m,
+        'invariant_tolerance': self.invariant_tolerance,
+        'state_tolerance': self.state_tolerance,
+        'pressure_tolerance': self.pressure_tolerance,
+      },
+      'canonical_euler_verified': False,
+      'canonical_free_boundary_verified': False,
+      'external_validation_verified': False,
+      'claim_status': (
+        'independent-local-euler-post-shock-field-audit; ambient/free-boundary '
+        'closure, physical chain promotion, and external validation remain pending'
+      ),
+      'message': self.message,
+    }
+
+
+def _post_shock_field_audit_failure(
+  status: MocEulerPostShockFieldAuditStatus,
+  message: str,
+  *,
+  field_status: str | None = None,
+  shock_sample_count: int = 0,
+  node_count: int = 0,
+  cell_count: int = 0,
+  shock_jump_mass_residuals: Sequence[float] = (),
+  shock_jump_momentum_residuals: Sequence[float] = (),
+  shock_jump_energy_residuals: Sequence[float] = (),
+  centerline_invariant_residuals: Sequence[float] = (),
+  node_invariant_residuals: Sequence[float] = (),
+  cell_euler_residuals: Sequence[float] = (),
+  shock_geometry_verified: bool = False,
+  shock_jump_verified: bool = False,
+  uniform_state_verified: bool = False,
+  centerline_geometry_verified: bool = False,
+  interior_geometry_verified: bool = False,
+  topology_verified: bool = False,
+  cell_euler_residuals_finite: bool = False,
+  cell_euler_residuals_verified: bool = False,
+  fidelity_flags_verified: bool = False,
+  shock_residual_tolerance: float = 1.0e-8,
+  cell_residual_tolerance: float = 1.0e-8,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  state_tolerance: float = 1.0e-10,
+  pressure_tolerance: float = 1.0e-8,
+) -> MocEulerPostShockFieldAudit:
+  values = tuple(
+    tuple(float(value) for value in sequence)
+    for sequence in (
+      shock_jump_mass_residuals,
+      shock_jump_momentum_residuals,
+      shock_jump_energy_residuals,
+      centerline_invariant_residuals,
+      node_invariant_residuals,
+      cell_euler_residuals,
+    )
+  )
+  maxima = tuple(max(sequence, default=None) for sequence in values)
+  return MocEulerPostShockFieldAudit(
+    status=status,
+    field_status=field_status,
+    shock_sample_count=shock_sample_count,
+    node_count=node_count,
+    cell_count=cell_count,
+    shock_jump_mass_residuals=values[0],
+    shock_jump_momentum_residuals=values[1],
+    shock_jump_energy_residuals=values[2],
+    centerline_invariant_residuals=values[3],
+    node_invariant_residuals=values[4],
+    cell_euler_residuals=values[5],
+    maximum_shock_jump_mass_residual=maxima[0],
+    maximum_shock_jump_momentum_residual=maxima[1],
+    maximum_shock_jump_energy_residual=maxima[2],
+    maximum_centerline_invariant_residual=maxima[3],
+    maximum_node_invariant_residual=maxima[4],
+    maximum_cell_euler_residual=maxima[5],
+    shock_geometry_verified=shock_geometry_verified,
+    shock_jump_verified=shock_jump_verified,
+    uniform_state_verified=uniform_state_verified,
+    centerline_geometry_verified=centerline_geometry_verified,
+    interior_geometry_verified=interior_geometry_verified,
+    topology_verified=topology_verified,
+    cell_euler_residuals_finite=cell_euler_residuals_finite,
+    cell_euler_residuals_verified=cell_euler_residuals_verified,
+    fidelity_flags_verified=fidelity_flags_verified,
+    shock_residual_tolerance=shock_residual_tolerance,
+    cell_residual_tolerance=cell_residual_tolerance,
+    position_tolerance_m=position_tolerance_m,
+    invariant_tolerance=invariant_tolerance,
+    state_tolerance=state_tolerance,
+    pressure_tolerance=pressure_tolerance,
+    message=message,
+  )
+
+
+def _post_shock_characteristic_geometry(
+  source: CharacteristicState,
+  target: CharacteristicState,
+  family: Any,
+) -> tuple[float, float] | None:
+  first_direction = source.direction(family)
+  second_direction = target.direction(family)
+  averaged = (
+    0.5 * (first_direction[0] + second_direction[0]),
+    0.5 * (first_direction[1] + second_direction[1]),
+  )
+  norm = hypot(*averaged)
+  if norm <= 0.0 or not isfinite(norm):
+    return None
+  displacement = (target.x_m - source.x_m, target.y_m - source.y_m)
+  unit = (averaged[0] / norm, averaged[1] / norm)
+  return (
+    displacement[0] * unit[0] + displacement[1] * unit[1],
+    abs(displacement[0] * unit[1] - displacement[1] * unit[0]),
+  )
+
+
+def measure_moc_euler_post_shock_field(
+  field: MocEulerPostShockFieldResult,
+  *,
+  shock_residual_tolerance: float = 1.0e-8,
+  cell_residual_tolerance: float = 1.0e-8,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  state_tolerance: float = 1.0e-10,
+  pressure_tolerance: float = 1.0e-8,
+) -> MocEulerPostShockFieldAudit:
+  """Remeasure the local field without invoking its assembler or planner."""
+
+  if not isinstance(field, MocEulerPostShockFieldResult):
+    return _post_shock_field_audit_failure(
+      MocEulerPostShockFieldAuditStatus.INVALID_INPUT,
+      'field must be a MocEulerPostShockFieldResult',
+    )
+  try:
+    shock_tolerance = float(shock_residual_tolerance)
+    cell_tolerance = float(cell_residual_tolerance)
+    position_tolerance = float(position_tolerance_m)
+    invariant_tolerance_value = float(invariant_tolerance)
+    state_tolerance_value = float(state_tolerance)
+    pressure_tolerance_value = float(pressure_tolerance)
+  except (TypeError, ValueError):
+    return _post_shock_field_audit_failure(
+      MocEulerPostShockFieldAuditStatus.INVALID_INPUT,
+      'post-shock field audit tolerances must be numeric',
+      field_status=field.status.value,
+    )
+  if any(
+    not isfinite(value) or value <= 0.0
+    for value in (
+      shock_tolerance,
+      cell_tolerance,
+      position_tolerance,
+      invariant_tolerance_value,
+      state_tolerance_value,
+      pressure_tolerance_value,
+    )
+  ):
+    raise ValueError('post-shock field audit tolerances must be finite and positive')
+
+  shock = field.shock_boundary
+  points = tuple(field.shock_boundary_points_m)
+  states = tuple(field.shock_boundary_states)
+  pressures = tuple(field.shock_boundary_total_pressure_Pa)
+  common = {
+    'field_status': field.status.value,
+    'shock_sample_count': len(points),
+    'node_count': field.node_count,
+    'cell_count': field.cell_count,
+    'shock_residual_tolerance': shock_tolerance,
+    'cell_residual_tolerance': cell_tolerance,
+    'position_tolerance_m': position_tolerance,
+    'invariant_tolerance': invariant_tolerance_value,
+    'state_tolerance': state_tolerance_value,
+    'pressure_tolerance': pressure_tolerance_value,
+  }
+  if shock is None or len(points) < 3:
+    return _post_shock_field_audit_failure(
+      MocEulerPostShockFieldAuditStatus.SHOCK_FAILURE,
+      'local post-shock audit requires a retained shock boundary with at least three samples',
+      **common,
+    )
+  if len(states) != len(points) or len(pressures) != len(points):
+    return _post_shock_field_audit_failure(
+      MocEulerPostShockFieldAuditStatus.SHOCK_FAILURE,
+      'retained post-shock shock arrays are not aligned',
+      **common,
+    )
+  if (
+    len(shock.upstream_states) != len(points)
+    or len(shock.upstream_total_pressure_Pa) != len(points)
+    or len(shock.downstream_total_pressure_Pa) != len(points)
+    or not shock.converged
+  ):
+    return _post_shock_field_audit_failure(
+      MocEulerPostShockFieldAuditStatus.SHOCK_FAILURE,
+      'retained exact shock data is incomplete for an independent jump audit',
+      **common,
+    )
+
+  shock_geometry_verified = bool(
+    shock.orientation is MocEulerShockBoundaryOrientation.MIXED_CHARACTERISTIC_BOUNDARY
+    and all(
+      hypot(state.x_m - point[0], state.y_m - point[1])
+      <= 10.0 * position_tolerance
+      for point, state in zip(points, states, strict=True)
+    )
+    and all(
+      current[0] > previous[0] + position_tolerance
+      and current[1] <= previous[1] + position_tolerance
+      for previous, current in zip(points[:-1], points[1:], strict=True)
+    )
+    and points[0][1] > position_tolerance
+    and abs(points[-1][1]) <= 10.0 * position_tolerance
+  )
+  jump_residuals = tuple(
+    _shock_jump_residuals(
+      upstream_state,
+      upstream_pressure,
+      downstream_state,
+      downstream_pressure,
+      _shock_tangent(points, index),
+    )
+    for index, (
+      upstream_state,
+      upstream_pressure,
+      downstream_state,
+      downstream_pressure,
+    ) in enumerate(zip(
+      shock.upstream_states,
+      shock.upstream_total_pressure_Pa,
+      states,
+      shock.downstream_total_pressure_Pa,
+      strict=True,
+    ))
+  )
+  shock_jump_mass = tuple(value[0] for value in jump_residuals)
+  shock_jump_momentum = tuple(value[1] for value in jump_residuals)
+  shock_jump_energy = tuple(value[2] for value in jump_residuals)
+  shock_jump_verified = bool(
+    shock_geometry_verified
+    and max((*shock_jump_mass, *shock_jump_momentum, *shock_jump_energy), default=float('inf'))
+    <= shock_tolerance
+  )
+
+  reference_state = states[0]
+  uniform_state_verified = bool(
+    all(
+      max(
+        abs(state.theta_rad - reference_state.theta_rad),
+        abs(state.mach - reference_state.mach),
+        abs(state.gamma - reference_state.gamma),
+      ) <= state_tolerance_value
+      for state in states
+    )
+    and abs(reference_state.theta_rad) <= state_tolerance_value
+    and all(
+      abs(value - pressures[0])
+      <= pressure_tolerance_value * max(1.0, abs(pressures[0]))
+      for value in pressures
+    )
+  )
+  centerline_points = tuple(field.centerline_boundary_points_m)
+  centerline_states = tuple(field.centerline_boundary_states)
+  centerline_invariants = tuple(
+    abs(state.k_minus - shock_state.k_minus)
+    for state, shock_state in zip(centerline_states, states, strict=False)
+  )
+  centerline_geometry_verified = bool(
+    len(centerline_points) == len(points)
+    and len(centerline_states) == len(points)
+    and len(field.centerline_boundary_total_pressure_Pa) == len(points)
+    and all(
+      abs(point[1]) <= 10.0 * position_tolerance
+      and hypot(state.x_m - point[0], state.y_m - point[1])
+      <= 10.0 * position_tolerance
+      for point, state in zip(centerline_points, centerline_states, strict=True)
+    )
+    and all(
+      current[0] > previous[0] + position_tolerance
+      for previous, current in zip(
+        centerline_points[:-1],
+        centerline_points[1:],
+        strict=True,
+      )
+    )
+    and centerline_points
+    and hypot(
+      centerline_points[-1][0] - points[-1][0],
+      centerline_points[-1][1] - points[-1][1],
+    ) <= 10.0 * position_tolerance
+    and max(centerline_invariants, default=float('inf'))
+    <= invariant_tolerance_value
+  )
+
+  node_invariants: list[float] = []
+  interior_geometry_verified = True
+  for node in field.nodes:
+    if (
+      hypot(node.state.x_m - node.point_m[0], node.state.y_m - node.point_m[1])
+      > 10.0 * position_tolerance
+      or not node.point_result.converged
+    ):
+      interior_geometry_verified = False
+    if node.point_result.intersection_status == (
+      'synthetic-uniform-state-terminal-center'
+    ):
+      node_invariants.append(0.0)
+      continue
+    centerline_index = node.centerline_index
+    boundary_index = node.boundary_index
+    if (
+      centerline_index < 0
+      or boundary_index < 0
+      or centerline_index >= len(centerline_states)
+      or boundary_index >= len(states)
+    ):
+      interior_geometry_verified = False
+      continue
+    if centerline_index == boundary_index:
+      node_invariants.append(
+        abs(node.state.k_minus - states[boundary_index].k_minus)
+      )
+      geometry = _post_shock_characteristic_geometry(
+        states[boundary_index],
+        node.state,
+        CharacteristicFamily.MINUS,
+      )
+      if geometry is None or geometry[0] <= position_tolerance:
+        interior_geometry_verified = False
+    elif centerline_index < boundary_index:
+      plus_residual = abs(
+        node.state.k_plus - centerline_states[centerline_index].k_plus
+      )
+      minus_residual = abs(
+        node.state.k_minus - states[boundary_index].k_minus
+      )
+      node_invariants.append(max(plus_residual, minus_residual))
+      plus_geometry = _post_shock_characteristic_geometry(
+        centerline_states[centerline_index],
+        node.state,
+        CharacteristicFamily.PLUS,
+      )
+      minus_geometry = _post_shock_characteristic_geometry(
+        states[boundary_index],
+        node.state,
+        CharacteristicFamily.MINUS,
+      )
+      if (
+        plus_geometry is None
+        or minus_geometry is None
+        or plus_geometry[0] <= position_tolerance
+        or minus_geometry[0] <= position_tolerance
+        or plus_geometry[1] > position_tolerance
+        or minus_geometry[1] > position_tolerance
+      ):
+        interior_geometry_verified = False
+    else:
+      interior_geometry_verified = False
+  if max(node_invariants, default=float('inf')) > invariant_tolerance_value:
+    interior_geometry_verified = False
+
+  topology = validate_moc_mesh(field.cells)
+  topology_verified = bool(
+    topology == field.topology
+    and topology.forms_closed_zone
+    and topology.nonmanifold_edge_count == 0
+  )
+  cell_residuals: list[float] = []
+  cell_residuals_finite = True
+  try:
+    for cell in field.cells:
+      cell_states = tuple(
+        replace(reference_state, x_m=point[0], y_m=point[1])
+        for point in cell.vertices_xr_m
+      )
+      cell_residuals.append(
+        _cell_flux_residual(
+          tuple(cell.vertices_xr_m),
+          cell_states,
+          (pressures[0],) * len(cell.vertices_xr_m),
+        )
+      )
+  except (ArithmeticError, TypeError, ValueError):
+    cell_residuals_finite = False
+  cell_euler_residuals_verified = bool(
+    cell_residuals_finite
+    and len(cell_residuals) == len(field.cells)
+    and all(isfinite(value) for value in cell_residuals)
+    and max(cell_residuals, default=float('inf')) <= cell_tolerance
+  )
+  fidelity_flags_verified = bool(
+    not field.physical_closure_verified
+    and field.chain_promotion_blocked
+    and not field.production_claim_allowed
+    and field.terminal_mesh_completion_synthetic
+  )
+
+  if not shock_jump_verified:
+    status = MocEulerPostShockFieldAuditStatus.SHOCK_FAILURE
+    message = 'independent Rankine--Hugoniot or shock geometry checks failed'
+  elif not uniform_state_verified or max(
+    centerline_invariants,
+    default=float('inf'),
+  ) > invariant_tolerance_value:
+    status = MocEulerPostShockFieldAuditStatus.INVARIANT_FAILURE
+    message = 'uniform-state or centerline characteristic invariants failed'
+  elif not centerline_geometry_verified or not interior_geometry_verified:
+    status = MocEulerPostShockFieldAuditStatus.GEOMETRY_FAILURE
+    message = 'independent post-shock characteristic geometry checks failed'
+  elif not topology_verified:
+    status = MocEulerPostShockFieldAuditStatus.TOPOLOGY_FAILURE
+    message = 'independent post-shock mesh topology check failed'
+  elif not cell_euler_residuals_verified:
+    status = MocEulerPostShockFieldAuditStatus.CELL_RESIDUAL_FAILURE
+    message = 'independent constant-state Euler cell residual check failed'
+  elif not fidelity_flags_verified:
+    status = MocEulerPostShockFieldAuditStatus.FLAG_FAILURE
+    message = 'local post-shock field weakened its explicit fidelity boundary'
+  else:
+    status = MocEulerPostShockFieldAuditStatus.CONVERGED_LOCAL_AUDIT
+    message = (
+      'independent local exact-Euler post-shock audit verified shock jumps, '
+      'uniform state, centerline/interior characteristic geometry, closed '
+      'topology, bounded cell residuals, and the non-physical fidelity stop'
+    )
+  return _post_shock_field_audit_failure(
+    status,
+    message,
+    **common,
+    shock_jump_mass_residuals=shock_jump_mass,
+    shock_jump_momentum_residuals=shock_jump_momentum,
+    shock_jump_energy_residuals=shock_jump_energy,
+    centerline_invariant_residuals=centerline_invariants,
+    node_invariant_residuals=node_invariants,
+    cell_euler_residuals=cell_residuals,
+    shock_geometry_verified=shock_geometry_verified,
+    shock_jump_verified=shock_jump_verified,
+    uniform_state_verified=uniform_state_verified,
+    centerline_geometry_verified=centerline_geometry_verified,
+    interior_geometry_verified=interior_geometry_verified,
+    topology_verified=topology_verified,
+    cell_euler_residuals_finite=cell_residuals_finite,
+    cell_euler_residuals_verified=cell_euler_residuals_verified,
+    fidelity_flags_verified=fidelity_flags_verified,
+  )
+
+
+class MocEulerPostShockFieldChainAuditStatus(str, Enum):
+  """Outcome of independently auditing a local post-shock field chain."""
+
+  CONVERGED_LOCAL_AUDIT = 'converged_euler_post_shock_field_chain_audit'
+  INVALID_INPUT = 'invalid_input'
+  FIELD_FAILURE = 'euler_post_shock_field_chain_audit_field_failure'
+  DOMAIN_FAILURE = 'euler_post_shock_field_chain_audit_domain_failure'
+  HANDOFF_FAILURE = 'euler_post_shock_field_chain_audit_handoff_failure'
+  TERMINATION_FAILURE = 'euler_post_shock_field_chain_audit_termination_failure'
+  FLAG_FAILURE = 'euler_post_shock_field_chain_audit_flag_failure'
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerPostShockFieldChainAudit:
+  """Independent sequence, domain, handoff, and fidelity evidence."""
+
+  status: MocEulerPostShockFieldChainAuditStatus
+  field_count: int
+  continued_field_count: int
+  step_count: int
+  field_statuses: tuple[str, ...]
+  field_audits_verified: bool = False
+  fresh_domains_verified: bool = False
+  handoff_links_verified: bool = False
+  termination_verified: bool = False
+  fidelity_flags_verified: bool = False
+  physical_closure_verified: bool = False
+  chain_promotion_blocked: bool = True
+  production_claim_allowed: bool = False
+  message: str = ''
+  operator_id: str = MOC_EULER_POST_SHOCK_FIELD_CHAIN_AUDIT_OPERATOR_ID
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.status, MocEulerPostShockFieldChainAuditStatus):
+      raise TypeError(
+        'status must be a MocEulerPostShockFieldChainAuditStatus'
+      )
+    for name in ('field_count', 'continued_field_count', 'step_count'):
+      value = getattr(self, name)
+      if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f'{name} must be a nonnegative integer')
+    statuses = tuple(str(value) for value in self.field_statuses)
+    object.__setattr__(self, 'field_statuses', statuses)
+    for name in (
+      'field_audits_verified',
+      'fresh_domains_verified',
+      'handoff_links_verified',
+      'termination_verified',
+      'fidelity_flags_verified',
+      'physical_closure_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+    operator_id = str(self.operator_id)
+    if not operator_id:
+      raise ValueError('operator_id must be a non-empty string')
+    object.__setattr__(self, 'operator_id', operator_id)
+    object.__setattr__(self, 'message', str(self.message))
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocEulerPostShockFieldChainAuditStatus.CONVERGED_LOCAL_AUDIT
+
+  @property
+  def local_consistency_verified(self) -> bool:
+    return bool(
+      self.converged
+      and self.field_audits_verified
+      and self.fresh_domains_verified
+      and self.handoff_links_verified
+      and self.termination_verified
+      and self.fidelity_flags_verified
+    )
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'operator_id': self.operator_id,
+      'converged': self.converged,
+      'local_consistency_verified': self.local_consistency_verified,
+      'field_count': self.field_count,
+      'continued_field_count': self.continued_field_count,
+      'step_count': self.step_count,
+      'field_statuses': list(self.field_statuses),
+      'checks': {
+        'field_audits_verified': self.field_audits_verified,
+        'fresh_domains_verified': self.fresh_domains_verified,
+        'handoff_links_verified': self.handoff_links_verified,
+        'termination_verified': self.termination_verified,
+        'fidelity_flags_verified': self.fidelity_flags_verified,
+        'local_consistency_verified': self.local_consistency_verified,
+        'physical_closure_verified': self.physical_closure_verified,
+        'chain_promotion_blocked': self.chain_promotion_blocked,
+        'production_claim_allowed': self.production_claim_allowed,
+      },
+      'canonical_euler_verified': False,
+      'canonical_free_boundary_verified': False,
+      'external_validation_verified': False,
+      'claim_status': (
+        'independent-local-euler-post-shock-field-chain-audit; ambient/free-'
+        'boundary closure and physical shock-cell promotion remain pending'
+      ),
+      'message': self.message,
+    }
+
+
+def _post_shock_field_chain_audit_failure(
+  status: MocEulerPostShockFieldChainAuditStatus,
+  message: str,
+  *,
+  field_count: int = 0,
+  continued_field_count: int = 0,
+  step_count: int = 0,
+  field_statuses: Sequence[str] = (),
+  field_audits_verified: bool = False,
+  fresh_domains_verified: bool = False,
+  handoff_links_verified: bool = False,
+  termination_verified: bool = False,
+  fidelity_flags_verified: bool = False,
+) -> MocEulerPostShockFieldChainAudit:
+  return MocEulerPostShockFieldChainAudit(
+    status=status,
+    field_count=field_count,
+    continued_field_count=continued_field_count,
+    step_count=step_count,
+    field_statuses=tuple(field_statuses),
+    field_audits_verified=field_audits_verified,
+    fresh_domains_verified=fresh_domains_verified,
+    handoff_links_verified=handoff_links_verified,
+    termination_verified=termination_verified,
+    fidelity_flags_verified=fidelity_flags_verified,
+    message=message,
+  )
+
+
+def _post_shock_field_chain_handoff_fingerprint(boundary: Sequence[Any]) -> str | None:
+  if not boundary:
+    return None
+  payload = '\n'.join(
+    '|'.join(
+      value.hex()
+      for value in (
+        sample.state.x_m,
+        sample.state.y_m,
+        sample.state.theta_rad,
+        sample.state.mach,
+        sample.state.gamma,
+        sample.total_pressure_Pa,
+      )
+    )
+    for sample in boundary
+  )
+  return sha256(payload.encode('ascii')).hexdigest()
+
+
+def _post_shock_field_chain_fingerprint(field: MocEulerPostShockFieldResult) -> str:
+  def state_payload(state: CharacteristicState) -> str:
+    return '|'.join(
+      value.hex()
+      for value in (
+        state.x_m,
+        state.y_m,
+        state.theta_rad,
+        state.mach,
+        state.gamma,
+      )
+    )
+
+  payload = [f'status:{field.status.value}']
+  for label, points, states, pressures in (
+    (
+      'shock',
+      field.shock_boundary_points_m,
+      field.shock_boundary_states,
+      field.shock_boundary_total_pressure_Pa,
+    ),
+    (
+      'centerline',
+      field.centerline_boundary_points_m,
+      field.centerline_boundary_states,
+      field.centerline_boundary_total_pressure_Pa,
+    ),
+  ):
+    payload.append(label)
+    payload.extend(
+      f'{point[0].hex()}|{point[1].hex()}|{state_payload(state)}|{pressure.hex()}'
+      for point, state, pressure in zip(points, states, pressures, strict=True)
+    )
+  payload.append('nodes')
+  payload.extend(
+    f'{node.point_m[0].hex()}|{node.point_m[1].hex()}|'
+    f'{state_payload(node.state)}|{node.total_pressure_Pa!r}'
+    for node in field.nodes
+  )
+  payload.append('cells')
+  payload.extend(
+    '|'.join(value.hex() for point in cell.vertices_xr_m for value in point)
+    for cell in field.cells
+  )
+  return sha256('\n'.join(payload).encode('ascii')).hexdigest()
+
+
+def _post_shock_field_chain_x_extent(
+  field: MocEulerPostShockFieldResult,
+) -> tuple[float, float] | None:
+  points = (
+    *(point for cell in field.cells for point in cell.vertices_xr_m),
+    *field.shock_boundary_points_m,
+    *field.centerline_boundary_points_m,
+  )
+  if not points:
+    return None
+  values = tuple(float(point[0]) for point in points)
+  if not all(isfinite(value) for value in values):
+    return None
+  return min(values), max(values)
+
+
+def measure_moc_euler_post_shock_field_chain(
+  chain: Any,
+  *,
+  shock_residual_tolerance: float = 1.0e-8,
+  cell_residual_tolerance: float = 1.0e-8,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+  state_tolerance: float = 1.0e-10,
+  pressure_tolerance: float = 1.0e-8,
+) -> MocEulerPostShockFieldChainAudit:
+  """Remeasure a continued local-field sequence without callbacks."""
+
+  from exhaust_plume.models.moc.planner import (
+    MocEulerPostShockFieldChainPlannerResult,
+  )
+
+  if not isinstance(chain, MocEulerPostShockFieldChainPlannerResult):
+    return _post_shock_field_chain_audit_failure(
+      MocEulerPostShockFieldChainAuditStatus.INVALID_INPUT,
+      'chain must be a MocEulerPostShockFieldChainPlannerResult',
+    )
+  fields = tuple(chain.fields)
+  steps = tuple(chain.steps)
+  statuses = tuple(field.status.value for field in fields)
+  common = {
+    'field_count': len(fields),
+    'continued_field_count': max(0, len(fields) - 1),
+    'step_count': len(steps),
+    'field_statuses': statuses,
+  }
+  if not fields or any(
+    not isinstance(field, MocEulerPostShockFieldResult)
+    for field in fields
+  ):
+    return _post_shock_field_chain_audit_failure(
+      MocEulerPostShockFieldChainAuditStatus.INVALID_INPUT,
+      'chain must retain one or more local post-shock fields',
+      **common,
+    )
+  field_audits = tuple(
+    measure_moc_euler_post_shock_field(
+      field,
+      shock_residual_tolerance=shock_residual_tolerance,
+      cell_residual_tolerance=cell_residual_tolerance,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+      state_tolerance=state_tolerance,
+      pressure_tolerance=pressure_tolerance,
+    )
+    for field in fields
+  )
+  field_audits_verified = all(
+    audit.converged and audit.local_consistency_verified
+    for audit in field_audits
+  )
+  if not field_audits_verified:
+    return _post_shock_field_chain_audit_failure(
+      MocEulerPostShockFieldChainAuditStatus.FIELD_FAILURE,
+      'one or more local post-shock fields failed its independent audit',
+      **common,
+    )
+  extents = tuple(_post_shock_field_chain_x_extent(field) for field in fields)
+  fresh_domains_verified = all(
+    previous is not None
+    and current is not None
+    and current[0] > previous[1] + position_tolerance_m
+    for previous, current in zip(extents[:-1], extents[1:], strict=True)
+  )
+  if not fresh_domains_verified:
+    return _post_shock_field_chain_audit_failure(
+      MocEulerPostShockFieldChainAuditStatus.DOMAIN_FAILURE,
+      'local post-shock fields do not occupy fresh downstream domains',
+      **common,
+      field_audits_verified=True,
+    )
+  handoff_links_verified = bool(steps)
+  for index, step in enumerate(steps):
+    if index >= len(fields):
+      handoff_links_verified = False
+      continue
+    incoming = fields[index].downstream_handoff
+    handoff_links_verified = handoff_links_verified and bool(
+      step.next_field_index == index + 2
+      and step.incoming_handoff_sample_count == len(incoming)
+      and step.incoming_handoff_fingerprint
+      == _post_shock_field_chain_handoff_fingerprint(incoming)
+      and step.incoming_handoff_link_verified
+    )
+    if step.result_kind == 'field-solve-returned':
+      if index + 1 >= len(fields):
+        handoff_links_verified = False
+        continue
+      next_field = fields[index + 1]
+      handoff_links_verified = handoff_links_verified and bool(
+        step.result_field_status == next_field.status.value
+        and step.result_field_fingerprint
+        == _post_shock_field_chain_fingerprint(next_field)
+        and step.result_handoff_sample_count == len(next_field.downstream_handoff)
+        and step.result_handoff_fingerprint
+        == _post_shock_field_chain_handoff_fingerprint(
+          next_field.downstream_handoff
+        )
+      )
+  if not handoff_links_verified:
+    return _post_shock_field_chain_audit_failure(
+      MocEulerPostShockFieldChainAuditStatus.HANDOFF_FAILURE,
+      'local post-shock field frontier links failed independent remeasurement',
+      **common,
+      field_audits_verified=True,
+      fresh_domains_verified=True,
+    )
+  termination_verified = bool(
+    steps
+    and steps[-1].result_termination_reason is chain.termination.reason
+    and steps[-1].result_physical_termination
+    is chain.termination.physical_termination
+  )
+  if not termination_verified:
+    return _post_shock_field_chain_audit_failure(
+      MocEulerPostShockFieldChainAuditStatus.TERMINATION_FAILURE,
+      'chain termination metadata did not match its final planner step',
+      **common,
+      field_audits_verified=True,
+      fresh_domains_verified=True,
+      handoff_links_verified=True,
+    )
+  fidelity_flags_verified = bool(
+    not chain.physical_closure_verified
+    and chain.chain_promotion_blocked
+    and not chain.production_claim_allowed
+    and all(
+      not field.physical_closure_verified
+      and field.chain_promotion_blocked
+      and not field.production_claim_allowed
+      for field in fields
+    )
+  )
+  if not fidelity_flags_verified:
+    return _post_shock_field_chain_audit_failure(
+      MocEulerPostShockFieldChainAuditStatus.FLAG_FAILURE,
+      'local post-shock field sequence weakened its fidelity boundary',
+      **common,
+      field_audits_verified=True,
+      fresh_domains_verified=True,
+      handoff_links_verified=True,
+      termination_verified=True,
+    )
+  return MocEulerPostShockFieldChainAudit(
+    status=MocEulerPostShockFieldChainAuditStatus.CONVERGED_LOCAL_AUDIT,
+    **common,
+    field_audits_verified=True,
+    fresh_domains_verified=True,
+    handoff_links_verified=True,
+    termination_verified=True,
+    fidelity_flags_verified=True,
+    message=(
+      'independent local exact-Euler post-shock chain audit verified every '
+      'field, fresh domains, exact centerline frontier links, and the typed '
+      'non-physical stop; ambient/free-boundary closure remains pending'
     ),
   )

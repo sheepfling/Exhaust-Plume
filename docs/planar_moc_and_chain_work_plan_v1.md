@@ -2587,3 +2587,38 @@ Euler/free-boundary solve with entropy transport, attachment-aware first-cell
 remeshing, refinement, and indexed external observations. The explicit
 companion route is a controlled bridge to that work; it must not be used to
 backfill or silently upgrade the lower-fidelity products.
+
+## Local exact post-shock topology and continued-field chain checkpoint
+
+The higher-fidelity Euler lane now exposes
+`assemble_euler_post_shock_field`. It takes a locally conservative mixed-
+characteristic shock that descends to the centerline and has a uniform
+downstream state, reflects the compatible `C-` family to the axis, and builds
+the interior characteristic rows. The retained mesh has a closed polygonal
+topology and a six-sample centerline state/total-pressure frontier on the
+reference case.
+
+The last terminal region is completed with an explicitly labelled uniform-
+state topology fan. Its center is retained as a synthetic topology sample,
+not as a fabricated characteristic intersection. This makes the local field
+useful for geometry and visualization while keeping
+`physical_closure_verified=false`, `chain_promotion_blocked=true`, and
+`production_claim_allowed=false`: the shared ambient/free-boundary attachment,
+entropy transport, and physical shock-cell perimeter are still open.
+
+`MocEulerPostShockFieldChainMock` and
+`plan_euler_post_shock_field_chain_mock` now reassemble three translated local
+fields on fresh domains, preserve exact centerline handoffs, and stop with a
+typed `solver-returned-no-next-cell` decision. The independent
+`op.moc.euler.post-shock-field-audit` and
+`op.moc.euler.post-shock-field-chain-audit` operators remeasure shock jumps,
+characteristic geometry, topology, constant-state Euler residuals, domains,
+frontier fingerprints, and fidelity flags. This is a controlled continued
+field-chain fixture for research visualization and planner work, not a
+production shock-cell solver or a change to the fast/basic, signature,
+ray-transfer, or focal-plane-array providers.
+
+The next physical gate is a shared-attachment reflected/free-boundary solver
+that replaces the local topology fan with a solved downstream perimeter and
+transports nonuniform shock entropy. It must pass refinement and indexed
+external observations before this chain can be promoted beyond research use.

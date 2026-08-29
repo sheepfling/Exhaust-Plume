@@ -103,6 +103,10 @@ from exhaust_plume.models.moc.euler_characteristic_field import (
 from exhaust_plume.models.moc.euler_ambient_field import (
   MocEulerAmbientShockFieldResult,
 )
+from exhaust_plume.models.moc.euler_post_shock import (
+  MocEulerPostShockFieldResult,
+  assemble_euler_post_shock_field,
+)
 from exhaust_plume.models.moc.mixed_regime import (
   MocMixedRegimeClosureResult,
   MocMixedRegimeControlSection,
@@ -205,6 +209,12 @@ __all__ = (
   'plan_euler_ambient_shock_field_chain',
   'MocEulerAmbientShockFieldChainMock',
   'plan_euler_ambient_shock_field_chain_mock',
+  'MocEulerPostShockFieldContinuationSolve',
+  'MocEulerPostShockFieldChainStep',
+  'MocEulerPostShockFieldChainPlannerResult',
+  'MocEulerPostShockFieldChainMock',
+  'plan_euler_post_shock_field_chain',
+  'plan_euler_post_shock_field_chain_mock',
   'plan_post_shock_characteristic_chain',
   'plan_post_shock_field_chain',
   'plan_source_strip_shock_chain',
@@ -864,6 +874,115 @@ def _euler_ambient_shock_field_x_extent(
   if not all(isfinite(value) for value in values):
     return None
   return min(values), max(values)
+
+
+def _euler_post_shock_field_fingerprint(
+  field: MocEulerPostShockFieldResult,
+) -> str:
+  """Return a deterministic identity for a local post-shock field."""
+
+  def state_payload(state: CharacteristicState) -> str:
+    return '|'.join(
+      value.hex()
+      for value in (
+        state.x_m,
+        state.y_m,
+        state.theta_rad,
+        state.mach,
+        state.gamma,
+      )
+    )
+
+  payload = [f'status:{field.status.value}']
+  for label, points, states, pressures in (
+    (
+      'shock',
+      field.shock_boundary_points_m,
+      field.shock_boundary_states,
+      field.shock_boundary_total_pressure_Pa,
+    ),
+    (
+      'centerline',
+      field.centerline_boundary_points_m,
+      field.centerline_boundary_states,
+      field.centerline_boundary_total_pressure_Pa,
+    ),
+  ):
+    payload.append(label)
+    payload.extend(
+      f'{point[0].hex()}|{point[1].hex()}|{state_payload(state)}|{pressure.hex()}'
+      for point, state, pressure in zip(points, states, pressures, strict=True)
+    )
+  payload.append('nodes')
+  payload.extend(
+    f'{node.point_m[0].hex()}|{node.point_m[1].hex()}|'
+    f'{state_payload(node.state)}|{node.total_pressure_Pa!r}'
+    for node in field.nodes
+  )
+  payload.append('cells')
+  payload.extend(
+    '|'.join(value.hex() for point in cell.vertices_xr_m for value in point)
+    for cell in field.cells
+  )
+  return sha256('\n'.join(payload).encode('ascii')).hexdigest()
+
+
+def _euler_post_shock_field_x_extent(
+  field: MocEulerPostShockFieldResult,
+) -> tuple[float, float] | None:
+  """Return the retained local-field axial extent."""
+
+  points = (
+    *(point for cell in field.cells for point in cell.vertices_xr_m),
+    *field.shock_boundary_points_m,
+    *field.centerline_boundary_points_m,
+  )
+  if not points:
+    return None
+  values = tuple(float(point[0]) for point in points)
+  if not all(isfinite(value) for value in values):
+    return None
+  return min(values), max(values)
+
+
+def _translate_euler_post_shock_field(
+  field: MocEulerPostShockFieldResult,
+  offset_x_m: float,
+) -> MocEulerPostShockFieldResult:
+  """Reassemble one local field on a fresh translated shock domain."""
+
+  if not isinstance(field, MocEulerPostShockFieldResult):
+    raise TypeError('field must be a MocEulerPostShockFieldResult')
+  if not field.converged or field.shock_boundary is None:
+    raise ValueError('field must be a converged local field with its shock boundary')
+  offset = float(offset_x_m)
+  if not isfinite(offset) or offset <= 0.0:
+    raise ValueError('offset_x_m must be finite and positive')
+
+  def translated_state(state: CharacteristicState) -> CharacteristicState:
+    return replace(state, x_m=state.x_m + offset)
+
+  shock = field.shock_boundary
+  translated_shock = replace(
+    shock,
+    upstream_states=tuple(
+      translated_state(state) for state in shock.upstream_states
+    ),
+    downstream_states=tuple(
+      translated_state(state) for state in shock.downstream_states
+    ),
+    shock_points_m=tuple(
+      (point[0] + offset, point[1])
+      for point in shock.shock_points_m
+    ),
+  )
+  return assemble_euler_post_shock_field(
+    translated_shock,
+    position_tolerance_m=field.position_tolerance_m,
+    invariant_tolerance=field.invariant_tolerance,
+    state_tolerance=field.state_tolerance,
+    pressure_tolerance=field.pressure_tolerance,
+  )
 
 
 def _translate_euler_ambient_shock_field(
@@ -9747,6 +9866,711 @@ def plan_euler_ambient_shock_field_chain_mock(
     claim_status=(
       'deterministic-euler-ambient-shock-field-chain-mock; attachment-aware-'
       'first-cell, reflected-free-boundary, and entropy closure pending'
+    ),
+  )
+  ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerPostShockFieldContinuationSolve:
+  """One local post-shock field and the exact frontier it consumed."""
+
+  field: MocEulerPostShockFieldResult
+  incoming_handoff: tuple[MocChainBoundarySample, ...]
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.field, MocEulerPostShockFieldResult):
+      raise TypeError('field must be a MocEulerPostShockFieldResult')
+    handoff = tuple(self.incoming_handoff)
+    if not handoff:
+      raise ValueError('incoming_handoff must contain state-carrying samples')
+    if any(not isinstance(sample, MocChainBoundarySample) for sample in handoff):
+      raise TypeError(
+        'incoming_handoff must contain MocChainBoundarySample values'
+      )
+    object.__setattr__(self, 'incoming_handoff', handoff)
+
+  @property
+  def outgoing_handoff(self) -> tuple[MocChainBoundarySample, ...]:
+    return self.field.downstream_handoff
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'field_status': self.field.status.value,
+      'field_converged': self.field.converged,
+      'incoming_handoff_sample_count': len(self.incoming_handoff),
+      'incoming_handoff_fingerprint': _handoff_fingerprint(self.incoming_handoff),
+      'outgoing_handoff_sample_count': len(self.outgoing_handoff),
+      'outgoing_handoff_fingerprint': _handoff_fingerprint(self.outgoing_handoff),
+      'field_fingerprint': _euler_post_shock_field_fingerprint(self.field),
+      'physical_closure_verified': False,
+      'chain_promotion_blocked': True,
+      'production_claim_allowed': False,
+    }
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerPostShockFieldChainStep:
+  """One callback attempt in a local post-shock field sequence."""
+
+  next_field_index: int
+  incoming_handoff_sample_count: int
+  incoming_handoff_fingerprint: str | None
+  incoming_handoff_link_verified: bool
+  result_kind: str = 'not-recorded'
+  result_status: str | None = None
+  result_field_status: str | None = None
+  result_field_fingerprint: str | None = None
+  result_handoff_sample_count: int | None = None
+  result_handoff_fingerprint: str | None = None
+  result_termination_reason: MocChainTerminationReason | None = None
+  result_physical_termination: bool | None = None
+
+  def __post_init__(self) -> None:
+    if (
+      isinstance(self.next_field_index, bool)
+      or not isinstance(self.next_field_index, int)
+      or self.next_field_index < 2
+    ):
+      raise ValueError('next_field_index must be an integer of at least two')
+    if (
+      isinstance(self.incoming_handoff_sample_count, bool)
+      or not isinstance(self.incoming_handoff_sample_count, int)
+      or self.incoming_handoff_sample_count < 0
+    ):
+      raise ValueError('incoming_handoff_sample_count must be nonnegative')
+    if not isinstance(self.incoming_handoff_link_verified, bool):
+      raise TypeError('incoming_handoff_link_verified must be a bool')
+    if not isinstance(self.result_kind, str) or not self.result_kind:
+      raise ValueError('result_kind must be a non-empty string')
+    for name in (
+      'incoming_handoff_fingerprint',
+      'result_status',
+      'result_field_status',
+      'result_field_fingerprint',
+      'result_handoff_fingerprint',
+    ):
+      value = getattr(self, name)
+      if value is not None and not isinstance(value, str):
+        raise TypeError(f'{name} must be a string or None')
+    if self.result_handoff_sample_count is not None and (
+      isinstance(self.result_handoff_sample_count, bool)
+      or not isinstance(self.result_handoff_sample_count, int)
+      or self.result_handoff_sample_count < 0
+    ):
+      raise ValueError('result_handoff_sample_count must be nonnegative')
+    if self.result_termination_reason is not None and not isinstance(
+      self.result_termination_reason,
+      MocChainTerminationReason,
+    ):
+      raise TypeError(
+        'result_termination_reason must be a MocChainTerminationReason or None'
+      )
+    if self.result_physical_termination is not None and not isinstance(
+      self.result_physical_termination,
+      bool,
+    ):
+      raise TypeError('result_physical_termination must be a bool or None')
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'next_field_index': self.next_field_index,
+      'incoming_handoff_sample_count': self.incoming_handoff_sample_count,
+      'incoming_handoff_fingerprint': self.incoming_handoff_fingerprint,
+      'incoming_handoff_link_verified': self.incoming_handoff_link_verified,
+      'result_kind': self.result_kind,
+      'result_status': self.result_status,
+      'result_field_status': self.result_field_status,
+      'result_field_fingerprint': self.result_field_fingerprint,
+      'result_handoff_sample_count': self.result_handoff_sample_count,
+      'result_handoff_fingerprint': self.result_handoff_fingerprint,
+      'result_termination_reason': (
+        None
+        if self.result_termination_reason is None
+        else self.result_termination_reason.value
+      ),
+      'result_physical_termination': self.result_physical_termination,
+    }
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerPostShockFieldChainPlannerResult:
+  """A research-only sequence of locally closed post-shock fields."""
+
+  seed: MocEulerPostShockFieldResult
+  fields: tuple[MocEulerPostShockFieldResult, ...]
+  steps: tuple[MocEulerPostShockFieldChainStep, ...]
+  termination: MocChainTerminationDecision
+  planner_kind: MocChainPlannerKind
+  claim_status: str
+  diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.seed, MocEulerPostShockFieldResult):
+      raise TypeError('seed must be a MocEulerPostShockFieldResult')
+    fields = tuple(self.fields)
+    if not fields or fields[0] is not self.seed:
+      raise ValueError('fields must retain the seed field as their first entry')
+    if any(not isinstance(value, MocEulerPostShockFieldResult) for value in fields):
+      raise TypeError(
+        'fields must contain MocEulerPostShockFieldResult values'
+      )
+    steps = tuple(self.steps)
+    if any(
+      not isinstance(value, MocEulerPostShockFieldChainStep)
+      for value in steps
+    ):
+      raise TypeError(
+        'steps must contain MocEulerPostShockFieldChainStep values'
+      )
+    if not isinstance(self.termination, MocChainTerminationDecision):
+      raise TypeError('termination must be a MocChainTerminationDecision')
+    if self.planner_kind is not MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH:
+      raise ValueError(
+        'local post-shock field chains must use the upstream-coupled '
+        'research planner kind'
+      )
+    object.__setattr__(self, 'fields', fields)
+    object.__setattr__(self, 'steps', steps)
+    object.__setattr__(self, 'claim_status', str(self.claim_status))
+    object.__setattr__(self, 'diagnostics', MappingProxyType(dict(self.diagnostics)))
+
+  @property
+  def field_count(self) -> int:
+    return len(self.fields)
+
+  @property
+  def continued_field_count(self) -> int:
+    return max(0, len(self.fields) - 1)
+
+  @property
+  def resolved(self) -> bool:
+    return bool(
+      self.fields
+      and all(field.converged for field in self.fields)
+      and self.termination.reason
+      is MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL
+    )
+
+  @property
+  def handoff_links_verified(self) -> bool | None:
+    if not self.steps:
+      return None
+    return all(step.incoming_handoff_link_verified for step in self.steps)
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    return False
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    return True
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    return False
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'planner_kind': self.planner_kind.value,
+      'planning_only': True,
+      'claim_status': self.claim_status,
+      'resolved': self.resolved,
+      'field_count': self.field_count,
+      'continued_field_count': self.continued_field_count,
+      'handoff_links_verified': self.handoff_links_verified,
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'fields': [field.as_report() for field in self.fields],
+      'steps': [step.as_report() for step in self.steps],
+      'termination': self.termination.as_report(),
+      'diagnostics': dict(self.diagnostics),
+    }
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerPostShockFieldChainMock:
+  """Deterministic translated local-field sequence fixture.
+
+  Each next field is freshly reassembled from a translated exact shock.  The
+  mock exercises state-carrying frontiers and downstream domain separation;
+  it never converts a local topological closure into a physical shock cell.
+  """
+
+  total_field_count: int = 3
+  axial_translation_m: float = 2.0
+  model: str = 'translated-euler-local-post-shock-field-chain-mock'
+
+  def __post_init__(self) -> None:
+    if (
+      isinstance(self.total_field_count, bool)
+      or not isinstance(self.total_field_count, int)
+      or self.total_field_count < 1
+    ):
+      raise ValueError('total_field_count must be a positive integer')
+    translation = float(self.axial_translation_m)
+    if not isfinite(translation) or translation <= 0.0:
+      raise ValueError('axial_translation_m must be finite and positive')
+    model = str(self.model)
+    if not model:
+      raise ValueError('model must be a non-empty string')
+    object.__setattr__(self, 'axial_translation_m', translation)
+    object.__setattr__(self, 'model', model)
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'model': self.model,
+      'planning_only': True,
+      'total_field_count_including_seed': self.total_field_count,
+      'axial_translation_m': self.axial_translation_m,
+      'fresh_domain_policy': (
+        'translated-x-domain-reassembled-by-local-euler-post-shock-solver'
+      ),
+      'incoming_handoff_policy': (
+        'centerline-frontier-recorded-exactly; ambient-free-boundary-is-not-'
+        'inferred'
+      ),
+      'physical_closure_verified': False,
+      'chain_promotion_blocked': True,
+      'production_claim_allowed': False,
+      'claim_status': (
+        'deterministic-local-euler-post-shock-field-sequence-mock; '
+        'ambient-free-boundary-and-physical-chain-closure-pending'
+      ),
+    }
+
+  def solve_next(
+    self,
+    current: MocEulerPostShockFieldResult,
+    next_field_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+  ) -> MocEulerPostShockFieldContinuationSolve | MocChainTerminationDecision:
+    if not isinstance(current, MocEulerPostShockFieldResult):
+      raise TypeError('current must be a MocEulerPostShockFieldResult')
+    if (
+      isinstance(next_field_index, bool)
+      or not isinstance(next_field_index, int)
+      or next_field_index < 2
+    ):
+      raise ValueError('next_field_index must be an integer of at least two')
+    handoff = tuple(incoming_handoff)
+    if handoff != current.downstream_handoff:
+      raise ValueError(
+        'incoming_handoff must exactly match current.downstream_handoff'
+      )
+    if next_field_index > self.total_field_count:
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
+        message=(
+          'local post-shock field chain mock exhausted its configured '
+          f'{self.total_field_count}-field sequence'
+        ),
+        diagnostics={
+          'continuation_model': self.model,
+          'next_field_index': next_field_index,
+          'incoming_handoff_sample_count': len(handoff),
+          'incoming_handoff_fingerprint': _handoff_fingerprint(handoff),
+        },
+      )
+    if not current.converged:
+      return current.as_chain_termination_decision()
+    translated = _translate_euler_post_shock_field(
+      current,
+      self.axial_translation_m,
+    )
+    return MocEulerPostShockFieldContinuationSolve(
+      field=translated,
+      incoming_handoff=handoff,
+    )
+
+
+def plan_euler_post_shock_field_chain(
+  seed: MocEulerPostShockFieldResult,
+  solve_next: Callable[
+    [
+      MocEulerPostShockFieldResult,
+      int,
+      tuple[MocChainBoundarySample, ...],
+    ],
+    MocEulerPostShockFieldContinuationSolve
+    | MocChainTerminationDecision
+    | None,
+  ],
+  *,
+  total_field_count: int,
+  position_tolerance_m: float = 1.0e-10,
+  claim_status: str | None = None,
+) -> MocEulerPostShockFieldChainPlannerResult:
+  """Continue local fields while keeping the physical fidelity ceiling."""
+
+  if not isinstance(seed, MocEulerPostShockFieldResult):
+    raise TypeError('seed must be a MocEulerPostShockFieldResult')
+  if not callable(solve_next):
+    raise TypeError('solve_next must be callable')
+  if (
+    isinstance(total_field_count, bool)
+    or not isinstance(total_field_count, int)
+    or total_field_count < 1
+  ):
+    raise ValueError('total_field_count must be a positive integer')
+  tolerance = float(position_tolerance_m)
+  if not isfinite(tolerance) or tolerance <= 0.0:
+    raise ValueError('position_tolerance_m must be finite and positive')
+
+  fields: list[MocEulerPostShockFieldResult] = [seed]
+  steps: list[MocEulerPostShockFieldChainStep] = []
+
+  def result(
+    termination: MocChainTerminationDecision,
+  ) -> MocEulerPostShockFieldChainPlannerResult:
+    return MocEulerPostShockFieldChainPlannerResult(
+      seed=seed,
+      fields=tuple(fields),
+      steps=tuple(steps),
+      termination=termination,
+      planner_kind=MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH,
+      claim_status=(
+        'euler-local-post-shock-field-chain; ambient/free-boundary closure '
+        'and physical shock-cell promotion pending'
+        if claim_status is None
+        else claim_status
+      ),
+      diagnostics={
+        'planner_model': 'euler-local-post-shock-field-chain',
+        'total_field_count_requested': total_field_count,
+        'accepted_field_count': len(fields),
+        'local_field_promotion_policy': 'never-create-moc-chain-cell',
+        'fresh_domain_tolerance_m': tolerance,
+        'physical_closure_verified': False,
+        'chain_promotion_blocked': True,
+        'production_claim_allowed': False,
+      },
+    )
+
+  if not seed.converged:
+    return result(seed.as_chain_termination_decision())
+  if not seed.state_sampling_available:
+    return result(
+      MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.STATE_NOT_CARRIED,
+        message='local post-shock seed has no state-carrying centerline frontier',
+        diagnostics={
+          'seed_field_status': seed.status.value,
+          'seed_field_fingerprint': _euler_post_shock_field_fingerprint(seed),
+        },
+      )
+    )
+
+  def append_step(
+    next_field_index: int,
+    incoming: tuple[MocChainBoundarySample, ...],
+    **values: Any,
+  ) -> None:
+    steps.append(
+      MocEulerPostShockFieldChainStep(
+        next_field_index=next_field_index,
+        incoming_handoff_sample_count=len(incoming),
+        incoming_handoff_fingerprint=_handoff_fingerprint(incoming),
+        incoming_handoff_link_verified=values.pop(
+          'incoming_handoff_link_verified',
+          False,
+        ),
+        **values,
+      )
+    )
+
+  for next_field_index in range(2, total_field_count + 2):
+    current = fields[-1]
+    incoming = current.downstream_handoff
+    if not incoming:
+      termination = MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.STATE_NOT_CARRIED,
+        message='local post-shock field has no outgoing frontier',
+        diagnostics={'current_field_index': len(fields)},
+      )
+      append_step(
+        next_field_index,
+        incoming,
+        result_kind='termination-returned',
+        result_status='state-boundary',
+        result_termination_reason=termination.reason,
+        result_physical_termination=False,
+      )
+      return result(termination)
+    try:
+      solved = solve_next(current, next_field_index, incoming)
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      termination = MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_ERROR,
+        message=f'local post-shock field continuation raised: {error}',
+        diagnostics={
+          'current_field_index': len(fields),
+          'solver_error': type(error).__name__,
+        },
+      )
+      append_step(
+        next_field_index,
+        incoming,
+        incoming_handoff_link_verified=True,
+        result_kind='solver-error',
+        result_status=type(error).__name__,
+        result_termination_reason=termination.reason,
+        result_physical_termination=False,
+      )
+      return result(termination)
+
+    if solved is None:
+      termination = MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
+        message='local post-shock field continuation returned no next field',
+        diagnostics={'current_field_index': len(fields)},
+      )
+      append_step(
+        next_field_index,
+        incoming,
+        incoming_handoff_link_verified=True,
+        result_kind='termination-returned',
+        result_status='none',
+        result_termination_reason=termination.reason,
+        result_physical_termination=False,
+      )
+      return result(termination)
+
+    if isinstance(solved, MocChainTerminationDecision):
+      if solved.physical_termination:
+        termination = MocChainTerminationDecision(
+          physical_termination=False,
+          reason=MocChainTerminationReason.FIDELITY_NOT_ALLOWED,
+          message=(
+            'a local post-shock topology cannot declare physical termination '
+            'before ambient/free-boundary closure'
+          ),
+          diagnostics={
+            **dict(solved.diagnostics),
+            'returned_physical_termination': True,
+          },
+        )
+      else:
+        termination = solved
+      append_step(
+        next_field_index,
+        incoming,
+        incoming_handoff_link_verified=True,
+        result_kind='termination-returned',
+        result_status='decision',
+        result_termination_reason=termination.reason,
+        result_physical_termination=termination.physical_termination,
+      )
+      return result(termination)
+
+    if not isinstance(solved, MocEulerPostShockFieldContinuationSolve):
+      termination = MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.INVALID_INPUT,
+        message=(
+          'local post-shock field continuation must return a continuation '
+          'solve, typed termination, or None'
+        ),
+        diagnostics={'returned_type': type(solved).__name__},
+      )
+      append_step(
+        next_field_index,
+        incoming,
+        incoming_handoff_link_verified=True,
+        result_kind='invalid-result-returned',
+        result_status=type(solved).__name__,
+        result_termination_reason=termination.reason,
+        result_physical_termination=False,
+      )
+      return result(termination)
+
+    next_field = solved.field
+    fingerprint = _euler_post_shock_field_fingerprint(next_field)
+    if solved.incoming_handoff != incoming:
+      termination = MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.STATE_NOT_CARRIED,
+        message='local post-shock continuation did not retain the exact frontier',
+        diagnostics={
+          'expected_incoming_handoff_fingerprint': _handoff_fingerprint(incoming),
+          'returned_incoming_handoff_fingerprint': _handoff_fingerprint(
+            solved.incoming_handoff
+          ),
+        },
+      )
+      append_step(
+        next_field_index,
+        incoming,
+        incoming_handoff_link_verified=False,
+        result_kind='handoff-rejected',
+        result_status=next_field.status.value,
+        result_field_status=next_field.status.value,
+        result_field_fingerprint=fingerprint,
+        result_termination_reason=termination.reason,
+        result_physical_termination=False,
+      )
+      return result(termination)
+    if next_field is current:
+      termination = MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.STATE_NOT_CARRIED,
+        message='local post-shock continuation reused the current field object',
+        diagnostics={'field_fingerprint': fingerprint},
+      )
+      append_step(
+        next_field_index,
+        incoming,
+        incoming_handoff_link_verified=True,
+        result_kind='field-reuse-rejected',
+        result_status=next_field.status.value,
+        result_field_status=next_field.status.value,
+        result_field_fingerprint=fingerprint,
+        result_termination_reason=termination.reason,
+        result_physical_termination=False,
+      )
+      return result(termination)
+    if not next_field.converged:
+      termination = next_field.as_chain_termination_decision()
+      append_step(
+        next_field_index,
+        incoming,
+        incoming_handoff_link_verified=True,
+        result_kind='field-rejected',
+        result_status=next_field.status.value,
+        result_field_status=next_field.status.value,
+        result_field_fingerprint=fingerprint,
+        result_termination_reason=termination.reason,
+        result_physical_termination=False,
+      )
+      return result(termination)
+    if not (
+      next_field.closed_topology_verified
+      and next_field.uniform_state_verified
+      and next_field.characteristic_geometry_verified
+      and next_field.state_sampling_available
+    ):
+      termination = MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.FIDELITY_NOT_ALLOWED,
+        message='next local post-shock field lacks its local evidence gates',
+        diagnostics={
+          'field_fingerprint': fingerprint,
+          'closed_topology_verified': next_field.closed_topology_verified,
+          'uniform_state_verified': next_field.uniform_state_verified,
+          'characteristic_geometry_verified': (
+            next_field.characteristic_geometry_verified
+          ),
+        },
+      )
+      append_step(
+        next_field_index,
+        incoming,
+        incoming_handoff_link_verified=True,
+        result_kind='field-rejected',
+        result_status=next_field.status.value,
+        result_field_status=next_field.status.value,
+        result_field_fingerprint=fingerprint,
+        result_termination_reason=termination.reason,
+        result_physical_termination=False,
+      )
+      return result(termination)
+
+    current_extent = _euler_post_shock_field_x_extent(current)
+    next_extent = _euler_post_shock_field_x_extent(next_field)
+    if (
+      current_extent is None
+      or next_extent is None
+      or next_extent[0] <= current_extent[1] + tolerance
+    ):
+      termination = MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
+        message='next local post-shock field does not occupy a fresh domain',
+        diagnostics={
+          'current_field_x_extent_m': current_extent,
+          'next_field_x_extent_m': next_extent,
+          'position_tolerance_m': tolerance,
+        },
+      )
+      append_step(
+        next_field_index,
+        incoming,
+        incoming_handoff_link_verified=True,
+        result_kind='fresh-domain-rejected',
+        result_status=next_field.status.value,
+        result_field_status=next_field.status.value,
+        result_field_fingerprint=fingerprint,
+        result_termination_reason=termination.reason,
+        result_physical_termination=False,
+      )
+      return result(termination)
+    outgoing = next_field.downstream_handoff
+    if not outgoing:
+      termination = MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.STATE_NOT_CARRIED,
+        message='accepted local post-shock field has no outgoing frontier',
+        diagnostics={'field_fingerprint': fingerprint},
+      )
+      append_step(
+        next_field_index,
+        incoming,
+        incoming_handoff_link_verified=True,
+        result_kind='field-rejected',
+        result_status=next_field.status.value,
+        result_field_status=next_field.status.value,
+        result_field_fingerprint=fingerprint,
+        result_termination_reason=termination.reason,
+        result_physical_termination=False,
+      )
+      return result(termination)
+    fields.append(next_field)
+    append_step(
+      next_field_index,
+      incoming,
+      incoming_handoff_link_verified=True,
+      result_kind='field-solve-returned',
+      result_status=next_field.status.value,
+      result_field_status=next_field.status.value,
+      result_field_fingerprint=fingerprint,
+      result_handoff_sample_count=len(outgoing),
+      result_handoff_fingerprint=_handoff_fingerprint(outgoing),
+    )
+
+  termination = MocChainTerminationDecision(
+    physical_termination=False,
+    reason=MocChainTerminationReason.MAX_CELL_LIMIT,
+    message='local post-shock field chain reached its configured field limit',
+    diagnostics={'total_field_count': total_field_count},
+  )
+  return result(termination)
+
+
+def plan_euler_post_shock_field_chain_mock(
+  seed: MocEulerPostShockFieldResult,
+  *,
+  mock: MocEulerPostShockFieldChainMock | None = None,
+  position_tolerance_m: float = 1.0e-10,
+) -> MocEulerPostShockFieldChainPlannerResult:
+  """Run the deterministic translated local-field sequence fixture."""
+
+  fixture = MocEulerPostShockFieldChainMock() if mock is None else mock
+  if not isinstance(fixture, MocEulerPostShockFieldChainMock):
+    raise TypeError('mock must be a MocEulerPostShockFieldChainMock')
+  return plan_euler_post_shock_field_chain(
+    seed,
+    fixture.solve_next,
+    total_field_count=fixture.total_field_count,
+    position_tolerance_m=position_tolerance_m,
+    claim_status=(
+      'deterministic-euler-local-post-shock-field-chain-mock; ambient-free-'
+      'boundary closure and physical shock-cell promotion pending'
     ),
   )
   ####

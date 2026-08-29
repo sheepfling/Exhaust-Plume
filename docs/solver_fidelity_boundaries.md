@@ -1255,3 +1255,19 @@ reference, while entropy transport, global reflected/free-boundary closure,
 refinement, and indexed external observations remain required for physical
 chain promotion. Fast/basic, signature, ray-transfer, and focal-plane-array
 providers are not changed or trained from this lane.
+
+## Local exact post-shock topology and continued-field chain
+
+`assemble_euler_post_shock_field` is a higher-fidelity local solver seam for a
+mixed-characteristic exact-Euler shock with a uniform downstream state. It
+retains shock and centerline paths, builds compatible interior rows, and
+reports a connected topologically closed mesh. The terminal fan center is
+explicitly synthetic and uniform-state-only; it is not evidence of a solved
+ambient boundary or a physical shock-cell perimeter.
+
+`MocEulerPostShockFieldChainMock` exercises repeated field continuation by
+translating and reassembling fresh local domains. Its exact centerline
+handoff is state-carrying, but every field and the planner remain research-
+only. The independent field and chain audits enforce the same boundary:
+physical closure stays false, promotion stays blocked, and no product
+provider may consume the sequence as a resolved shock-cell chain.
