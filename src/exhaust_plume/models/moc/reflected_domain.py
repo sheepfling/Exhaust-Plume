@@ -78,12 +78,17 @@ __all__ = (
   'MocReflectedDomainSolverOwnedFirstCellStatus',
   'MocReflectedDomainSolverOwnedFirstCellTrial',
   'MocReflectedDomainSolverOwnedFirstCellResult',
+  'MocReflectedDomainGlobalShockRemeshStatus',
+  'MocReflectedDomainGlobalShockRemeshAttempt',
+  'MocReflectedDomainGlobalShockRemeshResult',
   'MocReflectedDomainRemeshStatus',
   'MocReflectedDomainRemeshRequest',
   'MocReflectedDomainRemeshResult',
   'build_reflected_domain_remesh_request_from_outer_source',
   'solve_reflected_domain_alternating_source',
   'solve_reflected_domain_alternating_physical_field',
+  'solve_reflected_domain_solver_owned_first_cell',
+  'solve_reflected_domain_global_shock_remesh',
   'solve_reflected_domain_outer_source_curve',
   'solve_reflected_domain_remesh',
 )
@@ -949,6 +954,7 @@ class MocReflectedDomainAlternatingPhysicalFieldResult:
   )
   attachment_source: str = 'alternating-outer-source-row'
   use_trace_referenced_profile: bool = False
+  compression_envelope_skew: float = 0.0
   position_tolerance_m: float = 1.0e-9
   shock_angle_tolerance_rad: float = 1.0e-2
   message: str = ''
@@ -1037,6 +1043,12 @@ class MocReflectedDomainAlternatingPhysicalFieldResult:
       raise ValueError('attachment_source must be a non-empty string')
     if not isinstance(self.use_trace_referenced_profile, bool):
       raise TypeError('use_trace_referenced_profile must be a bool')
+    envelope_skew = float(self.compression_envelope_skew)
+    if not isfinite(envelope_skew) or abs(envelope_skew) > 1.0:
+      raise ValueError(
+        'compression_envelope_skew must be finite and within [-1, 1]'
+      )
+    object.__setattr__(self, 'compression_envelope_skew', envelope_skew)
     position_tolerance = float(self.position_tolerance_m)
     if not isfinite(position_tolerance) or position_tolerance <= 0.0:
       raise ValueError('position_tolerance_m must be finite and positive')
@@ -1178,6 +1190,7 @@ class MocReflectedDomainAlternatingPhysicalFieldResult:
       'continuation_law': self.continuation_law,
       'attachment_source': self.attachment_source,
       'use_trace_referenced_profile': self.use_trace_referenced_profile,
+      'compression_envelope_skew': self.compression_envelope_skew,
       'position_tolerance_m': self.position_tolerance_m,
       'shock_sample_count': (
         None if shock is None else len(shock.shock_points_m)
@@ -1290,6 +1303,7 @@ class MocReflectedDomainSolverOwnedFirstCellResult:
   trials: tuple[MocReflectedDomainSolverOwnedFirstCellTrial, ...]
   message: str = ''
   bracket_scan_sample_count: int = 0
+  compression_envelope_skew: float = 0.0
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -1378,6 +1392,12 @@ class MocReflectedDomainSolverOwnedFirstCellResult:
       raise ValueError(
         'bracket_scan_sample_count must be a nonnegative integer'
       )
+    envelope_skew = float(self.compression_envelope_skew)
+    if not isfinite(envelope_skew) or abs(envelope_skew) > 1.0:
+      raise ValueError(
+        'compression_envelope_skew must be finite and within [-1, 1]'
+      )
+    object.__setattr__(self, 'compression_envelope_skew', envelope_skew)
     trials = tuple(self.trials)
     if any(
       not isinstance(trial, MocReflectedDomainSolverOwnedFirstCellTrial)
@@ -1556,6 +1576,7 @@ class MocReflectedDomainSolverOwnedFirstCellResult:
       'closure_residual_m': self.closure_residual_m,
       'shooting_iterations': self.shooting_iterations,
       'bracket_scan_sample_count': self.bracket_scan_sample_count,
+      'compression_envelope_skew': self.compression_envelope_skew,
       'trial_count': len(self.trials),
       'trials': tuple(trial.as_report() for trial in self.trials),
       'message': self.message,
@@ -1570,6 +1591,281 @@ def _static_pressure_from_total_pressure(
   return float(total_pressure_Pa) / (
     1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
   ) ** (state.gamma / (state.gamma - 1.0))
+
+
+class MocReflectedDomainGlobalShockRemeshStatus(str, Enum):
+  """Outcome of a bounded global reflected-shock remesh sweep."""
+
+  CONVERGED_ENDPOINT = 'converged_global_reflected_shock_endpoint'
+  NO_ENDPOINT_CLOSURE = 'global_reflected_shock_no_endpoint_closure'
+  INVALID_INPUT = 'invalid_input'
+  SOURCE_FIELD_FAILURE = 'global_reflected_shock_source_field_failure'
+  ATTEMPT_FAILURE = 'global_reflected_shock_attempt_failure'
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainGlobalShockRemeshAttempt:
+  """One globally selected source pair and compression-profile trial."""
+
+  outer_source_index: int
+  target_centerline_index: int
+  compression_envelope_skew: float
+  first_cell_result: MocReflectedDomainSolverOwnedFirstCellResult
+
+  def __post_init__(self) -> None:
+    for name in ('outer_source_index', 'target_centerline_index'):
+      value = getattr(self, name)
+      if (
+        isinstance(value, bool)
+        or not isinstance(value, int)
+        or value < 0
+      ):
+        raise ValueError(f'{name} must be a nonnegative integer')
+    skew = float(self.compression_envelope_skew)
+    if not isfinite(skew) or abs(skew) > 1.0:
+      raise ValueError(
+        'compression_envelope_skew must be finite and within [-1, 1]'
+      )
+    object.__setattr__(self, 'compression_envelope_skew', skew)
+    if not isinstance(
+      self.first_cell_result,
+      MocReflectedDomainSolverOwnedFirstCellResult,
+    ):
+      raise TypeError(
+        'first_cell_result must be a '
+        'MocReflectedDomainSolverOwnedFirstCellResult'
+      )
+  ####
+
+  @property
+  def converged(self) -> bool:
+    return self.first_cell_result.converged
+  ####
+
+  @property
+  def residual_m(self) -> float | None:
+    return self.first_cell_result.closure_residual_m
+  ####
+
+  def as_report(self) -> dict[str, object]:
+    return {
+      'outer_source_index': self.outer_source_index,
+      'target_centerline_index': self.target_centerline_index,
+      'compression_envelope_skew': self.compression_envelope_skew,
+      'converged': self.converged,
+      'residual_m': self.residual_m,
+      'first_cell_result': self.first_cell_result.as_report(),
+    }
+  ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainGlobalShockRemeshResult:
+  """A bounded whole-path reflected-shock remesh and its retained attempts.
+
+  The sweep changes only solver-owned source selection and the bounded global
+  compression-profile shape.  Every attempt is a complete first-cell solve
+  or a typed failure.  A locally aligned endpoint is still a research result:
+  the canonical reflected free boundary, coupled Euler residual, and chain
+  promotion remain closed gates.
+  """
+
+  status: MocReflectedDomainGlobalShockRemeshStatus
+  source_band: MocReflectedDomainAlternatingSourceResult | None
+  attempts: tuple[MocReflectedDomainGlobalShockRemeshAttempt, ...]
+  selected_attempt_index: int | None
+  selected_residual_m: float | None
+  outer_source_indices: tuple[int, ...]
+  target_centerline_indices: tuple[int, ...]
+  compression_envelope_skews: tuple[float, ...]
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.status, MocReflectedDomainGlobalShockRemeshStatus):
+      raise TypeError(
+        'status must be a MocReflectedDomainGlobalShockRemeshStatus'
+      )
+    if self.source_band is not None and not isinstance(
+      self.source_band,
+      MocReflectedDomainAlternatingSourceResult,
+    ):
+      raise TypeError(
+        'source_band must be a MocReflectedDomainAlternatingSourceResult or None'
+      )
+    attempts = tuple(self.attempts)
+    if any(
+      not isinstance(
+        attempt,
+        MocReflectedDomainGlobalShockRemeshAttempt,
+      )
+      for attempt in attempts
+    ):
+      raise TypeError(
+        'attempts must contain MocReflectedDomainGlobalShockRemeshAttempt values'
+      )
+    object.__setattr__(self, 'attempts', attempts)
+    for name in ('outer_source_indices', 'target_centerline_indices'):
+      values = tuple(getattr(self, name))
+      if any(
+        isinstance(value, bool) or not isinstance(value, int) or value < 0
+        for value in values
+      ):
+        raise ValueError(f'{name} must contain nonnegative integers')
+      object.__setattr__(self, name, values)
+    skews = tuple(float(value) for value in self.compression_envelope_skews)
+    if any(not isfinite(value) or abs(value) > 1.0 for value in skews):
+      raise ValueError(
+        'compression_envelope_skews must be finite values within [-1, 1]'
+      )
+    object.__setattr__(self, 'compression_envelope_skews', skews)
+    if self.selected_attempt_index is not None and (
+      isinstance(self.selected_attempt_index, bool)
+      or not isinstance(self.selected_attempt_index, int)
+      or self.selected_attempt_index < 0
+      or self.selected_attempt_index >= len(attempts)
+    ):
+      raise ValueError('selected_attempt_index must select a retained attempt')
+    if self.selected_residual_m is not None:
+      residual = float(self.selected_residual_m)
+      if not isfinite(residual):
+        raise ValueError('selected_residual_m must be finite when supplied')
+      object.__setattr__(self, 'selected_residual_m', residual)
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def selected_attempt(self) -> MocReflectedDomainGlobalShockRemeshAttempt | None:
+    return (
+      None
+      if self.selected_attempt_index is None
+      else self.attempts[self.selected_attempt_index]
+    )
+  ####
+
+  @property
+  def attempt_count(self) -> int:
+    return len(self.attempts)
+  ####
+
+  @property
+  def converged(self) -> bool:
+    return bool(
+      self.status is MocReflectedDomainGlobalShockRemeshStatus.CONVERGED_ENDPOINT
+      and self.selected_attempt is not None
+      and self.selected_attempt.converged
+      and self.selected_residual_m is not None
+    )
+  ####
+
+  @property
+  def source_field_verified(self) -> bool:
+    return bool(
+      self.source_band is not None
+      and self.source_band.source_field_verified
+    )
+  ####
+
+  @property
+  def local_endpoint_verified(self) -> bool:
+    return bool(self.converged)
+  ####
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    """The global remesh remains below the canonical physical closure gate."""
+
+    return False
+  ####
+
+  @property
+  def canonical_free_boundary_verified(self) -> bool:
+    return False
+  ####
+
+  @property
+  def canonical_euler_verified(self) -> bool:
+    return False
+  ####
+
+  @property
+  def external_validation_verified(self) -> bool:
+    return False
+  ####
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    return True
+  ####
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    return False
+  ####
+
+  def as_chain_termination_decision(self) -> MocChainTerminationDecision:
+    if self.status is MocReflectedDomainGlobalShockRemeshStatus.INVALID_INPUT:
+      reason = MocChainTerminationReason.INVALID_INPUT
+      message = self.message or 'global reflected-shock remesh rejected its inputs'
+    elif self.status is MocReflectedDomainGlobalShockRemeshStatus.SOURCE_FIELD_FAILURE:
+      reason = MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+      message = self.message or 'global reflected-shock remesh lacks a bounded source field'
+    elif self.converged:
+      reason = MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+      message = (
+        'global reflected-shock endpoint is locally aligned but canonical '
+        'free-boundary, Euler, and external-validation gates block promotion'
+      )
+    else:
+      reason = MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+      message = (
+        self.message
+        or 'global reflected-shock remesh did not close its endpoint; no '
+        'continued cell may be inferred'
+      )
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=reason,
+      message=message,
+      diagnostics={
+        'termination_model': 'global-reflected-shock-remesh',
+        'status': self.status.value,
+        'source_field_verified': self.source_field_verified,
+        'local_endpoint_verified': self.local_endpoint_verified,
+        'canonical_free_boundary_verified': self.canonical_free_boundary_verified,
+        'canonical_euler_verified': self.canonical_euler_verified,
+        'external_validation_verified': self.external_validation_verified,
+        'chain_promotion_blocked': self.chain_promotion_blocked,
+        'production_claim_allowed': self.production_claim_allowed,
+      },
+    )
+  ####
+
+  def as_report(self) -> dict[str, object]:
+    return {
+      'status': self.status.value,
+      'converged': self.converged,
+      'source_field_verified': self.source_field_verified,
+      'local_endpoint_verified': self.local_endpoint_verified,
+      'physical_closure_verified': self.physical_closure_verified,
+      'canonical_free_boundary_verified': self.canonical_free_boundary_verified,
+      'canonical_euler_verified': self.canonical_euler_verified,
+      'external_validation_verified': self.external_validation_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'selected_attempt_index': self.selected_attempt_index,
+      'selected_residual_m': self.selected_residual_m,
+      'outer_source_indices': self.outer_source_indices,
+      'target_centerline_indices': self.target_centerline_indices,
+      'compression_envelope_skews': self.compression_envelope_skews,
+      'attempt_count': len(self.attempts),
+      'attempts': tuple(attempt.as_report() for attempt in self.attempts),
+      'chain_termination_decision': self.as_chain_termination_decision().as_report(),
+      'source_band': (
+        None if self.source_band is None else self.source_band.as_report()
+      ),
+      'message': self.message,
+    }
+  ####
 
 
 def solve_reflected_domain_alternating_source(
@@ -2102,6 +2398,7 @@ def solve_reflected_domain_alternating_physical_field(
   outer_source_index: int = 0,
   use_outer_seed_attachment: bool = False,
   use_trace_referenced_profile: bool = False,
+  compression_envelope_skew: float = 0.0,
   target_centerline_y_m: float = 0.0,
   target_centerline_flow_angle_rad: float = 0.0,
   attachment_angle_half_width_rad: float = 1.0e-6,
@@ -2140,6 +2437,12 @@ def solve_reflected_domain_alternating_physical_field(
   while still producing a terminal trace that is not suitable for the next
   remesh at that resolution.
 
+  ``compression_envelope_skew`` shifts the bounded interior compression
+  toward the start or end of the globally remeshed shock.  The range
+  ``[-1, 1]`` preserves a non-negative envelope and zero-strength endpoints;
+  it is a shape-control research parameter, not a derived Euler boundary
+  condition.
+
   The source callbacks remain bounded by ``source_band``.  If a candidate
   shock leaves that finite source domain, the underlying physical solver
   returns a typed upstream-field failure; no extrapolated state is inserted.
@@ -2156,6 +2459,10 @@ def solve_reflected_domain_alternating_physical_field(
     amplitude = float(compression_amplitude_rad)
   except (TypeError, ValueError):
     amplitude = float('nan')
+  try:
+    envelope_skew = float(compression_envelope_skew)
+  except (TypeError, ValueError):
+    envelope_skew = float('nan')
   try:
     target_y = float(target_centerline_y_m)
     target_theta = float(target_centerline_flow_angle_rad)
@@ -2188,11 +2495,18 @@ def solve_reflected_domain_alternating_physical_field(
     if isinstance(use_trace_referenced_profile, bool)
     else False
   )
+  resolved_envelope_skew = envelope_skew
   attachment_source = (
     'outer-seed-reflection-interface'
     if resolved_seed_attachment
     else 'alternating-outer-source-row'
   )
+  if resolved_trace_profile:
+    continuation_law = 'reflected-trace-referenced-compression-envelope'
+  elif abs(resolved_envelope_skew) > 0.0:
+    continuation_law = 'alternating-source-skewed-compression-envelope'
+  else:
+    continuation_law = 'alternating-source-local-compression-envelope'
   resolved_incoming_handoff: tuple[MocChainBoundarySample, ...] = ()
   incoming_handoff_error = False
   if incoming_handoff is not None:
@@ -2241,6 +2555,11 @@ def solve_reflected_domain_alternating_physical_field(
       continuation_law=continuation_law,
       attachment_source=attachment_source,
       use_trace_referenced_profile=resolved_trace_profile,
+      compression_envelope_skew=(
+        resolved_envelope_skew
+        if isfinite(resolved_envelope_skew)
+        else 0.0
+      ),
       position_tolerance_m=resolved_position_tolerance,
       shock_angle_tolerance_rad=(
         resolved_shock_angle_tolerance
@@ -2270,6 +2589,14 @@ def solve_reflected_domain_alternating_physical_field(
     return failure(
       MocReflectedDomainAlternatingPhysicalFieldStatus.INVALID_INPUT,
       'use_trace_referenced_profile must be a bool',
+    )
+  if (
+    not isfinite(resolved_envelope_skew)
+    or abs(resolved_envelope_skew) > 1.0
+  ):
+    return failure(
+      MocReflectedDomainAlternatingPhysicalFieldStatus.INVALID_INPUT,
+      'compression_envelope_skew must be finite and within [-1, 1]',
     )
   if resolved_trace_profile and not resolved_seed_attachment:
     return failure(
@@ -2374,6 +2701,7 @@ def solve_reflected_domain_alternating_physical_field(
         amplitude,
         target_centerline_y_m=target_y,
         target_centerline_flow_angle_rad=target_theta,
+        envelope_skew=resolved_envelope_skew,
       )
     except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
       return failure(
@@ -2455,6 +2783,7 @@ def solve_reflected_domain_alternating_physical_field(
         'alternating physical shock point is outside the bounded source band'
       )
     envelope = 4.0 * fraction * (1.0 - fraction)
+    envelope *= 1.0 + resolved_envelope_skew * (2.0 * fraction - 1.0)
     return float(state.theta_rad + amplitude * envelope)
 
   try:
@@ -2525,6 +2854,7 @@ def solve_reflected_domain_alternating_physical_field(
       continuation_law=continuation_law,
       attachment_source=attachment_source,
       use_trace_referenced_profile=resolved_trace_profile,
+      compression_envelope_skew=resolved_envelope_skew,
       position_tolerance_m=float(position_tolerance_m),
       shock_angle_tolerance_rad=float(shock_angle_tolerance_rad),
       message=(
@@ -2562,6 +2892,7 @@ def solve_reflected_domain_solver_owned_first_cell(
   maximum_boundary_iterations: int = 16,
   maximum_shooting_iterations: int = 40,
   maximum_bracket_scan_samples: int = 0,
+  compression_envelope_skew: float = 0.0,
 ) -> MocReflectedDomainSolverOwnedFirstCellResult:
   """Iterate a solver-generated first-cell endpoint without shock geometry.
 
@@ -2584,6 +2915,10 @@ def solve_reflected_domain_solver_owned_first_cell(
   extrapolates outside the declared amplitude interval.  Every failed or
   successful trial is retained, and a missing field is never replaced with an
   extrapolated state.
+
+  ``compression_envelope_skew`` is held fixed during this scalar shoot.  A
+  separate global remesh may sweep it across ``[-1, 1]``; keeping it fixed
+  here makes each amplitude bracket a single, auditable family.
   """
 
   resolved_target_index: int | None = None
@@ -2601,6 +2936,7 @@ def solve_reflected_domain_solver_owned_first_cell(
     iterations: int = 0,
     trials: Sequence[MocReflectedDomainSolverOwnedFirstCellTrial] = (),
     bracket_scan_sample_count: int = 0,
+    envelope_skew: float = 0.0,
   ) -> MocReflectedDomainSolverOwnedFirstCellResult:
     return MocReflectedDomainSolverOwnedFirstCellResult(
       status=status,
@@ -2632,6 +2968,7 @@ def solve_reflected_domain_solver_owned_first_cell(
       shooting_iterations=iterations,
       trials=tuple(trials),
       bracket_scan_sample_count=bracket_scan_sample_count,
+      compression_envelope_skew=envelope_skew,
       message=message,
     )
 
@@ -2675,6 +3012,7 @@ def solve_reflected_domain_solver_owned_first_cell(
     resolved_pressure_tolerance = float(pressure_tolerance)
     resolved_tangent_tolerance = float(tangent_tolerance)
     resolved_shock_angle_tolerance = float(shock_angle_tolerance_rad)
+    resolved_envelope_skew = float(compression_envelope_skew)
   except (TypeError, ValueError):
     return failure(
       MocReflectedDomainSolverOwnedFirstCellStatus.INVALID_INPUT,
@@ -2691,8 +3029,8 @@ def solve_reflected_domain_solver_owned_first_cell(
         resolved_invariant_tolerance,
         resolved_attachment_pressure_tolerance,
         resolved_pressure_tolerance,
-        resolved_tangent_tolerance,
-        resolved_shock_angle_tolerance,
+      resolved_tangent_tolerance,
+      resolved_shock_angle_tolerance,
       )
     )
     or lower_amplitude >= upper_amplitude
@@ -2710,12 +3048,21 @@ def solve_reflected_domain_solver_owned_first_cell(
       MocReflectedDomainSolverOwnedFirstCellStatus.INVALID_INPUT,
       'amplitude bounds and solver tolerances must be finite, positive, and ordered',
       bracket=invalid_bracket,
+      envelope_skew=resolved_envelope_skew,
+    )
+  if not isfinite(resolved_envelope_skew) or abs(resolved_envelope_skew) > 1.0:
+    return failure(
+      MocReflectedDomainSolverOwnedFirstCellStatus.INVALID_INPUT,
+      'compression_envelope_skew must be finite and within [-1, 1]',
+      bracket=(lower_amplitude, upper_amplitude),
+      envelope_skew=resolved_envelope_skew,
     )
   if isinstance(sample_count, bool) or not isinstance(sample_count, int) or sample_count < 3:
     return failure(
       MocReflectedDomainSolverOwnedFirstCellStatus.INVALID_INPUT,
       'sample_count must be an integer of at least three',
       bracket=(lower_amplitude, upper_amplitude),
+      envelope_skew=resolved_envelope_skew,
     )
   for name, value in (
     ('maximum_segment_iterations', maximum_segment_iterations),
@@ -2727,6 +3074,7 @@ def solve_reflected_domain_solver_owned_first_cell(
         MocReflectedDomainSolverOwnedFirstCellStatus.INVALID_INPUT,
         f'{name} must be a positive integer',
         bracket=(lower_amplitude, upper_amplitude),
+        envelope_skew=resolved_envelope_skew,
       )
   if (
     isinstance(maximum_bracket_scan_samples, bool)
@@ -2737,18 +3085,21 @@ def solve_reflected_domain_solver_owned_first_cell(
       MocReflectedDomainSolverOwnedFirstCellStatus.INVALID_INPUT,
       'maximum_bracket_scan_samples must be a nonnegative integer',
       bracket=(lower_amplitude, upper_amplitude),
+      envelope_skew=resolved_envelope_skew,
     )
   if not isinstance(branch, ShockBranch):
     return failure(
       MocReflectedDomainSolverOwnedFirstCellStatus.INVALID_INPUT,
       'branch must be a ShockBranch',
       bracket=(lower_amplitude, upper_amplitude),
+      envelope_skew=resolved_envelope_skew,
     )
   if not source_band.source_field_verified:
     return failure(
       MocReflectedDomainSolverOwnedFirstCellStatus.SOURCE_FIELD_FAILURE,
       'solver-owned first-cell iteration requires a verified bounded source band',
       bracket=(lower_amplitude, upper_amplitude),
+      envelope_skew=resolved_envelope_skew,
     )
   resolved_handoff = source_band.incoming_handoff
   if incoming_handoff is not None:
@@ -2759,6 +3110,7 @@ def solve_reflected_domain_solver_owned_first_cell(
         MocReflectedDomainSolverOwnedFirstCellStatus.INVALID_INPUT,
         'incoming_handoff must be an iterable of MocChainBoundarySample values',
         bracket=(lower_amplitude, upper_amplitude),
+        envelope_skew=resolved_envelope_skew,
       )
     if any(
       not isinstance(sample, MocChainBoundarySample)
@@ -2768,12 +3120,14 @@ def solve_reflected_domain_solver_owned_first_cell(
         MocReflectedDomainSolverOwnedFirstCellStatus.INVALID_INPUT,
         'incoming_handoff must contain MocChainBoundarySample values',
         bracket=(lower_amplitude, upper_amplitude),
+        envelope_skew=resolved_envelope_skew,
       )
   if resolved_handoff != source_band.incoming_handoff:
     return failure(
       MocReflectedDomainSolverOwnedFirstCellStatus.INVALID_INPUT,
       'incoming_handoff must exactly match the source band handoff',
       bracket=(lower_amplitude, upper_amplitude),
+      envelope_skew=resolved_envelope_skew,
     )
   source_state = source_band.outer_source_states[outer_source_index]
   target_state = source_band.centerline_source_states[resolved_target_index]
@@ -2788,6 +3142,7 @@ def solve_reflected_domain_solver_owned_first_cell(
       'selected source and centerline states do not define a downstream endpoint',
       target_point=target_point,
       bracket=(lower_amplitude, upper_amplitude),
+      envelope_skew=resolved_envelope_skew,
     )
 
   trials: list[MocReflectedDomainSolverOwnedFirstCellTrial] = []
@@ -2814,6 +3169,7 @@ def solve_reflected_domain_solver_owned_first_cell(
         maximum_segment_iterations=maximum_segment_iterations,
         maximum_boundary_iterations=maximum_boundary_iterations,
         maximum_shooting_iterations=maximum_shooting_iterations,
+        compression_envelope_skew=resolved_envelope_skew,
         incoming_handoff=resolved_handoff,
       )
     except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
@@ -2887,6 +3243,7 @@ def solve_reflected_domain_solver_owned_first_cell(
       iterations=iterations,
       trials=trials,
       bracket_scan_sample_count=maximum_bracket_scan_samples,
+      envelope_skew=resolved_envelope_skew,
     )
 
   lower_trial = evaluate(lower_amplitude)
@@ -3012,6 +3369,281 @@ def solve_reflected_domain_solver_owned_first_cell(
       f'shoot limit after {completed_iterations} iterations'
     ),
     completed_iterations,
+  )
+
+
+def solve_reflected_domain_global_shock_remesh(
+  source_band: MocReflectedDomainAlternatingSourceResult,
+  *,
+  outer_source_indices: Sequence[int] | None = None,
+  target_centerline_indices: Sequence[int] | None = None,
+  compression_amplitude_lower_rad: float = 0.005,
+  compression_amplitude_upper_rad: float = 0.05,
+  compression_envelope_skews: Sequence[float] = (-0.75, 0.0, 0.75),
+  closure_tolerance_m: float = 1.0e-6,
+  incoming_handoff: Sequence[MocChainBoundarySample] | None = None,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-9,
+  invariant_tolerance: float = 1.0e-10,
+  attachment_pressure_tolerance: float = 1.0e-8,
+  pressure_tolerance: float = 1.0e-8,
+  tangent_tolerance: float = 1.0e-8,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  maximum_boundary_iterations: int = 16,
+  maximum_shooting_iterations: int = 40,
+  maximum_bracket_scan_samples: int = 0,
+  maximum_attempts: int = 64,
+) -> MocReflectedDomainGlobalShockRemeshResult:
+  """Sweep a bounded global shock-profile remesh over source interfaces.
+
+  Each attempt delegates to
+  :func:`solve_reflected_domain_solver_owned_first_cell` for one complete
+  shock path.  The source-pair and skew sweeps are intentionally separate
+  from the scalar amplitude shoot: an invalid field cannot be bridged by a
+  neighboring trial, and a locally aligned endpoint still cannot become a
+  canonical chain cell.  This is the next global-remesh seam, not the final
+  reflected Euler/free-boundary solve.
+  """
+
+  def failure(
+    status: MocReflectedDomainGlobalShockRemeshStatus,
+    message: str,
+    *,
+    resolved_outer: Sequence[int] = (),
+    resolved_target: Sequence[int] = (),
+    resolved_skews: Sequence[float] = (),
+    attempts: Sequence[MocReflectedDomainGlobalShockRemeshAttempt] = (),
+    selected_index: int | None = None,
+    selected_residual: float | None = None,
+  ) -> MocReflectedDomainGlobalShockRemeshResult:
+    return MocReflectedDomainGlobalShockRemeshResult(
+      status=status,
+      source_band=(
+        source_band
+        if isinstance(source_band, MocReflectedDomainAlternatingSourceResult)
+        else None
+      ),
+      attempts=tuple(attempts),
+      selected_attempt_index=selected_index,
+      selected_residual_m=selected_residual,
+      outer_source_indices=tuple(resolved_outer),
+      target_centerline_indices=tuple(resolved_target),
+      compression_envelope_skews=tuple(resolved_skews),
+      message=message,
+    )
+
+  if not isinstance(source_band, MocReflectedDomainAlternatingSourceResult):
+    return failure(
+      MocReflectedDomainGlobalShockRemeshStatus.INVALID_INPUT,
+      'source_band must be a MocReflectedDomainAlternatingSourceResult',
+    )
+  if not source_band.source_field_verified:
+    return failure(
+      MocReflectedDomainGlobalShockRemeshStatus.SOURCE_FIELD_FAILURE,
+      'global reflected-shock remesh requires a verified bounded source band',
+    )
+  if (
+    isinstance(maximum_attempts, bool)
+    or not isinstance(maximum_attempts, int)
+    or maximum_attempts < 1
+  ):
+    return failure(
+      MocReflectedDomainGlobalShockRemeshStatus.INVALID_INPUT,
+      'maximum_attempts must be a positive integer',
+    )
+
+  def resolve_indices(
+    values: Sequence[int] | None,
+    count: int,
+    name: str,
+  ) -> tuple[int, ...] | None:
+    if values is None:
+      return tuple(range(count))
+    try:
+      resolved = tuple(values)
+    except TypeError:
+      return None
+    if any(
+      isinstance(value, bool) or not isinstance(value, int) or value < 0
+      or value >= count
+      for value in resolved
+    ):
+      return None
+    if len(set(resolved)) != len(resolved):
+      return None
+    return resolved
+
+  resolved_outer = resolve_indices(
+    outer_source_indices,
+    len(source_band.outer_source_states),
+    'outer_source_indices',
+  )
+  if resolved_outer is None or not resolved_outer:
+    return failure(
+      MocReflectedDomainGlobalShockRemeshStatus.INVALID_INPUT,
+      'outer_source_indices must contain unique in-range source indices',
+    )
+  explicit_targets = resolve_indices(
+    target_centerline_indices,
+    len(source_band.centerline_source_states),
+    'target_centerline_indices',
+  )
+  if target_centerline_indices is not None and (
+    explicit_targets is None or not explicit_targets
+  ):
+    return failure(
+      MocReflectedDomainGlobalShockRemeshStatus.INVALID_INPUT,
+      'target_centerline_indices must contain unique in-range centerline indices',
+      resolved_outer=resolved_outer,
+    )
+  try:
+    resolved_skews = tuple(float(value) for value in compression_envelope_skews)
+  except (TypeError, ValueError):
+    return failure(
+      MocReflectedDomainGlobalShockRemeshStatus.INVALID_INPUT,
+      'compression_envelope_skews must be an iterable of numeric values',
+      resolved_outer=resolved_outer,
+    )
+  if not resolved_skews or any(
+    not isfinite(value) or abs(value) > 1.0 for value in resolved_skews
+  ):
+    return failure(
+      MocReflectedDomainGlobalShockRemeshStatus.INVALID_INPUT,
+      'compression_envelope_skews must contain values within [-1, 1]',
+      resolved_outer=resolved_outer,
+      resolved_skews=resolved_skews,
+    )
+  if len(set(resolved_skews)) != len(resolved_skews):
+    return failure(
+      MocReflectedDomainGlobalShockRemeshStatus.INVALID_INPUT,
+      'compression_envelope_skews must contain unique values',
+      resolved_outer=resolved_outer,
+      resolved_skews=resolved_skews,
+    )
+  target_pairs = (
+    tuple(
+      (outer_index, outer_index + 1)
+      for outer_index in resolved_outer
+      if outer_index + 1 < len(source_band.centerline_source_states)
+    )
+    if explicit_targets is None
+    else tuple(
+      (outer_index, target_index)
+      for outer_index in resolved_outer
+      for target_index in explicit_targets
+    )
+  )
+  if not target_pairs:
+    return failure(
+      MocReflectedDomainGlobalShockRemeshStatus.INVALID_INPUT,
+      'global remesh source pairs must contain at least one downstream centerline target',
+      resolved_outer=resolved_outer,
+      resolved_skews=resolved_skews,
+    )
+  attempt_count = len(target_pairs) * len(resolved_skews)
+  if attempt_count > maximum_attempts:
+    return failure(
+      MocReflectedDomainGlobalShockRemeshStatus.INVALID_INPUT,
+      f'global remesh requests {attempt_count} attempts, exceeding maximum_attempts={maximum_attempts}',
+      resolved_outer=resolved_outer,
+      resolved_target=tuple(sorted({target for _, target in target_pairs})),
+      resolved_skews=resolved_skews,
+    )
+  resolved_targets = tuple(sorted({target for _, target in target_pairs}))
+  attempts: list[MocReflectedDomainGlobalShockRemeshAttempt] = []
+  for outer_index, target_index in target_pairs:
+    for skew in resolved_skews:
+      first_cell = solve_reflected_domain_solver_owned_first_cell(
+        source_band,
+        outer_source_index=outer_index,
+        target_centerline_index=target_index,
+        compression_amplitude_lower_rad=compression_amplitude_lower_rad,
+        compression_amplitude_upper_rad=compression_amplitude_upper_rad,
+        closure_tolerance_m=closure_tolerance_m,
+        incoming_handoff=incoming_handoff,
+        sample_count=sample_count,
+        branch=branch,
+        position_tolerance_m=position_tolerance_m,
+        invariant_tolerance=invariant_tolerance,
+        attachment_pressure_tolerance=attachment_pressure_tolerance,
+        pressure_tolerance=pressure_tolerance,
+        tangent_tolerance=tangent_tolerance,
+        shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+        maximum_segment_iterations=maximum_segment_iterations,
+        maximum_boundary_iterations=maximum_boundary_iterations,
+        maximum_shooting_iterations=maximum_shooting_iterations,
+        maximum_bracket_scan_samples=maximum_bracket_scan_samples,
+        compression_envelope_skew=skew,
+      )
+      attempts.append(
+        MocReflectedDomainGlobalShockRemeshAttempt(
+          outer_source_index=outer_index,
+          target_centerline_index=target_index,
+          compression_envelope_skew=skew,
+          first_cell_result=first_cell,
+        )
+      )
+
+  valid_attempts = tuple(
+    (index, attempt)
+    for index, attempt in enumerate(attempts)
+    if attempt.residual_m is not None
+    and attempt.first_cell_result.status in (
+      MocReflectedDomainSolverOwnedFirstCellStatus.BOUNDARY_BRACKET_FAILURE,
+      MocReflectedDomainSolverOwnedFirstCellStatus.CONVERGED_CENTERLINE_ENDPOINT,
+    )
+    and attempt.first_cell_result.local_physical_field_verified
+  )
+  complete_attempts = bool(attempts) and len(valid_attempts) == len(attempts)
+  selected_index: int | None = None
+  selected_residual: float | None = None
+  if valid_attempts:
+    selected_index, selected_attempt = min(
+      valid_attempts,
+      key=lambda item: abs(item[1].residual_m),
+    )
+    selected_residual = selected_attempt.residual_m
+  converged_attempts = tuple(
+    (index, attempt)
+    for index, attempt in valid_attempts
+    if attempt.converged
+  )
+  if converged_attempts and complete_attempts:
+    selected_index, selected_attempt = min(
+      converged_attempts,
+      key=lambda item: abs(item[1].residual_m),
+    )
+    selected_residual = selected_attempt.residual_m
+    status = MocReflectedDomainGlobalShockRemeshStatus.CONVERGED_ENDPOINT
+    message = (
+      'global reflected-shock remesh found a locally aligned endpoint in the '
+      f'bounded source/profile sweep after {len(attempts)} attempt(s)'
+    )
+  elif valid_attempts and complete_attempts:
+    status = MocReflectedDomainGlobalShockRemeshStatus.NO_ENDPOINT_CLOSURE
+    message = (
+      'global reflected-shock remesh retained bounded complete trials but no '
+      f'endpoint root after {len(attempts)} attempt(s); no extrapolation or '
+      'cross-family bracket was used'
+    )
+  else:
+    status = MocReflectedDomainGlobalShockRemeshStatus.ATTEMPT_FAILURE
+    message = (
+      'global reflected-shock remesh produced no complete bounded trial; '
+      'the retained typed first-cell outcomes identify the limiting source '
+      'or characteristic-field seam'
+    )
+  return failure(
+    status,
+    message,
+    resolved_outer=resolved_outer,
+    resolved_target=resolved_targets,
+    resolved_skews=resolved_skews,
+    attempts=attempts,
+    selected_index=selected_index,
+    selected_residual=selected_residual,
   )
 
 

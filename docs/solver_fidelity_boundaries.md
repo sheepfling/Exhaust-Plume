@@ -793,6 +793,35 @@ experiment, with canonical reflected remeshing, mixed-regime/free-boundary
 coupling, refinement, external observations, and product promotion still
 blocked.
 
+## Global reflected-shock remesh checkpoint
+
+`solve_reflected_domain_global_shock_remesh` is the next bounded solver-owned
+step for continued shock-cell work. It sweeps explicit outer-source /
+centerline-target pairs and a finite set of compression-profile shape values
+across the entire sampled shock path. Each attempt reruns the complete
+solver-owned first-cell shoot; a failed attempt is retained as a typed result,
+and no bracket or state is bridged across an invalid field. The result exposes
+the selected residual, all attempt reports, and the separate statuses
+`NO_ENDPOINT_CLOSURE` and `ATTEMPT_FAILURE` so an incomplete sweep cannot be
+mistaken for a global closure.
+
+`op.moc.reflected-domain-global-shock-remesh` independently remeasures the
+source band, every first-cell trial, source/profile lineage, selected-attempt
+identity, and endpoint residual. A complete no-root sweep is accepted as
+research evidence only. Even a locally aligned endpoint keeps
+`physical_closure_verified=false`, `canonical_free_boundary_verified=false`,
+`canonical_euler_verified=false`, `chain_promotion_blocked=true`, and
+`production_claim_allowed=false` because the reflected shock remains a
+prescribed profile family rather than a coupled free-boundary/Euler solution.
+
+`plan_reflected_domain_global_shock_remesh_chain` carries the exact seed
+centerline state/total-pressure handoff into this sweep and preserves the
+solver's typed stop. It returns a one-cell research prefix with an
+`open-physical-closure` stop for the current no-root fixture; it does not
+fabricate or promote a continued cell. The fast/basic visualization and
+reduced-order lanes, signature lane, ray-transfer lane, and focal-plane-array
+lane remain isolated from this research result.
+
 ## Parameterized planar free-boundary research boundary
 
 The current higher-fidelity downstream experiment is isolated under the exact

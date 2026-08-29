@@ -101,6 +101,8 @@ from exhaust_plume.models.moc.reflected_domain import (
   MocReflectedDomainAlternatingPhysicalFieldResult,
   MocReflectedDomainSolverOwnedFirstCellResult,
   MocReflectedDomainSolverOwnedFirstCellStatus,
+  MocReflectedDomainGlobalShockRemeshResult,
+  MocReflectedDomainGlobalShockRemeshStatus,
   MocReflectedDomainOuterSourceResult,
   MocReflectedDomainOuterSourceStatus,
   MocReflectedDomainRemeshResult,
@@ -138,6 +140,7 @@ __all__ = (
   'MOC_REFLECTED_DOMAIN_ALTERNATING_SOURCE_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_ALTERNATING_PHYSICAL_FIELD_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_SOLVER_OWNED_FIRST_CELL_OPERATOR_ID',
+  'MOC_REFLECTED_DOMAIN_GLOBAL_SHOCK_REMESH_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_ALTERNATING_PHYSICAL_FIELD_CHAIN_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_ALTERNATING_PHYSICAL_FIELD_CHAIN_REFINEMENT_OPERATOR_ID',
   'MOC_MIXED_REGIME_FREE_BOUNDARY_OPERATOR_ID',
@@ -174,6 +177,8 @@ __all__ = (
   'MocReflectedDomainAlternatingPhysicalFieldMeasurementStatus',
   'MocReflectedDomainSolverOwnedFirstCellMeasurement',
   'MocReflectedDomainSolverOwnedFirstCellMeasurementStatus',
+  'MocReflectedDomainGlobalShockRemeshMeasurement',
+  'MocReflectedDomainGlobalShockRemeshMeasurementStatus',
   'MocReflectedDomainAlternatingPhysicalFieldChainMeasurement',
   'MocReflectedDomainAlternatingPhysicalFieldChainMeasurementStatus',
   'MocReflectedDomainAlternatingPhysicalFieldChainRefinementCase',
@@ -229,6 +234,7 @@ __all__ = (
   'measure_moc_reflected_domain_alternating_source',
   'measure_moc_reflected_domain_alternating_physical_field_chain',
   'measure_moc_reflected_domain_solver_owned_first_cell',
+  'measure_moc_reflected_domain_global_shock_remesh',
   'measure_moc_reflected_domain_alternating_physical_field_chain_refinement',
   'measure_mixed_regime_compressible_potential_field',
   'measure_mixed_regime_free_boundary_reference',
@@ -290,6 +296,9 @@ MOC_REFLECTED_DOMAIN_ALTERNATING_PHYSICAL_FIELD_OPERATOR_ID = (
 )
 MOC_REFLECTED_DOMAIN_SOLVER_OWNED_FIRST_CELL_OPERATOR_ID = (
   'op.moc.reflected-domain-solver-owned-first-cell'
+)
+MOC_REFLECTED_DOMAIN_GLOBAL_SHOCK_REMESH_OPERATOR_ID = (
+  'op.moc.reflected-domain-global-shock-remesh'
 )
 MOC_REFLECTED_DOMAIN_ALTERNATING_PHYSICAL_FIELD_CHAIN_OPERATOR_ID = (
   'op.moc.reflected-domain-alternating-physical-field-chain'
@@ -7547,6 +7556,102 @@ class MocReflectedDomainSolverOwnedFirstCellMeasurement:
       'claim_status': (
         'independent-solver-owned-first-cell-audit; '
         'local-research-reference-only'
+      ),
+      'message': self.message,
+    }
+  ####
+
+
+class MocReflectedDomainGlobalShockRemeshMeasurementStatus(str, Enum):
+  """Outcome of independently auditing a global reflected-shock sweep."""
+
+  CONVERGED = 'converged'
+  INVALID_INPUT = 'invalid_input'
+  SOURCE_FAILURE = 'source_failure'
+  ATTEMPT_FAILURE = 'attempt_failure'
+  CLOSURE_FAILURE = 'closure_failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainGlobalShockRemeshMeasurement:
+  """Independent evidence for a bounded global reflected-shock sweep.
+
+  The operator remeasures the source band and every retained first-cell
+  attempt.  It accepts a reproducible no-endpoint sweep as research evidence,
+  but never treats a locally aligned endpoint as canonical reflected-Euler
+  closure or as permission to promote a continued chain cell.
+  """
+
+  status: MocReflectedDomainGlobalShockRemeshMeasurementStatus
+  operator_id: str
+  solver_status: str | None
+  source_measurement: MocReflectedDomainAlternatingSourceMeasurement | None
+  attempt_count: int
+  attempt_measurements: (
+    tuple[MocReflectedDomainSolverOwnedFirstCellMeasurement, ...]
+  )
+  source_field_verified: bool
+  attempt_identity_verified: bool
+  attempt_shape_verified: bool
+  attempt_residuals_verified: bool
+  selected_attempt_verified: bool
+  global_endpoint_verified: bool
+  no_endpoint_closure_verified: bool
+  physical_closure_verified: bool
+  canonical_free_boundary_verified: bool
+  canonical_euler_verified: bool
+  external_validation_verified: bool
+  chain_promotion_blocked: bool
+  production_claim_allowed: bool
+  fidelity_isolation_verified: bool
+  selected_residual_m: float | None
+  endpoint_tolerance_m: float
+  message: str
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocReflectedDomainGlobalShockRemeshMeasurementStatus.CONVERGED
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'operator_id': self.operator_id,
+      'converged': self.converged,
+      'solver_status': self.solver_status,
+      'source_measurement': (
+        None
+        if self.source_measurement is None
+        else self.source_measurement.as_report()
+      ),
+      'attempt_count': self.attempt_count,
+      'attempt_measurements': tuple(
+        measurement.as_report()
+        for measurement in self.attempt_measurements
+      ),
+      'checks': {
+        'source_field_verified': self.source_field_verified,
+        'attempt_identity_verified': self.attempt_identity_verified,
+        'attempt_shape_verified': self.attempt_shape_verified,
+        'attempt_residuals_verified': self.attempt_residuals_verified,
+        'selected_attempt_verified': self.selected_attempt_verified,
+        'global_endpoint_verified': self.global_endpoint_verified,
+        'no_endpoint_closure_verified': self.no_endpoint_closure_verified,
+        'physical_closure_verified': self.physical_closure_verified,
+        'canonical_free_boundary_verified': self.canonical_free_boundary_verified,
+        'canonical_euler_verified': self.canonical_euler_verified,
+        'external_validation_verified': self.external_validation_verified,
+        'chain_promotion_blocked': self.chain_promotion_blocked,
+        'production_claim_allowed': self.production_claim_allowed,
+        'fidelity_isolation_verified': self.fidelity_isolation_verified,
+      },
+      'selected_residual_m': self.selected_residual_m,
+      'endpoint_tolerance_m': self.endpoint_tolerance_m,
+      'canonical_reflected_domain_closed': False,
+      'claim_status': (
+        'independent-global-reflected-shock-remesh-audit; '
+        'bounded-research-sweep-only'
       ),
       'message': self.message,
     }
@@ -15571,6 +15676,7 @@ def measure_moc_reflected_domain_alternating_physical_field(
             target_centerline_flow_angle_rad=(
               source_band.target_centerline_flow_angle_rad
             ),
+            envelope_skew=result.compression_envelope_skew,
           )
           envelope_verified = _caustic_state_matches(
             source_state,
@@ -15611,7 +15717,9 @@ def measure_moc_reflected_domain_alternating_physical_field(
             break
           expected_angle = state.theta_rad + float(
             result.compression_amplitude_rad
-          ) * 4.0 * fraction * (1.0 - fraction)
+          ) * 4.0 * fraction * (1.0 - fraction) * (
+            1.0 + result.compression_envelope_skew * (2.0 * fraction - 1.0)
+          )
         if abs(float(target_angle) - expected_angle) > source_band.invariant_tolerance * max(
           1.0,
           abs(float(target_angle)),
@@ -15932,10 +16040,18 @@ def measure_moc_reflected_domain_solver_owned_first_cell(
           trial.endpoint_m is None and trial.residual_m is None
         )
         continue
+      trial_profile_verified = bool(
+        abs(
+          physical_field.compression_envelope_skew
+          - result.compression_envelope_skew
+        )
+        <= 1.0e-12
+      )
       expected_endpoint = raw_field.shock_boundary_points_m[-1]
       expected_residual = expected_endpoint[0] - target_x
       trial_residuals_verified = trial_residuals_verified and bool(
         trial_source_verified
+        and trial_profile_verified
         and trial_measurement.converged
         and trial.endpoint_m is not None
         and trial.residual_m is not None
@@ -15985,6 +16101,11 @@ def measure_moc_reflected_domain_solver_owned_first_cell(
       selected_field_verified = bool(
         selected_trial_verified
         and selected_field_measurement.converged
+        and abs(
+          result.selected_physical_field.compression_envelope_skew
+          - result.compression_envelope_skew
+        )
+        <= 1.0e-12
         and source_band is not None
         and result.selected_physical_field.source_band is not None
         and _alternating_source_geometry_fingerprint(
@@ -16087,6 +16208,278 @@ def measure_moc_reflected_domain_solver_owned_first_cell(
     selected_amplitude=result.selected_compression_amplitude_rad,
     selected_residual_m=result.closure_residual_m,
     minimum_absolute_residual_m=minimum_absolute_residual,
+  )
+####
+
+
+def _reflected_domain_global_shock_remesh_measurement_failure(
+  status: MocReflectedDomainGlobalShockRemeshMeasurementStatus,
+  message: str,
+  *,
+  solver_status: str | None = None,
+  source_measurement: MocReflectedDomainAlternatingSourceMeasurement | None = None,
+  attempt_count: int = 0,
+  attempt_measurements: Sequence[
+    MocReflectedDomainSolverOwnedFirstCellMeasurement
+  ] = (),
+  source_field_verified: bool = False,
+  attempt_identity_verified: bool = False,
+  attempt_shape_verified: bool = False,
+  attempt_residuals_verified: bool = False,
+  selected_attempt_verified: bool = False,
+  global_endpoint_verified: bool = False,
+  no_endpoint_closure_verified: bool = False,
+  fidelity_isolation_verified: bool = False,
+  selected_residual_m: float | None = None,
+  endpoint_tolerance_m: float = 1.0e-6,
+) -> MocReflectedDomainGlobalShockRemeshMeasurement:
+  return MocReflectedDomainGlobalShockRemeshMeasurement(
+    status=status,
+    operator_id=MOC_REFLECTED_DOMAIN_GLOBAL_SHOCK_REMESH_OPERATOR_ID,
+    solver_status=solver_status,
+    source_measurement=source_measurement,
+    attempt_count=attempt_count,
+    attempt_measurements=tuple(attempt_measurements),
+    source_field_verified=source_field_verified,
+    attempt_identity_verified=attempt_identity_verified,
+    attempt_shape_verified=attempt_shape_verified,
+    attempt_residuals_verified=attempt_residuals_verified,
+    selected_attempt_verified=selected_attempt_verified,
+    global_endpoint_verified=global_endpoint_verified,
+    no_endpoint_closure_verified=no_endpoint_closure_verified,
+    physical_closure_verified=False,
+    canonical_free_boundary_verified=False,
+    canonical_euler_verified=False,
+    external_validation_verified=False,
+    chain_promotion_blocked=True,
+    production_claim_allowed=False,
+    fidelity_isolation_verified=fidelity_isolation_verified,
+    selected_residual_m=selected_residual_m,
+    endpoint_tolerance_m=endpoint_tolerance_m,
+    message=message,
+  )
+####
+
+
+def measure_moc_reflected_domain_global_shock_remesh(
+  result: MocReflectedDomainGlobalShockRemeshResult,
+  *,
+  endpoint_tolerance_m: float = 1.0e-6,
+) -> MocReflectedDomainGlobalShockRemeshMeasurement:
+  """Independently audit every attempt in a global shock remesh sweep.
+
+  The sweep is accepted as a research measurement when all retained attempts
+  can be remeasured and the declared no-root outcome is reproduced.  This is
+  deliberately stricter than accepting the aggregate solver status: a
+  changed source pair, profile skew, selected residual, or trial field must
+  invalidate the audit.  No outcome from this operator closes the canonical
+  reflected free-boundary/Euler problem.
+  """
+
+  if not isfinite(float(endpoint_tolerance_m)) or float(endpoint_tolerance_m) <= 0.0:
+    raise ValueError('endpoint_tolerance_m must be finite and positive')
+  endpoint_tolerance = float(endpoint_tolerance_m)
+  if not isinstance(result, MocReflectedDomainGlobalShockRemeshResult):
+    return _reflected_domain_global_shock_remesh_measurement_failure(
+      MocReflectedDomainGlobalShockRemeshMeasurementStatus.INVALID_INPUT,
+      'result must be a MocReflectedDomainGlobalShockRemeshResult',
+      endpoint_tolerance_m=endpoint_tolerance,
+    )
+
+  solver_status = getattr(result.status, 'value', str(result.status))
+  source_band = result.source_band
+  source_measurement = (
+    None
+    if source_band is None
+    else measure_moc_reflected_domain_alternating_source(source_band)
+  )
+  source_field_verified = bool(
+    source_measurement is not None and source_measurement.converged
+  )
+  attempts = tuple(result.attempts)
+  attempt_measurements = tuple(
+    measure_moc_reflected_domain_solver_owned_first_cell(
+      attempt.first_cell_result,
+      endpoint_tolerance_m=endpoint_tolerance,
+    )
+    for attempt in attempts
+  )
+  attempt_count = len(attempts)
+
+  attempt_identity_verified = bool(attempt_count > 0)
+  expected_source_fingerprint = (
+    None
+    if source_band is None
+    else _alternating_source_geometry_fingerprint(source_band)
+  )
+  for attempt in attempts:
+    first = attempt.first_cell_result
+    first_source_fingerprint = (
+      None
+      if first.source_band is None
+      else _alternating_source_geometry_fingerprint(first.source_band)
+    )
+    selected_field = first.selected_physical_field
+    selected_profile_verified = bool(
+      selected_field is not None
+      and abs(
+        selected_field.compression_envelope_skew
+        - attempt.compression_envelope_skew
+      )
+      <= 1.0e-12
+    )
+    attempt_identity_verified = attempt_identity_verified and bool(
+      first.outer_source_index == attempt.outer_source_index
+      and first.target_centerline_index == attempt.target_centerline_index
+      and abs(
+        first.compression_envelope_skew
+        - attempt.compression_envelope_skew
+      )
+      <= 1.0e-12
+      and first_source_fingerprint == expected_source_fingerprint
+      and selected_profile_verified
+    )
+
+  attempt_shape_verified = bool(
+    attempt_count > 0
+    and len(attempt_measurements) == attempt_count
+    and all(
+      measurement.converged
+      and measurement.selected_field_verified
+      and measurement.trial_residuals_verified
+      for measurement in attempt_measurements
+    )
+  )
+
+  attempt_residuals_verified = bool(attempt_count > 0)
+  residuals: list[float] = []
+  for attempt, measurement in zip(
+    attempts,
+    attempt_measurements,
+    strict=True,
+  ):
+    first = attempt.first_cell_result
+    selected_residual = measurement.selected_residual_m
+    if selected_residual is not None and isfinite(selected_residual):
+      residuals.append(float(selected_residual))
+    attempt_residuals_verified = attempt_residuals_verified and bool(
+      measurement.trial_residuals_verified
+      and measurement.selected_field_verified
+      and first.closure_residual_m is not None
+      and selected_residual is not None
+      and attempt.residual_m is not None
+      and abs(first.closure_residual_m - selected_residual)
+      <= endpoint_tolerance
+      and abs(attempt.residual_m - selected_residual) <= endpoint_tolerance
+    )
+
+  selected_attempt_verified = False
+  selected_measurement = None
+  selected_attempt = result.selected_attempt
+  if (
+    selected_attempt is not None
+    and isinstance(result.selected_attempt_index, int)
+    and not isinstance(result.selected_attempt_index, bool)
+    and 0 <= result.selected_attempt_index < attempt_count
+  ):
+    selected_measurement = attempt_measurements[result.selected_attempt_index]
+    valid_residuals = tuple(
+      measurement.selected_residual_m
+      for measurement in attempt_measurements
+      if measurement.selected_field_verified
+      and measurement.selected_residual_m is not None
+      and isfinite(measurement.selected_residual_m)
+    )
+    selected_attempt_verified = bool(
+      result.attempts[result.selected_attempt_index] is selected_attempt
+      and selected_measurement.converged
+      and selected_measurement.selected_field_verified
+      and result.selected_residual_m is not None
+      and selected_attempt.residual_m is not None
+      and abs(
+        result.selected_residual_m - selected_attempt.residual_m
+      ) <= endpoint_tolerance
+      and valid_residuals
+      and abs(result.selected_residual_m)
+      <= min(abs(value) for value in valid_residuals) + endpoint_tolerance
+    )
+
+  global_endpoint_verified = bool(
+    result.status is MocReflectedDomainGlobalShockRemeshStatus.CONVERGED_ENDPOINT
+    and selected_attempt_verified
+    and selected_attempt is not None
+    and selected_attempt.converged
+    and selected_measurement is not None
+    and selected_measurement.scalar_endpoint_verified
+    and result.selected_residual_m is not None
+    and abs(result.selected_residual_m) <= endpoint_tolerance
+  )
+  no_endpoint_closure_verified = bool(
+    result.status
+    is MocReflectedDomainGlobalShockRemeshStatus.NO_ENDPOINT_CLOSURE
+    and attempt_shape_verified
+    and attempt_residuals_verified
+    and selected_attempt_verified
+    and all(not attempt.converged for attempt in attempts)
+    and all(
+      not measurement.scalar_endpoint_verified
+      and measurement.selected_residual_m is not None
+      and abs(measurement.selected_residual_m) > endpoint_tolerance
+      for measurement in attempt_measurements
+    )
+  )
+  fidelity_isolation_verified = bool(
+    not result.canonical_free_boundary_verified
+    and not result.canonical_euler_verified
+    and not result.external_validation_verified
+    and result.chain_promotion_blocked
+    and not result.production_claim_allowed
+    and all(
+      measurement.fidelity_isolation_verified
+      for measurement in attempt_measurements
+    )
+  )
+
+  if result.status is MocReflectedDomainGlobalShockRemeshStatus.INVALID_INPUT:
+    status = MocReflectedDomainGlobalShockRemeshMeasurementStatus.INVALID_INPUT
+    message = 'global reflected-shock remesh input rejection was independently recorded'
+  elif not source_field_verified:
+    status = MocReflectedDomainGlobalShockRemeshMeasurementStatus.SOURCE_FAILURE
+    message = 'global reflected-shock remesh source band failed independent measurement'
+  elif not attempt_identity_verified or not attempt_shape_verified:
+    status = MocReflectedDomainGlobalShockRemeshMeasurementStatus.ATTEMPT_FAILURE
+    message = 'one or more global remesh attempts failed independent identity or field measurement'
+  elif not attempt_residuals_verified or not selected_attempt_verified:
+    status = MocReflectedDomainGlobalShockRemeshMeasurementStatus.ATTEMPT_FAILURE
+    message = 'global remesh attempt residuals or selected-attempt lineage failed independent measurement'
+  elif global_endpoint_verified or no_endpoint_closure_verified:
+    status = MocReflectedDomainGlobalShockRemeshMeasurementStatus.CONVERGED
+    message = (
+      'global reflected-shock remesh attempts, source/profile lineage, and '
+      'endpoint outcome passed independent measurement; canonical reflected '
+      'free-boundary validation remains pending'
+    )
+  else:
+    status = MocReflectedDomainGlobalShockRemeshMeasurementStatus.CLOSURE_FAILURE
+    message = 'global reflected-shock remesh outcome failed independent closure measurement'
+
+  return _reflected_domain_global_shock_remesh_measurement_failure(
+    status,
+    message,
+    solver_status=solver_status,
+    source_measurement=source_measurement,
+    attempt_count=attempt_count,
+    attempt_measurements=attempt_measurements,
+    source_field_verified=source_field_verified,
+    attempt_identity_verified=attempt_identity_verified,
+    attempt_shape_verified=attempt_shape_verified,
+    attempt_residuals_verified=attempt_residuals_verified,
+    selected_attempt_verified=selected_attempt_verified,
+    global_endpoint_verified=global_endpoint_verified,
+    no_endpoint_closure_verified=no_endpoint_closure_verified,
+    fidelity_isolation_verified=fidelity_isolation_verified,
+    selected_residual_m=result.selected_residual_m,
+    endpoint_tolerance_m=endpoint_tolerance,
   )
 ####
 

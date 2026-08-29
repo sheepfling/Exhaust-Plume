@@ -37,7 +37,9 @@ from exhaust_plume.models.moc.reflected_domain import (
   MocReflectedDomainAlternatingSourceResult,
   MocReflectedDomainRemeshResult,
   MocReflectedDomainSolverOwnedFirstCellResult,
+  MocReflectedDomainGlobalShockRemeshResult,
   solve_reflected_domain_solver_owned_first_cell,
+  solve_reflected_domain_global_shock_remesh,
   solve_reflected_domain_alternating_physical_field,
   solve_reflected_domain_alternating_source,
 )
@@ -9442,6 +9444,240 @@ def plan_reflected_domain_solver_owned_first_cell_chain(
       and not solver_measurement.production_claim_allowed
     ),
     'solver_owned_first_cell_error': solver_error,
+    'configured_total_cell_count': total_cell_count,
+    'canonical_reflected_domain_closed': False,
+    'canonical_free_boundary_pending': True,
+    'canonical_euler_pending': True,
+    'external_validation_pending': True,
+    'chain_promotion_blocked': True,
+    'production_claim_allowed': False,
+  })
+  return replace(planner, diagnostics=diagnostics)
+####
+
+
+def plan_reflected_domain_global_shock_remesh_chain(
+  seed: MocPhysicalPostShockFieldResult,
+  source_band: MocReflectedDomainAlternatingSourceResult,
+  *,
+  start_x_m: float,
+  end_x_m: float,
+  outer_source_indices: Sequence[int] | None = None,
+  target_centerline_indices: Sequence[int] | None = None,
+  compression_amplitude_lower_rad: float = 0.005,
+  compression_amplitude_upper_rad: float = 0.05,
+  compression_envelope_skews: Sequence[float] = (-0.75, 0.0, 0.75),
+  closure_tolerance_m: float = 1.0e-6,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-9,
+  invariant_tolerance: float = 1.0e-10,
+  attachment_pressure_tolerance: float = 1.0e-8,
+  pressure_tolerance: float = 1.0e-8,
+  tangent_tolerance: float = 1.0e-8,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  maximum_boundary_iterations: int = 16,
+  maximum_shooting_iterations: int = 40,
+  maximum_bracket_scan_samples: int = 0,
+  maximum_attempts: int = 64,
+  total_cell_count: int | None = None,
+  policy: MocChainContinuationPolicy | None = None,
+) -> MocChainPlannerResult:
+  """Run a bounded global reflected-shock remesh through the chain planner.
+
+  The planner validates the exact seed centerline handoff, executes the
+  independent global source-pair/profile sweep once, and preserves its typed
+  endpoint decision.  A no-root sweep is an auditable research stop; a local
+  root is still ``FIDELITY_NOT_ALLOWED`` until the canonical reflected
+  free-boundary/Euler and external-validation gates are implemented.
+  """
+
+  if not isinstance(seed, MocPhysicalPostShockFieldResult):
+    raise TypeError('seed must be a MocPhysicalPostShockFieldResult')
+  if not isinstance(
+    source_band,
+    MocReflectedDomainAlternatingSourceResult,
+  ):
+    raise TypeError(
+      'source_band must be a MocReflectedDomainAlternatingSourceResult'
+    )
+  if not isfinite(float(start_x_m)) or not isfinite(float(end_x_m)):
+    raise ValueError('start_x_m and end_x_m must be finite')
+  if end_x_m <= start_x_m:
+    raise ValueError('end_x_m must be strictly downstream of start_x_m')
+  if total_cell_count is not None and (
+    isinstance(total_cell_count, bool)
+    or not isinstance(total_cell_count, int)
+    or total_cell_count < 1
+  ):
+    raise ValueError('total_cell_count must be a positive integer when supplied')
+  if policy is not None and not isinstance(policy, MocChainContinuationPolicy):
+    raise TypeError('policy must be a MocChainContinuationPolicy or None')
+
+  def field_handoff(
+    field: MocPhysicalPostShockFieldResult,
+  ) -> tuple[MocChainBoundarySample, ...]:
+    states = tuple(field.centerline_boundary_states)
+    pressures = tuple(field.centerline_boundary_total_pressure_Pa)
+    if len(states) != len(pressures):
+      return ()
+    try:
+      return tuple(
+        MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
+        for state, pressure in zip(states, pressures, strict=True)
+      )
+    except (TypeError, ValueError):
+      return ()
+
+  seed_handoff = field_handoff(seed)
+  source_handoff = tuple(source_band.incoming_handoff)
+  solver_result: MocReflectedDomainGlobalShockRemeshResult | None = None
+  solver_measurement: Any | None = None
+  solver_error: str | None = None
+
+  def stop(
+    reason: MocChainTerminationReason,
+    message: str,
+    *,
+    next_cell_index: int,
+    diagnostics: dict[str, Any] | None = None,
+  ) -> MocChainTerminationDecision:
+    payload: dict[str, Any] = {
+      'termination_model': 'global-reflected-shock-remesh-planner-adapter',
+      'next_cell_index': next_cell_index,
+      'canonical_reflected_domain_closed': False,
+      'canonical_euler_verified': False,
+      'external_validation_verified': False,
+      'chain_promotion_blocked': True,
+      'production_claim_allowed': False,
+    }
+    if diagnostics is not None:
+      payload.update(diagnostics)
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=reason,
+      message=message,
+      diagnostics=payload,
+    )
+
+  def solve_next(
+    _current: MocChainCell,
+    next_cell_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+  ) -> MocChainTerminationDecision:
+    nonlocal solver_error, solver_measurement, solver_result
+    if total_cell_count is not None and next_cell_index > total_cell_count:
+      return stop(
+        MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
+        (
+          'global reflected-shock remesh planner reached its configured '
+          f'{total_cell_count}-cell research prefix'
+        ),
+        next_cell_index=next_cell_index,
+        diagnostics={'termination_model': 'configured-cell-count'},
+      )
+    if incoming_handoff != source_handoff or source_handoff != seed_handoff:
+      return stop(
+        MocChainTerminationReason.STATE_NOT_CARRIED,
+        (
+          'global reflected-shock remesh planner requires the source band to '
+          'carry the exact seed centerline handoff'
+        ),
+        next_cell_index=next_cell_index,
+        diagnostics={
+          'seed_handoff_sample_count': len(seed_handoff),
+          'source_band_handoff_sample_count': len(source_handoff),
+          'incoming_handoff_sample_count': len(incoming_handoff),
+          'seed_handoff_fingerprint': _handoff_fingerprint(seed_handoff),
+          'source_band_handoff_fingerprint': _handoff_fingerprint(source_handoff),
+          'incoming_handoff_fingerprint': _handoff_fingerprint(incoming_handoff),
+        },
+      )
+    try:
+      solver_result = solve_reflected_domain_global_shock_remesh(
+        source_band,
+        outer_source_indices=outer_source_indices,
+        target_centerline_indices=target_centerline_indices,
+        compression_amplitude_lower_rad=compression_amplitude_lower_rad,
+        compression_amplitude_upper_rad=compression_amplitude_upper_rad,
+        compression_envelope_skews=compression_envelope_skews,
+        closure_tolerance_m=closure_tolerance_m,
+        incoming_handoff=incoming_handoff,
+        sample_count=sample_count,
+        branch=branch,
+        position_tolerance_m=position_tolerance_m,
+        invariant_tolerance=invariant_tolerance,
+        attachment_pressure_tolerance=attachment_pressure_tolerance,
+        pressure_tolerance=pressure_tolerance,
+        tangent_tolerance=tangent_tolerance,
+        shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+        maximum_segment_iterations=maximum_segment_iterations,
+        maximum_boundary_iterations=maximum_boundary_iterations,
+        maximum_shooting_iterations=maximum_shooting_iterations,
+        maximum_bracket_scan_samples=maximum_bracket_scan_samples,
+        maximum_attempts=maximum_attempts,
+      )
+      from exhaust_plume.validation.moc_measurements import (
+        measure_moc_reflected_domain_global_shock_remesh,
+      )
+
+      solver_measurement = measure_moc_reflected_domain_global_shock_remesh(
+        solver_result,
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      solver_error = f'{type(error).__name__}: {error}'
+      return stop(
+        MocChainTerminationReason.SOLVER_ERROR,
+        f'global reflected-shock remesh planner adapter failed: {error}',
+        next_cell_index=next_cell_index,
+      )
+    return solver_result.as_chain_termination_decision()
+
+  planner = plan_ambient_closed_post_shock_chain(
+    seed,
+    solve_next,
+    start_x_m=start_x_m,
+    end_x_m=end_x_m,
+    policy=policy,
+    require_upstream_shock_coupling=True,
+    claim_status=(
+      'global-reflected-shock-remesh-planner-research-seam; '
+      'canonical-reflected-free-boundary-and-external-validation-pending'
+    ),
+  )
+  diagnostics = dict(planner.diagnostics)
+  diagnostics.update({
+    'global_reflected_shock_remesh_planner_model': (
+      'seed-physical-field -> exact-centerline-handoff -> '
+      'bounded-global-source-pair-and-profile-sweep'
+    ),
+    'global_reflected_shock_remesh_source_band': source_band.as_report(),
+    'global_reflected_shock_remesh_seed_handoff_verified': (
+      source_handoff == seed_handoff
+    ),
+    'global_reflected_shock_remesh_seed_handoff_fingerprint': (
+      _handoff_fingerprint(seed_handoff)
+    ),
+    'global_reflected_shock_remesh_source_handoff_fingerprint': (
+      _handoff_fingerprint(source_handoff)
+    ),
+    'global_reflected_shock_remesh': (
+      None if solver_result is None else solver_result.as_report()
+    ),
+    'global_reflected_shock_remesh_independent_measurement': (
+      None
+      if solver_measurement is None
+      else solver_measurement.as_report()
+    ),
+    'global_reflected_shock_remesh_audit_accepted': bool(
+      solver_measurement is not None
+      and solver_measurement.converged
+      and solver_measurement.fidelity_isolation_verified
+      and solver_measurement.chain_promotion_blocked
+      and not solver_measurement.production_claim_allowed
+    ),
+    'global_reflected_shock_remesh_error': solver_error,
     'configured_total_cell_count': total_cell_count,
     'canonical_reflected_domain_closed': False,
     'canonical_free_boundary_pending': True,

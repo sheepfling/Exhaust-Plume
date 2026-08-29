@@ -19,6 +19,7 @@ from exhaust_plume.models.moc import (
   MocReflectedDomainAlternatingSourceStatus,
   MocReflectedDomainAlternatingPhysicalFieldStatus,
   MocReflectedDomainSolverOwnedFirstCellStatus,
+  MocReflectedDomainGlobalShockRemeshStatus,
   MocReflectedDomainOuterSourceStatus,
   MocReflectedDomainRemeshStatus,
   MocSolverGeneratedAmbientClosedPostShockChainReference,
@@ -32,6 +33,7 @@ from exhaust_plume.models.moc import (
   plan_reflected_domain_alternating_source_chain_from_physical_field,
   plan_reflected_domain_alternating_source_chain_sequence,
   plan_reflected_domain_solver_owned_first_cell_chain,
+  plan_reflected_domain_global_shock_remesh_chain,
   plan_reflected_domain_remesh_shock_chain,
   plan_reflected_domain_remesh_shock_chain_sequence,
   solve_marched_attached_shock_field,
@@ -40,6 +42,7 @@ from exhaust_plume.models.moc import (
   solve_reflected_domain_alternating_source,
   solve_reflected_domain_alternating_physical_field,
   solve_reflected_domain_solver_owned_first_cell,
+  solve_reflected_domain_global_shock_remesh,
   solve_reflected_domain_outer_source_curve,
   solve_underexpanded_expansion_fan,
   solve_uniform_attached_shock_field,
@@ -56,6 +59,7 @@ from exhaust_plume.validation.moc_measurements import (
   MocReflectedDomainAlternatingPhysicalFieldChainMeasurementStatus,
   MocReflectedDomainAlternatingSourceMeasurementStatus,
   MocReflectedDomainSolverOwnedFirstCellMeasurementStatus,
+  MocReflectedDomainGlobalShockRemeshMeasurementStatus,
   MocReflectedDomainOuterSourceMeasurementStatus,
   MocReflectedDomainRemeshMeasurementStatus,
   measure_moc_reflected_domain_alternating_source,
@@ -63,6 +67,7 @@ from exhaust_plume.validation.moc_measurements import (
   measure_moc_reflected_domain_alternating_physical_field_chain,
   measure_moc_reflected_domain_alternating_physical_field,
   measure_moc_reflected_domain_solver_owned_first_cell,
+  measure_moc_reflected_domain_global_shock_remesh,
   measure_moc_reflected_domain_outer_source_curve,
   measure_moc_reflected_domain_remesh,
 )
@@ -929,6 +934,176 @@ def test_solver_owned_first_cell_planner_rejects_mismatched_seed_handoff():
   assert planner.diagnostics[
     'solver_owned_first_cell_independent_measurement'
   ] is None
+
+
+def test_global_reflected_shock_remesh_retains_bounded_profile_sweep_without_closure():
+  _field, patch = _patch()
+  ambient_pressure = _field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  source = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+  )
+  result = solve_reflected_domain_global_shock_remesh(
+    source,
+    outer_source_indices=(2,),
+    target_centerline_indices=(3,),
+    compression_amplitude_lower_rad=0.007,
+    compression_amplitude_upper_rad=0.03,
+    compression_envelope_skews=(-0.75, 0.0),
+    sample_count=9,
+    shock_angle_tolerance_rad=0.02,
+  )
+
+  assert result.status is MocReflectedDomainGlobalShockRemeshStatus.NO_ENDPOINT_CLOSURE
+  assert result.attempt_count == 2
+  assert result.selected_attempt_index is not None
+  assert result.selected_residual_m is not None
+  assert result.physical_closure_verified is False
+  assert result.canonical_free_boundary_verified is False
+  assert result.canonical_euler_verified is False
+  assert result.external_validation_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  assert result.as_chain_termination_decision().reason is (
+    MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+  )
+
+  measurement = measure_moc_reflected_domain_global_shock_remesh(result)
+
+  assert measurement.status is (
+    MocReflectedDomainGlobalShockRemeshMeasurementStatus.CONVERGED
+  )
+  assert measurement.converged
+  assert measurement.attempt_count == 2
+  assert measurement.source_field_verified
+  assert measurement.attempt_identity_verified
+  assert measurement.attempt_shape_verified
+  assert measurement.attempt_residuals_verified
+  assert measurement.selected_attempt_verified
+  assert measurement.global_endpoint_verified is False
+  assert measurement.no_endpoint_closure_verified
+  assert measurement.physical_closure_verified is False
+  assert measurement.fidelity_isolation_verified
+  assert measurement.chain_promotion_blocked
+  assert measurement.production_claim_allowed is False
+
+  tampered_attempt = replace(
+    result.attempts[0],
+    compression_envelope_skew=0.25,
+  )
+  tampered = replace(
+    result,
+    attempts=(tampered_attempt, *result.attempts[1:]),
+  )
+  tampered_measurement = measure_moc_reflected_domain_global_shock_remesh(
+    tampered,
+  )
+  assert tampered_measurement.status is (
+    MocReflectedDomainGlobalShockRemeshMeasurementStatus.ATTEMPT_FAILURE
+  )
+  assert tampered_measurement.attempt_identity_verified is False
+
+
+def test_global_reflected_shock_remesh_rejects_duplicate_profile_shapes():
+  _field, patch = _patch()
+  ambient_pressure = _field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  source = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+  )
+  result = solve_reflected_domain_global_shock_remesh(
+    source,
+    outer_source_indices=(0,),
+    target_centerline_indices=(1,),
+    compression_envelope_skews=(0.0, 0.0),
+  )
+
+  assert result.status is MocReflectedDomainGlobalShockRemeshStatus.INVALID_INPUT
+  assert result.attempts == ()
+  measurement = measure_moc_reflected_domain_global_shock_remesh(result)
+  assert measurement.status is (
+    MocReflectedDomainGlobalShockRemeshMeasurementStatus.INVALID_INPUT
+  )
+  assert measurement.converged is False
+
+
+def test_global_reflected_shock_remesh_retains_invalid_attempts_without_bridging_them():
+  _field, patch = _patch()
+  ambient_pressure = _field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  source = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+  )
+  result = solve_reflected_domain_global_shock_remesh(
+    source,
+    outer_source_indices=(2,),
+    target_centerline_indices=(3,),
+    compression_amplitude_lower_rad=0.007,
+    compression_amplitude_upper_rad=0.03,
+    compression_envelope_skews=(-0.75, 0.0, 0.75),
+    sample_count=9,
+    shock_angle_tolerance_rad=0.02,
+  )
+
+  assert result.status is MocReflectedDomainGlobalShockRemeshStatus.ATTEMPT_FAILURE
+  assert result.attempt_count == 3
+  assert result.selected_attempt_index is not None
+  assert any(
+    attempt.first_cell_result.status is MocReflectedDomainSolverOwnedFirstCellStatus.FIELD_FAILURE
+    for attempt in result.attempts
+  )
+  measurement = measure_moc_reflected_domain_global_shock_remesh(result)
+  assert measurement.status is (
+    MocReflectedDomainGlobalShockRemeshMeasurementStatus.ATTEMPT_FAILURE
+  )
+  assert measurement.attempt_identity_verified
+  assert measurement.attempt_shape_verified is False
+  assert measurement.no_endpoint_closure_verified is False
+  assert measurement.chain_promotion_blocked
+
+
+def test_global_reflected_shock_remesh_planner_preserves_research_stop():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  handoff = _handoff(field)
+  source = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+    incoming_handoff=handoff,
+  )
+  planner = plan_reflected_domain_global_shock_remesh_chain(
+    field,
+    source,
+    start_x_m=0.5,
+    end_x_m=1.0,
+    outer_source_indices=(2,),
+    target_centerline_indices=(3,),
+    compression_amplitude_lower_rad=0.007,
+    compression_amplitude_upper_rad=0.03,
+    compression_envelope_skews=(-0.75, 0.0),
+    sample_count=9,
+    shock_angle_tolerance_rad=0.02,
+    policy=MocChainContinuationPolicy(max_cells=2, require_state_carry=True),
+  )
+
+  assert planner.chain.resolved
+  assert planner.chain.cell_count == 1
+  assert planner.chain.termination_reason is (
+    MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+  )
+  assert planner.chain.physical_termination is False
+  assert planner.diagnostics[
+    'global_reflected_shock_remesh_seed_handoff_verified'
+  ] is True
+  assert planner.diagnostics['global_reflected_shock_remesh_audit_accepted'] is True
+  assert planner.diagnostics[
+    'global_reflected_shock_remesh_independent_measurement'
+  ]['status'] == 'converged'
+  assert planner.production_claim_allowed is False
 
 
 def test_reflected_domain_alternating_physical_field_chain_refinement_is_research_only():

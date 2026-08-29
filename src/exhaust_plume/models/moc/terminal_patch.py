@@ -134,6 +134,7 @@ class MocReflectedTraceCompressionProfile:
   target_centerline_flow_angle_rad: float
   compression_amplitude_rad: float
   baseline_flow_angles_rad: tuple[float, ...]
+  envelope_skew: float = 0.0
 
   def __post_init__(self) -> None:
     if len(self.source_trace) < 3:
@@ -149,6 +150,8 @@ class MocReflectedTraceCompressionProfile:
       raise ValueError('compression profile values must be finite')
     if self.compression_amplitude_rad <= 0.0:
       raise ValueError('compression_amplitude_rad must be finite and positive')
+    if not isfinite(float(self.envelope_skew)) or abs(self.envelope_skew) > 1.0:
+      raise ValueError('envelope_skew must be finite and within [-1, 1]')
     if any(
       not isinstance(sample, MocChainBoundarySample)
       for sample in self.source_trace
@@ -193,6 +196,7 @@ class MocReflectedTraceCompressionProfile:
       - self.target_centerline_flow_angle_rad
     ) * (1.0 - fraction)
     envelope = 4.0 * fraction * (1.0 - fraction)
+    envelope *= 1.0 + self.envelope_skew * (2.0 * fraction - 1.0)
     return float(baseline + self.compression_amplitude_rad * envelope)
   ####
 
@@ -205,9 +209,10 @@ class MocReflectedTraceCompressionProfile:
       'target_centerline_y_m': self.target_centerline_y_m,
       'target_centerline_flow_angle_rad': self.target_centerline_flow_angle_rad,
       'compression_amplitude_rad': self.compression_amplitude_rad,
+      'envelope_skew': self.envelope_skew,
       'baseline_flow_angles_rad': list(self.baseline_flow_angles_rad),
       'endpoint_turns_are_zero': True,
-      'interior_turn_envelope': '4*s*(1-s)',
+      'interior_turn_envelope': '4*s*(1-s)*(1+skew*(2*s-1))',
       'canonical_expansion_remesh_solved': False,
       'production_claim_allowed': False,
     }
@@ -353,6 +358,7 @@ def build_reflected_trace_compression_profile(
   *,
   target_centerline_y_m: float = 0.0,
   target_centerline_flow_angle_rad: float = 0.0,
+  envelope_skew: float = 0.0,
 ) -> MocReflectedTraceCompressionProfile:
   """Build the explicit positive-turn profile used by the research lane."""
 
@@ -368,6 +374,9 @@ def build_reflected_trace_compression_profile(
     raise ValueError('reflected trace profile inputs must be finite')
   if amplitude <= 0.0:
     raise ValueError('compression_amplitude_rad must be finite and positive')
+  skew = float(envelope_skew)
+  if not isfinite(skew) or abs(skew) > 1.0:
+    raise ValueError('envelope_skew must be finite and within [-1, 1]')
   start_y = trace[0].state.y_m
   if start_y <= target_y:
     raise ValueError('reflected trace source must lie above the target centerline')
@@ -389,6 +398,7 @@ def build_reflected_trace_compression_profile(
     target_centerline_flow_angle_rad=target_angle,
     compression_amplitude_rad=amplitude,
     baseline_flow_angles_rad=baseline,
+    envelope_skew=skew,
   )
 
 
