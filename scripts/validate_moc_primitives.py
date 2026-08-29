@@ -73,6 +73,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocEulerAmbientShockFieldChainMock,
   MocEulerAmbientPhysicalFieldStatus,
   plan_euler_ambient_first_wedge_remesh_mock,
+  plan_euler_ambient_first_wedge_characteristic_remesh,
   MocEulerPostShockFieldStatus,
   MocEulerPostShockFieldChainMock,
   MocEulerCompanionFieldChainMock,
@@ -327,7 +328,9 @@ from exhaust_plume.validation.moc_euler_refinement import (  # noqa: E402
 )
 from exhaust_plume.validation.moc_euler_characteristic import (  # noqa: E402
   MocEulerAmbientFirstWedgeCharacteristicAuditStatus,
+  MocEulerAmbientFirstWedgeTerminalCharacteristicAuditStatus,
   measure_moc_euler_ambient_first_wedge_characteristic_audit,
+  measure_moc_euler_ambient_first_wedge_terminal_characteristic_audit,
 )
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput  # noqa: E402
 from exhaust_plume.models.nozzle.exit_state import derive_ambient_state, derive_uniform_nozzle_exit  # noqa: E402
@@ -10068,6 +10071,18 @@ def build_moc_primitive_report() -> dict[str, Any]:
     measure_moc_euler_ambient_first_wedge_characteristic_audit(remesh)
     for remesh in euler_ambient_first_wedge_remesh_planner.remeshes
   )
+  euler_ambient_first_wedge_terminal_characteristic_planner = (
+    plan_euler_ambient_first_wedge_characteristic_remesh(
+      euler_ambient_physical_field,
+    )
+  )
+  euler_ambient_first_wedge_terminal_characteristic_audit = (
+    None
+    if euler_ambient_first_wedge_terminal_characteristic_planner.candidate is None
+    else measure_moc_euler_ambient_first_wedge_terminal_characteristic_audit(
+      euler_ambient_first_wedge_terminal_characteristic_planner.candidate,
+    )
+  )
   euler_ambient_first_wedge_remesh_refinement = (
     measure_moc_euler_ambient_first_wedge_remesh_refinement(
       tuple(
@@ -10435,6 +10450,21 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'claim_status': (
         'diagnostic-first-wedge-remesh-ladder; conservative-terminal-wedge-'
         'closure-and-physical-shock-cell-chain-promotion-pending'
+      ),
+    },
+    'euler_ambient_first_wedge_terminal_characteristic': {
+      'planner': (
+        euler_ambient_first_wedge_terminal_characteristic_planner.as_report()
+      ),
+      'independent_audit': (
+        None
+        if euler_ambient_first_wedge_terminal_characteristic_audit is None
+        else euler_ambient_first_wedge_terminal_characteristic_audit.as_report()
+      ),
+      'claim_status': (
+        'solver-owned-terminal-cminus-reflection-candidate; entropy-carrying '
+        'remesh, reflected free-boundary closure, and physical shock-cell '
+        'promotion pending'
       ),
     },
     'attached_turn_compression_foundation': {
@@ -11421,6 +11451,26 @@ def build_moc_primitive_report() -> dict[str, Any]:
       for audit in euler_ambient_first_wedge_characteristic_audits
     )
   )
+  euler_ambient_first_wedge_terminal_characteristic_failure = (
+    euler_ambient_first_wedge_terminal_characteristic_audit is None
+    or euler_ambient_first_wedge_terminal_characteristic_audit.status
+    is not MocEulerAmbientFirstWedgeTerminalCharacteristicAuditStatus.ENTROPY_FAILURE
+    or not euler_ambient_first_wedge_terminal_characteristic_audit.topology_verified
+    or not euler_ambient_first_wedge_terminal_characteristic_audit.state_samples_finite
+    or not euler_ambient_first_wedge_terminal_characteristic_audit.pressure_lineage_verified
+    or not euler_ambient_first_wedge_terminal_characteristic_audit.characteristic_geometry_verified
+    or euler_ambient_first_wedge_terminal_characteristic_audit.variable_entropy_compatibility_verified
+    or not euler_ambient_first_wedge_terminal_characteristic_audit.cell_euler_residual_finite
+    or euler_ambient_first_wedge_terminal_characteristic_audit.cell_euler_residual_verified
+    or not euler_ambient_first_wedge_terminal_characteristic_audit.solver_status_consistent
+    or euler_ambient_first_wedge_terminal_characteristic_audit.physical_closure_verified
+    or not euler_ambient_first_wedge_terminal_characteristic_audit.chain_promotion_blocked
+    or euler_ambient_first_wedge_terminal_characteristic_audit.production_claim_allowed
+    or euler_ambient_first_wedge_terminal_characteristic_planner.termination.reason
+    is not MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+    or euler_ambient_first_wedge_terminal_characteristic_planner.physical_chain_cell_count
+    != 0
+  )
   euler_companion_field_planner_failure = (
     euler_companion_field_planner.planner_kind is not MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
     or not euler_companion_field_planner.resolved
@@ -11690,6 +11740,20 @@ def build_moc_primitive_report() -> dict[str, Any]:
         ),
       }
     ] if euler_ambient_first_wedge_characteristic_audit_failure else []),
+    *([
+      {
+        'case': 'euler_ambient_first_wedge_terminal_characteristic_audit',
+        'status': (
+          'missing'
+          if euler_ambient_first_wedge_terminal_characteristic_audit is None
+          else euler_ambient_first_wedge_terminal_characteristic_audit.status.value
+        ),
+        'message': (
+          'the solver-owned terminal-wedge candidate did not preserve its '
+          'independent characteristic, entropy, Euler, and chain-stop gates'
+        ),
+      }
+    ] if euler_ambient_first_wedge_terminal_characteristic_failure else []),
     *([
       {
         'case': 'euler_solver_owned_ambient_companion_boundary',

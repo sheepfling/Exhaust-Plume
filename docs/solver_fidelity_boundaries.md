@@ -639,6 +639,20 @@ retain two characteristic-aligned edges per triangle. This is a deliberate
 solver input/geometry failure, not evidence that the interpolated remesh has
 closed the field.
 
+The separate solver-owned terminal-wedge candidate now reflects the terminal
+node's ``C-`` characteristic to a downstream centerline endpoint instead of
+reusing the old axis vertex. Its local triangle therefore retains one forward
+``C+`` edge and one forward ``C-`` edge with aligned geometry, and carries the
+terminal node's total-pressure lineage across the reflected edge. The
+independent terminal-wedge audit recomputes topology, state/pressure lineage,
+characteristic alignment, variable-entropy compatibility, and the normalized
+Euler cell residual from raw returned data. On the canonical fixture the
+geometry and lineage gates pass, while the entropy and Euler gates fail; the
+planner records a typed ``FIDELITY_NOT_ALLOWED`` stop and zero physical chain
+cells. This is a higher-fidelity solver seam, not physical first-cell closure;
+the next gate is a multi-cell entropy-carrying terminal remesh coupled to the
+complete reflected/free-boundary field.
+
 This does not close the canonical reflected plume. Further cells need a
 reflected-domain/remeshing method that handles the alternating compression /
 expansion character of the chain, a coupled downstream free-boundary and

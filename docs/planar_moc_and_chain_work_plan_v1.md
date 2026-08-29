@@ -274,6 +274,16 @@ not wait on this research closure.
   canonical remesh fails that edge-topology gate, making the missing
   entropy-carrying terminal-wedge solve explicit rather than allowing the
   isentropic projection to be promoted.
+- Added a solver-owned terminal-wedge characteristic candidate and planner.
+  It replaces the old axis vertex with the downstream endpoint of the
+  terminal node's reflected ``C-`` characteristic, carries that node's total
+  pressure onto the reflected edge, and retains the corrected ``C+``/``C-``
+  geometry as a one-cell candidate. The canonical candidate passes topology,
+  state/pressure lineage, and characteristic alignment, while the
+  independently recomputed variable-entropy and local Euler residual gates
+  still fail. The planner records the candidate and terminates with
+  ``FIDELITY_NOT_ALLOWED``; it contributes zero physical ``MocChainCell``
+  objects and does not modify the existing field or lower-fidelity providers.
 - Added a strict ambient-axis-shoot-to-physical-field bridge. A scalar
   attachment-coordinate pressure root is now rechecked against the complete
   ambient-to-axis pressure/tangency perimeter before the shock/ambient/
@@ -2686,3 +2696,14 @@ wedge remesh or characteristic subdivision that retains state and entropy
 lineage on the new cells. Until that gate passes, the exact field remains
 available for visualization and planner diagnostics only; no continued
 shock-cell chain or lower-fidelity provider may consume it.
+
+The next terminal-wedge seam is now solver-owned rather than an interpolated
+subdivision. It reflects the terminal node's ``C-`` characteristic to the
+centerline, carries its total-pressure value onto that edge, and retains the
+corrected ``C+``/``C-`` triangle as an auditable candidate. The canonical
+candidate passes topology, state/pressure lineage, and characteristic
+alignment, while the independently recomputed entropy-source and local Euler
+residual gates still fail. Its planner records the candidate, contributes zero
+physical chain cells, and stops with ``FIDELITY_NOT_ALLOWED``. The next gate
+is a multi-cell entropy-carrying terminal remesh coupled to the complete
+ambient/reflected free boundary.

@@ -120,6 +120,9 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   first_cell_terminal_planner_summary = report['geometry_cases'][
     'solver_generated_first_cell_terminal_closure_planner'
   ]
+  terminal_wedge = report['geometry_cases'][
+    'euler_ambient_first_wedge_terminal_characteristic'
+  ]
   ambient_attachment = report['geometry_cases']['ambient_attachment_closure_probe']
   ambient_transition = report['geometry_cases']['ambient_attachment_transition_probe']
   ambient_closure = report['geometry_cases']['ambient_pressure_closure_probe']
@@ -177,6 +180,25 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert generated_chain_refinement['cell_count'] == 5
   assert all(generated_chain_refinement['checks'].values())
   assert generated_chain_refinement['claim_status'] == 'not_accepted'
+  assert terminal_wedge['planner']['resolved'] is True
+  assert terminal_wedge['planner']['physical_chain_cell_count'] == 0
+  assert terminal_wedge['planner']['candidate']['cell_count'] == 1
+  assert terminal_wedge['independent_audit']['status'] == (
+    'euler_ambient_first_wedge_terminal_entropy_failure'
+  )
+  assert terminal_wedge['independent_audit']['checks'] == {
+    'topology_verified': True,
+    'state_samples_finite': True,
+    'pressure_lineage_verified': True,
+    'characteristic_geometry_verified': True,
+    'variable_entropy_compatibility_verified': False,
+    'cell_euler_residual_finite': True,
+    'cell_euler_residual_verified': False,
+    'solver_status_consistent': True,
+    'physical_closure_verified': False,
+    'chain_promotion_blocked': True,
+    'production_claim_allowed': False,
+  }
   assert alternating_physical_chain_refinement['status'] == 'converged'
   assert alternating_physical_chain_refinement['operator_id'] == (
     'op.moc.reflected-domain-alternating-physical-field-chain-refinement'

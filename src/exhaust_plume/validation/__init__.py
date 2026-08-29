@@ -264,6 +264,10 @@ from exhaust_plume.validation.moc_euler_characteristic import (
   MocEulerAmbientFirstWedgeCharacteristicEdgeAudit,
   MocEulerAmbientFirstWedgeCharacteristicAudit,
   measure_moc_euler_ambient_first_wedge_characteristic_audit,
+  MOC_EULER_AMBIENT_FIRST_WEDGE_TERMINAL_CHARACTERISTIC_AUDIT_OPERATOR_ID,
+  MocEulerAmbientFirstWedgeTerminalCharacteristicAuditStatus,
+  MocEulerAmbientFirstWedgeTerminalCharacteristicAudit,
+  measure_moc_euler_ambient_first_wedge_terminal_characteristic_audit,
 )
 from exhaust_plume.validation.lane_contracts import (
   SignatureLaneInvariantReport,
@@ -465,6 +469,10 @@ __all__ = (
   'MocEulerAmbientFirstWedgeCharacteristicEdgeAudit',
   'MocEulerAmbientFirstWedgeCharacteristicAudit',
   'measure_moc_euler_ambient_first_wedge_characteristic_audit',
+  'MOC_EULER_AMBIENT_FIRST_WEDGE_TERMINAL_CHARACTERISTIC_AUDIT_OPERATOR_ID',
+  'MocEulerAmbientFirstWedgeTerminalCharacteristicAuditStatus',
+  'MocEulerAmbientFirstWedgeTerminalCharacteristicAudit',
+  'measure_moc_euler_ambient_first_wedge_terminal_characteristic_audit',
   'SignatureLaneInvariantReport',
   'VisualLaneInvariantReport',
   'MACH_DISK_FEATURE_OPERATOR_ID',

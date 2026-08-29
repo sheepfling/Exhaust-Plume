@@ -23,7 +23,16 @@ from typing import Any, Sequence
 from exhaust_plume.models.moc.euler_first_wedge_remesh import (
   MocEulerAmbientFirstWedgeRemeshResult,
 )
-from exhaust_plume.models.moc.primitives import CharacteristicFamily
+from exhaust_plume.models.moc.euler_terminal_wedge import (
+  MocEulerAmbientFirstWedgeCharacteristicResult,
+  MocEulerAmbientFirstWedgeCharacteristicStatus,
+)
+from exhaust_plume.models.moc.primitives import (
+  CharacteristicFamily,
+  CharacteristicState,
+)
+from exhaust_plume.models.moc.topology import validate_moc_mesh
+from exhaust_plume.validation.moc_euler import _cell_flux_residual
 
 __all__ = (
   'MOC_EULER_AMBIENT_FIRST_WEDGE_CHARACTERISTIC_AUDIT_OPERATOR_ID',
@@ -31,6 +40,10 @@ __all__ = (
   'MocEulerAmbientFirstWedgeCharacteristicEdgeAudit',
   'MocEulerAmbientFirstWedgeCharacteristicAudit',
   'measure_moc_euler_ambient_first_wedge_characteristic_audit',
+  'MOC_EULER_AMBIENT_FIRST_WEDGE_TERMINAL_CHARACTERISTIC_AUDIT_OPERATOR_ID',
+  'MocEulerAmbientFirstWedgeTerminalCharacteristicAuditStatus',
+  'MocEulerAmbientFirstWedgeTerminalCharacteristicAudit',
+  'measure_moc_euler_ambient_first_wedge_terminal_characteristic_audit',
 )
 
 
@@ -567,5 +580,624 @@ def measure_moc_euler_ambient_first_wedge_characteristic_audit(
     production_claim_allowed=remesh.production_claim_allowed,
     characteristic_residual_tolerance=residual_tolerance,
     edge_alignment_tolerance=alignment_tolerance,
+    message=message,
+  )
+
+
+MOC_EULER_AMBIENT_FIRST_WEDGE_TERMINAL_CHARACTERISTIC_AUDIT_OPERATOR_ID = (
+  'op.moc.euler-ambient-first-wedge-terminal-characteristic-audit'
+)
+
+
+class MocEulerAmbientFirstWedgeTerminalCharacteristicAuditStatus(str, Enum):
+  """Outcome of auditing the solver-owned terminal-wedge candidate."""
+
+  CONVERGED_LOCAL_AUDIT = (
+    'converged_euler_ambient_first_wedge_terminal_characteristic_audit'
+  )
+  INVALID_INPUT = 'invalid_input'
+  SOLVER_FAILURE = 'euler_ambient_first_wedge_terminal_solver_failure'
+  TOPOLOGY_FAILURE = 'euler_ambient_first_wedge_terminal_topology_failure'
+  STATE_FAILURE = 'euler_ambient_first_wedge_terminal_state_failure'
+  GEOMETRY_FAILURE = 'euler_ambient_first_wedge_terminal_geometry_failure'
+  ENTROPY_FAILURE = 'euler_ambient_first_wedge_terminal_entropy_failure'
+  EULER_RESIDUAL_FAILURE = (
+    'euler_ambient_first_wedge_terminal_euler_residual_failure'
+  )
+  FLAG_FAILURE = 'euler_ambient_first_wedge_terminal_flag_failure'
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerAmbientFirstWedgeTerminalCharacteristicAudit:
+  """Independent gates for one solver-owned terminal-wedge candidate."""
+
+  status: MocEulerAmbientFirstWedgeTerminalCharacteristicAuditStatus
+  solver_status: str | None
+  source_cell_index: int | None
+  cell_count: int
+  vertex_count: int
+  characteristic_edges: tuple[MocEulerAmbientFirstWedgeCharacteristicEdgeAudit, ...]
+  maximum_edge_alignment_residual: float | None
+  minimum_forward_margin_m: float | None
+  maximum_k_residual: float | None
+  maximum_entropy_compatibility_residual: float | None
+  cell_euler_residual: float | None
+  topology_verified: bool
+  state_samples_finite: bool
+  pressure_lineage_verified: bool
+  characteristic_geometry_verified: bool
+  variable_entropy_compatibility_verified: bool
+  cell_euler_residual_finite: bool
+  cell_euler_residual_verified: bool
+  solver_status_consistent: bool
+  physical_closure_verified: bool = False
+  chain_promotion_blocked: bool = True
+  production_claim_allowed: bool = False
+  characteristic_residual_tolerance: float = 1.0e-8
+  edge_alignment_tolerance: float = 0.25
+  cell_residual_tolerance: float = 1.0e-2
+  message: str = ''
+  operator_id: str = (
+    MOC_EULER_AMBIENT_FIRST_WEDGE_TERMINAL_CHARACTERISTIC_AUDIT_OPERATOR_ID
+  )
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocEulerAmbientFirstWedgeTerminalCharacteristicAuditStatus,
+    ):
+      raise TypeError(
+        'status must be a '
+        'MocEulerAmbientFirstWedgeTerminalCharacteristicAuditStatus'
+      )
+    if self.solver_status is not None:
+      object.__setattr__(self, 'solver_status', str(self.solver_status))
+    if self.source_cell_index is not None and (
+      isinstance(self.source_cell_index, bool)
+      or not isinstance(self.source_cell_index, int)
+      or self.source_cell_index < 0
+    ):
+      raise ValueError('source_cell_index must be a nonnegative integer or None')
+    for name in ('cell_count', 'vertex_count'):
+      value = getattr(self, name)
+      if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f'{name} must be a nonnegative integer')
+    edges = tuple(self.characteristic_edges)
+    if any(
+      not isinstance(edge, MocEulerAmbientFirstWedgeCharacteristicEdgeAudit)
+      for edge in edges
+    ):
+      raise TypeError(
+        'characteristic_edges must contain typed characteristic edge audits'
+      )
+    object.__setattr__(self, 'characteristic_edges', edges)
+    for name in (
+      'maximum_edge_alignment_residual',
+      'minimum_forward_margin_m',
+      'maximum_k_residual',
+      'maximum_entropy_compatibility_residual',
+      'cell_euler_residual',
+    ):
+      value = getattr(self, name)
+      if value is not None:
+        numeric = float(value)
+        if not isfinite(numeric) or numeric < 0.0:
+          raise ValueError(f'{name} must be finite and nonnegative when supplied')
+        object.__setattr__(self, name, numeric)
+    for name in (
+      'characteristic_residual_tolerance',
+      'edge_alignment_tolerance',
+      'cell_residual_tolerance',
+    ):
+      value = float(getattr(self, name))
+      if not isfinite(value) or value <= 0.0:
+        raise ValueError(f'{name} must be finite and positive')
+      object.__setattr__(self, name, value)
+    for name in (
+      'topology_verified',
+      'state_samples_finite',
+      'pressure_lineage_verified',
+      'characteristic_geometry_verified',
+      'variable_entropy_compatibility_verified',
+      'cell_euler_residual_finite',
+      'cell_euler_residual_verified',
+      'solver_status_consistent',
+      'physical_closure_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+    operator_id = str(self.operator_id)
+    if not operator_id:
+      raise ValueError('operator_id must be a non-empty string')
+    object.__setattr__(self, 'operator_id', operator_id)
+    object.__setattr__(self, 'message', str(self.message))
+
+  @property
+  def converged(self) -> bool:
+    return self.status is (
+      MocEulerAmbientFirstWedgeTerminalCharacteristicAuditStatus
+      .CONVERGED_LOCAL_AUDIT
+    )
+
+  @property
+  def local_consistency_verified(self) -> bool:
+    return bool(
+      self.converged
+      and self.topology_verified
+      and self.state_samples_finite
+      and self.pressure_lineage_verified
+      and self.characteristic_geometry_verified
+      and self.variable_entropy_compatibility_verified
+      and self.cell_euler_residual_finite
+      and self.cell_euler_residual_verified
+      and self.solver_status_consistent
+      and not self.physical_closure_verified
+      and self.chain_promotion_blocked
+      and not self.production_claim_allowed
+    )
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'operator_id': self.operator_id,
+      'solver_status': self.solver_status,
+      'converged': self.converged,
+      'local_consistency_verified': self.local_consistency_verified,
+      'source_cell_index': self.source_cell_index,
+      'cell_count': self.cell_count,
+      'vertex_count': self.vertex_count,
+      'characteristic_edge_count': len(self.characteristic_edges),
+      'maximum_edge_alignment_residual': (
+        self.maximum_edge_alignment_residual
+      ),
+      'minimum_forward_margin_m': self.minimum_forward_margin_m,
+      'maximum_k_residual': self.maximum_k_residual,
+      'maximum_entropy_compatibility_residual': (
+        self.maximum_entropy_compatibility_residual
+      ),
+      'cell_euler_residual': self.cell_euler_residual,
+      'checks': {
+        'topology_verified': self.topology_verified,
+        'state_samples_finite': self.state_samples_finite,
+        'pressure_lineage_verified': self.pressure_lineage_verified,
+        'characteristic_geometry_verified': (
+          self.characteristic_geometry_verified
+        ),
+        'variable_entropy_compatibility_verified': (
+          self.variable_entropy_compatibility_verified
+        ),
+        'cell_euler_residual_finite': self.cell_euler_residual_finite,
+        'cell_euler_residual_verified': self.cell_euler_residual_verified,
+        'solver_status_consistent': self.solver_status_consistent,
+        'physical_closure_verified': self.physical_closure_verified,
+        'chain_promotion_blocked': self.chain_promotion_blocked,
+        'production_claim_allowed': self.production_claim_allowed,
+      },
+      'characteristic_residual_tolerance': (
+        self.characteristic_residual_tolerance
+      ),
+      'edge_alignment_tolerance': self.edge_alignment_tolerance,
+      'cell_residual_tolerance': self.cell_residual_tolerance,
+      'characteristic_edges': [edge.as_report() for edge in self.characteristic_edges],
+      'canonical_reflected_free_boundary_verified': False,
+      'external_validation_verified': False,
+      'claim_status': (
+        'independent-solver-owned-terminal-wedge-audit; complete entropy '
+        'transport, canonical reflected closure, and external validation '
+        'remain pending'
+      ),
+      'message': self.message,
+    }
+
+
+def _terminal_characteristic_audit_failure(
+  status: MocEulerAmbientFirstWedgeTerminalCharacteristicAuditStatus,
+  message: str,
+  *,
+  solver_status: str | None = None,
+  source_cell_index: int | None = None,
+  cell_count: int = 0,
+  vertex_count: int = 0,
+  characteristic_edges: Sequence[MocEulerAmbientFirstWedgeCharacteristicEdgeAudit] = (),
+  maximum_edge_alignment_residual: float | None = None,
+  minimum_forward_margin_m: float | None = None,
+  maximum_k_residual: float | None = None,
+  maximum_entropy_compatibility_residual: float | None = None,
+  cell_euler_residual: float | None = None,
+  topology_verified: bool = False,
+  state_samples_finite: bool = False,
+  pressure_lineage_verified: bool = False,
+  characteristic_geometry_verified: bool = False,
+  variable_entropy_compatibility_verified: bool = False,
+  cell_euler_residual_finite: bool = False,
+  cell_euler_residual_verified: bool = False,
+  solver_status_consistent: bool = False,
+  physical_closure_verified: bool = False,
+  chain_promotion_blocked: bool = True,
+  production_claim_allowed: bool = False,
+  characteristic_residual_tolerance: float = 1.0e-8,
+  edge_alignment_tolerance: float = 0.25,
+  cell_residual_tolerance: float = 1.0e-2,
+) -> MocEulerAmbientFirstWedgeTerminalCharacteristicAudit:
+  return MocEulerAmbientFirstWedgeTerminalCharacteristicAudit(
+    status=status,
+    solver_status=solver_status,
+    source_cell_index=source_cell_index,
+    cell_count=cell_count,
+    vertex_count=vertex_count,
+    characteristic_edges=tuple(characteristic_edges),
+    maximum_edge_alignment_residual=maximum_edge_alignment_residual,
+    minimum_forward_margin_m=minimum_forward_margin_m,
+    maximum_k_residual=maximum_k_residual,
+    maximum_entropy_compatibility_residual=(
+      maximum_entropy_compatibility_residual
+    ),
+    cell_euler_residual=cell_euler_residual,
+    topology_verified=topology_verified,
+    state_samples_finite=state_samples_finite,
+    pressure_lineage_verified=pressure_lineage_verified,
+    characteristic_geometry_verified=characteristic_geometry_verified,
+    variable_entropy_compatibility_verified=(
+      variable_entropy_compatibility_verified
+    ),
+    cell_euler_residual_finite=cell_euler_residual_finite,
+    cell_euler_residual_verified=cell_euler_residual_verified,
+    solver_status_consistent=solver_status_consistent,
+    physical_closure_verified=physical_closure_verified,
+    chain_promotion_blocked=chain_promotion_blocked,
+    production_claim_allowed=production_claim_allowed,
+    characteristic_residual_tolerance=characteristic_residual_tolerance,
+    edge_alignment_tolerance=edge_alignment_tolerance,
+    cell_residual_tolerance=cell_residual_tolerance,
+    message=message,
+  )
+
+
+def _points_match(
+  left: Sequence[tuple[float, float]],
+  right: Sequence[tuple[float, float]],
+  tolerance: float,
+) -> bool:
+  return bool(
+    len(left) == len(right)
+    and all(
+      hypot(first[0] - second[0], first[1] - second[1]) <= tolerance
+      for first, second in zip(left, right, strict=True)
+    )
+  )
+
+
+def measure_moc_euler_ambient_first_wedge_terminal_characteristic_audit(
+  candidate: MocEulerAmbientFirstWedgeCharacteristicResult,
+  *,
+  position_tolerance_m: float = 1.0e-10,
+  characteristic_residual_tolerance: float = 1.0e-8,
+  edge_alignment_tolerance: float = 0.25,
+  cell_residual_tolerance: float = 1.0e-2,
+) -> MocEulerAmbientFirstWedgeTerminalCharacteristicAudit:
+  """Recompute terminal-wedge gates from solver-returned raw evidence.
+
+  The audit deliberately does not use the candidate's cached residuals or
+  topology.  It reconstructs the two expected characteristic edges, the
+  variable-entropy source comparison, the pressure-lineage check, and the
+  normalized Euler cell residual from the returned vertices, states, and
+  pressures.  A local pass remains below canonical reflected-field closure.
+  """
+
+  if not isinstance(
+    candidate,
+    MocEulerAmbientFirstWedgeCharacteristicResult,
+  ):
+    return _terminal_characteristic_audit_failure(
+      MocEulerAmbientFirstWedgeTerminalCharacteristicAuditStatus.INVALID_INPUT,
+      'candidate must be a MocEulerAmbientFirstWedgeCharacteristicResult',
+    )
+  try:
+    position_tolerance = float(position_tolerance_m)
+    residual_tolerance = float(characteristic_residual_tolerance)
+    alignment_tolerance = float(edge_alignment_tolerance)
+    cell_tolerance = float(cell_residual_tolerance)
+  except (TypeError, ValueError):
+    return _terminal_characteristic_audit_failure(
+      MocEulerAmbientFirstWedgeTerminalCharacteristicAuditStatus.INVALID_INPUT,
+      'terminal characteristic audit tolerances must be numeric',
+      solver_status=candidate.status.value,
+      source_cell_index=candidate.source_cell_index,
+    )
+  for name, value in (
+    ('position_tolerance_m', position_tolerance),
+    ('characteristic_residual_tolerance', residual_tolerance),
+    ('edge_alignment_tolerance', alignment_tolerance),
+    ('cell_residual_tolerance', cell_tolerance),
+  ):
+    if not isfinite(value) or value <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+  common = {
+    'solver_status': candidate.status.value,
+    'source_cell_index': candidate.source_cell_index,
+    'characteristic_residual_tolerance': residual_tolerance,
+    'edge_alignment_tolerance': alignment_tolerance,
+    'cell_residual_tolerance': cell_tolerance,
+    'physical_closure_verified': candidate.physical_closure_verified,
+    'chain_promotion_blocked': candidate.chain_promotion_blocked,
+    'production_claim_allowed': candidate.production_claim_allowed,
+  }
+  cell = candidate.cell
+  sample = candidate.cell_sample
+  if cell is None or sample is None:
+    return _terminal_characteristic_audit_failure(
+      MocEulerAmbientFirstWedgeTerminalCharacteristicAuditStatus.SOLVER_FAILURE,
+      'terminal characteristic candidate did not return a cell and sample',
+      **common,
+    )
+  vertices = tuple(
+    (float(point[0]), float(point[1]))
+    for point in candidate.vertices_xr_m
+  )
+  states = tuple(candidate.states)
+  pressures = tuple(float(value) for value in candidate.total_pressure_Pa)
+  cell_vertices = tuple(
+    (float(point[0]), float(point[1])) for point in cell.vertices_xr_m
+  )
+  sample_vertices = tuple(
+    (float(point[0]), float(point[1])) for point in sample.vertices_xr_m
+  )
+  cell_count = 1
+  vertex_count = len(vertices)
+  topology = validate_moc_mesh((cell,))
+  topology_verified = bool(
+    topology.connected
+    and topology.forms_closed_zone
+    and topology.nonmanifold_edge_count == 0
+  )
+  state_samples_finite = bool(
+    len(vertices) == len(states) == len(pressures) == 3
+    and all(
+      isinstance(state, CharacteristicState)
+      and all(
+        isfinite(value)
+        for value in (
+          state.x_m,
+          state.y_m,
+          state.theta_rad,
+          state.mach,
+          state.gamma,
+        )
+      )
+      and state.mach > 1.0
+      and state.gamma > 1.0
+      for state in states
+    )
+    and all(
+      isfinite(value) and value > 0.0
+      for value in pressures
+    )
+    and all(
+      hypot(state.x_m - point[0], state.y_m - point[1])
+      <= position_tolerance
+      for point, state in zip(vertices, states, strict=True)
+    )
+    and _points_match(vertices, cell_vertices, position_tolerance)
+    and _points_match(vertices, sample_vertices, position_tolerance)
+    and all(
+      hypot(state.x_m - point[0], state.y_m - point[1])
+      <= position_tolerance
+      for point, state in zip(sample_vertices, sample.states, strict=True)
+    )
+    and all(
+      abs(first - second)
+      <= position_tolerance * max(1.0, abs(first), abs(second))
+      for first, second in zip(pressures, sample.total_pressure_Pa, strict=True)
+    )
+  )
+  pressure_lineage_verified = bool(
+    len(pressures) == 3
+    and abs(pressures[2] - pressures[1])
+    <= position_tolerance * max(1.0, abs(pressures[1]), abs(pressures[2]))
+  )
+  if not topology_verified:
+    return _terminal_characteristic_audit_failure(
+      MocEulerAmbientFirstWedgeTerminalCharacteristicAuditStatus.TOPOLOGY_FAILURE,
+      f'independent terminal-wedge topology audit failed: {topology.message}',
+      cell_count=cell_count,
+      vertex_count=vertex_count,
+      topology_verified=False,
+      state_samples_finite=state_samples_finite,
+      pressure_lineage_verified=pressure_lineage_verified,
+      **common,
+    )
+  if not state_samples_finite:
+    return _terminal_characteristic_audit_failure(
+      MocEulerAmbientFirstWedgeTerminalCharacteristicAuditStatus.STATE_FAILURE,
+      'terminal-wedge raw cell, state, or pressure samples are inconsistent',
+      cell_count=cell_count,
+      vertex_count=vertex_count,
+      topology_verified=True,
+      state_samples_finite=False,
+      pressure_lineage_verified=pressure_lineage_verified,
+      **common,
+    )
+  gradient = _log_pressure_gradient(vertices, pressures)
+  edges: list[MocEulerAmbientFirstWedgeCharacteristicEdgeAudit] = []
+  edge_specs = (
+    (0, 1, CharacteristicFamily.PLUS),
+    (1, 2, CharacteristicFamily.MINUS),
+  )
+  geometry_evidence = True
+  forward_margins: list[float] = []
+  for edge_index, (start_index, end_index, family) in enumerate(edge_specs):
+    candidate_edge = _candidate_edge(
+      vertices[start_index],
+      vertices[end_index],
+      states[start_index],
+      states[end_index],
+      family,
+    )
+    if candidate_edge is None or gradient is None:
+      geometry_evidence = False
+      continue
+    alignment, edge_length, forward_margin = candidate_edge
+    start_state = states[start_index]
+    end_state = states[end_index]
+    average_theta = 0.5 * (start_state.theta_rad + end_state.theta_rad)
+    normal = (-sin(average_theta), cos(average_theta))
+    normal_gradient = gradient[0] * normal[0] + gradient[1] * normal[1]
+    average_mach = 0.5 * (start_state.mach + end_state.mach)
+    gamma = 0.5 * (start_state.gamma + end_state.gamma)
+    coefficient = -sqrt(max(average_mach * average_mach - 1.0, 0.0)) / (
+      gamma * average_mach ** 3
+    )
+    signed_source = coefficient * normal_gradient * edge_length
+    actual = (
+      end_state.k_plus - start_state.k_plus
+      if family is CharacteristicFamily.PLUS
+      else end_state.k_minus - start_state.k_minus
+    )
+    edges.append(
+      MocEulerAmbientFirstWedgeCharacteristicEdgeAudit(
+        cell_index=0,
+        edge_index=edge_index,
+        family=family,
+        start_vertex=vertices[start_index],
+        end_vertex=vertices[end_index],
+        edge_length_m=edge_length,
+        alignment_residual=alignment,
+        k_residual=abs(actual),
+        entropy_source_prediction=abs(signed_source),
+        compatibility_residual=abs(actual - signed_source),
+      )
+    )
+    forward_margins.append(forward_margin)
+    if alignment > alignment_tolerance or forward_margin <= position_tolerance:
+      geometry_evidence = False
+  maximum_alignment = max(
+    (edge.alignment_residual for edge in edges),
+    default=None,
+  )
+  minimum_forward = min(
+    forward_margins,
+    default=None,
+  )
+  maximum_k = max((edge.k_residual for edge in edges), default=None)
+  maximum_entropy = max(
+    (edge.compatibility_residual for edge in edges),
+    default=None,
+  )
+  characteristic_geometry_verified = bool(
+    geometry_evidence
+    and len(edges) == 2
+    and maximum_alignment is not None
+    and maximum_alignment <= alignment_tolerance
+    and minimum_forward is not None
+    and minimum_forward > position_tolerance
+    and abs(vertices[0][1]) <= position_tolerance
+    and abs(vertices[2][1]) <= position_tolerance
+    and abs(states[0].theta_rad) <= residual_tolerance
+    and abs(states[2].theta_rad) <= residual_tolerance
+  )
+  variable_entropy_verified = bool(
+    characteristic_geometry_verified
+    and maximum_entropy is not None
+    and maximum_entropy <= residual_tolerance
+  )
+  try:
+    cell_euler_residual = _cell_flux_residual(
+      vertices,
+      states,
+      pressures,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+    cell_euler_residual = None
+  cell_euler_residual_finite = bool(
+    cell_euler_residual is not None and isfinite(cell_euler_residual)
+  )
+  cell_euler_residual_verified = bool(
+    cell_euler_residual_finite
+    and cell_euler_residual <= cell_tolerance
+  )
+  if not characteristic_geometry_verified:
+    expected_solver_status = (
+      MocEulerAmbientFirstWedgeCharacteristicStatus
+      .CHARACTERISTIC_GEOMETRY_FAILURE.value
+    )
+    status = MocEulerAmbientFirstWedgeTerminalCharacteristicAuditStatus.GEOMETRY_FAILURE
+    message = 'independent terminal-wedge characteristic geometry audit failed'
+  elif not variable_entropy_verified:
+    expected_solver_status = (
+      MocEulerAmbientFirstWedgeCharacteristicStatus.ENTROPY_FAILURE.value
+    )
+    status = MocEulerAmbientFirstWedgeTerminalCharacteristicAuditStatus.ENTROPY_FAILURE
+    message = (
+      'independent terminal-wedge audit reproduced the missing entropy '
+      'source compatibility'
+    )
+  elif not cell_euler_residual_verified:
+    expected_solver_status = (
+      MocEulerAmbientFirstWedgeCharacteristicStatus
+      .EULER_RESIDUAL_FAILURE.value
+    )
+    status = (
+      MocEulerAmbientFirstWedgeTerminalCharacteristicAuditStatus
+      .EULER_RESIDUAL_FAILURE
+    )
+    message = 'independent terminal-wedge Euler residual audit failed'
+  elif (
+    candidate.physical_closure_verified
+    or not candidate.chain_promotion_blocked
+    or candidate.production_claim_allowed
+  ):
+    expected_solver_status = (
+      MocEulerAmbientFirstWedgeCharacteristicStatus
+      .CONVERGED_CHARACTERISTIC_WEDGE.value
+    )
+    status = MocEulerAmbientFirstWedgeTerminalCharacteristicAuditStatus.FLAG_FAILURE
+    message = 'terminal-wedge candidate returned weakened fidelity flags'
+  else:
+    expected_solver_status = (
+      MocEulerAmbientFirstWedgeCharacteristicStatus
+      .CONVERGED_CHARACTERISTIC_WEDGE.value
+    )
+    status = (
+      MocEulerAmbientFirstWedgeTerminalCharacteristicAuditStatus
+      .CONVERGED_LOCAL_AUDIT
+    )
+    message = (
+      'independent terminal-wedge audit passed local geometry, entropy, and '
+      'Euler residual gates; physical closure remains blocked'
+    )
+  solver_status_consistent = candidate.status.value == expected_solver_status
+  if not solver_status_consistent:
+    message += (
+      f'; solver status {candidate.status.value!r} does not match the '
+      f'independent expected status {expected_solver_status!r}'
+    )
+  return MocEulerAmbientFirstWedgeTerminalCharacteristicAudit(
+    status=status,
+    solver_status=candidate.status.value,
+    source_cell_index=candidate.source_cell_index,
+    cell_count=cell_count,
+    vertex_count=vertex_count,
+    characteristic_edges=tuple(edges),
+    maximum_edge_alignment_residual=maximum_alignment,
+    minimum_forward_margin_m=minimum_forward,
+    maximum_k_residual=maximum_k,
+    maximum_entropy_compatibility_residual=maximum_entropy,
+    cell_euler_residual=cell_euler_residual,
+    topology_verified=topology_verified,
+    state_samples_finite=state_samples_finite,
+    pressure_lineage_verified=pressure_lineage_verified,
+    characteristic_geometry_verified=characteristic_geometry_verified,
+    variable_entropy_compatibility_verified=variable_entropy_verified,
+    cell_euler_residual_finite=cell_euler_residual_finite,
+    cell_euler_residual_verified=cell_euler_residual_verified,
+    solver_status_consistent=solver_status_consistent,
+    physical_closure_verified=candidate.physical_closure_verified,
+    chain_promotion_blocked=candidate.chain_promotion_blocked,
+    production_claim_allowed=candidate.production_claim_allowed,
+    characteristic_residual_tolerance=residual_tolerance,
+    edge_alignment_tolerance=alignment_tolerance,
+    cell_residual_tolerance=cell_tolerance,
     message=message,
   )

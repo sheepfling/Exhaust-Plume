@@ -1,17 +1,23 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from math import atan2, tan
 
 from exhaust_plume.models.moc import (
+  CharacteristicFamily,
   CharacteristicState,
   MocChainTerminationReason,
   MocEulerAmbientFirstWedgeRemeshStatus,
+  MocEulerAmbientFirstWedgeCharacteristicStatus,
   MocEulerAmbientPhysicalFieldStatus,
   assemble_euler_ambient_physical_field,
   fit_euler_consistent_shock_boundary,
   plan_euler_ambient_first_wedge_remesh_mock,
+  plan_euler_ambient_first_wedge_characteristic_remesh,
   remesh_euler_ambient_first_wedge,
+  solve_euler_ambient_first_wedge_characteristic_remesh,
   solve_attached_compression_to_turn,
+  validate_moc_mesh,
 )
 from exhaust_plume.validation import (
   MocEulerAmbientFirstWedgeRemeshRefinementCase,
@@ -20,8 +26,10 @@ from exhaust_plume.validation import (
   MocEulerAmbientPhysicalFieldRefinementCase,
   MocEulerAmbientPhysicalFieldRefinementStatus,
   MocEulerAmbientFirstWedgeCharacteristicAuditStatus,
+  MocEulerAmbientFirstWedgeTerminalCharacteristicAuditStatus,
   measure_moc_euler_ambient_first_wedge_remesh,
   measure_moc_euler_ambient_first_wedge_characteristic_audit,
+  measure_moc_euler_ambient_first_wedge_terminal_characteristic_audit,
   measure_moc_euler_ambient_first_wedge_remesh_refinement,
   measure_moc_euler_ambient_physical_field,
   measure_moc_euler_ambient_physical_field_refinement,
@@ -365,6 +373,150 @@ def test_first_wedge_characteristic_audit_keeps_entropy_gate_explicit() -> None:
   assert audit.physical_closure_verified is False
   assert audit.chain_promotion_blocked
   assert audit.production_claim_allowed is False
+
+
+def test_solver_owned_terminal_wedge_reconstructs_cminus_reflection() -> None:
+  shock = _shaped_exact_shock()
+  physical_field = assemble_euler_ambient_physical_field(
+    shock,
+    shock.downstream_static_pressure_Pa[0],
+  )
+
+  result = solve_euler_ambient_first_wedge_characteristic_remesh(
+    physical_field,
+  )
+
+  assert result.status is (
+    MocEulerAmbientFirstWedgeCharacteristicStatus.ENTROPY_FAILURE
+  )
+  assert not result.converged
+  assert result.characteristic_geometry_verified
+  assert not result.variable_entropy_compatibility_verified
+  assert not result.cell_euler_residual_verified
+  assert len(result.vertices_xr_m) == 3
+  assert len(result.states) == 3
+  assert result.topology.connected
+  assert result.topology.forms_closed_zone
+  assert result.topology.nonmanifold_edge_count == 0
+  assert len(result.characteristic_edges) == 2
+  assert tuple(edge.family for edge in result.characteristic_edges) == (
+    CharacteristicFamily.PLUS,
+    CharacteristicFamily.MINUS,
+  )
+  assert result.maximum_edge_alignment_residual is not None
+  assert result.maximum_edge_alignment_residual < 1.0e-3
+  assert result.minimum_forward_margin_m is not None
+  assert result.minimum_forward_margin_m > 0.0
+  assert result.maximum_k_residual is not None
+  assert result.maximum_k_residual < 1.0e-8
+  assert result.maximum_entropy_compatibility_residual is not None
+  assert result.maximum_entropy_compatibility_residual > 1.0e-8
+  assert result.cell_euler_residual is not None
+  assert result.cell_euler_residual > 1.0e-2
+  assert result.physical_closure_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  assert result.as_chain_termination_decision().reason is (
+    MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+  )
+
+
+def test_terminal_wedge_audit_recomputes_solver_gates_independently() -> None:
+  shock = _shaped_exact_shock()
+  physical_field = assemble_euler_ambient_physical_field(
+    shock,
+    shock.downstream_static_pressure_Pa[0],
+  )
+  candidate = solve_euler_ambient_first_wedge_characteristic_remesh(
+    physical_field,
+  )
+
+  audit = measure_moc_euler_ambient_first_wedge_terminal_characteristic_audit(
+    candidate,
+  )
+
+  assert audit.status is (
+    MocEulerAmbientFirstWedgeTerminalCharacteristicAuditStatus.ENTROPY_FAILURE
+  )
+  assert audit.solver_status_consistent
+  assert audit.topology_verified
+  assert audit.state_samples_finite
+  assert audit.pressure_lineage_verified
+  assert audit.characteristic_geometry_verified
+  assert not audit.variable_entropy_compatibility_verified
+  assert audit.cell_euler_residual_finite
+  assert not audit.cell_euler_residual_verified
+  assert len(audit.characteristic_edges) == 2
+  assert audit.maximum_edge_alignment_residual is not None
+  assert audit.maximum_edge_alignment_residual < 1.0e-3
+  assert audit.maximum_entropy_compatibility_residual is not None
+  assert audit.maximum_entropy_compatibility_residual > 1.0e-8
+  assert audit.cell_euler_residual is not None
+  assert audit.cell_euler_residual > 1.0e-2
+  assert audit.physical_closure_verified is False
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False
+  assert audit.as_report()['operator_id'] == (
+    'op.moc.euler-ambient-first-wedge-terminal-characteristic-audit'
+  )
+
+  tampered_candidate = replace(
+    candidate,
+    status=MocEulerAmbientFirstWedgeCharacteristicStatus.CONVERGED_CHARACTERISTIC_WEDGE,
+    topology=validate_moc_mesh(()),
+    maximum_entropy_compatibility_residual=0.0,
+    cell_euler_residual=0.0,
+    characteristic_geometry_verified=False,
+    variable_entropy_compatibility_verified=True,
+    cell_euler_residual_verified=True,
+  )
+  tampered_audit = (
+    measure_moc_euler_ambient_first_wedge_terminal_characteristic_audit(
+      tampered_candidate,
+    )
+  )
+  assert tampered_audit.status is (
+    MocEulerAmbientFirstWedgeTerminalCharacteristicAuditStatus.ENTROPY_FAILURE
+  )
+  assert tampered_audit.topology_verified
+  assert tampered_audit.characteristic_geometry_verified
+  assert not tampered_audit.variable_entropy_compatibility_verified
+  assert tampered_audit.cell_euler_residual is not None
+  assert tampered_audit.cell_euler_residual > 1.0e-2
+  assert not tampered_audit.solver_status_consistent
+
+
+def test_terminal_wedge_planner_records_candidate_without_chain_promotion() -> None:
+  shock = _shaped_exact_shock()
+  physical_field = assemble_euler_ambient_physical_field(
+    shock,
+    shock.downstream_static_pressure_Pa[0],
+  )
+
+  planner = plan_euler_ambient_first_wedge_characteristic_remesh(
+    physical_field,
+  )
+
+  assert planner.attempted
+  assert planner.resolved
+  assert planner.candidate is not None
+  assert planner.step is not None
+  assert planner.step.result_kind == 'solver-owned-terminal-wedge-candidate'
+  assert planner.step.result_status == (
+    'euler_ambient_first_wedge_entropy_failure'
+  )
+  assert planner.step.result_characteristic_edge_count == 2
+  assert planner.step.result_topology_verified
+  assert planner.step.result_characteristic_geometry_verified
+  assert not planner.step.result_variable_entropy_compatibility_verified
+  assert not planner.step.result_cell_euler_residual_verified
+  assert planner.physical_chain_cell_count == 0
+  assert planner.termination.reason is MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+  assert planner.as_report()['diagnostics']['candidate_consumed_as_chain_cell'] is False
+  assert planner.as_report()['planning_only'] is True
+  assert planner.physical_closure_verified is False
+  assert planner.chain_promotion_blocked
+  assert planner.production_claim_allowed is False
 
 
 def test_first_wedge_remesh_planner_records_ladder_and_stops_before_chain() -> None:

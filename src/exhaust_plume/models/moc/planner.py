@@ -107,6 +107,10 @@ from exhaust_plume.models.moc.euler_first_wedge_remesh import (
   MocEulerAmbientFirstWedgeRemeshResult,
   remesh_euler_ambient_first_wedge,
 )
+from exhaust_plume.models.moc.euler_terminal_wedge import (
+  MocEulerAmbientFirstWedgeCharacteristicResult,
+  solve_euler_ambient_first_wedge_characteristic_remesh,
+)
 from exhaust_plume.models.moc.euler_physical_field import (
   MocEulerAmbientPhysicalFieldResult,
 )
@@ -219,6 +223,9 @@ __all__ = (
   'MocEulerAmbientFirstWedgeRemeshPlannerStep',
   'MocEulerAmbientFirstWedgeRemeshPlannerResult',
   'plan_euler_ambient_first_wedge_remesh_mock',
+  'MocEulerAmbientFirstWedgeCharacteristicPlannerStep',
+  'MocEulerAmbientFirstWedgeCharacteristicPlannerResult',
+  'plan_euler_ambient_first_wedge_characteristic_remesh',
   'MocEulerPostShockFieldContinuationSolve',
   'MocEulerPostShockFieldChainStep',
   'MocEulerPostShockFieldChainPlannerResult',
@@ -10398,6 +10405,276 @@ def plan_euler_ambient_first_wedge_remesh_mock(
       },
     )
   )
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerAmbientFirstWedgeCharacteristicPlannerStep:
+  """One solver-owned terminal-wedge attempt before chain promotion."""
+
+  source_field_status: str
+  result_status: str
+  result_kind: str
+  result_converged: bool
+  result_characteristic_edge_count: int
+  result_topology_verified: bool
+  result_characteristic_geometry_verified: bool
+  result_variable_entropy_compatibility_verified: bool
+  result_cell_euler_residual_verified: bool
+  result_physical_closure_verified: bool
+  result_chain_promotion_blocked: bool
+  result_production_claim_allowed: bool
+
+  def __post_init__(self) -> None:
+    for name in ('source_field_status', 'result_status', 'result_kind'):
+      value = getattr(self, name)
+      if not isinstance(value, str) or not value:
+        raise ValueError(f'{name} must be a non-empty string')
+    if (
+      isinstance(self.result_characteristic_edge_count, bool)
+      or not isinstance(self.result_characteristic_edge_count, int)
+      or self.result_characteristic_edge_count < 0
+    ):
+      raise ValueError(
+        'result_characteristic_edge_count must be a nonnegative integer'
+      )
+    for name in (
+      'result_converged',
+      'result_topology_verified',
+      'result_characteristic_geometry_verified',
+      'result_variable_entropy_compatibility_verified',
+      'result_cell_euler_residual_verified',
+      'result_physical_closure_verified',
+      'result_chain_promotion_blocked',
+      'result_production_claim_allowed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'source_field_status': self.source_field_status,
+      'result_status': self.result_status,
+      'result_kind': self.result_kind,
+      'result_converged': self.result_converged,
+      'result_characteristic_edge_count': self.result_characteristic_edge_count,
+      'checks': {
+        'topology_verified': self.result_topology_verified,
+        'characteristic_geometry_verified': (
+          self.result_characteristic_geometry_verified
+        ),
+        'variable_entropy_compatibility_verified': (
+          self.result_variable_entropy_compatibility_verified
+        ),
+        'cell_euler_residual_verified': self.result_cell_euler_residual_verified,
+        'physical_closure_verified': self.result_physical_closure_verified,
+        'chain_promotion_blocked': self.result_chain_promotion_blocked,
+        'production_claim_allowed': self.result_production_claim_allowed,
+      },
+    }
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerAmbientFirstWedgeCharacteristicPlannerResult:
+  """A terminal-wedge attempt and its explicit pre-chain fidelity stop."""
+
+  seed: MocEulerAmbientPhysicalFieldResult
+  candidate: MocEulerAmbientFirstWedgeCharacteristicResult | None
+  step: MocEulerAmbientFirstWedgeCharacteristicPlannerStep | None
+  termination: MocChainTerminationDecision
+  planner_kind: MocChainPlannerKind
+  claim_status: str
+  diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.seed, MocEulerAmbientPhysicalFieldResult):
+      raise TypeError('seed must be a MocEulerAmbientPhysicalFieldResult')
+    if self.candidate is not None and not isinstance(
+      self.candidate,
+      MocEulerAmbientFirstWedgeCharacteristicResult,
+    ):
+      raise TypeError(
+        'candidate must be a MocEulerAmbientFirstWedgeCharacteristicResult or None'
+      )
+    if self.step is not None and not isinstance(
+      self.step,
+      MocEulerAmbientFirstWedgeCharacteristicPlannerStep,
+    ):
+      raise TypeError(
+        'step must be a MocEulerAmbientFirstWedgeCharacteristicPlannerStep or None'
+      )
+    if (self.candidate is None) != (self.step is None):
+      raise ValueError('candidate and step must be supplied together')
+    if not isinstance(self.termination, MocChainTerminationDecision):
+      raise TypeError('termination must be a MocChainTerminationDecision')
+    if self.planner_kind is not MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH:
+      raise ValueError(
+        'terminal-wedge planner must use the upstream-coupled research '
+        'planner kind'
+      )
+    object.__setattr__(self, 'claim_status', str(self.claim_status))
+    object.__setattr__(self, 'diagnostics', MappingProxyType(dict(self.diagnostics)))
+
+  @property
+  def attempted(self) -> bool:
+    return self.candidate is not None
+
+  @property
+  def resolved(self) -> bool:
+    """Whether the candidate attempt reached a typed non-physical stop."""
+
+    return bool(
+      self.candidate is not None
+      and self.termination.reason is MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+    )
+
+  @property
+  def physical_chain_cell_count(self) -> int:
+    """Number of physical chain cells contributed by this planner."""
+
+    return 0
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    return False
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    return True
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    return False
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'planner_kind': self.planner_kind.value,
+      'planning_only': True,
+      'claim_status': self.claim_status,
+      'attempted': self.attempted,
+      'resolved': self.resolved,
+      'physical_chain_cell_count': self.physical_chain_cell_count,
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'candidate': (
+        None if self.candidate is None else self.candidate.as_report()
+      ),
+      'step': None if self.step is None else self.step.as_report(),
+      'termination': self.termination.as_report(),
+      'diagnostics': dict(self.diagnostics),
+    }
+
+
+def plan_euler_ambient_first_wedge_characteristic_remesh(
+  seed: MocEulerAmbientPhysicalFieldResult,
+  *,
+  position_tolerance_m: float = 1.0e-10,
+  characteristic_residual_tolerance: float = 1.0e-8,
+  edge_alignment_tolerance: float = 0.25,
+  cell_residual_tolerance: float = 1.0e-2,
+) -> MocEulerAmbientFirstWedgeCharacteristicPlannerResult:
+  """Plan one terminal-wedge solve and stop before a physical chain cell.
+
+  The candidate is retained for inspection even when one of its local gates
+  fails.  This planner never appends a ``MocChainCell`` and never treats a
+  local reflected wedge as evidence of a completed continued shock chain.
+  """
+
+  if not isinstance(seed, MocEulerAmbientPhysicalFieldResult):
+    raise TypeError('seed must be a MocEulerAmbientPhysicalFieldResult')
+  try:
+    position_tolerance = float(position_tolerance_m)
+    residual_tolerance = float(characteristic_residual_tolerance)
+    alignment_tolerance = float(edge_alignment_tolerance)
+    cell_tolerance = float(cell_residual_tolerance)
+  except (TypeError, ValueError) as error:
+    raise ValueError('terminal-wedge planner tolerances must be numeric') from error
+  for name, value in (
+    ('position_tolerance_m', position_tolerance),
+    ('characteristic_residual_tolerance', residual_tolerance),
+    ('edge_alignment_tolerance', alignment_tolerance),
+    ('cell_residual_tolerance', cell_tolerance),
+  ):
+    if not isfinite(value) or value <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+  candidate: MocEulerAmbientFirstWedgeCharacteristicResult | None = None
+  step: MocEulerAmbientFirstWedgeCharacteristicPlannerStep | None = None
+
+  def result(
+    termination: MocChainTerminationDecision,
+  ) -> MocEulerAmbientFirstWedgeCharacteristicPlannerResult:
+    return MocEulerAmbientFirstWedgeCharacteristicPlannerResult(
+      seed=seed,
+      candidate=candidate,
+      step=step,
+      termination=termination,
+      planner_kind=MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH,
+      claim_status=(
+        'solver-owned-terminal-characteristic-wedge-planner; global '
+        'entropy-carrying remesh, reflected free-boundary closure, and '
+        'external validation pending'
+      ),
+      diagnostics={
+        'planner_model': 'euler-ambient-first-wedge-terminal-characteristic',
+        'candidate_consumed_as_chain_cell': False,
+        'physical_chain_cell_count': 0,
+        'local_candidate_policy': 'retain-for-audit; never-create-moc-chain-cell',
+        'position_tolerance_m': position_tolerance,
+        'characteristic_residual_tolerance': float(
+          residual_tolerance
+        ),
+        'edge_alignment_tolerance': alignment_tolerance,
+        'cell_residual_tolerance': cell_tolerance,
+        'physical_closure_verified': False,
+        'chain_promotion_blocked': True,
+        'production_claim_allowed': False,
+      },
+    )
+
+  try:
+    candidate = solve_euler_ambient_first_wedge_characteristic_remesh(
+      seed,
+      position_tolerance_m=position_tolerance,
+      characteristic_residual_tolerance=residual_tolerance,
+      edge_alignment_tolerance=alignment_tolerance,
+      cell_residual_tolerance=cell_tolerance,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return result(
+      MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_ERROR,
+        message=f'terminal-wedge characteristic planner raised: {error}',
+        diagnostics={
+          'planner_model': 'euler-ambient-first-wedge-terminal-characteristic',
+          'solver_error': type(error).__name__,
+          'candidate_consumed_as_chain_cell': False,
+        },
+      )
+    )
+  step = MocEulerAmbientFirstWedgeCharacteristicPlannerStep(
+    source_field_status=seed.status.value,
+    result_status=candidate.status.value,
+    result_kind='solver-owned-terminal-wedge-candidate',
+    result_converged=candidate.converged,
+    result_characteristic_edge_count=len(candidate.characteristic_edges),
+    result_topology_verified=bool(
+      candidate.topology.connected
+      and candidate.topology.forms_closed_zone
+      and candidate.topology.nonmanifold_edge_count == 0
+    ),
+    result_characteristic_geometry_verified=(
+      candidate.characteristic_geometry_verified
+    ),
+    result_variable_entropy_compatibility_verified=(
+      candidate.variable_entropy_compatibility_verified
+    ),
+    result_cell_euler_residual_verified=candidate.cell_euler_residual_verified,
+    result_physical_closure_verified=candidate.physical_closure_verified,
+    result_chain_promotion_blocked=candidate.chain_promotion_blocked,
+    result_production_claim_allowed=candidate.production_claim_allowed,
+  )
+  return result(candidate.as_chain_termination_decision())
 
 
 @dataclass(frozen=True, slots=True)
