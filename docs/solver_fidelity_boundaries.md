@@ -862,3 +862,11 @@ metrics. This local gate passes in the standalone report. A coupled
 subsonic entropy-transport/free-boundary solve, numerical refinement, and
 indexed external observations remain required before any continued shock-cell
 chain or product provider can consume the result.
+
+The first-cell, continued-prefix, scalar-reference, and planar-handoff
+planners now retain and independently measure this same entropy seam. Their
+reports expose the handoff and a separate
+`mixed_regime_entropy_handoff_verified` gate, while preserving
+`chain_promotion_blocked=true` and `production_claim_allowed=false`. This is
+planner observability only; it does not change the fidelity boundary or
+authorize downstream field closure.

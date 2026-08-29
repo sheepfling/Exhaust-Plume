@@ -691,6 +691,14 @@ def test_continued_chain_planner_runs_one_terminal_mock_from_final_physical_cell
   assert planner.physical_termination
   assert planner.physical_closure_verified is False
   assert planner.mixed_regime_model_closure_verified
+  assert planner.mixed_regime_entropy_handoff is not None
+  assert planner.mixed_regime_entropy_handoff_verified
+  assert planner.terminal_planner.mixed_regime_entropy_handoff is (
+    planner.mixed_regime_entropy_handoff
+  )
+  assert planner.terminal_planner.diagnostics[
+    'mixed_regime_entropy_handoff_measurement'
+  ]['handoff_verified'] is True
   assert planner.chain_promotion_blocked
   assert planner.production_claim_allowed is False
   assert planner.diagnostics['terminal_attempted'] is True
@@ -736,6 +744,7 @@ def test_continued_chain_planner_keeps_scalar_terminal_reference_separate() -> N
   assert planner.diagnostics['prefix_physical_field_audit_accepted'] is True
   assert planner.terminal_planner is not None
   assert planner.terminal_planner.mixed_regime_reference is not None
+  assert planner.mixed_regime_entropy_handoff_verified
   assert planner.terminal_planner.diagnostics[
     'free_boundary_reference_audit_accepted'
   ] is True

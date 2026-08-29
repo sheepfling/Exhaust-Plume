@@ -300,6 +300,12 @@ def test_first_cell_terminal_planner_mock_attaches_exact_seam_and_typed_stop() -
   assert planner.mixed_regime_closure is not None
   assert planner.mixed_regime_closure.converged
   assert planner.terminal.mixed_regime_field is planner.mixed_regime_closure.field
+  assert planner.mixed_regime_entropy_handoff is not None
+  assert planner.mixed_regime_entropy_handoff_verified
+  assert planner.diagnostics['mixed_regime_entropy_handoff_verified'] is True
+  assert planner.diagnostics['mixed_regime_entropy_handoff_measurement'][
+    'handoff_verified'
+  ] is True
   assert planner.diagnostics['mixed_regime_closure_attached'] is True
   assert planner.diagnostics['prescribed_mixed_regime_closure_mock']['planning_only'] is True
   assert planner.diagnostics['prescribed_mixed_regime_closure_mock']['production_claim_allowed'] is False
@@ -332,6 +338,8 @@ def test_first_cell_terminal_planner_preserves_open_boundary_without_solver() ->
   assert planner.physical_closure_verified is False
   assert planner.physical_termination is False
   assert planner.mixed_regime_closure is None
+  assert planner.mixed_regime_entropy_handoff is not None
+  assert planner.mixed_regime_entropy_handoff_verified
   assert planner.termination is not None
   assert planner.termination.reason is MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
   assert planner.diagnostics['mixed_regime_solver_supplied'] is False

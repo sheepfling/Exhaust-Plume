@@ -2152,3 +2152,21 @@ interface samples, while the handoff remains explicitly non-physical and
 non-promotable. The next physics task is to advect this pressure/entropy
 profile through a solver-owned subsonic field while solving the reflected
 ambient free boundary; only that coupled result can feed a continued cell.
+
+## Planner entropy-handoff checkpoint
+
+The first-cell and continued-prefix planners now retain the exact
+`MocMixedRegimeEntropyHandoffResult` beside the terminal result. Each planner
+run invokes the independent entropy-handoff measurement and exposes its
+`mixed_regime_entropy_handoff_verified` gate in both the typed result and the
+serialized planner report. This makes the planner mock, scalar reference, and
+explicit planar callback comparable at the same terminal seam, including
+sample count, pressure-loss metrics, and the terminal index.
+
+The handoff is still an open interface profile: it carries shock-interface
+entropy data but does not advect entropy through a subsonic field, infer the
+ambient/free boundary, or create another supersonic cell. The continued-chain
+planner therefore keeps chain promotion blocked and the production claim
+false. The next implementation target remains the solver-owned coupled
+subsonic entropy-transport/free-boundary problem, followed by refinement and
+indexed external observations.
