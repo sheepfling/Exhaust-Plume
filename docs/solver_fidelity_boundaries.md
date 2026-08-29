@@ -1399,3 +1399,30 @@ solver-owned internal characteristic solve on the refined cells, coupled to
 the reflected outer/front boundary, followed by full-field conservation and
 indexed external observations. The fast visualization, signature,
 ray-transfer, and focal-plane-array providers remain unchanged.
+
+## Solver-owned entropy-characteristic subcell field checkpoint
+
+The next isolated lane is
+``solve_euler_ambient_first_wedge_entropy_characteristic_field``. It replaces
+the barycentric projection with a deterministic four-triangle internal field:
+the incoming shock and ambient edges are split into ``P`` and ``Q``, a
+centerline node ``C`` is solved, and six typed ``C+``/``C-`` edges are checked
+for forward geometry, generalized entropy compatibility, and carried
+log-total-pressure lineage. The canonical result has six nodes, four cells,
+and six characteristic edges; its independent audit remeasures those values
+and the conservative Euler residuals from raw states and cells.
+
+This closes a solver-owned local characteristic subcell field, not the
+physical first wedge. The field's outgoing boundary is therefore a research
+handoff only: the dedicated planner records a
+``FIDELITY_NOT_ALLOWED`` stop, contributes zero physical ``MocChainCell``
+objects, and keeps ``physical_closure_verified=false``,
+``chain_promotion_blocked=true``, and ``production_claim_allowed=false``.
+The next gate is a reflected free-boundary coupling that supplies the missing
+outer/front condition, followed by multi-resolution conservation evidence
+and indexed external observations. The deterministic prescribed chain mock
+remains the only executable multi-cell fixture until that gate is closed.
+
+No result from this lane may update the fast/basic visualization, signature,
+ray-transfer, or focal-plane-array providers, and no local characteristic
+subcell may be silently relabeled as a continued shock-cell chain cell.

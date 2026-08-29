@@ -117,6 +117,10 @@ from exhaust_plume.models.moc.euler_entropy_carry import (
   MocEulerAmbientFirstWedgeEntropyCarryResult,
   solve_euler_ambient_first_wedge_entropy_carry,
 )
+from exhaust_plume.models.moc.euler_entropy_characteristic_field import (
+  MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult,
+  solve_euler_ambient_first_wedge_entropy_characteristic_field,
+)
 from exhaust_plume.models.moc.euler_entropy_refinement import (
   MocEulerAmbientFirstWedgeEntropyCarryRefinementResult,
   refine_euler_ambient_first_wedge_entropy_carry,
@@ -242,6 +246,9 @@ __all__ = (
   'MocEulerAmbientFirstWedgeEntropyCarryPlannerStep',
   'MocEulerAmbientFirstWedgeEntropyCarryPlannerResult',
   'plan_euler_ambient_first_wedge_entropy_carry',
+  'MocEulerAmbientFirstWedgeEntropyCharacteristicFieldPlannerStep',
+  'MocEulerAmbientFirstWedgeEntropyCharacteristicFieldPlannerResult',
+  'plan_euler_ambient_first_wedge_entropy_characteristic_field',
   'MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerStep',
   'MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerResult',
   'plan_euler_ambient_first_wedge_entropy_carry_refinement',
@@ -11242,6 +11249,293 @@ def plan_euler_ambient_first_wedge_entropy_carry(
     result_production_claim_allowed=entropy_carry.production_claim_allowed,
   )
   return result(entropy_carry.as_chain_termination_decision())
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerAmbientFirstWedgeEntropyCharacteristicFieldPlannerStep:
+  """One internal entropy-characteristic field attempt before chain promotion."""
+
+  source_trial_status: str
+  result_status: str
+  result_kind: str
+  result_converged: bool
+  result_solver_iterations: int
+  result_node_count: int
+  result_cell_count: int
+  result_characteristic_edge_count: int
+  result_topology_verified: bool
+  result_pressure_lineage_verified: bool
+  result_characteristic_geometry_verified: bool
+  result_variable_entropy_compatibility_verified: bool
+  result_cell_euler_residuals_verified: bool
+  result_internal_characteristic_closure_verified: bool
+  result_physical_closure_verified: bool
+  result_chain_promotion_blocked: bool
+  result_production_claim_allowed: bool
+
+  def __post_init__(self) -> None:
+    for name in ('source_trial_status', 'result_status', 'result_kind'):
+      value = getattr(self, name)
+      if not isinstance(value, str) or not value:
+        raise ValueError(f'{name} must be a non-empty string')
+    for name in (
+      'result_solver_iterations',
+      'result_node_count',
+      'result_cell_count',
+      'result_characteristic_edge_count',
+    ):
+      value = getattr(self, name)
+      if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f'{name} must be a nonnegative integer')
+    for name in (
+      'result_converged',
+      'result_topology_verified',
+      'result_pressure_lineage_verified',
+      'result_characteristic_geometry_verified',
+      'result_variable_entropy_compatibility_verified',
+      'result_cell_euler_residuals_verified',
+      'result_internal_characteristic_closure_verified',
+      'result_physical_closure_verified',
+      'result_chain_promotion_blocked',
+      'result_production_claim_allowed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'source_trial_status': self.source_trial_status,
+      'result_status': self.result_status,
+      'result_kind': self.result_kind,
+      'result_converged': self.result_converged,
+      'result_solver_iterations': self.result_solver_iterations,
+      'result_node_count': self.result_node_count,
+      'result_cell_count': self.result_cell_count,
+      'result_characteristic_edge_count': self.result_characteristic_edge_count,
+      'checks': {
+        'topology_verified': self.result_topology_verified,
+        'pressure_lineage_verified': self.result_pressure_lineage_verified,
+        'characteristic_geometry_verified': (
+          self.result_characteristic_geometry_verified
+        ),
+        'variable_entropy_compatibility_verified': (
+          self.result_variable_entropy_compatibility_verified
+        ),
+        'cell_euler_residuals_verified': (
+          self.result_cell_euler_residuals_verified
+        ),
+        'internal_characteristic_closure_verified': (
+          self.result_internal_characteristic_closure_verified
+        ),
+        'physical_closure_verified': self.result_physical_closure_verified,
+        'chain_promotion_blocked': self.result_chain_promotion_blocked,
+        'production_claim_allowed': self.result_production_claim_allowed,
+      },
+    }
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerAmbientFirstWedgeEntropyCharacteristicFieldPlannerResult:
+  """An internal characteristic field and its hard pre-chain stop."""
+
+  seed: MocEulerAmbientFirstWedgeEntropyCarryResult
+  field: MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult | None
+  step: MocEulerAmbientFirstWedgeEntropyCharacteristicFieldPlannerStep | None
+  termination: MocChainTerminationDecision
+  planner_kind: MocChainPlannerKind
+  claim_status: str
+  diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.seed,
+      MocEulerAmbientFirstWedgeEntropyCarryResult,
+    ):
+      raise TypeError(
+        'seed must be a MocEulerAmbientFirstWedgeEntropyCarryResult'
+      )
+    if self.field is not None and not isinstance(
+      self.field,
+      MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult,
+    ):
+      raise TypeError(
+        'field must be a '
+        'MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult or None'
+      )
+    if self.step is not None and not isinstance(
+      self.step,
+      MocEulerAmbientFirstWedgeEntropyCharacteristicFieldPlannerStep,
+    ):
+      raise TypeError(
+        'step must be a '
+        'MocEulerAmbientFirstWedgeEntropyCharacteristicFieldPlannerStep or None'
+      )
+    if (self.field is None) != (self.step is None):
+      raise ValueError('field and step must be supplied together')
+    if not isinstance(self.termination, MocChainTerminationDecision):
+      raise TypeError('termination must be a MocChainTerminationDecision')
+    if self.planner_kind is not MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH:
+      raise ValueError(
+        'internal entropy-characteristic field planner must use the '
+        'upstream-coupled research planner kind'
+      )
+    object.__setattr__(self, 'claim_status', str(self.claim_status))
+    object.__setattr__(
+      self,
+      'diagnostics',
+      MappingProxyType(dict(self.diagnostics)),
+    )
+
+  @property
+  def attempted(self) -> bool:
+    return self.field is not None
+
+  @property
+  def resolved(self) -> bool:
+    return bool(
+      self.field is not None
+      and self.termination.reason is MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+    )
+
+  @property
+  def physical_chain_cell_count(self) -> int:
+    return 0
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    return False
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    return True
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    return False
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'planner_kind': self.planner_kind.value,
+      'planning_only': True,
+      'claim_status': self.claim_status,
+      'attempted': self.attempted,
+      'resolved': self.resolved,
+      'physical_chain_cell_count': self.physical_chain_cell_count,
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'field': None if self.field is None else self.field.as_report(),
+      'step': None if self.step is None else self.step.as_report(),
+      'termination': self.termination.as_report(),
+      'diagnostics': dict(self.diagnostics),
+    }
+
+
+def plan_euler_ambient_first_wedge_entropy_characteristic_field(
+  seed: MocEulerAmbientFirstWedgeEntropyCarryResult,
+  *,
+  position_tolerance_m: float = 1.0e-10,
+  characteristic_residual_tolerance: float = 1.0e-8,
+  edge_alignment_tolerance: float = 0.25,
+  cell_residual_tolerance: float = 1.0e-2,
+  pressure_lineage_tolerance: float = 1.0e-8,
+  compatibility_weight: float = 1.0e7,
+  maximum_iterations: int = 48,
+) -> MocEulerAmbientFirstWedgeEntropyCharacteristicFieldPlannerResult:
+  """Run the internal field solver and stop before a physical chain cell."""
+
+  if not isinstance(seed, MocEulerAmbientFirstWedgeEntropyCarryResult):
+    raise TypeError(
+      'seed must be a MocEulerAmbientFirstWedgeEntropyCarryResult'
+    )
+  field: MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult | None = None
+  step: MocEulerAmbientFirstWedgeEntropyCharacteristicFieldPlannerStep | None = None
+
+  def result(
+    termination: MocChainTerminationDecision,
+  ) -> MocEulerAmbientFirstWedgeEntropyCharacteristicFieldPlannerResult:
+    return MocEulerAmbientFirstWedgeEntropyCharacteristicFieldPlannerResult(
+      seed=seed,
+      field=field,
+      step=step,
+      termination=termination,
+      planner_kind=MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH,
+      claim_status=(
+        'solver-owned-internal-entropy-characteristic-field-planner; '
+        'reflected free-boundary coupling, external validation, and continued '
+        'shock-cell-chain promotion remain pending'
+      ),
+      diagnostics={
+        'planner_model': (
+          'euler-ambient-first-wedge-entropy-characteristic-field'
+        ),
+        'field_consumed_as_chain_cell': False,
+        'physical_chain_cell_count': 0,
+        'internal_characteristic_closure_verified': (
+          False if field is None else field.internal_characteristic_closure_verified
+        ),
+        'physical_closure_verified': False,
+        'chain_promotion_blocked': True,
+        'production_claim_allowed': False,
+        'independent_audit_required': True,
+      },
+    )
+
+  try:
+    field = solve_euler_ambient_first_wedge_entropy_characteristic_field(
+      seed,
+      position_tolerance_m=position_tolerance_m,
+      characteristic_residual_tolerance=characteristic_residual_tolerance,
+      edge_alignment_tolerance=edge_alignment_tolerance,
+      cell_residual_tolerance=cell_residual_tolerance,
+      pressure_lineage_tolerance=pressure_lineage_tolerance,
+      compatibility_weight=compatibility_weight,
+      maximum_iterations=maximum_iterations,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return result(
+      MocChainTerminationDecision(
+        physical_termination=False,
+        reason=MocChainTerminationReason.SOLVER_ERROR,
+        message=f'internal entropy-characteristic planner raised: {error}',
+        diagnostics={
+          'planner_model': (
+            'euler-ambient-first-wedge-entropy-characteristic-field'
+          ),
+          'solver_error': type(error).__name__,
+          'field_consumed_as_chain_cell': False,
+          'physical_chain_cell_count': 0,
+        },
+      )
+    )
+  step = MocEulerAmbientFirstWedgeEntropyCharacteristicFieldPlannerStep(
+    source_trial_status=seed.status.value,
+    result_status=field.status.value,
+    result_kind='solver-owned-internal-entropy-characteristic-field',
+    result_converged=field.converged,
+    result_solver_iterations=field.solver_iterations,
+    result_node_count=field.node_count,
+    result_cell_count=field.cell_count,
+    result_characteristic_edge_count=len(field.characteristic_edges),
+    result_topology_verified=bool(
+      field.topology.connected
+      and field.topology.forms_closed_zone
+      and field.topology.nonmanifold_edge_count == 0
+    ),
+    result_pressure_lineage_verified=field.pressure_lineage_verified,
+    result_characteristic_geometry_verified=field.characteristic_geometry_verified,
+    result_variable_entropy_compatibility_verified=(
+      field.variable_entropy_compatibility_verified
+    ),
+    result_cell_euler_residuals_verified=field.cell_euler_residuals_verified,
+    result_internal_characteristic_closure_verified=(
+      field.internal_characteristic_closure_verified
+    ),
+    result_physical_closure_verified=field.physical_closure_verified,
+    result_chain_promotion_blocked=field.chain_promotion_blocked,
+    result_production_claim_allowed=field.production_claim_allowed,
+  )
+  return result(field.as_chain_termination_decision())
 
 
 @dataclass(frozen=True, slots=True)

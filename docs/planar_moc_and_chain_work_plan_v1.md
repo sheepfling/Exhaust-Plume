@@ -2768,3 +2768,37 @@ solver-owned ``C+``/``C-`` subcell solve, propagate the reflected outer/front
 boundary through the refined mesh, and then repeat full-field conservation,
 refinement, and indexed-observation gates. None of this changes the fast
 visualization or reduced-order product providers.
+
+## Solver-owned characteristic subcell and continued-chain boundary
+
+The barycentric refinement seam now has a separate higher-fidelity solver
+lane: ``solve_euler_ambient_first_wedge_entropy_characteristic_field``. It
+builds a deterministic four-triangle first-wedge field from the entropy-carry
+source trial, with split shock/ambient source edges, a reflected centerline
+node, six typed characteristic edges, and carried log-total-pressure
+lineage. The canonical field closes its local family-compatibility and
+conservative cell-residual gates, and
+``op.moc.euler-ambient-first-wedge-entropy-characteristic-field-audit``
+independently reconstructs topology, state samples, pressure lineage,
+characteristic residuals, and cell Euler residuals.
+
+The matching planner is intentionally a pre-chain boundary. It records the
+six-node/four-cell/six-edge field, then returns a typed
+``FIDELITY_NOT_ALLOWED`` decision with zero physical shock-cell entries. The
+field is not passed to the generic resolved-chain callback because its
+reflected free boundary and external validation are still absent. The
+existing prescribed-boundary planner mock remains the deterministic
+multi-cell chain fixture for exercising state-carrying handoffs; it is not
+used to upgrade this solver-owned field or the fast/reduced-order providers.
+
+Next implementation sequence:
+
+- couple the locally closed characteristic subcells to a solver-owned
+  reflected outer/front boundary and retain a complete physical perimeter;
+- expose that perimeter through the same typed handoff used by continued
+  shock-cell planners, with no extrapolation or pressure reset;
+- repeat independent Euler audits over a declared resolution ladder and bind
+  indexed external observations before any physical chain-cell promotion;
+- keep the planner mock and the higher-fidelity lane separately labeled in
+  visualization reports so exploratory chain views cannot be mistaken for a
+  production solver.

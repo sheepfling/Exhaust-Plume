@@ -129,6 +129,9 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   entropy_carry = report['geometry_cases'][
     'euler_ambient_first_wedge_entropy_carry'
   ]
+  entropy_characteristic_field = report['geometry_cases'][
+    'euler_ambient_first_wedge_entropy_characteristic_field'
+  ]
   ambient_attachment = report['geometry_cases']['ambient_attachment_closure_probe']
   ambient_transition = report['geometry_cases']['ambient_attachment_transition_probe']
   ambient_closure = report['geometry_cases']['ambient_pressure_closure_probe']
@@ -280,6 +283,46 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
     'chain_promotion_blocked': True,
     'production_claim_allowed': False,
   }
+  assert entropy_characteristic_field['planner']['resolved'] is True
+  assert entropy_characteristic_field['planner']['physical_chain_cell_count'] == 0
+  assert entropy_characteristic_field['planner']['termination']['reason'] == (
+    'fidelity-not-allowed'
+  )
+  assert entropy_characteristic_field['planner']['step']['result_node_count'] == 6
+  assert entropy_characteristic_field['planner']['step']['result_cell_count'] == 4
+  assert entropy_characteristic_field['planner']['step']['result_characteristic_edge_count'] == 6
+  assert entropy_characteristic_field['planner']['step']['checks'] == {
+    'topology_verified': True,
+    'pressure_lineage_verified': True,
+    'characteristic_geometry_verified': True,
+    'variable_entropy_compatibility_verified': True,
+    'cell_euler_residuals_verified': True,
+    'internal_characteristic_closure_verified': True,
+    'physical_closure_verified': False,
+    'chain_promotion_blocked': True,
+    'production_claim_allowed': False,
+  }
+  assert entropy_characteristic_field['independent_audit']['status'] == (
+    'converged_euler_ambient_first_wedge_entropy_characteristic_field_audit'
+  )
+  assert entropy_characteristic_field['independent_audit']['checks'] == {
+    'source_trial_gates_verified': True,
+    'topology_verified': True,
+    'state_samples_finite': True,
+    'pressure_lineage_verified': True,
+    'characteristic_geometry_verified': True,
+    'variable_entropy_compatibility_verified': True,
+    'cell_euler_residuals_finite': True,
+    'cell_euler_residuals_verified': True,
+    'internal_characteristic_closure_verified': True,
+    'solver_status_consistent': True,
+    'physical_closure_verified': False,
+    'chain_promotion_blocked': True,
+    'production_claim_allowed': False,
+  }
+  assert entropy_characteristic_field['claim_status'].endswith(
+    'continued shock-cell-chain promotion pending'
+  )
   assert alternating_physical_chain_refinement['status'] == 'converged'
   assert alternating_physical_chain_refinement['operator_id'] == (
     'op.moc.reflected-domain-alternating-physical-field-chain-refinement'

@@ -381,6 +381,12 @@ from exhaust_plume.models.moc.euler_entropy_carry import (
   MocEulerAmbientFirstWedgeEntropyCarryResult,
   solve_euler_ambient_first_wedge_entropy_carry,
 )
+from exhaust_plume.models.moc.euler_entropy_characteristic_field import (
+  MocEulerAmbientFirstWedgeEntropyCharacteristicFieldStatus,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicNode,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult,
+  solve_euler_ambient_first_wedge_entropy_characteristic_field,
+)
 from exhaust_plume.models.moc.euler_entropy_refinement import (
   MocEulerAmbientFirstWedgeEntropyCarryRefinementStatus,
   MocEulerAmbientFirstWedgeEntropyCarryRefinementResult,
@@ -534,6 +540,9 @@ from exhaust_plume.models.moc.planner import (
   MocEulerAmbientFirstWedgeEntropyCarryPlannerStep,
   MocEulerAmbientFirstWedgeEntropyCarryPlannerResult,
   plan_euler_ambient_first_wedge_entropy_carry,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicFieldPlannerStep,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicFieldPlannerResult,
+  plan_euler_ambient_first_wedge_entropy_characteristic_field,
   MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerStep,
   MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerResult,
   plan_euler_ambient_first_wedge_entropy_carry_refinement,
@@ -724,6 +733,9 @@ __all__ = (
   'MocEulerAmbientFirstWedgeEntropyCarryPlannerStep',
   'MocEulerAmbientFirstWedgeEntropyCarryPlannerResult',
   'plan_euler_ambient_first_wedge_entropy_carry',
+  'MocEulerAmbientFirstWedgeEntropyCharacteristicFieldPlannerStep',
+  'MocEulerAmbientFirstWedgeEntropyCharacteristicFieldPlannerResult',
+  'plan_euler_ambient_first_wedge_entropy_characteristic_field',
   'MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerStep',
   'MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerResult',
   'plan_euler_ambient_first_wedge_entropy_carry_refinement',
@@ -995,6 +1007,10 @@ __all__ = (
   'MocEulerAmbientFirstWedgeEntropyCarryStatus',
   'MocEulerAmbientFirstWedgeEntropyCarryResult',
   'solve_euler_ambient_first_wedge_entropy_carry',
+  'MocEulerAmbientFirstWedgeEntropyCharacteristicFieldStatus',
+  'MocEulerAmbientFirstWedgeEntropyCharacteristicNode',
+  'MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult',
+  'solve_euler_ambient_first_wedge_entropy_characteristic_field',
   'MocEulerAmbientFirstWedgeEntropyCarryRefinementStatus',
   'MocEulerAmbientFirstWedgeEntropyCarryRefinementResult',
   'refine_euler_ambient_first_wedge_entropy_carry',
