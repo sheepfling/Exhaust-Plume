@@ -36,6 +36,8 @@ from exhaust_plume.models.moc.reflected_domain import (
   MocReflectedDomainAlternatingPhysicalFieldStatus,
   MocReflectedDomainAlternatingSourceResult,
   MocReflectedDomainRemeshResult,
+  MocReflectedDomainSolverOwnedFirstCellResult,
+  solve_reflected_domain_solver_owned_first_cell,
   solve_reflected_domain_alternating_physical_field,
   solve_reflected_domain_alternating_source,
 )
@@ -208,6 +210,7 @@ __all__ = (
   'plan_reflected_domain_alternating_source_chain',
   'plan_reflected_domain_alternating_source_chain_sequence',
   'plan_reflected_domain_alternating_source_chain_from_physical_field',
+  'plan_reflected_domain_solver_owned_first_cell_chain',
   'plan_first_cell_geometry_owned_alternating_research_chain',
   'plan_caustic_simple_wave_terminal_chain',
   'plan_caustic_remesh_downstream_field_chain',
@@ -9210,6 +9213,242 @@ def plan_reflected_domain_alternating_source_chain_from_physical_field(
     'canonical_reflected_domain_closed': False,
     'canonical_free_boundary_pending': True,
     'external_validation_pending': True,
+  })
+  return replace(planner, diagnostics=diagnostics)
+####
+
+
+def plan_reflected_domain_solver_owned_first_cell_chain(
+  seed: MocPhysicalPostShockFieldResult,
+  source_band: MocReflectedDomainAlternatingSourceResult,
+  *,
+  start_x_m: float,
+  end_x_m: float,
+  outer_source_index: int = 0,
+  target_centerline_index: int | None = None,
+  compression_amplitude_lower_rad: float = 0.005,
+  compression_amplitude_upper_rad: float = 0.05,
+  closure_tolerance_m: float = 1.0e-6,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-9,
+  invariant_tolerance: float = 1.0e-10,
+  attachment_pressure_tolerance: float = 1.0e-8,
+  pressure_tolerance: float = 1.0e-8,
+  tangent_tolerance: float = 1.0e-8,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  maximum_boundary_iterations: int = 16,
+  maximum_shooting_iterations: int = 40,
+  maximum_bracket_scan_samples: int = 0,
+  total_cell_count: int | None = None,
+  policy: MocChainContinuationPolicy | None = None,
+) -> MocChainPlannerResult:
+  """Run the source-owned first-cell shoot through the chain planner.
+
+  ``source_band`` is the explicit Cauchy-data handoff for the first continued
+  cell.  The planner checks that its incoming handoff is exactly the seed
+  field's centerline trace, invokes the bounded endpoint solver once, and
+  preserves that solver's typed decision.  A locally complete endpoint root
+  still returns ``FIDELITY_NOT_ALLOWED`` because the source-owned solver has
+  not closed the canonical reflected free-boundary/Euler problem.  A missing
+  endpoint bracket remains an ``OPEN_PHYSICAL_CLOSURE`` stop.
+
+  This adapter is intentionally a planner/mock seam: it does not convert a
+  research trial into a chain cell, reuse a source band after a stop, or
+  mutate any fast/reduced-order provider.
+  """
+
+  if not isinstance(seed, MocPhysicalPostShockFieldResult):
+    raise TypeError('seed must be a MocPhysicalPostShockFieldResult')
+  if not isinstance(
+    source_band,
+    MocReflectedDomainAlternatingSourceResult,
+  ):
+    raise TypeError(
+      'source_band must be a MocReflectedDomainAlternatingSourceResult'
+    )
+  if not isfinite(float(start_x_m)) or not isfinite(float(end_x_m)):
+    raise ValueError('start_x_m and end_x_m must be finite')
+  if end_x_m <= start_x_m:
+    raise ValueError('end_x_m must be strictly downstream of start_x_m')
+  if total_cell_count is not None and (
+    isinstance(total_cell_count, bool)
+    or not isinstance(total_cell_count, int)
+    or total_cell_count < 1
+  ):
+    raise ValueError('total_cell_count must be a positive integer when supplied')
+  if policy is not None and not isinstance(policy, MocChainContinuationPolicy):
+    raise TypeError('policy must be a MocChainContinuationPolicy or None')
+
+  def field_handoff(
+    field: MocPhysicalPostShockFieldResult,
+  ) -> tuple[MocChainBoundarySample, ...]:
+    states = tuple(field.centerline_boundary_states)
+    pressures = tuple(field.centerline_boundary_total_pressure_Pa)
+    if len(states) != len(pressures):
+      return ()
+    try:
+      return tuple(
+        MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
+        for state, pressure in zip(states, pressures, strict=True)
+      )
+    except (TypeError, ValueError):
+      return ()
+
+  seed_handoff = field_handoff(seed)
+  source_handoff = tuple(source_band.incoming_handoff)
+  solver_result: MocReflectedDomainSolverOwnedFirstCellResult | None = None
+  solver_measurement: Any | None = None
+  solver_error: str | None = None
+
+  def stop(
+    reason: MocChainTerminationReason,
+    message: str,
+    *,
+    next_cell_index: int,
+    diagnostics: dict[str, Any] | None = None,
+  ) -> MocChainTerminationDecision:
+    payload: dict[str, Any] = {
+      'termination_model': 'solver-owned-first-cell-planner-adapter',
+      'next_cell_index': next_cell_index,
+      'canonical_reflected_domain_closed': False,
+      'canonical_euler_verified': False,
+      'external_validation_verified': False,
+      'chain_promotion_blocked': True,
+      'production_claim_allowed': False,
+    }
+    if diagnostics is not None:
+      payload.update(diagnostics)
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=reason,
+      message=message,
+      diagnostics=payload,
+    )
+
+  def solve_next(
+    current: MocChainCell,
+    next_cell_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+  ) -> MocChainTerminationDecision:
+    nonlocal solver_error, solver_measurement, solver_result
+    if total_cell_count is not None and next_cell_index > total_cell_count:
+      return stop(
+        MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
+        (
+          'solver-owned first-cell planner reached its configured '
+          f'{total_cell_count}-cell research prefix'
+        ),
+        next_cell_index=next_cell_index,
+        diagnostics={'termination_model': 'configured-cell-count'},
+      )
+    if incoming_handoff != source_handoff or source_handoff != seed_handoff:
+      return stop(
+        MocChainTerminationReason.STATE_NOT_CARRIED,
+        (
+          'solver-owned first-cell planner requires the source band to carry '
+          'the exact seed centerline handoff'
+        ),
+        next_cell_index=next_cell_index,
+        diagnostics={
+          'seed_handoff_sample_count': len(seed_handoff),
+          'source_band_handoff_sample_count': len(source_handoff),
+          'incoming_handoff_sample_count': len(incoming_handoff),
+          'seed_handoff_fingerprint': _handoff_fingerprint(seed_handoff),
+          'source_band_handoff_fingerprint': _handoff_fingerprint(source_handoff),
+          'incoming_handoff_fingerprint': _handoff_fingerprint(incoming_handoff),
+        },
+      )
+    try:
+      solver_result = solve_reflected_domain_solver_owned_first_cell(
+        source_band,
+        outer_source_index=outer_source_index,
+        target_centerline_index=target_centerline_index,
+        compression_amplitude_lower_rad=compression_amplitude_lower_rad,
+        compression_amplitude_upper_rad=compression_amplitude_upper_rad,
+        closure_tolerance_m=closure_tolerance_m,
+        incoming_handoff=incoming_handoff,
+        sample_count=sample_count,
+        branch=branch,
+        position_tolerance_m=position_tolerance_m,
+        invariant_tolerance=invariant_tolerance,
+        attachment_pressure_tolerance=attachment_pressure_tolerance,
+        pressure_tolerance=pressure_tolerance,
+        tangent_tolerance=tangent_tolerance,
+        shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+        maximum_segment_iterations=maximum_segment_iterations,
+        maximum_boundary_iterations=maximum_boundary_iterations,
+        maximum_shooting_iterations=maximum_shooting_iterations,
+        maximum_bracket_scan_samples=maximum_bracket_scan_samples,
+      )
+      from exhaust_plume.validation.moc_measurements import (
+        measure_moc_reflected_domain_solver_owned_first_cell,
+      )
+
+      solver_measurement = measure_moc_reflected_domain_solver_owned_first_cell(
+        solver_result,
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      solver_error = f'{type(error).__name__}: {error}'
+      return stop(
+        MocChainTerminationReason.SOLVER_ERROR,
+        f'solver-owned first-cell planner adapter failed: {error}',
+        next_cell_index=next_cell_index,
+      )
+    return solver_result.as_chain_termination_decision()
+
+  planner = plan_ambient_closed_post_shock_chain(
+    seed,
+    solve_next,
+    start_x_m=start_x_m,
+    end_x_m=end_x_m,
+    policy=policy,
+    require_upstream_shock_coupling=True,
+    claim_status=(
+      'solver-owned-first-cell-endpoint-planner-research-seam; '
+      'canonical-reflected-free-boundary-and-external-validation-pending'
+    ),
+  )
+  diagnostics = dict(planner.diagnostics)
+  diagnostics.update({
+    'solver_owned_first_cell_planner_model': (
+      'seed-physical-field -> exact-centerline-handoff -> '
+      'bounded-source-owned-first-cell-endpoint-shoot'
+    ),
+    'solver_owned_first_cell_source_band': source_band.as_report(),
+    'solver_owned_first_cell_seed_handoff_verified': (
+      source_handoff == seed_handoff
+    ),
+    'solver_owned_first_cell_seed_handoff_fingerprint': (
+      _handoff_fingerprint(seed_handoff)
+    ),
+    'solver_owned_first_cell_source_handoff_fingerprint': (
+      _handoff_fingerprint(source_handoff)
+    ),
+    'solver_owned_first_cell': (
+      None if solver_result is None else solver_result.as_report()
+    ),
+    'solver_owned_first_cell_independent_measurement': (
+      None
+      if solver_measurement is None
+      else solver_measurement.as_report()
+    ),
+    'solver_owned_first_cell_audit_accepted': bool(
+      solver_measurement is not None
+      and solver_measurement.converged
+      and solver_measurement.fidelity_isolation_verified
+      and solver_measurement.chain_promotion_blocked
+      and not solver_measurement.production_claim_allowed
+    ),
+    'solver_owned_first_cell_error': solver_error,
+    'configured_total_cell_count': total_cell_count,
+    'canonical_reflected_domain_closed': False,
+    'canonical_free_boundary_pending': True,
+    'canonical_euler_pending': True,
+    'external_validation_pending': True,
+    'chain_promotion_blocked': True,
+    'production_claim_allowed': False,
   })
   return replace(planner, diagnostics=diagnostics)
 ####

@@ -31,6 +31,7 @@ from exhaust_plume.models.moc import (
   plan_reflected_domain_alternating_source_chain,
   plan_reflected_domain_alternating_source_chain_from_physical_field,
   plan_reflected_domain_alternating_source_chain_sequence,
+  plan_reflected_domain_solver_owned_first_cell_chain,
   plan_reflected_domain_remesh_shock_chain,
   plan_reflected_domain_remesh_shock_chain_sequence,
   solve_marched_attached_shock_field,
@@ -822,6 +823,112 @@ def test_solver_owned_first_cell_retains_auditable_no_bracket_without_geometry()
   )
   assert invalid.status is MocReflectedDomainSolverOwnedFirstCellStatus.INVALID_INPUT
   assert invalid.compression_amplitude_bracket is None
+
+
+def test_solver_owned_first_cell_can_scan_only_inside_declared_bracket():
+  _field, patch = _patch()
+  ambient_pressure = _field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  source = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+  )
+  result = solve_reflected_domain_solver_owned_first_cell(
+    source,
+    outer_source_index=2,
+    target_centerline_index=3,
+    compression_amplitude_lower_rad=0.007,
+    compression_amplitude_upper_rad=0.03,
+    sample_count=9,
+    maximum_bracket_scan_samples=3,
+  )
+
+  assert result.status is (
+    MocReflectedDomainSolverOwnedFirstCellStatus.BOUNDARY_BRACKET_FAILURE
+  )
+  assert result.bracket_scan_sample_count == 3
+  assert len(result.trials) == 5
+  assert all(
+    0.007 <= trial.compression_amplitude_rad <= 0.03
+    for trial in result.trials
+  )
+  measurement = measure_moc_reflected_domain_solver_owned_first_cell(result)
+  assert measurement.converged
+  assert measurement.trial_amplitudes_verified
+  assert measurement.trial_residuals_verified
+  assert measurement.fidelity_isolation_verified
+
+
+def test_solver_owned_first_cell_planner_preserves_typed_research_stop():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  handoff = _handoff(field)
+  source = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+    incoming_handoff=handoff,
+  )
+  planner = plan_reflected_domain_solver_owned_first_cell_chain(
+    field,
+    source,
+    start_x_m=0.5,
+    end_x_m=1.0,
+    outer_source_index=2,
+    target_centerline_index=3,
+    compression_amplitude_lower_rad=0.007,
+    compression_amplitude_upper_rad=0.03,
+    sample_count=9,
+    policy=MocChainContinuationPolicy(max_cells=2, require_state_carry=True),
+  )
+
+  assert planner.chain.resolved
+  assert planner.chain.cell_count == 1
+  assert planner.chain.termination_reason is (
+    MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+  )
+  assert planner.chain.physical_termination is False
+  assert planner.handoff_links_verified is None
+  assert planner.diagnostics[
+    'solver_owned_first_cell_seed_handoff_verified'
+  ] is True
+  assert planner.diagnostics['solver_owned_first_cell_audit_accepted'] is True
+  assert planner.diagnostics['solver_owned_first_cell']['status'] == (
+    'solver_owned_first_cell_boundary_bracket_failure'
+  )
+  assert planner.diagnostics[
+    'solver_owned_first_cell_independent_measurement'
+  ]['status'] == 'converged'
+  assert planner.production_claim_allowed is False
+
+
+def test_solver_owned_first_cell_planner_rejects_mismatched_seed_handoff():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  source = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+  )
+  planner = plan_reflected_domain_solver_owned_first_cell_chain(
+    field,
+    source,
+    start_x_m=0.5,
+    end_x_m=1.0,
+    policy=MocChainContinuationPolicy(max_cells=2, require_state_carry=True),
+  )
+
+  assert planner.chain.cell_count == 1
+  assert planner.chain.termination_reason is (
+    MocChainTerminationReason.STATE_NOT_CARRIED
+  )
+  assert planner.diagnostics[
+    'solver_owned_first_cell_seed_handoff_verified'
+  ] is False
+  assert planner.diagnostics['solver_owned_first_cell'] is None
+  assert planner.diagnostics[
+    'solver_owned_first_cell_independent_measurement'
+  ] is None
 
 
 def test_reflected_domain_alternating_physical_field_chain_refinement_is_research_only():

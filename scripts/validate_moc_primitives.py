@@ -103,6 +103,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   plan_reflected_domain_remesh_shock_chain,
   plan_reflected_domain_remesh_shock_chain_sequence,
   plan_reflected_domain_alternating_source_chain,
+  plan_reflected_domain_solver_owned_first_cell_chain,
   solve_reflected_domain_remesh,
   solve_reflected_domain_alternating_source,
   solve_reflected_domain_alternating_physical_field,
@@ -699,6 +700,7 @@ def _reflected_domain_remesh_probe(
       compression_amplitude_lower_rad=0.007,
       compression_amplitude_upper_rad=0.03,
       sample_count=9,
+      maximum_bracket_scan_samples=3,
     )
     solver_owned_first_cell_measurement = (
       measure_moc_reflected_domain_solver_owned_first_cell(
@@ -707,6 +709,49 @@ def _reflected_domain_remesh_probe(
     )
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     solver_owned_first_cell_error = f'{type(error).__name__}: {error}'
+
+  solver_owned_first_cell_planner = None
+  solver_owned_first_cell_planner_error = None
+  if (
+    physical_seed_field is not None
+    and getattr(physical_seed_field, 'converged', False)
+    and alternating_source is not None
+  ):
+    try:
+      seed_handoff = tuple(
+        MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
+        for state, pressure in zip(
+          physical_seed_field.centerline_boundary_states,
+          physical_seed_field.centerline_boundary_total_pressure_Pa,
+          strict=True,
+        )
+      )
+      solver_owned_source = replace(
+        alternating_source,
+        incoming_handoff=seed_handoff,
+      )
+      solver_owned_first_cell_planner = (
+        plan_reflected_domain_solver_owned_first_cell_chain(
+          physical_seed_field,
+          solver_owned_source,
+          start_x_m=0.5,
+          end_x_m=1.0,
+          outer_source_index=2,
+          target_centerline_index=3,
+          compression_amplitude_lower_rad=0.007,
+          compression_amplitude_upper_rad=0.03,
+          sample_count=9,
+          maximum_bracket_scan_samples=3,
+          policy=MocChainContinuationPolicy(
+            max_cells=2,
+            require_state_carry=True,
+          ),
+        )
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      solver_owned_first_cell_planner_error = (
+        f'{type(error).__name__}: {error}'
+      )
 
   (
     alternating_physical_field_chain_refinement,
@@ -930,6 +975,20 @@ def _reflected_domain_remesh_probe(
     and solver_owned_first_cell_measurement.scalar_endpoint_verified is False
     and solver_owned_first_cell_measurement.physical_closure_verified is False
     and solver_owned_first_cell_measurement.fidelity_isolation_verified
+    and solver_owned_first_cell_planner is not None
+    and solver_owned_first_cell_planner.production_claim_allowed is False
+    and solver_owned_first_cell_planner.chain.resolved
+    and solver_owned_first_cell_planner.chain.cell_count == 1
+    and solver_owned_first_cell_planner.chain.termination_reason is (
+      MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+    )
+    and solver_owned_first_cell_planner.chain.physical_termination is False
+    and solver_owned_first_cell_planner.diagnostics[
+      'solver_owned_first_cell_seed_handoff_verified'
+    ] is True
+    and solver_owned_first_cell_planner.diagnostics[
+      'solver_owned_first_cell_audit_accepted'
+    ] is True
     and alternating_physical_field_chain_refinement is not None
     and alternating_physical_field_chain_refinement.converged
     and alternating_physical_field_chain_refinement.resolution_order_verified
@@ -1031,6 +1090,14 @@ def _reflected_domain_remesh_probe(
       else solver_owned_first_cell_measurement.as_report()
     ),
     'solver_owned_first_cell_error': solver_owned_first_cell_error,
+    'solver_owned_first_cell_planner': (
+      None
+      if solver_owned_first_cell_planner is None
+      else solver_owned_first_cell_planner.as_report()
+    ),
+    'solver_owned_first_cell_planner_error': (
+      solver_owned_first_cell_planner_error
+    ),
     'alternating_physical_field_chain_refinement': (
       None
       if alternating_physical_field_chain_refinement is None
@@ -9110,6 +9177,29 @@ def build_moc_primitive_report() -> dict[str, Any]:
       or reflected_domain_remesh_probe[
         'solver_owned_first_cell_independent_measurement'
       ].get('checks', {}).get('fidelity_isolation_verified') is not True
+      or not isinstance(
+        reflected_domain_remesh_probe.get(
+          'solver_owned_first_cell_planner'
+        ),
+        dict,
+      )
+      or reflected_domain_remesh_probe[
+        'solver_owned_first_cell_planner'
+      ].get('chain', {}).get('cell_count') != 1
+      or reflected_domain_remesh_probe[
+        'solver_owned_first_cell_planner'
+      ].get('chain', {}).get('termination_reason')
+      != MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE.value
+      or reflected_domain_remesh_probe[
+        'solver_owned_first_cell_planner'
+      ].get('diagnostics', {}).get(
+        'solver_owned_first_cell_seed_handoff_verified'
+      ) is not True
+      or reflected_domain_remesh_probe[
+        'solver_owned_first_cell_planner'
+      ].get('diagnostics', {}).get(
+        'solver_owned_first_cell_audit_accepted'
+      ) is not True
     )
   )
   reflected_domain_alternating_physical_field_chain_refinement_failure = (

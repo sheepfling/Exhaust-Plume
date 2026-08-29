@@ -2427,3 +2427,22 @@ residual can straddle zero, followed by a coupled post-shock field with
 sample-count refinement and indexed external validation. Until those gates
 pass, the fast visualization and reduced-order shock-train lanes remain
 unchanged and are not trained or relabeled from this research lane.
+
+## Solver-owned first-cell planner handoff checkpoint
+
+The solver-owned first-cell endpoint shoot is now callable through
+`plan_reflected_domain_solver_owned_first_cell_chain`. The planner checks the
+exact seed centerline handoff, records the callback step, retains the solver's
+typed endpoint result and independently measured audit, and stops with
+`OPEN_PHYSICAL_CLOSURE` when the bounded amplitude family has no endpoint
+root. A future locally closed root would still stop at
+`FIDELITY_NOT_ALLOWED`; this adapter cannot silently promote the local
+compression envelope into a continued production shock cell.
+
+The endpoint solver also supports an optional bounded interior amplitude scan.
+The scan can discover an adjacent sign-changing pair inside the declared
+interval, but it cannot cross an invalid trial or evaluate beyond the caller's
+bounds. The standalone evidence uses a three-sample scan and records the
+same-sign residual boundary as a successful research audit. This advances the
+bracket-search seam without changing the fidelity ceiling or any
+visualization, signature, ray, or focal-plane-array provider.

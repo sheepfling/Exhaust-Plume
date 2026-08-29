@@ -1289,6 +1289,7 @@ class MocReflectedDomainSolverOwnedFirstCellResult:
   shooting_iterations: int
   trials: tuple[MocReflectedDomainSolverOwnedFirstCellTrial, ...]
   message: str = ''
+  bracket_scan_sample_count: int = 0
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -1369,6 +1370,14 @@ class MocReflectedDomainSolverOwnedFirstCellResult:
       or self.shooting_iterations < 0
     ):
       raise ValueError('shooting_iterations must be a nonnegative integer')
+    if (
+      isinstance(self.bracket_scan_sample_count, bool)
+      or not isinstance(self.bracket_scan_sample_count, int)
+      or self.bracket_scan_sample_count < 0
+    ):
+      raise ValueError(
+        'bracket_scan_sample_count must be a nonnegative integer'
+      )
     trials = tuple(self.trials)
     if any(
       not isinstance(trial, MocReflectedDomainSolverOwnedFirstCellTrial)
@@ -1546,6 +1555,7 @@ class MocReflectedDomainSolverOwnedFirstCellResult:
       ),
       'closure_residual_m': self.closure_residual_m,
       'shooting_iterations': self.shooting_iterations,
+      'bracket_scan_sample_count': self.bracket_scan_sample_count,
       'trial_count': len(self.trials),
       'trials': tuple(trial.as_report() for trial in self.trials),
       'message': self.message,
@@ -2551,6 +2561,7 @@ def solve_reflected_domain_solver_owned_first_cell(
   maximum_segment_iterations: int = 24,
   maximum_boundary_iterations: int = 16,
   maximum_shooting_iterations: int = 40,
+  maximum_bracket_scan_samples: int = 0,
 ) -> MocReflectedDomainSolverOwnedFirstCellResult:
   """Iterate a solver-generated first-cell endpoint without shock geometry.
 
@@ -2566,8 +2577,13 @@ def solve_reflected_domain_solver_owned_first_cell(
   research free-boundary reference, not the canonical reflected Euler solve:
   the upstream alternating remesh, local compression envelope, mixed-regime
   continuation, refinement, and external validation remain separate gates.
-  Every failed or successful trial is retained, and a missing field is never
-  replaced with an extrapolated state.
+  When ``maximum_bracket_scan_samples`` is positive, the solver samples only
+  interior amplitudes inside the caller's bracket before deciding that the
+  endpoint residual has no sign change.  It may use two adjacent complete
+  trials as a new bisection bracket, but it never bridges an invalid trial or
+  extrapolates outside the declared amplitude interval.  Every failed or
+  successful trial is retained, and a missing field is never replaced with an
+  extrapolated state.
   """
 
   resolved_target_index: int | None = None
@@ -2584,6 +2600,7 @@ def solve_reflected_domain_solver_owned_first_cell(
     residual: float | None = None,
     iterations: int = 0,
     trials: Sequence[MocReflectedDomainSolverOwnedFirstCellTrial] = (),
+    bracket_scan_sample_count: int = 0,
   ) -> MocReflectedDomainSolverOwnedFirstCellResult:
     return MocReflectedDomainSolverOwnedFirstCellResult(
       status=status,
@@ -2614,6 +2631,7 @@ def solve_reflected_domain_solver_owned_first_cell(
       closure_residual_m=residual,
       shooting_iterations=iterations,
       trials=tuple(trials),
+      bracket_scan_sample_count=bracket_scan_sample_count,
       message=message,
     )
 
@@ -2710,6 +2728,16 @@ def solve_reflected_domain_solver_owned_first_cell(
         f'{name} must be a positive integer',
         bracket=(lower_amplitude, upper_amplitude),
       )
+  if (
+    isinstance(maximum_bracket_scan_samples, bool)
+    or not isinstance(maximum_bracket_scan_samples, int)
+    or maximum_bracket_scan_samples < 0
+  ):
+    return failure(
+      MocReflectedDomainSolverOwnedFirstCellStatus.INVALID_INPUT,
+      'maximum_bracket_scan_samples must be a nonnegative integer',
+      bracket=(lower_amplitude, upper_amplitude),
+    )
   if not isinstance(branch, ShockBranch):
     return failure(
       MocReflectedDomainSolverOwnedFirstCellStatus.INVALID_INPUT,
@@ -2858,6 +2886,7 @@ def solve_reflected_domain_solver_owned_first_cell(
       residual=(None if selected_trial is None else selected_trial.residual_m),
       iterations=iterations,
       trials=trials,
+      bracket_scan_sample_count=maximum_bracket_scan_samples,
     )
 
   lower_trial = evaluate(lower_amplitude)
@@ -2894,20 +2923,61 @@ def solve_reflected_domain_solver_owned_first_cell(
       ),
       0,
     )
-  if lower_trial.residual_m * upper_trial.residual_m > 0.0:
+  def find_adjacent_bracket() -> tuple[float, float, float, float] | None:
+    ordered = tuple(
+      sorted(trials, key=lambda trial: trial.compression_amplitude_rad)
+    )
+    for first, second in zip(ordered, ordered[1:]):
+      if (
+        not first.converged
+        or not second.converged
+        or first.residual_m is None
+        or second.residual_m is None
+      ):
+        continue
+      if first.residual_m * second.residual_m <= 0.0:
+        return (
+          first.compression_amplitude_rad,
+          second.compression_amplitude_rad,
+          first.residual_m,
+          second.residual_m,
+        )
+    return None
+
+  bracket = find_adjacent_bracket()
+  if bracket is None and maximum_bracket_scan_samples:
+    for scan_index in range(1, maximum_bracket_scan_samples + 1):
+      amplitude = lower_amplitude + (
+        upper_amplitude - lower_amplitude
+      ) * scan_index / (maximum_bracket_scan_samples + 1)
+      scan_trial = evaluate(amplitude)
+      trials.append(scan_trial)
+      if (
+        scan_trial.residual_m is not None
+        and scan_trial.converged
+        and abs(scan_trial.residual_m) <= closure_tolerance
+      ):
+        return result_for(
+          MocReflectedDomainSolverOwnedFirstCellStatus.CONVERGED_CENTERLINE_ENDPOINT,
+          'solver-owned first-cell endpoint aligned at a bounded bracket-scan amplitude',
+          0,
+        )
+      bracket = find_adjacent_bracket()
+      if bracket is not None:
+        break
+  if bracket is None:
     return result_for(
       MocReflectedDomainSolverOwnedFirstCellStatus.BOUNDARY_BRACKET_FAILURE,
       (
         'compression-amplitude bracket does not straddle the solver-owned '
-        f'centerline endpoint residual: lower={lower_trial.residual_m}, '
+        f'centerline endpoint residual after {maximum_bracket_scan_samples} '
+        f'interior scan sample(s): lower={lower_trial.residual_m}, '
         f'upper={upper_trial.residual_m}'
       ),
       0,
     )
 
-  current_lower = lower_amplitude
-  current_upper = upper_amplitude
-  current_lower_residual = lower_trial.residual_m
+  current_lower, current_upper, current_lower_residual, _ = bracket
   completed_iterations = 0
   for iteration in range(1, maximum_shooting_iterations + 1):
     midpoint = 0.5 * (current_lower + current_upper)
