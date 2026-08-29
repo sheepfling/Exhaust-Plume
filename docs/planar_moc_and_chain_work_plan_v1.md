@@ -2104,3 +2104,31 @@ This is local 2-D potential-flow evidence, not canonical reflected-MOC
 closure. It cannot seed another supersonic shock cell, remains blocked from
 all production providers, and still requires canonical mixed-regime coupling,
 refinement, and indexed external observations before any promotion decision.
+
+## Parameterized planar free-boundary refinement checkpoint
+
+The planar reference now has a separate independent refinement operator,
+`op.moc.mixed-regime-planar-free-boundary-refinement`. It consumes fresh
+typed reruns at strictly increasing free-boundary resolutions, remeasures each
+case with `op.moc.mixed-regime-planar-free-boundary-reference`, and derives
+the reported perimeter, node, and cell counts from the retained results. A
+caller cannot relabel one run as several resolutions; the exact terminal
+request, control section, ambient pressure, downstream dimensions, centerline
+sampling, and radial sampling must remain fixed.
+
+The refinement gate compares a normalized 33-point envelope shape, normalized
+centerline speed, and finite-element mesh area between adjacent resolutions.
+It also requires every independent boundary-normal velocity residual to pass.
+The canonical fixture passes the 6/8/10 sample sequence with perimeter counts
+11/13/15, node counts 21/25/29, and cell counts 30/36/42. These measurements
+are numerical-sensitivity evidence for the parameterized potential reference,
+not a claim that the physical reflected-MOC boundary has converged.
+
+The refinement result therefore preserves
+`canonical_free_boundary_verified=false`, `chain_promotion_blocked=true`,
+and `production_claim_allowed=false`. The next physics gate is still a
+solver-owned reflected 2-D free-boundary/entropy coupling with a shared
+shock/ambient boundary, followed by refinement and indexed external
+observations; neither this operator nor its local field may seed a continued
+shock-cell chain or alter the basic visualization, signature, ray, or
+focal-plane-array providers.

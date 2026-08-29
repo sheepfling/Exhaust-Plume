@@ -816,3 +816,22 @@ The result keeps `canonical_free_boundary_verified=false`,
 Canonical reflected-MOC/free-boundary coupling, numerical refinement, and
 indexed external observations remain release gates; the fast visualization,
 signature, ray, and focal-plane-array providers do not consume this lane.
+
+The planar reference has a separate refinement audit,
+``op.moc.mixed-regime-planar-free-boundary-refinement``. It requires fresh
+reruns at strictly increasing free-boundary sample counts and independently
+remeasures every returned field through the planar reference operator. The
+audit derives resolution and mesh metadata from the typed results, fixes the
+terminal request/control-section seam and solver configuration, and compares
+the normalized envelope shape, centerline speed, mesh area, and boundary-
+normal velocity residuals. The canonical 6/8/10 rerun passes locally with
+perimeter counts 11/13/15, node counts 21/25/29, and cell counts 30/36/42.
+
+This is a numerical-sensitivity gate for the explicitly parameterized
+compressible-potential reference. It does not establish canonical reflected
+MOC closure: the refinement measurement keeps
+``canonical_free_boundary_verified=false``, ``chain_promotion_blocked=true``,
+and ``production_claim_allowed=false``. A genuine reflected 2-D
+shock/ambient/free-boundary entropy solve, followed by refinement and indexed
+external observations, is still required before any product or continued-cell
+promotion.

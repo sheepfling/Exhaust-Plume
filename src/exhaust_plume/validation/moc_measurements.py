@@ -116,6 +116,7 @@ __all__ = (
   'MOC_MIXED_REGIME_FREE_BOUNDARY_OPERATOR_ID',
   'MOC_MIXED_REGIME_FREE_BOUNDARY_REFINEMENT_OPERATOR_ID',
   'MOC_MIXED_REGIME_PLANAR_FREE_BOUNDARY_OPERATOR_ID',
+  'MOC_MIXED_REGIME_PLANAR_FREE_BOUNDARY_REFINEMENT_OPERATOR_ID',
   'MOC_MIXED_REGIME_CONTROL_SECTION_OPERATOR_ID',
   'MOC_MIXED_REGIME_POTENTIAL_OPERATOR_ID',
   'MOC_SHOCK_CELL_CHAIN_OPERATOR_ID',
@@ -150,6 +151,9 @@ __all__ = (
   'MocMixedRegimeFreeBoundaryRefinementMeasurementStatus',
   'MocMixedRegimePlanarFreeBoundaryMeasurement',
   'MocMixedRegimePlanarFreeBoundaryMeasurementStatus',
+  'MocMixedRegimePlanarFreeBoundaryRefinementCase',
+  'MocMixedRegimePlanarFreeBoundaryRefinementMeasurement',
+  'MocMixedRegimePlanarFreeBoundaryRefinementMeasurementStatus',
   'MocMixedRegimeControlSectionMeasurement',
   'MocMixedRegimeControlSectionMeasurementStatus',
   'MocTerminalClosureMeasurement',
@@ -175,6 +179,7 @@ __all__ = (
   'measure_mixed_regime_free_boundary_reference',
   'measure_mixed_regime_free_boundary_refinement',
   'measure_mixed_regime_planar_free_boundary_reference',
+  'measure_mixed_regime_planar_free_boundary_refinement',
   'measure_mixed_regime_control_section',
   'measure_moc_terminal_closure',
   'measure_moc_shock_cell',
@@ -219,6 +224,9 @@ MOC_MIXED_REGIME_FREE_BOUNDARY_REFINEMENT_OPERATOR_ID = (
 )
 MOC_MIXED_REGIME_PLANAR_FREE_BOUNDARY_OPERATOR_ID = (
   'op.moc.mixed-regime-planar-free-boundary-reference'
+)
+MOC_MIXED_REGIME_PLANAR_FREE_BOUNDARY_REFINEMENT_OPERATOR_ID = (
+  'op.moc.mixed-regime-planar-free-boundary-refinement'
 )
 MOC_MIXED_REGIME_CONTROL_SECTION_OPERATOR_ID = (
   'op.moc.mixed-regime-control-section'
@@ -576,6 +584,256 @@ class MocMixedRegimePlanarFreeBoundaryMeasurement:
         'independent-parameterized-2d-compressible-potential-free-boundary-'
         'reference-measurement; not-canonical-moc-validation'
       ),
+      'message': self.message,
+    }
+  ####
+
+
+class MocMixedRegimePlanarFreeBoundaryRefinementMeasurementStatus(str, Enum):
+  """Outcome of comparing parameterized planar free-boundary reruns."""
+
+  CONVERGED = 'converged'
+  INVALID_INPUT = 'invalid_input'
+  RESOLUTION_FAILURE = 'resolution_failure'
+  CASE_FAILURE = 'case_failure'
+  CONSISTENCY_FAILURE = 'consistency_failure'
+  SENSITIVITY_FAILURE = 'sensitivity_failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocMixedRegimePlanarFreeBoundaryRefinementCase:
+  """One independently rerun planar free-boundary reference result.
+
+  ``resolution`` is the number of retained free-boundary samples.  The
+  operator checks that this metadata agrees with the typed result instead of
+  allowing a caller to relabel one run as several resolutions.
+  """
+
+  resolution: int
+  result: MocMixedRegimePlanarFreeBoundaryResult
+
+  def __post_init__(self) -> None:
+    if (
+      isinstance(self.resolution, bool)
+      or not isinstance(self.resolution, int)
+      or self.resolution < 4
+    ):
+      raise ValueError('resolution must be an integer of at least four')
+    if not isinstance(
+      self.result,
+      MocMixedRegimePlanarFreeBoundaryResult,
+    ):
+      raise TypeError(
+        'result must be a MocMixedRegimePlanarFreeBoundaryResult'
+      )
+  ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocMixedRegimePlanarFreeBoundaryRefinementMeasurement:
+  """Independent numerical-sensitivity evidence for the planar reference.
+
+  A passing result establishes repeatability of the explicitly parameterized
+  compressible-potential envelope only.  It does not establish the canonical
+  reflected-MOC mixed-regime boundary, external validation, or chain
+  promotion.
+  """
+
+  status: MocMixedRegimePlanarFreeBoundaryRefinementMeasurementStatus
+  operator_id: str = (
+    MOC_MIXED_REGIME_PLANAR_FREE_BOUNDARY_REFINEMENT_OPERATOR_ID
+  )
+  cases: tuple[MocMixedRegimePlanarFreeBoundaryRefinementCase, ...] = ()
+  measurements: tuple[MocMixedRegimePlanarFreeBoundaryMeasurement, ...] = ()
+  resolutions: tuple[int, ...] = ()
+  perimeter_sample_counts: tuple[int, ...] = ()
+  node_counts: tuple[int, ...] = ()
+  cell_counts: tuple[int, ...] = ()
+  resolution_order_verified: bool = False
+  resolution_metadata_verified: bool = False
+  request_consistent: bool = False
+  control_section_consistent: bool = False
+  solver_configuration_consistent: bool = False
+  local_reference_closure_verified: bool = False
+  shape_convergence_verified: bool = False
+  centerline_speed_convergence_verified: bool = False
+  mesh_area_convergence_verified: bool = False
+  residuals_verified: bool = False
+  shape_delta_residuals_m: tuple[float, ...] = ()
+  centerline_speed_delta_residuals: tuple[float, ...] = ()
+  mesh_area_delta_residuals_m2: tuple[float, ...] = ()
+  maximum_normal_velocity_residuals: tuple[float | None, ...] = ()
+  refinement_convergence_verified: bool = False
+  physical_closure_verified: bool = False
+  canonical_free_boundary_verified: bool = False
+  chain_promotion_blocked: bool = True
+  production_claim_allowed: bool = False
+  claim_status: str = 'not_accepted'
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    cases = tuple(self.cases)
+    measurements = tuple(self.measurements)
+    if len(cases) != len(measurements):
+      raise ValueError('cases and measurements must have equal lengths')
+    if any(
+      not isinstance(
+        case,
+        MocMixedRegimePlanarFreeBoundaryRefinementCase,
+      )
+      for case in cases
+    ):
+      raise TypeError(
+        'cases must contain planar free-boundary refinement cases'
+      )
+    if any(
+      not isinstance(
+        measurement,
+        MocMixedRegimePlanarFreeBoundaryMeasurement,
+      )
+      for measurement in measurements
+    ):
+      raise TypeError(
+        'measurements must contain planar free-boundary measurements'
+    )
+    object.__setattr__(self, 'cases', cases)
+    object.__setattr__(self, 'measurements', measurements)
+    results = tuple(case.result for case in cases)
+    object.__setattr__(
+      self,
+      'resolutions',
+      tuple(case.resolution for case in cases),
+    )
+    object.__setattr__(
+      self,
+      'perimeter_sample_counts',
+      tuple(
+        0
+        if result.boundary is None
+        else len(result.boundary.perimeter_points_m)
+        for result in results
+      ),
+    )
+    object.__setattr__(
+      self,
+      'node_counts',
+      tuple(
+        0 if result.field is None else len(result.field.nodes)
+        for result in results
+      ),
+    )
+    object.__setattr__(
+      self,
+      'cell_counts',
+      tuple(
+        0 if result.field is None else len(result.field.cells)
+        for result in results
+      ),
+    )
+    for name in (
+      'shape_delta_residuals_m',
+      'centerline_speed_delta_residuals',
+      'mesh_area_delta_residuals_m2',
+    ):
+      values = tuple(float(value) for value in getattr(self, name))
+      if any(not isfinite(value) or value < 0.0 for value in values):
+        raise ValueError(f'{name} must contain finite nonnegative values')
+      object.__setattr__(self, name, values)
+    residuals = tuple(
+      None if value is None else float(value)
+      for value in self.maximum_normal_velocity_residuals
+    )
+    if any(
+      value is not None
+      and (not isfinite(float(value)) or float(value) < 0.0)
+      for value in residuals
+    ):
+      raise ValueError(
+        'maximum_normal_velocity_residuals must contain finite nonnegative '
+        'values or None'
+      )
+    object.__setattr__(self, 'maximum_normal_velocity_residuals', residuals)
+    for name in (
+      'resolution_order_verified',
+      'resolution_metadata_verified',
+      'request_consistent',
+      'control_section_consistent',
+      'solver_configuration_consistent',
+      'local_reference_closure_verified',
+      'shape_convergence_verified',
+      'centerline_speed_convergence_verified',
+      'mesh_area_convergence_verified',
+      'residuals_verified',
+      'refinement_convergence_verified',
+      'physical_closure_verified',
+      'canonical_free_boundary_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+    object.__setattr__(self, 'operator_id', str(self.operator_id))
+    object.__setattr__(self, 'claim_status', str(self.claim_status))
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def converged(self) -> bool:
+    return (
+      self.status
+      is MocMixedRegimePlanarFreeBoundaryRefinementMeasurementStatus.CONVERGED
+    )
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    cases = [
+      {
+        'resolution': case.resolution,
+        'measurement': measurement.as_report(),
+      }
+      for case, measurement in zip(self.cases, self.measurements, strict=True)
+    ]
+    return {
+      'status': self.status.value,
+      'operator_id': self.operator_id,
+      'converged': self.converged,
+      'case_count': len(self.cases),
+      'resolutions': list(self.resolutions),
+      'perimeter_sample_counts': list(self.perimeter_sample_counts),
+      'node_counts': list(self.node_counts),
+      'cell_counts': list(self.cell_counts),
+      'cases': cases,
+      'checks': {
+        'resolution_order_verified': self.resolution_order_verified,
+        'resolution_metadata_verified': self.resolution_metadata_verified,
+        'request_consistent': self.request_consistent,
+        'control_section_consistent': self.control_section_consistent,
+        'solver_configuration_consistent': self.solver_configuration_consistent,
+        'local_reference_closure_verified': self.local_reference_closure_verified,
+        'shape_convergence_verified': self.shape_convergence_verified,
+        'centerline_speed_convergence_verified': (
+          self.centerline_speed_convergence_verified
+        ),
+        'mesh_area_convergence_verified': self.mesh_area_convergence_verified,
+        'residuals_verified': self.residuals_verified,
+        'refinement_convergence_verified': self.refinement_convergence_verified,
+      },
+      'physical_closure_verified': self.physical_closure_verified,
+      'canonical_free_boundary_verified': self.canonical_free_boundary_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'residuals': {
+        'shape_delta_residuals_m': list(self.shape_delta_residuals_m),
+        'centerline_speed_delta_residuals': list(
+          self.centerline_speed_delta_residuals
+        ),
+        'mesh_area_delta_residuals_m2': list(self.mesh_area_delta_residuals_m2),
+        'maximum_normal_velocity_residuals': list(
+          self.maximum_normal_velocity_residuals
+        ),
+      },
+      'claim_status': self.claim_status,
       'message': self.message,
     }
   ####
@@ -5436,6 +5694,405 @@ def measure_mixed_regime_planar_free_boundary_reference(
       'exact seam, reconstructed geometry, tangent/pressure condition, '
       'potential-field, and normal-residual gates; canonical promotion remains '
       'blocked'
+    ),
+  )
+####
+
+
+def _planar_free_boundary_refinement_failure(
+  status: MocMixedRegimePlanarFreeBoundaryRefinementMeasurementStatus,
+  message: str,
+  *,
+  cases: Sequence[MocMixedRegimePlanarFreeBoundaryRefinementCase] = (),
+  measurements: Sequence[MocMixedRegimePlanarFreeBoundaryMeasurement] = (),
+  resolution_order_verified: bool = False,
+  resolution_metadata_verified: bool = False,
+  request_consistent: bool = False,
+  control_section_consistent: bool = False,
+  solver_configuration_consistent: bool = False,
+  local_reference_closure_verified: bool = False,
+  shape_convergence_verified: bool = False,
+  centerline_speed_convergence_verified: bool = False,
+  mesh_area_convergence_verified: bool = False,
+  residuals_verified: bool = False,
+  shape_delta_residuals_m: Sequence[float] = (),
+  centerline_speed_delta_residuals: Sequence[float] = (),
+  mesh_area_delta_residuals_m2: Sequence[float] = (),
+  maximum_normal_velocity_residuals: Sequence[float | None] = (),
+  refinement_convergence_verified: bool = False,
+  physical_closure_verified: bool = False,
+) -> MocMixedRegimePlanarFreeBoundaryRefinementMeasurement:
+  valid_cases = tuple(
+    case
+    for case in cases
+    if isinstance(case, MocMixedRegimePlanarFreeBoundaryRefinementCase)
+  )
+  valid_measurements = tuple(
+    measurement
+    for measurement in measurements
+    if isinstance(measurement, MocMixedRegimePlanarFreeBoundaryMeasurement)
+  )
+  paired_count = min(len(valid_cases), len(valid_measurements))
+  return MocMixedRegimePlanarFreeBoundaryRefinementMeasurement(
+    status=status,
+    cases=valid_cases[:paired_count],
+    measurements=valid_measurements[:paired_count],
+    resolution_order_verified=resolution_order_verified,
+    resolution_metadata_verified=resolution_metadata_verified,
+    request_consistent=request_consistent,
+    control_section_consistent=control_section_consistent,
+    solver_configuration_consistent=solver_configuration_consistent,
+    local_reference_closure_verified=local_reference_closure_verified,
+    shape_convergence_verified=shape_convergence_verified,
+    centerline_speed_convergence_verified=centerline_speed_convergence_verified,
+    mesh_area_convergence_verified=mesh_area_convergence_verified,
+    residuals_verified=residuals_verified,
+    shape_delta_residuals_m=tuple(shape_delta_residuals_m),
+    centerline_speed_delta_residuals=tuple(centerline_speed_delta_residuals),
+    mesh_area_delta_residuals_m2=tuple(mesh_area_delta_residuals_m2),
+    maximum_normal_velocity_residuals=tuple(maximum_normal_velocity_residuals),
+    refinement_convergence_verified=refinement_convergence_verified,
+    physical_closure_verified=physical_closure_verified,
+    canonical_free_boundary_verified=False,
+    chain_promotion_blocked=True,
+    production_claim_allowed=False,
+    claim_status=(
+      'not-accepted; parameterized-planar-free-boundary-refinement-only'
+    ),
+    message=message,
+  )
+####
+
+
+def _planar_free_boundary_mesh_area(
+  result: MocMixedRegimePlanarFreeBoundaryResult,
+) -> float | None:
+  field = result.field
+  if field is None or not field.cells:
+    return None
+  try:
+    area = fsum(
+      abs(_polygon_area(_cell_vertices(cell)))
+      for cell in field.cells
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+    return None
+  return area if isfinite(area) and area > 0.0 else None
+####
+
+
+def _planar_free_boundary_resampled_shape(
+  result: MocMixedRegimePlanarFreeBoundaryResult,
+  sample_count: int,
+) -> tuple[float, ...] | None:
+  shape = tuple(result.shape_heights_m)
+  if len(shape) < 2 or sample_count < 2:
+    return None
+  if any(not isfinite(value) for value in shape):
+    return None
+  values: list[float] = []
+  last_index = len(shape) - 1
+  for index in range(sample_count):
+    coordinate = index * last_index / (sample_count - 1)
+    lower = min(last_index - 1, int(coordinate))
+    fraction = coordinate - lower
+    values.append(
+      shape[lower] + fraction * (shape[lower + 1] - shape[lower])
+    )
+  return tuple(values)
+####
+
+
+def measure_mixed_regime_planar_free_boundary_refinement(
+  cases: Sequence[MocMixedRegimePlanarFreeBoundaryRefinementCase],
+  *,
+  shape_tolerance_m: float = 5.0e-3,
+  centerline_speed_tolerance: float = 1.0e-2,
+  mesh_area_tolerance_m2: float = 1.0e-3,
+  position_tolerance_m: float = 1.0e-9,
+  state_tolerance: float = 1.0e-8,
+  pressure_tolerance: float = 1.0e-8,
+  normal_flux_tolerance: float = 1.0e-8,
+  tangent_tolerance_rad: float = 2.0e-2,
+  thermodynamic_tolerance: float = 1.0e-8,
+  potential_tolerance: float = 1.0e-8,
+  residual_tolerance: float = 1.0e-8,
+  velocity_tolerance: float = 1.0e-8,
+  mesh_vertex_tolerance_m: float = 1.0e-12,
+) -> MocMixedRegimePlanarFreeBoundaryRefinementMeasurement:
+  """Compare independently measured planar reference results by resolution.
+
+  The operator requires fresh reruns at strictly increasing free-boundary
+  sample counts, remeasures each raw result, and compares the envelope shape,
+  normalized centerline speed, and mesh area.  These are numerical-sensitivity
+  gates for the bounded potential reference; they are not evidence that the
+  canonical reflected-MOC mixed-regime boundary has been solved.
+  """
+
+  for name, value in (
+    ('shape_tolerance_m', shape_tolerance_m),
+    ('centerline_speed_tolerance', centerline_speed_tolerance),
+    ('mesh_area_tolerance_m2', mesh_area_tolerance_m2),
+    ('position_tolerance_m', position_tolerance_m),
+    ('state_tolerance', state_tolerance),
+    ('pressure_tolerance', pressure_tolerance),
+    ('normal_flux_tolerance', normal_flux_tolerance),
+    ('tangent_tolerance_rad', tangent_tolerance_rad),
+    ('thermodynamic_tolerance', thermodynamic_tolerance),
+    ('potential_tolerance', potential_tolerance),
+    ('residual_tolerance', residual_tolerance),
+    ('velocity_tolerance', velocity_tolerance),
+    ('mesh_vertex_tolerance_m', mesh_vertex_tolerance_m),
+  ):
+    if not isfinite(float(value)) or float(value) <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+  try:
+    items = tuple(cases)
+  except TypeError:
+    return _planar_free_boundary_refinement_failure(
+      MocMixedRegimePlanarFreeBoundaryRefinementMeasurementStatus.INVALID_INPUT,
+      'refinement cases must be iterable',
+    )
+  if len(items) < 2:
+    return _planar_free_boundary_refinement_failure(
+      MocMixedRegimePlanarFreeBoundaryRefinementMeasurementStatus.INVALID_INPUT,
+      'at least two planar free-boundary refinement cases are required',
+    )
+  if any(
+    not isinstance(case, MocMixedRegimePlanarFreeBoundaryRefinementCase)
+    for case in items
+  ):
+    return _planar_free_boundary_refinement_failure(
+      MocMixedRegimePlanarFreeBoundaryRefinementMeasurementStatus.INVALID_INPUT,
+      'refinement cases must contain planar free-boundary refinement cases',
+      cases=items,
+    )
+  resolutions = tuple(case.resolution for case in items)
+  resolution_order_verified = all(
+    right > left
+    for left, right in zip(resolutions, resolutions[1:])
+  )
+  if not resolution_order_verified:
+    return _planar_free_boundary_refinement_failure(
+      MocMixedRegimePlanarFreeBoundaryRefinementMeasurementStatus.RESOLUTION_FAILURE,
+      'refinement resolutions must be strictly increasing from coarse to fine',
+      cases=items,
+    )
+
+  results = tuple(case.result for case in items)
+  measurements = tuple(
+    measure_mixed_regime_planar_free_boundary_reference(
+      result,
+      position_tolerance_m=position_tolerance_m,
+      state_tolerance=state_tolerance,
+      pressure_tolerance=pressure_tolerance,
+      normal_flux_tolerance=normal_flux_tolerance,
+      tangent_tolerance_rad=tangent_tolerance_rad,
+      thermodynamic_tolerance=thermodynamic_tolerance,
+      potential_tolerance=potential_tolerance,
+      residual_tolerance=residual_tolerance,
+      velocity_tolerance=velocity_tolerance,
+      mesh_vertex_tolerance_m=mesh_vertex_tolerance_m,
+    )
+    for result in results
+  )
+  perimeter_sample_counts = tuple(
+    0 if result.boundary is None else len(result.boundary.perimeter_points_m)
+    for result in results
+  )
+  maximum_normal_velocity_residuals = tuple(
+    measurement.independent_boundary_normal_velocity_residual
+    for measurement in measurements
+  )
+  case_measurements_verified = all(
+    measurement.converged for measurement in measurements
+  )
+  resolution_metadata_verified = all(
+    case.resolution == case.result.free_boundary_sample_count
+    for case in items
+  )
+  local_reference_closure_verified = bool(
+    case_measurements_verified
+    and all(
+      measurement.physical_closure_verified
+      and measurement.chain_promotion_blocked
+      and not measurement.production_claim_allowed
+      and result.physical_closure_verified
+      and not result.canonical_free_boundary_verified
+      for result, measurement in zip(results, measurements, strict=True)
+    )
+  )
+
+  def _consistent_float(values: Sequence[float]) -> bool:
+    if not values:
+      return False
+    reference = float(values[0])
+    return all(
+      abs(float(value) - reference)
+      <= 1.0e-12 * max(1.0, abs(float(value)), abs(reference))
+      for value in values[1:]
+    )
+
+  request_consistent = all(
+    result.request == results[0].request
+    for result in results[1:]
+  )
+  control_section_consistent = all(
+    result.control_section == results[0].control_section
+    for result in results[1:]
+  )
+  solver_configuration_consistent = bool(
+    len({result.model for result in results}) == 1
+    and _consistent_float(tuple(result.ambient_pressure_Pa for result in results))
+    and _consistent_float(tuple(result.downstream_length_m for result in results))
+    and _consistent_float(tuple(result.outlet_height_m for result in results))
+    and len({result.centerline_sample_count for result in results}) == 1
+    and len({result.radial_divisions for result in results}) == 1
+  )
+  perimeter_resolution_verified = all(
+    right > left
+    for left, right in zip(perimeter_sample_counts, perimeter_sample_counts[1:])
+  ) and all(count > 0 for count in perimeter_sample_counts)
+  shape_samples = tuple(
+    _planar_free_boundary_resampled_shape(result, 33)
+    for result in results
+  )
+  shape_delta_residuals = tuple(
+    max(abs(left - right) for left, right in zip(first, second, strict=True))
+    for first, second in zip(shape_samples, shape_samples[1:])
+    if first is not None and second is not None
+  )
+  centerline_speeds = tuple(
+    result.centerline_speed_m_s_normalized for result in results
+  )
+  centerline_speed_delta_residuals = tuple(
+    abs(float(current) - float(previous))
+    for previous, current in zip(centerline_speeds, centerline_speeds[1:])
+    if previous is not None and current is not None
+  )
+  mesh_areas = tuple(_planar_free_boundary_mesh_area(result) for result in results)
+  mesh_area_delta_residuals = tuple(
+    abs(float(current) - float(previous))
+    for previous, current in zip(mesh_areas, mesh_areas[1:])
+    if previous is not None and current is not None
+  )
+  shape_convergence_verified = bool(
+    len(shape_delta_residuals) == len(items) - 1
+    and all(residual <= float(shape_tolerance_m) for residual in shape_delta_residuals)
+  )
+  centerline_speed_convergence_verified = bool(
+    len(centerline_speed_delta_residuals) == len(items) - 1
+    and all(
+      residual <= float(centerline_speed_tolerance)
+      for residual in centerline_speed_delta_residuals
+    )
+  )
+  mesh_area_convergence_verified = bool(
+    len(mesh_area_delta_residuals) == len(items) - 1
+    and all(
+      residual <= float(mesh_area_tolerance_m2)
+      for residual in mesh_area_delta_residuals
+    )
+  )
+  residuals_verified = bool(
+    len(maximum_normal_velocity_residuals) == len(items)
+    and all(
+      residual is not None
+      and isfinite(float(residual))
+      and float(residual) <= float(velocity_tolerance)
+      for residual in maximum_normal_velocity_residuals
+    )
+  )
+  refinement_convergence_verified = bool(
+    case_measurements_verified
+    and resolution_metadata_verified
+    and request_consistent
+    and control_section_consistent
+    and solver_configuration_consistent
+    and perimeter_resolution_verified
+    and local_reference_closure_verified
+    and shape_convergence_verified
+    and centerline_speed_convergence_verified
+    and mesh_area_convergence_verified
+    and residuals_verified
+  )
+  common = {
+    'cases': items,
+    'measurements': measurements,
+    'resolution_order_verified': True,
+    'resolution_metadata_verified': resolution_metadata_verified,
+    'request_consistent': request_consistent,
+    'control_section_consistent': control_section_consistent,
+    'solver_configuration_consistent': solver_configuration_consistent,
+    'local_reference_closure_verified': local_reference_closure_verified,
+    'shape_convergence_verified': shape_convergence_verified,
+    'centerline_speed_convergence_verified': centerline_speed_convergence_verified,
+    'mesh_area_convergence_verified': mesh_area_convergence_verified,
+    'residuals_verified': residuals_verified,
+    'shape_delta_residuals_m': shape_delta_residuals,
+    'centerline_speed_delta_residuals': centerline_speed_delta_residuals,
+    'mesh_area_delta_residuals_m2': mesh_area_delta_residuals,
+    'maximum_normal_velocity_residuals': maximum_normal_velocity_residuals,
+    'refinement_convergence_verified': refinement_convergence_verified,
+    'physical_closure_verified': refinement_convergence_verified,
+  }
+  if not case_measurements_verified:
+    return _planar_free_boundary_refinement_failure(
+      MocMixedRegimePlanarFreeBoundaryRefinementMeasurementStatus.CASE_FAILURE,
+      'one or more planar free-boundary cases failed independent measurement',
+      **common,
+    )
+  if not (
+    resolution_metadata_verified
+    and request_consistent
+    and control_section_consistent
+    and solver_configuration_consistent
+    and perimeter_resolution_verified
+  ):
+    return _planar_free_boundary_refinement_failure(
+      MocMixedRegimePlanarFreeBoundaryRefinementMeasurementStatus.CONSISTENCY_FAILURE,
+      'planar free-boundary reruns must retain one exact seam and fixed solver '
+      'parameters while increasing the free-boundary resolution',
+      **common,
+    )
+  if not refinement_convergence_verified:
+    return _planar_free_boundary_refinement_failure(
+      MocMixedRegimePlanarFreeBoundaryRefinementMeasurementStatus.SENSITIVITY_FAILURE,
+      'planar free-boundary shape, centerline speed, mesh area, or residual '
+      'sensitivity exceeded the declared tolerances',
+      **common,
+    )
+  return MocMixedRegimePlanarFreeBoundaryRefinementMeasurement(
+    status=MocMixedRegimePlanarFreeBoundaryRefinementMeasurementStatus.CONVERGED,
+    cases=items,
+    measurements=measurements,
+    resolution_order_verified=True,
+    resolution_metadata_verified=True,
+    request_consistent=True,
+    control_section_consistent=True,
+    solver_configuration_consistent=True,
+    local_reference_closure_verified=True,
+    shape_convergence_verified=True,
+    centerline_speed_convergence_verified=True,
+    mesh_area_convergence_verified=True,
+    residuals_verified=True,
+    shape_delta_residuals_m=shape_delta_residuals,
+    centerline_speed_delta_residuals=centerline_speed_delta_residuals,
+    mesh_area_delta_residuals_m2=mesh_area_delta_residuals,
+    maximum_normal_velocity_residuals=maximum_normal_velocity_residuals,
+    refinement_convergence_verified=True,
+    physical_closure_verified=True,
+    canonical_free_boundary_verified=False,
+    chain_promotion_blocked=True,
+    production_claim_allowed=False,
+    claim_status=(
+      'parameterized-planar-free-boundary-refinement-evidence; '
+      'canonical-reflected-moc-closure-pending'
+    ),
+    message=(
+      'independent parameterized planar free-boundary results are stable '
+      'across the declared resolutions; this remains bounded potential-flow '
+      'reference evidence and does not close the canonical reflected-MOC chain'
     ),
   )
 ####

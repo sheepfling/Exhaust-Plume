@@ -13,7 +13,10 @@ from exhaust_plume.models.moc import (
   solve_normal_shock_terminal,
 )
 from exhaust_plume.validation.moc_measurements import (
+  MocMixedRegimePlanarFreeBoundaryRefinementCase,
+  MocMixedRegimePlanarFreeBoundaryRefinementMeasurementStatus,
   MocMixedRegimePlanarFreeBoundaryMeasurementStatus,
+  measure_mixed_regime_planar_free_boundary_refinement,
   measure_mixed_regime_planar_free_boundary_reference,
 )
 
@@ -108,6 +111,18 @@ def _solve(*, ambient_pressure_Pa: float):
   )
 
 
+def _solve_at_resolution(*, ambient_pressure_Pa: float, resolution: int):
+  request, section = _request_and_section()
+  return solve_mixed_regime_planar_free_boundary_reference(
+    request,
+    section,
+    ambient_pressure_Pa=ambient_pressure_Pa,
+    downstream_length_m=0.2,
+    outlet_height_m=0.1,
+    free_boundary_sample_count=resolution,
+  )
+
+
 def test_parameterized_planar_free_boundary_closes_uniform_case_and_measures_independently() -> None:
   request, _ = _request_and_section()
   result = _solve(ambient_pressure_Pa=request.terminal_downstream_pressure_Pa)
@@ -163,6 +178,87 @@ def test_parameterized_planar_free_boundary_changes_shape_for_pressure_mismatch(
   assert measurement.free_boundary_residual_verified
   assert measurement.maximum_tangent_residual_rad is not None
   assert measurement.maximum_tangent_residual_rad <= 2.0e-2
+
+
+def test_planar_free_boundary_refinement_is_independently_stable() -> None:
+  cases = tuple(
+    MocMixedRegimePlanarFreeBoundaryRefinementCase(
+      resolution=resolution,
+      result=_solve_at_resolution(
+        ambient_pressure_Pa=400000.0,
+        resolution=resolution,
+      ),
+    )
+    for resolution in (6, 8, 10)
+  )
+
+  measurement = measure_mixed_regime_planar_free_boundary_refinement(cases)
+
+  assert measurement.status is (
+    MocMixedRegimePlanarFreeBoundaryRefinementMeasurementStatus.CONVERGED
+  )
+  assert measurement.converged
+  assert measurement.resolutions == (6, 8, 10)
+  assert measurement.perimeter_sample_counts == (11, 13, 15)
+  assert measurement.node_counts == (21, 25, 29)
+  assert measurement.cell_counts == (30, 36, 42)
+  assert measurement.resolution_order_verified
+  assert measurement.resolution_metadata_verified
+  assert measurement.request_consistent
+  assert measurement.control_section_consistent
+  assert measurement.solver_configuration_consistent
+  assert measurement.local_reference_closure_verified
+  assert measurement.shape_convergence_verified
+  assert measurement.centerline_speed_convergence_verified
+  assert measurement.mesh_area_convergence_verified
+  assert measurement.residuals_verified
+  assert measurement.refinement_convergence_verified
+  assert measurement.physical_closure_verified
+  assert not measurement.canonical_free_boundary_verified
+  assert measurement.chain_promotion_blocked
+  assert measurement.production_claim_allowed is False
+  assert len(measurement.shape_delta_residuals_m) == 2
+  assert len(measurement.centerline_speed_delta_residuals) == 2
+  assert len(measurement.mesh_area_delta_residuals_m2) == 2
+  assert len(measurement.maximum_normal_velocity_residuals) == 3
+
+
+def test_planar_free_boundary_refinement_rejects_resolution_metadata_mismatch() -> None:
+  coarse = _solve_at_resolution(ambient_pressure_Pa=400000.0, resolution=6)
+  fine = _solve_at_resolution(ambient_pressure_Pa=400000.0, resolution=8)
+
+  measurement = measure_mixed_regime_planar_free_boundary_refinement(
+    (
+      MocMixedRegimePlanarFreeBoundaryRefinementCase(7, coarse),
+      MocMixedRegimePlanarFreeBoundaryRefinementCase(8, fine),
+    )
+  )
+
+  assert measurement.status is (
+    MocMixedRegimePlanarFreeBoundaryRefinementMeasurementStatus.CONSISTENCY_FAILURE
+  )
+  assert not measurement.converged
+  assert not measurement.resolution_metadata_verified
+  assert measurement.chain_promotion_blocked
+  assert measurement.production_claim_allowed is False
+
+
+def test_planar_free_boundary_refinement_requires_increasing_resolutions() -> None:
+  result = _solve(ambient_pressure_Pa=400000.0)
+
+  measurement = measure_mixed_regime_planar_free_boundary_refinement(
+    (
+      MocMixedRegimePlanarFreeBoundaryRefinementCase(8, result),
+      MocMixedRegimePlanarFreeBoundaryRefinementCase(8, result),
+    )
+  )
+
+  assert measurement.status is (
+    MocMixedRegimePlanarFreeBoundaryRefinementMeasurementStatus.RESOLUTION_FAILURE
+  )
+  assert not measurement.converged
+  assert not measurement.resolution_order_verified
+  assert measurement.chain_promotion_blocked
 
 
 def test_parameterized_planar_free_boundary_rejects_unreachable_pressure() -> None:

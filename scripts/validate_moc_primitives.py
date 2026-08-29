@@ -138,6 +138,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_marched_ambient_attachment_shock_cell_transition,
   solve_marched_attached_shock_with_constant_invariant_closure,
   solve_mixed_regime_compressible_potential_field,
+  solve_mixed_regime_planar_free_boundary_reference,
   solve_mixed_regime_subsonic_field,
   solve_reflected_boundary_trace_extension,
   solve_uniform_attached_shock_field,
@@ -200,6 +201,7 @@ from exhaust_plume.validation.moc_measurements import (  # noqa: E402
   MocMixedRegimeFreeBoundaryMeasurementStatus,
   MocMixedRegimeFreeBoundaryRefinementCase,
   MocMixedRegimeFreeBoundaryRefinementMeasurementStatus,
+  MocMixedRegimePlanarFreeBoundaryRefinementCase,
   MocReflectedDomainRemeshMeasurementStatus,
   MocReflectedDomainOuterSourceMeasurementStatus,
   MocTerminalClosureObservation,
@@ -217,6 +219,7 @@ from exhaust_plume.validation.moc_measurements import (  # noqa: E402
   measure_mixed_regime_control_section,
   measure_mixed_regime_free_boundary_reference,
   measure_mixed_regime_free_boundary_refinement,
+  measure_mixed_regime_planar_free_boundary_refinement,
   measure_mixed_regime_compressible_potential_field,
   measure_moc_terminal_closure,
   measure_moc_shock_cell,
@@ -2794,6 +2797,42 @@ def _terminal_composite_refinement_case_failed(case: dict[str, Any]) -> bool:
   )
 
 
+def _parameterized_planar_free_boundary_refinement_probe(
+  request: Any,
+  control_section: MocMixedRegimeControlSection,
+  *,
+  ambient_pressure_Pa: float,
+  downstream_length_m: float,
+  outlet_height_m: float,
+) -> dict[str, Any]:
+  """Record independent refinement evidence for the planar reference lane."""
+
+  cases = tuple(
+    MocMixedRegimePlanarFreeBoundaryRefinementCase(
+      resolution=sample_count,
+      result=solve_mixed_regime_planar_free_boundary_reference(
+        request,
+        control_section,
+        ambient_pressure_Pa=ambient_pressure_Pa,
+        downstream_length_m=downstream_length_m,
+        outlet_height_m=outlet_height_m,
+        free_boundary_sample_count=sample_count,
+      ),
+    )
+    for sample_count in (6, 8, 10)
+  )
+  measurement = measure_mixed_regime_planar_free_boundary_refinement(cases)
+  return {
+    'status': measurement.status.value,
+    'accepted': measurement.converged,
+    'measurement': measurement.as_report(),
+    'claim_status': (
+      'parameterized-planar-free-boundary-refinement-only; '
+      'canonical-reflected-moc-closure-pending'
+    ),
+  }
+
+
 def _mixed_regime_boundary_probe(
   solver_generated_shock: MocFreeBoundaryShockResult,
 ) -> dict[str, Any]:
@@ -3000,6 +3039,15 @@ def _mixed_regime_boundary_probe(
     points_m=planar_section_points,
     samples=tuple(planar_reference_sample(point) for point in planar_section_points),
     normal_angle_rad=0.0,
+  )
+  parameterized_planar_free_boundary_refinement = (
+    _parameterized_planar_free_boundary_refinement_probe(
+      perimeter_request,
+      planar_reference_control_section,
+      ambient_pressure_Pa=0.95 * terminal.downstream_pressure_Pa,
+      downstream_length_m=0.2,
+      outlet_height_m=0.1,
+    )
   )
   planar_potential_reference = MocMixedRegimePlanarPotentialReference(
     radial_divisions=2,
@@ -3356,6 +3404,9 @@ def _mixed_regime_boundary_probe(
       None
       if planar_potential_measurement is None
       else planar_potential_measurement.as_report()
+    ),
+    'parameterized_planar_free_boundary_refinement': (
+      parameterized_planar_free_boundary_refinement
     ),
     'planar_frozen_profile_reference_configuration': (
       planar_frozen_profile_reference.as_report()
@@ -7438,6 +7489,31 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or mixed_regime_boundary_probe.get('physical_closure_verified') is not False
     or mixed_regime_boundary_probe.get('chain_promotion_blocked') is not True
   )
+  parameterized_planar_free_boundary_refinement_probe = (
+    mixed_regime_boundary_probe.get(
+      'parameterized_planar_free_boundary_refinement',
+    )
+  )
+  parameterized_planar_free_boundary_refinement_failure = (
+    not isinstance(parameterized_planar_free_boundary_refinement_probe, dict)
+    or parameterized_planar_free_boundary_refinement_probe.get('accepted') is not True
+    or not isinstance(
+      parameterized_planar_free_boundary_refinement_probe.get('measurement'),
+      dict,
+    )
+    or parameterized_planar_free_boundary_refinement_probe['measurement'].get(
+      'physical_closure_verified'
+    ) is not True
+    or parameterized_planar_free_boundary_refinement_probe['measurement'].get(
+      'canonical_free_boundary_verified'
+    ) is not False
+    or parameterized_planar_free_boundary_refinement_probe['measurement'].get(
+      'chain_promotion_blocked'
+    ) is not True
+    or parameterized_planar_free_boundary_refinement_probe['measurement'].get(
+      'production_claim_allowed'
+    ) is not False
+  )
   reflected_zone_assembly_failure = (
     not reflected_zone.converged
     or reflected_zone.state_sampling_available is not True
@@ -9606,6 +9682,33 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'message': str(mixed_regime_boundary_probe.get('message', '')),
       }
     ] if mixed_regime_boundary_failure else []),
+    *([
+      {
+        'case': 'parameterized_planar_free_boundary_refinement',
+        'status': str(
+          parameterized_planar_free_boundary_refinement_probe.get(
+            'status',
+            'missing',
+          )
+          if isinstance(parameterized_planar_free_boundary_refinement_probe, dict)
+          else 'missing'
+        ),
+        'message': str(
+          parameterized_planar_free_boundary_refinement_probe.get(
+            'measurement',
+            {},
+          ).get('message', '')
+          if isinstance(parameterized_planar_free_boundary_refinement_probe, dict)
+          and isinstance(
+            parameterized_planar_free_boundary_refinement_probe.get(
+              'measurement'
+            ),
+            dict,
+          )
+          else ''
+        ),
+      }
+    ] if parameterized_planar_free_boundary_refinement_failure else []),
     *([
       {
         'case': 'reflected_zone_chain_boundary_probe',
