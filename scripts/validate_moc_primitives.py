@@ -1095,6 +1095,18 @@ def _reflected_domain_remesh_probe(
     and global_shock_remesh_planner.diagnostics[
       'global_reflected_shock_remesh_audit_accepted'
     ] is True
+    and global_shock_remesh_planner.diagnostics[
+      'global_reflected_shock_remesh_euler_audit_accepted'
+    ] is False
+    and len(global_shock_remesh_planner.diagnostics[
+      'global_reflected_shock_remesh_euler_audits'
+    ]) == 1
+    and global_shock_remesh_planner.diagnostics[
+      'global_reflected_shock_remesh_euler_audits'
+    ][0]['field_available'] is True
+    and global_shock_remesh_planner.diagnostics[
+      'global_reflected_shock_remesh_euler_audits'
+    ][0]['audit']['status'] == 'euler_audit_shock_jump_failure'
     and alternating_physical_field_chain_refinement is not None
     and alternating_physical_field_chain_refinement.converged
     and alternating_physical_field_chain_refinement.resolution_order_verified
@@ -1222,6 +1234,13 @@ def _reflected_domain_remesh_probe(
     ),
     'global_reflected_shock_remesh_planner_error': (
       global_shock_remesh_planner_error
+    ),
+    'global_reflected_shock_remesh_euler_audits': (
+      None
+      if global_shock_remesh_planner is None
+      else global_shock_remesh_planner.diagnostics.get(
+        'global_reflected_shock_remesh_euler_audits',
+      )
     ),
     'alternating_physical_field_chain_refinement': (
       None
@@ -9382,6 +9401,24 @@ def build_moc_primitive_report() -> dict[str, Any]:
       ].get('diagnostics', {}).get(
         'global_reflected_shock_remesh_audit_accepted'
       ) is not True
+      or reflected_domain_remesh_probe[
+        'global_reflected_shock_remesh_planner'
+      ].get('diagnostics', {}).get(
+        'global_reflected_shock_remesh_euler_audit_accepted'
+      ) is not False
+      or len(reflected_domain_remesh_probe[
+        'global_reflected_shock_remesh_planner'
+      ].get('diagnostics', {}).get(
+        'global_reflected_shock_remesh_euler_audits',
+        (),
+      )) != 1
+      or reflected_domain_remesh_probe[
+        'global_reflected_shock_remesh_planner'
+      ].get('diagnostics', {}).get(
+        'global_reflected_shock_remesh_euler_audits',
+        ({},),
+      )[0].get('audit', {}).get('status')
+      != 'euler_audit_shock_jump_failure'
     )
   )
   reflected_domain_alternating_physical_field_chain_refinement_failure = (

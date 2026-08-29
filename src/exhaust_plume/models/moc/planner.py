@@ -9534,6 +9534,7 @@ def plan_reflected_domain_global_shock_remesh_chain(
   source_handoff = tuple(source_band.incoming_handoff)
   solver_result: MocReflectedDomainGlobalShockRemeshResult | None = None
   solver_measurement: Any | None = None
+  solver_euler_audits: tuple[dict[str, Any], ...] = ()
   solver_error: str | None = None
 
   def stop(
@@ -9566,7 +9567,7 @@ def plan_reflected_domain_global_shock_remesh_chain(
     next_cell_index: int,
     incoming_handoff: tuple[MocChainBoundarySample, ...],
   ) -> MocChainTerminationDecision:
-    nonlocal solver_error, solver_measurement, solver_result
+    nonlocal solver_error, solver_measurement, solver_result, solver_euler_audits
     if total_cell_count is not None and next_cell_index > total_cell_count:
       return stop(
         MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
@@ -9625,6 +9626,34 @@ def plan_reflected_domain_global_shock_remesh_chain(
       solver_measurement = measure_moc_reflected_domain_global_shock_remesh(
         solver_result,
       )
+      from exhaust_plume.validation import (
+        measure_moc_physical_field_euler_audit,
+      )
+
+      audit_rows: list[dict[str, Any]] = []
+      for attempt_index, attempt in enumerate(solver_result.attempts):
+        selected_field = attempt.first_cell_result.selected_physical_field
+        field = None if selected_field is None else selected_field.field
+        if field is None:
+          audit_rows.append({
+            'attempt_index': attempt_index,
+            'outer_source_index': attempt.outer_source_index,
+            'target_centerline_index': attempt.target_centerline_index,
+            'compression_envelope_skew': attempt.compression_envelope_skew,
+            'field_available': False,
+            'audit': None,
+          })
+          continue
+        audit = measure_moc_physical_field_euler_audit(field)
+        audit_rows.append({
+          'attempt_index': attempt_index,
+          'outer_source_index': attempt.outer_source_index,
+          'target_centerline_index': attempt.target_centerline_index,
+          'compression_envelope_skew': attempt.compression_envelope_skew,
+          'field_available': True,
+          'audit': audit.as_report(),
+        })
+      solver_euler_audits = tuple(audit_rows)
     except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
       solver_error = f'{type(error).__name__}: {error}'
       return stop(
@@ -9670,6 +9699,17 @@ def plan_reflected_domain_global_shock_remesh_chain(
       if solver_measurement is None
       else solver_measurement.as_report()
     ),
+    'global_reflected_shock_remesh_euler_audits': solver_euler_audits,
+    'global_reflected_shock_remesh_euler_audit_accepted': bool(
+      solver_euler_audits
+      and all(
+        row['field_available']
+        and row['audit'] is not None
+        and row['audit']['checks']['local_euler_consistency_verified']
+        for row in solver_euler_audits
+      )
+    ),
+    'global_reflected_shock_remesh_euler_audit_required_for_promotion': True,
     'global_reflected_shock_remesh_audit_accepted': bool(
       solver_measurement is not None
       and solver_measurement.converged

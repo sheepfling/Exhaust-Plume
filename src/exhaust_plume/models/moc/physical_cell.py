@@ -705,6 +705,28 @@ class MocPhysicalPostShockFieldResult:
       )
     return tuple(resolved_cells)
 
+  def cell_state_samples(
+    self,
+    *,
+    position_tolerance_m: float = 1.0e-10,
+  ) -> tuple[
+    tuple[
+      tuple[tuple[float, float], ...],
+      tuple[CharacteristicState, ...],
+      tuple[float | None, ...],
+    ],
+    ...,
+  ]:
+    """Expose bounded state/pressure samples for independent audits.
+
+    The returned sequence is derived only from the retained cell vertices and
+    boundary state data.  It never extrapolates beyond the assembled field;
+    callers should compare its length with ``cell_count`` before using it as
+    a complete field audit.
+    """
+
+    return self._cell_samples(position_tolerance_m=position_tolerance_m)
+
   def state_at(
     self,
     point_m: tuple[float, float],

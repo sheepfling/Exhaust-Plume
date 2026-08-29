@@ -822,6 +822,35 @@ fabricate or promote a continued cell. The fast/basic visualization and
 reduced-order lanes, signature lane, ray-transfer lane, and focal-plane-array
 lane remain isolated from this research result.
 
+## Local normalized Euler audit checkpoint
+
+`op.moc.physical-field-euler-audit` is an independent diagnostic for a closed
+state-carrying post-shock field. It reconstructs normalized calorically-perfect-
+gas primitives from the retained Mach, flow angle, gamma, and total-pressure
+samples, then reports Rankine--Hugoniot mass/momentum/energy jumps on the
+fitted shock and a conservative finite-volume flux residual for every retained
+characteristic cell. The cell samples are exposed through a bounded read-only
+field method; no state is interpolated outside the assembled mesh.
+
+The audit is intentionally below the promotion ceiling. It independently
+reports finite local cell evidence even when the shock jump fails, and it
+never changes the solver's closure flags or authorizes a chain handoff. On the
+current reflected-domain reference, the cell residuals are finite (about
+`5.2e-3` maximum at the fixture resolution), while the stored shock tangent
+and thermodynamic jump disagree (about `1.6e-2` on the global-remesh fixture;
+the uniform reference is larger). This is a concrete reason to keep the
+global compression envelope out of the canonical Euler lane rather than
+loosening the validation threshold.
+
+The global-remesh planner records one Euler-audit report per retained attempt
+and requires this audit to be passed before any future promotion review. The
+current planner therefore remains a one-cell research prefix with
+`global_reflected_shock_remesh_euler_audit_accepted=false`,
+`canonical_euler_verified=false`, `chain_promotion_blocked=true`, and
+`production_claim_allowed=false`. The next physics gate is a new reflected
+shock/free-boundary construction whose stored shock geometry, downstream
+state, characteristic orientation, and Euler residuals close together.
+
 ## Parameterized planar free-boundary research boundary
 
 The current higher-fidelity downstream experiment is isolated under the exact

@@ -195,6 +195,12 @@ from exhaust_plume.validation.moc_external_comparisons import (
   compare_moc_shock_cell_chain_to_external,
   audit_moc_external_validation_splits,
 )
+from exhaust_plume.validation.moc_euler import (
+  MOC_PHYSICAL_FIELD_EULER_AUDIT_OPERATOR_ID,
+  MocPhysicalFieldEulerAuditStatus,
+  MocPhysicalFieldEulerAudit,
+  measure_moc_physical_field_euler_audit,
+)
 from exhaust_plume.validation.lane_contracts import (
   SignatureLaneInvariantReport,
   VisualLaneInvariantReport,
@@ -367,6 +373,9 @@ __all__ = (
   'MocShockCellExternalFeatureComparison',
   'MocShockCellExternalComparison',
   'MocExternalValidationSplitAudit',
+  'MOC_PHYSICAL_FIELD_EULER_AUDIT_OPERATOR_ID',
+  'MocPhysicalFieldEulerAuditStatus',
+  'MocPhysicalFieldEulerAudit',
   'SignatureLaneInvariantReport',
   'VisualLaneInvariantReport',
   'MACH_DISK_FEATURE_OPERATOR_ID',
@@ -443,6 +452,7 @@ __all__ = (
   'measure_moc_shock_cell_chain_refinement',
   'compare_moc_shock_cell_chain_to_external',
   'audit_moc_external_validation_splits',
+  'measure_moc_physical_field_euler_audit',
   'measure_moc_terminal_closure',
   'write_validity_report_csv',
   'write_validity_report_json',

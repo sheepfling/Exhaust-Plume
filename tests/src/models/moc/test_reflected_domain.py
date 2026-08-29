@@ -1101,6 +1101,18 @@ def test_global_reflected_shock_remesh_planner_preserves_research_stop():
   ] is True
   assert planner.diagnostics['global_reflected_shock_remesh_audit_accepted'] is True
   assert planner.diagnostics[
+    'global_reflected_shock_remesh_euler_audit_accepted'
+  ] is False
+  euler_audits = planner.diagnostics[
+    'global_reflected_shock_remesh_euler_audits'
+  ]
+  assert len(euler_audits) == 2
+  assert all(
+    row['field_available']
+    and row['audit']['status'] == 'euler_audit_shock_jump_failure'
+    for row in euler_audits
+  )
+  assert planner.diagnostics[
     'global_reflected_shock_remesh_independent_measurement'
   ]['status'] == 'converged'
   assert planner.production_claim_allowed is False
