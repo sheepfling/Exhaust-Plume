@@ -3841,6 +3841,13 @@ def _ambient_shock_field_chain_fingerprint(field: Any) -> str | None:
       f'{float(sample.point_m[1]).hex()}|{float(sample.total_pressure_Pa).hex()}'
       for sample in field.ambient_march.boundary_samples
     )
+  if field.attachment_wedge is not None:
+    payload.append('attachment-wedge:' + field.attachment_wedge.status.value)
+    payload.extend(
+      f'{trial.plus_source_index}|{trial.minus_source_index}|'
+      f'{trial.accepted}|{trial.forward_margin_m!r}'
+      for trial in field.attachment_wedge.trials
+    )
   if field.field is not None:
     nested = _euler_chain_field_fingerprint(field.field)
     if nested is None:

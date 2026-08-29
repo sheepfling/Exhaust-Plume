@@ -819,6 +819,13 @@ def _euler_ambient_shock_field_fingerprint(
       f'{sample.point_m[1].hex()}|{sample.total_pressure_Pa.hex()}'
       for sample in field.ambient_march.boundary_samples
     )
+  if field.attachment_wedge is not None:
+    payload.append('attachment-wedge:' + field.attachment_wedge.status.value)
+    payload.extend(
+      f'{trial.plus_source_index}|{trial.minus_source_index}|'
+      f'{trial.accepted}|{trial.forward_margin_m!r}'
+      for trial in field.attachment_wedge.trials
+    )
   if field.field is not None:
     payload.append('companion:' + _euler_companion_field_fingerprint(field.field))
   return sha256('\n'.join(payload).encode('ascii')).hexdigest()
@@ -939,6 +946,34 @@ def _translate_euler_ambient_shock_field(
     point_results=translated_point_results,
     ambient_boundary=translated_ambient_boundary,
   )
+  translated_wedge = None
+  if field.attachment_wedge is not None:
+    translated_wedge = replace(
+      field.attachment_wedge,
+      trials=tuple(
+        replace(
+          trial,
+          point_result=replace(
+            trial.point_result,
+            state=(
+              None
+              if trial.point_result.state is None
+              else translated_state(trial.point_result.state)
+            ),
+            point_m=translated_point(trial.point_result.point_m),
+          ),
+        )
+        for trial in field.attachment_wedge.trials
+      ),
+      accepted_point_m=translated_point(
+        field.attachment_wedge.accepted_point_m
+      ),
+      accepted_state=(
+        None
+        if field.attachment_wedge.accepted_state is None
+        else translated_state(field.attachment_wedge.accepted_state)
+      ),
+    )
   translated_companion = _translate_euler_companion_field(
     field.field,
     offset,
@@ -947,6 +982,7 @@ def _translate_euler_ambient_shock_field(
     field,
     shock_boundary=translated_shock,
     ambient_march=translated_march,
+    attachment_wedge=translated_wedge,
     field=translated_companion,
   )
 

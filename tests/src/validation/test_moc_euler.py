@@ -16,6 +16,7 @@ from exhaust_plume.models.moc import (
   MocEulerAmbientCompanionBoundaryStatus,
   MocEulerAmbientShockFieldStatus,
   MocEulerAmbientShockFieldChainMock,
+  MocEulerAmbientAttachmentWedgeStatus,
   MocEulerCompanionFieldStatus,
   MocEulerShockBoundaryOrientation,
   MocEulerShockBoundaryStatus,
@@ -351,6 +352,12 @@ def test_exact_euler_ambient_field_blocks_generic_attachment_stencil() -> None:
   assert not field.converged
   assert field.ambient_march is not None
   assert field.ambient_march.converged
+  assert field.attachment_wedge is not None
+  assert field.attachment_wedge.status is (
+    MocEulerAmbientAttachmentWedgeStatus.NO_FORWARD_INTERSECTION
+  )
+  assert len(field.attachment_wedge.trials) == 5
+  assert not any(trial.accepted for trial in field.attachment_wedge.trials)
   assert field.field is None
   assert field.physical_closure_verified is False
   assert field.chain_promotion_blocked

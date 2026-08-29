@@ -43,14 +43,20 @@ from exhaust_plume.models.moc.euler_shock_boundary import (
 )
 from exhaust_plume.models.moc.primitives import (
   CharacteristicFamily,
+  CharacteristicPointResult,
   CharacteristicState,
   MocPrimitiveStatus,
+  interior_characteristic_point,
 )
 
 __all__ = (
   'MocEulerAmbientBoundaryMarchStatus',
   'MocEulerAmbientBoundaryMarchResult',
   'march_euler_ambient_boundary',
+  'MocEulerAmbientAttachmentWedgeStatus',
+  'MocEulerAmbientAttachmentWedgeTrial',
+  'MocEulerAmbientAttachmentWedgeResult',
+  'solve_euler_ambient_attachment_wedge',
   'MocEulerAmbientShockFieldStatus',
   'MocEulerAmbientShockFieldResult',
   'assemble_euler_ambient_shock_field',
@@ -69,6 +75,359 @@ class MocEulerAmbientBoundaryMarchStatus(str, Enum):
   GEOMETRY_FAILURE = 'euler_ambient_boundary_geometry_failure'
   PRESSURE_FAILURE = 'euler_ambient_boundary_pressure_failure'
   INVARIANT_FAILURE = 'euler_ambient_boundary_invariant_failure'
+
+
+class MocEulerAmbientAttachmentWedgeStatus(str, Enum):
+  """Outcome of the one-sided first-wedge characteristic probe."""
+
+  CONVERGED_FIRST_WEDGE = 'converged_euler_ambient_first_wedge'
+  NO_FORWARD_INTERSECTION = 'euler_ambient_first_wedge_no_forward_intersection'
+  INVALID_INPUT = 'invalid_input'
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerAmbientAttachmentWedgeTrial:
+  """One ordered ``C+``/``C-`` source pairing tested at the attachment."""
+
+  plus_source_index: int
+  minus_source_index: int
+  point_result: CharacteristicPointResult
+  forward_margin_m: float | None
+  accepted: bool
+
+  def __post_init__(self) -> None:
+    for name in ('plus_source_index', 'minus_source_index'):
+      value = getattr(self, name)
+      if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f'{name} must be a nonnegative integer')
+    if not isinstance(self.point_result, CharacteristicPointResult):
+      raise TypeError('point_result must be a CharacteristicPointResult')
+    if self.forward_margin_m is not None:
+      margin = float(self.forward_margin_m)
+      if not isfinite(margin):
+        raise ValueError('forward_margin_m must be finite when supplied')
+      object.__setattr__(self, 'forward_margin_m', margin)
+    if not isinstance(self.accepted, bool):
+      raise TypeError('accepted must be a bool')
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    result = self.point_result
+    return {
+      'plus_source_index': self.plus_source_index,
+      'minus_source_index': self.minus_source_index,
+      'status': result.status.value,
+      'point_m': None if result.point_m is None else list(result.point_m),
+      'intersection_status': result.intersection_status,
+      'forward_margin_m': self.forward_margin_m,
+      'accepted': self.accepted,
+      'message': result.message,
+    }
+  ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerAmbientAttachmentWedgeResult:
+  """Solver-owned evidence for the first interior wedge at a shared corner."""
+
+  status: MocEulerAmbientAttachmentWedgeStatus
+  trials: tuple[MocEulerAmbientAttachmentWedgeTrial, ...]
+  accepted_plus_source_index: int | None = None
+  accepted_minus_source_index: int | None = None
+  accepted_point_m: tuple[float, float] | None = None
+  accepted_state: CharacteristicState | None = None
+  accepted_forward_margin_m: float | None = None
+  position_tolerance_m: float = 1.0e-10
+  invariant_tolerance: float = 1.0e-10
+  physical_closure_verified: bool = False
+  chain_promotion_blocked: bool = True
+  production_claim_allowed: bool = False
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.status, MocEulerAmbientAttachmentWedgeStatus):
+      raise TypeError(
+        'status must be a MocEulerAmbientAttachmentWedgeStatus'
+      )
+    trials = tuple(self.trials)
+    if any(
+      not isinstance(trial, MocEulerAmbientAttachmentWedgeTrial)
+      for trial in trials
+    ):
+      raise TypeError(
+        'trials must contain MocEulerAmbientAttachmentWedgeTrial values'
+      )
+    if (
+      not trials
+      and self.status is not MocEulerAmbientAttachmentWedgeStatus.INVALID_INPUT
+    ):
+      raise ValueError('trials must retain at least one source pairing')
+    object.__setattr__(self, 'trials', trials)
+    for name in ('position_tolerance_m', 'invariant_tolerance'):
+      value = float(getattr(self, name))
+      if not isfinite(value) or value <= 0.0:
+        raise ValueError(f'{name} must be finite and positive')
+      object.__setattr__(self, name, value)
+    for name in ('accepted_plus_source_index', 'accepted_minus_source_index'):
+      value = getattr(self, name)
+      if value is not None and (
+        isinstance(value, bool) or not isinstance(value, int) or value < 0
+      ):
+        raise ValueError(f'{name} must be a nonnegative integer or None')
+    if self.accepted_point_m is not None:
+      if len(self.accepted_point_m) != 2 or not all(
+        isfinite(float(value)) for value in self.accepted_point_m
+      ):
+        raise ValueError('accepted_point_m must contain two finite coordinates')
+      object.__setattr__(
+        self,
+        'accepted_point_m',
+        (float(self.accepted_point_m[0]), float(self.accepted_point_m[1])),
+      )
+    if self.accepted_state is not None and not isinstance(
+      self.accepted_state,
+      CharacteristicState,
+    ):
+      raise TypeError('accepted_state must be a CharacteristicState or None')
+    if self.accepted_forward_margin_m is not None:
+      margin = float(self.accepted_forward_margin_m)
+      if not isfinite(margin) or margin <= 0.0:
+        raise ValueError(
+          'accepted_forward_margin_m must be finite and positive when supplied'
+        )
+      object.__setattr__(self, 'accepted_forward_margin_m', margin)
+    if self.status is MocEulerAmbientAttachmentWedgeStatus.CONVERGED_FIRST_WEDGE:
+      if (
+        self.accepted_plus_source_index is None
+        or self.accepted_minus_source_index is None
+        or self.accepted_point_m is None
+        or self.accepted_state is None
+        or self.accepted_forward_margin_m is None
+      ):
+        raise ValueError(
+          'a converged first wedge must retain its accepted source pairing, '
+          'state, point, and forward margin'
+        )
+    for name in (
+      'physical_closure_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocEulerAmbientAttachmentWedgeStatus.CONVERGED_FIRST_WEDGE
+  ####
+
+  @property
+  def accepted_trial(self) -> MocEulerAmbientAttachmentWedgeTrial | None:
+    for trial in self.trials:
+      if trial.accepted:
+        return trial
+    return None
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'converged': self.converged,
+      'trial_count': len(self.trials),
+      'trials': [trial.as_report() for trial in self.trials],
+      'accepted_plus_source_index': self.accepted_plus_source_index,
+      'accepted_minus_source_index': self.accepted_minus_source_index,
+      'accepted_point_m': (
+        None
+        if self.accepted_point_m is None
+        else list(self.accepted_point_m)
+      ),
+      'accepted_forward_margin_m': self.accepted_forward_margin_m,
+      'position_tolerance_m': self.position_tolerance_m,
+      'invariant_tolerance': self.invariant_tolerance,
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'message': self.message,
+    }
+  ####
+
+
+def solve_euler_ambient_attachment_wedge(
+  shock_boundary: MocEulerShockBoundaryCurveResult,
+  ambient_march: MocEulerAmbientBoundaryMarchResult,
+  *,
+  candidate_span: int = 2,
+  position_tolerance_m: float = 1.0e-10,
+  invariant_tolerance: float = 1.0e-10,
+) -> MocEulerAmbientAttachmentWedgeResult:
+  """Probe one-sided characteristic pairings at a shared boundary corner.
+
+  The generic companion strip pairs shock and companion samples by the same
+  index.  That pairing is singular at a shared attachment, where both source
+  states and points coincide.  This probe searches nearby cross-index pairs
+  and retains their exact characteristic results and forward margins.  It is
+  evidence for a future remesh, not a completed physical cell.
+  """
+
+  if not isinstance(shock_boundary, MocEulerShockBoundaryCurveResult):
+    return MocEulerAmbientAttachmentWedgeResult(
+      status=MocEulerAmbientAttachmentWedgeStatus.INVALID_INPUT,
+      trials=(),
+      message='shock_boundary must be a MocEulerShockBoundaryCurveResult',
+    )
+  if not isinstance(ambient_march, MocEulerAmbientBoundaryMarchResult):
+    return MocEulerAmbientAttachmentWedgeResult(
+      status=MocEulerAmbientAttachmentWedgeStatus.INVALID_INPUT,
+      trials=(),
+      message=(
+        'ambient_march must be a MocEulerAmbientBoundaryMarchResult'
+      ),
+    )
+  if (
+    isinstance(candidate_span, bool)
+    or not isinstance(candidate_span, int)
+    or candidate_span < 1
+  ):
+    raise ValueError('candidate_span must be a positive integer')
+  try:
+    position_tolerance = float(position_tolerance_m)
+    invariant_tolerance_value = float(invariant_tolerance)
+  except (TypeError, ValueError):
+    return MocEulerAmbientAttachmentWedgeResult(
+      status=MocEulerAmbientAttachmentWedgeStatus.INVALID_INPUT,
+      trials=(),
+      message='attachment-wedge tolerances must be numeric',
+    )
+  for name, value in (
+    ('position_tolerance_m', position_tolerance),
+    ('invariant_tolerance', invariant_tolerance_value),
+  ):
+    if not isfinite(value) or value <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+  if not (
+    shock_boundary.converged
+    and shock_boundary.local_euler_verified
+    and ambient_march.converged
+  ):
+    return MocEulerAmbientAttachmentWedgeResult(
+      status=MocEulerAmbientAttachmentWedgeStatus.INVALID_INPUT,
+      trials=(),
+      position_tolerance_m=position_tolerance,
+      invariant_tolerance=invariant_tolerance_value,
+      message=(
+        'attachment-wedge probe requires converged exact shock and ambient '
+        'boundary results'
+      ),
+    )
+  shock_points = tuple(shock_boundary.shock_points_m)
+  samples = tuple(ambient_march.boundary_samples)
+  if len(shock_points) < 2 or len(samples) != len(shock_points):
+    return MocEulerAmbientAttachmentWedgeResult(
+      status=MocEulerAmbientAttachmentWedgeStatus.INVALID_INPUT,
+      trials=(),
+      position_tolerance_m=position_tolerance,
+      invariant_tolerance=invariant_tolerance_value,
+      message=(
+        'attachment-wedge probe requires aligned shock and ambient samples'
+      ),
+    )
+  first_shock = shock_points[0]
+  first_ambient = samples[0].point_m
+  if any(
+    abs(first_shock[axis] - first_ambient[axis]) > position_tolerance
+    for axis in (0, 1)
+  ):
+    return MocEulerAmbientAttachmentWedgeResult(
+      status=MocEulerAmbientAttachmentWedgeStatus.INVALID_INPUT,
+      trials=(),
+      position_tolerance_m=position_tolerance,
+      invariant_tolerance=invariant_tolerance_value,
+      message=(
+        'attachment-wedge probe requires the first shock and ambient '
+        'samples to share a physical attachment point'
+      ),
+    )
+
+  pairs: list[tuple[int, int]] = []
+  maximum_index = len(samples) - 1
+  for distance in range(1, candidate_span + 1):
+    for plus_index in range(distance + 1):
+      minus_index = distance - plus_index
+      if plus_index <= maximum_index and minus_index <= maximum_index:
+        pairs.append((plus_index, minus_index))
+  trials: list[MocEulerAmbientAttachmentWedgeTrial] = []
+  accepted_plus_index: int | None = None
+  accepted_minus_index: int | None = None
+  accepted_point: tuple[float, float] | None = None
+  accepted_state: CharacteristicState | None = None
+  accepted_margin: float | None = None
+  for plus_index, minus_index in pairs:
+    point_result = interior_characteristic_point(
+      shock_boundary.downstream_states[plus_index],
+      samples[minus_index].state,
+      position_tolerance_m=position_tolerance,
+      invariant_tolerance=invariant_tolerance_value,
+    )
+    margin = None
+    if point_result.point_m is not None:
+      margin = point_result.point_m[0] - max(
+        shock_boundary.downstream_states[plus_index].x_m,
+        samples[minus_index].state.x_m,
+      )
+    accepted = bool(
+      point_result.converged
+      and point_result.point_m is not None
+      and point_result.state is not None
+      and margin is not None
+      and margin > position_tolerance
+    )
+    trials.append(
+      MocEulerAmbientAttachmentWedgeTrial(
+        plus_source_index=plus_index,
+        minus_source_index=minus_index,
+        point_result=point_result,
+        forward_margin_m=margin,
+        accepted=accepted,
+      )
+    )
+    if accepted:
+      accepted_plus_index = plus_index
+      accepted_minus_index = minus_index
+      accepted_point = point_result.point_m
+      accepted_state = point_result.state
+      accepted_margin = margin
+      break
+
+  if accepted_plus_index is not None:
+    return MocEulerAmbientAttachmentWedgeResult(
+      status=MocEulerAmbientAttachmentWedgeStatus.CONVERGED_FIRST_WEDGE,
+      trials=tuple(trials),
+      accepted_plus_source_index=accepted_plus_index,
+      accepted_minus_source_index=accepted_minus_index,
+      accepted_point_m=accepted_point,
+      accepted_state=accepted_state,
+      accepted_forward_margin_m=accepted_margin,
+      position_tolerance_m=position_tolerance,
+      invariant_tolerance=invariant_tolerance_value,
+      message=(
+        'attachment-aware first characteristic wedge found a forward '
+        'C+/C- intersection; full reflected field remesh remains pending'
+      ),
+    )
+  return MocEulerAmbientAttachmentWedgeResult(
+    status=MocEulerAmbientAttachmentWedgeStatus.NO_FORWARD_INTERSECTION,
+    trials=tuple(trials),
+    position_tolerance_m=position_tolerance,
+    invariant_tolerance=invariant_tolerance_value,
+    message=(
+      'attachment-aware first-wedge probe found no admissible forward '
+      'C+/C- intersection in its candidate source span'
+    ),
+  )
+  ####
 
 
 def _empty_ambient_boundary(
@@ -693,6 +1052,7 @@ class MocEulerAmbientShockFieldResult:
   ambient_boundary_verified: bool
   entropy_lineage_verified: bool
   local_field_verified: bool
+  attachment_wedge: MocEulerAmbientAttachmentWedgeResult | None = None
   physical_closure_verified: bool = False
   chain_promotion_blocked: bool = True
   production_claim_allowed: bool = False
@@ -714,6 +1074,13 @@ class MocEulerAmbientShockFieldResult:
     ):
       raise TypeError(
         'ambient_march must be a MocEulerAmbientBoundaryMarchResult or None'
+      )
+    if self.attachment_wedge is not None and not isinstance(
+      self.attachment_wedge,
+      MocEulerAmbientAttachmentWedgeResult,
+    ):
+      raise TypeError(
+        'attachment_wedge must be a MocEulerAmbientAttachmentWedgeResult or None'
       )
     if self.field is not None and not isinstance(
       self.field,
@@ -822,6 +1189,11 @@ class MocEulerAmbientShockFieldResult:
       'ambient_march': (
         None if self.ambient_march is None else self.ambient_march.as_report()
       ),
+      'attachment_wedge': (
+        None
+        if self.attachment_wedge is None
+        else self.attachment_wedge.as_report()
+      ),
       'field': None if self.field is None else self.field.as_report(),
       'entropy_residuals': list(self.entropy_residuals),
       'maximum_entropy_residual': self.maximum_entropy_residual,
@@ -846,6 +1218,7 @@ def _field_failure(
   ambient_pressure_Pa: float | None,
   *,
   entropy_residuals: Sequence[float] = (),
+  attachment_wedge: MocEulerAmbientAttachmentWedgeResult | None = None,
   ambient_boundary_verified: bool = False,
   entropy_lineage_verified: bool = False,
   local_field_verified: bool = False,
@@ -856,6 +1229,7 @@ def _field_failure(
     status=status,
     shock_boundary=shock_boundary,
     ambient_march=ambient_march,
+    attachment_wedge=attachment_wedge,
     field=None,
     ambient_pressure_Pa=ambient_pressure_Pa,
     entropy_residuals=residuals,
@@ -986,19 +1360,27 @@ def assemble_euler_ambient_shock_field(
     abs(attachment.x_m - shock_attachment[0]) <= position_tolerance_m
     and abs(attachment.y_m - shock_attachment[1]) <= position_tolerance_m
   ):
+    attachment_wedge = solve_euler_ambient_attachment_wedge(
+      shock_boundary,
+      march,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+    )
     return _field_failure(
       MocEulerAmbientShockFieldStatus.ATTACHMENT_GEOMETRY_FAILURE,
       shock_boundary,
       march,
       ambient_pressure,
       entropy_residuals=entropy_residuals,
+      attachment_wedge=attachment_wedge,
       ambient_boundary_verified=True,
       entropy_lineage_verified=True,
       local_field_verified=False,
       message=(
         'the exact ambient boundary shares the shock attachment point; '
         'the generic paired-node strip requires an attachment-aware first '
-        'interior characteristic wedge and cannot promote this field'
+        'interior characteristic wedge and cannot promote this field '
+        f'({attachment_wedge.status.value})'
       ),
     )
   field = assemble_euler_consistent_companion_characteristic_strip(
