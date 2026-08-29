@@ -1410,7 +1410,10 @@ centerline node ``C`` is solved, and six typed ``C+``/``C-`` edges are checked
 for forward geometry, generalized entropy compatibility, and carried
 log-total-pressure lineage. The canonical result has six nodes, four cells,
 and six characteristic edges; its independent audit remeasures those values
-and the conservative Euler residuals from raw states and cells.
+and the conservative Euler residuals from raw states and cells. The field
+also exposes the exact three-sample diagnostic frontier ``1 -> 4 -> 2`` as a
+typed ``POST_SHOCK_FIELD_PERIMETER`` handoff; the order is solver-owned
+metadata, not an inferred downstream boundary.
 
 This closes a solver-owned local characteristic subcell field, not the
 physical first wedge. The field's outgoing boundary is therefore a research

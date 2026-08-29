@@ -11698,6 +11698,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or not euler_ambient_first_wedge_entropy_characteristic_field_audit.source_trial_gates_verified
     or not euler_ambient_first_wedge_entropy_characteristic_field_audit.topology_verified
     or not euler_ambient_first_wedge_entropy_characteristic_field_audit.state_samples_finite
+    or not euler_ambient_first_wedge_entropy_characteristic_field_audit.continuation_boundary_verified
     or not euler_ambient_first_wedge_entropy_characteristic_field_audit.pressure_lineage_verified
     or not euler_ambient_first_wedge_entropy_characteristic_field_audit.characteristic_geometry_verified
     or not euler_ambient_first_wedge_entropy_characteristic_field_audit.variable_entropy_compatibility_verified

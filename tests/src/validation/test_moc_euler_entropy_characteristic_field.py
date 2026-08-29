@@ -105,6 +105,9 @@ def test_internal_entropy_characteristic_field_closes_local_subcells() -> None:
   assert result.node_count == 6
   assert result.cell_count == 4
   assert len(result.characteristic_edges) == 6
+  assert result.continuation_boundary_node_indices == (1, 4, 2)
+  assert len(result.continuation_boundary) == 3
+  assert result.continuation_boundary_verified
   assert result.topology.connected
   assert result.topology.forms_closed_zone
   assert result.topology.nonmanifold_edge_count == 0
@@ -138,6 +141,7 @@ def test_internal_entropy_characteristic_field_has_independent_audit() -> None:
   assert audit.source_trial_gates_verified
   assert audit.topology_verified
   assert audit.state_samples_finite
+  assert audit.continuation_boundary_verified
   assert audit.pressure_lineage_verified
   assert audit.characteristic_geometry_verified
   assert audit.variable_entropy_compatibility_verified
@@ -198,6 +202,8 @@ def test_internal_entropy_characteristic_planner_stops_before_chain_promotion() 
   assert planner.field is not None
   assert planner.step is not None
   assert planner.step.result_internal_characteristic_closure_verified
+  assert planner.step.result_continuation_boundary_sample_count == 3
+  assert planner.step.result_continuation_boundary_verified
   assert planner.physical_chain_cell_count == 0
   assert planner.physical_closure_verified is False
   assert planner.chain_promotion_blocked

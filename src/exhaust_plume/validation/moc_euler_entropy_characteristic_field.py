@@ -23,6 +23,7 @@ from exhaust_plume.models.moc.euler_entropy_characteristic_field import (
   MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult,
   MocEulerAmbientFirstWedgeEntropyCharacteristicFieldStatus,
 )
+from exhaust_plume.models.moc.chain import MocChainBoundaryKind
 from exhaust_plume.models.moc.primitives import (
   CharacteristicFamily,
   CharacteristicState,
@@ -74,6 +75,9 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFieldAuditStatus(str, Enum):
   )
   EULER_RESIDUAL_FAILURE = (
     'euler_ambient_first_wedge_entropy_characteristic_field_euler_residual_failure'
+  )
+  CONTINUATION_BOUNDARY_FAILURE = (
+    'euler_ambient_first_wedge_entropy_characteristic_field_continuation_boundary_failure'
   )
   FLAG_FAILURE = (
     'euler_ambient_first_wedge_entropy_characteristic_field_flag_failure'
@@ -159,6 +163,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFieldAudit:
   source_trial_gates_verified: bool
   topology_verified: bool
   state_samples_finite: bool
+  continuation_boundary_verified: bool
   pressure_lineage_verified: bool
   characteristic_geometry_verified: bool
   variable_entropy_compatibility_verified: bool
@@ -237,6 +242,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFieldAudit:
       'source_trial_gates_verified',
       'topology_verified',
       'state_samples_finite',
+      'continuation_boundary_verified',
       'pressure_lineage_verified',
       'characteristic_geometry_verified',
       'variable_entropy_compatibility_verified',
@@ -287,6 +293,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFieldAudit:
       and self.source_trial_gates_verified
       and self.topology_verified
       and self.state_samples_finite
+      and self.continuation_boundary_verified
       and self.pressure_lineage_verified
       and self.characteristic_geometry_verified
       and self.variable_entropy_compatibility_verified
@@ -325,6 +332,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFieldAudit:
         'source_trial_gates_verified': self.source_trial_gates_verified,
         'topology_verified': self.topology_verified,
         'state_samples_finite': self.state_samples_finite,
+        'continuation_boundary_verified': self.continuation_boundary_verified,
         'pressure_lineage_verified': self.pressure_lineage_verified,
         'characteristic_geometry_verified': (
           self.characteristic_geometry_verified
@@ -401,6 +409,7 @@ def _failure(
   source_trial_gates_verified: bool = False,
   topology_verified: bool = False,
   state_samples_finite: bool = False,
+  continuation_boundary_verified: bool = False,
   pressure_lineage_verified: bool = False,
   characteristic_geometry_verified: bool = False,
   variable_entropy_compatibility_verified: bool = False,
@@ -459,6 +468,7 @@ def _failure(
     source_trial_gates_verified=source_trial_gates_verified,
     topology_verified=topology_verified,
     state_samples_finite=state_samples_finite,
+    continuation_boundary_verified=continuation_boundary_verified,
     pressure_lineage_verified=pressure_lineage_verified,
     characteristic_geometry_verified=characteristic_geometry_verified,
     variable_entropy_compatibility_verified=variable_entropy_compatibility_verified,
@@ -823,6 +833,49 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_field(
   points = tuple(node.point_m for node in nodes)
   states = tuple(node.state for node in nodes)
   pressures = tuple(node.total_pressure_Pa for node in nodes)
+  continuation_boundary_verified = False
+  try:
+    frontier = tuple(result.continuation_boundary)
+    expected_frontier_indices = (1, 4, 2)
+    expected_frontier_nodes = tuple(
+      nodes[index] for index in expected_frontier_indices
+    )
+    continuation_boundary_verified = bool(
+      result.continuation_boundary_kind
+      is MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER
+      and result.continuation_boundary_node_indices == expected_frontier_indices
+      and len(frontier) == len(expected_frontier_nodes)
+      and all(
+        sample.state.x_m == node.state.x_m
+        and sample.state.y_m == node.state.y_m
+        and sample.state.theta_rad == node.state.theta_rad
+        and sample.state.mach == node.state.mach
+        and sample.state.gamma == node.state.gamma
+        and _close(
+          sample.total_pressure_Pa,
+          node.total_pressure_Pa,
+          lineage_tolerance,
+        )
+        for sample, node in zip(frontier, expected_frontier_nodes, strict=True)
+      )
+      and all(
+        current.state.x_m > previous.state.x_m + position_tolerance
+        and current.state.y_m >= -position_tolerance
+        for previous, current in zip(frontier, frontier[1:])
+      )
+    )
+  except (TypeError, ValueError):
+    continuation_boundary_verified = False
+  if not continuation_boundary_verified:
+    return _failure(
+      MocEulerAmbientFirstWedgeEntropyCharacteristicFieldAuditStatus.CONTINUATION_BOUNDARY_FAILURE,
+      'independent internal-field continuation frontier audit failed',
+      source_trial_gates_verified=True,
+      topology_verified=True,
+      state_samples_finite=True,
+      continuation_boundary_verified=False,
+      **common,
+    )
   pressure_lineage_verified = bool(
     len(nodes) == 6
     and all(
@@ -871,6 +924,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_field(
       source_trial_gates_verified=True,
       topology_verified=True,
       state_samples_finite=True,
+      continuation_boundary_verified=True,
       pressure_lineage_verified=False,
       **common,
     )
@@ -942,6 +996,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_field(
       source_trial_gates_verified=True,
       topology_verified=True,
       state_samples_finite=True,
+      continuation_boundary_verified=True,
       pressure_lineage_verified=True,
       characteristic_geometry_verified=False,
       characteristic_edges=characteristic_edges,
@@ -954,6 +1009,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_field(
       source_trial_gates_verified=True,
       topology_verified=True,
       state_samples_finite=True,
+      continuation_boundary_verified=True,
       pressure_lineage_verified=True,
       characteristic_geometry_verified=True,
       variable_entropy_compatibility_verified=False,
@@ -1003,6 +1059,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_field(
     source_trial_gates_verified
     and topology_verified
     and state_samples_finite
+    and continuation_boundary_verified
     and pressure_lineage_verified
     and characteristic_geometry_verified
     and variable_entropy_verified
@@ -1010,6 +1067,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_field(
   flags_consistent = bool(
     result.pressure_lineage_verified == pressure_lineage_verified
     and result.characteristic_geometry_verified == characteristic_geometry_verified
+    and result.continuation_boundary_verified == continuation_boundary_verified
     and result.variable_entropy_compatibility_verified == variable_entropy_verified
     and result.cell_euler_residuals_finite == residuals_finite
     and result.cell_euler_residuals_verified == residuals_verified
@@ -1070,6 +1128,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_field(
     source_trial_gates_verified=True,
     topology_verified=True,
     state_samples_finite=True,
+    continuation_boundary_verified=True,
     pressure_lineage_verified=True,
     characteristic_geometry_verified=True,
     variable_entropy_compatibility_verified=True,

@@ -291,11 +291,13 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert entropy_characteristic_field['planner']['step']['result_node_count'] == 6
   assert entropy_characteristic_field['planner']['step']['result_cell_count'] == 4
   assert entropy_characteristic_field['planner']['step']['result_characteristic_edge_count'] == 6
+  assert entropy_characteristic_field['planner']['step']['result_continuation_boundary_sample_count'] == 3
   assert entropy_characteristic_field['planner']['step']['checks'] == {
     'topology_verified': True,
     'pressure_lineage_verified': True,
     'characteristic_geometry_verified': True,
     'variable_entropy_compatibility_verified': True,
+    'continuation_boundary_verified': True,
     'cell_euler_residuals_verified': True,
     'internal_characteristic_closure_verified': True,
     'physical_closure_verified': False,
@@ -309,6 +311,7 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
     'source_trial_gates_verified': True,
     'topology_verified': True,
     'state_samples_finite': True,
+    'continuation_boundary_verified': True,
     'pressure_lineage_verified': True,
     'characteristic_geometry_verified': True,
     'variable_entropy_compatibility_verified': True,

@@ -11263,6 +11263,8 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFieldPlannerStep:
   result_node_count: int
   result_cell_count: int
   result_characteristic_edge_count: int
+  result_continuation_boundary_sample_count: int
+  result_continuation_boundary_verified: bool
   result_topology_verified: bool
   result_pressure_lineage_verified: bool
   result_characteristic_geometry_verified: bool
@@ -11283,12 +11285,14 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFieldPlannerStep:
       'result_node_count',
       'result_cell_count',
       'result_characteristic_edge_count',
+      'result_continuation_boundary_sample_count',
     ):
       value = getattr(self, name)
       if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f'{name} must be a nonnegative integer')
     for name in (
       'result_converged',
+      'result_continuation_boundary_verified',
       'result_topology_verified',
       'result_pressure_lineage_verified',
       'result_characteristic_geometry_verified',
@@ -11309,18 +11313,22 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFieldPlannerStep:
       'result_kind': self.result_kind,
       'result_converged': self.result_converged,
       'result_solver_iterations': self.result_solver_iterations,
-      'result_node_count': self.result_node_count,
-      'result_cell_count': self.result_cell_count,
-      'result_characteristic_edge_count': self.result_characteristic_edge_count,
+    'result_node_count': self.result_node_count,
+    'result_cell_count': self.result_cell_count,
+    'result_characteristic_edge_count': self.result_characteristic_edge_count,
+    'result_continuation_boundary_sample_count': (
+      self.result_continuation_boundary_sample_count
+    ),
       'checks': {
         'topology_verified': self.result_topology_verified,
         'pressure_lineage_verified': self.result_pressure_lineage_verified,
         'characteristic_geometry_verified': (
           self.result_characteristic_geometry_verified
         ),
-        'variable_entropy_compatibility_verified': (
-          self.result_variable_entropy_compatibility_verified
-        ),
+      'variable_entropy_compatibility_verified': (
+        self.result_variable_entropy_compatibility_verified
+      ),
+      'continuation_boundary_verified': self.result_continuation_boundary_verified,
         'cell_euler_residuals_verified': (
           self.result_cell_euler_residuals_verified
         ),
@@ -11517,6 +11525,8 @@ def plan_euler_ambient_first_wedge_entropy_characteristic_field(
     result_node_count=field.node_count,
     result_cell_count=field.cell_count,
     result_characteristic_edge_count=len(field.characteristic_edges),
+    result_continuation_boundary_sample_count=len(field.continuation_boundary),
+    result_continuation_boundary_verified=field.continuation_boundary_verified,
     result_topology_verified=bool(
       field.topology.connected
       and field.topology.forms_closed_zone

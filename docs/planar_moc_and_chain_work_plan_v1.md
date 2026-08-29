@@ -2781,6 +2781,9 @@ conservative cell-residual gates, and
 ``op.moc.euler-ambient-first-wedge-entropy-characteristic-field-audit``
 independently reconstructs topology, state samples, pressure lineage,
 characteristic residuals, and cell Euler residuals.
+It also exposes the exact three-sample ``POST_SHOCK_FIELD_PERIMETER``
+frontier in solver-owned order, so a future continued-cell solve can consume
+the handoff without reconstructing it from cell order.
 
 The matching planner is intentionally a pre-chain boundary. It records the
 six-node/four-cell/six-edge field, then returns a typed

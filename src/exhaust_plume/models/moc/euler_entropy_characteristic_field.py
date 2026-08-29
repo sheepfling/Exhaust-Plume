@@ -26,6 +26,8 @@ import numpy as np
 from scipy.optimize import least_squares
 
 from exhaust_plume.models.moc.chain import (
+  MocChainBoundaryKind,
+  MocChainBoundarySample,
   MocChainTerminationDecision,
   MocChainTerminationReason,
 )
@@ -347,6 +349,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult:
       and self.cell_euler_residuals_finite
       and self.cell_euler_residuals_verified
       and self.internal_characteristic_closure_verified
+      and self.continuation_boundary_verified
       and not self.physical_closure_verified
       and self.chain_promotion_blocked
       and not self.production_claim_allowed
@@ -372,6 +375,56 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult:
   def total_pressure_Pa(self) -> tuple[float, ...]:
     return tuple(node.total_pressure_Pa for node in self.nodes)
 
+  @property
+  def continuation_boundary_node_indices(self) -> tuple[int, ...]:
+    """Return the explicit diagnostic frontier node order.
+
+    The frontier is the split ambient-side edge ``1 -> 4 -> 2``.  It is
+    exposed as metadata for a future reflected/free-boundary solver; this
+    result still cannot seed a physical ``MocChainCell``.
+    """
+
+    return _CONTINUATION_BOUNDARY_NODE_INDICES
+
+  @property
+  def continuation_boundary_kind(self) -> MocChainBoundaryKind:
+    """Return the typed meaning of the carried diagnostic frontier."""
+
+    return MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER
+
+  @property
+  def continuation_boundary(self) -> tuple[MocChainBoundarySample, ...]:
+    """Return the exact state/pressure frontier for downstream coupling.
+
+    An incomplete solver result exposes no handoff.  The caller must still
+    apply the local-consistency and physical free-boundary gates before using
+    these samples in a continued-cell solve.
+    """
+
+    if any(index >= len(self.nodes) for index in self.continuation_boundary_node_indices):
+      return ()
+    return tuple(
+      MocChainBoundarySample(
+        state=self.nodes[index].state,
+        total_pressure_Pa=self.nodes[index].total_pressure_Pa,
+      )
+      for index in self.continuation_boundary_node_indices
+    )
+
+  @property
+  def continuation_boundary_verified(self) -> bool:
+    """Whether the explicit frontier is finite and strictly downstream."""
+
+    boundary = self.continuation_boundary
+    return bool(
+      len(boundary) == len(self.continuation_boundary_node_indices)
+      and all(
+        current.state.x_m > previous.state.x_m + self.position_tolerance_m
+        for previous, current in zip(boundary, boundary[1:])
+      )
+      and all(sample.state.y_m >= -self.position_tolerance_m for sample in boundary)
+    )
+
   def as_chain_termination_decision(self) -> MocChainTerminationDecision:
     reason = (
       MocChainTerminationReason.INVALID_INPUT
@@ -394,6 +447,12 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult:
         'internal_characteristic_field_status': self.status.value,
         'node_count': self.node_count,
         'cell_count': self.cell_count,
+        'continuation_boundary_kind': self.continuation_boundary_kind.value,
+        'continuation_boundary_node_indices': (
+          self.continuation_boundary_node_indices
+        ),
+        'continuation_boundary_sample_count': len(self.continuation_boundary),
+        'continuation_boundary_verified': self.continuation_boundary_verified,
         'internal_characteristic_closure_verified': (
           self.internal_characteristic_closure_verified
         ),
@@ -414,6 +473,21 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult:
       'local_consistency_verified': self.local_consistency_verified,
       'node_count': self.node_count,
       'cell_count': self.cell_count,
+      'continuation_boundary_kind': self.continuation_boundary_kind.value,
+      'continuation_boundary_node_indices': list(
+        self.continuation_boundary_node_indices
+      ),
+      'continuation_boundary_sample_count': len(self.continuation_boundary),
+      'continuation_boundary_verified': self.continuation_boundary_verified,
+      'continuation_boundary': [
+        {
+          'point_m': [sample.state.x_m, sample.state.y_m],
+          'mach': sample.state.mach,
+          'flow_angle_rad': sample.state.theta_rad,
+          'total_pressure_Pa': sample.total_pressure_Pa,
+        }
+        for sample in self.continuation_boundary
+      ],
       'nodes': [node.as_report() for node in self.nodes],
       'cells': [
         {
@@ -807,6 +881,12 @@ _EDGE_DEFINITIONS: tuple[tuple[int, int, CharacteristicFamily], ...] = (
   (3, 5, CharacteristicFamily.MINUS),
   (5, 4, CharacteristicFamily.PLUS),
 )
+
+# The field's outer/downstream frontier is the split source edge from the
+# ambient-side node to the centerline endpoint.  It is a diagnostic handoff,
+# not a solved physical perimeter; keeping the indices explicit prevents a
+# future chain planner from inferring a frontier from cell order.
+_CONTINUATION_BOUNDARY_NODE_INDICES = (1, 4, 2)
 
 _INITIAL_EDGE_FRACTION = 0.6
 _FRACTION_ANCHOR_WEIGHT = 1.0e-4
