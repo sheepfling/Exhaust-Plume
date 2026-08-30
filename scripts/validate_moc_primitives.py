@@ -85,6 +85,8 @@ from exhaust_plume.models.moc import (  # noqa: E402
   plan_euler_ambient_first_wedge_entropy_characteristic_shock_coupling_probe,
   plan_euler_ambient_first_wedge_entropy_characteristic_free_boundary_probe,
   plan_euler_ambient_first_wedge_entropy_characteristic_continuation_probe,
+  plan_euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_probe,
+  refine_euler_ambient_first_wedge_entropy_characteristic_continuation,
   MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainMock,
   plan_euler_ambient_first_wedge_entropy_carry_refinement,
   MocEulerPostShockFieldStatus,
@@ -378,6 +380,11 @@ from exhaust_plume.validation.moc_euler_entropy_characteristic_free_boundary imp
 from exhaust_plume.validation.moc_euler_entropy_characteristic_continuation import (  # noqa: E402
   MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationAuditStatus,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation,
+)
+from exhaust_plume.validation.moc_euler_entropy_characteristic_continuation_refinement import (  # noqa: E402
+  MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementCase,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementMeasurementStatus,
+  measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_ladder,
 )
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput  # noqa: E402
 from exhaust_plume.models.nozzle.exit_state import derive_ambient_state, derive_uniform_nozzle_exit  # noqa: E402
@@ -10356,6 +10363,40 @@ def build_moc_primitive_report() -> dict[str, Any]:
       position_tolerance_m=1.0e-8,
     )
   )
+  euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_cases = (
+    ()
+    if euler_ambient_first_wedge_entropy_characteristic_continuation is None
+    else tuple(
+      MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementCase(
+        subdivision_side_count=side_count,
+        result=refine_euler_ambient_first_wedge_entropy_characteristic_continuation(
+          euler_ambient_first_wedge_entropy_characteristic_continuation,
+          subdivision_side_count=side_count,
+          position_tolerance_m=1.0e-8,
+        ),
+      )
+      for side_count in (1, 4, 12, 16)
+    )
+  )
+  euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_measurement = (
+    measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_ladder(
+      euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_cases,
+      expected_subdivision_side_counts=(1, 4, 12, 16),
+      position_tolerance_m=1.0e-8,
+    )
+  )
+  euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_planner = (
+    None
+    if entropy_characteristic_field is None
+    or entropy_characteristic_free_boundary_ambient_pressure is None
+    else plan_euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_probe(
+      entropy_characteristic_field,
+      ambient_pressure_Pa=entropy_characteristic_free_boundary_ambient_pressure,
+      cycle_count=4,
+      subdivision_side_counts=(1, 4, 12, 16),
+      position_tolerance_m=1.0e-8,
+    )
+  )
   euler_ambient_first_wedge_remesh_refinement = (
     measure_moc_euler_ambient_first_wedge_remesh_refinement(
       tuple(
@@ -10877,10 +10918,19 @@ def build_moc_primitive_report() -> dict[str, Any]:
         if euler_ambient_first_wedge_entropy_characteristic_continuation_audit is None
         else euler_ambient_first_wedge_entropy_characteristic_continuation_audit.as_report()
       ),
+      'refinement_ladder': (
+        euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_measurement.as_report()
+      ),
+      'refinement_planner_probe': (
+        None
+        if euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_planner is None
+        else euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_planner.as_report()
+      ),
       'claim_status': (
         'solver-generated-bounded-variable-entropy-alternating-source-band; '
-        'conservative-euler-refinement, reflected-shock closure, external '
-        'validation, and physical shock-cell promotion remain pending'
+        'projection-refinement evidence is diagnostic only; characteristic '
+        're-closure, reflected-shock closure, external validation, and '
+        'physical shock-cell promotion remain pending'
       ),
     },
     'attached_turn_compression_foundation': {
@@ -12161,6 +12211,45 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or euler_ambient_first_wedge_entropy_characteristic_continuation_audit.physical_closure_verified
     or not euler_ambient_first_wedge_entropy_characteristic_continuation_audit.chain_promotion_blocked
     or euler_ambient_first_wedge_entropy_characteristic_continuation_audit.production_claim_allowed
+    or euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_measurement.status
+    is not MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementMeasurementStatus.CONVERGED_LOCAL_REFINEMENT
+    or not euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_measurement.local_consistency_verified
+    or euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_measurement.subdivision_side_counts
+    != (1, 4, 12, 16)
+    or euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_measurement.cell_counts
+    != (7, 112, 1008, 1792)
+    or not euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_measurement.levels_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_measurement.audits_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_measurement.topology_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_measurement.state_projection_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_measurement.pressure_lineage_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_measurement.continuation_boundary_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_measurement.cell_euler_residuals_finite
+    or not euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_measurement.final_cell_euler_residual_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_measurement.residual_nonincreasing_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_measurement.residual_reduction_verified
+    or euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_planner is None
+    or euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_planner.field_count != 1
+    or euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_planner.continued_field_count != 0
+    or euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_planner.termination.reason
+    is not MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+    or euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_planner.termination.physical_termination
+    or euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_planner.physical_chain_cell_count != 0
+    or euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_planner.physical_closure_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_planner.chain_promotion_blocked
+    or euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_planner.production_claim_allowed
+    or euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_planner.diagnostics.get(
+      'refinement_side_counts'
+    ) != (1, 4, 12, 16)
+    or len(
+      euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_planner.diagnostics.get(
+        'refinement_ladder',
+        (),
+      )
+    ) != 4
+    or euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_planner.diagnostics.get(
+      'refinement_consumed_as_chain_cell'
+    ) is not False
   )
   euler_companion_field_planner_failure = (
     euler_companion_field_planner.planner_kind is not MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
@@ -12557,6 +12646,17 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'message': (
           'the bounded variable-entropy alternating source band did not '
           'preserve its independent segment, pressure, topology, Euler, and '
+          'non-promotion gates'
+        ),
+      }
+    ] if euler_ambient_first_wedge_entropy_characteristic_continuation_failure else []),
+    *([
+      {
+        'case': 'euler_ambient_first_wedge_entropy_characteristic_continuation_refinement',
+        'status': euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_measurement.status.value,
+        'message': (
+          'the diagnostic continuation-band refinement ladder did not '
+          'preserve independent structural, lineage, residual-trend, and '
           'non-promotion gates'
         ),
       }
@@ -13944,7 +14044,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'assemble a downstream physical characteristic field on the correct side of the locally Euler-consistent shock Cauchy curve',
       'replace the bounded solver-owned companion-boundary reference with a globally coupled Euler/free-boundary field and close its ambient/reflected boundary conditions',
       'implement an attachment-aware exact-Euler first interior wedge/remesh; the generic paired-node stencil cannot start at the shared shock/ambient point',
-      'refine the bounded variable-entropy alternating source band until its independent conservative Euler residual gate passes',
+    'replace the diagnostic continuation-band projection with a solver-owned intra-cycle characteristic remesh that independently passes the conservative Euler residual gate',
       'couple the continued entropy-characteristic C- frontier to a globally closed reflected/free-boundary shock solve before allowing physical chain promotion',
       'production next-cell shock fitting that consumes the typed state/total-pressure handoff without a geometric template',
       'grid/refinement convergence for the assembled reflected zone and mild attached-overexpanded cases',

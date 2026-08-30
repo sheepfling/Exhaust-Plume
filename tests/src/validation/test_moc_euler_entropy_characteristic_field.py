@@ -12,6 +12,7 @@ from exhaust_plume.models.moc import (
   MocEulerAmbientFirstWedgeEntropyCharacteristicShockCouplingStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationStatus,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementStatus,
   MocEulerAmbientFirstWedgeEntropyCarryStatus,
   assemble_euler_ambient_physical_field,
   plan_euler_ambient_first_wedge_entropy_characteristic_field,
@@ -20,6 +21,8 @@ from exhaust_plume.models.moc import (
   plan_euler_ambient_first_wedge_entropy_characteristic_shock_coupling_probe,
   plan_euler_ambient_first_wedge_entropy_characteristic_free_boundary_probe,
   plan_euler_ambient_first_wedge_entropy_characteristic_continuation_probe,
+  plan_euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_probe,
+  refine_euler_ambient_first_wedge_entropy_characteristic_continuation,
   solve_euler_ambient_first_wedge_characteristic_remesh,
   solve_euler_ambient_first_wedge_entropy_carry,
   solve_euler_ambient_first_wedge_entropy_characteristic_field,
@@ -35,11 +38,16 @@ from exhaust_plume.validation import (
   MocEulerAmbientFirstWedgeEntropyCharacteristicShockCouplingAuditStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryAuditStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationAuditStatus,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementAuditStatus,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementCase,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementMeasurementStatus,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_field,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_field_chain,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_shock_coupling,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_free_boundary,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation,
+  measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_refinement,
+  measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_ladder,
 )
 
 
@@ -474,6 +482,141 @@ def test_internal_entropy_characteristic_continuation_planner_records_typed_stop
   assert planner.physical_closure_verified is False
   assert planner.chain_promotion_blocked
   assert planner.production_claim_allowed is False
+
+
+def test_internal_entropy_characteristic_continuation_refinement_keeps_gate_and_planner_separate() -> None:
+  _, field = _internal_field()
+  ambient_pressure = field.static_pressure_at(
+    field.continuation_boundary[0].point_m,
+  )
+  assert ambient_pressure is not None
+  continuation = solve_euler_ambient_first_wedge_entropy_characteristic_continuation(
+    field,
+    field.continuation_boundary,
+    ambient_pressure,
+    cycle_count=4,
+  )
+
+  refinement = refine_euler_ambient_first_wedge_entropy_characteristic_continuation(
+    continuation,
+    subdivision_side_count=12,
+  )
+  assert refinement.status is (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementStatus
+    .CONVERGED_DIAGNOSTIC_REFINEMENT
+  )
+  assert refinement.converged
+  assert refinement.local_projection_verified
+  assert refinement.cell_count == 1008
+  assert refinement.state_sample_count > 0
+  assert refinement.state_sample_count < refinement.cell_count
+  assert refinement.maximum_cell_euler_residual is not None
+  assert refinement.maximum_cell_euler_residual < 1.0e-2
+  assert refinement.topology.connected
+  assert refinement.topology.forms_closed_zone
+  assert refinement.topology.nonmanifold_edge_count == 0
+  assert refinement.continuation_boundary_verified
+  assert refinement.cell_euler_residuals_finite
+  assert refinement.cell_euler_residuals_verified
+  assert refinement.physical_closure_verified is False
+  assert refinement.chain_promotion_blocked
+  assert refinement.production_claim_allowed is False
+
+  audit = measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_refinement(
+    refinement,
+  )
+  assert audit.status is (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementAuditStatus
+    .CONVERGED_LOCAL_AUDIT
+  )
+  assert audit.converged
+  assert audit.local_consistency_verified
+  assert audit.structural_consistency_verified
+  assert audit.source_continuation_gates_verified
+  assert audit.topology_verified
+  assert audit.state_projection_verified
+  assert audit.pressure_lineage_carried
+  assert audit.continuation_boundary_verified
+  assert audit.cell_euler_residuals_verified
+  assert audit.solver_status_consistent
+  assert audit.external_validation_required
+  assert audit.fidelity_flags_verified
+  assert audit.physical_closure_verified is False
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False
+
+  planner = plan_euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_probe(
+    field,
+    ambient_pressure_Pa=ambient_pressure,
+    cycle_count=4,
+  )
+  assert planner.field_count == 1
+  assert planner.continued_field_count == 0
+  assert planner.termination.reason is MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+  assert planner.termination.physical_termination is False
+  assert planner.physical_chain_cell_count == 0
+  assert planner.physical_closure_verified is False
+  assert planner.chain_promotion_blocked
+  assert planner.production_claim_allowed is False
+  assert planner.diagnostics['refinement_side_counts'] == (1, 4, 12, 16)
+  assert len(planner.diagnostics['refinement_ladder']) == 4
+  assert planner.diagnostics['refinement_consumed_as_chain_cell'] is False
+
+
+def test_internal_entropy_characteristic_continuation_refinement_ladder_audits_resolution_trend() -> None:
+  _, field = _internal_field()
+  ambient_pressure = field.static_pressure_at(
+    field.continuation_boundary[0].point_m,
+  )
+  assert ambient_pressure is not None
+  continuation = solve_euler_ambient_first_wedge_entropy_characteristic_continuation(
+    field,
+    field.continuation_boundary,
+    ambient_pressure,
+    cycle_count=4,
+  )
+  cases = tuple(
+    MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementCase(
+      subdivision_side_count=side_count,
+      result=refine_euler_ambient_first_wedge_entropy_characteristic_continuation(
+        continuation,
+        subdivision_side_count=side_count,
+      ),
+    )
+    for side_count in (1, 4, 12, 16)
+  )
+  measurement = measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_ladder(
+    cases,
+    expected_subdivision_side_counts=(1, 4, 12, 16),
+  )
+  assert measurement.status is (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementMeasurementStatus
+    .CONVERGED_LOCAL_REFINEMENT
+  )
+  assert measurement.converged
+  assert measurement.local_consistency_verified
+  assert measurement.subdivision_side_counts == (1, 4, 12, 16)
+  assert measurement.cell_counts == (7, 112, 1008, 1792)
+  assert measurement.levels_verified
+  assert measurement.audits_verified
+  assert measurement.topology_verified
+  assert measurement.state_projection_verified
+  assert measurement.pressure_lineage_verified
+  assert measurement.continuation_boundary_verified
+  assert measurement.cell_euler_residuals_finite
+  assert measurement.final_cell_euler_residual_verified
+  assert measurement.residual_nonincreasing_verified
+  assert measurement.residual_reduction_verified
+  assert measurement.maximum_cell_euler_residuals[-1] < 1.0e-2
+  assert measurement.audits[0].status is (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementAuditStatus
+    .EULER_RESIDUAL_FAILURE
+  )
+  assert measurement.audits[0].structural_consistency_verified
+  assert measurement.audits[0].local_consistency_verified is False
+  assert measurement.physical_closure_verified is False
+  assert measurement.chain_promotion_blocked
+  assert measurement.production_claim_allowed is False
 
 
 def test_internal_entropy_characteristic_field_has_independent_audit() -> None:

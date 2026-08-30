@@ -2870,3 +2870,23 @@ against the current ``0.01`` gate. The next implementation gate is therefore
 conservative refinement of this variable-entropy band, followed by a coupled
 Euler shock/free-boundary closure and indexed external validation before any
 continued shock-cell chain can be promoted.
+
+## Continuation-band projection refinement checkpoint
+
+The bounded source band now has an independently audited diagnostic resolution
+ladder through
+``refine_euler_ambient_first_wedge_entropy_characteristic_continuation``.
+For side counts ``1, 4, 12, 16``, it produces ``7, 112, 1008, 1792``
+projected triangular cells. The independently recomputed maximum conservative
+Euler residuals are approximately
+``0.01812, 0.01714, 0.00745, 0.00577``. The ladder therefore passes its
+finite, structural, pressure-lineage, topology, monotone-reduction, and final
+``0.01`` residual gates.
+
+This is resolution evidence, not a newly solved characteristic net: the
+subcells are a barycentric projection in ``theta``, ``nu``, and ``log(p0)``.
+The planner records the ladder but still stops at ``OPEN_PHYSICAL_CLOSURE``
+with zero physical chain cells. The next solver task is an intra-cycle
+``C+``/``C-`` characteristic remesh that reproduces this residual trend while
+closing the reflected/free-boundary perimeter; only then can the physical
+shock-cell chain and external-observation gates be evaluated.
