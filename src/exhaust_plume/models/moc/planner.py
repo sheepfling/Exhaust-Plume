@@ -121,6 +121,9 @@ from exhaust_plume.models.moc.euler_entropy_characteristic_field import (
   MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult,
   solve_euler_ambient_first_wedge_entropy_characteristic_field,
 )
+from exhaust_plume.models.moc.euler_entropy_characteristic_coupling import (
+  solve_euler_ambient_first_wedge_entropy_characteristic_shock_coupling,
+)
 from exhaust_plume.models.moc.euler_entropy_refinement import (
   MocEulerAmbientFirstWedgeEntropyCarryRefinementResult,
   refine_euler_ambient_first_wedge_entropy_carry,
@@ -255,6 +258,7 @@ __all__ = (
   'MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainMock',
   'plan_euler_ambient_first_wedge_entropy_characteristic_field_chain',
   'plan_euler_ambient_first_wedge_entropy_characteristic_field_chain_mock',
+  'plan_euler_ambient_first_wedge_entropy_characteristic_shock_coupling_probe',
   'MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerStep',
   'MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerResult',
   'plan_euler_ambient_first_wedge_entropy_carry_refinement',
@@ -12577,6 +12581,104 @@ def plan_euler_ambient_first_wedge_entropy_characteristic_field_chain_mock(
       'reflected-free-boundary-and-physical-chain-closure-pending'
     ),
   )
+
+
+def plan_euler_ambient_first_wedge_entropy_characteristic_shock_coupling_probe(
+  seed: MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult,
+  *,
+  start_point_m: tuple[float, float] | None = None,
+  target_centerline_y_m: float = 0.0,
+  downstream_flow_angle_at: Callable[[int, tuple[float, float]], float] | None = None,
+  downstream_flow_angle_rad: float | None = None,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  state_tolerance: float = 1.0e-8,
+  invariant_tolerance: float = 1.0e-10,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+) -> MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainPlannerResult:
+  """Run one bounded shock attempt through the entropy-field chain seam.
+
+  This is the first non-mock callback path for the entropy-characteristic
+  chain.  It consumes the exact perimeter, calls the attached-shock marcher,
+  and records the resulting bounded-field stop in the same planner structure
+  used by the explicit replay mock.  It never promotes the open field to a
+  physical chain cell.
+  """
+
+  if not isinstance(
+    seed,
+    MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult,
+  ):
+    raise TypeError(
+      'seed must be a '
+      'MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult'
+    )
+  attempt_reports: list[dict[str, Any]] = []
+
+  def solve_next(
+    current: MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult,
+    _next_field_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+  ) -> MocChainTerminationDecision:
+    resolved_start = (
+      current.continuation_boundary[0].point_m
+      if start_point_m is None
+      else start_point_m
+    )
+    attempt = solve_euler_ambient_first_wedge_entropy_characteristic_shock_coupling(
+      current,
+      incoming_handoff,
+      resolved_start,
+      target_centerline_y_m=target_centerline_y_m,
+      downstream_flow_angle_at=downstream_flow_angle_at,
+      downstream_flow_angle_rad=downstream_flow_angle_rad,
+      sample_count=sample_count,
+      branch=branch,
+      position_tolerance_m=position_tolerance_m,
+      state_tolerance=state_tolerance,
+      invariant_tolerance=invariant_tolerance,
+      shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+      maximum_segment_iterations=maximum_segment_iterations,
+    )
+    attempt_report = attempt.as_report()
+    attempt_reports.append(attempt_report)
+    decision = attempt.as_chain_termination_decision()
+    diagnostics = dict(decision.diagnostics)
+    diagnostics.update({
+      'planner_model': (
+        'euler-ambient-first-wedge-entropy-characteristic-field-shock-'
+        'coupling-probe'
+      ),
+      'shock_coupling_attempt': attempt_report,
+      'synthetic_downstream_field_created': False,
+      'physical_chain_cell_count': 0,
+    })
+    return replace(decision, diagnostics=diagnostics)
+
+  planner = plan_euler_ambient_first_wedge_entropy_characteristic_field_chain(
+    seed,
+    solve_next,
+    total_field_count=1,
+    position_tolerance_m=position_tolerance_m,
+    claim_status=(
+      'solver-generated-bounded-entropy-characteristic-shock-coupling-probe; '
+      'reflected-free-boundary-and-physical-chain-closure-pending'
+    ),
+  )
+  diagnostics = dict(planner.diagnostics)
+  diagnostics.update({
+    'planner_model': (
+      'euler-ambient-first-wedge-entropy-characteristic-field-shock-'
+      'coupling-probe'
+    ),
+    'shock_coupling_attempt_count': len(attempt_reports),
+    'shock_coupling_attempts': attempt_reports,
+    'synthetic_downstream_field_created': False,
+    'physical_chain_cell_count': 0,
+  })
+  return replace(planner, diagnostics=diagnostics)
 
 
 @dataclass(frozen=True, slots=True)

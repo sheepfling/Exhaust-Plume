@@ -1449,3 +1449,18 @@ re-audits every retained field, reconstructs the perimeter fingerprints and
 domain ordering, and verifies the typed nonphysical termination. This makes
 the continuation contract executable without disguising a replay or a local
 field as a physical shock-cell train.
+
+The first real coupling probe is
+``solve_euler_ambient_first_wedge_entropy_characteristic_shock_coupling``.
+It consumes that exact perimeter, uses the field's bounded state/static-
+pressure samplers for one attached-shock march, and re-samples every retained
+shock point. When the next point leaves the finite local field, the solver
+returns ``UPSTREAM_FIELD_BOUNDARY`` with the missing sample index instead of
+extrapolating the upstream state. The matching
+``plan_euler_ambient_first_wedge_entropy_characteristic_shock_coupling_probe``
+records the attempt through the continuation seam, while
+``op.moc.euler-ambient-first-wedge-entropy-characteristic-shock-coupling-audit``
+independently checks the field audit, exact handoff, path coverage, and typed
+boundary status. This is bounded local coupling evidence only: it remains
+below reflected/free-boundary closure, external validation, and physical
+shock-cell promotion.

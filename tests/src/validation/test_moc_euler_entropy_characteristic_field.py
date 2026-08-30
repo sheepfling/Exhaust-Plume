@@ -9,22 +9,27 @@ from exhaust_plume.models.moc import (
   MocChainTerminationDecision,
   MocEulerAmbientFirstWedgeEntropyCharacteristicFieldStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainMock,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicShockCouplingStatus,
   MocEulerAmbientFirstWedgeEntropyCarryStatus,
   assemble_euler_ambient_physical_field,
   plan_euler_ambient_first_wedge_entropy_characteristic_field,
   plan_euler_ambient_first_wedge_entropy_characteristic_field_chain,
   plan_euler_ambient_first_wedge_entropy_characteristic_field_chain_mock,
+  plan_euler_ambient_first_wedge_entropy_characteristic_shock_coupling_probe,
   solve_euler_ambient_first_wedge_characteristic_remesh,
   solve_euler_ambient_first_wedge_entropy_carry,
   solve_euler_ambient_first_wedge_entropy_characteristic_field,
+  solve_euler_ambient_first_wedge_entropy_characteristic_shock_coupling,
   solve_attached_compression_to_turn,
   fit_euler_consistent_shock_boundary,
 )
 from exhaust_plume.validation import (
   MocEulerAmbientFirstWedgeEntropyCharacteristicFieldAuditStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainAuditStatus,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicShockCouplingAuditStatus,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_field,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_field_chain,
+  measure_moc_euler_ambient_first_wedge_entropy_characteristic_shock_coupling,
 )
 
 
@@ -129,6 +134,118 @@ def test_internal_entropy_characteristic_field_closes_local_subcells() -> None:
   assert result.physical_closure_verified is False
   assert result.chain_promotion_blocked
   assert result.production_claim_allowed is False
+
+
+def test_internal_entropy_characteristic_field_exposes_bounded_sampler() -> None:
+  _, field = _internal_field()
+
+  for sample in field.cell_samples:
+    centroid = tuple(
+      sum(point[index] for point in sample.vertices_xr_m) / 3.0
+      for index in (0, 1)
+    )
+    state = field.state_at(centroid)
+    pressure = field.static_pressure_at(centroid)
+    total_pressure = field.total_pressure_at(centroid)
+    assert state is not None
+    assert state.x_m == centroid[0]
+    assert state.y_m == centroid[1]
+    assert state.mach > 1.0
+    assert pressure is not None and pressure > 0.0
+    assert total_pressure is not None and total_pressure > 0.0
+
+  assert field.state_sampling_available
+  assert field.state_at((2.0, 0.2)) is None
+  assert field.static_pressure_at((2.0, 0.2)) is None
+  assert field.total_pressure_at((2.0, 0.2)) is None
+
+
+def test_internal_entropy_characteristic_shock_coupling_stops_at_bounded_field() -> None:
+  _, field = _internal_field()
+  handoff = field.continuation_boundary
+
+  coupling = solve_euler_ambient_first_wedge_entropy_characteristic_shock_coupling(
+    field,
+    handoff,
+    handoff[0].point_m,
+    downstream_flow_angle_rad=0.2,
+    sample_count=9,
+    position_tolerance_m=1.0e-8,
+  )
+
+  assert coupling.status is (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicShockCouplingStatus
+    .UPSTREAM_FIELD_BOUNDARY
+  )
+  assert coupling.shock is not None
+  assert coupling.converged is False
+  assert coupling.path_coverage_verified is False
+  assert coupling.first_missing_sample_index is not None
+  decision = coupling.as_chain_termination_decision()
+  assert decision.reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+  assert decision.physical_termination is False
+  assert decision.diagnostics['path_coverage_verified'] is False
+  assert decision.diagnostics['required_next_gate'] == (
+    'reflected-free-boundary-coupling-and-independent-euler-validation-'
+    'before-continued-shock-cell-chain'
+  )
+
+
+def test_internal_entropy_characteristic_chain_probe_records_bounded_shock_attempt() -> None:
+  _, field = _internal_field()
+
+  planner = (
+    plan_euler_ambient_first_wedge_entropy_characteristic_shock_coupling_probe(
+      field,
+      downstream_flow_angle_rad=0.2,
+      sample_count=9,
+      position_tolerance_m=1.0e-8,
+    )
+  )
+
+  assert planner.field_count == 1
+  assert planner.continued_field_count == 0
+  assert planner.termination.reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+  assert planner.termination.physical_termination is False
+  assert planner.diagnostics['shock_coupling_attempt_count'] == 1
+  attempt = planner.diagnostics['shock_coupling_attempts'][0]
+  assert attempt['status'] == (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicShockCouplingStatus
+    .UPSTREAM_FIELD_BOUNDARY.value
+  )
+  assert planner.diagnostics['synthetic_downstream_field_created'] is False
+
+
+def test_internal_entropy_characteristic_shock_coupling_has_independent_audit() -> None:
+  _, field = _internal_field()
+  coupling = solve_euler_ambient_first_wedge_entropy_characteristic_shock_coupling(
+    field,
+    field.continuation_boundary,
+    field.continuation_boundary[0].point_m,
+    downstream_flow_angle_rad=0.2,
+    sample_count=9,
+    position_tolerance_m=1.0e-8,
+  )
+
+  audit = measure_moc_euler_ambient_first_wedge_entropy_characteristic_shock_coupling(
+    coupling,
+    position_tolerance_m=1.0e-8,
+  )
+
+  assert audit.status is (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicShockCouplingAuditStatus
+    .CONVERGED_LOCAL_BOUNDARY_AUDIT
+  )
+  assert audit.converged
+  assert audit.local_consistency_verified
+  assert audit.incoming_handoff_verified
+  assert audit.path_coverage_verified is False
+  assert audit.status_consistent
+  assert audit.field_audit is not None
+  assert audit.field_audit.local_consistency_verified
+  assert audit.termination_reason == (
+    MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY.value
+  )
 
 
 def test_internal_entropy_characteristic_field_has_independent_audit() -> None:

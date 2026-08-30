@@ -387,6 +387,11 @@ from exhaust_plume.models.moc.euler_entropy_characteristic_field import (
   MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult,
   solve_euler_ambient_first_wedge_entropy_characteristic_field,
 )
+from exhaust_plume.models.moc.euler_entropy_characteristic_coupling import (
+  MocEulerAmbientFirstWedgeEntropyCharacteristicShockCouplingStatus,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicShockCouplingResult,
+  solve_euler_ambient_first_wedge_entropy_characteristic_shock_coupling,
+)
 from exhaust_plume.models.moc.euler_entropy_refinement import (
   MocEulerAmbientFirstWedgeEntropyCarryRefinementStatus,
   MocEulerAmbientFirstWedgeEntropyCarryRefinementResult,
@@ -549,6 +554,7 @@ from exhaust_plume.models.moc.planner import (
   MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainMock,
   plan_euler_ambient_first_wedge_entropy_characteristic_field_chain,
   plan_euler_ambient_first_wedge_entropy_characteristic_field_chain_mock,
+  plan_euler_ambient_first_wedge_entropy_characteristic_shock_coupling_probe,
   MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerStep,
   MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerResult,
   plan_euler_ambient_first_wedge_entropy_carry_refinement,
@@ -748,6 +754,7 @@ __all__ = (
   'MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainMock',
   'plan_euler_ambient_first_wedge_entropy_characteristic_field_chain',
   'plan_euler_ambient_first_wedge_entropy_characteristic_field_chain_mock',
+  'plan_euler_ambient_first_wedge_entropy_characteristic_shock_coupling_probe',
   'MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerStep',
   'MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerResult',
   'plan_euler_ambient_first_wedge_entropy_carry_refinement',
@@ -1023,6 +1030,9 @@ __all__ = (
   'MocEulerAmbientFirstWedgeEntropyCharacteristicNode',
   'MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult',
   'solve_euler_ambient_first_wedge_entropy_characteristic_field',
+  'MocEulerAmbientFirstWedgeEntropyCharacteristicShockCouplingStatus',
+  'MocEulerAmbientFirstWedgeEntropyCharacteristicShockCouplingResult',
+  'solve_euler_ambient_first_wedge_entropy_characteristic_shock_coupling',
   'MocEulerAmbientFirstWedgeEntropyCarryRefinementStatus',
   'MocEulerAmbientFirstWedgeEntropyCarryRefinementResult',
   'refine_euler_ambient_first_wedge_entropy_carry',

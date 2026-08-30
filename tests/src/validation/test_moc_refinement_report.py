@@ -135,6 +135,9 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   entropy_characteristic_field_chain = report['geometry_cases'][
     'euler_ambient_first_wedge_entropy_characteristic_field_chain'
   ]
+  entropy_characteristic_shock_coupling = report['geometry_cases'][
+    'euler_ambient_first_wedge_entropy_characteristic_shock_coupling'
+  ]
   ambient_attachment = report['geometry_cases']['ambient_attachment_closure_probe']
   ambient_transition = report['geometry_cases']['ambient_attachment_transition_probe']
   ambient_closure = report['geometry_cases']['ambient_pressure_closure_probe']
@@ -352,6 +355,39 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
     'chain_promotion_blocked': True,
     'production_claim_allowed': False,
   }
+  assert entropy_characteristic_shock_coupling['coupling']['status'] == (
+    'entropy_characteristic_upstream_field_boundary'
+  )
+  assert entropy_characteristic_shock_coupling['coupling']['path_coverage_verified'] is False
+  assert entropy_characteristic_shock_coupling['coupling']['covered_sample_count'] == 1
+  assert entropy_characteristic_shock_coupling['coupling']['first_missing_sample_index'] == 1
+  assert entropy_characteristic_shock_coupling['coupling']['shock']['status'] == (
+    'upstream_field_failure'
+  )
+  assert entropy_characteristic_shock_coupling['planner_probe']['resolved'] is False
+  assert entropy_characteristic_shock_coupling['planner_probe']['local_sequence_verified'] is True
+  assert entropy_characteristic_shock_coupling['planner_probe']['field_count'] == 1
+  assert entropy_characteristic_shock_coupling['planner_probe']['continued_field_count'] == 0
+  assert entropy_characteristic_shock_coupling['planner_probe']['termination']['reason'] == (
+    'upstream-field-boundary'
+  )
+  assert entropy_characteristic_shock_coupling['planner_probe']['diagnostics'][
+    'shock_coupling_attempt_count'
+  ] == 1
+  assert entropy_characteristic_shock_coupling['planner_probe']['diagnostics'][
+    'synthetic_downstream_field_created'
+  ] is False
+  assert entropy_characteristic_shock_coupling['independent_audit']['status'] == (
+    'converged_euler_ambient_first_wedge_entropy_characteristic_shock_coupling_boundary_audit'
+  )
+  assert entropy_characteristic_shock_coupling['independent_audit']['local_consistency_verified'] is True
+  assert entropy_characteristic_shock_coupling['independent_audit']['incoming_handoff_verified'] is True
+  assert entropy_characteristic_shock_coupling['independent_audit']['path_coverage_verified'] is False
+  assert entropy_characteristic_shock_coupling['independent_audit']['status_consistent'] is True
+  assert entropy_characteristic_shock_coupling['independent_audit']['first_missing_sample_index'] == 1
+  assert entropy_characteristic_shock_coupling['coupling']['physical_closure_verified'] is False
+  assert entropy_characteristic_shock_coupling['coupling']['chain_promotion_blocked'] is True
+  assert entropy_characteristic_shock_coupling['coupling']['production_claim_allowed'] is False
   assert alternating_physical_chain_refinement['status'] == 'converged'
   assert alternating_physical_chain_refinement['operator_id'] == (
     'op.moc.reflected-domain-alternating-physical-field-chain-refinement'

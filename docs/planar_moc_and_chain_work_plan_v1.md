@@ -2803,6 +2803,19 @@ rechecks every retained field, exact handoff fingerprint, fresh-domain link,
 and nonphysical termination. This lane is not used to upgrade the
 solver-owned field or the fast/reduced-order providers.
 
+The first non-mock continuation attempt is now bounded by
+``solve_euler_ambient_first_wedge_entropy_characteristic_shock_coupling``.
+It consumes the exact perimeter through the field's finite state and pressure
+samplers, invokes the attached-shock marcher, and stops with a typed
+``UPSTREAM_FIELD_BOUNDARY`` when the generated path leaves the retained local
+field. The corresponding
+``plan_euler_ambient_first_wedge_entropy_characteristic_shock_coupling_probe``
+records that attempt without fabricating a downstream field, and
+``op.moc.euler-ambient-first-wedge-entropy-characteristic-shock-coupling-audit``
+independently verifies the retained path coverage, handoff, and status. The
+canonical probe therefore demonstrates a real finite-domain coupling seam,
+not a completed reflected free boundary or physical shock-cell chain.
+
 Next implementation sequence:
 
 - couple the locally closed characteristic subcells to a solver-owned

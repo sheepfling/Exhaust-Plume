@@ -376,6 +376,149 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult:
     return tuple(node.total_pressure_Pa for node in self.nodes)
 
   @property
+  def state_sampling_available(self) -> bool:
+    """Whether the retained local field can provide bounded state samples.
+
+    The sampler is deliberately gated by the local characteristic/Euler
+    checks.  A field with only a successful nonlinear solve, or with a
+    weakened cached flag, must not become an upstream source for a later
+    shock attempt.
+    """
+
+    return bool(
+      self.local_consistency_verified
+      and self.cells
+      and len(self.cell_samples) == len(self.cells)
+    )
+
+  @staticmethod
+  def _finite_point(
+    point_m: tuple[float, float],
+  ) -> tuple[float, float] | None:
+    try:
+      point = (float(point_m[0]), float(point_m[1]))
+    except (IndexError, TypeError, ValueError):
+      return None
+    if not all(isfinite(value) for value in point):
+      return None
+    return point
+
+  def _sample_weights_at(
+    self,
+    point_m: tuple[float, float],
+    *,
+    position_tolerance_m: float,
+  ) -> tuple[
+    tuple[float, ...],
+    MocEulerAmbientFirstWedgeCellSample,
+  ] | None:
+    """Return barycentric weights for the first bounded containing cell."""
+
+    if not self.state_sampling_available:
+      return None
+    point = self._finite_point(point_m)
+    if point is None:
+      return None
+    tolerance = float(position_tolerance_m)
+    if not isfinite(tolerance) or tolerance <= 0.0:
+      raise ValueError('position_tolerance_m must be finite and positive')
+    for sample in self.cell_samples:
+      weights = _triangle_interpolation_weights(
+        point,
+        sample.vertices_xr_m,
+        tolerance_m=tolerance,
+      )
+      if weights is not None:
+        return weights, sample
+    return None
+
+  def state_at(
+    self,
+    point_m: tuple[float, float],
+    *,
+    position_tolerance_m: float = 1.0e-10,
+  ) -> CharacteristicState | None:
+    """Interpolate a supersonic state only inside the retained local mesh.
+
+    ``theta`` and Prandtl--Meyer angle are interpolated on the bounded
+    triangle, then the Mach number is reconstructed from the latter.  No
+    state is extrapolated beyond the four solver-owned subcells.
+    """
+
+    sampled = self._sample_weights_at(
+      point_m,
+      position_tolerance_m=position_tolerance_m,
+    )
+    if sampled is None:
+      return None
+    weights, sample = sampled
+    theta = sum(
+      weight * state.theta_rad
+      for weight, state in zip(weights, sample.states, strict=True)
+    )
+    nu = sum(
+      weight * state.nu_rad
+      for weight, state in zip(weights, sample.states, strict=True)
+    )
+    point = self._finite_point(point_m)
+    if point is None:
+      return None
+    return _state_from_theta_nu(
+      point,
+      theta,
+      nu,
+      sample.states[0].gamma,
+    )
+
+  def total_pressure_at(
+    self,
+    point_m: tuple[float, float],
+    *,
+    position_tolerance_m: float = 1.0e-10,
+  ) -> float | None:
+    """Interpolate carried total pressure in the bounded entropy field."""
+
+    sampled = self._sample_weights_at(
+      point_m,
+      position_tolerance_m=position_tolerance_m,
+    )
+    if sampled is None:
+      return None
+    weights, sample = sampled
+    return exp(
+      sum(
+        weight * log(pressure)
+        for weight, pressure in zip(
+          weights,
+          sample.total_pressure_Pa,
+          strict=True,
+        )
+      )
+    )
+
+  def static_pressure_at(
+    self,
+    point_m: tuple[float, float],
+    *,
+    position_tolerance_m: float = 1.0e-10,
+  ) -> float | None:
+    """Return the isentropic static pressure for a bounded field sample."""
+
+    state = self.state_at(
+      point_m,
+      position_tolerance_m=position_tolerance_m,
+    )
+    total_pressure = self.total_pressure_at(
+      point_m,
+      position_tolerance_m=position_tolerance_m,
+    )
+    if state is None or total_pressure is None:
+      return None
+    return total_pressure / (
+      1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
+    ) ** (state.gamma / (state.gamma - 1.0))
+
+  @property
   def continuation_boundary_node_indices(self) -> tuple[int, ...]:
     """Return the explicit diagnostic frontier node order.
 
@@ -478,6 +621,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult:
         self.continuation_boundary_node_indices
       ),
       'continuation_boundary_sample_count': len(self.continuation_boundary),
+      'state_sampling_available': self.state_sampling_available,
       'continuation_boundary_verified': self.continuation_boundary_verified,
       'continuation_boundary': [
         {
@@ -587,6 +731,43 @@ class _EdgeMetric:
 
 def _empty_topology() -> MocTopologyResult:
   return validate_moc_mesh(())
+
+
+def _triangle_interpolation_weights(
+  point: tuple[float, float],
+  vertices: tuple[tuple[float, float], ...],
+  *,
+  tolerance_m: float,
+) -> tuple[float, ...] | None:
+  """Return inclusive barycentric weights for a nondegenerate triangle."""
+
+  if len(vertices) != 3:
+    return None
+  (ax, ay), (bx, by), (cx, cy) = vertices
+  denominator = (
+    (by - cy) * (ax - cx)
+    + (cx - bx) * (ay - cy)
+  )
+  if not isfinite(denominator) or abs(denominator) <= max(
+    tolerance_m * tolerance_m,
+    1.0e-24,
+  ):
+    return None
+  px, py = point
+  first = (
+    (by - cy) * (px - cx)
+    + (cx - bx) * (py - cy)
+  ) / denominator
+  second = (
+    (cy - ay) * (px - cx)
+    + (ax - cx) * (py - cy)
+  ) / denominator
+  third = 1.0 - first - second
+  if min(first, second, third) < -1.0e-10:
+    return None
+  if max(first, second, third) > 1.0 + 1.0e-10:
+    return None
+  return first, second, third
 
 
 def _failure(
