@@ -2816,11 +2816,25 @@ independently verifies the retained path coverage, handoff, and status. The
 canonical probe therefore demonstrates a real finite-domain coupling seam,
 not a completed reflected free boundary or physical shock-cell chain.
 
+The next seam is now explicit as
+``solve_euler_ambient_first_wedge_entropy_characteristic_free_boundary``. It
+accepts an ambient pressure and outer-angle bracket, consumes the exact
+``POST_SHOCK_FIELD_PERIMETER``, and routes only bounded state/static-pressure
+samples into the ambient-attachment plus centerline-reflection solver. On the
+canonical four-triangle field it records one shock sample and a typed
+``UPSTREAM_FIELD_BOUNDARY`` at sample index 1. Its planner/audit pair preserves
+zero physical chain cells and an explicit external-validation gate. This is
+progress on the coupling contract, not completion of the first physical cell:
+the upstream field must still be enlarged or globally remeshed so the shock,
+ambient, and reflected characteristic paths can close before continued shock
+cell chains are enabled.
+
 Next implementation sequence:
 
-- couple the locally closed characteristic subcells to a solver-owned
-  reflected outer/front boundary and retain a complete physical perimeter;
-- expose that perimeter through the same typed handoff used by continued
+- enlarge or globally remesh the locally closed characteristic subcells so the
+  solver-owned reflected outer/front boundary can retain a complete physical
+  perimeter;
+- preserve that perimeter through the same typed handoff used by continued
   shock-cell planners, with no extrapolation or pressure reset;
 - repeat independent Euler audits over a declared resolution ladder and bind
   indexed external observations before any physical chain-cell promotion;

@@ -1464,3 +1464,26 @@ independently checks the field audit, exact handoff, path coverage, and typed
 boundary status. This is bounded local coupling evidence only: it remains
 below reflected/free-boundary closure, external validation, and physical
 shock-cell promotion.
+
+## Entropy-characteristic reflected/free-boundary probe
+
+The next seam is
+``solve_euler_ambient_first_wedge_entropy_characteristic_free_boundary``. It
+requires an explicit ambient pressure and outer downstream-angle bracket,
+consumes the exact ``POST_SHOCK_FIELD_PERIMETER`` handoff, and routes the
+bounded field samplers through the solver-owned ambient-attachment and
+centerline-reflection path. The result retains the attached-shock march and
+ambient-boundary evidence, including the first missing upstream sample when
+the finite internal field is exhausted.
+
+The canonical four-triangle field reaches one shock sample and then returns
+``UPSTREAM_FIELD_BOUNDARY``. The matching planner probe records one attempt,
+zero continued fields, and zero physical ``MocChainCell`` objects; the
+independent
+``op.moc.euler-ambient-first-wedge-entropy-characteristic-free-boundary-audit``
+rechecks the exact handoff, shock-path coverage, closure status, and fidelity
+flags. A future larger field may pass the same interface, but even a locally
+closed reflected candidate remains below chain promotion until its independent
+Euler/refinement and indexed external-validation gates pass. No result from
+this probe updates the fast/basic visualization, signature, ray-transfer, or
+focal-plane-array providers.

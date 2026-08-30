@@ -389,6 +389,40 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert entropy_characteristic_shock_coupling['coupling']['physical_closure_verified'] is False
   assert entropy_characteristic_shock_coupling['coupling']['chain_promotion_blocked'] is True
   assert entropy_characteristic_shock_coupling['coupling']['production_claim_allowed'] is False
+  entropy_characteristic_free_boundary = report['geometry_cases'][
+    'euler_ambient_first_wedge_entropy_characteristic_free_boundary'
+  ]
+  assert entropy_characteristic_free_boundary['free_boundary']['status'] == (
+    'entropy_characteristic_free_boundary_upstream_field_boundary'
+  )
+  assert entropy_characteristic_free_boundary['free_boundary']['shock']['status'] == (
+    'upstream_field_failure'
+  )
+  assert entropy_characteristic_free_boundary['free_boundary']['covered_sample_count'] == 1
+  assert entropy_characteristic_free_boundary['free_boundary']['first_missing_sample_index'] == 1
+  assert entropy_characteristic_free_boundary['free_boundary']['physical_closure_verified'] is False
+  assert entropy_characteristic_free_boundary['free_boundary']['chain_promotion_blocked'] is True
+  assert entropy_characteristic_free_boundary['planner_probe']['field_count'] == 1
+  assert entropy_characteristic_free_boundary['planner_probe']['continued_field_count'] == 0
+  assert entropy_characteristic_free_boundary['planner_probe']['termination']['reason'] == (
+    'upstream-field-boundary'
+  )
+  assert entropy_characteristic_free_boundary['planner_probe']['diagnostics'][
+    'reflected_free_boundary_attempt_count'
+  ] == 1
+  assert entropy_characteristic_free_boundary['planner_probe']['diagnostics'][
+    'external_validation_required'
+  ] is True
+  assert entropy_characteristic_free_boundary['independent_audit']['status'] == (
+    'converged_euler_ambient_first_wedge_entropy_characteristic_free_boundary_boundary_audit'
+  )
+  assert entropy_characteristic_free_boundary['independent_audit']['local_consistency_verified'] is True
+  assert entropy_characteristic_free_boundary['independent_audit']['incoming_handoff_verified'] is True
+  assert entropy_characteristic_free_boundary['independent_audit']['path_coverage_verified'] is False
+  assert entropy_characteristic_free_boundary['independent_audit']['status_consistent'] is True
+  assert entropy_characteristic_free_boundary['independent_audit']['external_validation_required'] is True
+  assert entropy_characteristic_free_boundary['independent_audit']['fidelity_flags_verified'] is True
+  assert entropy_characteristic_free_boundary['independent_audit']['first_missing_sample_index'] == 1
   assert alternating_physical_chain_refinement['status'] == 'converged'
   assert alternating_physical_chain_refinement['operator_id'] == (
     'op.moc.reflected-domain-alternating-physical-field-chain-refinement'

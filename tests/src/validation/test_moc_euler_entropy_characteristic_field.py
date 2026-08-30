@@ -10,16 +10,19 @@ from exhaust_plume.models.moc import (
   MocEulerAmbientFirstWedgeEntropyCharacteristicFieldStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainMock,
   MocEulerAmbientFirstWedgeEntropyCharacteristicShockCouplingStatus,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryStatus,
   MocEulerAmbientFirstWedgeEntropyCarryStatus,
   assemble_euler_ambient_physical_field,
   plan_euler_ambient_first_wedge_entropy_characteristic_field,
   plan_euler_ambient_first_wedge_entropy_characteristic_field_chain,
   plan_euler_ambient_first_wedge_entropy_characteristic_field_chain_mock,
   plan_euler_ambient_first_wedge_entropy_characteristic_shock_coupling_probe,
+  plan_euler_ambient_first_wedge_entropy_characteristic_free_boundary_probe,
   solve_euler_ambient_first_wedge_characteristic_remesh,
   solve_euler_ambient_first_wedge_entropy_carry,
   solve_euler_ambient_first_wedge_entropy_characteristic_field,
   solve_euler_ambient_first_wedge_entropy_characteristic_shock_coupling,
+  solve_euler_ambient_first_wedge_entropy_characteristic_free_boundary,
   solve_attached_compression_to_turn,
   fit_euler_consistent_shock_boundary,
 )
@@ -27,9 +30,11 @@ from exhaust_plume.validation import (
   MocEulerAmbientFirstWedgeEntropyCharacteristicFieldAuditStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainAuditStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicShockCouplingAuditStatus,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryAuditStatus,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_field,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_field_chain,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_shock_coupling,
+  measure_moc_euler_ambient_first_wedge_entropy_characteristic_free_boundary,
 )
 
 
@@ -247,6 +252,100 @@ def test_internal_entropy_characteristic_shock_coupling_has_independent_audit() 
   assert audit.termination_reason == (
     MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY.value
   )
+
+
+def test_internal_entropy_characteristic_free_boundary_stops_at_bounded_field() -> None:
+  _, field = _internal_field()
+  handoff = field.continuation_boundary
+  start = handoff[0]
+  ambient_pressure = field.static_pressure_at(start.point_m)
+  assert ambient_pressure is not None
+  attempt = solve_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
+    field,
+    handoff,
+    start.point_m,
+    ambient_pressure,
+    start.state.theta_rad - 1.0e-6,
+    start.state.theta_rad + 1.0e-6,
+    sample_count=9,
+    position_tolerance_m=1.0e-8,
+    allow_zero_strength_attachment=True,
+  )
+
+  assert attempt.status is (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryStatus
+    .UPSTREAM_FIELD_BOUNDARY
+  )
+  assert attempt.physical_field is not None
+  assert attempt.physical_field.ambient_attachment is not None
+  assert attempt.shock is not None
+  assert attempt.shock.status.value == 'upstream_field_failure'
+  assert attempt.shock_sample_count == 1
+  assert attempt.covered_sample_count == 1
+  assert attempt.first_missing_sample_index == 1
+  assert attempt.path_coverage_verified is False
+  assert attempt.reflected_free_boundary_verified is False
+  assert attempt.physical_closure_verified is False
+  assert attempt.chain_promotion_blocked
+  assert attempt.production_claim_allowed is False
+  assert attempt.as_chain_termination_decision().reason is (
+    MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+  )
+
+
+def test_internal_entropy_characteristic_free_boundary_planner_and_audit_keep_stop_typed() -> None:
+  _, field = _internal_field()
+  start = field.continuation_boundary[0]
+  ambient_pressure = field.static_pressure_at(start.point_m)
+  assert ambient_pressure is not None
+  planner = plan_euler_ambient_first_wedge_entropy_characteristic_free_boundary_probe(
+    field,
+    ambient_pressure_Pa=ambient_pressure,
+    outer_downstream_flow_angle_lower_rad=start.state.theta_rad - 1.0e-6,
+    outer_downstream_flow_angle_upper_rad=start.state.theta_rad + 1.0e-6,
+    sample_count=9,
+    position_tolerance_m=1.0e-8,
+    allow_zero_strength_attachment=True,
+  )
+  attempt = solve_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
+    field,
+    field.continuation_boundary,
+    start.point_m,
+    ambient_pressure,
+    start.state.theta_rad - 1.0e-6,
+    start.state.theta_rad + 1.0e-6,
+    sample_count=9,
+    position_tolerance_m=1.0e-8,
+    allow_zero_strength_attachment=True,
+  )
+  audit = measure_moc_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
+    attempt,
+    position_tolerance_m=1.0e-8,
+  )
+
+  assert planner.field_count == 1
+  assert planner.continued_field_count == 0
+  assert planner.termination.reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+  assert planner.termination.physical_termination is False
+  assert planner.diagnostics['reflected_free_boundary_attempt_count'] == 1
+  assert planner.diagnostics['external_validation_required'] is True
+  assert planner.diagnostics['synthetic_downstream_field_created'] is False
+  assert audit.status is (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryAuditStatus
+    .CONVERGED_LOCAL_BOUNDARY_AUDIT
+  )
+  assert audit.local_consistency_verified
+  assert audit.incoming_handoff_verified
+  assert audit.path_coverage_verified is False
+  assert audit.status_consistent
+  assert audit.external_validation_required
+  assert audit.fidelity_flags_verified
+  assert audit.shock_sample_count == 1
+  assert audit.covered_sample_count == 1
+  assert audit.first_missing_sample_index == 1
+  assert audit.physical_closure_verified is False
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False
 
 
 def test_internal_entropy_characteristic_field_has_independent_audit() -> None:

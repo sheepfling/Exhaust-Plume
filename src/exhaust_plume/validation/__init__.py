@@ -310,6 +310,12 @@ from exhaust_plume.validation.moc_euler_entropy_characteristic_coupling import (
   MocEulerAmbientFirstWedgeEntropyCharacteristicShockCouplingAudit,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_shock_coupling,
 )
+from exhaust_plume.validation.moc_euler_entropy_characteristic_free_boundary import (
+  MOC_EULER_AMBIENT_FIRST_WEDGE_ENTROPY_CHARACTERISTIC_FREE_BOUNDARY_AUDIT_OPERATOR_ID,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryAuditStatus,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryAudit,
+  measure_moc_euler_ambient_first_wedge_entropy_characteristic_free_boundary,
+)
 from exhaust_plume.validation.lane_contracts import (
   SignatureLaneInvariantReport,
   VisualLaneInvariantReport,
@@ -545,6 +551,10 @@ __all__ = (
   'MocEulerAmbientFirstWedgeEntropyCharacteristicShockCouplingAuditStatus',
   'MocEulerAmbientFirstWedgeEntropyCharacteristicShockCouplingAudit',
   'measure_moc_euler_ambient_first_wedge_entropy_characteristic_shock_coupling',
+  'MOC_EULER_AMBIENT_FIRST_WEDGE_ENTROPY_CHARACTERISTIC_FREE_BOUNDARY_AUDIT_OPERATOR_ID',
+  'MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryAuditStatus',
+  'MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryAudit',
+  'measure_moc_euler_ambient_first_wedge_entropy_characteristic_free_boundary',
   'SignatureLaneInvariantReport',
   'VisualLaneInvariantReport',
   'MACH_DISK_FEATURE_OPERATOR_ID',

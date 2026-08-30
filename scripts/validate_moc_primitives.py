@@ -73,6 +73,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocEulerAmbientShockFieldChainMock,
   MocEulerAmbientPhysicalFieldStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicShockCouplingStatus,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryStatus,
   MocFreeBoundaryShockStatus,
   plan_euler_ambient_first_wedge_remesh_mock,
   plan_euler_ambient_first_wedge_characteristic_remesh,
@@ -81,6 +82,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   plan_euler_ambient_first_wedge_entropy_characteristic_field,
   plan_euler_ambient_first_wedge_entropy_characteristic_field_chain_mock,
   plan_euler_ambient_first_wedge_entropy_characteristic_shock_coupling_probe,
+  plan_euler_ambient_first_wedge_entropy_characteristic_free_boundary_probe,
   MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainMock,
   plan_euler_ambient_first_wedge_entropy_carry_refinement,
   MocEulerPostShockFieldStatus,
@@ -89,6 +91,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocEulerCompanionFieldStatus,
   solve_euler_ambient_companion_boundary_reference,
   solve_euler_ambient_first_wedge_entropy_characteristic_shock_coupling,
+  solve_euler_ambient_first_wedge_entropy_characteristic_free_boundary,
   MocEulerShockBoundaryOrientation,
   assemble_euler_ambient_shock_field,
   assemble_euler_ambient_shock_field_from_companion,
@@ -364,6 +367,10 @@ from exhaust_plume.validation.moc_euler_entropy_characteristic_chain import (  #
 from exhaust_plume.validation.moc_euler_entropy_characteristic_coupling import (  # noqa: E402
   MocEulerAmbientFirstWedgeEntropyCharacteristicShockCouplingAuditStatus,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_shock_coupling,
+)
+from exhaust_plume.validation.moc_euler_entropy_characteristic_free_boundary import (  # noqa: E402
+  MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryAuditStatus,
+  measure_moc_euler_ambient_first_wedge_entropy_characteristic_free_boundary,
 )
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput  # noqa: E402
 from exhaust_plume.models.nozzle.exit_state import derive_ambient_state, derive_uniform_nozzle_exit  # noqa: E402
@@ -10238,6 +10245,78 @@ def build_moc_primitive_report() -> dict[str, Any]:
       position_tolerance_m=1.0e-8,
     )
   )
+  entropy_characteristic_field = (
+    None
+    if euler_ambient_first_wedge_entropy_characteristic_field_planner is None
+    else euler_ambient_first_wedge_entropy_characteristic_field_planner.field
+  )
+  entropy_characteristic_handoff = (
+    None
+    if entropy_characteristic_field is None
+    else entropy_characteristic_field.continuation_boundary
+  )
+  entropy_characteristic_free_boundary_start = (
+    None
+    if not entropy_characteristic_handoff
+    else entropy_characteristic_handoff[0]
+  )
+  entropy_characteristic_free_boundary_ambient_pressure = (
+    None
+    if entropy_characteristic_field is None
+    or entropy_characteristic_free_boundary_start is None
+    else entropy_characteristic_field.static_pressure_at(
+      entropy_characteristic_free_boundary_start.point_m,
+      position_tolerance_m=1.0e-8,
+    )
+  )
+  euler_ambient_first_wedge_entropy_characteristic_free_boundary = (
+    None
+    if entropy_characteristic_field is None
+    or not entropy_characteristic_handoff
+    or entropy_characteristic_free_boundary_start is None
+    or entropy_characteristic_free_boundary_ambient_pressure is None
+    else solve_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
+      entropy_characteristic_field,
+      entropy_characteristic_handoff,
+      entropy_characteristic_free_boundary_start.point_m,
+      entropy_characteristic_free_boundary_ambient_pressure,
+      entropy_characteristic_free_boundary_start.state.theta_rad - 1.0e-6,
+      entropy_characteristic_free_boundary_start.state.theta_rad + 1.0e-6,
+      sample_count=9,
+      position_tolerance_m=1.0e-8,
+      allow_zero_strength_attachment=True,
+    )
+  )
+  euler_ambient_first_wedge_entropy_characteristic_free_boundary_planner = (
+    None
+    if entropy_characteristic_field is None
+    or entropy_characteristic_free_boundary_ambient_pressure is None
+    else plan_euler_ambient_first_wedge_entropy_characteristic_free_boundary_probe(
+      entropy_characteristic_field,
+      ambient_pressure_Pa=entropy_characteristic_free_boundary_ambient_pressure,
+      outer_downstream_flow_angle_lower_rad=(
+        entropy_characteristic_free_boundary_start.state.theta_rad - 1.0e-6
+        if entropy_characteristic_free_boundary_start is not None
+        else 0.0
+      ),
+      outer_downstream_flow_angle_upper_rad=(
+        entropy_characteristic_free_boundary_start.state.theta_rad + 1.0e-6
+        if entropy_characteristic_free_boundary_start is not None
+        else 1.0e-6
+      ),
+      sample_count=9,
+      position_tolerance_m=1.0e-8,
+      allow_zero_strength_attachment=True,
+    )
+  )
+  euler_ambient_first_wedge_entropy_characteristic_free_boundary_audit = (
+    None
+    if euler_ambient_first_wedge_entropy_characteristic_free_boundary is None
+    else measure_moc_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
+      euler_ambient_first_wedge_entropy_characteristic_free_boundary,
+      position_tolerance_m=1.0e-8,
+    )
+  )
   euler_ambient_first_wedge_remesh_refinement = (
     measure_moc_euler_ambient_first_wedge_remesh_refinement(
       tuple(
@@ -10719,6 +10798,28 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'solver-generated-bounded-entropy-characteristic-shock-coupling-probe; '
         'the finite upstream field boundary is explicit; reflected free-boundary '
         'closure, external validation, and physical shock-cell promotion pending'
+      ),
+    },
+    'euler_ambient_first_wedge_entropy_characteristic_free_boundary': {
+      'free_boundary': (
+        None
+        if euler_ambient_first_wedge_entropy_characteristic_free_boundary is None
+        else euler_ambient_first_wedge_entropy_characteristic_free_boundary.as_report()
+      ),
+      'planner_probe': (
+        None
+        if euler_ambient_first_wedge_entropy_characteristic_free_boundary_planner is None
+        else euler_ambient_first_wedge_entropy_characteristic_free_boundary_planner.as_report()
+      ),
+      'independent_audit': (
+        None
+        if euler_ambient_first_wedge_entropy_characteristic_free_boundary_audit is None
+        else euler_ambient_first_wedge_entropy_characteristic_free_boundary_audit.as_report()
+      ),
+      'claim_status': (
+        'solver-generated-bounded-entropy-characteristic-reflected-free-'
+        'boundary probe; field boundary, independent refinement, external '
+        'validation, and physical shock-cell promotion remain explicit gates'
       ),
     },
     'attached_turn_compression_foundation': {
@@ -11889,6 +11990,61 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or not euler_ambient_first_wedge_entropy_characteristic_shock_coupling_audit.chain_promotion_blocked
     or euler_ambient_first_wedge_entropy_characteristic_shock_coupling_audit.production_claim_allowed
   )
+  euler_ambient_first_wedge_entropy_characteristic_free_boundary_failure = (
+    euler_ambient_first_wedge_entropy_characteristic_free_boundary is None
+    or euler_ambient_first_wedge_entropy_characteristic_free_boundary.status
+    is not MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryStatus.UPSTREAM_FIELD_BOUNDARY
+    or euler_ambient_first_wedge_entropy_characteristic_free_boundary.shock is None
+    or euler_ambient_first_wedge_entropy_characteristic_free_boundary.shock.status
+    is not MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE
+    or euler_ambient_first_wedge_entropy_characteristic_free_boundary.shock_sample_count
+    != 1
+    or euler_ambient_first_wedge_entropy_characteristic_free_boundary.covered_sample_count
+    != 1
+    or euler_ambient_first_wedge_entropy_characteristic_free_boundary.first_missing_sample_index
+    != 1
+    or euler_ambient_first_wedge_entropy_characteristic_free_boundary.path_coverage_verified
+    or euler_ambient_first_wedge_entropy_characteristic_free_boundary.reflected_free_boundary_verified
+    or euler_ambient_first_wedge_entropy_characteristic_free_boundary.physical_closure_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_free_boundary.chain_promotion_blocked
+    or euler_ambient_first_wedge_entropy_characteristic_free_boundary.production_claim_allowed
+    or euler_ambient_first_wedge_entropy_characteristic_free_boundary_planner is None
+    or euler_ambient_first_wedge_entropy_characteristic_free_boundary_planner.field_count != 1
+    or euler_ambient_first_wedge_entropy_characteristic_free_boundary_planner.continued_field_count != 0
+    or euler_ambient_first_wedge_entropy_characteristic_free_boundary_planner.termination.reason
+    is not MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+    or euler_ambient_first_wedge_entropy_characteristic_free_boundary_planner.termination.physical_termination
+    or euler_ambient_first_wedge_entropy_characteristic_free_boundary_planner.physical_chain_cell_count
+    != 0
+    or euler_ambient_first_wedge_entropy_characteristic_free_boundary_planner.physical_closure_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_free_boundary_planner.chain_promotion_blocked
+    or euler_ambient_first_wedge_entropy_characteristic_free_boundary_planner.production_claim_allowed
+    or euler_ambient_first_wedge_entropy_characteristic_free_boundary_planner.diagnostics.get(
+      'reflected_free_boundary_attempt_count'
+    ) != 1
+    or euler_ambient_first_wedge_entropy_characteristic_free_boundary_planner.diagnostics.get(
+      'external_validation_required'
+    ) is not True
+    or euler_ambient_first_wedge_entropy_characteristic_free_boundary_planner.diagnostics.get(
+      'synthetic_downstream_field_created'
+    ) is not False
+    or euler_ambient_first_wedge_entropy_characteristic_free_boundary_audit is None
+    or euler_ambient_first_wedge_entropy_characteristic_free_boundary_audit.status
+    is not MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryAuditStatus.CONVERGED_LOCAL_BOUNDARY_AUDIT
+    or not euler_ambient_first_wedge_entropy_characteristic_free_boundary_audit.local_consistency_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_free_boundary_audit.incoming_handoff_verified
+    or euler_ambient_first_wedge_entropy_characteristic_free_boundary_audit.path_coverage_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_free_boundary_audit.status_consistent
+    or not euler_ambient_first_wedge_entropy_characteristic_free_boundary_audit.external_validation_required
+    or not euler_ambient_first_wedge_entropy_characteristic_free_boundary_audit.fidelity_flags_verified
+    or euler_ambient_first_wedge_entropy_characteristic_free_boundary_audit.covered_sample_count
+    != 1
+    or euler_ambient_first_wedge_entropy_characteristic_free_boundary_audit.first_missing_sample_index
+    != 1
+    or euler_ambient_first_wedge_entropy_characteristic_free_boundary_audit.physical_closure_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_free_boundary_audit.chain_promotion_blocked
+    or euler_ambient_first_wedge_entropy_characteristic_free_boundary_audit.production_claim_allowed
+  )
   euler_companion_field_planner_failure = (
     euler_companion_field_planner.planner_kind is not MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
     or not euler_companion_field_planner.resolved
@@ -12258,6 +12414,21 @@ def build_moc_primitive_report() -> dict[str, Any]:
         ),
       }
     ] if euler_ambient_first_wedge_entropy_characteristic_shock_coupling_failure else []),
+    *([
+      {
+        'case': 'euler_ambient_first_wedge_entropy_characteristic_free_boundary',
+        'status': (
+          'missing'
+          if euler_ambient_first_wedge_entropy_characteristic_free_boundary_audit is None
+          else euler_ambient_first_wedge_entropy_characteristic_free_boundary_audit.status.value
+        ),
+        'message': (
+          'the reflected/free-boundary entropy-characteristic probe did not '
+          'preserve its bounded shock stop, exact handoff, independent audit, '
+          'and non-promotion barrier'
+        ),
+      }
+    ] if euler_ambient_first_wedge_entropy_characteristic_free_boundary_failure else []),
     *([
       {
         'case': 'euler_solver_owned_ambient_companion_boundary',
@@ -13641,8 +13812,8 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'assemble a downstream physical characteristic field on the correct side of the locally Euler-consistent shock Cauchy curve',
       'replace the bounded solver-owned companion-boundary reference with a globally coupled Euler/free-boundary field and close its ambient/reflected boundary conditions',
       'implement an attachment-aware exact-Euler first interior wedge/remesh; the generic paired-node stencil cannot start at the shared shock/ambient point',
-      'add entropy transport for variable post-shock total-pressure lineages before allowing exact-Euler field continuation',
-      'couple the locally closed entropy-carrying characteristic subcell field to a reflected free-boundary solve before allowing physical chain promotion',
+      'extend the bounded entropy transport and local field sampler into a globally coupled reflected/free-boundary continuation before allowing exact-Euler field promotion',
+      'close the reflected/free-boundary entropy-characteristic probe across the finite upstream-field frontier before allowing physical chain promotion',
       'production next-cell shock fitting that consumes the typed state/total-pressure handoff without a geometric template',
       'grid/refinement convergence for the assembled reflected zone and mild attached-overexpanded cases',
       'external measurement-operator comparison using the independent MOC extraction before provider integration',
