@@ -37,7 +37,9 @@ from exhaust_plume.models.moc.reflected_domain import (
   MocReflectedDomainAlternatingSourceResult,
   MocReflectedDomainRemeshResult,
   MocReflectedDomainSolverOwnedFirstCellResult,
+  MocReflectedDomainGlobalShockRemeshStatus,
   MocReflectedDomainGlobalShockRemeshResult,
+  MocReflectedDomainGlobalEulerShockBoundaryStatus,
   MocReflectedDomainGlobalEulerShockBoundaryResult,
   solve_reflected_domain_solver_owned_first_cell,
   solve_reflected_domain_global_shock_remesh,
@@ -329,6 +331,8 @@ __all__ = (
   'plan_reflected_domain_global_shock_remesh_chain',
   'plan_reflected_domain_global_shock_remesh_chain_from_physical_field',
   'plan_reflected_domain_global_euler_continued_chain_reference',
+  'MocGlobalEulerContinuedChainReference',
+  'plan_reflected_domain_global_euler_continued_chain',
   'plan_first_cell_geometry_owned_alternating_research_chain',
   'plan_caustic_simple_wave_terminal_chain',
   'plan_caustic_remesh_downstream_field_chain',
@@ -6515,6 +6519,208 @@ class MocTerminalReflectionPatchAmbientClosureChainReference:
       polarity_aware=self.polarity_aware,
       compression_amplitude_rad=self.compression_amplitude_rad,
     )
+  ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocGlobalEulerContinuedChainReference:
+  """Configuration for fresh global-Euler continuation experiments.
+
+  The first field is supplied by a locally audited global-Euler closure.  Each
+  later field is rebuilt from the accepted field's finite shock/ambient strip,
+  a reflected centerline patch, and a new alternating source band before the
+  global remesh and exact-Euler closure are rerun.  This is intentionally a
+  research reference: the canonical reflected free boundary, entropy/mixed-
+  regime closure, indexed validation, and production promotion remain closed
+  gates.
+  """
+
+  total_cell_count: int = 3
+  source_sample_count: int = 6
+  outer_source_indices: tuple[int, ...] = (0,)
+  target_centerline_indices: tuple[int, ...] = (1,)
+  compression_amplitude_lower_rad: float = 0.007
+  compression_amplitude_upper_rad: float = 0.05
+  compression_envelope_skews: tuple[float, ...] = (-0.75,)
+  closure_tolerance_m: float = 1.0e-6
+  sample_count: int = 9
+  branch: ShockBranch = ShockBranch.WEAK
+  trace_position_tolerance_m: float = 1.0e-3
+  trace_forward_tolerance_m: float = 1.0e-4
+  trace_invariant_tolerance: float = 1.0e-10
+  position_tolerance_m: float = 1.0e-9
+  invariant_tolerance: float = 1.0e-10
+  attachment_pressure_tolerance: float = 1.0e-8
+  pressure_tolerance: float = 1.0e-8
+  tangent_tolerance: float = 1.0e-8
+  shock_angle_tolerance_rad: float = 2.0e-2
+  euler_reconciliation_shock_angle_tolerance_rad: float = 1.0e-8
+  euler_reconciliation_residual_tolerance: float = 1.0e-8
+  maximum_source_iterations: int = 16
+  maximum_segment_iterations: int = 24
+  maximum_boundary_iterations: int = 16
+  maximum_shooting_iterations: int = 40
+  maximum_bracket_scan_samples: int = 0
+  maximum_attempts: int = 64
+  model: str = 'solver-generated-global-euler-fresh-source-continued-chain-reference'
+
+  def __post_init__(self) -> None:
+    for name in ('total_cell_count', 'source_sample_count', 'sample_count'):
+      value = getattr(self, name)
+      minimum = 3 if name in ('source_sample_count', 'sample_count') else 1
+      if (
+        isinstance(value, bool)
+        or not isinstance(value, int)
+        or value < minimum
+      ):
+        if name == 'total_cell_count':
+          message = 'total_cell_count must be a positive integer'
+        else:
+          message = f'{name} must be an integer of at least three'
+        raise ValueError(message)
+    if not isinstance(self.branch, ShockBranch):
+      raise TypeError('branch must be a ShockBranch')
+
+    for name in ('outer_source_indices', 'target_centerline_indices'):
+      try:
+        values = tuple(getattr(self, name))
+      except TypeError as error:
+        raise TypeError(f'{name} must be an iterable of integers') from error
+      if not values or any(
+        isinstance(value, bool) or not isinstance(value, int) or value < 0
+        for value in values
+      ):
+        raise ValueError(
+          f'{name} must contain at least one unique nonnegative integer'
+        )
+      if len(set(values)) != len(values):
+        raise ValueError(f'{name} must contain unique indices')
+      object.__setattr__(self, name, values)
+
+    try:
+      skews = tuple(float(value) for value in self.compression_envelope_skews)
+    except (TypeError, ValueError) as error:
+      raise ValueError(
+        'compression_envelope_skews must be an iterable of numeric values'
+      ) from error
+    if not skews or any(not isfinite(value) or abs(value) > 1.0 for value in skews):
+      raise ValueError(
+        'compression_envelope_skews must contain finite values within [-1, 1]'
+      )
+    if len(set(skews)) != len(skews):
+      raise ValueError('compression_envelope_skews must contain unique values')
+    object.__setattr__(self, 'compression_envelope_skews', skews)
+
+    for name in (
+      'compression_amplitude_lower_rad',
+      'compression_amplitude_upper_rad',
+      'closure_tolerance_m',
+      'trace_position_tolerance_m',
+      'trace_forward_tolerance_m',
+      'trace_invariant_tolerance',
+      'position_tolerance_m',
+      'invariant_tolerance',
+      'attachment_pressure_tolerance',
+      'pressure_tolerance',
+      'tangent_tolerance',
+      'shock_angle_tolerance_rad',
+      'euler_reconciliation_shock_angle_tolerance_rad',
+      'euler_reconciliation_residual_tolerance',
+    ):
+      try:
+        value = float(getattr(self, name))
+      except (TypeError, ValueError) as error:
+        raise ValueError(f'{name} must be finite and positive') from error
+      if not isfinite(value) or value <= 0.0:
+        raise ValueError(f'{name} must be finite and positive')
+      object.__setattr__(self, name, value)
+    if (
+      self.compression_amplitude_lower_rad
+      >= self.compression_amplitude_upper_rad
+    ):
+      raise ValueError(
+        'compression amplitude lower bound must be below its upper bound'
+      )
+
+    for name in (
+      'maximum_source_iterations',
+      'maximum_segment_iterations',
+      'maximum_boundary_iterations',
+      'maximum_shooting_iterations',
+      'maximum_attempts',
+    ):
+      value = getattr(self, name)
+      if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError(f'{name} must be a positive integer')
+    if (
+      isinstance(self.maximum_bracket_scan_samples, bool)
+      or not isinstance(self.maximum_bracket_scan_samples, int)
+      or self.maximum_bracket_scan_samples < 0
+    ):
+      raise ValueError('maximum_bracket_scan_samples must be a nonnegative integer')
+    model = str(self.model)
+    if not model:
+      raise ValueError('model must be a non-empty string')
+    object.__setattr__(self, 'model', model)
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'model': self.model,
+      'planning_only': True,
+      'production_claim_allowed': False,
+      'chain_promotion_blocked': True,
+      'physical_chain_promotion_allowed': False,
+      'total_cell_count_including_seed': self.total_cell_count,
+      'source_sample_count': self.source_sample_count,
+      'outer_source_indices': self.outer_source_indices,
+      'target_centerline_indices': self.target_centerline_indices,
+      'compression_amplitude_bracket': (
+        self.compression_amplitude_lower_rad,
+        self.compression_amplitude_upper_rad,
+      ),
+      'compression_envelope_skews': self.compression_envelope_skews,
+      'closure_tolerance_m': self.closure_tolerance_m,
+      'sample_count': self.sample_count,
+      'branch': self.branch.value,
+      'trace_position_tolerance_m': self.trace_position_tolerance_m,
+      'trace_forward_tolerance_m': self.trace_forward_tolerance_m,
+      'trace_invariant_tolerance': self.trace_invariant_tolerance,
+      'position_tolerance_m': self.position_tolerance_m,
+      'invariant_tolerance': self.invariant_tolerance,
+      'attachment_pressure_tolerance': self.attachment_pressure_tolerance,
+      'pressure_tolerance': self.pressure_tolerance,
+      'tangent_tolerance': self.tangent_tolerance,
+      'shock_angle_tolerance_rad': self.shock_angle_tolerance_rad,
+      'euler_reconciliation_shock_angle_tolerance_rad': (
+        self.euler_reconciliation_shock_angle_tolerance_rad
+      ),
+      'euler_reconciliation_residual_tolerance': (
+        self.euler_reconciliation_residual_tolerance
+      ),
+      'maximum_source_iterations': self.maximum_source_iterations,
+      'maximum_segment_iterations': self.maximum_segment_iterations,
+      'maximum_boundary_iterations': self.maximum_boundary_iterations,
+      'maximum_shooting_iterations': self.maximum_shooting_iterations,
+      'maximum_bracket_scan_samples': self.maximum_bracket_scan_samples,
+      'maximum_attempts': self.maximum_attempts,
+      'source_model': (
+        'fresh-open-shock-ambient-strip -> terminal-reflection-centerline-patch '
+        '-> newly-solved-alternating-source-band'
+      ),
+      'continuation_model': (
+        'fresh-source-band -> bounded-global-shock-remesh -> '
+        'exact-global-euler-ambient-closed-field'
+      ),
+      'intercell_bridge_model': (
+        'previous-ambient-endpoint -> reflected-patch/source-band -> '
+        'next-shock-and-ambient-attachment'
+      ),
+      'claim_status': (
+        'global-exact-euler-fresh-source-continued-chain-reference; '
+        'canonical-reflected-free-boundary-and-external-validation-pending'
+      ),
+    }
   ####
 
 
@@ -17438,6 +17644,882 @@ def plan_reflected_domain_global_euler_continued_chain_reference(
     claim_status=(
       'global-exact-euler-seed-to-terminal-reflection-patch-chain-reference; '
       'canonical-reflected-free-boundary-and-external-validation-pending'
+    ),
+    diagnostics=diagnostics,
+  )
+####
+
+
+def plan_reflected_domain_global_euler_continued_chain(
+  global_result: MocReflectedDomainGlobalEulerShockBoundaryResult,
+  *,
+  start_x_m: float,
+  end_x_m: float,
+  reference: MocGlobalEulerContinuedChainReference | None = None,
+  policy: MocChainContinuationPolicy | None = None,
+) -> MocChainPlannerResult:
+  """Re-solve a bounded exact-Euler field for every continued chain cell.
+
+  This lane is deliberately distinct from
+  :func:`plan_reflected_domain_global_euler_continued_chain_reference`.  The
+  older adapter changes fidelity after its seed and is retained as a lower
+  cost reference.  This planner instead derives a fresh source strip, closed
+  reflection patch, alternating source band, global shock remesh, and exact
+  Euler field for each accepted downstream cell.
+
+  The physical fields are promoted into the resolved-chain contract only
+  after their local independent audits pass.  The gap between two field
+  meshes is retained as an explicit reflected/source bridge and audited by
+  the physical-field chain measurement; it is never treated as an implicit
+  direct interface.  The result remains research-only and cannot update a
+  lower-fidelity product provider.
+  """
+
+  if not isinstance(
+    global_result,
+    MocReflectedDomainGlobalEulerShockBoundaryResult,
+  ):
+    raise TypeError(
+      'global_result must be a '
+      'MocReflectedDomainGlobalEulerShockBoundaryResult'
+    )
+  fixture = (
+    MocGlobalEulerContinuedChainReference()
+    if reference is None
+    else reference
+  )
+  if not isinstance(fixture, MocGlobalEulerContinuedChainReference):
+    raise TypeError(
+      'reference must be a MocGlobalEulerContinuedChainReference or None'
+    )
+  if not isfinite(float(start_x_m)) or not isfinite(float(end_x_m)):
+    raise ValueError('start_x_m and end_x_m must be finite')
+  start = float(start_x_m)
+  requested_end = float(end_x_m)
+  if requested_end <= start:
+    raise ValueError('end_x_m must be strictly downstream of start_x_m')
+  if not global_result.converged or not global_result.physical_closure_verified:
+    raise ValueError(
+      'global Euler continued chain requires a locally converged global '
+      f'field: {global_result.message}'
+    )
+  physical_result = global_result.physical_field
+  if physical_result is None or physical_result.field is None:
+    raise ValueError(
+      'global Euler continued chain requires a retained physical field'
+    )
+  if not physical_result.state_sampling_available:
+    raise ValueError(
+      'global Euler continued chain requires bounded state sampling on the '
+      'seed field'
+    )
+  if policy is not None and not isinstance(policy, MocChainContinuationPolicy):
+    raise TypeError('policy must be a MocChainContinuationPolicy or None')
+
+  from exhaust_plume.validation.moc_measurements import (
+    measure_moc_ambient_closed_physical_field_chain,
+    measure_moc_chain_planner,
+    measure_moc_reflected_domain_alternating_source,
+    measure_moc_reflected_domain_global_euler_shock_boundary,
+    measure_moc_reflected_domain_global_shock_remesh,
+  )
+
+  try:
+    seed_measurement = measure_moc_reflected_domain_global_euler_shock_boundary(
+      global_result,
+      position_tolerance_m=fixture.position_tolerance_m,
+      invariant_tolerance=fixture.invariant_tolerance,
+      pressure_tolerance=fixture.pressure_tolerance,
+      tangent_tolerance=fixture.tangent_tolerance,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    raise ValueError(
+      f'global Euler continued-chain seed independent measurement raised: {error}'
+    ) from error
+  if not (
+    seed_measurement.converged
+    and seed_measurement.local_euler_consistency_verified
+    and seed_measurement.incoming_handoff_verified
+    and seed_measurement.physical_closure_verified
+    and seed_measurement.fidelity_isolation_verified
+    and seed_measurement.chain_promotion_blocked
+    and not seed_measurement.production_claim_allowed
+  ):
+    raise ValueError(
+      'global Euler continued chain requires a passing independent local '
+      'field audit before continuation'
+    )
+
+  seed_field = physical_result.field
+  seed_ambient_points = tuple(seed_field.ambient_boundary_points_m)
+  if not seed_ambient_points:
+    raise ValueError(
+      'global Euler continued chain seed must expose an ambient boundary'
+    )
+  seed_end_x = float(seed_ambient_points[-1][0])
+  if not isfinite(seed_end_x) or seed_end_x <= start:
+    raise ValueError(
+      'global Euler continued chain seed ambient endpoint must be downstream '
+      'of start_x_m'
+    )
+  if requested_end <= seed_end_x:
+    raise ValueError(
+      'end_x_m must extend beyond the retained global Euler seed endpoint'
+    )
+
+  def point_matches(
+    first: Sequence[float],
+    second: Sequence[float],
+    tolerance: float,
+  ) -> bool:
+    try:
+      return bool(
+        len(first) == 2
+        and len(second) == 2
+        and abs(float(first[0]) - float(second[0])) <= tolerance
+        and abs(float(first[1]) - float(second[1])) <= tolerance
+      )
+    except (IndexError, TypeError, ValueError):
+      return False
+
+  def field_handoff(
+    field: MocPhysicalPostShockFieldResult,
+  ) -> tuple[MocChainBoundarySample, ...]:
+    try:
+      return tuple(
+        MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
+        for state, pressure in zip(
+          field.centerline_boundary_states,
+          field.centerline_boundary_total_pressure_Pa,
+          strict=True,
+        )
+      )
+    except (TypeError, ValueError):
+      return ()
+
+  def as_report(value: Any | None) -> dict[str, Any] | None:
+    return None if value is None else value.as_report()
+
+  captured_fields: list[MocPhysicalPostShockFieldResult] = [seed_field]
+  bridge_endpoints: list[tuple[tuple[float, float], tuple[float, float]]] = []
+  source_bands: list[MocReflectedDomainAlternatingSourceResult] = []
+  global_remeshes: list[MocReflectedDomainGlobalShockRemeshResult] = []
+  global_euler_fields: list[
+    MocReflectedDomainGlobalEulerShockBoundaryResult
+  ] = []
+  step_reports: list[dict[str, Any]] = []
+  used_source_fingerprints: set[str] = set()
+  active_field = seed_field
+  terminal_decision_report: dict[str, Any] | None = None
+
+  def stop(
+    next_cell_index: int,
+    reason: MocChainTerminationReason,
+    message: str,
+    *,
+    step: dict[str, Any] | None = None,
+    diagnostics: dict[str, Any] | None = None,
+  ) -> MocChainTerminationDecision:
+    nonlocal terminal_decision_report
+    if step is not None:
+      step['accepted'] = False
+      step['termination_reason'] = reason.value
+      step['message'] = message
+    payload: dict[str, Any] = {
+      'termination_model': fixture.model,
+      'next_cell_index': next_cell_index,
+      'chain_promotion_blocked': True,
+      'production_claim_allowed': False,
+      'fidelity_transition': (
+        'global-exact-euler-seed -> global-exact-euler-fresh-source-continuation'
+      ),
+      'intercell_bridge_model': (
+        'previous-ambient-endpoint -> reflected-patch/source-band -> '
+        'next-shock-and-ambient-attachment'
+      ),
+    }
+    if diagnostics is not None:
+      payload.update(diagnostics)
+    decision = MocChainTerminationDecision(
+      physical_termination=False,
+      reason=reason,
+      message=message,
+      diagnostics=payload,
+    )
+    terminal_decision_report = decision.as_report()
+    return decision
+
+  def solve_next(
+    current: MocChainCell,
+    next_cell_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+  ) -> MocPhysicalPostShockFieldContinuationSolve | MocChainTerminationDecision:
+    nonlocal active_field
+    if next_cell_index > fixture.total_cell_count:
+      return stop(
+        next_cell_index,
+        MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
+        (
+          'global exact-Euler fresh-source chain reference exhausted its '
+          f'{fixture.total_cell_count}-cell research configuration'
+        ),
+      )
+
+    step: dict[str, Any] = {
+      'current_cell_index': current.cell_index,
+      'next_cell_index': next_cell_index,
+      'incoming_handoff_sample_count': len(incoming_handoff),
+      'incoming_handoff_fingerprint': _handoff_fingerprint(incoming_handoff),
+      'source_strip': None,
+      'reflection_patch': None,
+      'source_band': None,
+      'source_band_measurement': None,
+      'source_band_fingerprint': None,
+      'global_shock_remesh': None,
+      'global_shock_remesh_measurement': None,
+      'global_euler': None,
+      'global_euler_measurement': None,
+      'intercell_bridge': None,
+      'accepted': False,
+    }
+    step_reports.append(step)
+
+    if current.cell_index != len(captured_fields):
+      return stop(
+        next_cell_index,
+        MocChainTerminationReason.STATE_NOT_CARRIED,
+        'global Euler continuation lost its accepted-field sequence',
+        step=step,
+      )
+    if incoming_handoff != current.continuation_boundary:
+      return stop(
+        next_cell_index,
+        MocChainTerminationReason.STATE_NOT_CARRIED,
+        'global Euler continuation callback received a non-current handoff',
+        step=step,
+      )
+
+    reflection_patch: MocTerminalReflectionPatchResult | None = None
+    source_band: MocReflectedDomainAlternatingSourceResult | None = None
+    global_remesh: MocReflectedDomainGlobalShockRemeshResult | None = None
+    global_euler: MocReflectedDomainGlobalEulerShockBoundaryResult | None = None
+    source_measurement: Any | None = None
+    global_remesh_measurement: Any | None = None
+    global_euler_measurement: Any | None = None
+
+    try:
+      source_strip = active_field.as_open_shock_ambient_strip(
+        trace_position_tolerance_m=fixture.trace_position_tolerance_m,
+        trace_forward_tolerance_m=fixture.trace_forward_tolerance_m,
+        trace_invariant_tolerance=fixture.trace_invariant_tolerance,
+      )
+      step['source_strip'] = source_strip.as_report()
+      reflection_patch = assemble_terminal_trace_centerline_patch(
+        source_strip,
+        trace_position_tolerance_m=fixture.trace_position_tolerance_m,
+        trace_forward_tolerance_m=fixture.trace_forward_tolerance_m,
+        invariant_tolerance=fixture.trace_invariant_tolerance,
+      )
+      step['reflection_patch'] = reflection_patch.as_report()
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      return stop(
+        next_cell_index,
+        MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
+        f'fresh global Euler source-strip projection failed: {error}',
+        step=step,
+        diagnostics={'stage': 'source-strip-or-reflection-patch'},
+      )
+    if not reflection_patch.converged:
+      return stop(
+        next_cell_index,
+        MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
+        (
+          'fresh global Euler reflection patch did not converge: '
+          f'{reflection_patch.message}'
+        ),
+        step=step,
+        diagnostics={'stage': 'reflection-patch'},
+      )
+
+    ambient_pressure = active_field.ambient_boundary.ambient_pressure_Pa
+    if ambient_pressure is None:
+      return stop(
+        next_cell_index,
+        MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
+        'active global Euler field retained no ambient pressure for continuation',
+        step=step,
+        diagnostics={'stage': 'ambient-pressure'},
+      )
+    try:
+      source_band = solve_reflected_domain_alternating_source(
+        reflection_patch,
+        ambient_pressure,
+        source_sample_count=fixture.source_sample_count,
+        position_tolerance_m=fixture.trace_position_tolerance_m,
+        trace_forward_tolerance_m=fixture.trace_forward_tolerance_m,
+        invariant_tolerance=fixture.trace_invariant_tolerance,
+        pressure_tolerance=fixture.pressure_tolerance,
+        maximum_iterations=fixture.maximum_source_iterations,
+        incoming_handoff=incoming_handoff,
+      )
+      source_measurement = measure_moc_reflected_domain_alternating_source(
+        source_band,
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      return stop(
+        next_cell_index,
+        MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
+        f'fresh alternating source-band solve failed: {error}',
+        step=step,
+        diagnostics={'stage': 'alternating-source', 'solver_error': type(error).__name__},
+      )
+    step['source_band'] = source_band.as_report()
+    step['source_band_measurement'] = source_measurement.as_report()
+    source_handoff_verified = source_band.incoming_handoff == incoming_handoff
+    source_fingerprint = _alternating_source_band_fingerprint(source_band)
+    step['source_band_fingerprint'] = source_fingerprint
+    if not source_handoff_verified:
+      return stop(
+        next_cell_index,
+        MocChainTerminationReason.STATE_NOT_CARRIED,
+        'fresh alternating source band did not retain the exact chain handoff',
+        step=step,
+        diagnostics={
+          'stage': 'alternating-source',
+          'source_handoff_verified': False,
+        },
+      )
+    if not (
+      source_band.converged
+      and source_band.source_field_verified
+      and source_measurement.converged
+    ):
+      reason = (
+        MocChainTerminationReason.INVALID_INPUT
+        if source_band.status is MocReflectedDomainAlternatingSourceStatus.INVALID_INPUT
+        else MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+      )
+      return stop(
+        next_cell_index,
+        reason,
+        (
+          'fresh alternating source band failed its independent audit: '
+          f'{source_band.message}'
+        ),
+        step=step,
+        diagnostics={
+          'stage': 'alternating-source',
+          'source_handoff_verified': True,
+        },
+      )
+    if source_fingerprint in used_source_fingerprints:
+      return stop(
+        next_cell_index,
+        MocChainTerminationReason.STATE_NOT_CARRIED,
+        'fresh alternating source-band geometry was reused across cells',
+        step=step,
+        diagnostics={
+          'stage': 'alternating-source',
+          'source_band_fingerprint': source_fingerprint,
+          'source_band_fresh': False,
+        },
+      )
+    used_source_fingerprints.add(source_fingerprint)
+
+    try:
+      global_remesh = solve_reflected_domain_global_shock_remesh(
+        source_band,
+        outer_source_indices=fixture.outer_source_indices,
+        target_centerline_indices=fixture.target_centerline_indices,
+        compression_amplitude_lower_rad=fixture.compression_amplitude_lower_rad,
+        compression_amplitude_upper_rad=fixture.compression_amplitude_upper_rad,
+        compression_envelope_skews=fixture.compression_envelope_skews,
+        closure_tolerance_m=fixture.closure_tolerance_m,
+        incoming_handoff=incoming_handoff,
+        sample_count=fixture.sample_count,
+        branch=fixture.branch,
+        position_tolerance_m=fixture.position_tolerance_m,
+        invariant_tolerance=fixture.invariant_tolerance,
+        attachment_pressure_tolerance=fixture.attachment_pressure_tolerance,
+        pressure_tolerance=fixture.pressure_tolerance,
+        tangent_tolerance=fixture.tangent_tolerance,
+        shock_angle_tolerance_rad=fixture.shock_angle_tolerance_rad,
+        maximum_segment_iterations=fixture.maximum_segment_iterations,
+        maximum_boundary_iterations=fixture.maximum_boundary_iterations,
+        maximum_shooting_iterations=fixture.maximum_shooting_iterations,
+        maximum_bracket_scan_samples=fixture.maximum_bracket_scan_samples,
+        maximum_attempts=fixture.maximum_attempts,
+      )
+      global_remesh_measurement = measure_moc_reflected_domain_global_shock_remesh(
+        global_remesh,
+        endpoint_tolerance_m=fixture.closure_tolerance_m,
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      return stop(
+        next_cell_index,
+        MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
+        f'fresh global shock remesh failed: {error}',
+        step=step,
+        diagnostics={'stage': 'global-shock-remesh', 'solver_error': type(error).__name__},
+      )
+    step['global_shock_remesh'] = global_remesh.as_report()
+    step['global_shock_remesh_measurement'] = global_remesh_measurement.as_report()
+    if global_remesh.source_band is not source_band:
+      return stop(
+        next_cell_index,
+        MocChainTerminationReason.STATE_NOT_CARRIED,
+        'global shock remesh did not retain the newly solved source band',
+        step=step,
+        diagnostics={'stage': 'global-shock-remesh'},
+      )
+    if not (
+      global_remesh_measurement.converged
+      and global_remesh_measurement.fidelity_isolation_verified
+      and global_remesh_measurement.chain_promotion_blocked
+      and not global_remesh_measurement.production_claim_allowed
+    ):
+      reason = (
+        MocChainTerminationReason.INVALID_INPUT
+        if global_remesh.status is MocReflectedDomainGlobalShockRemeshStatus.INVALID_INPUT
+        else (
+          MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+          if global_remesh.status
+          is MocReflectedDomainGlobalShockRemeshStatus.SOURCE_FIELD_FAILURE
+          else MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+        )
+      )
+      return stop(
+        next_cell_index,
+        reason,
+        (
+          'fresh global shock remesh failed its independent audit: '
+          f'{global_remesh.message}'
+        ),
+        step=step,
+        diagnostics={'stage': 'global-shock-remesh'},
+      )
+
+    try:
+      global_euler = solve_reflected_domain_global_euler_shock_boundary(
+        global_remesh,
+        branch=fixture.branch,
+        position_tolerance_m=fixture.position_tolerance_m,
+        invariant_tolerance=fixture.invariant_tolerance,
+        pressure_tolerance=fixture.pressure_tolerance,
+        tangent_tolerance=fixture.tangent_tolerance,
+        shock_angle_tolerance_rad=(
+          fixture.euler_reconciliation_shock_angle_tolerance_rad
+        ),
+        residual_tolerance=fixture.euler_reconciliation_residual_tolerance,
+        maximum_boundary_iterations=fixture.maximum_boundary_iterations,
+      )
+      global_euler_measurement = (
+        measure_moc_reflected_domain_global_euler_shock_boundary(
+          global_euler,
+          position_tolerance_m=fixture.position_tolerance_m,
+          invariant_tolerance=fixture.invariant_tolerance,
+          pressure_tolerance=fixture.pressure_tolerance,
+          tangent_tolerance=fixture.tangent_tolerance,
+        )
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      return stop(
+        next_cell_index,
+        MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
+        f'fresh global Euler field solve failed: {error}',
+        step=step,
+        diagnostics={'stage': 'global-euler', 'solver_error': type(error).__name__},
+      )
+    step['global_euler'] = global_euler.as_report()
+    step['global_euler_measurement'] = global_euler_measurement.as_report()
+    if not (
+      global_euler.converged
+      and global_euler_measurement.converged
+      and global_euler_measurement.local_euler_consistency_verified
+      and global_euler_measurement.incoming_handoff_verified
+      and global_euler_measurement.physical_closure_verified
+      and global_euler_measurement.fidelity_isolation_verified
+      and global_euler_measurement.chain_promotion_blocked
+      and not global_euler_measurement.production_claim_allowed
+    ):
+      reason = (
+        MocChainTerminationReason.INVALID_INPUT
+        if global_euler.status
+        is MocReflectedDomainGlobalEulerShockBoundaryStatus.INVALID_INPUT
+        else (
+          MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+          if global_euler.status
+          is MocReflectedDomainGlobalEulerShockBoundaryStatus.SOURCE_FRONTIER_FAILURE
+          else MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+        )
+      )
+      return stop(
+        next_cell_index,
+        reason,
+        (
+          'fresh global Euler field failed its independent audit: '
+          f'{global_euler.message}'
+        ),
+        step=step,
+        diagnostics={'stage': 'global-euler'},
+      )
+
+    if global_euler.global_remesh is not global_remesh:
+      return stop(
+        next_cell_index,
+        MocChainTerminationReason.STATE_NOT_CARRIED,
+        'global Euler field did not retain the newly solved global remesh',
+        step=step,
+        diagnostics={'stage': 'global-euler'},
+      )
+    next_physical_result = global_euler.physical_field
+    next_field = None if next_physical_result is None else next_physical_result.field
+    if next_field is None:
+      return stop(
+        next_cell_index,
+        MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
+        'fresh global Euler field retained no physical field mesh',
+        step=step,
+        diagnostics={'stage': 'global-euler'},
+      )
+    if not (
+      next_field.converged
+      and next_field.physical_closure_verified
+      and next_field.state_sampling_available
+      and next_field.upstream_shock_coupling_verified
+      and next_field.incoming_handoff == incoming_handoff
+      and global_euler.incoming_handoff == incoming_handoff
+    ):
+      return stop(
+        next_cell_index,
+        MocChainTerminationReason.STATE_NOT_CARRIED,
+        'fresh global Euler field did not retain its exact upstream handoff '
+        'and bounded shock coupling',
+        step=step,
+        diagnostics={
+          'stage': 'global-euler',
+          'incoming_handoff_verified': global_euler.incoming_handoff == incoming_handoff,
+          'field_incoming_handoff_verified': next_field.incoming_handoff == incoming_handoff,
+        },
+      )
+
+    selected_outer_index = global_euler.outer_source_index
+    selected_attempt = global_remesh.selected_attempt
+    if (
+      selected_outer_index is None
+      or selected_attempt is None
+      or selected_outer_index != selected_attempt.outer_source_index
+      or selected_outer_index >= len(source_band.outer_source_states)
+      or not global_euler.remeshed_shock_points_m
+      or not next_field.shock_boundary_points_m
+      or not next_field.ambient_boundary_points_m
+    ):
+      return stop(
+        next_cell_index,
+        MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
+        'fresh global Euler field did not retain a usable selected source '
+        'frontier for bridge construction',
+        step=step,
+        diagnostics={'stage': 'intercell-bridge'},
+      )
+
+    source_outer_state = source_band.outer_source_states[selected_outer_index]
+    source_outer_point = (source_outer_state.x_m, source_outer_state.y_m)
+    bridge_start = tuple(active_field.ambient_boundary_points_m[-1])
+    bridge_end = tuple(next_field.shock_boundary_points_m[0])
+    patch_trace = tuple(reflection_patch.outgoing_trace_points_m)
+    centerline_states = tuple(source_band.centerline_source_states)
+    bridge_tolerance = max(
+      fixture.trace_position_tolerance_m,
+      fixture.position_tolerance_m,
+    )
+    bridge_checks = {
+      'previous_ambient_endpoint_matches_start': point_matches(
+        bridge_start,
+        active_field.ambient_boundary_points_m[-1],
+        bridge_tolerance,
+      ),
+      'reflection_patch_starts_at_previous_ambient_endpoint': bool(
+        patch_trace
+        and point_matches(patch_trace[0], bridge_start, bridge_tolerance)
+      ),
+      'reflection_patch_ends_at_source_centerline': bool(
+        patch_trace
+        and centerline_states
+        and point_matches(
+          patch_trace[-1],
+          (centerline_states[0].x_m, centerline_states[0].y_m),
+          bridge_tolerance,
+        )
+      ),
+      'source_outer_matches_global_shock_start': point_matches(
+        source_outer_point,
+        global_euler.remeshed_shock_points_m[0],
+        bridge_tolerance,
+      ),
+      'source_outer_matches_next_shock_start': point_matches(
+        source_outer_point,
+        next_field.shock_boundary_points_m[0],
+        bridge_tolerance,
+      ),
+      'next_shock_and_ambient_share_attachment': point_matches(
+        next_field.shock_boundary_points_m[0],
+        next_field.ambient_boundary_points_m[0],
+        bridge_tolerance,
+      ),
+      'bridge_is_forward': bridge_end[0] > bridge_start[0] + bridge_tolerance,
+      'patch_trace_is_forward': bool(
+        patch_trace
+        and all(
+          right[0] > left[0] + fixture.trace_forward_tolerance_m
+          for left, right in zip(patch_trace, patch_trace[1:])
+        )
+      ),
+    }
+    bridge_verified = all(bridge_checks.values())
+    step['intercell_bridge'] = {
+      'start_m': list(bridge_start),
+      'end_m': list(bridge_end),
+      'verified': bridge_verified,
+      'checks': bridge_checks,
+      'model': (
+        'previous-ambient-endpoint -> reflected-patch/source-band -> '
+        'next-shock-and-ambient-attachment'
+      ),
+    }
+    if not bridge_verified:
+      return stop(
+        next_cell_index,
+        MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
+        'fresh global Euler field failed its explicit intercell bridge audit',
+        step=step,
+        diagnostics={
+          'stage': 'intercell-bridge',
+          'intercell_bridge': step['intercell_bridge'],
+        },
+      )
+
+    next_end_x = float(next_field.ambient_boundary_points_m[-1][0])
+    current_end_x = float(current.end_x_m)
+    if not isfinite(next_end_x) or next_end_x <= current_end_x + fixture.position_tolerance_m:
+      return stop(
+        next_cell_index,
+        MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
+        'fresh global Euler field did not advance the accepted ambient '
+        'endpoint downstream',
+        step=step,
+        diagnostics={
+          'stage': 'axial-order',
+          'current_end_x_m': current_end_x,
+          'next_end_x_m': next_end_x,
+        },
+      )
+    if next_end_x > requested_end + fixture.position_tolerance_m:
+      return stop(
+        next_cell_index,
+        MocChainTerminationReason.AXIAL_DOMAIN_LIMIT,
+        'fresh global Euler field exceeded the requested axial continuation '
+        'domain',
+        step=step,
+        diagnostics={
+          'stage': 'axial-domain-limit',
+          'requested_end_x_m': requested_end,
+          'next_end_x_m': next_end_x,
+        },
+      )
+
+    source_bands.append(source_band)
+    global_remeshes.append(global_remesh)
+    global_euler_fields.append(global_euler)
+    bridge_endpoints.append((
+      (float(bridge_start[0]), float(bridge_start[1])),
+      (float(bridge_end[0]), float(bridge_end[1])),
+    ))
+    captured_fields.append(next_field)
+    active_field = next_field
+    step['accepted'] = True
+    step['next_field_end_x_m'] = next_end_x
+    step['accepted_field_count'] = len(captured_fields)
+    return MocPhysicalPostShockFieldContinuationSolve(
+      field=next_field,
+      end_x_m=next_end_x,
+    )
+
+  resolved_policy = policy
+  if resolved_policy is None:
+    resolved_policy = MocChainContinuationPolicy(
+      max_cells=fixture.total_cell_count,
+      require_state_carry=True,
+    )
+  planner = plan_ambient_closed_post_shock_chain(
+    seed_field,
+    solve_next,
+    start_x_m=start,
+    end_x_m=seed_end_x,
+    policy=resolved_policy,
+    require_upstream_shock_coupling=True,
+    claim_status=(
+      'global-exact-euler-fresh-source continued chain; explicit intercell '
+      'bridge; canonical reflected-free-boundary and external-validation pending'
+    ),
+  )
+
+  try:
+    chain_measurement = measure_moc_ambient_closed_physical_field_chain(
+      tuple(captured_fields),
+      position_tolerance_m=fixture.position_tolerance_m,
+      state_tolerance=fixture.invariant_tolerance,
+      pressure_tolerance=fixture.pressure_tolerance,
+      tangent_tolerance=fixture.tangent_tolerance,
+      intercell_bridge_endpoints_m=tuple(bridge_endpoints),
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    chain_measurement = None
+    chain_measurement_error = f'{type(error).__name__}: {error}'
+  else:
+    chain_measurement_error = None
+  try:
+    planner_measurement = measure_moc_chain_planner(
+      planner,
+      position_tolerance_m=fixture.position_tolerance_m,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    planner_measurement = None
+    planner_measurement_error = f'{type(error).__name__}: {error}'
+  else:
+    planner_measurement_error = None
+
+  all_stage_measurements_converged = bool(
+    source_bands
+    and len(source_bands) == len(global_remeshes) == len(global_euler_fields)
+    and all(
+      report is not None
+      and report['status'] == 'converged'
+      for report in (
+        step.get('source_band_measurement')
+        for step in step_reports if step.get('accepted')
+      )
+    )
+    and all(
+      report is not None
+      and report['status'] == 'converged'
+      for report in (
+        step.get('global_shock_remesh_measurement')
+        for step in step_reports if step.get('accepted')
+      )
+    )
+    and all(
+      report is not None
+      and report['status'] == 'converged'
+      for report in (
+        step.get('global_euler_measurement')
+        for step in step_reports if step.get('accepted')
+      )
+    )
+  )
+  diagnostics = dict(planner.diagnostics)
+  diagnostics.update({
+    'global_euler_continued_chain': True,
+    'global_euler_continued_chain_reference': fixture.as_report(),
+    'global_euler_continued_chain_source_model': (
+      'locally-audited-global-euler-ambient-closed-field'
+    ),
+    'global_euler_continued_chain_continuation_model': (
+      'accepted-field -> open-shock-ambient-strip -> reflected-centerline-patch '
+      '-> fresh-alternating-source-band -> global-shock-remesh -> '
+      'exact-global-euler-ambient-closed-field'
+    ),
+    'global_euler_continued_chain_fidelity_transition': (
+      'global-exact-euler-seed -> global-exact-euler-fresh-source-continuation'
+    ),
+    'global_euler_continued_chain_intercell_bridge_model': (
+      'previous-ambient-endpoint -> reflected-patch/source-band -> '
+      'next-shock-and-ambient-attachment'
+    ),
+    'global_euler_continued_chain_source': {
+      'status': global_result.status.value,
+      'converged': global_result.converged,
+      'physical_closure_verified': global_result.physical_closure_verified,
+      'incoming_handoff_verified': global_result.incoming_handoff_verified,
+      'incoming_handoff_sample_count': len(global_result.incoming_handoff),
+      'shock_sample_count': len(global_result.remeshed_shock_points_m),
+      'field_cell_count': len(seed_field.cells),
+      'chain_promotion_blocked': global_result.chain_promotion_blocked,
+      'production_claim_allowed': global_result.production_claim_allowed,
+    },
+    'global_euler_continued_chain_source_measurement': seed_measurement.as_report(),
+    'global_euler_continued_chain_source_handoff_fingerprint': (
+      _handoff_fingerprint(global_result.incoming_handoff)
+    ),
+    'global_euler_continued_chain_steps': step_reports,
+    'global_euler_continued_chain_terminal_decision': terminal_decision_report,
+    'global_euler_continued_chain_source_band_fingerprints': [
+      _alternating_source_band_fingerprint(source)
+      for source in source_bands
+    ],
+    'global_euler_continued_chain_source_band_freshness_verified': bool(
+      len(used_source_fingerprints) == len(source_bands)
+    ),
+    'global_euler_continued_chain_global_remeshes': [
+      remesh.as_report() for remesh in global_remeshes
+    ],
+    'global_euler_continued_chain_global_euler_fields': [
+      result.as_report() for result in global_euler_fields
+    ],
+    'global_euler_continued_chain_intercell_bridge_endpoints_m': [
+      [list(start_point), list(end_point)]
+      for start_point, end_point in bridge_endpoints
+    ],
+    'global_euler_continued_chain_intercell_bridge_count': len(bridge_endpoints),
+    'global_euler_continued_chain_captured_field_count': len(captured_fields),
+    'global_euler_continued_chain_seed_independent_measurement': (
+      seed_measurement.as_report()
+    ),
+    'global_euler_continued_chain_independent_measurement': (
+      None if chain_measurement is None else chain_measurement.as_report()
+    ),
+    'global_euler_continued_chain_independent_measurement_error': (
+      chain_measurement_error
+    ),
+    'global_euler_continued_chain_planner_measurement': (
+      None if planner_measurement is None else planner_measurement.as_report()
+    ),
+    'global_euler_continued_chain_planner_measurement_error': (
+      planner_measurement_error
+    ),
+    'global_euler_continued_chain_stage_measurements_converged': (
+      all_stage_measurements_converged
+    ),
+    'global_euler_continued_chain_audit_accepted': bool(
+      chain_measurement is not None
+      and chain_measurement.converged
+      and chain_measurement.handoff_links_verified is True
+      and chain_measurement.fresh_domain_verified
+      and chain_measurement.intercell_bridges_verified
+      and chain_measurement.physical_closure_verified
+      and chain_measurement.chain_promotion_blocked
+      and not chain_measurement.production_claim_allowed
+      and planner_measurement is not None
+      and planner_measurement.converged
+      and planner_measurement.fidelity_isolation_verified
+      and all_stage_measurements_converged
+    ),
+    'global_euler_continued_chain_research_physical_cell_count': max(
+      0,
+      planner.chain.cell_count - 1,
+    ),
+    'canonical_reflected_domain_closed': False,
+    'canonical_free_boundary_verified': False,
+    'canonical_euler_verified': False,
+    'external_validation_verified': False,
+    'chain_promotion_blocked': True,
+    'production_claim_allowed': False,
+  })
+  return replace(
+    planner,
+    claim_status=(
+      'global-exact-euler-fresh-source continued chain; explicit intercell '
+      'bridge; canonical-reflected-free-boundary-and-external-validation-pending'
     ),
     diagnostics=diagnostics,
   )

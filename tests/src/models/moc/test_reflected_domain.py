@@ -21,6 +21,7 @@ from exhaust_plume.models.moc import (
   MocReflectedDomainSolverOwnedFirstCellStatus,
   MocReflectedDomainGlobalShockRemeshStatus,
   MocReflectedDomainGlobalEulerShockBoundaryStatus,
+  MocGlobalEulerContinuedChainReference,
   MocReflectedDomainOuterSourceStatus,
   MocReflectedDomainRemeshStatus,
   MocSolverGeneratedAmbientClosedPostShockChainReference,
@@ -37,6 +38,7 @@ from exhaust_plume.models.moc import (
   plan_reflected_domain_global_shock_remesh_chain,
   plan_reflected_domain_global_shock_remesh_chain_from_physical_field,
   plan_reflected_domain_global_euler_continued_chain_reference,
+  plan_reflected_domain_global_euler_continued_chain,
   plan_reflected_domain_remesh_shock_chain,
   plan_reflected_domain_remesh_shock_chain_sequence,
   solve_marched_attached_shock_field,
@@ -1172,6 +1174,96 @@ def test_global_euler_field_can_seed_a_research_continued_chain_reference():
   assert planner.diagnostics[
     'global_euler_continued_chain_fidelity_transition'
   ].startswith('global-exact-euler-local-research-seed')
+  assert planner.diagnostics['chain_promotion_blocked'] is True
+  assert planner.diagnostics['canonical_euler_verified'] is False
+
+
+def test_global_euler_fresh_source_continuation_re_solves_each_cell():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  source = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+    incoming_handoff=_handoff(field),
+  )
+  global_remesh = solve_reflected_domain_global_shock_remesh(
+    source,
+    outer_source_indices=(2,),
+    target_centerline_indices=(3,),
+    compression_amplitude_lower_rad=0.007,
+    compression_amplitude_upper_rad=0.03,
+    compression_envelope_skews=(-0.75, 0.0),
+    sample_count=9,
+    shock_angle_tolerance_rad=0.02,
+  )
+  global_result = solve_reflected_domain_global_euler_shock_boundary(
+    global_remesh,
+  )
+  assert global_result.converged
+  assert global_result.physical_field is not None
+  assert global_result.physical_field.field is not None
+
+  seed_end_x_m = (
+    global_result.physical_field.field.ambient_boundary_points_m[-1][0]
+  )
+  planner = plan_reflected_domain_global_euler_continued_chain(
+    global_result,
+    start_x_m=0.5,
+    end_x_m=seed_end_x_m + 8.0,
+    reference=MocGlobalEulerContinuedChainReference(
+      total_cell_count=3,
+      outer_source_indices=(0,),
+      target_centerline_indices=(1,),
+      compression_envelope_skews=(-0.75,),
+      sample_count=9,
+    ),
+    policy=MocChainContinuationPolicy(
+      max_cells=4,
+      require_state_carry=True,
+    ),
+  )
+
+  assert planner.resolved
+  assert planner.chain.cell_count == 3
+  assert planner.chain.termination_reason is (
+    MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL
+  )
+  assert planner.chain.physical_termination is False
+  assert planner.handoff_links_verified is True
+  assert planner.production_claim_allowed is False
+
+  steps = planner.diagnostics[
+    'global_euler_continued_chain_steps'
+  ]
+  assert len(steps) == 2
+  assert all(step['accepted'] for step in steps)
+  assert all(
+    step['global_shock_remesh_measurement']['status'] == 'converged'
+    and step['global_euler_measurement']['status'] == 'converged'
+    and step['intercell_bridge']['verified']
+    for step in steps
+  )
+  fingerprints = planner.diagnostics[
+    'global_euler_continued_chain_source_band_fingerprints'
+  ]
+  assert len(fingerprints) == 2
+  assert len(set(fingerprints)) == 2
+  assert planner.diagnostics[
+    'global_euler_continued_chain_captured_field_count'
+  ] == 3
+  assert planner.diagnostics[
+    'global_euler_continued_chain_independent_measurement'
+  ]['status'] == 'converged'
+  assert planner.diagnostics[
+    'global_euler_continued_chain_independent_measurement'
+  ]['intercell_bridges']['verified'] is True
+  assert planner.diagnostics[
+    'global_euler_continued_chain_planner_measurement'
+  ]['status'] == 'converged'
+  assert planner.diagnostics[
+    'global_euler_continued_chain_audit_accepted'
+  ] is True
   assert planner.diagnostics['chain_promotion_blocked'] is True
   assert planner.diagnostics['canonical_euler_verified'] is False
 

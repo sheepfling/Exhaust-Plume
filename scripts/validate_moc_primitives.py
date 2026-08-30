@@ -59,6 +59,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocSolverGeneratedPostShockChainReference,
   MocSolverGeneratedAmbientClosedPostShockChainReference,
   MocTerminalReflectionPatchAmbientClosureChainReference,
+  MocGlobalEulerContinuedChainReference,
   MocFieldCoupledPostShockChainReference,
   MocReflectedCharacteristicZoneResult,
   MocChainBoundaryKind,
@@ -150,6 +151,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   plan_reflected_domain_solver_owned_first_cell_chain,
   plan_reflected_domain_global_shock_remesh_chain,
   plan_reflected_domain_global_euler_continued_chain_reference,
+  plan_reflected_domain_global_euler_continued_chain,
   solve_reflected_domain_remesh,
   solve_reflected_domain_alternating_source,
   solve_reflected_domain_alternating_physical_field,
@@ -999,6 +1001,22 @@ def _reflected_domain_remesh_probe(
   global_euler_shock_boundary_refinement_error = None
   global_euler_continued_chain_reference = None
   global_euler_continued_chain_reference_error = None
+  global_euler_continued_chain = None
+  global_euler_continued_chain_error = None
+  global_euler_continued_chain_seed_source = None
+  global_euler_continued_chain_seed_source_measurement = None
+  global_euler_continued_chain_seed_source_error = None
+  global_euler_continued_chain_seed_remesh = None
+  global_euler_continued_chain_seed_remesh_measurement = None
+  global_euler_continued_chain_seed_remesh_error = None
+  global_euler_continued_chain_seed_euler = None
+  global_euler_continued_chain_seed_euler_measurement = None
+  global_euler_continued_chain_seed_euler_error = None
+  global_euler_continued_chain_seed = None
+  global_euler_continued_chain_seed_model = None
+  global_euler_continued_chain_seed_ambient_pressure_Pa = None
+  global_euler_continued_chain_seed_ambient_pressure_model = None
+  global_seed_end_x_m = None
   try:
     if alternating_source is None:
       raise ValueError('alternating source fixture did not converge')
@@ -1031,6 +1049,158 @@ def _reflected_domain_remesh_probe(
     global_shock_remesh_error = f'{type(error).__name__}: {error}'
     global_euler_shock_boundary_error = f'{type(error).__name__}: {error}'
 
+  # The original global-Euler result above remains the audit fixture for the
+  # reflected-domain lane.  The fresh-source continuation lane needs a
+  # numerically reconciled upstream frontier: use the independently accepted
+  # physical field, carry its exact centerline handoff, and solve a fresh
+  # source/remesh/global-Euler seed with the same settings used by the focused
+  # continuation regression.  Keep every stage visible in the report so this
+  # cannot silently become a replacement for the original fixture.
+  if (
+    physical_seed_field is not None
+    and getattr(physical_seed_field, 'converged', False)
+  ):
+    try:
+      seed_patch = assemble_terminal_trace_centerline_patch(
+        physical_seed_field.as_open_shock_ambient_strip()
+      )
+      if not seed_patch.converged:
+        raise ValueError('physical seed field terminal patch did not converge')
+      seed_handoff = tuple(
+        MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
+        for state, pressure in zip(
+          physical_seed_field.centerline_boundary_states,
+          physical_seed_field.centerline_boundary_total_pressure_Pa,
+          strict=True,
+        )
+      )
+      seed_ambient_pressure = physical_seed_field.ambient_boundary.ambient_pressure_Pa
+      if seed_ambient_pressure is None:
+        raise ValueError('physical seed field has no ambient pressure')
+      # Recompute the scalar ambient reference from the same nine-point
+      # attached-shock contract used by the focused chain regression.  The
+      # existing sample-17 fixture differs only at floating-point roundoff,
+      # but the global endpoint shooting is sensitive to that last bit.  This
+      # keeps the reconciled seed deterministic without changing the retained
+      # physical-field handoff samples.
+      if (
+        not physical_seed_field.upstream_shock_boundary_states
+        or not physical_seed_field.upstream_shock_boundary_total_pressure_Pa
+        or not physical_seed_field.shock_boundary_points_m
+      ):
+        raise ValueError('physical seed field lacks upstream shock provenance')
+      seed_upstream_reference = physical_seed_field.upstream_shock_boundary_states[0]
+      seed_upstream_total_pressure = (
+        physical_seed_field.upstream_shock_boundary_total_pressure_Pa[0]
+      )
+      seed_upstream_static_pressure = seed_upstream_total_pressure / (
+        1.0
+        + 0.5
+        * (seed_upstream_reference.gamma - 1.0)
+        * seed_upstream_reference.mach**2
+      ) ** (
+        seed_upstream_reference.gamma
+        / (seed_upstream_reference.gamma - 1.0)
+      )
+      seed_shock_start_y_m = physical_seed_field.shock_boundary_points_m[0][1]
+      seed_pressure_shock = solve_marched_attached_shock_field(
+        lambda point: replace(
+          seed_upstream_reference,
+          x_m=point[0],
+          y_m=point[1],
+        ),
+        lambda _point: seed_upstream_static_pressure,
+        (0.5, seed_shock_start_y_m),
+        downstream_flow_angle_at=(
+          lambda _index, point: 0.05 * point[1] / seed_shock_start_y_m
+        ),
+        sample_count=9,
+      )
+      if (
+        seed_pressure_shock.shock_fit is None
+        or not seed_pressure_shock.shock_fit.converged
+        or not seed_pressure_shock.shock_fit.boundary_states
+      ):
+        raise ValueError('canonical nine-point seed pressure fit did not converge')
+      seed_pressure_state = seed_pressure_shock.shock_fit.boundary_states[0]
+      seed_ambient_pressure = seed_pressure_state.downstream_total_pressure_Pa / (
+        1.0
+        + 0.5 * (seed_pressure_state.state.gamma - 1.0)
+        * seed_pressure_state.state.mach**2
+      ) ** (
+        seed_pressure_state.state.gamma
+        / (seed_pressure_state.state.gamma - 1.0)
+      )
+      global_euler_continued_chain_seed_ambient_pressure_Pa = (
+        seed_ambient_pressure
+      )
+      global_euler_continued_chain_seed_ambient_pressure_model = (
+        'nine-point-attached-shock-independent-scalar-reconciliation'
+      )
+      seed_source_anchor = solve_reflected_domain_alternating_source(
+        seed_patch,
+        seed_ambient_pressure,
+        incoming_handoff=seed_handoff,
+      )
+      global_euler_continued_chain_seed_source = seed_source_anchor
+      global_euler_continued_chain_seed_source_measurement = (
+        measure_moc_reflected_domain_alternating_source(seed_source_anchor)
+      )
+      if not global_euler_continued_chain_seed_source_measurement.converged:
+        raise ValueError(
+          'reconciled fresh-chain source failed its independent audit'
+        )
+      seed_remesh = solve_reflected_domain_global_shock_remesh(
+        seed_source_anchor,
+        outer_source_indices=(2,),
+        target_centerline_indices=(3,),
+        compression_amplitude_lower_rad=0.007,
+        compression_amplitude_upper_rad=0.03,
+        compression_envelope_skews=(-0.75, 0.0),
+        sample_count=9,
+        shock_angle_tolerance_rad=0.02,
+      )
+      global_euler_continued_chain_seed_remesh = seed_remesh
+      global_euler_continued_chain_seed_remesh_measurement = (
+        measure_moc_reflected_domain_global_shock_remesh(seed_remesh)
+      )
+      if not global_euler_continued_chain_seed_remesh_measurement.converged:
+        raise ValueError(
+          'reconciled fresh-chain global remesh failed its independent audit'
+        )
+      seed_euler = solve_reflected_domain_global_euler_shock_boundary(
+        seed_remesh
+      )
+      global_euler_continued_chain_seed_euler = seed_euler
+      global_euler_continued_chain_seed_euler_measurement = (
+        measure_moc_reflected_domain_global_euler_shock_boundary(seed_euler)
+      )
+      if not global_euler_continued_chain_seed_euler_measurement.converged:
+        raise ValueError(
+          'reconciled fresh-chain global Euler seed failed its independent audit'
+        )
+      global_euler_continued_chain_seed = seed_euler
+      global_euler_continued_chain_seed_model = (
+        'accepted-physical-field-exact-handoff-fresh-source-global-euler-seed'
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      global_euler_continued_chain_seed_source_error = (
+        f'{type(error).__name__}: {error}'
+      )
+      global_euler_continued_chain_seed_remesh_error = (
+        global_euler_continued_chain_seed_source_error
+      )
+      global_euler_continued_chain_seed_euler_error = (
+        global_euler_continued_chain_seed_source_error
+      )
+
+  if global_euler_continued_chain_seed is None:
+    global_euler_continued_chain_seed = global_euler_shock_boundary
+    if global_euler_continued_chain_seed is not None:
+      global_euler_continued_chain_seed_model = (
+        'existing-reflected-domain-global-euler-seed'
+      )
+
   if global_euler_shock_boundary is not None:
     try:
       if global_euler_shock_boundary.physical_field is None:
@@ -1057,6 +1227,40 @@ def _reflected_domain_remesh_probe(
       global_euler_continued_chain_reference_error = (
         f'{type(error).__name__}: {error}'
       )
+    if global_euler_continued_chain_seed is not None:
+      try:
+        if global_euler_continued_chain_seed.physical_field is None:
+          raise ValueError(
+            'fresh-chain global Euler seed did not retain its physical field'
+          )
+        global_seed_field = global_euler_continued_chain_seed.physical_field.field
+        if global_seed_field is None:
+          raise ValueError(
+            'fresh-chain global Euler seed retained no physical field mesh'
+          )
+        global_seed_end_x_m = global_seed_field.ambient_boundary_points_m[-1][0]
+        global_euler_continued_chain = (
+          plan_reflected_domain_global_euler_continued_chain(
+            global_euler_continued_chain_seed,
+            start_x_m=0.5,
+            end_x_m=global_seed_end_x_m + 8.0,
+            reference=MocGlobalEulerContinuedChainReference(
+              total_cell_count=3,
+              outer_source_indices=(0,),
+              target_centerline_indices=(1,),
+              compression_envelope_skews=(-0.75,),
+              sample_count=9,
+            ),
+            policy=MocChainContinuationPolicy(
+              max_cells=4,
+              require_state_carry=True,
+            ),
+          )
+        )
+      except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+        global_euler_continued_chain_error = (
+          f'{type(error).__name__}: {error}'
+        )
 
   if (
     alternating_source is not None
@@ -1668,6 +1872,62 @@ def _reflected_domain_remesh_probe(
     ),
     'global_reflected_shock_remesh_global_euler_continued_chain_reference_error': (
       global_euler_continued_chain_reference_error
+    ),
+    'global_reflected_shock_remesh_global_euler_continued_chain': (
+      None
+      if global_euler_continued_chain is None
+      else global_euler_continued_chain.as_report()
+    ),
+    'global_reflected_shock_remesh_global_euler_continued_chain_error': (
+      global_euler_continued_chain_error
+    ),
+    'global_reflected_shock_remesh_global_euler_continued_chain_seed_model': (
+      global_euler_continued_chain_seed_model
+    ),
+    'global_reflected_shock_remesh_global_euler_continued_chain_seed_ambient_pressure_Pa': (
+      global_euler_continued_chain_seed_ambient_pressure_Pa
+    ),
+    'global_reflected_shock_remesh_global_euler_continued_chain_seed_ambient_pressure_model': (
+      global_euler_continued_chain_seed_ambient_pressure_model
+    ),
+    'global_reflected_shock_remesh_global_euler_continued_chain_seed_source': (
+      None
+      if global_euler_continued_chain_seed_source is None
+      else global_euler_continued_chain_seed_source.as_report()
+    ),
+    'global_reflected_shock_remesh_global_euler_continued_chain_seed_source_measurement': (
+      None
+      if global_euler_continued_chain_seed_source_measurement is None
+      else global_euler_continued_chain_seed_source_measurement.as_report()
+    ),
+    'global_reflected_shock_remesh_global_euler_continued_chain_seed_source_error': (
+      global_euler_continued_chain_seed_source_error
+    ),
+    'global_reflected_shock_remesh_global_euler_continued_chain_seed_remesh': (
+      None
+      if global_euler_continued_chain_seed_remesh is None
+      else global_euler_continued_chain_seed_remesh.as_report()
+    ),
+    'global_reflected_shock_remesh_global_euler_continued_chain_seed_remesh_measurement': (
+      None
+      if global_euler_continued_chain_seed_remesh_measurement is None
+      else global_euler_continued_chain_seed_remesh_measurement.as_report()
+    ),
+    'global_reflected_shock_remesh_global_euler_continued_chain_seed_remesh_error': (
+      global_euler_continued_chain_seed_remesh_error
+    ),
+    'global_reflected_shock_remesh_global_euler_continued_chain_seed_euler': (
+      None
+      if global_euler_continued_chain_seed_euler is None
+      else global_euler_continued_chain_seed_euler.as_report()
+    ),
+    'global_reflected_shock_remesh_global_euler_continued_chain_seed_euler_measurement': (
+      None
+      if global_euler_continued_chain_seed_euler_measurement is None
+      else global_euler_continued_chain_seed_euler_measurement.as_report()
+    ),
+    'global_reflected_shock_remesh_global_euler_continued_chain_seed_euler_error': (
+      global_euler_continued_chain_seed_euler_error
     ),
     'global_reflected_shock_remesh_planner': (
       None
@@ -9848,6 +10108,68 @@ def build_moc_primitive_report() -> dict[str, Any]:
       ) is not None
     )
   )
+  global_euler_continued_chain_failure = (
+    ambient_shock_strip_probe.get('accepted') is True
+    and (
+      not isinstance(reflected_domain_remesh_probe, dict)
+      or not isinstance(
+        reflected_domain_remesh_probe.get(
+          'global_reflected_shock_remesh_global_euler_continued_chain'
+        ),
+        dict,
+      )
+      or reflected_domain_remesh_probe[
+        'global_reflected_shock_remesh_global_euler_continued_chain'
+      ].get('chain', {}).get('resolved') is not True
+      or reflected_domain_remesh_probe[
+        'global_reflected_shock_remesh_global_euler_continued_chain'
+      ].get('chain', {}).get('cell_count') != 3
+      or reflected_domain_remesh_probe[
+        'global_reflected_shock_remesh_global_euler_continued_chain'
+      ].get('chain', {}).get('termination_reason')
+      != MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL.value
+      or reflected_domain_remesh_probe[
+        'global_reflected_shock_remesh_global_euler_continued_chain'
+      ].get('chain', {}).get('physical_termination') is not False
+      or reflected_domain_remesh_probe[
+        'global_reflected_shock_remesh_global_euler_continued_chain'
+      ].get('handoff_links_verified') is not True
+      or reflected_domain_remesh_probe[
+        'global_reflected_shock_remesh_global_euler_continued_chain'
+      ].get('diagnostics', {}).get(
+        'global_euler_continued_chain_captured_field_count'
+      ) != 3
+      or reflected_domain_remesh_probe[
+        'global_reflected_shock_remesh_global_euler_continued_chain'
+      ].get('diagnostics', {}).get(
+        'global_euler_continued_chain_source_band_freshness_verified'
+      ) is not True
+      or reflected_domain_remesh_probe[
+        'global_reflected_shock_remesh_global_euler_continued_chain'
+      ].get('diagnostics', {}).get(
+        'global_euler_continued_chain_stage_measurements_converged'
+      ) is not True
+      or reflected_domain_remesh_probe[
+        'global_reflected_shock_remesh_global_euler_continued_chain'
+      ].get('diagnostics', {}).get(
+        'global_euler_continued_chain_independent_measurement',
+      ).get('intercell_bridges', {}).get('verified') is not True
+      or reflected_domain_remesh_probe[
+        'global_reflected_shock_remesh_global_euler_continued_chain'
+      ].get('diagnostics', {}).get(
+        'global_euler_continued_chain_audit_accepted'
+      ) is not True
+      or reflected_domain_remesh_probe[
+        'global_reflected_shock_remesh_global_euler_continued_chain'
+      ].get('diagnostics', {}).get('chain_promotion_blocked') is not True
+      or reflected_domain_remesh_probe[
+        'global_reflected_shock_remesh_global_euler_continued_chain'
+      ].get('diagnostics', {}).get('canonical_euler_verified') is not False
+      or reflected_domain_remesh_probe.get(
+        'global_reflected_shock_remesh_global_euler_continued_chain_error'
+      ) is not None
+    )
+  )
   reflected_domain_alternating_physical_field_chain_refinement_failure = (
     ambient_shock_strip_probe.get('accepted') is True
     and (
@@ -14278,6 +14600,31 @@ def build_moc_primitive_report() -> dict[str, Any]:
         ),
       }
     ] if global_euler_continued_chain_reference_failure else []),
+    *([
+      {
+        'case': 'solver_generated_reflected_domain_global_euler_fresh_source_continued_chain',
+        'status': str(
+          reflected_domain_remesh_probe.get(
+            'global_reflected_shock_remesh_global_euler_continued_chain',
+            {},
+          ).get('chain', {}).get('termination_reason', 'missing')
+          if isinstance(reflected_domain_remesh_probe, dict)
+          else 'missing'
+        ),
+        'message': str(
+          reflected_domain_remesh_probe.get(
+            'global_reflected_shock_remesh_global_euler_continued_chain_error',
+            '',
+          )
+          or reflected_domain_remesh_probe.get(
+            'global_reflected_shock_remesh_global_euler_continued_chain',
+            {},
+          ).get('chain', {}).get('message', '')
+          if isinstance(reflected_domain_remesh_probe, dict)
+          else 'global Euler fresh-source continued-chain probe missing'
+        ),
+      }
+    ] if global_euler_continued_chain_failure else []),
     *([
       {
         'case': 'solver_generated_reflected_domain_alternating_physical_field_chain_refinement',

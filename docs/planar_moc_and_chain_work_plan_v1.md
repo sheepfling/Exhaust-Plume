@@ -3231,3 +3231,33 @@ the local seed, while the downstream cells use the terminal-reflection patch
 reference. The transition is recorded in diagnostics and cannot authorize a
 canonical reflected free-boundary claim, external validation, production
 next-cell fitting, or any lower-fidelity product provider.
+
+## Global exact-Euler fresh-source continuation checkpoint
+
+The continued global-Euler lane now has a second, stricter research adapter:
+``plan_reflected_domain_global_euler_continued_chain``. It does not hand the
+seed to the lower-cost terminal-patch chain reference. For every accepted next
+cell it projects only the current field's finite shock/ambient strip, solves a
+new centerline reflection patch, solves a new alternating source band, reruns
+the bounded global shock remesh, and closes a new exact-Euler ambient/
+centerline field. Source-band fingerprints are retained so a reused geometric
+front cannot satisfy the freshness gate.
+
+The physical-field chain audit now accepts an explicit intercell bridge. The
+bridge records the previous ambient endpoint and the next shock/ambient
+attachment, while the planner diagnostics retain the reflected patch and
+source-band stages that connect them. This is necessary because the next
+global-Euler field begins at a newly solved source interface rather than at the
+previous field's ambient endpoint; an axial gap is therefore never silently
+treated as a shared interface.
+
+The standalone validation fixture first reconciles an accepted physical seed
+field through an independent nine-point attached-shock scalar reference, then
+exercises three resolved exact-Euler fields, two independently measured fresh
+source/remesh/Euler steps, distinct source fingerprints, verified intercell bridges, and a typed
+``SOLVER_RETURNED_NO_NEXT_CELL`` stop. The lane remains planning-only:
+canonical reflected free-boundary/mixed-regime closure, indexed external
+observations, refinement across additional cases, and production next-cell
+fitting are still required. Nothing from this lane flows backward into the
+fast/basic visualization, signature, optical-transfer, or focal-plane-array
+providers.

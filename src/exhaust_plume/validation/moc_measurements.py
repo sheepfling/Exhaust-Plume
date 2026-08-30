@@ -7906,6 +7906,9 @@ class MocPhysicalFieldChainMeasurement:
   handoff_link_count: int = 0
   handoff_links_verified: bool | None = None
   fresh_domain_verified: bool = False
+  intercell_bridge_count: int = 0
+  intercell_bridge_endpoints_m: tuple[tuple[Point, Point], ...] = ()
+  intercell_bridges_verified: bool = False
   physical_closure_verified: bool = False
   chain_promotion_blocked: bool = True
   production_claim_allowed: bool = False
@@ -7962,8 +7965,39 @@ class MocPhysicalFieldChainMeasurement:
       bool,
     ):
       raise TypeError('handoff_links_verified must be a bool or None')
+    if (
+      isinstance(self.intercell_bridge_count, bool)
+      or not isinstance(self.intercell_bridge_count, int)
+      or self.intercell_bridge_count < 0
+    ):
+      raise ValueError('intercell_bridge_count must be a nonnegative integer')
+    bridge_endpoints = tuple(self.intercell_bridge_endpoints_m)
+    if len(bridge_endpoints) > self.intercell_bridge_count:
+      raise ValueError(
+        'intercell_bridge_endpoints_m cannot exceed intercell_bridge_count'
+      )
+    normalized_bridge_endpoints: list[tuple[Point, Point]] = []
+    for endpoints in bridge_endpoints:
+      if len(endpoints) != 2:
+        raise ValueError(
+          'intercell_bridge_endpoints_m must contain (start, end) pairs'
+        )
+      start, end = endpoints
+      start_point = (float(start[0]), float(start[1]))
+      end_point = (float(end[0]), float(end[1]))
+      if not all(isfinite(value) for value in (*start_point, *end_point)):
+        raise ValueError(
+          'intercell_bridge_endpoints_m must contain finite coordinates'
+        )
+      normalized_bridge_endpoints.append((start_point, end_point))
+    object.__setattr__(
+      self,
+      'intercell_bridge_endpoints_m',
+      tuple(normalized_bridge_endpoints),
+    )
     for name in (
       'fresh_domain_verified',
+      'intercell_bridges_verified',
       'physical_closure_verified',
       'chain_promotion_blocked',
       'production_claim_allowed',
@@ -8033,6 +8067,14 @@ class MocPhysicalFieldChainMeasurement:
       'handoff': {
         'link_count': self.handoff_link_count,
         'links_verified': self.handoff_links_verified,
+      },
+      'intercell_bridges': {
+        'count': self.intercell_bridge_count,
+        'verified': self.intercell_bridges_verified,
+        'endpoints_m': [
+          [list(start), list(end)]
+          for start, end in self.intercell_bridge_endpoints_m
+        ],
       },
       'fresh_domain_verified': self.fresh_domain_verified,
       'physical_closure_verified': self.physical_closure_verified,
@@ -18419,13 +18461,15 @@ def measure_moc_ambient_closed_physical_field_chain(
   tangent_tolerance: float = 1.0e-8,
   area_tolerance_m2: float = 1.0e-9,
   mesh_vertex_tolerance_m: float = 1.0e-12,
+  intercell_bridge_endpoints_m: Sequence[tuple[Sequence[float], Sequence[float]]] | None = None,
 ) -> MocPhysicalFieldChainMeasurement:
   """Independently audit a sequence of solver-owned physical MOC fields.
 
   This operator is intentionally stricter than the planner trace audit.  It
   remeasures every field from its raw mesh and retained state arrays, then
   checks that each next field consumes the previous centerline trace exactly
-  and starts at the previous ambient endpoint.  It does not use
+  and either starts at the previous ambient endpoint or supplies an explicit
+  reflected/source bridge whose measured endpoints join those two domains. It does not use
   ``physical_closure_verified``, ``state_sampling_available``,
   ``upstream_shock_coupling_verified``, or ``pressure_loss_verified`` as proof.
   A passing result is still research evidence, not a canonical reflected
@@ -18457,6 +18501,42 @@ def measure_moc_ambient_closed_physical_field_chain(
       field_physical_closure_verified=(False,) * len(items),
       message='fields must contain only MocPhysicalPostShockFieldResult values',
     )
+  resolved_bridge_endpoints: tuple[tuple[Point, Point], ...] = ()
+  if intercell_bridge_endpoints_m is not None:
+    try:
+      raw_bridge_endpoints = tuple(intercell_bridge_endpoints_m)
+      if len(raw_bridge_endpoints) != max(0, len(items) - 1):
+        return MocPhysicalFieldChainMeasurement(
+          status=MocPhysicalFieldChainMeasurementStatus.INVALID_INPUT,
+          field_count=len(items),
+          message=(
+            'intercell_bridge_endpoints_m must contain exactly one bridge '
+            'for each adjacent field pair'
+          ),
+        )
+      normalized_bridges: list[tuple[Point, Point]] = []
+      for endpoints in raw_bridge_endpoints:
+        if len(endpoints) != 2:
+          raise ValueError('bridge endpoints must be (start, end) pairs')
+        start, end = endpoints
+        start_point = (float(start[0]), float(start[1]))
+        end_point = (float(end[0]), float(end[1]))
+        if not all(
+          isfinite(value)
+          for value in (*start_point, *end_point)
+        ):
+          raise ValueError('bridge endpoints must contain finite coordinates')
+        normalized_bridges.append((start_point, end_point))
+      resolved_bridge_endpoints = tuple(normalized_bridges)
+    except (IndexError, TypeError, ValueError):
+      return MocPhysicalFieldChainMeasurement(
+        status=MocPhysicalFieldChainMeasurementStatus.INVALID_INPUT,
+        field_count=len(items),
+        message=(
+          'intercell_bridge_endpoints_m must contain finite (start, end) '
+          'coordinate pairs'
+        ),
+      )
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('state_tolerance', state_tolerance),
@@ -18477,6 +18557,8 @@ def measure_moc_ambient_closed_physical_field_chain(
   physical_closure_verified: list[bool] = []
   measurements: list[MocShockCellMeasurement] = []
   reference_ambient_pressure: float | None = None
+  explicit_bridge_requested = intercell_bridge_endpoints_m is not None
+  explicit_bridges_verified = True
 
   def failure(
     status: MocPhysicalFieldChainMeasurementStatus,
@@ -18498,6 +18580,9 @@ def measure_moc_ambient_closed_physical_field_chain(
       handoff_link_count=max(0, len(statuses) - 1),
       handoff_links_verified=handoff_links_verified,
       fresh_domain_verified=fresh_domain_verified,
+      intercell_bridge_count=len(resolved_bridge_endpoints),
+      intercell_bridge_endpoints_m=resolved_bridge_endpoints,
+      intercell_bridges_verified=explicit_bridges_verified,
       physical_closure_verified=False,
       message=message,
     )
@@ -19064,7 +19149,38 @@ def measure_moc_ambient_closed_physical_field_chain(
           f'physical field {field_index} domain extent could not be measured: {error}',
           handoff_links_verified=True,
         )
-      if (
+      if explicit_bridge_requested:
+        bridge_start, bridge_end = resolved_bridge_endpoints[field_index - 2]
+        bridge_ok = bool(
+          close(
+            bridge_start[0],
+            previous.ambient_boundary_points_m[-1][0],
+            position_tolerance_m,
+          )
+          and close(
+            bridge_start[1],
+            previous.ambient_boundary_points_m[-1][1],
+            position_tolerance_m,
+          )
+          and close(bridge_end[0], shock_points[0][0], position_tolerance_m)
+          and close(bridge_end[1], shock_points[0][1], position_tolerance_m)
+          and close(bridge_end[0], ambient_points[0][0], position_tolerance_m)
+          and close(bridge_end[1], ambient_points[0][1], position_tolerance_m)
+          and bridge_end[0] > bridge_start[0] + position_tolerance_m
+          and current_min_x >= bridge_end[0] - position_tolerance_m
+          and current_max_x > bridge_end[0] + position_tolerance_m
+        )
+        explicit_bridges_verified = explicit_bridges_verified and bridge_ok
+        if not bridge_ok:
+          return failure(
+            MocPhysicalFieldChainMeasurementStatus.DOMAIN_FAILURE,
+            (
+              f'physical field {field_index} does not join its previous '
+              'domain through the supplied explicit intercell bridge'
+            ),
+            handoff_links_verified=True,
+          )
+      elif (
         abs(shock_points[0][0] - previous_end_x) > position_tolerance_m
         or abs(ambient_points[0][0] - previous_end_x) > position_tolerance_m
         or current_min_x < previous_end_x - position_tolerance_m
@@ -19090,6 +19206,9 @@ def measure_moc_ambient_closed_physical_field_chain(
     handoff_link_count=handoff_link_count,
     handoff_links_verified=True if handoff_link_count else None,
     fresh_domain_verified=True,
+    intercell_bridge_count=len(resolved_bridge_endpoints),
+    intercell_bridge_endpoints_m=resolved_bridge_endpoints,
+    intercell_bridges_verified=explicit_bridges_verified,
     physical_closure_verified=True,
     chain_promotion_blocked=True,
     production_claim_allowed=False,
