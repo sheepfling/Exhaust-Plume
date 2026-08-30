@@ -2890,3 +2890,37 @@ with zero physical chain cells. The next solver task is an intra-cycle
 ``C+``/``C-`` characteristic remesh that reproduces this residual trend while
 closing the reflected/free-boundary perimeter; only then can the physical
 shock-cell chain and external-observation gates be evaluated.
+
+## Solver-owned characteristic-edge remesh checkpoint
+
+The next fidelity seam is now a separate solver-owned remesh:
+``remesh_euler_ambient_first_wedge_entropy_characteristic_continuation``.
+For each source triangle it solves the two slanted characteristic edges as
+short variable-entropy boundary-value traces and caches each shared edge in
+one canonical orientation. The bounded implementation supports one or two
+edge intervals, producing 7 or 28 triangular cells and 8 shared characteristic
+edge traces on the canonical four-cycle continuation source. The resulting
+meshes are connected, simply bounded open zones with no non-manifold edges;
+the open perimeter is retained as evidence rather than filled by extrapolated
+cells.
+
+The two-interval case independently passes the characteristic geometry,
+variable-entropy compatibility, pressure-lineage, and topology gates. Its
+maximum remesh residuals are approximately ``1.19e-8`` for geometry,
+``1.68e-7`` for compatibility, and ``8.9e-16`` for pressure transport under
+the bounded ``1e-6`` characteristic and ``1e-8`` pressure tolerances. The
+independent
+``op.moc.euler-ambient-first-wedge-entropy-characteristic-continuation-remesh-audit``
+recomputes those edge equations and the cell flux residuals. The conservative
+Euler gate remains separate and fails at approximately ``0.02394`` against
+the ``0.01`` threshold, so this is a locally coherent remesh, not an accepted
+Euler field.
+
+The matching
+``plan_euler_ambient_first_wedge_entropy_characteristic_continuation_remesh_probe``
+records the one- and two-interval ladder while preserving
+``OPEN_PHYSICAL_CLOSURE``, zero physical chain cells, and the explicit
+external-validation requirement. This closes the projection-to-solver-owned
+edge seam only. Interior multi-row ``C+``/``C-`` intersections, a globally
+closed reflected/free-boundary shock, indexed external observations, and
+physical shock-cell-chain promotion remain pending.

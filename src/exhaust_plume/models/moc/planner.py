@@ -133,6 +133,9 @@ from exhaust_plume.models.moc.euler_entropy_characteristic_continuation import (
 from exhaust_plume.models.moc.euler_entropy_characteristic_continuation_refinement import (
   refine_euler_ambient_first_wedge_entropy_characteristic_continuation,
 )
+from exhaust_plume.models.moc.euler_entropy_characteristic_continuation_remesh import (
+  remesh_euler_ambient_first_wedge_entropy_characteristic_continuation,
+)
 from exhaust_plume.models.moc.euler_entropy_refinement import (
   MocEulerAmbientFirstWedgeEntropyCarryRefinementResult,
   refine_euler_ambient_first_wedge_entropy_carry,
@@ -271,6 +274,7 @@ __all__ = (
   'plan_euler_ambient_first_wedge_entropy_characteristic_free_boundary_probe',
   'plan_euler_ambient_first_wedge_entropy_characteristic_continuation_probe',
   'plan_euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_probe',
+  'plan_euler_ambient_first_wedge_entropy_characteristic_continuation_remesh_probe',
   'MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerStep',
   'MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerResult',
   'plan_euler_ambient_first_wedge_entropy_carry_refinement',
@@ -13044,6 +13048,161 @@ def plan_euler_ambient_first_wedge_entropy_characteristic_continuation_refinemen
     'refinement_side_counts': side_counts,
     'refinement_ladder': tuple(refinement_ladder_reports),
     'refinement_consumed_as_chain_cell': False,
+    'external_validation_required': True,
+    'synthetic_downstream_field_created': False,
+    'physical_chain_cell_count': 0,
+  })
+  return replace(planner, diagnostics=diagnostics)
+
+
+def plan_euler_ambient_first_wedge_entropy_characteristic_continuation_remesh_probe(
+  seed: MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult,
+  *,
+  ambient_pressure_Pa: float,
+  cycle_count: int = 4,
+  subdivision_side_counts: Sequence[int] = (1, 2),
+  target_centerline_y_m: float = 0.0,
+  target_centerline_flow_angle_rad: float = 0.0,
+  position_tolerance_m: float = 1.0e-8,
+  characteristic_residual_tolerance: float = 1.0e-6,
+  pressure_lineage_tolerance: float = 1.0e-8,
+  cell_residual_tolerance: float = 1.0e-2,
+  maximum_iterations: int = 48,
+) -> MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainPlannerResult:
+  """Plan a bounded solver-owned characteristic-edge remesh ladder.
+
+  The one- and two-interval edge traces are recorded as diagnostic evidence.
+  They are never converted to downstream entropy fields or physical
+  shock-cell-chain cells; the continuation remains an explicit fidelity stop.
+  """
+
+  if not isinstance(
+    seed,
+    MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult,
+  ):
+    raise TypeError(
+      'seed must be a '
+      'MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult'
+    )
+  try:
+    side_counts = tuple(subdivision_side_counts)
+  except TypeError as error:
+    raise ValueError(
+      'subdivision_side_counts must be an iterable of integers'
+    ) from error
+  if not side_counts or any(
+    isinstance(side_count, bool)
+    or not isinstance(side_count, int)
+    or side_count not in (1, 2)
+    for side_count in side_counts
+  ):
+    raise ValueError(
+      'subdivision_side_counts must contain only one or two'
+    )
+  if any(
+    right <= left for left, right in zip(side_counts, side_counts[1:])
+  ):
+    raise ValueError('subdivision_side_counts must be strictly increasing')
+  attempt_reports: list[dict[str, Any]] = []
+  remesh_ladder_reports: list[dict[str, Any]] = []
+
+  def solve_next(
+    current: MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult,
+    _next_field_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+  ) -> MocChainTerminationDecision:
+    attempt = solve_euler_ambient_first_wedge_entropy_characteristic_continuation(
+      current,
+      incoming_handoff,
+      ambient_pressure_Pa,
+      cycle_count=cycle_count,
+      target_centerline_y_m=target_centerline_y_m,
+      target_centerline_flow_angle_rad=target_centerline_flow_angle_rad,
+      position_tolerance_m=position_tolerance_m,
+      characteristic_residual_tolerance=characteristic_residual_tolerance,
+      pressure_lineage_tolerance=pressure_lineage_tolerance,
+      cell_residual_tolerance=cell_residual_tolerance,
+      maximum_iterations=maximum_iterations,
+    )
+    attempt_report = attempt.as_report()
+    attempt_reports.append(attempt_report)
+    if attempt.converged:
+      for side_count in side_counts:
+        remesh = remesh_euler_ambient_first_wedge_entropy_characteristic_continuation(
+          attempt,
+          subdivision_side_count=side_count,
+          position_tolerance_m=position_tolerance_m,
+          characteristic_residual_tolerance=characteristic_residual_tolerance,
+          pressure_lineage_tolerance=pressure_lineage_tolerance,
+          cell_residual_tolerance=cell_residual_tolerance,
+          maximum_iterations=maximum_iterations,
+        )
+        remesh_ladder_reports.append({
+          'subdivision_side_count': side_count,
+          'status': remesh.status.value,
+          'converged': remesh.converged,
+          'local_characteristic_remesh_verified': (
+            remesh.local_characteristic_remesh_verified
+          ),
+          'cell_count': remesh.cell_count,
+          'state_sample_count': remesh.state_sample_count,
+          'characteristic_edge_count': len(remesh.characteristic_edges),
+          'maximum_geometry_residual': remesh.maximum_geometry_residual,
+          'maximum_compatibility_residual': (
+            remesh.maximum_compatibility_residual
+          ),
+          'maximum_pressure_residual': remesh.maximum_pressure_residual,
+          'maximum_cell_euler_residual': (
+            remesh.maximum_cell_euler_residual
+          ),
+          'cell_euler_residuals_finite': remesh.cell_euler_residuals_finite,
+          'cell_euler_residuals_verified': (
+            remesh.cell_euler_residuals_verified
+          ),
+          'physical_closure_verified': False,
+          'chain_promotion_blocked': True,
+          'production_claim_allowed': False,
+          'external_validation_required': True,
+        })
+    decision = attempt.as_chain_termination_decision()
+    diagnostics = dict(decision.diagnostics)
+    diagnostics.update({
+      'planner_model': (
+        'euler-ambient-first-wedge-entropy-characteristic-continuation-'
+        'characteristic-remesh-probe'
+      ),
+      'continuation_attempt': attempt_report,
+      'remesh_side_counts': side_counts,
+      'remesh_ladder': tuple(remesh_ladder_reports),
+      'remesh_consumed_as_chain_cell': False,
+      'external_validation_required': True,
+      'synthetic_downstream_field_created': False,
+      'physical_chain_cell_count': 0,
+    })
+    return replace(decision, diagnostics=diagnostics)
+
+  planner = plan_euler_ambient_first_wedge_entropy_characteristic_field_chain(
+    seed,
+    solve_next,
+    total_field_count=1,
+    position_tolerance_m=position_tolerance_m,
+    claim_status=(
+      'solver-generated-bounded-euler-entropy-characteristic-continuation-'
+      'characteristic-edge-remesh-probe; interior-characteristic-reflected-'
+      'shock-and-physical-chain-closure-pending'
+    ),
+  )
+  diagnostics = dict(planner.diagnostics)
+  diagnostics.update({
+    'planner_model': (
+      'euler-ambient-first-wedge-entropy-characteristic-continuation-'
+      'characteristic-remesh-probe'
+    ),
+    'continuation_attempt_count': len(attempt_reports),
+    'continuation_attempts': attempt_reports,
+    'remesh_side_counts': side_counts,
+    'remesh_ladder': tuple(remesh_ladder_reports),
+    'remesh_consumed_as_chain_cell': False,
     'external_validation_required': True,
     'synthetic_downstream_field_created': False,
     'physical_chain_cell_count': 0,
