@@ -11,6 +11,10 @@ from exhaust_plume.models.moc.euler_entropy_characteristic_remesh_free_boundary 
   MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryResult,
   MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryStatus,
 )
+from exhaust_plume.models.moc.euler_entropy_characteristic_frontier import (
+  audit_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier_path,
+  extract_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier,
+)
 from exhaust_plume.models.moc.free_boundary import MocFreeBoundaryShockStatus
 from exhaust_plume.validation.moc_euler import (
   MocPhysicalFieldEulerAudit,
@@ -119,6 +123,11 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryAudit:
   maximum_pressure_residual: float | None
   termination_reason: str | None
   message: str = ''
+  frontier_coverage_status: str | None = None
+  frontier_coverage_verified: bool = False
+  frontier_sample_count: int = 0
+  frontier_first_exterior_sample_index: int | None = None
+  frontier_first_exterior_signed_offset_m: float | None = None
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -169,6 +178,36 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryAudit:
         if not isfinite(numeric) or numeric < 0.0:
           raise ValueError(f'{name} must be finite and nonnegative')
         object.__setattr__(self, name, numeric)
+    if self.frontier_coverage_status is not None and not isinstance(
+      self.frontier_coverage_status,
+      str,
+    ):
+      raise TypeError('frontier_coverage_status must be a string or None')
+    if not isinstance(self.frontier_coverage_verified, bool):
+      raise TypeError('frontier_coverage_verified must be a bool')
+    if (
+      isinstance(self.frontier_sample_count, bool)
+      or not isinstance(self.frontier_sample_count, int)
+      or self.frontier_sample_count < 0
+    ):
+      raise ValueError('frontier_sample_count must be a nonnegative integer')
+    if self.frontier_first_exterior_sample_index is not None and (
+      isinstance(self.frontier_first_exterior_sample_index, bool)
+      or not isinstance(self.frontier_first_exterior_sample_index, int)
+      or self.frontier_first_exterior_sample_index < 0
+    ):
+      raise ValueError(
+        'frontier_first_exterior_sample_index must be a nonnegative integer or None'
+      )
+    if self.frontier_first_exterior_signed_offset_m is not None:
+      offset = float(self.frontier_first_exterior_signed_offset_m)
+      if not isfinite(offset):
+        raise ValueError('frontier_first_exterior_signed_offset_m must be finite')
+      object.__setattr__(
+        self,
+        'frontier_first_exterior_signed_offset_m',
+        offset,
+      )
     for name in (
       'incoming_handoff_verified',
       'source_remesh_verified',
@@ -212,6 +251,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryAudit:
       and self.source_remesh_verified
       and self.source_cell_euler_residuals_flag_consistent
       and self.status_consistent
+      and self.frontier_coverage_verified
       and (self.path_coverage_verified or self.shock_status == MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE.value)
       and self.chain_promotion_blocked
       and not self.production_claim_allowed
@@ -255,6 +295,15 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryAudit:
       'maximum_state_residual': self.maximum_state_residual,
       'maximum_pressure_residual': self.maximum_pressure_residual,
       'termination_reason': self.termination_reason,
+      'frontier_coverage_status': self.frontier_coverage_status,
+      'frontier_coverage_verified': self.frontier_coverage_verified,
+      'frontier_sample_count': self.frontier_sample_count,
+      'frontier_first_exterior_sample_index': (
+        self.frontier_first_exterior_sample_index
+      ),
+      'frontier_first_exterior_signed_offset_m': (
+        self.frontier_first_exterior_signed_offset_m
+      ),
       'message': self.message,
     }
 
@@ -283,6 +332,11 @@ def _failure(
   maximum_state_residual: float | None = None,
   maximum_pressure_residual: float | None = None,
   termination_reason: str | None = None,
+  frontier_coverage_status: str | None = None,
+  frontier_coverage_verified: bool = False,
+  frontier_sample_count: int = 0,
+  frontier_first_exterior_sample_index: int | None = None,
+  frontier_first_exterior_signed_offset_m: float | None = None,
 ) -> MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryAudit:
   return MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryAudit(
     status=status,
@@ -315,6 +369,13 @@ def _failure(
     maximum_state_residual=maximum_state_residual,
     maximum_pressure_residual=maximum_pressure_residual,
     termination_reason=termination_reason,
+    frontier_coverage_status=frontier_coverage_status,
+    frontier_coverage_verified=frontier_coverage_verified,
+    frontier_sample_count=frontier_sample_count,
+    frontier_first_exterior_sample_index=frontier_first_exterior_sample_index,
+    frontier_first_exterior_signed_offset_m=(
+      frontier_first_exterior_signed_offset_m
+    ),
     message=message,
   )
 
@@ -460,6 +521,61 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_remesh_free_bou
     and covered_count == shock_sample_count
     and first_missing is None
   )
+  frontier_coverage_status: str | None = None
+  frontier_coverage_verified = False
+  frontier_sample_count = 0
+  frontier_first_exterior_sample_index: int | None = None
+  frontier_first_exterior_signed_offset_m: float | None = None
+  frontier_path_points: list[tuple[float, float]] = (
+    [] if shock is None else list(shock.shock_points_m)
+  )
+  if shock is not None and shock.failed_point_m is not None:
+    failed_point = shock.failed_point_m
+    if not frontier_path_points or any(
+      abs(failed_point[index] - frontier_path_points[-1][index])
+      > position_tolerance_m
+      for index in (0, 1)
+    ):
+      frontier_path_points.append(failed_point)
+  if not frontier_path_points and result.start_point_m is not None:
+    frontier_path_points.append(result.start_point_m)
+  if frontier_path_points:
+    frontier = extract_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier(
+      remesh,
+      position_tolerance_m=position_tolerance_m,
+      state_tolerance=state_tolerance,
+    )
+    frontier_path_audit = (
+      audit_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier_path(
+        frontier,
+        tuple(frontier_path_points),
+        position_tolerance_m=position_tolerance_m,
+      )
+    )
+    frontier_coverage_status = frontier_path_audit.status.value
+    frontier_sample_count = frontier.sample_count
+    frontier_first_exterior_sample_index = (
+      frontier_path_audit.first_exterior_sample_index
+    )
+    frontier_first_exterior_signed_offset_m = (
+      frontier_path_audit.first_exterior_signed_offset_m
+    )
+    cached_frontier_coverage = result.frontier_coverage
+    frontier_coverage_verified = bool(
+      frontier.converged
+      and frontier_path_audit.frontier is not None
+      and frontier_path_audit.frontier.converged
+      and cached_frontier_coverage is not None
+      and cached_frontier_coverage.frontier is not None
+      and cached_frontier_coverage.frontier.converged
+      and cached_frontier_coverage.frontier.edge_index == frontier.edge_index
+      and cached_frontier_coverage.frontier.sample_count == frontier.sample_count
+      and cached_frontier_coverage.status is frontier_path_audit.status
+      and cached_frontier_coverage.first_missing_sample_index
+      == frontier_path_audit.first_missing_sample_index
+      and cached_frontier_coverage.first_exterior_sample_index
+      == frontier_path_audit.first_exterior_sample_index
+    )
   physical_field_euler_audit: MocPhysicalFieldEulerAudit | None = None
   if result.physical_field is not None and result.physical_field.field is not None:
     try:
@@ -546,15 +662,34 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_remesh_free_bou
     'maximum_state_residual': max(state_residuals, default=None),
     'maximum_pressure_residual': max(pressure_residuals, default=None),
     'termination_reason': result.as_chain_termination_decision().reason.value,
+    'frontier_coverage_status': frontier_coverage_status,
+    'frontier_coverage_verified': frontier_coverage_verified,
+    'frontier_sample_count': frontier_sample_count,
+    'frontier_first_exterior_sample_index': (
+      frontier_first_exterior_sample_index
+    ),
+    'frontier_first_exterior_signed_offset_m': (
+      frontier_first_exterior_signed_offset_m
+    ),
   }
-  if expected_boundary and status_consistent and fidelity_flags_verified:
+  if (
+    expected_boundary
+    and status_consistent
+    and fidelity_flags_verified
+    and frontier_coverage_verified
+  ):
     return _failure(
       MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryAuditStatus
       .CONVERGED_LOCAL_BOUNDARY_AUDIT,
       'independent audit confirmed the bounded remesh probe stopped at its upstream remesh boundary',
       **common,
     )
-  if expected_closed and status_consistent and fidelity_flags_verified:
+  if (
+    expected_closed
+    and status_consistent
+    and fidelity_flags_verified
+    and frontier_coverage_verified
+  ):
     return _failure(
       MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryAuditStatus
       .CONVERGED_LOCAL_CLOSED_AUDIT,

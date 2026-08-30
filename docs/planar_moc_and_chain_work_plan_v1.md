@@ -2975,3 +2975,30 @@ external-validation requirement. This is the planner boundary for the next
 implementation increment: enlarge or replace the bounded upstream field with
 a globally coupled, Euler-accepted reflected ``C-`` frontier before a physical
 shock-cell chain can be extended.
+
+## Outgoing C− frontier coverage checkpoint
+
+The bounded remesh now exposes its exact terminal outgoing ``C-`` edge through
+``extract_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier``.
+The edge retains the solver-owned curved coordinates, states, transported
+total-pressure lineage, and local characteristic residuals in outer-to-
+centerline order. This is a diagnostic frontier view; it does not replace the
+two-endpoint continuation handoff or turn the remesh into a production field.
+
+The matching
+``audit_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier_path``
+checks a candidate shock path only against retained remesh cells and the
+outgoing frontier. It reports the first missing point as a bounded-domain gap
+or as an exterior crossing with a signed offset, without inserting an
+upstream state. On the canonical n=4 diagnostic mesh, the first missing shock
+sample is classified as ``FRONTIER_EXTERIOR`` about ``3.59e-3 m`` beyond the
+frontier. The independent free-boundary audit recomputes this classification,
+and the planner records the frontier status and sample count alongside the
+closure attempt.
+
+This closes the observability and handoff-diagnosis seam only. The next true
+solver task remains a two-sided/global reflected free-boundary solve (or a
+separately justified terminal model) that supplies a valid downstream
+condition beyond the outgoing frontier. No continued shock-cell-chain cell is
+promoted until that solve, refinement-stable Euler evidence, and indexed
+external validation all pass.

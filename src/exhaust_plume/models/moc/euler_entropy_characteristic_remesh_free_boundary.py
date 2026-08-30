@@ -27,6 +27,11 @@ from exhaust_plume.models.moc.coupled import (
 from exhaust_plume.models.moc.euler_entropy_characteristic_continuation_remesh import (
   MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshResult,
 )
+from exhaust_plume.models.moc.euler_entropy_characteristic_frontier import (
+  MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierCoverageResult,
+  audit_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier_path,
+  extract_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier,
+)
 from exhaust_plume.models.moc.free_boundary import (
   MocFreeBoundaryShockResult,
   MocFreeBoundaryShockStatus,
@@ -92,6 +97,10 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryResult:
   source_cell_euler_residuals_verified: bool
   message: str = ''
   position_tolerance_m: float = 1.0e-8
+  frontier_coverage: (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierCoverageResult
+    | None
+  ) = None
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -104,6 +113,11 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryResult:
       MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshResult,
     ):
       raise TypeError('remesh must be a typed continuation remesh or None')
+    if self.frontier_coverage is not None and not isinstance(
+      self.frontier_coverage,
+      MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierCoverageResult,
+    ):
+      raise TypeError('frontier_coverage must be typed or None')
     if self.physical_field is not None and not isinstance(
       self.physical_field,
       MocAmbientPhysicalFieldResult,
@@ -189,6 +203,22 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryResult:
       self.remesh is not None
       and self.remesh.local_characteristic_remesh_verified
       and self.remesh.diagnostic_sampling_available
+    )
+
+  @property
+  def outgoing_frontier_verified(self) -> bool:
+    return bool(
+      self.frontier_coverage is not None
+      and self.frontier_coverage.frontier is not None
+      and self.frontier_coverage.frontier.converged
+    )
+
+  @property
+  def frontier_coverage_status(self) -> str | None:
+    return (
+      None
+      if self.frontier_coverage is None
+      else self.frontier_coverage.status.value
     )
 
   @property
@@ -294,6 +324,28 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryResult:
         'covered_sample_count': self.covered_sample_count,
         'first_missing_sample_index': self.first_missing_sample_index,
         'path_coverage_verified': self.path_coverage_verified,
+        'outgoing_frontier_verified': self.outgoing_frontier_verified,
+        'frontier_coverage_status': self.frontier_coverage_status,
+        'frontier_coverage_requested_sample_count': (
+          None
+          if self.frontier_coverage is None
+          else self.frontier_coverage.requested_sample_count
+        ),
+        'frontier_coverage_covered_sample_count': (
+          None
+          if self.frontier_coverage is None
+          else self.frontier_coverage.covered_sample_count
+        ),
+        'frontier_first_exterior_sample_index': (
+          None
+          if self.frontier_coverage is None
+          else self.frontier_coverage.first_exterior_sample_index
+        ),
+        'frontier_first_exterior_signed_offset_m': (
+          None
+          if self.frontier_coverage is None
+          else self.frontier_coverage.first_exterior_signed_offset_m
+        ),
         'source_remesh_verified': self.source_remesh_verified,
         'source_maximum_cell_euler_residual': (
           self.source_maximum_cell_euler_residual
@@ -327,6 +379,13 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryResult:
         self.source_cell_euler_residuals_verified
       ),
       'path_coverage_verified': self.path_coverage_verified,
+      'outgoing_frontier_verified': self.outgoing_frontier_verified,
+      'frontier_coverage_status': self.frontier_coverage_status,
+      'frontier_coverage': (
+        None
+        if self.frontier_coverage is None
+        else self.frontier_coverage.as_report()
+      ),
       'reflected_free_boundary_verified': self.reflected_free_boundary_verified,
       'physical_closure_verified': self.physical_closure_verified,
       'chain_promotion_blocked': True,
@@ -371,6 +430,10 @@ def _result(
   source_maximum_cell_euler_residual: float | None = None,
   source_cell_euler_residuals_verified: bool = False,
   position_tolerance_m: float = 1.0e-8,
+  frontier_coverage: (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierCoverageResult
+    | None
+  ) = None,
   message: str,
 ) -> MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryResult:
   return MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryResult(
@@ -390,6 +453,7 @@ def _result(
     source_maximum_cell_euler_residual=source_maximum_cell_euler_residual,
     source_cell_euler_residuals_verified=source_cell_euler_residuals_verified,
     position_tolerance_m=position_tolerance_m,
+    frontier_coverage=frontier_coverage,
     message=message,
   )
 
@@ -555,7 +619,18 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary(
     sampler_error = str(error)
   else:
     sampler_error = ''
+  frontier = extract_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier(
+    remesh,
+    position_tolerance_m=tolerance,
+  )
   if start_pressure is None:
+    frontier_coverage = (
+      audit_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier_path(
+        frontier,
+        (point,),
+        position_tolerance_m=tolerance,
+      )
+    )
     return _result(
       MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryStatus
       .UPSTREAM_REMESH_BOUNDARY,
@@ -564,6 +639,7 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary(
         'shock start point is outside the bounded characteristic remesh; '
         f'no upstream state was extrapolated{": " + sampler_error if sampler_error else ""}'
       ),
+      frontier_coverage=frontier_coverage,
       **base,
     )
 
@@ -600,12 +676,20 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary(
       allow_zero_strength_endpoints=allow_zero_strength_endpoints,
     )
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    frontier_coverage = (
+      audit_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier_path(
+        frontier,
+        (point,),
+        position_tolerance_m=tolerance,
+      )
+    )
     return _result(
       MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryStatus
       .REFLECTED_FIELD_FAILURE,
       remesh,
       message=f'remesh free-boundary coupling raised: {error}',
       physical_field=None,
+      frontier_coverage=frontier_coverage,
       **base,
     )
   shock = physical_field.ambient_attachment
@@ -616,6 +700,25 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary(
   )
   first_missing_sample_index = (
     None if shock_result is None else shock_result.failed_sample_index
+  )
+  candidate_path = (
+    [] if shock_result is None else list(shock_result.shock_points_m)
+  )
+  if shock_result is not None and shock_result.failed_point_m is not None:
+    failed_point = shock_result.failed_point_m
+    if not candidate_path or any(
+      abs(failed_point[index] - candidate_path[-1][index]) > tolerance
+      for index in (0, 1)
+    ):
+      candidate_path.append(failed_point)
+  if not candidate_path:
+    candidate_path.append(point)
+  frontier_coverage = (
+    audit_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier_path(
+      frontier,
+      tuple(candidate_path),
+      position_tolerance_m=tolerance,
+    )
   )
   if (
     shock_result is not None
@@ -629,6 +732,7 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary(
       shock_sample_count=shock_sample_count,
       covered_sample_count=covered_sample_count,
       first_missing_sample_index=first_missing_sample_index,
+      frontier_coverage=frontier_coverage,
       message=(
         'reflected/free-boundary shock left the bounded characteristic remesh '
         'before closure; no extrapolation or physical endpoint was inferred'
@@ -644,6 +748,7 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary(
       shock_sample_count=shock_sample_count,
       covered_sample_count=covered_sample_count,
       first_missing_sample_index=first_missing_sample_index,
+      frontier_coverage=frontier_coverage,
       message=(
         'reflected/free-boundary closure did not pass its physical field '
         f'gates: {physical_field.message}'
@@ -658,6 +763,7 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary(
     shock_sample_count=shock_sample_count,
     covered_sample_count=covered_sample_count,
     first_missing_sample_index=first_missing_sample_index,
+    frontier_coverage=frontier_coverage,
     message=(
       'reflected/free-boundary closure converged over the bounded remesh, but '
       'source Euler acceptance and external validation remain required before '

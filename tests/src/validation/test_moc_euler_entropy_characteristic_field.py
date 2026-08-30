@@ -14,6 +14,8 @@ from exhaust_plume.models.moc import (
   MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshStatus,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierStatus,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierCoverageStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryStatus,
   MocEulerAmbientFirstWedgeEntropyCarryStatus,
   assemble_euler_ambient_physical_field,
@@ -35,6 +37,8 @@ from exhaust_plume.models.moc import (
   solve_euler_ambient_first_wedge_entropy_characteristic_free_boundary,
   solve_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary,
   solve_euler_ambient_first_wedge_entropy_characteristic_continuation,
+  extract_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier,
+  audit_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier_path,
   solve_attached_compression_to_turn,
   fit_euler_consistent_shock_boundary,
 )
@@ -673,6 +677,24 @@ def test_internal_entropy_characteristic_continuation_remesh_solves_shared_edges
   assert remesh.chain_promotion_blocked
   assert remesh.production_claim_allowed is False
 
+  frontier = extract_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier(
+    remesh,
+  )
+  assert frontier.status is (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierStatus
+    .CONVERGED_BOUNDED_FRONTIER
+  )
+  assert frontier.converged
+  assert frontier.edge_index == 7
+  assert frontier.family is not None
+  assert frontier.family.value == 'C-'
+  assert frontier.sample_count == 3
+  assert frontier.samples[0].point_m == remesh.characteristic_edges[7].points_xr_m[0]
+  assert frontier.samples[-1].point_m == remesh.characteristic_edges[7].points_xr_m[-1]
+  assert frontier.physical_closure_verified is False
+  assert frontier.chain_promotion_blocked
+  assert frontier.production_claim_allowed is False
+
   audit = measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_remesh(
     remesh,
   )
@@ -866,6 +888,28 @@ def test_internal_entropy_characteristic_remesh_free_boundary_probe_stops_at_rem
   assert attempt.shock_sample_count == 1
   assert attempt.covered_sample_count == 1
   assert attempt.first_missing_sample_index == 1
+  assert attempt.outgoing_frontier_verified
+  assert attempt.frontier_coverage is not None
+  assert attempt.frontier_coverage.status is (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierCoverageStatus
+    .FRONTIER_EXTERIOR
+  )
+  assert attempt.frontier_coverage.first_missing_sample_index == 1
+  assert attempt.frontier_coverage.first_exterior_sample_index == 1
+  assert attempt.frontier_coverage.first_exterior_signed_offset_m is not None
+  assert attempt.frontier_coverage.first_exterior_signed_offset_m > 0.0
+  assert attempt.shock.failed_point_m is not None
+  direct_frontier_audit = (
+    audit_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier_path(
+      attempt.frontier_coverage.frontier,
+      (*attempt.shock.shock_points_m, attempt.shock.failed_point_m),
+    )
+  )
+  assert direct_frontier_audit.status is (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierCoverageStatus
+    .FRONTIER_EXTERIOR
+  )
+  assert direct_frontier_audit.first_exterior_sample_index == 1
   assert attempt.source_remesh_verified
   assert attempt.source_cell_euler_residuals_verified is False
   assert attempt.reflected_free_boundary_verified is False
@@ -890,6 +934,15 @@ def test_internal_entropy_characteristic_remesh_free_boundary_probe_stops_at_rem
   assert audit.source_cell_euler_residuals_verified is False
   assert audit.source_cell_euler_residuals_flag_consistent
   assert audit.path_coverage_verified is False
+  assert audit.frontier_coverage_verified
+  assert audit.frontier_coverage_status == (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierCoverageStatus
+    .FRONTIER_EXTERIOR.value
+  )
+  assert audit.frontier_sample_count == 5
+  assert audit.frontier_first_exterior_sample_index == 1
+  assert audit.frontier_first_exterior_signed_offset_m is not None
+  assert audit.frontier_first_exterior_signed_offset_m > 0.0
   assert audit.status_consistent
   assert audit.external_validation_required
   assert audit.fidelity_flags_verified
@@ -928,6 +981,20 @@ def test_internal_entropy_characteristic_remesh_free_boundary_planner_keeps_boun
     .UPSTREAM_REMESH_BOUNDARY.value
   )
   assert attempt['first_missing_sample_index'] == 1
+  assert attempt['outgoing_frontier_verified'] is True
+  assert attempt['frontier_coverage_status'] == (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierCoverageStatus
+    .FRONTIER_EXTERIOR.value
+  )
+  assert attempt['frontier_coverage']['first_exterior_sample_index'] == 1
+  assert attempt['frontier_coverage']['first_exterior_signed_offset_m'] > 0.0
+  assert planner.diagnostics['outgoing_frontier_verified'] is True
+  assert planner.diagnostics['outgoing_frontier_sample_count'] == 33
+  assert planner.diagnostics['frontier_path_coverage_status'] == (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierCoverageStatus
+    .FRONTIER_EXTERIOR.value
+  )
+  assert planner.diagnostics['frontier_first_exterior_sample_index'] == 1
   assert planner.diagnostics['remesh_free_boundary_consumed_as_chain_cell'] is False
   assert planner.diagnostics['external_validation_required'] is True
   assert planner.diagnostics['synthetic_downstream_field_created'] is False

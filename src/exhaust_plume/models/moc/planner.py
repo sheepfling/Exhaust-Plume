@@ -13292,6 +13292,7 @@ def plan_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_p
   continuation_reports: list[dict[str, Any]] = []
   remesh_reports: list[dict[str, Any]] = []
   closure_reports: list[dict[str, Any]] = []
+  frontier_reports: list[dict[str, Any] | None] = []
 
   def solve_next(
     current: MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult,
@@ -13326,6 +13327,7 @@ def plan_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_p
         'remesh_attempts': tuple(remesh_reports),
         'remesh_free_boundary_attempt_count': 0,
         'remesh_free_boundary_attempts': tuple(closure_reports),
+        'outgoing_frontier_attempts': tuple(frontier_reports),
         'external_validation_required': True,
         'synthetic_downstream_field_created': False,
         'physical_chain_cell_count': 0,
@@ -13357,6 +13359,7 @@ def plan_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_p
         'remesh_attempts': tuple(remesh_reports),
         'remesh_free_boundary_attempt_count': 0,
         'remesh_free_boundary_attempts': tuple(closure_reports),
+        'outgoing_frontier_attempts': tuple(frontier_reports),
         'external_validation_required': True,
         'synthetic_downstream_field_created': False,
         'physical_chain_cell_count': 0,
@@ -13391,6 +13394,13 @@ def plan_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_p
     )
     closure_report = closure.as_report()
     closure_reports.append(closure_report)
+    frontier_coverage = closure.frontier_coverage
+    frontier_report = (
+      None
+      if frontier_coverage is None
+      else frontier_coverage.as_report()
+    )
+    frontier_reports.append(frontier_report)
     decision = closure.as_chain_termination_decision()
     diagnostics = dict(decision.diagnostics)
     diagnostics.update({
@@ -13405,6 +13415,42 @@ def plan_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_p
       'remesh_free_boundary_attempt': closure_report,
       'remesh_free_boundary_attempt_count': len(closure_reports),
       'remesh_free_boundary_attempts': tuple(closure_reports),
+      'outgoing_frontier_status': (
+        None
+        if frontier_coverage is None or frontier_coverage.frontier is None
+        else frontier_coverage.frontier.status.value
+      ),
+      'outgoing_frontier_verified': bool(
+        frontier_coverage is not None
+        and frontier_coverage.frontier is not None
+        and frontier_coverage.frontier.converged
+      ),
+      'outgoing_frontier_sample_count': (
+        0
+        if frontier_coverage is None
+        else frontier_coverage.frontier.sample_count
+        if frontier_coverage.frontier is not None
+        else 0
+      ),
+      'frontier_path_coverage_status': (
+        None
+        if frontier_coverage is None
+        else frontier_coverage.status.value
+      ),
+      'frontier_path_coverage_verified': bool(
+        frontier_coverage is not None and frontier_coverage.converged
+      ),
+      'frontier_first_exterior_sample_index': (
+        None
+        if frontier_coverage is None
+        else frontier_coverage.first_exterior_sample_index
+      ),
+      'frontier_first_exterior_signed_offset_m': (
+        None
+        if frontier_coverage is None
+        else frontier_coverage.first_exterior_signed_offset_m
+      ),
+      'outgoing_frontier_attempts': tuple(frontier_reports),
       'remesh_free_boundary_consumed_as_chain_cell': False,
       'external_validation_required': True,
       'synthetic_downstream_field_created': False,
@@ -13424,6 +13470,16 @@ def plan_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_p
     ),
   )
   diagnostics = dict(planner.diagnostics)
+  latest_frontier_coverage = (
+    None
+    if not closure_reports
+    else closure_reports[-1].get('frontier_coverage')
+  )
+  latest_frontier = (
+    None
+    if latest_frontier_coverage is None
+    else latest_frontier_coverage.get('frontier')
+  )
   diagnostics.update({
     'planner_model': (
       'euler-ambient-first-wedge-entropy-characteristic-remesh-'
@@ -13435,6 +13491,35 @@ def plan_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_p
     'remesh_attempts': tuple(remesh_reports),
     'remesh_free_boundary_attempt_count': len(closure_reports),
     'remesh_free_boundary_attempts': tuple(closure_reports),
+    'outgoing_frontier_status': (
+      None if latest_frontier is None else latest_frontier.get('status')
+    ),
+    'outgoing_frontier_verified': bool(
+      latest_frontier is not None and latest_frontier.get('converged')
+    ),
+    'outgoing_frontier_sample_count': (
+      0 if latest_frontier is None else latest_frontier.get('sample_count', 0)
+    ),
+    'frontier_path_coverage_status': (
+      None
+      if latest_frontier_coverage is None
+      else latest_frontier_coverage.get('status')
+    ),
+    'frontier_path_coverage_verified': bool(
+      latest_frontier_coverage is not None
+      and latest_frontier_coverage.get('converged')
+    ),
+    'frontier_first_exterior_sample_index': (
+      None
+      if latest_frontier_coverage is None
+      else latest_frontier_coverage.get('first_exterior_sample_index')
+    ),
+    'frontier_first_exterior_signed_offset_m': (
+      None
+      if latest_frontier_coverage is None
+      else latest_frontier_coverage.get('first_exterior_signed_offset_m')
+    ),
+    'outgoing_frontier_attempts': tuple(frontier_reports),
     'remesh_free_boundary_consumed_as_chain_cell': False,
     'external_validation_required': True,
     'synthetic_downstream_field_created': False,

@@ -76,6 +76,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshStatus,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierCoverageStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryStatus,
   MocFreeBoundaryShockStatus,
   plan_euler_ambient_first_wedge_remesh_mock,
@@ -12540,6 +12541,16 @@ def build_moc_primitive_report() -> dict[str, Any]:
     != 1
     or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary.first_missing_sample_index
     != 1
+    or not euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary.outgoing_frontier_verified
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary.frontier_coverage is None
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary.frontier_coverage.status
+    is not MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierCoverageStatus.FRONTIER_EXTERIOR
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary.frontier_coverage.first_exterior_sample_index
+    != 1
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary.frontier_coverage.first_exterior_signed_offset_m
+    is None
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary.frontier_coverage.first_exterior_signed_offset_m
+    <= 0.0
     or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary.path_coverage_verified
     or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary.reflected_free_boundary_verified
     or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary.physical_closure_verified
@@ -12567,6 +12578,18 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_planner.diagnostics.get(
       'synthetic_downstream_field_created'
     ) is not False
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_planner.diagnostics.get(
+      'outgoing_frontier_verified'
+    ) is not True
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_planner.diagnostics.get(
+      'outgoing_frontier_sample_count'
+    ) != 5
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_planner.diagnostics.get(
+      'frontier_path_coverage_status'
+    ) != MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierCoverageStatus.FRONTIER_EXTERIOR.value
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_planner.diagnostics.get(
+      'frontier_first_exterior_sample_index'
+    ) != 1
     or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_audit is None
     or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_audit.status
     is not MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryAuditStatus.CONVERGED_LOCAL_BOUNDARY_AUDIT
@@ -12577,6 +12600,17 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or not euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_audit.source_cell_euler_residuals_flag_consistent
     or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_audit.path_coverage_verified
     or not euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_audit.status_consistent
+    or not euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_audit.frontier_coverage_verified
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_audit.frontier_coverage_status
+    != MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierCoverageStatus.FRONTIER_EXTERIOR.value
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_audit.frontier_sample_count
+    != 33
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_audit.frontier_first_exterior_sample_index
+    != 1
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_audit.frontier_first_exterior_signed_offset_m
+    is None
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_audit.frontier_first_exterior_signed_offset_m
+    <= 0.0
     or not euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_audit.external_validation_required
     or not euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_audit.fidelity_flags_verified
     or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_audit.physical_closure_verified
