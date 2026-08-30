@@ -20,6 +20,7 @@ from exhaust_plume.models.moc import (
   MocReflectedDomainAlternatingPhysicalFieldStatus,
   MocReflectedDomainSolverOwnedFirstCellStatus,
   MocReflectedDomainGlobalShockRemeshStatus,
+  MocReflectedDomainGlobalEulerShockBoundaryStatus,
   MocReflectedDomainOuterSourceStatus,
   MocReflectedDomainRemeshStatus,
   MocSolverGeneratedAmbientClosedPostShockChainReference,
@@ -44,6 +45,7 @@ from exhaust_plume.models.moc import (
   solve_reflected_domain_alternating_physical_field,
   solve_reflected_domain_solver_owned_first_cell,
   solve_reflected_domain_global_shock_remesh,
+  solve_reflected_domain_global_euler_shock_boundary,
   solve_reflected_domain_outer_source_curve,
   solve_underexpanded_expansion_fan,
   solve_uniform_attached_shock_field,
@@ -61,6 +63,7 @@ from exhaust_plume.validation.moc_measurements import (
   MocReflectedDomainAlternatingSourceMeasurementStatus,
   MocReflectedDomainSolverOwnedFirstCellMeasurementStatus,
   MocReflectedDomainGlobalShockRemeshMeasurementStatus,
+  MocReflectedDomainGlobalEulerShockBoundaryMeasurementStatus,
   MocReflectedDomainOuterSourceMeasurementStatus,
   MocReflectedDomainRemeshMeasurementStatus,
   measure_moc_reflected_domain_alternating_source,
@@ -69,6 +72,7 @@ from exhaust_plume.validation.moc_measurements import (
   measure_moc_reflected_domain_alternating_physical_field,
   measure_moc_reflected_domain_solver_owned_first_cell,
   measure_moc_reflected_domain_global_shock_remesh,
+  measure_moc_reflected_domain_global_euler_shock_boundary,
   measure_moc_reflected_domain_outer_source_curve,
   measure_moc_reflected_domain_remesh,
 )
@@ -1006,6 +1010,123 @@ def test_global_reflected_shock_remesh_retains_bounded_profile_sweep_without_clo
   assert tampered_measurement.attempt_identity_verified is False
 
 
+def test_global_euler_shock_boundary_closes_continuous_source_frontier():
+  _field, patch = _patch()
+  ambient_pressure = _field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  source = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+  )
+  global_result = solve_reflected_domain_global_shock_remesh(
+    source,
+    outer_source_indices=(2,),
+    target_centerline_indices=(3,),
+    compression_amplitude_lower_rad=0.007,
+    compression_amplitude_upper_rad=0.03,
+    compression_envelope_skews=(-0.75, 0.0),
+    sample_count=9,
+    shock_angle_tolerance_rad=0.02,
+  )
+
+  result = solve_reflected_domain_global_euler_shock_boundary(global_result)
+
+  assert result.status is MocReflectedDomainGlobalEulerShockBoundaryStatus.CONVERGED
+  assert result.converged
+  assert result.physical_closure_verified
+  assert result.source_frontier_verified
+  assert result.selected_attempt_index == global_result.selected_attempt_index
+  assert result.outer_source_index == 2
+  assert result.target_centerline_index == 3
+  assert result.source_frontier_state is not None
+  assert result.source_frontier_state.y_m == pytest.approx(
+    source.target_centerline_y_m,
+  )
+  assert result.source_frontier_state.theta_rad == pytest.approx(
+    source.target_centerline_flow_angle_rad,
+  )
+  centerline_xs = tuple(
+    state.x_m for state in source.centerline_source_states
+  )
+  assert centerline_xs[2] < result.source_frontier_state.x_m < centerline_xs[3]
+  assert result.initial_shock_points_m != result.remeshed_shock_points_m
+  assert result.first_endpoint_tangent_residual_rad == pytest.approx(0.0)
+  assert result.last_endpoint_tangent_residual_rad == pytest.approx(0.0)
+  assert result.shock_boundary is not None
+  assert result.shock_boundary.converged
+  assert result.shock_boundary.local_euler_verified
+  assert result.shock_boundary.orientation.value == 'mixed-characteristic-boundary'
+  assert result.shock_boundary.zero_strength_endpoints_allowed
+  assert result.physical_field is not None
+  assert result.physical_field.converged
+  assert result.physical_field.physical_closure_verified
+  assert result.canonical_free_boundary_verified is False
+  assert result.canonical_euler_verified is False
+  assert result.external_validation_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  assert result.as_chain_termination_decision().reason is (
+    MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+  )
+
+  measurement = measure_moc_reflected_domain_global_euler_shock_boundary(result)
+  assert measurement.status is (
+    MocReflectedDomainGlobalEulerShockBoundaryMeasurementStatus.CONVERGED
+  )
+  assert measurement.converged
+  assert measurement.local_euler_consistency_verified
+  assert measurement.source_frontier_verified
+  assert measurement.endpoint_tangents_verified
+  assert measurement.upstream_sampling_verified
+  assert measurement.ambient_boundary_verified
+  assert measurement.physical_closure_verified
+  assert measurement.fidelity_isolation_verified
+
+  tampered = replace(result, first_endpoint_tangent_residual_rad=0.25)
+  tampered_measurement = (
+    measure_moc_reflected_domain_global_euler_shock_boundary(tampered)
+  )
+  assert tampered_measurement.status is (
+    MocReflectedDomainGlobalEulerShockBoundaryMeasurementStatus.GEOMETRY_FAILURE
+  )
+  assert tampered_measurement.endpoint_tangents_verified is False
+  assert tampered_measurement.converged is False
+
+  report = result.as_report()
+  assert report['source_frontier_verified'] is True
+  assert report['shock_boundary']['zero_strength_endpoints_allowed'] is True
+  assert report['physical_field']['physical_closure_verified'] is True
+
+
+def test_global_euler_shock_boundary_rejects_invalid_tolerance_as_typed_result():
+  _field, patch = _patch()
+  ambient_pressure = _field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  source = solve_reflected_domain_alternating_source(patch, ambient_pressure)
+  global_result = solve_reflected_domain_global_shock_remesh(
+    source,
+    outer_source_indices=(2,),
+    target_centerline_indices=(3,),
+    compression_amplitude_lower_rad=0.007,
+    compression_amplitude_upper_rad=0.03,
+    compression_envelope_skews=(0.0,),
+    sample_count=9,
+    shock_angle_tolerance_rad=0.02,
+  )
+
+  result = solve_reflected_domain_global_euler_shock_boundary(
+    global_result,
+    pressure_tolerance=0.0,
+  )
+
+  assert result.status is MocReflectedDomainGlobalEulerShockBoundaryStatus.INVALID_INPUT
+  assert result.converged is False
+  assert result.global_remesh is global_result
+  assert result.as_chain_termination_decision().reason is (
+    MocChainTerminationReason.INVALID_INPUT
+  )
+
+
 def test_global_reflected_shock_remesh_rejects_duplicate_profile_shapes():
   _field, patch = _patch()
   ambient_pressure = _field.ambient_boundary.ambient_pressure_Pa
@@ -1094,7 +1215,7 @@ def test_global_reflected_shock_remesh_planner_preserves_research_stop():
   assert planner.chain.resolved
   assert planner.chain.cell_count == 1
   assert planner.chain.termination_reason is (
-    MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+    MocChainTerminationReason.FIDELITY_NOT_ALLOWED
   )
   assert planner.chain.physical_termination is False
   assert planner.diagnostics[
@@ -1159,6 +1280,28 @@ def test_global_reflected_shock_remesh_planner_preserves_research_stop():
     for row in ambient_physical_fields
   )
   assert planner.diagnostics[
+    'global_reflected_shock_remesh_global_euler_closure_accepted'
+  ] is True
+  global_euler_closure = planner.diagnostics[
+    'global_reflected_shock_remesh_global_euler_closure'
+  ]
+  assert global_euler_closure['status'] == (
+    'converged_global_euler_shock_field'
+  )
+  assert global_euler_closure['physical_closure_verified'] is True
+  assert planner.diagnostics[
+    'global_reflected_shock_remesh_global_euler_closure_independent_audit_accepted'
+  ] is True
+  global_euler_measurement = planner.diagnostics[
+    'global_reflected_shock_remesh_global_euler_closure_independent_measurement'
+  ]
+  assert global_euler_measurement['status'] == 'converged'
+  assert global_euler_measurement['checks']['source_frontier_verified'] is True
+  assert global_euler_measurement['checks']['physical_closure_verified'] is True
+  assert planner.diagnostics[
+    'global_reflected_shock_remesh_global_euler_closure_required_for_promotion'
+  ] is True
+  assert planner.diagnostics[
     'global_reflected_shock_remesh_independent_measurement'
   ]['status'] == 'converged'
   assert planner.production_claim_allowed is False
@@ -1183,7 +1326,7 @@ def test_global_reflected_shock_remesh_physical_field_adapter_derives_fresh_sour
   assert planner.resolved
   assert planner.chain.cell_count == 1
   assert planner.chain.termination_reason is (
-    MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+    MocChainTerminationReason.FIDELITY_NOT_ALLOWED
   )
   assert planner.diagnostics[
     'global_reflected_shock_remesh_from_physical_field'
@@ -1204,6 +1347,9 @@ def test_global_reflected_shock_remesh_physical_field_adapter_derives_fresh_sour
   assert planner.diagnostics[
     'global_reflected_shock_remesh_independent_measurement'
   ]['status'] == 'converged'
+  assert planner.diagnostics[
+    'global_reflected_shock_remesh_global_euler_closure_accepted'
+  ] is True
   assert planner.diagnostics['physical_chain_cell_count'] == 0
   assert planner.diagnostics['chain_promotion_blocked'] is True
   assert planner.production_claim_allowed is False

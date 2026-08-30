@@ -466,6 +466,12 @@ def assemble_euler_ambient_physical_field(
       invariant_tolerance=invariant_tolerance_value,
       pressure_tolerance=pressure_tolerance_value,
       tangent_tolerance=tangent_tolerance_value,
+      allow_zero_strength_shock_start=(
+        shock_boundary.zero_strength_endpoints_allowed
+      ),
+      allow_zero_strength_endpoints=(
+        shock_boundary.zero_strength_endpoints_allowed
+      ),
     )
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _failure(

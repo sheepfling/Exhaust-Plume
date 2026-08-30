@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from math import isfinite
+from math import isfinite, tan
 from typing import TYPE_CHECKING, Sequence
 
 if TYPE_CHECKING:
@@ -66,6 +66,14 @@ from exhaust_plume.models.moc.terminal_patch import (
 )
 from exhaust_plume.models.moc.topology import MocTopologyResult, validate_moc_mesh
 from exhaust_plume.models.moc.zone import MocCharacteristicCell
+from exhaust_plume.models.moc.euler_physical_field import (
+  MocEulerAmbientPhysicalFieldResult,
+  assemble_euler_ambient_physical_field,
+)
+from exhaust_plume.models.moc.euler_shock_boundary import (
+  MocEulerShockBoundaryCurveResult,
+  fit_euler_consistent_shock_boundary_from_geometry,
+)
 from exhaust_plume.util.aero.shock_validity import ShockBranch
 
 __all__ = (
@@ -81,6 +89,8 @@ __all__ = (
   'MocReflectedDomainGlobalShockRemeshStatus',
   'MocReflectedDomainGlobalShockRemeshAttempt',
   'MocReflectedDomainGlobalShockRemeshResult',
+  'MocReflectedDomainGlobalEulerShockBoundaryStatus',
+  'MocReflectedDomainGlobalEulerShockBoundaryResult',
   'MocReflectedDomainRemeshStatus',
   'MocReflectedDomainRemeshRequest',
   'MocReflectedDomainRemeshResult',
@@ -89,6 +99,7 @@ __all__ = (
   'solve_reflected_domain_alternating_physical_field',
   'solve_reflected_domain_solver_owned_first_cell',
   'solve_reflected_domain_global_shock_remesh',
+  'solve_reflected_domain_global_euler_shock_boundary',
   'solve_reflected_domain_outer_source_curve',
   'solve_reflected_domain_remesh',
 )
@@ -1866,6 +1877,644 @@ class MocReflectedDomainGlobalShockRemeshResult:
       'message': self.message,
     }
   ####
+
+
+class MocReflectedDomainGlobalEulerShockBoundaryStatus(str, Enum):
+  """Outcome of the bounded global Euler shock-field reconciliation."""
+
+  CONVERGED = 'converged_global_euler_shock_field'
+  INVALID_INPUT = 'invalid_input'
+  SOURCE_FRONTIER_FAILURE = 'global_euler_source_frontier_failure'
+  GEOMETRY_FAILURE = 'global_euler_shock_geometry_failure'
+  SHOCK_BOUNDARY_FAILURE = 'global_euler_shock_boundary_failure'
+  AMBIENT_FIELD_FAILURE = 'global_euler_ambient_field_failure'
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainGlobalEulerShockBoundaryResult:
+  """A globally remeshed exact-Euler shock field on a bounded source band.
+
+  The input global remesh supplies a finite candidate shock path.  This result
+  re-samples that path in the solver-owned alternating source field, enforces
+  explicit zero-strength Mach-wave endpoint tangents, and then assembles the
+  exact ambient/centerline characteristic field.  A converged result closes a
+  local reflected/free-boundary field only; external validation and chain-cell
+  promotion remain separate hard gates.
+  """
+
+  status: MocReflectedDomainGlobalEulerShockBoundaryStatus
+  global_remesh: MocReflectedDomainGlobalShockRemeshResult | None
+  selected_attempt_index: int | None
+  outer_source_index: int | None
+  target_centerline_index: int | None
+  initial_shock_points_m: tuple[tuple[float, float], ...] = ()
+  remeshed_shock_points_m: tuple[tuple[float, float], ...] = ()
+  shock_boundary: MocEulerShockBoundaryCurveResult | None = None
+  physical_field: MocEulerAmbientPhysicalFieldResult | None = None
+  source_frontier_state: CharacteristicState | None = None
+  source_frontier_total_pressure_Pa: float | None = None
+  source_frontier_verified: bool = False
+  first_endpoint_tangent_residual_rad: float | None = None
+  last_endpoint_tangent_residual_rad: float | None = None
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.status, MocReflectedDomainGlobalEulerShockBoundaryStatus):
+      raise TypeError(
+        'status must be a MocReflectedDomainGlobalEulerShockBoundaryStatus'
+      )
+    if self.global_remesh is not None and not isinstance(
+      self.global_remesh,
+      MocReflectedDomainGlobalShockRemeshResult,
+    ):
+      raise TypeError(
+        'global_remesh must be a MocReflectedDomainGlobalShockRemeshResult or None'
+      )
+    for name in (
+      'selected_attempt_index',
+      'outer_source_index',
+      'target_centerline_index',
+    ):
+      value = getattr(self, name)
+      if value is not None and (
+        isinstance(value, bool) or not isinstance(value, int) or value < 0
+      ):
+        raise ValueError(f'{name} must be a nonnegative integer or None')
+    if self.selected_attempt_index is not None and self.global_remesh is not None and (
+      self.selected_attempt_index >= len(self.global_remesh.attempts)
+    ):
+      raise ValueError('selected_attempt_index must select a retained global attempt')
+    if self.shock_boundary is not None and not isinstance(
+      self.shock_boundary,
+      MocEulerShockBoundaryCurveResult,
+    ):
+      raise TypeError(
+        'shock_boundary must be a MocEulerShockBoundaryCurveResult or None'
+      )
+    if self.physical_field is not None and not isinstance(
+      self.physical_field,
+      MocEulerAmbientPhysicalFieldResult,
+    ):
+      raise TypeError(
+        'physical_field must be a MocEulerAmbientPhysicalFieldResult or None'
+      )
+    if self.source_frontier_state is not None and not isinstance(
+      self.source_frontier_state,
+      CharacteristicState,
+    ):
+      raise TypeError('source_frontier_state must be a CharacteristicState or None')
+    if self.source_frontier_total_pressure_Pa is not None:
+      pressure = float(self.source_frontier_total_pressure_Pa)
+      if not isfinite(pressure) or pressure <= 0.0:
+        raise ValueError(
+          'source_frontier_total_pressure_Pa must be finite and positive'
+        )
+      object.__setattr__(self, 'source_frontier_total_pressure_Pa', pressure)
+    for name in (
+      'first_endpoint_tangent_residual_rad',
+      'last_endpoint_tangent_residual_rad',
+    ):
+      value = getattr(self, name)
+      if value is not None and not isfinite(float(value)):
+        raise ValueError(f'{name} must be finite when supplied')
+    if not isinstance(self.source_frontier_verified, bool):
+      raise TypeError('source_frontier_verified must be a bool')
+    initial_points = tuple(
+      (float(point[0]), float(point[1])) for point in self.initial_shock_points_m
+    )
+    remeshed_points = tuple(
+      (float(point[0]), float(point[1])) for point in self.remeshed_shock_points_m
+    )
+    if any(
+      not all(isfinite(value) for value in point)
+      for point in (*initial_points, *remeshed_points)
+    ):
+      raise ValueError('shock point sequences must contain finite coordinates')
+    object.__setattr__(self, 'initial_shock_points_m', initial_points)
+    object.__setattr__(self, 'remeshed_shock_points_m', remeshed_points)
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def converged(self) -> bool:
+    return bool(
+      self.status is MocReflectedDomainGlobalEulerShockBoundaryStatus.CONVERGED
+      and self.source_frontier_verified
+      and self.shock_boundary is not None
+      and self.shock_boundary.converged
+      and self.physical_field is not None
+      and self.physical_field.converged
+      and self.physical_field.physical_closure_verified
+    )
+  ####
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    return bool(self.converged)
+  ####
+
+  @property
+  def canonical_free_boundary_verified(self) -> bool:
+    """The canonical production free-boundary audit remains a later gate."""
+
+    return False
+  ####
+
+  @property
+  def canonical_euler_verified(self) -> bool:
+    """The exact local field is not the independent production audit."""
+
+    return False
+  ####
+
+  @property
+  def external_validation_verified(self) -> bool:
+    return False
+  ####
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    return True
+  ####
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    return False
+  ####
+
+  def as_chain_termination_decision(self) -> MocChainTerminationDecision:
+    if self.status is MocReflectedDomainGlobalEulerShockBoundaryStatus.INVALID_INPUT:
+      reason = MocChainTerminationReason.INVALID_INPUT
+    elif self.status is MocReflectedDomainGlobalEulerShockBoundaryStatus.SOURCE_FRONTIER_FAILURE:
+      reason = MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+    elif self.converged:
+      reason = MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+    else:
+      reason = MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+    return MocChainTerminationDecision(
+      physical_termination=False,
+      reason=reason,
+      message=(
+        self.message
+        or (
+          'global exact-Euler shock field closed locally, but independent '
+          'Euler-cell, refinement, reflected-free-boundary, and external '
+          'validation gates block promotion'
+          if self.converged
+          else 'global exact-Euler shock field did not close its bounded boundary'
+        )
+      ),
+      diagnostics={
+        'termination_model': 'global-reflected-euler-shock-boundary',
+        'status': self.status.value,
+        'source_frontier_verified': self.source_frontier_verified,
+        'physical_closure_verified': self.physical_closure_verified,
+        'canonical_free_boundary_verified': self.canonical_free_boundary_verified,
+        'canonical_euler_verified': self.canonical_euler_verified,
+        'external_validation_verified': self.external_validation_verified,
+        'chain_promotion_blocked': self.chain_promotion_blocked,
+        'production_claim_allowed': self.production_claim_allowed,
+      },
+    )
+  ####
+
+  def as_report(self) -> dict[str, object]:
+    return {
+      'status': self.status.value,
+      'converged': self.converged,
+      'physical_closure_verified': self.physical_closure_verified,
+      'canonical_free_boundary_verified': self.canonical_free_boundary_verified,
+      'canonical_euler_verified': self.canonical_euler_verified,
+      'external_validation_verified': self.external_validation_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'selected_attempt_index': self.selected_attempt_index,
+      'outer_source_index': self.outer_source_index,
+      'target_centerline_index': self.target_centerline_index,
+      'initial_shock_points_m': [list(point) for point in self.initial_shock_points_m],
+      'remeshed_shock_points_m': [list(point) for point in self.remeshed_shock_points_m],
+      'source_frontier_verified': self.source_frontier_verified,
+      'source_frontier_state': (
+        None
+        if self.source_frontier_state is None
+        else {
+          'x_m': self.source_frontier_state.x_m,
+          'y_m': self.source_frontier_state.y_m,
+          'theta_rad': self.source_frontier_state.theta_rad,
+          'mach': self.source_frontier_state.mach,
+          'gamma': self.source_frontier_state.gamma,
+        }
+      ),
+      'source_frontier_total_pressure_Pa': self.source_frontier_total_pressure_Pa,
+      'first_endpoint_tangent_residual_rad': self.first_endpoint_tangent_residual_rad,
+      'last_endpoint_tangent_residual_rad': self.last_endpoint_tangent_residual_rad,
+      'shock_boundary': (
+        None if self.shock_boundary is None else self.shock_boundary.as_report()
+      ),
+      'physical_field': (
+        None if self.physical_field is None else self.physical_field.as_report()
+      ),
+      'global_remesh': (
+        None if self.global_remesh is None else self.global_remesh.as_report()
+      ),
+      'chain_termination_decision': self.as_chain_termination_decision().as_report(),
+      'message': self.message,
+    }
+  ####
+
+
+def solve_reflected_domain_global_euler_shock_boundary(
+  global_remesh: MocReflectedDomainGlobalShockRemeshResult,
+  *,
+  selected_attempt_index: int | None = None,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-9,
+  invariant_tolerance: float = 1.0e-10,
+  pressure_tolerance: float = 1.0e-8,
+  tangent_tolerance: float = 1.0e-8,
+  shock_angle_tolerance_rad: float = 1.0e-8,
+  residual_tolerance: float = 1.0e-8,
+  maximum_boundary_iterations: int = 16,
+) -> MocReflectedDomainGlobalEulerShockBoundaryResult:
+  """Close one bounded global-remesh shock against its source frontier.
+
+  The global compression/profile sweep retains a sampled shock path that can
+  end at a continuous point on the source band's centerline edge rather than
+  at the next discrete axis vertex.  This bridge preserves that path's
+  ordinates, projects only its first and last segments onto the exact local
+  Mach-wave tangents, re-samples the bounded alternating field, and then runs
+  the exact Euler ambient/centerline assembler.
+
+  The endpoint projection is deliberately deterministic and local.  It does
+  not invent states outside ``source_band``, change the selected global
+  attempt, or infer a continued ``MocChainCell``.  A converged result is a
+  locally closed exact-Euler field with a continuous source-frontier seam;
+  independent cell/refinement and external validation remain required.
+  """
+
+  resolved_attempt_index = selected_attempt_index
+  resolved_outer_index: int | None = None
+  resolved_target_index: int | None = None
+  source_band = (
+    global_remesh.source_band
+    if isinstance(global_remesh, MocReflectedDomainGlobalShockRemeshResult)
+    else None
+  )
+  initial_points: tuple[tuple[float, float], ...] = ()
+  remeshed_points: tuple[tuple[float, float], ...] = ()
+  curve: MocEulerShockBoundaryCurveResult | None = None
+  physical_field: MocEulerAmbientPhysicalFieldResult | None = None
+  source_frontier_state: CharacteristicState | None = None
+  source_frontier_pressure: float | None = None
+  source_frontier_verified = False
+  first_endpoint_residual: float | None = None
+  last_endpoint_residual: float | None = None
+
+  def failure(
+    status: MocReflectedDomainGlobalEulerShockBoundaryStatus,
+    message: str,
+  ) -> MocReflectedDomainGlobalEulerShockBoundaryResult:
+    return MocReflectedDomainGlobalEulerShockBoundaryResult(
+      status=status,
+      global_remesh=(
+        global_remesh
+        if isinstance(global_remesh, MocReflectedDomainGlobalShockRemeshResult)
+        else None
+      ),
+      selected_attempt_index=resolved_attempt_index,
+      outer_source_index=resolved_outer_index,
+      target_centerline_index=resolved_target_index,
+      initial_shock_points_m=initial_points,
+      remeshed_shock_points_m=remeshed_points,
+      shock_boundary=curve,
+      physical_field=physical_field,
+      source_frontier_state=source_frontier_state,
+      source_frontier_total_pressure_Pa=source_frontier_pressure,
+      source_frontier_verified=source_frontier_verified,
+      first_endpoint_tangent_residual_rad=first_endpoint_residual,
+      last_endpoint_tangent_residual_rad=last_endpoint_residual,
+      message=message,
+    )
+
+  if not isinstance(global_remesh, MocReflectedDomainGlobalShockRemeshResult):
+    return failure(
+      MocReflectedDomainGlobalEulerShockBoundaryStatus.INVALID_INPUT,
+      'global_remesh must be a MocReflectedDomainGlobalShockRemeshResult',
+    )
+  if not isinstance(branch, ShockBranch):
+    return failure(
+      MocReflectedDomainGlobalEulerShockBoundaryStatus.INVALID_INPUT,
+      'branch must be a ShockBranch',
+    )
+  resolved_tolerances: dict[str, float] = {}
+  for name, value in (
+    ('position_tolerance_m', position_tolerance_m),
+    ('invariant_tolerance', invariant_tolerance),
+    ('pressure_tolerance', pressure_tolerance),
+    ('tangent_tolerance', tangent_tolerance),
+    ('shock_angle_tolerance_rad', shock_angle_tolerance_rad),
+    ('residual_tolerance', residual_tolerance),
+  ):
+    if isinstance(value, bool):
+      numeric_value = float('nan')
+    else:
+      try:
+        numeric_value = float(value)
+      except (TypeError, ValueError):
+        numeric_value = float('nan')
+    if not isfinite(numeric_value) or numeric_value <= 0.0:
+      return failure(
+        MocReflectedDomainGlobalEulerShockBoundaryStatus.INVALID_INPUT,
+        f'{name} must be finite and positive',
+      )
+    resolved_tolerances[name] = numeric_value
+  if (
+    isinstance(maximum_boundary_iterations, bool)
+    or not isinstance(maximum_boundary_iterations, int)
+    or maximum_boundary_iterations < 1
+  ):
+    return failure(
+      MocReflectedDomainGlobalEulerShockBoundaryStatus.INVALID_INPUT,
+      'maximum_boundary_iterations must be a positive integer',
+    )
+  position_tolerance_m = resolved_tolerances['position_tolerance_m']
+  invariant_tolerance = resolved_tolerances['invariant_tolerance']
+  pressure_tolerance = resolved_tolerances['pressure_tolerance']
+  tangent_tolerance = resolved_tolerances['tangent_tolerance']
+  shock_angle_tolerance_rad = resolved_tolerances['shock_angle_tolerance_rad']
+  residual_tolerance = resolved_tolerances['residual_tolerance']
+  if source_band is None or not source_band.source_field_verified:
+    return failure(
+      MocReflectedDomainGlobalEulerShockBoundaryStatus.SOURCE_FRONTIER_FAILURE,
+      'global Euler shock closure requires a verified bounded source band',
+    )
+  if resolved_attempt_index is None:
+    resolved_attempt_index = global_remesh.selected_attempt_index
+  if (
+    isinstance(resolved_attempt_index, bool)
+    or not isinstance(resolved_attempt_index, int)
+    or resolved_attempt_index < 0
+    or resolved_attempt_index >= len(global_remesh.attempts)
+  ):
+    return failure(
+      MocReflectedDomainGlobalEulerShockBoundaryStatus.INVALID_INPUT,
+      'selected_attempt_index must select a retained global remesh attempt',
+    )
+  attempt = global_remesh.attempts[resolved_attempt_index]
+  resolved_outer_index = attempt.outer_source_index
+  resolved_target_index = attempt.target_centerline_index
+  if (
+    resolved_outer_index >= len(source_band.outer_source_states)
+    or resolved_target_index >= len(source_band.centerline_source_states)
+  ):
+    return failure(
+      MocReflectedDomainGlobalEulerShockBoundaryStatus.SOURCE_FRONTIER_FAILURE,
+      'global remesh attempt references a source index outside the retained band',
+    )
+  selected_field = attempt.first_cell_result.selected_physical_field
+  candidate_field = None if selected_field is None else selected_field.field
+  if candidate_field is None:
+    return failure(
+      MocReflectedDomainGlobalEulerShockBoundaryStatus.SOURCE_FRONTIER_FAILURE,
+      'selected global remesh attempt does not retain a physical shock field',
+    )
+  initial_points = tuple(candidate_field.shock_boundary_points_m)
+  if len(initial_points) < 3:
+    return failure(
+      MocReflectedDomainGlobalEulerShockBoundaryStatus.GEOMETRY_FAILURE,
+      'selected global remesh shock field must retain at least three points',
+    )
+  if any(
+    len(point) != 2 or not all(isfinite(float(value)) for value in point)
+    for point in initial_points
+  ):
+    return failure(
+      MocReflectedDomainGlobalEulerShockBoundaryStatus.GEOMETRY_FAILURE,
+      'selected global remesh shock field contains non-finite geometry',
+    )
+  if any(
+    second[0] <= first[0] + position_tolerance_m
+    or second[1] > first[1] + position_tolerance_m
+    for first, second in zip(initial_points, initial_points[1:])
+  ):
+    return failure(
+      MocReflectedDomainGlobalEulerShockBoundaryStatus.GEOMETRY_FAILURE,
+      'selected global remesh shock field must advance downstream and downward',
+    )
+  target_y = source_band.target_centerline_y_m
+  target_theta = source_band.target_centerline_flow_angle_rad
+  if abs(initial_points[-1][1] - target_y) > position_tolerance_m:
+    return failure(
+      MocReflectedDomainGlobalEulerShockBoundaryStatus.SOURCE_FRONTIER_FAILURE,
+      'selected shock endpoint does not lie on the source centerline frontier',
+    )
+
+  outer_source = source_band.outer_source_states[resolved_outer_index]
+  first_point = initial_points[0]
+  if (
+    abs(first_point[0] - outer_source.x_m) > position_tolerance_m
+    or abs(first_point[1] - outer_source.y_m) > position_tolerance_m
+  ):
+    return failure(
+      MocReflectedDomainGlobalEulerShockBoundaryStatus.SOURCE_FRONTIER_FAILURE,
+      'selected shock start does not reproduce its selected outer source point',
+    )
+  sampled_first = source_band.state_at(
+    first_point,
+    position_tolerance_m=position_tolerance_m,
+  )
+  if sampled_first is None:
+    return failure(
+      MocReflectedDomainGlobalEulerShockBoundaryStatus.SOURCE_FRONTIER_FAILURE,
+      'selected shock start is outside the bounded source band',
+    )
+  if not _state_matches(
+    sampled_first,
+    outer_source,
+    position_tolerance_m=position_tolerance_m,
+    state_tolerance=invariant_tolerance,
+  ):
+    return failure(
+      MocReflectedDomainGlobalEulerShockBoundaryStatus.SOURCE_FRONTIER_FAILURE,
+      'selected shock start does not reproduce the selected outer source state',
+    )
+
+  frontier_point = initial_points[-1]
+  source_frontier_state = source_band.state_at(
+    frontier_point,
+    position_tolerance_m=position_tolerance_m,
+  )
+  source_frontier_pressure = source_band.total_pressure_at(
+    frontier_point,
+    position_tolerance_m=position_tolerance_m,
+  )
+  if (
+    source_frontier_state is None
+    or source_frontier_pressure is None
+    or not isfinite(float(source_frontier_pressure))
+    or source_frontier_pressure <= 0.0
+    or abs(source_frontier_state.y_m - target_y) > position_tolerance_m
+    or abs(source_frontier_state.theta_rad - target_theta) > invariant_tolerance
+  ):
+    return failure(
+      MocReflectedDomainGlobalEulerShockBoundaryStatus.SOURCE_FRONTIER_FAILURE,
+      'selected shock endpoint is not a state-carrying source centerline point',
+    )
+  centerline_xs = tuple(state.x_m for state in source_band.centerline_source_states)
+  if (
+    frontier_point[0] < centerline_xs[0] - position_tolerance_m
+    or frontier_point[0] > centerline_xs[-1] + position_tolerance_m
+  ):
+    return failure(
+      MocReflectedDomainGlobalEulerShockBoundaryStatus.SOURCE_FRONTIER_FAILURE,
+      'selected shock endpoint lies outside the retained centerline source edge',
+    )
+  source_frontier_verified = True
+
+  try:
+    first_tangent = sampled_first.theta_rad - sampled_first.mu_rad
+    last_tangent = source_frontier_state.theta_rad - source_frontier_state.mu_rad
+    first_slope = tan(first_tangent)
+    last_slope = tan(last_tangent)
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+    return failure(
+      MocReflectedDomainGlobalEulerShockBoundaryStatus.GEOMETRY_FAILURE,
+      'source frontier Mach-wave endpoint tangent is not finite',
+    )
+  if (
+    not isfinite(first_slope)
+    or not isfinite(last_slope)
+    or first_slope >= 0.0
+    or last_slope >= 0.0
+  ):
+    return failure(
+      MocReflectedDomainGlobalEulerShockBoundaryStatus.GEOMETRY_FAILURE,
+      'source frontier Mach-wave endpoint tangents do not descend toward the centerline',
+    )
+  remeshed = list(initial_points)
+  remeshed[1] = (
+    first_point[0] + (initial_points[1][1] - first_point[1]) / first_slope,
+    initial_points[1][1],
+  )
+  remeshed[-2] = (
+    frontier_point[0]
+    - (frontier_point[1] - initial_points[-2][1]) / last_slope,
+    initial_points[-2][1],
+  )
+  remeshed_points = tuple(remeshed)
+  if any(
+    second[0] <= first[0] + position_tolerance_m
+    or second[1] > first[1] + position_tolerance_m
+    for first, second in zip(remeshed_points, remeshed_points[1:])
+  ):
+    return failure(
+      MocReflectedDomainGlobalEulerShockBoundaryStatus.GEOMETRY_FAILURE,
+      'Mach-wave endpoint projection broke shock-point ordering',
+    )
+  first_endpoint_residual = abs(
+    (remeshed_points[1][1] - remeshed_points[0][1])
+    / (remeshed_points[1][0] - remeshed_points[0][0])
+    - first_slope
+  )
+  last_endpoint_residual = abs(
+    (remeshed_points[-1][1] - remeshed_points[-2][1])
+    / (remeshed_points[-1][0] - remeshed_points[-2][0])
+    - last_slope
+  )
+
+  upstream_states: list[CharacteristicState] = []
+  upstream_pressures: list[float] = []
+  for index, point in enumerate(remeshed_points):
+    state = source_band.state_at(
+      point,
+      position_tolerance_m=position_tolerance_m,
+    )
+    pressure = source_band.static_pressure_at(
+      point,
+      position_tolerance_m=position_tolerance_m,
+    )
+    if (
+      state is None
+      or pressure is None
+      or not isfinite(float(pressure))
+      or pressure <= 0.0
+    ):
+      return failure(
+        MocReflectedDomainGlobalEulerShockBoundaryStatus.SOURCE_FRONTIER_FAILURE,
+        f'remeshed shock point {index} left the bounded source band',
+      )
+    upstream_states.append(state)
+    upstream_pressures.append(float(pressure))
+  try:
+    curve = fit_euler_consistent_shock_boundary_from_geometry(
+      tuple(upstream_states),
+      tuple(upstream_pressures),
+      remeshed_points,
+      branch=branch,
+      position_tolerance_m=position_tolerance_m,
+      shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+      residual_tolerance=residual_tolerance,
+      allow_zero_strength_endpoints=True,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return failure(
+      MocReflectedDomainGlobalEulerShockBoundaryStatus.SHOCK_BOUNDARY_FAILURE,
+      f'global Euler shock boundary reconciliation raised: {error}',
+    )
+  if not curve.converged or not curve.local_euler_verified:
+    return failure(
+      MocReflectedDomainGlobalEulerShockBoundaryStatus.SHOCK_BOUNDARY_FAILURE,
+      f'global Euler shock boundary reconciliation did not converge: {curve.message}',
+    )
+  ambient_pressure = source_band.ambient_pressure_Pa
+  if ambient_pressure is None:
+    return failure(
+      MocReflectedDomainGlobalEulerShockBoundaryStatus.SOURCE_FRONTIER_FAILURE,
+      'source band does not retain an ambient pressure for exact field closure',
+    )
+  try:
+    physical_field = assemble_euler_ambient_physical_field(
+      curve,
+      ambient_pressure,
+      target_centerline_y_m=target_y,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+      pressure_tolerance=pressure_tolerance,
+      tangent_tolerance=tangent_tolerance,
+      maximum_boundary_iterations=maximum_boundary_iterations,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return failure(
+      MocReflectedDomainGlobalEulerShockBoundaryStatus.AMBIENT_FIELD_FAILURE,
+      f'global Euler ambient/centerline assembly raised: {error}',
+    )
+  if not physical_field.converged or not physical_field.physical_closure_verified:
+    return failure(
+      MocReflectedDomainGlobalEulerShockBoundaryStatus.AMBIENT_FIELD_FAILURE,
+      'global Euler shock boundary closed locally, but its ambient/centerline '
+      f'field did not pass closure gates: {physical_field.message}',
+    )
+  return MocReflectedDomainGlobalEulerShockBoundaryResult(
+    status=MocReflectedDomainGlobalEulerShockBoundaryStatus.CONVERGED,
+    global_remesh=global_remesh,
+    selected_attempt_index=resolved_attempt_index,
+    outer_source_index=resolved_outer_index,
+    target_centerline_index=resolved_target_index,
+    initial_shock_points_m=initial_points,
+    remeshed_shock_points_m=remeshed_points,
+    shock_boundary=curve,
+    physical_field=physical_field,
+    source_frontier_state=source_frontier_state,
+    source_frontier_total_pressure_Pa=source_frontier_pressure,
+    source_frontier_verified=True,
+    first_endpoint_tangent_residual_rad=first_endpoint_residual,
+    last_endpoint_tangent_residual_rad=last_endpoint_residual,
+    message=(
+      'global remeshed shock coupled to a continuous source-centerline '
+      'frontier and a closed exact-Euler ambient/centerline field; independent '
+      'cell, refinement, and external validation remain pending'
+    ),
+  )
 
 
 def solve_reflected_domain_alternating_source(

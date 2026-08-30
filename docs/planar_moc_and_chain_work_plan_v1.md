@@ -3096,5 +3096,36 @@ chain. The planner still retains one seed cell, zero physical chain cells,
 ``chain_promotion_blocked=true``, and
 ``production_claim_allowed=false``. The next implementation gate is a global
 free-boundary solve that couples the remeshed ``C-`` frontier, shock geometry,
-ambient attachment, and reflected centerline in one converged problem, then
-provides refinement evidence and indexed external observations.
+ambient attachment, and reflected centerline in one converged problem. The
+bounded local version of that coupling is the next checkpoint; refinement and
+indexed external observations remain after it.
+
+## Continuous source-frontier Euler closure checkpoint
+
+The global remesh now has a separate
+``solve_reflected_domain_global_euler_shock_boundary`` bridge. It consumes the
+selected retained shock geometry and the verified alternating source band,
+re-samples every shock point without extrapolation, and projects only the
+first and last shock segments onto their exact local Mach-wave tangents. The
+downstream endpoint is allowed to be a continuous point on the retained
+centerline source edge; it is not forced onto the next discrete axis vertex.
+That distinction matters because the discrete vertex can require a positive
+interior compression through a zero-strength endpoint, which is not a valid
+Euler shock boundary.
+
+The bridge carries an explicit zero-strength endpoint contract, then assembles
+the ambient-pressure/reflected-centerline characteristic field. On the
+canonical two-attempt sweep it closes a 53-cell local field, passes the
+independent shock-jump and conservative-cell audit, and reports endpoint
+tangent residuals at machine precision. The planner now records this result
+and returns ``FIDELITY_NOT_ALLOWED`` rather than an open-closure stop when the
+local field closes. The independently measured source seam, geometry, field,
+and fidelity flags are retained in the planner report.
+
+This is a locally closed exact-Euler research field, not a production
+continued shock-cell provider. Its canonical reflected-free-boundary audit,
+resolution ladder, mixed-regime downstream closure, and indexed external
+validation are still separate gates. It contributes zero physical chain
+cells, cannot update the basic visualization, signature, ray-transfer, or
+focal-plane-array lanes, and remains the explicit handoff for the next
+refinement and external-observation work.

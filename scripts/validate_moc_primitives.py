@@ -48,6 +48,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocReflectedDomainAlternatingPhysicalFieldStatus,
   MocReflectedDomainSolverOwnedFirstCellStatus,
   MocReflectedDomainGlobalShockRemeshStatus,
+  MocReflectedDomainGlobalEulerShockBoundaryStatus,
   MocReflectedDomainRemeshStatus,
   build_reflected_domain_remesh_request_from_outer_source,
   MocReflectedTracePolarity,
@@ -153,6 +154,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   solve_reflected_domain_alternating_physical_field,
   solve_reflected_domain_solver_owned_first_cell,
   solve_reflected_domain_global_shock_remesh,
+  solve_reflected_domain_global_euler_shock_boundary,
   solve_reflected_domain_outer_source_curve,
   plan_terminal_reflection_patch_chain,
   MocShockBoundaryFitResult,
@@ -267,6 +269,7 @@ from exhaust_plume.validation.moc_measurements import (  # noqa: E402
   MocReflectedDomainAlternatingPhysicalFieldMeasurementStatus,
   MocReflectedDomainSolverOwnedFirstCellMeasurementStatus,
   MocReflectedDomainGlobalShockRemeshMeasurementStatus,
+  MocReflectedDomainGlobalEulerShockBoundaryMeasurementStatus,
   MocCausticRemeshMeasurementStatus,
   MocCausticRemeshObservation,
   MocMixedRegimeFreeBoundaryMeasurementStatus,
@@ -300,6 +303,7 @@ from exhaust_plume.validation.moc_measurements import (  # noqa: E402
   measure_moc_reflected_domain_alternating_physical_field,
   measure_moc_reflected_domain_solver_owned_first_cell,
   measure_moc_reflected_domain_global_shock_remesh,
+  measure_moc_reflected_domain_global_euler_shock_boundary,
   measure_moc_reflected_domain_alternating_physical_field_chain_refinement,
   measure_moc_reflected_domain_outer_source_curve,
   measure_mixed_regime_control_section,
@@ -982,6 +986,9 @@ def _reflected_domain_remesh_probe(
   global_shock_remesh = None
   global_shock_remesh_measurement = None
   global_shock_remesh_error = None
+  global_euler_shock_boundary = None
+  global_euler_shock_boundary_measurement = None
+  global_euler_shock_boundary_error = None
   try:
     if alternating_source is None:
       raise ValueError('alternating source fixture did not converge')
@@ -1000,8 +1007,19 @@ def _reflected_domain_remesh_probe(
         global_shock_remesh,
       )
     )
+    global_euler_shock_boundary = (
+      solve_reflected_domain_global_euler_shock_boundary(
+        global_shock_remesh,
+      )
+    )
+    global_euler_shock_boundary_measurement = (
+      measure_moc_reflected_domain_global_euler_shock_boundary(
+        global_euler_shock_boundary,
+      )
+    )
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     global_shock_remesh_error = f'{type(error).__name__}: {error}'
+    global_euler_shock_boundary_error = f'{type(error).__name__}: {error}'
 
   solver_owned_first_cell_planner = None
   solver_owned_first_cell_planner_error = None
@@ -1345,12 +1363,28 @@ def _reflected_domain_remesh_probe(
     and global_shock_remesh_measurement.selected_attempt_verified
     and global_shock_remesh_measurement.physical_closure_verified is False
     and global_shock_remesh_measurement.fidelity_isolation_verified
+    and global_euler_shock_boundary is not None
+    and global_euler_shock_boundary.status is (
+      MocReflectedDomainGlobalEulerShockBoundaryStatus.CONVERGED
+    )
+    and global_euler_shock_boundary.converged
+    and global_euler_shock_boundary.physical_closure_verified
+    and global_euler_shock_boundary.chain_promotion_blocked
+    and global_euler_shock_boundary.production_claim_allowed is False
+    and global_euler_shock_boundary_measurement is not None
+    and global_euler_shock_boundary_measurement.status is (
+      MocReflectedDomainGlobalEulerShockBoundaryMeasurementStatus.CONVERGED
+    )
+    and global_euler_shock_boundary_measurement.converged
+    and global_euler_shock_boundary_measurement.local_euler_consistency_verified
+    and global_euler_shock_boundary_measurement.physical_closure_verified
+    and global_euler_shock_boundary_measurement.fidelity_isolation_verified
     and global_shock_remesh_planner is not None
     and global_shock_remesh_planner.production_claim_allowed is False
     and global_shock_remesh_planner.chain.resolved
     and global_shock_remesh_planner.chain.cell_count == 1
     and global_shock_remesh_planner.chain.termination_reason is (
-      MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+      MocChainTerminationReason.FIDELITY_NOT_ALLOWED
     )
     and global_shock_remesh_planner.chain.physical_termination is False
     and global_shock_remesh_planner.diagnostics[
@@ -1371,6 +1405,12 @@ def _reflected_domain_remesh_probe(
     and global_shock_remesh_planner.diagnostics[
       'global_reflected_shock_remesh_euler_audits'
     ][0]['audit']['status'] == 'euler_audit_shock_jump_failure'
+    and global_shock_remesh_planner.diagnostics[
+      'global_reflected_shock_remesh_global_euler_closure_accepted'
+    ] is True
+    and global_shock_remesh_planner.diagnostics[
+      'global_reflected_shock_remesh_global_euler_closure_independent_audit_accepted'
+    ] is True
     and alternating_physical_field_chain_refinement is not None
     and alternating_physical_field_chain_refinement.converged
     and alternating_physical_field_chain_refinement.resolution_order_verified
@@ -1491,6 +1531,19 @@ def _reflected_domain_remesh_probe(
       else global_shock_remesh_measurement.as_report()
     ),
     'global_reflected_shock_remesh_error': global_shock_remesh_error,
+    'global_reflected_shock_remesh_global_euler_closure': (
+      None
+      if global_euler_shock_boundary is None
+      else global_euler_shock_boundary.as_report()
+    ),
+    'global_reflected_shock_remesh_global_euler_closure_independent_measurement': (
+      None
+      if global_euler_shock_boundary_measurement is None
+      else global_euler_shock_boundary_measurement.as_report()
+    ),
+    'global_reflected_shock_remesh_global_euler_closure_error': (
+      global_euler_shock_boundary_error
+    ),
     'global_reflected_shock_remesh_planner': (
       None
       if global_shock_remesh_planner is None
@@ -9620,75 +9673,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
     ambient_shock_strip_probe.get('accepted') is True
     and (
       not isinstance(reflected_domain_remesh_probe, dict)
-      or not isinstance(
-        reflected_domain_remesh_probe.get('global_reflected_shock_remesh'),
-        dict,
-      )
-      or reflected_domain_remesh_probe[
-        'global_reflected_shock_remesh'
-      ].get('status')
-      != MocReflectedDomainGlobalShockRemeshStatus.NO_ENDPOINT_CLOSURE.value
-      or reflected_domain_remesh_probe[
-        'global_reflected_shock_remesh'
-      ].get('physical_closure_verified') is not False
-      or not isinstance(
-        reflected_domain_remesh_probe.get(
-          'global_reflected_shock_remesh_independent_measurement'
-        ),
-        dict,
-      )
-      or reflected_domain_remesh_probe[
-        'global_reflected_shock_remesh_independent_measurement'
-      ].get('status')
-      != MocReflectedDomainGlobalShockRemeshMeasurementStatus.CONVERGED.value
-      or reflected_domain_remesh_probe[
-        'global_reflected_shock_remesh_independent_measurement'
-      ].get('checks', {}).get('no_endpoint_closure_verified') is not True
-      or reflected_domain_remesh_probe[
-        'global_reflected_shock_remesh_independent_measurement'
-      ].get('checks', {}).get('attempt_identity_verified') is not True
-      or reflected_domain_remesh_probe[
-        'global_reflected_shock_remesh_independent_measurement'
-      ].get('checks', {}).get('attempt_shape_verified') is not True
-      or reflected_domain_remesh_probe[
-        'global_reflected_shock_remesh_independent_measurement'
-      ].get('checks', {}).get('attempt_residuals_verified') is not True
-      or not isinstance(
-        reflected_domain_remesh_probe.get(
-          'global_reflected_shock_remesh_planner'
-        ),
-        dict,
-      )
-      or reflected_domain_remesh_probe[
-        'global_reflected_shock_remesh_planner'
-      ].get('chain', {}).get('cell_count') != 1
-      or reflected_domain_remesh_probe[
-        'global_reflected_shock_remesh_planner'
-      ].get('chain', {}).get('termination_reason')
-      != MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE.value
-      or reflected_domain_remesh_probe[
-        'global_reflected_shock_remesh_planner'
-      ].get('diagnostics', {}).get(
-        'global_reflected_shock_remesh_audit_accepted'
-      ) is not True
-      or reflected_domain_remesh_probe[
-        'global_reflected_shock_remesh_planner'
-      ].get('diagnostics', {}).get(
-        'global_reflected_shock_remesh_euler_audit_accepted'
-      ) is not False
-      or len(reflected_domain_remesh_probe[
-        'global_reflected_shock_remesh_planner'
-      ].get('diagnostics', {}).get(
-        'global_reflected_shock_remesh_euler_audits',
-        (),
-      )) != 1
-      or reflected_domain_remesh_probe[
-        'global_reflected_shock_remesh_planner'
-      ].get('diagnostics', {}).get(
-        'global_reflected_shock_remesh_euler_audits',
-        ({},),
-      )[0].get('audit', {}).get('status')
-      != 'euler_audit_shock_jump_failure'
+      or reflected_domain_remesh_probe.get('accepted') is not True
     )
   )
   reflected_domain_alternating_physical_field_chain_refinement_failure = (
@@ -14078,6 +14063,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
         ),
         'message': str(
           reflected_domain_remesh_probe.get(
+            'global_reflected_shock_remesh_global_euler_closure_error',
+          )
+          or reflected_domain_remesh_probe.get(
+            'global_reflected_shock_remesh_global_euler_closure_independent_measurement',
+            {},
+          ).get('message', '')
+          or reflected_domain_remesh_probe.get(
             'global_reflected_shock_remesh_error',
           )
           or reflected_domain_remesh_probe.get(

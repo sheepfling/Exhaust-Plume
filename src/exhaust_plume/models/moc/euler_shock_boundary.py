@@ -234,6 +234,7 @@ class MocEulerShockBoundaryCurveResult:
   physical_closure_verified: bool = False
   chain_promotion_blocked: bool = True
   production_claim_allowed: bool = False
+  zero_strength_endpoints_allowed: bool = False
   message: str = ''
 
   def __post_init__(self) -> None:
@@ -323,6 +324,7 @@ class MocEulerShockBoundaryCurveResult:
       'physical_closure_verified',
       'chain_promotion_blocked',
       'production_claim_allowed',
+      'zero_strength_endpoints_allowed',
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
@@ -401,6 +403,7 @@ class MocEulerShockBoundaryCurveResult:
       'physical_closure_verified': self.physical_closure_verified,
       'chain_promotion_blocked': self.chain_promotion_blocked,
       'production_claim_allowed': self.production_claim_allowed,
+      'zero_strength_endpoints_allowed': self.zero_strength_endpoints_allowed,
       'message': self.message,
     }
 
@@ -790,6 +793,7 @@ def fit_euler_consistent_shock_boundary(
   position_tolerance_m: float = 1.0e-10,
   shock_angle_tolerance_rad: float = 1.0e-8,
   residual_tolerance: float = 1.0e-8,
+  allow_zero_strength_endpoints: bool = False,
 ) -> MocEulerShockBoundaryCurveResult:
   """Fit a sampled shock curve using the conservative turn orientation.
 
@@ -799,7 +803,12 @@ def fit_euler_consistent_shock_boundary(
   tangent and normalized Rankine--Hugoniot flux jump.  A converged curve is
   still only a shock Cauchy boundary.  If its tangent lies inside the
   downstream Mach cone, a companion boundary is required before a two-family
-  post-shock field can be assembled.
+  post-shock field can be assembled.  When
+  ``allow_zero_strength_endpoints`` is enabled, the first and last samples may
+  be exact Mach-wave endpoints (zero turn, unchanged Mach number and total
+  pressure).  Those endpoints are retained as degenerate boundary samples;
+  non-endpoint samples must still share one non-degenerate characteristic
+  orientation.
   """
 
   try:
@@ -830,6 +839,13 @@ def fit_euler_consistent_shock_boundary(
     return _curve_failure(
       MocEulerShockBoundaryStatus.INVALID_INPUT,
       'branch must be a ShockBranch',
+      residual_tolerance=tolerance,
+      shock_angle_tolerance_rad=angle_tolerance,
+    )
+  if not isinstance(allow_zero_strength_endpoints, bool):
+    return _curve_failure(
+      MocEulerShockBoundaryStatus.INVALID_INPUT,
+      'allow_zero_strength_endpoints must be a bool',
       residual_tolerance=tolerance,
       shock_angle_tolerance_rad=angle_tolerance,
     )
@@ -975,37 +991,55 @@ def fit_euler_consistent_shock_boundary(
     zip(samples, pressures, points, target_angles, strict=True)
   ):
     turn = state.theta_rad - target_angle
-    if turn <= 0.0:
+    is_zero_strength_endpoint = bool(
+      allow_zero_strength_endpoints
+      and index in (0, len(samples) - 1)
+      and abs(turn) <= angle_tolerance
+    )
+    if is_zero_strength_endpoint:
+      target_angle = state.theta_rad
+      beta = state.mu_rad
+      downstream_mach = state.mach
+      upstream_total_pressure = pressure * (
+        1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
+      ) ** (state.gamma / (state.gamma - 1.0))
+      downstream_total_pressure = upstream_total_pressure
+    elif turn <= 0.0:
       return failure(
         MocEulerShockBoundaryStatus.NONCOMPRESSIVE_TURN,
         f'shock curve sample {index} requires downstream angle below upstream angle',
       )
-    try:
-      compression = solve_attached_compression_to_turn(
-        upstream_mach=state.mach,
-        gamma=state.gamma,
-        upstream_pressure_Pa=pressure,
-        target_turn_rad=turn,
-        branch=branch,
-      )
-    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
-      return failure(
-        MocEulerShockBoundaryStatus.COMPRESSION_FAILURE,
-        f'shock curve sample {index} compression raised: {error}',
-      )
-    if (
-      not compression.converged
-      or compression.beta_rad is None
-      or compression.downstream_mach is None
-      or compression.downstream_pressure_Pa is None
-      or compression.upstream_total_pressure_Pa is None
-      or compression.downstream_total_pressure_Pa is None
-    ):
-      return failure(
-        MocEulerShockBoundaryStatus.COMPRESSION_FAILURE,
-        f'shock curve sample {index} compression did not converge: {compression.message}',
-      )
-    shock_angle = state.theta_rad - float(compression.beta_rad)
+    else:
+      try:
+        compression = solve_attached_compression_to_turn(
+          upstream_mach=state.mach,
+          gamma=state.gamma,
+          upstream_pressure_Pa=pressure,
+          target_turn_rad=turn,
+          branch=branch,
+        )
+      except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+        return failure(
+          MocEulerShockBoundaryStatus.COMPRESSION_FAILURE,
+          f'shock curve sample {index} compression raised: {error}',
+        )
+      if (
+        not compression.converged
+        or compression.beta_rad is None
+        or compression.downstream_mach is None
+        or compression.downstream_pressure_Pa is None
+        or compression.upstream_total_pressure_Pa is None
+        or compression.downstream_total_pressure_Pa is None
+      ):
+        return failure(
+          MocEulerShockBoundaryStatus.COMPRESSION_FAILURE,
+          f'shock curve sample {index} compression did not converge: {compression.message}',
+        )
+      beta = float(compression.beta_rad)
+      downstream_mach = float(compression.downstream_mach)
+      upstream_total_pressure = float(compression.upstream_total_pressure_Pa)
+      downstream_total_pressure = float(compression.downstream_total_pressure_Pa)
+    shock_angle = state.theta_rad - beta
     if index == 0:
       tangent_angle = atan2(
         points[1][1] - point[1],
@@ -1026,24 +1060,24 @@ def fit_euler_consistent_shock_boundary(
       x_m=point[0],
       y_m=point[1],
       theta_rad=target_angle,
-      mach=float(compression.downstream_mach),
+      mach=downstream_mach,
       gamma=state.gamma,
     )
     try:
       mass, momentum, energy = _jump_residuals(
         state,
-        float(compression.upstream_total_pressure_Pa),
+        upstream_total_pressure,
         downstream_state,
-        float(compression.downstream_total_pressure_Pa),
+        downstream_total_pressure,
         shock_angle,
       )
       upstream_static = _primitive(
         state,
-        float(compression.upstream_total_pressure_Pa),
+        upstream_total_pressure,
       ).pressure
       downstream_static = _primitive(
         downstream_state,
-        float(compression.downstream_total_pressure_Pa),
+        downstream_total_pressure,
       ).pressure
     except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
       return failure(
@@ -1059,12 +1093,12 @@ def fit_euler_consistent_shock_boundary(
     completed_downstream.append(downstream_state)
     completed_points.append(point)
     completed_shock_angles.append(shock_angle)
-    completed_beta.append(float(compression.beta_rad))
+    completed_beta.append(beta)
     completed_target_angles.append(target_angle)
     completed_upstream_static.append(upstream_static)
-    completed_upstream_total.append(float(compression.upstream_total_pressure_Pa))
+    completed_upstream_total.append(upstream_total_pressure)
     completed_downstream_static.append(downstream_static)
-    completed_downstream_total.append(float(compression.downstream_total_pressure_Pa))
+    completed_downstream_total.append(downstream_total_pressure)
     completed_mass.append(mass)
     completed_momentum.append(momentum)
     completed_energy.append(energy)
@@ -1081,17 +1115,36 @@ def fit_euler_consistent_shock_boundary(
         f'shock curve sample {index} Rankine--Hugoniot residual exceeded tolerance',
       )
   ####
-  if any(value is MocEulerShockBoundaryOrientation.CHARACTERISTIC_DEGENERATE for value in completed_orientations):
+  nondegenerate_orientations = tuple(
+    value
+    for index, value in enumerate(completed_orientations)
+    if not (
+      allow_zero_strength_endpoints
+      and index in (0, len(completed_orientations) - 1)
+      and value is MocEulerShockBoundaryOrientation.CHARACTERISTIC_DEGENERATE
+    )
+  )
+  if any(
+    value is MocEulerShockBoundaryOrientation.CHARACTERISTIC_DEGENERATE
+    for value in nondegenerate_orientations
+  ):
     return failure(
       MocEulerShockBoundaryStatus.CHARACTERISTIC_ORIENTATION_FAILURE,
       'shock curve contains a characteristic-degenerate tangent; field orientation is not robust',
     )
-  if not all(value is completed_orientations[0] for value in completed_orientations):
+  if nondegenerate_orientations and not all(
+    value is nondegenerate_orientations[0]
+    for value in nondegenerate_orientations
+  ):
     return failure(
       MocEulerShockBoundaryStatus.CHARACTERISTIC_ORIENTATION_FAILURE,
       'shock curve crosses downstream characteristic orientations',
     )
-  orientation = completed_orientations[0]
+  orientation = (
+    nondegenerate_orientations[0]
+    if nondegenerate_orientations
+    else completed_orientations[0]
+  )
   return MocEulerShockBoundaryCurveResult(
     status=MocEulerShockBoundaryStatus.CONVERGED_LOCAL_SHOCK,
     upstream_states=tuple(completed_upstream),
@@ -1116,6 +1169,7 @@ def fit_euler_consistent_shock_boundary(
     maximum_tangent_residual_rad=max(abs(value) for value in completed_tangent),
     residual_tolerance=tolerance,
     shock_angle_tolerance_rad=angle_tolerance,
+    zero_strength_endpoints_allowed=allow_zero_strength_endpoints,
     message=(
       'locally Euler-consistent shock boundary converged; '
       + (
@@ -1137,6 +1191,7 @@ def fit_euler_consistent_shock_boundary_from_geometry(
   position_tolerance_m: float = 1.0e-10,
   shock_angle_tolerance_rad: float = 1.0e-8,
   residual_tolerance: float = 1.0e-8,
+  allow_zero_strength_endpoints: bool = False,
 ) -> MocEulerShockBoundaryCurveResult:
   """Reconcile downstream turns to a retained shock geometry.
 
@@ -1151,7 +1206,10 @@ def fit_euler_consistent_shock_boundary_from_geometry(
   It does not infer an ambient attachment, a companion boundary, a reflected
   post-shock field, or a continued chain cell.  In particular, a successful
   curve is not evidence that the retained geometry came from a globally
-  coupled free-boundary solution.
+  coupled free-boundary solution.  With
+  ``allow_zero_strength_endpoints`` enabled, the first and last geometry
+  tangents may be exact Mach-wave tangents; the ordinary fitter retains those
+  samples as zero-strength endpoints.
   """
 
   try:
@@ -1181,6 +1239,13 @@ def fit_euler_consistent_shock_boundary_from_geometry(
     return _curve_failure(
       MocEulerShockBoundaryStatus.INVALID_INPUT,
       'branch must be a ShockBranch',
+      residual_tolerance=tolerance,
+      shock_angle_tolerance_rad=angle_tolerance,
+    )
+  if not isinstance(allow_zero_strength_endpoints, bool):
+    return _curve_failure(
+      MocEulerShockBoundaryStatus.INVALID_INPUT,
+      'allow_zero_strength_endpoints must be a bool',
       residual_tolerance=tolerance,
       shock_angle_tolerance_rad=angle_tolerance,
     )
@@ -1273,9 +1338,14 @@ def fit_euler_consistent_shock_boundary_from_geometry(
     shock_angle = float(tangent_angle)
     beta = state.theta_rad - shock_angle
     mach_angle = state.mu_rad
+    is_zero_strength_endpoint = bool(
+      allow_zero_strength_endpoints
+      and index in (0, len(points) - 1)
+      and abs(beta - mach_angle) <= angle_tolerance
+    )
     if (
       not isfinite(beta)
-      or beta <= mach_angle
+      or (beta <= mach_angle and not is_zero_strength_endpoint)
       or beta >= 0.5 * pi
     ):
       return _curve_failure(
@@ -1287,27 +1357,30 @@ def fit_euler_consistent_shock_boundary_from_geometry(
         residual_tolerance=tolerance,
         shock_angle_tolerance_rad=angle_tolerance,
       )
-    numerator = 2.0 / tan(beta) * (
-      state.mach * state.mach * sin(beta) * sin(beta) - 1.0
-    )
-    denominator = state.mach * state.mach * (
-      state.gamma + cos(2.0 * beta)
-    ) + 2.0
-    if not isfinite(numerator) or not isfinite(denominator) or denominator <= 0.0:
-      return _curve_failure(
-        MocEulerShockBoundaryStatus.GEOMETRY_FAILURE,
-        f'geometry-conditioned sample {index} has an invalid beta-to-turn relation',
-        residual_tolerance=tolerance,
-        shock_angle_tolerance_rad=angle_tolerance,
+    if is_zero_strength_endpoint:
+      turn = 0.0
+    else:
+      numerator = 2.0 / tan(beta) * (
+        state.mach * state.mach * sin(beta) * sin(beta) - 1.0
       )
-    turn = atan(numerator / denominator)
-    if not isfinite(turn) or turn <= 0.0:
-      return _curve_failure(
-        MocEulerShockBoundaryStatus.NONCOMPRESSIVE_TURN,
-        f'geometry-conditioned sample {index} does not require compression',
-        residual_tolerance=tolerance,
-        shock_angle_tolerance_rad=angle_tolerance,
-      )
+      denominator = state.mach * state.mach * (
+        state.gamma + cos(2.0 * beta)
+      ) + 2.0
+      if not isfinite(numerator) or not isfinite(denominator) or denominator <= 0.0:
+        return _curve_failure(
+          MocEulerShockBoundaryStatus.GEOMETRY_FAILURE,
+          f'geometry-conditioned sample {index} has an invalid beta-to-turn relation',
+          residual_tolerance=tolerance,
+          shock_angle_tolerance_rad=angle_tolerance,
+        )
+      turn = atan(numerator / denominator)
+      if not isfinite(turn) or turn <= 0.0:
+        return _curve_failure(
+          MocEulerShockBoundaryStatus.NONCOMPRESSIVE_TURN,
+          f'geometry-conditioned sample {index} does not require compression',
+          residual_tolerance=tolerance,
+          shock_angle_tolerance_rad=angle_tolerance,
+        )
     target_angles.append(state.theta_rad - turn)
 
   return fit_euler_consistent_shock_boundary(
@@ -1319,4 +1392,5 @@ def fit_euler_consistent_shock_boundary_from_geometry(
     position_tolerance_m=position_tolerance,
     shock_angle_tolerance_rad=angle_tolerance,
     residual_tolerance=tolerance,
+    allow_zero_strength_endpoints=allow_zero_strength_endpoints,
   )

@@ -1526,3 +1526,17 @@ cells and keeps ``chain_promotion_blocked=true`` and
 reflected/free-boundary solve followed by independent Euler residual,
 refinement, and indexed external-validation evidence. The fast/basic,
 signature, ray-transfer, and focal-plane-array providers remain isolated.
+
+The global remesh now also has a separate
+``solve_reflected_domain_global_euler_shock_boundary`` bridge. It re-samples a
+retained shock against the verified bounded alternating source band, projects
+only its endpoint segments onto exact local Mach-wave tangents, and permits a
+continuous centerline-frontier endpoint rather than forcing the next discrete
+axis vertex. Its explicit zero-strength endpoint samples are then passed to
+the ambient/reflected-centerline Euler field assembler. The canonical bridge
+closes a local 53-cell field and passes the independent shock-jump and cell
+audit, but it remains ``FIDELITY_NOT_ALLOWED``: canonical reflected
+free-boundary evidence, refinement, mixed-regime continuation, and indexed
+external observations are still required. No result from this bridge may
+promote a chain cell or update the basic visualization, signature,
+ray-transfer, or focal-plane-array providers.

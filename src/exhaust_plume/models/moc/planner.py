@@ -38,8 +38,10 @@ from exhaust_plume.models.moc.reflected_domain import (
   MocReflectedDomainRemeshResult,
   MocReflectedDomainSolverOwnedFirstCellResult,
   MocReflectedDomainGlobalShockRemeshResult,
+  MocReflectedDomainGlobalEulerShockBoundaryResult,
   solve_reflected_domain_solver_owned_first_cell,
   solve_reflected_domain_global_shock_remesh,
+  solve_reflected_domain_global_euler_shock_boundary,
   solve_reflected_domain_alternating_physical_field,
   solve_reflected_domain_alternating_source,
 )
@@ -16473,6 +16475,8 @@ def plan_reflected_domain_global_shock_remesh_chain(
   solver_euler_boundary_curves: tuple[dict[str, Any], ...] = ()
   solver_euler_geometry_reconciliations: tuple[dict[str, Any], ...] = ()
   solver_euler_ambient_physical_fields: tuple[dict[str, Any], ...] = ()
+  solver_global_euler_closure: MocReflectedDomainGlobalEulerShockBoundaryResult | None = None
+  solver_global_euler_closure_measurement: Any | None = None
   solver_error: str | None = None
 
   for name, value in (
@@ -16523,6 +16527,8 @@ def plan_reflected_domain_global_shock_remesh_chain(
     nonlocal solver_euler_audits, solver_euler_boundary_curves
     nonlocal solver_euler_geometry_reconciliations
     nonlocal solver_euler_ambient_physical_fields
+    nonlocal solver_global_euler_closure
+    nonlocal solver_global_euler_closure_measurement
     if total_cell_count is not None and next_cell_index > total_cell_count:
       return stop(
         MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
@@ -16583,6 +16589,28 @@ def plan_reflected_domain_global_shock_remesh_chain(
       )
       from exhaust_plume.validation import (
         measure_moc_physical_field_euler_audit,
+        measure_moc_reflected_domain_global_euler_shock_boundary,
+      )
+
+      solver_global_euler_closure = (
+        solve_reflected_domain_global_euler_shock_boundary(
+          solver_result,
+          branch=branch,
+          position_tolerance_m=position_tolerance_m,
+          invariant_tolerance=invariant_tolerance,
+          pressure_tolerance=pressure_tolerance,
+          tangent_tolerance=tangent_tolerance,
+          shock_angle_tolerance_rad=(
+            euler_reconciliation_shock_angle_tolerance_rad
+          ),
+          residual_tolerance=euler_reconciliation_residual_tolerance,
+          maximum_boundary_iterations=maximum_boundary_iterations,
+        )
+      )
+      solver_global_euler_closure_measurement = (
+        measure_moc_reflected_domain_global_euler_shock_boundary(
+          solver_global_euler_closure,
+        )
       )
 
       audit_rows: list[dict[str, Any]] = []
@@ -16807,6 +16835,8 @@ def plan_reflected_domain_global_shock_remesh_chain(
         f'global reflected-shock remesh planner adapter failed: {error}',
         next_cell_index=next_cell_index,
       )
+    if solver_global_euler_closure is not None and solver_global_euler_closure.converged:
+      return solver_global_euler_closure.as_chain_termination_decision()
     return solver_result.as_chain_termination_decision()
 
   planner = plan_ambient_closed_post_shock_chain(
@@ -16817,15 +16847,16 @@ def plan_reflected_domain_global_shock_remesh_chain(
     policy=policy,
     require_upstream_shock_coupling=True,
     claim_status=(
-      'global-reflected-shock-remesh-planner-research-seam; '
-      'canonical-reflected-free-boundary-and-external-validation-pending'
+      'global-reflected-shock-remesh-exact-euler-field-research-seam; '
+      'canonical-independent-audit-and-external-validation-pending'
     ),
   )
   diagnostics = dict(planner.diagnostics)
   diagnostics.update({
     'global_reflected_shock_remesh_planner_model': (
       'seed-physical-field -> exact-centerline-handoff -> '
-      'bounded-global-source-pair-and-profile-sweep'
+      'bounded-global-source-pair-and-profile-sweep -> '
+      'continuous-centerline-frontier-exact-euler-field-closure'
     ),
     'global_reflected_shock_remesh_source_band': source_band.as_report(),
     'global_reflected_shock_remesh_seed_handoff_verified': (
@@ -16904,6 +16935,28 @@ def plan_reflected_domain_global_shock_remesh_chain(
       )
     ),
     'global_reflected_shock_remesh_euler_ambient_physical_field_required_for_promotion': True,
+    'global_reflected_shock_remesh_global_euler_closure': (
+      None
+      if solver_global_euler_closure is None
+      else solver_global_euler_closure.as_report()
+    ),
+    'global_reflected_shock_remesh_global_euler_closure_accepted': bool(
+      solver_global_euler_closure is not None
+      and solver_global_euler_closure.converged
+    ),
+    'global_reflected_shock_remesh_global_euler_closure_independent_measurement': (
+      None
+      if solver_global_euler_closure_measurement is None
+      else solver_global_euler_closure_measurement.as_report()
+    ),
+    'global_reflected_shock_remesh_global_euler_closure_independent_audit_accepted': bool(
+      solver_global_euler_closure_measurement is not None
+      and solver_global_euler_closure_measurement.converged
+      and solver_global_euler_closure_measurement.local_euler_consistency_verified
+      and solver_global_euler_closure_measurement.chain_promotion_blocked
+      and not solver_global_euler_closure_measurement.production_claim_allowed
+    ),
+    'global_reflected_shock_remesh_global_euler_closure_required_for_promotion': True,
     'global_reflected_shock_remesh_euler_reconciliation_tolerances': {
       'shock_angle_tolerance_rad': euler_reconciliation_shock_angle_tolerance_rad,
       'residual_tolerance': euler_reconciliation_residual_tolerance,
