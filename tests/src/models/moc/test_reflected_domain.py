@@ -36,6 +36,7 @@ from exhaust_plume.models.moc import (
   plan_reflected_domain_solver_owned_first_cell_chain,
   plan_reflected_domain_global_shock_remesh_chain,
   plan_reflected_domain_global_shock_remesh_chain_from_physical_field,
+  plan_reflected_domain_global_euler_continued_chain_reference,
   plan_reflected_domain_remesh_shock_chain,
   plan_reflected_domain_remesh_shock_chain_sequence,
   solve_marched_attached_shock_field,
@@ -1107,6 +1108,100 @@ def test_global_euler_shock_boundary_closes_continuous_source_frontier():
   assert report['source_frontier_verified'] is True
   assert report['shock_boundary']['zero_strength_endpoints_allowed'] is True
   assert report['physical_field']['physical_closure_verified'] is True
+
+
+def test_global_euler_field_can_seed_a_research_continued_chain_reference():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  source = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+    incoming_handoff=_handoff(field),
+  )
+  global_remesh = solve_reflected_domain_global_shock_remesh(
+    source,
+    outer_source_indices=(2,),
+    target_centerline_indices=(3,),
+    compression_amplitude_lower_rad=0.007,
+    compression_amplitude_upper_rad=0.03,
+    compression_envelope_skews=(-0.75, 0.0),
+    sample_count=9,
+    shock_angle_tolerance_rad=0.02,
+  )
+  global_result = solve_reflected_domain_global_euler_shock_boundary(
+    global_remesh,
+  )
+  assert global_result.converged
+  assert global_result.physical_field is not None
+  assert global_result.physical_field.field is not None
+
+  planner = plan_reflected_domain_global_euler_continued_chain_reference(
+    global_result,
+    start_x_m=0.5,
+    end_x_m=(
+      global_result.physical_field.field.ambient_boundary_points_m[-1][0]
+      + 6.0
+    ),
+    reference=MocTerminalReflectionPatchAmbientClosureChainReference(
+      total_cell_count=2,
+    ),
+    policy=MocChainContinuationPolicy(max_cells=3, require_state_carry=True),
+  )
+
+  assert planner.resolved
+  assert planner.chain.cell_count == 2
+  assert planner.chain.termination_reason is (
+    MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL
+  )
+  assert planner.chain.physical_termination is False
+  assert planner.handoff_links_verified is True
+  assert planner.production_claim_allowed is False
+  assert planner.diagnostics[
+    'global_euler_continued_chain_source_measurement'
+  ]['checks']['incoming_handoff_verified'] is True
+  assert planner.diagnostics[
+    'global_euler_continued_chain_independent_measurement'
+  ]['handoff']['links_verified'] is True
+  assert planner.diagnostics[
+    'global_euler_continued_chain_audit_accepted'
+  ] is True
+  assert planner.diagnostics[
+    'global_euler_continued_chain_research_physical_cell_count'
+  ] == 1
+  assert planner.diagnostics[
+    'global_euler_continued_chain_fidelity_transition'
+  ].startswith('global-exact-euler-local-research-seed')
+  assert planner.diagnostics['chain_promotion_blocked'] is True
+  assert planner.diagnostics['canonical_euler_verified'] is False
+
+
+def test_global_euler_continued_chain_reference_rejects_unaudited_seed():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  source = solve_reflected_domain_alternating_source(patch, ambient_pressure)
+  global_remesh = solve_reflected_domain_global_shock_remesh(
+    source,
+    outer_source_indices=(2,),
+    target_centerline_indices=(3,),
+    compression_amplitude_lower_rad=0.007,
+    compression_amplitude_upper_rad=0.03,
+    compression_envelope_skews=(-0.75, 0.0),
+    sample_count=9,
+    shock_angle_tolerance_rad=0.02,
+  )
+  global_result = solve_reflected_domain_global_euler_shock_boundary(
+    global_remesh,
+  )
+  tampered = replace(global_result, source_frontier_verified=False)
+
+  with pytest.raises(ValueError, match='locally converged global field'):
+    plan_reflected_domain_global_euler_continued_chain_reference(
+      tampered,
+      start_x_m=0.5,
+      end_x_m=8.0,
+    )
 
 
 def test_global_euler_shock_boundary_refinement_audits_resolution_ladder():

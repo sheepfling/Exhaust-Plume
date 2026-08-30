@@ -104,6 +104,9 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   global_euler_refinement = reflected_domain[
     'global_reflected_shock_remesh_global_euler_closure_refinement'
   ]
+  global_euler_continued_chain = reflected_domain[
+    'global_reflected_shock_remesh_global_euler_continued_chain_reference'
+  ]
   reflected_probe = report['geometry_cases']['reflected_zone_shock_coupling']
   reflected_chain_boundary = report['geometry_cases']['reflected_zone_chain_boundary_probe']
   trace_extension = report['geometry_cases']['reflected_boundary_trace_extension']
@@ -197,6 +200,28 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert global_euler_refinement['production_claim_allowed'] is False
   assert global_euler_refinement['canonical_euler_verified'] is False
   assert global_euler_refinement['external_validation_verified'] is False
+  assert global_euler_continued_chain['planner_kind'] == 'upstream-coupled-research'
+  assert global_euler_continued_chain['planning_only'] is True
+  assert global_euler_continued_chain['production_claim_allowed'] is False
+  global_euler_continued_chain_result = global_euler_continued_chain['chain']
+  assert global_euler_continued_chain_result['resolved'] is True
+  assert global_euler_continued_chain_result['cell_count'] == 3
+  assert global_euler_continued_chain_result['termination_reason'] == (
+    'solver-returned-no-next-cell'
+  )
+  assert global_euler_continued_chain_result['physical_termination'] is False
+  assert global_euler_continued_chain['handoff_links_verified'] is True
+  assert global_euler_continued_chain['diagnostics'][
+    'global_euler_continued_chain_captured_field_count'
+  ] == 3
+  assert global_euler_continued_chain['diagnostics'][
+    'global_euler_continued_chain_audit_accepted'
+  ] is True
+  assert global_euler_continued_chain['diagnostics'][
+    'global_euler_continued_chain_fidelity_transition'
+  ].startswith('global-exact-euler-local-research-seed')
+  assert global_euler_continued_chain['diagnostics']['chain_promotion_blocked'] is True
+  assert global_euler_continued_chain['diagnostics']['canonical_euler_verified'] is False
   assert generated_chain['accepted'] is True
   assert generated_chain['resolved'] is True
   assert generated_chain['cell_count'] == 5

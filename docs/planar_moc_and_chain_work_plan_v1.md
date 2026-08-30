@@ -3215,3 +3215,19 @@ global result remains below the canonical mixed-regime/free-boundary closure,
 indexed validation, and production next-cell fitting gates, and the fast,
 basic-visualization, signature, optical-transfer, and focal-plane-array lanes
 remain unchanged.
+
+## Global exact-Euler continued-chain research adapter
+
+The locally audited global exact-Euler field can now seed a separate research
+chain adapter. The adapter carries the field's exact typed frontier into the
+existing terminal-reflection/ambient-closure continuation reference, captures
+each newly solved field, and independently remeasures the resulting chain. The
+validation fixture exercises three resolved fields and a typed
+``SOLVER_RETURNED_NO_NEXT_CELL`` stop, with fresh-domain and handoff-link
+checks across the continuation.
+
+This is an explicit fidelity transition: ``global-exact-euler`` is used for
+the local seed, while the downstream cells use the terminal-reflection patch
+reference. The transition is recorded in diagnostics and cannot authorize a
+canonical reflected free-boundary claim, external validation, production
+next-cell fitting, or any lower-fidelity product provider.

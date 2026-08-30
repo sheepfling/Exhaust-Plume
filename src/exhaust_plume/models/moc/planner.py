@@ -328,6 +328,7 @@ __all__ = (
   'plan_reflected_domain_solver_owned_first_cell_chain',
   'plan_reflected_domain_global_shock_remesh_chain',
   'plan_reflected_domain_global_shock_remesh_chain_from_physical_field',
+  'plan_reflected_domain_global_euler_continued_chain_reference',
   'plan_first_cell_geometry_owned_alternating_research_chain',
   'plan_caustic_simple_wave_terminal_chain',
   'plan_caustic_remesh_downstream_field_chain',
@@ -17264,6 +17265,182 @@ def plan_reflected_domain_global_shock_remesh_chain_from_physical_field(
     'production_claim_allowed': False,
   })
   return replace(planner, diagnostics=diagnostics)
+####
+
+
+def plan_reflected_domain_global_euler_continued_chain_reference(
+  global_result: MocReflectedDomainGlobalEulerShockBoundaryResult,
+  *,
+  start_x_m: float,
+  end_x_m: float,
+  reference: MocTerminalReflectionPatchAmbientClosureChainReference | None = None,
+  policy: MocChainContinuationPolicy | None = None,
+) -> MocChainPlannerResult:
+  """Continue a locally audited global-Euler field as a research chain.
+
+  The global Euler bridge owns the first locally closed field.  This adapter
+  deliberately hands that field to the existing terminal-reflection physical
+  continuation reference so a multi-cell experiment can be run without
+  pretending that the reference's downstream compression envelope is the
+  canonical reflected free-boundary law.  Every accepted continuation is
+  independently remeasured before the result is reported.
+
+  The returned planner is research-only.  It is useful for exercising exact
+  handoff, fresh-domain, and typed-terminal behavior after a global Euler
+  seed, but it cannot authorize a production provider or a lower-fidelity
+  product lane.
+  """
+
+  if not isinstance(
+    global_result,
+    MocReflectedDomainGlobalEulerShockBoundaryResult,
+  ):
+    raise TypeError(
+      'global_result must be a '
+      'MocReflectedDomainGlobalEulerShockBoundaryResult'
+    )
+  if not global_result.converged or not global_result.physical_closure_verified:
+    raise ValueError(
+      'global Euler continued-chain reference requires a locally converged '
+      f'global field: {global_result.message}'
+    )
+  physical_result = global_result.physical_field
+  if physical_result is None or physical_result.field is None:
+    raise ValueError(
+      'global Euler continued-chain reference requires a retained physical '
+      'field'
+    )
+  if not physical_result.state_sampling_available:
+    raise ValueError(
+      'global Euler continued-chain reference requires bounded state '
+      'sampling on the seed field'
+    )
+  if reference is not None and not isinstance(
+    reference,
+    MocTerminalReflectionPatchAmbientClosureChainReference,
+  ):
+    raise TypeError(
+      'reference must be a '
+      'MocTerminalReflectionPatchAmbientClosureChainReference or None'
+    )
+
+  try:
+    from exhaust_plume.validation.moc_measurements import (
+      measure_moc_ambient_closed_physical_field_chain,
+      measure_moc_reflected_domain_global_euler_shock_boundary,
+    )
+
+    global_measurement = measure_moc_reflected_domain_global_euler_shock_boundary(
+      global_result,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    raise ValueError(
+      f'global Euler seed independent measurement raised: {error}'
+    ) from error
+  if not (
+    global_measurement.converged
+    and global_measurement.local_euler_consistency_verified
+    and global_measurement.incoming_handoff_verified
+    and global_measurement.physical_closure_verified
+    and global_measurement.fidelity_isolation_verified
+    and global_measurement.chain_promotion_blocked
+    and not global_measurement.production_claim_allowed
+  ):
+    raise ValueError(
+      'global Euler continued-chain reference requires a passing independent '
+      'local-field audit before continuation'
+    )
+
+  seed_field = physical_result.field
+  captured_fields: list[MocPhysicalPostShockFieldResult] = [seed_field]
+
+  def observe(
+    solved: MocPhysicalPostShockFieldContinuationSolve,
+    _current: MocChainCell,
+  ) -> None:
+    captured_fields.append(solved.field)
+
+  planner = plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closure(
+    seed_field,
+    start_x_m=start_x_m,
+    end_x_m=end_x_m,
+    reference=reference,
+    policy=policy,
+    _field_observer=observe,
+  )
+  try:
+    chain_measurement = measure_moc_ambient_closed_physical_field_chain(
+      tuple(captured_fields),
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    chain_measurement = None
+    chain_measurement_error = f'{type(error).__name__}: {error}'
+  else:
+    chain_measurement_error = None
+
+  source_field = global_result.physical_field.field
+  diagnostics = dict(planner.diagnostics)
+  diagnostics.update({
+    'global_euler_continued_chain_reference': True,
+    'global_euler_continued_chain_source_model': (
+      'locally-audited-global-euler-ambient-closed-field'
+    ),
+    'global_euler_continued_chain_fidelity_transition': (
+      'global-exact-euler-local-research-seed -> '
+      'terminal-reflection-patch-ambient-closure-reference'
+    ),
+    'global_euler_continued_chain_source': {
+      'status': global_result.status.value,
+      'converged': global_result.converged,
+      'physical_closure_verified': global_result.physical_closure_verified,
+      'incoming_handoff_verified': global_result.incoming_handoff_verified,
+      'incoming_handoff_sample_count': len(global_result.incoming_handoff),
+      'shock_sample_count': len(global_result.remeshed_shock_points_m),
+      'field_cell_count': len(source_field.cells),
+      'chain_promotion_blocked': global_result.chain_promotion_blocked,
+      'production_claim_allowed': global_result.production_claim_allowed,
+    },
+    'global_euler_continued_chain_source_measurement': (
+      global_measurement.as_report()
+    ),
+    'global_euler_continued_chain_source_handoff_fingerprint': (
+      _handoff_fingerprint(global_result.incoming_handoff)
+    ),
+    'global_euler_continued_chain_captured_field_count': len(captured_fields),
+    'global_euler_continued_chain_independent_measurement': (
+      None if chain_measurement is None else chain_measurement.as_report()
+    ),
+    'global_euler_continued_chain_independent_measurement_error': (
+      chain_measurement_error
+    ),
+    'global_euler_continued_chain_audit_accepted': bool(
+      chain_measurement is not None
+      and chain_measurement.converged
+      and chain_measurement.handoff_links_verified is True
+      and chain_measurement.fresh_domain_verified
+      and chain_measurement.physical_closure_verified
+      and chain_measurement.chain_promotion_blocked
+      and not chain_measurement.production_claim_allowed
+    ),
+    'global_euler_continued_chain_research_physical_cell_count': max(
+      0,
+      planner.chain.cell_count - 1,
+    ),
+    'canonical_reflected_domain_closed': False,
+    'canonical_free_boundary_verified': False,
+    'canonical_euler_verified': False,
+    'external_validation_verified': False,
+    'chain_promotion_blocked': True,
+    'production_claim_allowed': False,
+  })
+  return replace(
+    planner,
+    claim_status=(
+      'global-exact-euler-seed-to-terminal-reflection-patch-chain-reference; '
+      'canonical-reflected-free-boundary-and-external-validation-pending'
+    ),
+    diagnostics=diagnostics,
+  )
 ####
 
 

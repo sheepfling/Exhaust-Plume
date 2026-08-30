@@ -149,6 +149,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   plan_reflected_domain_alternating_source_chain,
   plan_reflected_domain_solver_owned_first_cell_chain,
   plan_reflected_domain_global_shock_remesh_chain,
+  plan_reflected_domain_global_euler_continued_chain_reference,
   solve_reflected_domain_remesh,
   solve_reflected_domain_alternating_source,
   solve_reflected_domain_alternating_physical_field,
@@ -996,6 +997,8 @@ def _reflected_domain_remesh_probe(
   global_euler_shock_boundary_error = None
   global_euler_shock_boundary_refinement = None
   global_euler_shock_boundary_refinement_error = None
+  global_euler_continued_chain_reference = None
+  global_euler_continued_chain_reference_error = None
   try:
     if alternating_source is None:
       raise ValueError('alternating source fixture did not converge')
@@ -1027,6 +1030,33 @@ def _reflected_domain_remesh_probe(
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     global_shock_remesh_error = f'{type(error).__name__}: {error}'
     global_euler_shock_boundary_error = f'{type(error).__name__}: {error}'
+
+  if global_euler_shock_boundary is not None:
+    try:
+      if global_euler_shock_boundary.physical_field is None:
+        raise ValueError('global Euler closure did not retain its physical field')
+      global_seed_field = global_euler_shock_boundary.physical_field.field
+      if global_seed_field is None:
+        raise ValueError('global Euler closure retained no physical field mesh')
+      global_seed_end_x_m = global_seed_field.ambient_boundary_points_m[-1][0]
+      global_euler_continued_chain_reference = (
+        plan_reflected_domain_global_euler_continued_chain_reference(
+          global_euler_shock_boundary,
+          start_x_m=0.5,
+          end_x_m=global_seed_end_x_m + 6.0,
+          reference=MocTerminalReflectionPatchAmbientClosureChainReference(
+            total_cell_count=3,
+          ),
+          policy=MocChainContinuationPolicy(
+            max_cells=4,
+            require_state_carry=True,
+          ),
+        )
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      global_euler_continued_chain_reference_error = (
+        f'{type(error).__name__}: {error}'
+      )
 
   if (
     alternating_source is not None
@@ -1437,6 +1467,27 @@ def _reflected_domain_remesh_probe(
     and global_euler_shock_boundary_refinement.local_consistency_verified
     and global_euler_shock_boundary_refinement.physical_closure_verified
     and global_euler_shock_boundary_refinement.fidelity_isolation_verified
+    and global_euler_continued_chain_reference is not None
+    and global_euler_continued_chain_reference.production_claim_allowed is False
+    and global_euler_continued_chain_reference.resolved
+    and global_euler_continued_chain_reference.chain.cell_count == 3
+    and global_euler_continued_chain_reference.chain.termination_reason is (
+      MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL
+    )
+    and global_euler_continued_chain_reference.chain.physical_termination is False
+    and global_euler_continued_chain_reference.handoff_links_verified is True
+    and global_euler_continued_chain_reference.diagnostics[
+      'global_euler_continued_chain_captured_field_count'
+    ] == 3
+    and global_euler_continued_chain_reference.diagnostics[
+      'global_euler_continued_chain_audit_accepted'
+    ] is True
+    and global_euler_continued_chain_reference.diagnostics[
+      'chain_promotion_blocked'
+    ] is True
+    and global_euler_continued_chain_reference.diagnostics[
+      'canonical_euler_verified'
+    ] is False
     and global_shock_remesh_planner is not None
     and global_shock_remesh_planner.production_claim_allowed is False
     and global_shock_remesh_planner.chain.resolved
@@ -1609,6 +1660,14 @@ def _reflected_domain_remesh_probe(
     ),
     'global_reflected_shock_remesh_global_euler_closure_refinement_error': (
       global_euler_shock_boundary_refinement_error
+    ),
+    'global_reflected_shock_remesh_global_euler_continued_chain_reference': (
+      None
+      if global_euler_continued_chain_reference is None
+      else global_euler_continued_chain_reference.as_report()
+    ),
+    'global_reflected_shock_remesh_global_euler_continued_chain_reference_error': (
+      global_euler_continued_chain_reference_error
     ),
     'global_reflected_shock_remesh_planner': (
       None
@@ -9742,6 +9801,53 @@ def build_moc_primitive_report() -> dict[str, Any]:
       or reflected_domain_remesh_probe.get('accepted') is not True
     )
   )
+  global_euler_continued_chain_reference_failure = (
+    ambient_shock_strip_probe.get('accepted') is True
+    and (
+      not isinstance(reflected_domain_remesh_probe, dict)
+      or not isinstance(
+        reflected_domain_remesh_probe.get(
+          'global_reflected_shock_remesh_global_euler_continued_chain_reference'
+        ),
+        dict,
+      )
+      or reflected_domain_remesh_probe[
+        'global_reflected_shock_remesh_global_euler_continued_chain_reference'
+      ].get('chain', {}).get('resolved') is not True
+      or reflected_domain_remesh_probe[
+        'global_reflected_shock_remesh_global_euler_continued_chain_reference'
+      ].get('chain', {}).get('cell_count') != 3
+      or reflected_domain_remesh_probe[
+        'global_reflected_shock_remesh_global_euler_continued_chain_reference'
+      ].get('chain', {}).get('termination_reason')
+      != MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL.value
+      or reflected_domain_remesh_probe[
+        'global_reflected_shock_remesh_global_euler_continued_chain_reference'
+      ].get('chain', {}).get('physical_termination') is not False
+      or reflected_domain_remesh_probe[
+        'global_reflected_shock_remesh_global_euler_continued_chain_reference'
+      ].get('handoff_links_verified') is not True
+      or reflected_domain_remesh_probe[
+        'global_reflected_shock_remesh_global_euler_continued_chain_reference'
+      ].get('diagnostics', {}).get(
+        'global_euler_continued_chain_captured_field_count'
+      ) != 3
+      or reflected_domain_remesh_probe[
+        'global_reflected_shock_remesh_global_euler_continued_chain_reference'
+      ].get('diagnostics', {}).get(
+        'global_euler_continued_chain_audit_accepted'
+      ) is not True
+      or reflected_domain_remesh_probe[
+        'global_reflected_shock_remesh_global_euler_continued_chain_reference'
+      ].get('diagnostics', {}).get('chain_promotion_blocked') is not True
+      or reflected_domain_remesh_probe[
+        'global_reflected_shock_remesh_global_euler_continued_chain_reference'
+      ].get('diagnostics', {}).get('canonical_euler_verified') is not False
+      or reflected_domain_remesh_probe.get(
+        'global_reflected_shock_remesh_global_euler_continued_chain_reference_error'
+      ) is not None
+    )
+  )
   reflected_domain_alternating_physical_field_chain_refinement_failure = (
     ambient_shock_strip_probe.get('accepted') is True
     and (
@@ -14147,6 +14253,31 @@ def build_moc_primitive_report() -> dict[str, Any]:
         ),
       }
     ] if global_shock_remesh_failure else []),
+    *([
+      {
+        'case': 'solver_generated_reflected_domain_global_euler_continued_chain_reference',
+        'status': str(
+          reflected_domain_remesh_probe.get(
+            'global_reflected_shock_remesh_global_euler_continued_chain_reference',
+            {},
+          ).get('chain', {}).get('termination_reason', 'missing')
+          if isinstance(reflected_domain_remesh_probe, dict)
+          else 'missing'
+        ),
+        'message': str(
+          reflected_domain_remesh_probe.get(
+            'global_reflected_shock_remesh_global_euler_continued_chain_reference_error',
+            '',
+          )
+          or reflected_domain_remesh_probe.get(
+            'global_reflected_shock_remesh_global_euler_continued_chain_reference',
+            {},
+          ).get('chain', {}).get('message', '')
+          if isinstance(reflected_domain_remesh_probe, dict)
+          else 'global Euler continued-chain reference missing'
+        ),
+      }
+    ] if global_euler_continued_chain_reference_failure else []),
     *([
       {
         'case': 'solver_generated_reflected_domain_alternating_physical_field_chain_refinement',
