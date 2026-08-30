@@ -21,6 +21,9 @@ from exhaust_plume.models.moc.euler_entropy_characteristic_continuation import (
   MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicSegmentResult,
 )
+from exhaust_plume.models.moc.euler_entropy_characteristic_field import (
+  MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult,
+)
 from exhaust_plume.models.moc.euler_first_wedge_remesh import (
   MocEulerAmbientFirstWedgeCellSample,
 )
@@ -499,6 +502,9 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationAudit:
   fidelity_flags_verified: bool
   topology: MocTopologyResult
   ambient_pressure_Pa: float | None
+  source_continuation_audit: (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationAudit | None
+  ) = None
   message: str = ''
 
   def __post_init__(self) -> None:
@@ -518,6 +524,13 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationAudit:
       MocEulerAmbientFirstWedgeEntropyCharacteristicFieldAudit,
     ):
       raise TypeError('field_audit must be a typed field audit or None')
+    if self.source_continuation_audit is not None and not isinstance(
+      self.source_continuation_audit,
+      MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationAudit,
+    ):
+      raise TypeError(
+        'source_continuation_audit must be a typed continuation audit or None'
+      )
     segment_audits = tuple(self.segment_audits)
     if any(
       not isinstance(
@@ -589,10 +602,16 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationAudit:
 
   @property
   def local_consistency_verified(self) -> bool:
+    source_audit_verified = bool(
+      self.field_audit is not None
+      and self.field_audit.local_consistency_verified
+    ) or bool(
+      self.source_continuation_audit is not None
+      and self.source_continuation_audit.local_consistency_verified
+    )
     return bool(
       self.converged
-      and self.field_audit is not None
-      and self.field_audit.local_consistency_verified
+      and source_audit_verified
       and self.incoming_handoff_verified
       and self.segment_links_verified
       and self.reflection_anchor_verified
@@ -620,6 +639,11 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationAudit:
       'result_status': self.result_status,
       'field_audit': (
         None if self.field_audit is None else self.field_audit.as_report()
+      ),
+      'source_continuation_audit': (
+        None
+        if self.source_continuation_audit is None
+        else self.source_continuation_audit.as_report()
       ),
       'segment_audits': [
         audit.as_report() for audit in self.segment_audits
@@ -692,6 +716,9 @@ def _failure(
   fidelity_flags_verified: bool = False,
   topology: MocTopologyResult | None = None,
   ambient_pressure_Pa: float | None = None,
+  source_continuation_audit: (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationAudit | None
+  ) = None,
 ) -> MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationAudit:
   return MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationAudit(
     status=status,
@@ -723,6 +750,7 @@ def _failure(
     fidelity_flags_verified=fidelity_flags_verified,
     topology=validate_moc_mesh(()) if topology is None else topology,
     ambient_pressure_Pa=ambient_pressure_Pa,
+    source_continuation_audit=source_continuation_audit,
     message=message,
   )
 
@@ -853,51 +881,95 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation(
   if not all(isfinite(value) and value > 0.0 for value in tolerances):
     raise ValueError('continuation audit tolerances must be finite and positive')
 
-  field = result.source_field
-  if field is None:
+  source = result.source_field
+  if source is None:
     return _failure(
       MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationAuditStatus
       .FIELD_FAILURE,
-      'continuation result did not retain its source entropy field',
+      'continuation result did not retain its source entropy result',
       result_status=result.status.value,
       ambient_pressure_Pa=result.ambient_pressure_Pa,
     )
-  try:
-    field_audit = measure_moc_euler_ambient_first_wedge_entropy_characteristic_field(
-      field,
-      position_tolerance_m=position_tolerance_m,
-      characteristic_residual_tolerance=characteristic_residual_tolerance,
-      cell_residual_tolerance=cell_residual_tolerance,
-      pressure_lineage_tolerance=pressure_lineage_tolerance,
-    )
-  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+  field_audit = None
+  source_continuation_audit = None
+  if isinstance(source, MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult):
+    try:
+      field_audit = measure_moc_euler_ambient_first_wedge_entropy_characteristic_field(
+        source,
+        position_tolerance_m=position_tolerance_m,
+        characteristic_residual_tolerance=characteristic_residual_tolerance,
+        cell_residual_tolerance=cell_residual_tolerance,
+        pressure_lineage_tolerance=pressure_lineage_tolerance,
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      return _failure(
+        MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationAuditStatus
+        .FIELD_FAILURE,
+        f'independent source-field audit raised: {error}',
+        result_status=result.status.value,
+        ambient_pressure_Pa=result.ambient_pressure_Pa,
+      )
+    if not field_audit.local_consistency_verified:
+      return _failure(
+        MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationAuditStatus
+        .FIELD_FAILURE,
+        'retained source field failed its independent audit',
+        result_status=result.status.value,
+        field_audit=field_audit,
+        ambient_pressure_Pa=result.ambient_pressure_Pa,
+      )
+  elif isinstance(
+    source,
+    MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationResult,
+  ):
+    try:
+      source_continuation_audit = (
+        measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation(
+          source,
+          position_tolerance_m=position_tolerance_m,
+          state_tolerance=state_tolerance,
+          characteristic_residual_tolerance=characteristic_residual_tolerance,
+          pressure_lineage_tolerance=pressure_lineage_tolerance,
+          cell_residual_tolerance=cell_residual_tolerance,
+        )
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      return _failure(
+        MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationAuditStatus
+        .FIELD_FAILURE,
+        f'independent source-continuation audit raised: {error}',
+        result_status=result.status.value,
+        ambient_pressure_Pa=result.ambient_pressure_Pa,
+      )
+    if not source_continuation_audit.local_consistency_verified:
+      return _failure(
+        MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationAuditStatus
+        .FIELD_FAILURE,
+        'retained source continuation failed its independent audit',
+        result_status=result.status.value,
+        source_continuation_audit=source_continuation_audit,
+        ambient_pressure_Pa=result.ambient_pressure_Pa,
+      )
+  else:
     return _failure(
       MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationAuditStatus
       .FIELD_FAILURE,
-      f'independent source-field audit raised: {error}',
+      'continuation result retained an unsupported source result type',
       result_status=result.status.value,
-      ambient_pressure_Pa=result.ambient_pressure_Pa,
-    )
-  if not field_audit.local_consistency_verified:
-    return _failure(
-      MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationAuditStatus
-      .FIELD_FAILURE,
-      'retained source field failed its independent audit',
-      result_status=result.status.value,
-      field_audit=field_audit,
       ambient_pressure_Pa=result.ambient_pressure_Pa,
     )
 
   incoming_handoff_verified = bool(
-    result.incoming_handoff == field.continuation_boundary
+    result.incoming_handoff == source.continuation_boundary
   )
   if not incoming_handoff_verified:
     return _failure(
       MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationAuditStatus
       .HANDOFF_FAILURE,
-      'continuation did not retain the exact source-field perimeter',
+      'continuation did not retain the exact source-result perimeter',
       result_status=result.status.value,
       field_audit=field_audit,
+      source_continuation_audit=source_continuation_audit,
       ambient_pressure_Pa=result.ambient_pressure_Pa,
     )
   gradient = result.source_pressure_gradient
@@ -909,6 +981,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation(
       'continuation did not retain a finite entropy pressure gradient',
       result_status=result.status.value,
       field_audit=field_audit,
+      source_continuation_audit=source_continuation_audit,
       incoming_handoff_verified=True,
       ambient_pressure_Pa=ambient_pressure,
     )
@@ -919,6 +992,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation(
       'continuation did not retain a finite positive ambient pressure',
       result_status=result.status.value,
       field_audit=field_audit,
+      source_continuation_audit=source_continuation_audit,
       incoming_handoff_verified=True,
       ambient_pressure_Pa=ambient_pressure,
     )
@@ -1220,6 +1294,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation(
   common = dict(
     result_status=result.status.value,
     field_audit=field_audit,
+    source_continuation_audit=source_continuation_audit,
     segment_audits=segment_audits,
     terminal_segment_audit=terminal_audit,
     incoming_handoff_verified=True,

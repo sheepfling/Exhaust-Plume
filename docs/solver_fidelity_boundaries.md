@@ -1554,3 +1554,24 @@ bounded first-cell solve. Both are retained as lineage-specific research
 evidence. The operator leaves canonical and external validation false,
 ``chain_promotion_blocked=true``, and all fast/basic, signature,
 ray-transfer, and focal-plane-array providers untouched.
+
+## Multi-band variable-entropy continuation lane
+
+``solve_euler_ambient_first_wedge_entropy_characteristic_continuation`` now
+accepts either the initial entropy-characteristic field or a previously
+accepted continuation result as its source. The continuation-chain planner
+passes the exact typed outgoing frontier into each next solve, requires the
+returned band to retain the source object and variable-entropy pressure
+gradient, and requires a fresh downstream axial domain (a shared interface is
+allowed; an axial stall is not).
+
+The independent
+``op.moc.euler-ambient-first-wedge-entropy-characteristic-continuation-chain-audit``
+recursively remeasures the seed and every band, then checks the recorded
+handoffs, source identities, gradient lineage, domain ordering, and typed
+``SOLVER_RETURNED_NO_NEXT_CELL`` termination. This is a source-band research
+sequence, not a physical shock-cell chain: it always reports zero physical
+cells, keeps ``chain_promotion_blocked=true``, and keeps
+``production_claim_allowed=false`` until reflected-shock/free-boundary and
+Euler closure are solved. The lane is isolated from the basic visualization,
+signature, ray-transfer, and focal-plane-array providers.

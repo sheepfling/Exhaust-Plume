@@ -1682,6 +1682,30 @@ remeshing, mixed-regime, refinement, and external validation acceptance, and
 it cannot promote or mutate the basic, reduced-order, signature, ray, or FPA
 providers.
 
+## Multi-band variable-entropy continuation-chain checkpoint
+
+The variable-entropy characteristic lane now carries a typed source band into
+the next downstream solve. A continuation may consume the initial internal
+entropy field or the prior continuation result; the planner requires exact
+state/total-pressure frontier retention, source-object identity, shared
+pressure-gradient lineage, and a fresh downstream axial domain. The
+solver-owned reference exercises two accepted bands and ends with an explicit
+``SOLVER_RETURNED_NO_NEXT_CELL`` decision.
+
+The independent continuation-chain audit recursively remeasures every band
+and verifies the planner's step records, fingerprints, frontiers, source
+links, gradient links, and domain ordering. This closes the multi-band
+research seam without creating a ``MocChainCell``: physical cell count,
+physical closure, and production claim remain hard false, and the lower-
+fidelity visualization, signature, ray-transfer, and focal-plane-array
+providers remain untouched.
+
+The next physical gates are still the coupled reflected-shock/free-boundary
+and two-dimensional Euler closure, independent refinement across additional
+cases, indexed owner-provided validation data, and production next-cell
+shock fitting. The continuation chain is evidence for those implementations,
+not a substitute for them.
+
 ## Local entropy-carrying terminal trial checkpoint
 
 `solve_euler_ambient_first_wedge_entropy_carry` is the next solver-owned

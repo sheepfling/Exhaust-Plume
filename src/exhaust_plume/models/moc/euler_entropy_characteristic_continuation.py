@@ -283,7 +283,11 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationResult:
   """A bounded alternating source band below physical shock-cell promotion."""
 
   status: MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationStatus
-  source_field: MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult | None
+  source_field: (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult
+    | MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationResult
+    | None
+  )
   incoming_handoff: tuple[MocChainBoundarySample, ...]
   source_pressure_gradient: tuple[float, float] | None
   centerline_states: tuple[CharacteristicState, ...]
@@ -334,9 +338,15 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationResult:
       raise TypeError('status must be a continuation status')
     if self.source_field is not None and not isinstance(
       self.source_field,
-      MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult,
+      (
+        MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult,
+        MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationResult,
+      ),
     ):
-      raise TypeError('source_field must be an entropy field or None')
+      raise TypeError(
+        'source_field must be an entropy field, a prior entropy continuation, '
+        'or None'
+      )
     handoff = tuple(self.incoming_handoff)
     if any(not isinstance(sample, MocChainBoundarySample) for sample in handoff):
       raise TypeError('incoming_handoff must contain chain boundary samples')
@@ -1173,7 +1183,11 @@ def _solve_ambient_segment(
 
 def _failure(
   status: MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationStatus,
-  source_field: MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult | None,
+  source_field: (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult
+    | MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationResult
+    | None
+  ),
   *,
   incoming_handoff: Sequence[MocChainBoundarySample] = (),
   source_pressure_gradient: tuple[float, float] | None = None,
@@ -1249,7 +1263,10 @@ def _failure(
 
 
 def solve_euler_ambient_first_wedge_entropy_characteristic_continuation(
-  field: MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult,
+  field: (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult
+    | MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationResult
+  ),
   incoming_handoff: Sequence[MocChainBoundarySample],
   ambient_pressure_Pa: float,
   *,
@@ -1273,12 +1290,18 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_continuation(
 
   if not isinstance(
     field,
-    MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult,
+    (
+      MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult,
+      MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationResult,
+    ),
   ):
     return _failure(
       MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationStatus.INVALID_INPUT,
       None,
-      message='field must be an entropy-characteristic field result',
+      message=(
+        'field must be an entropy-characteristic field or prior continuation '
+        'result'
+      ),
     )
   try:
     handoff = tuple(incoming_handoff)
@@ -1300,14 +1323,19 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_continuation(
       MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationStatus.FIELD_REQUIRED,
       field,
       incoming_handoff=handoff,
-      message='continuation requires a locally consistent bounded entropy field',
+      message=(
+        'continuation requires a locally consistent bounded entropy field or '
+        'prior continuation'
+      ),
     )
   if handoff != field.continuation_boundary or len(handoff) < 2:
     return _failure(
       MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationStatus.HANDOFF_FAILURE,
       field,
       incoming_handoff=handoff,
-      message='incoming_handoff must exactly match the solver-owned field perimeter',
+      message=(
+        'incoming_handoff must exactly match the solver-owned source perimeter'
+      ),
     )
   try:
     ambient_pressure = float(ambient_pressure_Pa)

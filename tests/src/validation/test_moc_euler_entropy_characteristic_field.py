@@ -6,10 +6,11 @@ from math import atan2
 from exhaust_plume.models.moc import (
   CharacteristicState,
   MocChainTerminationReason,
-  MocChainTerminationDecision,
   MocPhysicalPostShockFieldResult,
+  MocChainTerminationDecision,
   MocEulerAmbientFirstWedgeEntropyCharacteristicFieldStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainMock,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationChainMock,
   MocEulerAmbientFirstWedgeEntropyCharacteristicShockCouplingStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationStatus,
@@ -23,6 +24,8 @@ from exhaust_plume.models.moc import (
   plan_euler_ambient_first_wedge_entropy_characteristic_field,
   plan_euler_ambient_first_wedge_entropy_characteristic_field_chain,
   plan_euler_ambient_first_wedge_entropy_characteristic_field_chain_mock,
+  plan_euler_ambient_first_wedge_entropy_characteristic_continuation_chain,
+  plan_euler_ambient_first_wedge_entropy_characteristic_continuation_chain_mock,
   plan_euler_ambient_first_wedge_entropy_characteristic_shock_coupling_probe,
   plan_euler_ambient_first_wedge_entropy_characteristic_free_boundary_probe,
   plan_euler_ambient_first_wedge_entropy_characteristic_continuation_probe,
@@ -50,6 +53,7 @@ from exhaust_plume.validation import (
   MocEulerAmbientFirstWedgeEntropyCharacteristicShockCouplingAuditStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryAuditStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationAuditStatus,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationChainAuditStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementAuditStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementCase,
   MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementMeasurementStatus,
@@ -60,6 +64,7 @@ from exhaust_plume.validation import (
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_shock_coupling,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_free_boundary,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation,
+  measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_chain,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_refinement,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_ladder,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_remesh,
@@ -469,6 +474,104 @@ def test_internal_entropy_characteristic_continuation_audit_keeps_euler_gate_sep
   assert audit.status_consistent
   assert audit.fidelity_flags_verified
   assert audit.physical_closure_verified is False
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False
+
+
+def test_internal_entropy_characteristic_continuation_chain_carries_multiple_bands() -> None:
+  _, field = _internal_field()
+  ambient_pressure = field.static_pressure_at(
+    field.continuation_boundary[0].point_m,
+  )
+  assert ambient_pressure is not None
+  solve_count = 0
+
+  def solve_next(current, _next_index, incoming_handoff):
+    nonlocal solve_count
+    if solve_count == 2:
+      return None
+    solve_count += 1
+    return solve_euler_ambient_first_wedge_entropy_characteristic_continuation(
+      current,
+      incoming_handoff,
+      ambient_pressure,
+      cycle_count=4,
+    )
+
+  planner = plan_euler_ambient_first_wedge_entropy_characteristic_continuation_chain(
+    field,
+    solve_next,
+    total_continuation_count=3,
+  )
+  audit = (
+    measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_chain(
+      planner,
+    )
+  )
+
+  assert solve_count == 2
+  assert planner.continuation_count == 2
+  assert planner.resolved
+  assert planner.local_sequence_verified
+  assert planner.handoff_links_verified is True
+  assert planner.source_links_verified
+  assert planner.fresh_domains_verified
+  assert planner.termination.reason is MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL
+  assert audit.converged
+  assert audit.local_sequence_verified
+  assert audit.accepted_continuation_count == 2
+  assert audit.incoming_handoff_links_verified
+  assert audit.source_links_verified
+  assert audit.gradient_links_verified
+  assert audit.fresh_domains_verified
+  assert audit.step_records_verified
+  assert audit.termination_verified
+  assert audit.physical_chain_cell_count == 0
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False
+
+
+def test_internal_entropy_characteristic_continuation_chain_mock_replays_typed_bands() -> None:
+  _, field = _internal_field()
+  ambient_pressure = field.static_pressure_at(
+    field.continuation_boundary[0].point_m,
+  )
+  assert ambient_pressure is not None
+  first = solve_euler_ambient_first_wedge_entropy_characteristic_continuation(
+    field,
+    field.continuation_boundary,
+    ambient_pressure,
+    cycle_count=4,
+  )
+  second = solve_euler_ambient_first_wedge_entropy_characteristic_continuation(
+    first,
+    first.continuation_boundary,
+    ambient_pressure,
+    cycle_count=4,
+  )
+  mock = MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationChainMock(
+    next_continuations=(first, second),
+  )
+  planner = plan_euler_ambient_first_wedge_entropy_characteristic_continuation_chain_mock(
+    field,
+    mock=mock,
+  )
+  audit = (
+    measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_chain(
+      planner,
+    )
+  )
+
+  assert planner.continuation_count == 2
+  assert planner.resolved
+  assert planner.termination.reason is MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL
+  assert audit.status is (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationChainAuditStatus
+    .CONVERGED_LOCAL_CONTINUATION_CHAIN_AUDIT
+  )
+  assert audit.local_sequence_verified
+  assert audit.step_records_verified
+  assert audit.physical_chain_cell_count == 0
   assert audit.chain_promotion_blocked
   assert audit.production_claim_allowed is False
 
