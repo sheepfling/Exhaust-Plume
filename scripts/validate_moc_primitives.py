@@ -91,6 +91,7 @@ from exhaust_plume.models.moc import (  # noqa: E402
   plan_euler_ambient_first_wedge_entropy_characteristic_free_boundary_probe,
   plan_euler_ambient_first_wedge_entropy_characteristic_continuation_probe,
   plan_euler_ambient_first_wedge_entropy_characteristic_continuation_chain_reference,
+  plan_euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_reference,
   plan_euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_probe,
   plan_euler_ambient_first_wedge_entropy_characteristic_continuation_remesh_probe,
   plan_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_probe,
@@ -404,6 +405,10 @@ from exhaust_plume.validation.moc_euler_entropy_characteristic_continuation impo
 from exhaust_plume.validation.moc_euler_entropy_characteristic_continuation_chain import (  # noqa: E402
   MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationChainAuditStatus,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_chain,
+)
+from exhaust_plume.validation.moc_euler_entropy_characteristic_continuation_closure import (  # noqa: E402
+  MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainAuditStatus,
+  measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain,
 )
 from exhaust_plume.validation.moc_euler_entropy_characteristic_continuation_refinement import (  # noqa: E402
   MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementCase,
@@ -10882,6 +10887,27 @@ def build_moc_primitive_report() -> dict[str, Any]:
       position_tolerance_m=1.0e-8,
     )
   )
+  euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain = (
+    None
+    if entropy_characteristic_field is None
+    or entropy_characteristic_free_boundary_ambient_pressure is None
+    else plan_euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_reference(
+      entropy_characteristic_field,
+      ambient_pressure_Pa=entropy_characteristic_free_boundary_ambient_pressure,
+      total_closure_count=2,
+      cycle_count=4,
+      subdivision_side_count=32,
+      position_tolerance_m=1.0e-8,
+    )
+  )
+  euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_audit = (
+    None
+    if euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain is None
+    else measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain(
+      euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain,
+      position_tolerance_m=1.0e-8,
+    )
+  )
   euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_cases = (
     ()
     if euler_ambient_first_wedge_entropy_characteristic_continuation is None
@@ -11604,6 +11630,16 @@ def build_moc_primitive_report() -> dict[str, Any]:
         None
         if euler_ambient_first_wedge_entropy_characteristic_continuation_chain_audit is None
         else euler_ambient_first_wedge_entropy_characteristic_continuation_chain_audit.as_report()
+      ),
+      'continuation_closure_chain': (
+        None
+        if euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain is None
+        else euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain.as_report()
+      ),
+      'continuation_closure_chain_independent_audit': (
+        None
+        if euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_audit is None
+        else euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_audit.as_report()
       ),
       'refinement_ladder': (
         euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_measurement.as_report()
@@ -13027,6 +13063,58 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or not euler_ambient_first_wedge_entropy_characteristic_continuation_chain_audit.chain_promotion_blocked
     or euler_ambient_first_wedge_entropy_characteristic_continuation_chain_audit.production_claim_allowed
   )
+  euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_failure = (
+    euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain is None
+    or not euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain.resolved
+    or not euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain.local_sequence_verified
+    or euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain.closure_count != 2
+    or euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain.local_physical_closure_count != 2
+    or euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain.termination.reason
+    is not MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL
+    or euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain.termination.physical_termination
+    or euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain.physical_chain_cell_count != 0
+    or euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain.physical_closure_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain.chain_promotion_blocked
+    or euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain.production_claim_allowed
+    or not euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain.external_validation_required
+    or not all(
+      candidate.converged
+      and candidate.source_euler_gate_verified
+      and candidate.source_link_verified
+      and candidate.remesh_source_link_verified
+      and candidate.closure_remesh_link_verified
+      and candidate.physical_closure_verified is False
+      and candidate.chain_promotion_blocked
+      and candidate.production_claim_allowed is False
+      for candidate in euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain.closures
+    )
+    or euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain.diagnostics.get(
+      'independent_audit_required'
+    ) is not True
+    or euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain.diagnostics.get(
+      'local_closure_candidates_are_not_intercell_chain_cells'
+    ) is not True
+    or euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_audit is None
+    or euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_audit.status
+    is not MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainAuditStatus.CONVERGED_LOCAL_AUDIT
+    or not euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_audit.local_consistency_verified
+    or euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_audit.accepted_closure_count != 2
+    or euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_audit.step_count != 3
+    or not euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_audit.incoming_handoff_links_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_audit.source_links_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_audit.gradient_links_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_audit.fresh_domains_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_audit.remesh_links_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_audit.closure_links_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_audit.local_closure_gates_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_audit.step_records_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_audit.termination_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_audit.planner_resolved_consistent
+    or euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_audit.physical_chain_cell_count != 0
+    or euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_audit.physical_closure_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_audit.chain_promotion_blocked
+    or euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_audit.production_claim_allowed
+  )
   euler_ambient_first_wedge_entropy_characteristic_continuation_remesh_failure = (
     len(
       euler_ambient_first_wedge_entropy_characteristic_continuation_remesh_results
@@ -13728,6 +13816,21 @@ def build_moc_primitive_report() -> dict[str, Any]:
         ),
       }
     ] if euler_ambient_first_wedge_entropy_characteristic_continuation_chain_failure else []),
+    *([
+      {
+        'case': 'euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain',
+        'status': (
+          'missing'
+          if euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_audit is None
+          else euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_audit.status.value
+        ),
+        'message': (
+          'the continued-band local reflected-closure chain did not preserve '
+          'independent stage audits, exact provenance links, typed termination, '
+          'and the non-promotion boundary'
+        ),
+      }
+    ] if euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_failure else []),
     *([
       {
         'case': 'euler_ambient_first_wedge_entropy_characteristic_continuation_refinement',

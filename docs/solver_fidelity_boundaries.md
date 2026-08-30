@@ -1575,3 +1575,31 @@ cells, keeps ``chain_promotion_blocked=true``, and keeps
 ``production_claim_allowed=false`` until reflected-shock/free-boundary and
 Euler closure are solved. The lane is isolated from the basic visualization,
 signature, ray-transfer, and focal-plane-array providers.
+
+## Continued-band local reflected-closure chain checkpoint
+
+The composed research lane is exposed through
+``plan_euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain``.
+Each accepted candidate keeps its exact variable-entropy source band, n=32
+characteristic remesh, dense outgoing ``C-`` frontier bridge, and local
+reflected/free-boundary field together. The reference planner can continue
+multiple bands; the explicit
+``MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainMock``
+replays only typed candidates supplied by the caller and applies the same
+source and handoff gates.
+
+The integrated fixture retains two local 53-cell closure candidates and a
+typed ``SOLVER_RETURNED_NO_NEXT_CELL`` boundary. Its independent
+``op.moc.euler-ambient-first-wedge-entropy-characteristic-continuation-closure-chain-audit``
+rechecks all nested stage audits and exact source, frontier, gradient, remesh,
+closure, fresh-domain, step-record, and termination links. At n=16 the
+composed solver stops with ``EULER_RESIDUAL_FAILURE`` before attempting a
+closure, preserving the conservative residual gate.
+
+The local candidates are not a globally reconciled shock-cell train: each is
+retained as research evidence, while the combined result reports zero
+physical chain cells, ``physical_closure_verified=false``,
+``chain_promotion_blocked=true``, and ``external_validation_required=true``.
+Global source-frontier reconciliation, multi-case refinement, and indexed
+external validation remain required. The fast/basic visualization, signature,
+ray-transfer, and focal-plane-array lanes remain unchanged.

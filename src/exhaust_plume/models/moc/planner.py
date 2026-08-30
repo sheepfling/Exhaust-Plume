@@ -148,6 +148,11 @@ from exhaust_plume.models.moc.euler_entropy_characteristic_continuation_remesh i
 from exhaust_plume.models.moc.euler_entropy_characteristic_remesh_free_boundary import (
   solve_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary,
 )
+from exhaust_plume.models.moc.euler_entropy_characteristic_continuation_closure import (
+  MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureStatus,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureResult,
+  solve_euler_ambient_first_wedge_entropy_characteristic_continuation_closure,
+)
 from exhaust_plume.models.moc.euler_entropy_refinement import (
   MocEulerAmbientFirstWedgeEntropyCarryRefinementResult,
   refine_euler_ambient_first_wedge_entropy_carry,
@@ -293,6 +298,12 @@ __all__ = (
   'plan_euler_ambient_first_wedge_entropy_characteristic_continuation_chain',
   'plan_euler_ambient_first_wedge_entropy_characteristic_continuation_chain_mock',
   'plan_euler_ambient_first_wedge_entropy_characteristic_continuation_chain_reference',
+  'MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainStep',
+  'MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainPlannerResult',
+  'MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainMock',
+  'plan_euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain',
+  'plan_euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_mock',
+  'plan_euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_reference',
   'plan_euler_ambient_first_wedge_entropy_characteristic_shock_coupling_probe',
   'plan_euler_ambient_first_wedge_entropy_characteristic_free_boundary_probe',
   'plan_euler_ambient_first_wedge_entropy_characteristic_continuation_probe',
@@ -23482,3 +23493,1046 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_variable_entropy_referen
     **kwargs,
   )
 ####
+
+
+def _entropy_continuation_closure_fingerprint(
+  result: MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureResult,
+) -> str:
+  """Fingerprint the retained stages of one local closure candidate."""
+
+  payload = [
+    f'status:{result.status.value}',
+    f'source-kind:{result.source_kind}',
+    f'incoming:{_handoff_fingerprint(result.incoming_handoff)}',
+    f'continuation:{None if result.continuation is None else _entropy_characteristic_continuation_fingerprint(result.continuation)}',
+    f'remesh-status:{None if result.remesh is None else result.remesh.status.value}',
+    f'remesh-source-link:{result.remesh_source_link_verified}',
+    f'remesh-residual:{None if result.remesh is None else result.remesh.maximum_cell_euler_residual}',
+    f'closure-status:{None if result.closure is None else result.closure.status.value}',
+    f'closure-remesh-link:{result.closure_remesh_link_verified}',
+    f'closure-shock-count:{None if result.closure is None else result.closure.shock_sample_count}',
+  ]
+  return sha256('\n'.join(payload).encode('utf-8')).hexdigest()
+
+
+def _entropy_continuation_closure_source_extent(
+  source: (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult
+    | MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationResult
+  ),
+) -> tuple[float, float] | None:
+  return _entropy_characteristic_continuation_extent(source)
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainStep:
+  """One planner callback and all local closure/link gates it returned."""
+
+  next_closure_index: int
+  current_result_kind: str
+  current_result_fingerprint: str | None
+  incoming_handoff_sample_count: int
+  incoming_handoff_fingerprint: str | None
+  incoming_handoff_link_verified: bool
+  result_kind: str = 'not-recorded'
+  result_status: str | None = None
+  result_source_kind: str | None = None
+  result_fingerprint: str | None = None
+  result_source_link_verified: bool | None = None
+  result_gradient_link_verified: bool | None = None
+  result_fresh_domain_verified: bool | None = None
+  result_continuation_incoming_handoff_verified: bool | None = None
+  result_remesh_source_link_verified: bool | None = None
+  result_closure_remesh_link_verified: bool | None = None
+  result_continuation_local_consistency_verified: bool | None = None
+  result_remesh_local_consistency_verified: bool | None = None
+  result_source_cell_euler_residuals_verified: bool | None = None
+  result_reflected_free_boundary_verified: bool | None = None
+  result_local_closure_verified: bool | None = None
+  result_continuation_status: str | None = None
+  result_remesh_status: str | None = None
+  result_closure_status: str | None = None
+  result_continuation_boundary_kind: MocChainBoundaryKind | None = None
+  result_continuation_boundary_sample_count: int | None = None
+  result_continuation_boundary_verified: bool | None = None
+  result_handoff_fingerprint: str | None = None
+  result_termination_reason: MocChainTerminationReason | None = None
+  result_physical_termination: bool | None = None
+
+  def __post_init__(self) -> None:
+    if (
+      isinstance(self.next_closure_index, bool)
+      or not isinstance(self.next_closure_index, int)
+      or self.next_closure_index < 1
+    ):
+      raise ValueError('next_closure_index must be a positive integer')
+    for name in (
+      'current_result_kind',
+      'result_kind',
+    ):
+      object.__setattr__(self, name, str(getattr(self, name)))
+    for name in (
+      'incoming_handoff_sample_count',
+      'result_continuation_boundary_sample_count',
+    ):
+      value = getattr(self, name)
+      if value is not None and (
+        isinstance(value, bool) or not isinstance(value, int) or value < 0
+      ):
+        raise ValueError(f'{name} must be a nonnegative integer or None')
+    for name in (
+      'incoming_handoff_link_verified',
+      'result_source_link_verified',
+      'result_gradient_link_verified',
+      'result_fresh_domain_verified',
+      'result_continuation_incoming_handoff_verified',
+      'result_remesh_source_link_verified',
+      'result_closure_remesh_link_verified',
+      'result_continuation_local_consistency_verified',
+      'result_remesh_local_consistency_verified',
+      'result_source_cell_euler_residuals_verified',
+      'result_reflected_free_boundary_verified',
+      'result_local_closure_verified',
+      'result_continuation_boundary_verified',
+      'result_physical_termination',
+    ):
+      value = getattr(self, name)
+      if value is not None and not isinstance(value, bool):
+        raise TypeError(f'{name} must be a bool or None')
+    if self.result_continuation_boundary_kind is not None and not isinstance(
+      self.result_continuation_boundary_kind,
+      MocChainBoundaryKind,
+    ):
+      raise TypeError('result_continuation_boundary_kind must be typed or None')
+    if self.result_termination_reason is not None and not isinstance(
+      self.result_termination_reason,
+      MocChainTerminationReason,
+    ):
+      raise TypeError('result_termination_reason must be typed or None')
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'next_closure_index': self.next_closure_index,
+      'current_result_kind': self.current_result_kind,
+      'current_result_fingerprint': self.current_result_fingerprint,
+      'incoming_handoff_sample_count': self.incoming_handoff_sample_count,
+      'incoming_handoff_fingerprint': self.incoming_handoff_fingerprint,
+      'incoming_handoff_link_verified': self.incoming_handoff_link_verified,
+      'result_kind': self.result_kind,
+      'result_status': self.result_status,
+      'result_source_kind': self.result_source_kind,
+      'result_fingerprint': self.result_fingerprint,
+      'result_source_link_verified': self.result_source_link_verified,
+      'result_gradient_link_verified': self.result_gradient_link_verified,
+      'result_fresh_domain_verified': self.result_fresh_domain_verified,
+      'result_continuation_incoming_handoff_verified': (
+        self.result_continuation_incoming_handoff_verified
+      ),
+      'result_remesh_source_link_verified': self.result_remesh_source_link_verified,
+      'result_closure_remesh_link_verified': self.result_closure_remesh_link_verified,
+      'result_continuation_local_consistency_verified': (
+        self.result_continuation_local_consistency_verified
+      ),
+      'result_remesh_local_consistency_verified': (
+        self.result_remesh_local_consistency_verified
+      ),
+      'result_source_cell_euler_residuals_verified': (
+        self.result_source_cell_euler_residuals_verified
+      ),
+      'result_reflected_free_boundary_verified': (
+        self.result_reflected_free_boundary_verified
+      ),
+      'result_local_closure_verified': self.result_local_closure_verified,
+      'result_continuation_status': self.result_continuation_status,
+      'result_remesh_status': self.result_remesh_status,
+      'result_closure_status': self.result_closure_status,
+      'result_continuation_boundary_kind': (
+        None
+        if self.result_continuation_boundary_kind is None
+        else self.result_continuation_boundary_kind.value
+      ),
+      'result_continuation_boundary_sample_count': (
+        self.result_continuation_boundary_sample_count
+      ),
+      'result_continuation_boundary_verified': (
+        self.result_continuation_boundary_verified
+      ),
+      'result_handoff_fingerprint': self.result_handoff_fingerprint,
+      'result_termination_reason': (
+        None
+        if self.result_termination_reason is None
+        else self.result_termination_reason.value
+      ),
+      'result_physical_termination': self.result_physical_termination,
+    }
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainPlannerResult:
+  """A sequence of local closure candidates below physical chain promotion."""
+
+  seed: MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult
+  closures: tuple[
+    MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureResult, ...
+  ]
+  steps: tuple[
+    MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainStep, ...
+  ]
+  termination: MocChainTerminationDecision
+  planner_kind: MocChainPlannerKind
+  claim_status: str
+  diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.seed,
+      MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult,
+    ):
+      raise TypeError('seed must be a typed entropy-characteristic field')
+    closures = tuple(self.closures)
+    if any(
+      not isinstance(
+        value,
+        MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureResult,
+      )
+      for value in closures
+    ):
+      raise TypeError('closures must contain typed continuation-closure results')
+    steps = tuple(self.steps)
+    if any(
+      not isinstance(
+        value,
+        MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainStep,
+      )
+      for value in steps
+    ):
+      raise TypeError('steps must contain typed continuation-closure steps')
+    if not isinstance(self.termination, MocChainTerminationDecision):
+      raise TypeError('termination must be a MocChainTerminationDecision')
+    if self.planner_kind is not MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH:
+      raise ValueError('continuation-closure chains must use the research planner kind')
+    object.__setattr__(self, 'closures', closures)
+    object.__setattr__(self, 'steps', steps)
+    object.__setattr__(self, 'claim_status', str(self.claim_status))
+    object.__setattr__(self, 'diagnostics', MappingProxyType(dict(self.diagnostics)))
+
+  @property
+  def closure_count(self) -> int:
+    return len(self.closures)
+
+  @property
+  def local_physical_closure_count(self) -> int:
+    return sum(result.local_closure_verified for result in self.closures)
+
+  @property
+  def accepted_steps(self) -> tuple[
+    MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainStep, ...
+  ]:
+    return tuple(
+      step for step in self.steps
+      if (
+        step.result_kind == 'closure-solve-returned'
+        and step.result_local_closure_verified is True
+      )
+    )
+
+  @property
+  def source_links_verified(self) -> bool:
+    return bool(
+      len(self.accepted_steps) == len(self.closures)
+      and all(step.result_source_link_verified is True for step in self.accepted_steps)
+    )
+
+  @property
+  def remesh_links_verified(self) -> bool:
+    return bool(
+      len(self.accepted_steps) == len(self.closures)
+      and all(
+        step.result_remesh_source_link_verified is True
+        for step in self.accepted_steps
+      )
+    )
+
+  @property
+  def closure_links_verified(self) -> bool:
+    return bool(
+      len(self.accepted_steps) == len(self.closures)
+      and all(
+        step.result_closure_remesh_link_verified is True
+        for step in self.accepted_steps
+      )
+    )
+
+  @property
+  def incoming_handoff_links_verified(self) -> bool | None:
+    if not self.steps:
+      return None
+    return all(step.incoming_handoff_link_verified for step in self.steps)
+
+  @property
+  def fresh_domains_verified(self) -> bool:
+    return bool(
+      len(self.accepted_steps) == len(self.closures)
+      and all(
+        step.result_fresh_domain_verified is True
+        for step in self.accepted_steps
+      )
+    )
+
+  @property
+  def step_records_verified(self) -> bool:
+    if len(self.accepted_steps) != len(self.closures):
+      return False
+    return all(
+      step.next_closure_index == index + 1
+      and step.result_kind == 'closure-solve-returned'
+      and step.result_source_link_verified is True
+      and step.result_gradient_link_verified is True
+      and step.result_fresh_domain_verified is True
+      and step.result_continuation_incoming_handoff_verified is True
+      and step.result_remesh_source_link_verified is True
+      and step.result_closure_remesh_link_verified is True
+      and step.result_continuation_local_consistency_verified is True
+      and step.result_remesh_local_consistency_verified is True
+      and step.result_source_cell_euler_residuals_verified is True
+      and step.result_reflected_free_boundary_verified is True
+      and step.result_local_closure_verified is True
+      for index, step in enumerate(self.accepted_steps)
+    )
+
+  @property
+  def local_sequence_verified(self) -> bool:
+    return bool(
+      _euler_entropy_characteristic_field_local_gates_verified(self.seed)
+      and all(result.local_closure_verified for result in self.closures)
+      and self.incoming_handoff_links_verified is True
+      and self.source_links_verified
+      and self.remesh_links_verified
+      and self.closure_links_verified
+      and self.fresh_domains_verified
+      and self.step_records_verified
+      and self.physical_chain_cell_count == 0
+      and not self.physical_closure_verified
+      and self.chain_promotion_blocked
+      and not self.production_claim_allowed
+    )
+
+  @property
+  def resolved(self) -> bool:
+    return bool(
+      self.local_sequence_verified
+      and self.termination.reason
+      is MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL
+    )
+
+  @property
+  def physical_chain_cell_count(self) -> int:
+    return 0
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    return False
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    return True
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    return False
+
+  @property
+  def external_validation_required(self) -> bool:
+    return True
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'planner_kind': self.planner_kind.value,
+      'planning_only': True,
+      'claim_status': self.claim_status,
+      'resolved': self.resolved,
+      'local_sequence_verified': self.local_sequence_verified,
+      'closure_count': self.closure_count,
+      'local_physical_closure_count': self.local_physical_closure_count,
+      'physical_chain_cell_count': self.physical_chain_cell_count,
+      'incoming_handoff_links_verified': self.incoming_handoff_links_verified,
+      'source_links_verified': self.source_links_verified,
+      'remesh_links_verified': self.remesh_links_verified,
+      'closure_links_verified': self.closure_links_verified,
+      'fresh_domains_verified': self.fresh_domains_verified,
+      'step_records_verified': self.step_records_verified,
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'external_validation_required': self.external_validation_required,
+      'seed': self.seed.as_report(),
+      'closures': [result.as_report() for result in self.closures],
+      'steps': [step.as_report() for step in self.steps],
+      'termination': self.termination.as_report(),
+      'diagnostics': dict(self.diagnostics),
+    }
+
+
+def _closure_chain_termination(
+  reason: MocChainTerminationReason,
+  message: str,
+  diagnostics: dict[str, Any] | None = None,
+) -> MocChainTerminationDecision:
+  return MocChainTerminationDecision(
+    physical_termination=False,
+    reason=reason,
+    message=message,
+    diagnostics={} if diagnostics is None else diagnostics,
+  )
+
+
+def plan_euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain(
+  seed: MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult,
+  solve_next: Callable[
+    [
+      MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult
+      | MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationResult,
+      int,
+      tuple[MocChainBoundarySample, ...],
+    ],
+    MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureResult
+    | MocChainTerminationDecision
+    | None,
+  ],
+  *,
+  total_closure_count: int,
+  position_tolerance_m: float = 1.0e-8,
+  claim_status: str | None = None,
+) -> MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainPlannerResult:
+  """Plan repeated local closure candidates with exact frontier provenance."""
+
+  if not isinstance(
+    seed,
+    MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult,
+  ):
+    raise TypeError('seed must be a typed entropy-characteristic field')
+  if not callable(solve_next):
+    raise TypeError('solve_next must be callable')
+  if (
+    isinstance(total_closure_count, bool)
+    or not isinstance(total_closure_count, int)
+    or total_closure_count < 1
+  ):
+    raise ValueError('total_closure_count must be a positive integer')
+  tolerance = float(position_tolerance_m)
+  if not isfinite(tolerance) or tolerance <= 0.0:
+    raise ValueError('position_tolerance_m must be finite and positive')
+
+  closures: list[
+    MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureResult
+  ] = []
+  steps: list[
+    MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainStep
+  ] = []
+
+  def make_result(
+    termination: MocChainTerminationDecision,
+  ) -> MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainPlannerResult:
+    return MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainPlannerResult(
+      seed=seed,
+      closures=tuple(closures),
+      steps=tuple(steps),
+      termination=termination,
+      planner_kind=MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH,
+      claim_status=(
+        'solver-generated-local-reflected-closures-over-variable-entropy-'
+        'continuation-bands; global-frontier-reconciliation-and-physical-'
+        'shock-cell-chain-closure-pending'
+        if claim_status is None
+        else claim_status
+      ),
+      diagnostics={
+        'planner_model': (
+          'euler-ambient-first-wedge-entropy-characteristic-continuation-'
+          'closure-chain'
+        ),
+        'total_closure_count_requested': total_closure_count,
+        'accepted_closure_count': len(closures),
+        'local_physical_closure_count': sum(
+          result.local_closure_verified for result in closures
+        ),
+        'open_band_promotion_policy': 'never-create-moc-chain-cell',
+        'local_closure_candidates_are_not_intercell_chain_cells': True,
+        'fresh_domain_tolerance_m': tolerance,
+        'independent_audit_required': True,
+        'physical_chain_cell_count': 0,
+        'physical_closure_verified': False,
+        'chain_promotion_blocked': True,
+        'production_claim_allowed': False,
+        'external_validation_required': True,
+      },
+    )
+
+  def append_step(
+    next_index: int,
+    current: (
+      MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult
+      | MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationResult
+    ),
+    incoming: tuple[MocChainBoundarySample, ...],
+    **values: Any,
+  ) -> None:
+    steps.append(
+      MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainStep(
+        next_closure_index=next_index,
+        current_result_kind=_entropy_characteristic_continuation_source_kind(
+          current
+        ),
+        current_result_fingerprint=(
+          _euler_entropy_characteristic_field_fingerprint(current)
+          if isinstance(
+            current,
+            MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult,
+          )
+          else _entropy_characteristic_continuation_fingerprint(current)
+        ),
+        incoming_handoff_sample_count=len(incoming),
+        incoming_handoff_fingerprint=_handoff_fingerprint(incoming),
+        incoming_handoff_link_verified=values.pop(
+          'incoming_handoff_link_verified',
+          False,
+        ),
+        **values,
+      )
+    )
+
+  def normalize_decision(
+    decision: MocChainTerminationDecision,
+  ) -> MocChainTerminationDecision:
+    if not decision.physical_termination:
+      return decision
+    return _closure_chain_termination(
+      MocChainTerminationReason.FIDELITY_NOT_ALLOWED,
+      'a local closure candidate cannot declare physical chain termination',
+      {
+        **dict(decision.diagnostics),
+        'returned_physical_termination': True,
+      },
+    )
+
+  if not _euler_entropy_characteristic_field_local_gates_verified(seed):
+    return make_result(seed.as_chain_termination_decision())
+
+  for next_index in range(1, total_closure_count + 2):
+    current: (
+      MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult
+      | MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationResult
+    ) = seed if not closures else closures[-1].continuation  # type: ignore[assignment]
+    if current is None:
+      termination = _closure_chain_termination(
+        MocChainTerminationReason.STATE_NOT_CARRIED,
+        'accepted local closure did not retain a continuation band',
+      )
+      append_step(
+        next_index,
+        seed,
+        (),
+        result_kind='current-source-failure',
+        result_status='missing-continuation',
+        result_termination_reason=termination.reason,
+        result_physical_termination=False,
+      )
+      return make_result(termination)
+    incoming = current.continuation_boundary
+    current_fingerprint = (
+      _euler_entropy_characteristic_field_fingerprint(current)
+      if isinstance(current, MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult)
+      else _entropy_characteristic_continuation_fingerprint(current)
+    )
+    if not current.continuation_boundary_verified or not incoming:
+      termination = _closure_chain_termination(
+        MocChainTerminationReason.STATE_NOT_CARRIED,
+        'current source did not expose a verified typed continuation boundary',
+        {
+          'current_result_kind': _entropy_characteristic_continuation_source_kind(current),
+          'current_result_fingerprint': current_fingerprint,
+        },
+      )
+      append_step(
+        next_index,
+        current,
+        incoming,
+        result_kind='termination-returned',
+        result_status='continuation-boundary-failure',
+        result_termination_reason=termination.reason,
+        result_physical_termination=False,
+      )
+      return make_result(termination)
+    try:
+      solved = solve_next(current, next_index, incoming)
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      termination = _closure_chain_termination(
+        MocChainTerminationReason.SOLVER_ERROR,
+        f'continuation-closure chain callback raised: {error}',
+        {
+          'current_result_kind': _entropy_characteristic_continuation_source_kind(current),
+          'current_result_fingerprint': current_fingerprint,
+          'solver_error': type(error).__name__,
+        },
+      )
+      append_step(
+        next_index,
+        current,
+        incoming,
+        incoming_handoff_link_verified=True,
+        result_kind='solver-error',
+        result_status=type(error).__name__,
+        result_termination_reason=termination.reason,
+        result_physical_termination=False,
+      )
+      return make_result(termination)
+    if solved is None:
+      termination = _closure_chain_termination(
+        MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
+        'continuation-closure callback returned no next local closure candidate',
+      )
+      append_step(
+        next_index,
+        current,
+        incoming,
+        incoming_handoff_link_verified=True,
+        result_kind='termination-returned',
+        result_status='none',
+        result_termination_reason=termination.reason,
+        result_physical_termination=False,
+      )
+      return make_result(termination)
+    if isinstance(solved, MocChainTerminationDecision):
+      termination = normalize_decision(solved)
+      append_step(
+        next_index,
+        current,
+        incoming,
+        incoming_handoff_link_verified=True,
+        result_kind='termination-returned',
+        result_status='decision',
+        result_termination_reason=termination.reason,
+        result_physical_termination=termination.physical_termination,
+      )
+      return make_result(termination)
+    if not isinstance(
+      solved,
+      MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureResult,
+    ):
+      termination = _closure_chain_termination(
+        MocChainTerminationReason.INVALID_INPUT,
+        'callback must return a typed closure candidate, termination, or None',
+        {'returned_type': type(solved).__name__},
+      )
+      append_step(
+        next_index,
+        current,
+        incoming,
+        incoming_handoff_link_verified=True,
+        result_kind='invalid-result-returned',
+        result_status=type(solved).__name__,
+        result_termination_reason=termination.reason,
+        result_physical_termination=False,
+      )
+      return make_result(termination)
+
+    continuation = solved.continuation
+    result_fingerprint = _entropy_continuation_closure_fingerprint(solved)
+    source_link_verified = solved.source_field is current
+    gradient_link_verified = bool(
+      solved.continuation is not None
+      and current.source_pressure_gradient is not None
+      and solved.continuation.source_pressure_gradient
+      == current.source_pressure_gradient
+    )
+    incoming_link_verified = solved.incoming_handoff == incoming
+    continuation_incoming_verified = bool(
+      continuation is not None
+      and continuation.incoming_handoff == incoming
+    )
+    remesh_source_link_verified = bool(
+      continuation is not None
+      and solved.remesh is not None
+      and solved.remesh.source_continuation is continuation
+    )
+    closure_remesh_link_verified = bool(
+      solved.remesh is not None
+      and solved.closure is not None
+      and solved.closure.remesh is solved.remesh
+    )
+    current_extent = _entropy_continuation_closure_source_extent(current)
+    next_extent = (
+      None
+      if continuation is None
+      else _entropy_continuation_closure_source_extent(continuation)
+    )
+    fresh_domain_verified = bool(
+      current_extent is not None
+      and next_extent is not None
+      and next_extent[0] >= current_extent[1] - tolerance
+      and next_extent[1] > current_extent[1] + tolerance
+    )
+    local_verified = bool(
+      solved.status
+      is MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureStatus
+      .CONVERGED_LOCAL_CLOSURE
+      and solved.local_closure_verified
+      and incoming_link_verified
+      and continuation_incoming_verified
+      and source_link_verified
+      and gradient_link_verified
+      and fresh_domain_verified
+      and remesh_source_link_verified
+      and closure_remesh_link_verified
+      and solved.continuation_local_consistency_verified
+      and solved.remesh_local_consistency_verified
+      and solved.source_euler_gate_verified
+      and solved.local_reflected_free_boundary_verified
+    )
+    step_values = {
+      'result_status': solved.status.value,
+      'result_source_kind': solved.source_kind,
+      'result_fingerprint': result_fingerprint,
+      'result_source_link_verified': source_link_verified,
+      'result_gradient_link_verified': gradient_link_verified,
+      'result_fresh_domain_verified': fresh_domain_verified,
+      'result_continuation_incoming_handoff_verified': continuation_incoming_verified,
+      'result_remesh_source_link_verified': remesh_source_link_verified,
+      'result_closure_remesh_link_verified': closure_remesh_link_verified,
+      'result_continuation_local_consistency_verified': solved.continuation_local_consistency_verified,
+      'result_remesh_local_consistency_verified': solved.remesh_local_consistency_verified,
+      'result_source_cell_euler_residuals_verified': solved.source_euler_gate_verified,
+      'result_reflected_free_boundary_verified': solved.local_reflected_free_boundary_verified,
+      'result_local_closure_verified': local_verified,
+      'result_continuation_status': None if continuation is None else continuation.status.value,
+      'result_remesh_status': None if solved.remesh is None else solved.remesh.status.value,
+      'result_closure_status': None if solved.closure is None else solved.closure.status.value,
+      'result_continuation_boundary_kind': None if continuation is None else continuation.continuation_boundary_kind,
+      'result_continuation_boundary_sample_count': None if continuation is None else len(continuation.continuation_boundary),
+      'result_continuation_boundary_verified': None if continuation is None else continuation.continuation_boundary_verified,
+      'result_handoff_fingerprint': None if continuation is None else _handoff_fingerprint(continuation.continuation_boundary),
+    }
+    if next_index > total_closure_count:
+      termination = _closure_chain_termination(
+        MocChainTerminationReason.MAX_CELL_LIMIT,
+        'closure chain reached its configured local-candidate limit',
+        {'total_closure_count': total_closure_count},
+      )
+      append_step(
+        next_index,
+        current,
+        incoming,
+        incoming_handoff_link_verified=True,
+        **step_values,
+        result_kind='limit-reached-with-result',
+        result_termination_reason=termination.reason,
+        result_physical_termination=False,
+      )
+      return make_result(termination)
+    if not incoming_link_verified or not continuation_incoming_verified:
+      termination = _closure_chain_termination(
+        MocChainTerminationReason.STATE_NOT_CARRIED,
+        'local closure candidate did not retain the exact incoming frontier',
+        {
+          'expected_incoming_handoff_fingerprint': _handoff_fingerprint(incoming),
+          'returned_incoming_handoff_fingerprint': _handoff_fingerprint(solved.incoming_handoff),
+        },
+      )
+      append_step(
+        next_index,
+        current,
+        incoming,
+        incoming_handoff_link_verified=incoming_link_verified,
+        **step_values,
+        result_kind='closure-rejected',
+        result_termination_reason=termination.reason,
+        result_physical_termination=False,
+      )
+      return make_result(termination)
+    if not source_link_verified or not gradient_link_verified or not remesh_source_link_verified:
+      termination = _closure_chain_termination(
+        MocChainTerminationReason.STATE_NOT_CARRIED,
+        'local closure candidate broke source, entropy-gradient, remesh, or closure provenance',
+        {
+          'source_link_verified': source_link_verified,
+          'gradient_link_verified': gradient_link_verified,
+          'remesh_source_link_verified': remesh_source_link_verified,
+          'closure_remesh_link_verified': closure_remesh_link_verified,
+        },
+      )
+      append_step(
+        next_index,
+        current,
+        incoming,
+        incoming_handoff_link_verified=True,
+        **step_values,
+        result_kind='closure-rejected',
+        result_termination_reason=termination.reason,
+        result_physical_termination=False,
+      )
+      return make_result(termination)
+    if not fresh_domain_verified:
+      termination = _closure_chain_termination(
+        MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
+        'local closure candidate did not occupy a fresh downstream source domain',
+        {
+          'current_extent_m': current_extent,
+          'next_extent_m': next_extent,
+          'position_tolerance_m': tolerance,
+        },
+      )
+      append_step(
+        next_index,
+        current,
+        incoming,
+        incoming_handoff_link_verified=True,
+        **step_values,
+        result_kind='closure-rejected',
+        result_termination_reason=termination.reason,
+        result_physical_termination=False,
+      )
+      return make_result(termination)
+    if not local_verified:
+      termination = solved.as_chain_termination_decision()
+      if termination.physical_termination:
+        termination = normalize_decision(termination)
+      append_step(
+        next_index,
+        current,
+        incoming,
+        incoming_handoff_link_verified=True,
+        **step_values,
+        result_kind='closure-rejected',
+        result_termination_reason=termination.reason,
+        result_physical_termination=False,
+      )
+      return make_result(termination)
+    closures.append(solved)
+    append_step(
+      next_index,
+      current,
+      incoming,
+      incoming_handoff_link_verified=True,
+      result_kind='closure-solve-returned',
+      **step_values,
+    )
+
+  termination = _closure_chain_termination(
+    MocChainTerminationReason.MAX_CELL_LIMIT,
+    'closure chain reached its configured local-candidate limit',
+  )
+  return make_result(termination)
+
+
+@dataclass(frozen=True, slots=True)
+class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainMock:
+  """Explicit replay fixture for a closure-candidate planner run."""
+
+  next_closures: tuple[
+    MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureResult, ...
+  ] = ()
+  model: str = (
+    'replay-euler-ambient-first-wedge-entropy-characteristic-continuation-'
+    'closure-chain-mock'
+  )
+
+  def __post_init__(self) -> None:
+    closures = tuple(self.next_closures)
+    if any(
+      not isinstance(
+        result,
+        MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureResult,
+      )
+      for result in closures
+    ):
+      raise TypeError('next_closures must contain typed closure results')
+    model = str(self.model)
+    if not model:
+      raise ValueError('model must be a non-empty string')
+    object.__setattr__(self, 'next_closures', closures)
+    object.__setattr__(self, 'model', model)
+
+  @property
+  def total_closure_count(self) -> int:
+    return len(self.next_closures) + 1
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'model': self.model,
+      'planning_only': True,
+      'total_closure_count': self.total_closure_count,
+      'explicit_next_closure_count': len(self.next_closures),
+      'exact_provenance_replay': True,
+      'physical_chain_cell_count': 0,
+      'physical_closure_verified': False,
+      'chain_promotion_blocked': True,
+      'production_claim_allowed': False,
+    }
+
+  def solve_next(
+    self,
+    current: (
+      MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult
+      | MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationResult
+    ),
+    next_closure_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+  ) -> (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureResult
+    | MocChainTerminationDecision
+  ):
+    if not isinstance(
+      current,
+      (
+        MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult,
+        MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationResult,
+      ),
+    ):
+      raise TypeError('current must be a typed entropy source result')
+    if (
+      isinstance(next_closure_index, bool)
+      or not isinstance(next_closure_index, int)
+      or next_closure_index < 1
+    ):
+      raise ValueError('next_closure_index must be a positive integer')
+    if tuple(incoming_handoff) != current.continuation_boundary:
+      raise ValueError(
+        'incoming_handoff must exactly match current.continuation_boundary'
+      )
+    replay_index = next_closure_index - 1
+    if replay_index >= len(self.next_closures):
+      return _closure_chain_termination(
+        MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
+        'closure replay mock exhausted its explicit local-candidate fixture',
+        {
+          'closure_model': self.model,
+          'next_closure_index': next_closure_index,
+          'incoming_handoff_sample_count': len(incoming_handoff),
+          'incoming_handoff_fingerprint': _handoff_fingerprint(incoming_handoff),
+          'synthetic_downstream_field_created': False,
+        },
+      )
+    return self.next_closures[replay_index]
+
+
+def plan_euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_mock(
+  seed: MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult,
+  *,
+  mock: MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainMock
+  | None = None,
+  position_tolerance_m: float = 1.0e-8,
+) -> MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainPlannerResult:
+  """Run an explicit replay fixture through the same provenance gates."""
+
+  fixture = (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainMock()
+    if mock is None
+    else mock
+  )
+  if not isinstance(
+    fixture,
+    MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainMock,
+  ):
+    raise TypeError('mock must be a typed continuation-closure chain mock')
+  return plan_euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain(
+    seed,
+    fixture.solve_next,
+    total_closure_count=fixture.total_closure_count,
+    position_tolerance_m=position_tolerance_m,
+    claim_status=(
+      'deterministic-explicit-replay-local-reflected-closure-chain; '
+      'global-frontier-reconciliation-and-physical-chain-closure-pending'
+    ),
+  )
+
+
+def plan_euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_reference(
+  seed: MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult,
+  *,
+  ambient_pressure_Pa: float,
+  total_closure_count: int = 2,
+  cycle_count: int = 4,
+  subdivision_side_count: int = 32,
+  outer_flow_angle_half_width_rad: float = 1.0e-6,
+  target_centerline_y_m: float = 0.0,
+  target_centerline_flow_angle_rad: float = 0.0,
+  position_tolerance_m: float = 1.0e-8,
+  characteristic_residual_tolerance: float = 1.0e-8,
+  pressure_lineage_tolerance: float = 1.0e-8,
+  cell_residual_tolerance: float = 1.0e-2,
+  maximum_iterations: int = 48,
+  sample_count: int = 9,
+  branch: ShockBranch = ShockBranch.WEAK,
+  maximum_segment_iterations: int = 24,
+  maximum_boundary_iterations: int = 16,
+  maximum_shooting_iterations: int = 40,
+  allow_zero_strength_attachment: bool = True,
+  allow_zero_strength_endpoints: bool = True,
+  use_outgoing_frontier_bridge: bool = True,
+) -> MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainPlannerResult:
+  """Run real continuation/remesh/closure candidates for each requested band."""
+
+  if not isinstance(
+    seed,
+    MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult,
+  ):
+    raise TypeError('seed must be a typed entropy-characteristic field')
+  if (
+    isinstance(total_closure_count, bool)
+    or not isinstance(total_closure_count, int)
+    or total_closure_count < 1
+  ):
+    raise ValueError('total_closure_count must be a positive integer')
+  half_width = float(outer_flow_angle_half_width_rad)
+  if not isfinite(half_width) or half_width <= 0.0:
+    raise ValueError('outer_flow_angle_half_width_rad must be positive')
+
+  def solve_next(
+    current: (
+      MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult
+      | MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationResult
+    ),
+    next_closure_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+  ) -> MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureResult | None:
+    if next_closure_index > total_closure_count:
+      return None
+    if not incoming_handoff:
+      return None
+    start = incoming_handoff[0]
+    return solve_euler_ambient_first_wedge_entropy_characteristic_continuation_closure(
+      current,
+      incoming_handoff,
+      ambient_pressure_Pa,
+      start.state.theta_rad - half_width,
+      start.state.theta_rad + half_width,
+      cycle_count=cycle_count,
+      subdivision_side_count=subdivision_side_count,
+      target_centerline_y_m=target_centerline_y_m,
+      target_centerline_flow_angle_rad=target_centerline_flow_angle_rad,
+      position_tolerance_m=position_tolerance_m,
+      characteristic_residual_tolerance=characteristic_residual_tolerance,
+      pressure_lineage_tolerance=pressure_lineage_tolerance,
+      cell_residual_tolerance=cell_residual_tolerance,
+      maximum_iterations=maximum_iterations,
+      sample_count=sample_count,
+      branch=branch,
+      maximum_segment_iterations=maximum_segment_iterations,
+      maximum_boundary_iterations=maximum_boundary_iterations,
+      maximum_shooting_iterations=maximum_shooting_iterations,
+      allow_zero_strength_attachment=allow_zero_strength_attachment,
+      allow_zero_strength_endpoints=allow_zero_strength_endpoints,
+      use_outgoing_frontier_bridge=use_outgoing_frontier_bridge,
+    )
+
+  return plan_euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain(
+    seed,
+    solve_next,
+    total_closure_count=total_closure_count,
+    position_tolerance_m=position_tolerance_m,
+    claim_status=(
+      'solver-generated-local-reflected-closures-over-variable-entropy-'
+      'continuation-bands; global-frontier-reconciliation-and-physical-'
+      'shock-cell-chain-closure-pending'
+    ),
+  )

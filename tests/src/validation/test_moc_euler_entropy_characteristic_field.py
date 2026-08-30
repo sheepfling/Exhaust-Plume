@@ -11,6 +11,8 @@ from exhaust_plume.models.moc import (
   MocEulerAmbientFirstWedgeEntropyCharacteristicFieldStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainMock,
   MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationChainMock,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureStatus,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainMock,
   MocEulerAmbientFirstWedgeEntropyCharacteristicShockCouplingStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationStatus,
@@ -26,6 +28,8 @@ from exhaust_plume.models.moc import (
   plan_euler_ambient_first_wedge_entropy_characteristic_field_chain_mock,
   plan_euler_ambient_first_wedge_entropy_characteristic_continuation_chain,
   plan_euler_ambient_first_wedge_entropy_characteristic_continuation_chain_mock,
+  plan_euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_mock,
+  plan_euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_reference,
   plan_euler_ambient_first_wedge_entropy_characteristic_shock_coupling_probe,
   plan_euler_ambient_first_wedge_entropy_characteristic_free_boundary_probe,
   plan_euler_ambient_first_wedge_entropy_characteristic_continuation_probe,
@@ -42,6 +46,7 @@ from exhaust_plume.models.moc import (
   solve_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary,
   solve_ambient_closed_post_shock_chain_cell_from_terminal_reflection_patch_ambient_closure_or_termination,
   solve_euler_ambient_first_wedge_entropy_characteristic_continuation,
+  solve_euler_ambient_first_wedge_entropy_characteristic_continuation_closure,
   extract_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier,
   audit_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier_path,
   solve_attached_compression_to_turn,
@@ -54,6 +59,7 @@ from exhaust_plume.validation import (
   MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryAuditStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationAuditStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationChainAuditStatus,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainAuditStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementAuditStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementCase,
   MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementMeasurementStatus,
@@ -65,6 +71,7 @@ from exhaust_plume.validation import (
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_free_boundary,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_chain,
+  measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_refinement,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_ladder,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_remesh,
@@ -1514,3 +1521,137 @@ def test_internal_entropy_characteristic_chain_audit_rejects_tampered_link() -> 
   )
   assert not audit.converged
   assert not audit.local_consistency_verified
+
+
+def test_internal_entropy_characteristic_continuation_closure_chain_closes_local_bands_without_promotion() -> None:
+  _, field = _internal_field()
+  ambient_pressure = field.static_pressure_at(
+    field.continuation_boundary[0].point_m,
+  )
+  assert ambient_pressure is not None
+
+  planner = plan_euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_reference(
+    field,
+    ambient_pressure_Pa=ambient_pressure,
+    total_closure_count=1,
+    cycle_count=4,
+    subdivision_side_count=32,
+  )
+
+  assert planner.closure_count == 1
+  assert planner.local_physical_closure_count == 1
+  assert planner.termination.reason is MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL
+  assert planner.resolved
+  assert planner.local_sequence_verified
+  assert planner.steps[-1].result_kind == 'termination-returned'
+  candidate = planner.closures[0]
+  assert candidate.status is (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureStatus
+    .CONVERGED_LOCAL_CLOSURE
+  )
+  assert candidate.converged
+  assert candidate.source_link_verified
+  assert candidate.remesh_source_link_verified
+  assert candidate.closure_remesh_link_verified
+  assert candidate.source_euler_gate_verified
+  assert candidate.local_reflected_free_boundary_verified
+  assert candidate.physical_chain_cell_count == 0
+  assert candidate.physical_closure_verified is False
+  assert candidate.chain_promotion_blocked
+  assert candidate.production_claim_allowed is False
+  assert candidate.closure is not None
+  assert candidate.closure.physical_field is not None
+  assert candidate.closure.physical_field.field is not None
+  assert candidate.closure.physical_field.field.cell_count == 53
+
+  audit = measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain(
+    planner,
+  )
+  assert audit.status is (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainAuditStatus
+    .CONVERGED_LOCAL_AUDIT
+  )
+  assert audit.converged
+  assert audit.local_consistency_verified
+  assert audit.accepted_closure_count == 1
+  assert audit.local_closure_gates_verified
+  assert audit.incoming_handoff_links_verified
+  assert audit.source_links_verified
+  assert audit.gradient_links_verified
+  assert audit.remesh_links_verified
+  assert audit.closure_links_verified
+  assert audit.fresh_domains_verified
+  assert audit.step_records_verified
+  assert audit.termination_verified
+  assert audit.fidelity_flags_verified
+  assert audit.physical_chain_cell_count == 0
+  assert audit.physical_closure_verified is False
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False
+
+
+def test_internal_entropy_characteristic_continuation_closure_chain_mock_replays_typed_candidate() -> None:
+  _, field = _internal_field()
+  ambient_pressure = field.static_pressure_at(
+    field.continuation_boundary[0].point_m,
+  )
+  assert ambient_pressure is not None
+  incoming = field.continuation_boundary
+  candidate = solve_euler_ambient_first_wedge_entropy_characteristic_continuation_closure(
+    field,
+    incoming,
+    ambient_pressure,
+    incoming[0].state.theta_rad - 1.0e-6,
+    incoming[0].state.theta_rad + 1.0e-6,
+    cycle_count=4,
+    subdivision_side_count=32,
+  )
+  assert candidate.converged
+
+  planner = plan_euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_mock(
+    field,
+    mock=MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainMock(
+      next_closures=(candidate,),
+    ),
+  )
+
+  assert planner.closures == (candidate,)
+  assert planner.resolved
+  assert planner.local_sequence_verified
+  assert planner.termination.reason is MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL
+  assert planner.physical_chain_cell_count == 0
+  assert planner.chain_promotion_blocked
+  assert planner.production_claim_allowed is False
+  audit = measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain(
+    planner,
+  )
+  assert audit.converged
+  assert audit.local_consistency_verified
+  assert audit.step_records_verified
+  assert audit.termination_verified
+
+
+def test_internal_entropy_characteristic_continuation_closure_chain_keeps_euler_gate_explicit() -> None:
+  _, field = _internal_field()
+  ambient_pressure = field.static_pressure_at(
+    field.continuation_boundary[0].point_m,
+  )
+  assert ambient_pressure is not None
+  planner = plan_euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_reference(
+    field,
+    ambient_pressure_Pa=ambient_pressure,
+    total_closure_count=1,
+    cycle_count=4,
+    subdivision_side_count=16,
+  )
+
+  assert planner.closure_count == 0
+  assert planner.termination.reason is MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+  assert planner.termination.physical_termination is False
+  assert planner.steps[-1].result_kind == 'closure-rejected'
+  assert planner.steps[-1].result_status == (
+    'entropy_characteristic_continuation_closure_euler_residual_failure'
+  )
+  assert planner.physical_chain_cell_count == 0
+  assert planner.chain_promotion_blocked
+  assert planner.production_claim_allowed is False

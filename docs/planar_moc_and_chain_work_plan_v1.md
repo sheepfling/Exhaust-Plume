@@ -3311,3 +3311,33 @@ closure, indexed owner-provided validation observations, additional
 resolution/case evidence, and production next-cell shock fitting. No output
 from this reference changes the basic visualization, signature,
 optical-transfer, or focal-plane-array providers.
+
+## Continued-band local reflected-closure chain checkpoint
+
+The next planner seam is
+``plan_euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain``.
+For each accepted downstream band it retains the exact source continuation,
+solver-owned characteristic remesh, dense outgoing ``C-`` frontier bridge,
+and reflected/free-boundary field candidate as one typed result. The reference
+planner uses the n=32 remesh gate and the opt-in outgoing ``C+`` bridge; the
+explicit ``MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainMock``
+replays caller-supplied candidates through the same provenance checks without
+synthesizing a field.
+
+The integrated two-band fixture produces two independently locally closed
+53-cell field candidates and then records a typed
+``SOLVER_RETURNED_NO_NEXT_CELL`` stop. The independent
+``op.moc.euler-ambient-first-wedge-entropy-characteristic-continuation-closure-chain-audit``
+recomputes the continuation, remesh, and free-boundary audits and verifies the
+source, incoming-frontier, entropy-gradient, remesh, closure, fresh-domain,
+step-record, and termination links. A coarser n=16 case stops at the Euler
+residual gate, so the closure bridge cannot bypass conservative acceptance.
+
+These 53-cell fields are local closure candidates in separate solver-owned
+coordinate domains, not physical intercell ``MocChainCell`` objects. The
+planner and audit therefore report ``local_physical_closure_count=2`` but
+``physical_chain_cell_count=0``, keep ``chain_promotion_blocked=true``, and
+require global source-frontier reconciliation, refinement across cases, and
+indexed external validation before production next-cell shock fitting. No
+candidate can update the basic visualization, signature, ray-transfer, or
+focal-plane-array providers.

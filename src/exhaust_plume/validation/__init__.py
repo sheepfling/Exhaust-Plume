@@ -362,6 +362,12 @@ from exhaust_plume.validation.moc_euler_entropy_characteristic_remesh_free_bound
   MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryAudit,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary,
 )
+from exhaust_plume.validation.moc_euler_entropy_characteristic_continuation_closure import (
+  MOC_EULER_AMBIENT_FIRST_WEDGE_ENTROPY_CHARACTERISTIC_CONTINUATION_CLOSURE_CHAIN_AUDIT_OPERATOR_ID,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainAuditStatus,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainAudit,
+  measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain,
+)
 from exhaust_plume.validation.lane_contracts import (
   SignatureLaneInvariantReport,
   VisualLaneInvariantReport,
@@ -633,6 +639,10 @@ __all__ = (
   'MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryAuditStatus',
   'MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryAudit',
   'measure_moc_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary',
+  'MOC_EULER_AMBIENT_FIRST_WEDGE_ENTROPY_CHARACTERISTIC_CONTINUATION_CLOSURE_CHAIN_AUDIT_OPERATOR_ID',
+  'MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainAuditStatus',
+  'MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainAudit',
+  'measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain',
   'SignatureLaneInvariantReport',
   'VisualLaneInvariantReport',
   'MACH_DISK_FEATURE_OPERATOR_ID',
