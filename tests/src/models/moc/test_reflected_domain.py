@@ -34,6 +34,7 @@ from exhaust_plume.models.moc import (
   plan_reflected_domain_alternating_source_chain_sequence,
   plan_reflected_domain_solver_owned_first_cell_chain,
   plan_reflected_domain_global_shock_remesh_chain,
+  plan_reflected_domain_global_shock_remesh_chain_from_physical_field,
   plan_reflected_domain_remesh_shock_chain,
   plan_reflected_domain_remesh_shock_chain_sequence,
   solve_marched_attached_shock_field,
@@ -1128,6 +1129,75 @@ def test_global_reflected_shock_remesh_planner_preserves_research_stop():
   assert planner.diagnostics[
     'global_reflected_shock_remesh_independent_measurement'
   ]['status'] == 'converged'
+  assert planner.production_claim_allowed is False
+
+
+def test_global_reflected_shock_remesh_physical_field_adapter_derives_fresh_source():
+  field = _canonical_field()
+  planner = plan_reflected_domain_global_shock_remesh_chain_from_physical_field(
+    field,
+    start_x_m=0.5,
+    end_x_m=1.0,
+    outer_source_indices=(2,),
+    target_centerline_indices=(3,),
+    compression_amplitude_lower_rad=0.007,
+    compression_amplitude_upper_rad=0.03,
+    compression_envelope_skews=(-0.75, 0.0),
+    sample_count=9,
+    shock_angle_tolerance_rad=0.02,
+    policy=MocChainContinuationPolicy(max_cells=2, require_state_carry=True),
+  )
+
+  assert planner.resolved
+  assert planner.chain.cell_count == 1
+  assert planner.chain.termination_reason is (
+    MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+  )
+  assert planner.diagnostics[
+    'global_reflected_shock_remesh_from_physical_field'
+  ] is True
+  assert planner.diagnostics['source_projection_automatic'] is True
+  assert planner.diagnostics['source_projection_verified'] is True
+  assert planner.diagnostics['source_projection_handoff_verified'] is True
+  assert planner.diagnostics['source_projection_strip']['status'] == (
+    'converged_open_shock_ambient_strip'
+  )
+  assert planner.diagnostics['source_projection_reflection_patch']['status'] == (
+    'converged_open_terminal_reflection_patch'
+  )
+  assert planner.diagnostics['source_projection_source_band']['source_field_verified'] is True
+  assert planner.diagnostics['global_reflected_shock_remesh']['status'] == (
+    'global_reflected_shock_no_endpoint_closure'
+  )
+  assert planner.diagnostics[
+    'global_reflected_shock_remesh_independent_measurement'
+  ]['status'] == 'converged'
+  assert planner.diagnostics['physical_chain_cell_count'] == 0
+  assert planner.diagnostics['chain_promotion_blocked'] is True
+  assert planner.production_claim_allowed is False
+
+
+def test_global_reflected_shock_remesh_physical_field_adapter_typed_projection_stop():
+  field = _canonical_field()
+  planner = plan_reflected_domain_global_shock_remesh_chain_from_physical_field(
+    field,
+    start_x_m=0.5,
+    end_x_m=1.0,
+    source_sample_count=2,
+    policy=MocChainContinuationPolicy(max_cells=2, require_state_carry=True),
+  )
+
+  assert planner.resolved
+  assert planner.chain.cell_count == 1
+  assert planner.chain.termination_reason is MocChainTerminationReason.INVALID_INPUT
+  assert planner.diagnostics['source_projection_automatic'] is True
+  assert planner.diagnostics['source_projection_verified'] is False
+  assert planner.diagnostics['source_projection_source_band']['status'] == (
+    'invalid_input'
+  )
+  assert 'global_reflected_shock_remesh' not in planner.diagnostics
+  assert planner.diagnostics['physical_chain_cell_count'] == 0
+  assert planner.diagnostics['chain_promotion_blocked'] is True
   assert planner.production_claim_allowed is False
 
 

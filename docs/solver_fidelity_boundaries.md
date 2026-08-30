@@ -918,6 +918,18 @@ current planner therefore remains a one-cell research prefix with
 shock/free-boundary construction whose stored shock geometry, downstream
 state, characteristic orientation, and Euler residuals close together.
 
+`plan_reflected_domain_global_shock_remesh_chain_from_physical_field` now
+provides the automatic planner handoff into this seam. It projects an
+accepted physical field through its bounded shock/ambient strip, terminal
+reflected centerline patch, and freshly solved alternating source band before
+running the global source/profile sweep. Each projected artifact and its
+exact centerline state/total-pressure handoff is retained in the diagnostics;
+a projection failure is a typed non-physical stop and never reuses a previous
+source domain. The canonical fixture reaches the same independently audited
+no-endpoint-closure outcome with zero continued physical cells. This improves
+planner observability and replayability, but does not alter the promotion
+ceiling or the lower-fidelity providers.
+
 ## Locally Euler-consistent shock-segment checkpoint
 
 `solve_euler_consistent_attached_shock_segment` is the first isolated physics

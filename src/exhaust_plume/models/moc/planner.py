@@ -320,6 +320,8 @@ __all__ = (
   'plan_reflected_domain_alternating_source_chain_sequence',
   'plan_reflected_domain_alternating_source_chain_from_physical_field',
   'plan_reflected_domain_solver_owned_first_cell_chain',
+  'plan_reflected_domain_global_shock_remesh_chain',
+  'plan_reflected_domain_global_shock_remesh_chain_from_physical_field',
   'plan_first_cell_geometry_owned_alternating_research_chain',
   'plan_caustic_simple_wave_terminal_chain',
   'plan_caustic_remesh_downstream_field_chain',
@@ -16738,6 +16740,283 @@ def plan_reflected_domain_global_shock_remesh_chain(
     ),
     'global_reflected_shock_remesh_error': solver_error,
     'configured_total_cell_count': total_cell_count,
+    'canonical_reflected_domain_closed': False,
+    'canonical_free_boundary_pending': True,
+    'canonical_euler_pending': True,
+    'external_validation_pending': True,
+    'chain_promotion_blocked': True,
+    'production_claim_allowed': False,
+  })
+  return replace(planner, diagnostics=diagnostics)
+####
+
+
+def plan_reflected_domain_global_shock_remesh_chain_from_physical_field(
+  seed: MocPhysicalPostShockFieldResult,
+  *,
+  start_x_m: float,
+  end_x_m: float,
+  source_sample_count: int = 6,
+  trace_position_tolerance_m: float = 3.0e-3,
+  trace_forward_tolerance_m: float = 1.0e-4,
+  trace_invariant_tolerance: float = 1.0e-10,
+  source_position_tolerance_m: float = 3.0e-3,
+  source_invariant_tolerance: float = 1.0e-10,
+  source_pressure_tolerance: float = 1.0e-8,
+  outer_source_indices: Sequence[int] | None = None,
+  target_centerline_indices: Sequence[int] | None = None,
+  compression_amplitude_lower_rad: float = 0.005,
+  compression_amplitude_upper_rad: float = 0.05,
+  compression_envelope_skews: Sequence[float] = (-0.75, 0.0, 0.75),
+  closure_tolerance_m: float = 1.0e-6,
+  sample_count: int = 17,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-9,
+  invariant_tolerance: float = 1.0e-10,
+  attachment_pressure_tolerance: float = 1.0e-8,
+  pressure_tolerance: float = 1.0e-8,
+  tangent_tolerance: float = 1.0e-8,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  maximum_segment_iterations: int = 24,
+  maximum_boundary_iterations: int = 16,
+  maximum_shooting_iterations: int = 40,
+  maximum_bracket_scan_samples: int = 0,
+  maximum_attempts: int = 64,
+  total_cell_count: int | None = None,
+  policy: MocChainContinuationPolicy | None = None,
+) -> MocChainPlannerResult:
+  """Derive and plan a global remesh directly from one physical field.
+
+  The accepted field is projected through three explicit solver-owned seams:
+  its finite shock/ambient strip, a terminal reflected centerline patch, and a
+  fresh alternating source band.  The resulting source band is then handed to
+  :func:`plan_reflected_domain_global_shock_remesh_chain`, which retains every
+  bounded source-pair/profile attempt and its independent measurements.
+
+  This is a planner integration seam, not a promotion shortcut.  Projection
+  or global-remesh failure is returned as a typed non-physical stop.  Even a
+  locally aligned global endpoint remains research-only until the canonical
+  reflected free-boundary/Euler and external-validation gates are closed.
+  """
+
+  if not isinstance(seed, MocPhysicalPostShockFieldResult):
+    raise TypeError('seed must be a MocPhysicalPostShockFieldResult')
+  if not isfinite(float(start_x_m)) or not isfinite(float(end_x_m)):
+    raise ValueError('start_x_m and end_x_m must be finite')
+  if end_x_m <= start_x_m:
+    raise ValueError('end_x_m must be strictly downstream of start_x_m')
+  if total_cell_count is not None and (
+    isinstance(total_cell_count, bool)
+    or not isinstance(total_cell_count, int)
+    or total_cell_count < 1
+  ):
+    raise ValueError('total_cell_count must be a positive integer when supplied')
+  if policy is not None and not isinstance(policy, MocChainContinuationPolicy):
+    raise TypeError('policy must be a MocChainContinuationPolicy or None')
+
+  def field_handoff(
+    field: MocPhysicalPostShockFieldResult,
+  ) -> tuple[MocChainBoundarySample, ...]:
+    states = tuple(field.centerline_boundary_states)
+    pressures = tuple(field.centerline_boundary_total_pressure_Pa)
+    if len(states) != len(pressures):
+      return ()
+    try:
+      return tuple(
+        MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
+        for state, pressure in zip(states, pressures, strict=True)
+      )
+    except (TypeError, ValueError):
+      return ()
+
+  def report(value: Any | None) -> dict[str, Any] | None:
+    return None if value is None else value.as_report()
+
+  seed_handoff = field_handoff(seed)
+  ambient_pressure: float | None = None
+  if seed.ambient_boundary is not None:
+    ambient_pressure = seed.ambient_boundary.ambient_pressure_Pa
+  source_strip: Any | None = None
+  reflection_patch: MocTerminalReflectionPatchResult | None = None
+  source_band: MocReflectedDomainAlternatingSourceResult | None = None
+  projection_error: str | None = None
+  projection_error_type: str | None = None
+  projection_reason = MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+
+  if not seed.converged or not seed.physical_closure_verified:
+    projection_error = (
+      'global reflected-shock remesh projection requires a converged '
+      'physically closed seed field'
+    )
+  elif not seed.state_sampling_available:
+    projection_error = (
+      'global reflected-shock remesh projection requires bounded seed '
+      'state/pressure sampling'
+    )
+    projection_reason = MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+  elif not seed.upstream_shock_coupling_verified:
+    projection_error = (
+      'global reflected-shock remesh projection requires retained seed '
+      'upstream shock coupling'
+    )
+    projection_reason = MocChainTerminationReason.STATE_NOT_CARRIED
+  elif ambient_pressure is None:
+    projection_error = (
+      'global reflected-shock remesh projection requires a retained ambient '
+      'pressure on the seed field'
+    )
+  else:
+    try:
+      source_strip = seed.as_open_shock_ambient_strip(
+        trace_position_tolerance_m=trace_position_tolerance_m,
+        trace_forward_tolerance_m=trace_forward_tolerance_m,
+        trace_invariant_tolerance=trace_invariant_tolerance,
+      )
+      reflection_patch = assemble_terminal_trace_centerline_patch(
+        source_strip,
+        trace_position_tolerance_m=trace_position_tolerance_m,
+        trace_forward_tolerance_m=trace_forward_tolerance_m,
+        invariant_tolerance=trace_invariant_tolerance,
+      )
+      source_band = solve_reflected_domain_alternating_source(
+        reflection_patch,
+        ambient_pressure,
+        source_sample_count=source_sample_count,
+        position_tolerance_m=source_position_tolerance_m,
+        trace_forward_tolerance_m=trace_forward_tolerance_m,
+        invariant_tolerance=source_invariant_tolerance,
+        pressure_tolerance=source_pressure_tolerance,
+        incoming_handoff=seed_handoff,
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      projection_error = str(error)
+      projection_error_type = type(error).__name__
+      projection_reason = MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+
+  source_handoff_verified = bool(
+    source_band is not None
+    and source_band.incoming_handoff == seed_handoff
+  )
+  source_projection_verified = bool(
+    projection_error is None
+    and source_band is not None
+    and source_band.source_field_verified
+    and source_handoff_verified
+  )
+  if source_band is not None and not source_projection_verified:
+    projection_error = projection_error or source_band.message
+    projection_error_type = projection_error_type or 'source-band-status'
+    if source_band.status is MocReflectedDomainAlternatingSourceStatus.INVALID_INPUT:
+      projection_reason = MocChainTerminationReason.INVALID_INPUT
+    elif not source_handoff_verified:
+      projection_reason = MocChainTerminationReason.STATE_NOT_CARRIED
+    else:
+      projection_reason = MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+
+  if source_projection_verified:
+    assert source_band is not None
+    planner = plan_reflected_domain_global_shock_remesh_chain(
+      seed,
+      source_band,
+      start_x_m=start_x_m,
+      end_x_m=end_x_m,
+      outer_source_indices=outer_source_indices,
+      target_centerline_indices=target_centerline_indices,
+      compression_amplitude_lower_rad=compression_amplitude_lower_rad,
+      compression_amplitude_upper_rad=compression_amplitude_upper_rad,
+      compression_envelope_skews=compression_envelope_skews,
+      closure_tolerance_m=closure_tolerance_m,
+      sample_count=sample_count,
+      branch=branch,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+      attachment_pressure_tolerance=attachment_pressure_tolerance,
+      pressure_tolerance=pressure_tolerance,
+      tangent_tolerance=tangent_tolerance,
+      shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+      maximum_segment_iterations=maximum_segment_iterations,
+      maximum_boundary_iterations=maximum_boundary_iterations,
+      maximum_shooting_iterations=maximum_shooting_iterations,
+      maximum_bracket_scan_samples=maximum_bracket_scan_samples,
+      maximum_attempts=maximum_attempts,
+      total_cell_count=total_cell_count,
+      policy=policy,
+    )
+  else:
+    message = (
+      'global reflected-shock remesh could not derive a fresh alternating '
+      f'source band from the seed field: {projection_error or "unknown projection failure"}'
+    )
+    projection_diagnostics = {
+      'source_projection_automatic': True,
+      'source_projection_verified': False,
+      'source_projection_error': projection_error,
+      'source_projection_error_type': projection_error_type,
+      'source_projection_handoff_verified': source_handoff_verified,
+      'source_projection_seed_handoff_sample_count': len(seed_handoff),
+      'source_projection_seed_handoff_fingerprint': _handoff_fingerprint(seed_handoff),
+      'source_projection_strip': report(source_strip),
+      'source_projection_reflection_patch': report(reflection_patch),
+      'source_projection_source_band': report(source_band),
+    }
+
+    def solve_projection_stop(
+      _current: MocChainCell,
+      next_cell_index: int,
+      _incoming_handoff: tuple[MocChainBoundarySample, ...],
+    ) -> MocChainTerminationDecision:
+      return MocChainTerminationDecision(
+        physical_termination=False,
+        reason=projection_reason,
+        message=message,
+        diagnostics={
+          'termination_model': (
+            'global-reflected-shock-remesh-physical-field-projection'
+          ),
+          'next_cell_index': next_cell_index,
+          'chain_promotion_blocked': True,
+          'production_claim_allowed': False,
+          **projection_diagnostics,
+        },
+      )
+
+    planner = plan_ambient_closed_post_shock_chain(
+      seed,
+      solve_projection_stop,
+      start_x_m=start_x_m,
+      end_x_m=end_x_m,
+      policy=policy,
+      require_upstream_shock_coupling=True,
+      claim_status=(
+        'global-reflected-shock-remesh physical-field projection seam; '
+        'source derivation failed; canonical reflected free-boundary and '
+        'external-validation pending'
+      ),
+    )
+
+  diagnostics = dict(planner.diagnostics)
+  diagnostics.update({
+    'global_reflected_shock_remesh_from_physical_field': True,
+    'global_reflected_shock_remesh_input_model': (
+      'accepted-physical-field -> open-shock-ambient-strip -> '
+      'terminal-reflection-centerline-patch -> alternating-source-band -> '
+      'bounded-global-source-pair-and-profile-sweep'
+    ),
+    'source_projection_automatic': True,
+    'source_projection_verified': source_projection_verified,
+    'source_projection_error': projection_error,
+    'source_projection_error_type': projection_error_type,
+    'source_projection_handoff_verified': source_handoff_verified,
+    'source_projection_seed_handoff_sample_count': len(seed_handoff),
+    'source_projection_seed_handoff_fingerprint': _handoff_fingerprint(seed_handoff),
+    'source_projection_strip': report(source_strip),
+    'source_projection_reflection_patch': report(reflection_patch),
+    'source_projection_source_band': report(source_band),
+    'source_projection_failure_policy': (
+      'typed-projection-stop; never-reuse-or-extrapolate-a-prior-source-band'
+    ),
+    'continued_cell_count': max(0, planner.chain.cell_count - 1),
+    'physical_chain_cell_count': 0,
     'canonical_reflected_domain_closed': False,
     'canonical_free_boundary_pending': True,
     'canonical_euler_pending': True,

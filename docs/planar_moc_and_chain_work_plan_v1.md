@@ -3048,3 +3048,24 @@ This is the measured global reflected/free-boundary gap: the local bridge is
 closed, but its reflected axis is not the same axis that closed the upstream
 field. The planner therefore retains one accepted source field, zero
 continued cells, and the global reconciliation solve remains the next task.
+
+## Automatic physical-field-to-global-remesh planner checkpoint
+
+``plan_reflected_domain_global_shock_remesh_chain_from_physical_field`` now
+connects the accepted physical-field boundary to the global remesh planner in
+one explicit path. It derives a finite shock/ambient strip, reflects its
+terminal ``C+`` trace into a centerline patch, solves a fresh alternating
+``C-``/``C+`` source band, and only then runs the bounded global source-pair /
+compression-profile sweep. The strip, patch, source-band handoff, and global
+attempt reports remain in the planner diagnostics so the continuation can be
+replayed and audited without a caller fabricating a source domain.
+
+The canonical reflected-domain fixture now exercises this automatic path and
+reproduces the independently measured no-endpoint-closure result. The planner
+retains one seed cell, reports zero continued/physical chain cells, and keeps
+``chain_promotion_blocked=true`` and ``production_claim_allowed=false``. A
+projection failure is also a typed stop; no stale source band or extrapolated
+state is substituted. The next physics task is still the globally coupled
+reflected shock/free-boundary construction whose axis, shock geometry,
+entropy, and Euler residuals close together, followed by refinement and
+indexed external validation.
