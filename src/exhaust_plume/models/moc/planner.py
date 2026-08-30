@@ -95,6 +95,10 @@ from exhaust_plume.models.moc.post_shock import (
 )
 from exhaust_plume.models.moc.euler_shock_boundary import (
   fit_euler_consistent_shock_boundary,
+  fit_euler_consistent_shock_boundary_from_geometry,
+)
+from exhaust_plume.models.moc.euler_physical_field import (
+  assemble_euler_ambient_physical_field,
 )
 from exhaust_plume.models.moc.euler_characteristic_field import (
   MocEulerCompanionFieldResult,
@@ -16405,6 +16409,8 @@ def plan_reflected_domain_global_shock_remesh_chain(
   pressure_tolerance: float = 1.0e-8,
   tangent_tolerance: float = 1.0e-8,
   shock_angle_tolerance_rad: float = 1.0e-2,
+  euler_reconciliation_shock_angle_tolerance_rad: float = 1.0e-8,
+  euler_reconciliation_residual_tolerance: float = 1.0e-8,
   maximum_segment_iterations: int = 24,
   maximum_boundary_iterations: int = 16,
   maximum_shooting_iterations: int = 40,
@@ -16465,7 +16471,23 @@ def plan_reflected_domain_global_shock_remesh_chain(
   solver_measurement: Any | None = None
   solver_euler_audits: tuple[dict[str, Any], ...] = ()
   solver_euler_boundary_curves: tuple[dict[str, Any], ...] = ()
+  solver_euler_geometry_reconciliations: tuple[dict[str, Any], ...] = ()
+  solver_euler_ambient_physical_fields: tuple[dict[str, Any], ...] = ()
   solver_error: str | None = None
+
+  for name, value in (
+    (
+      'euler_reconciliation_shock_angle_tolerance_rad',
+      euler_reconciliation_shock_angle_tolerance_rad,
+    ),
+    (
+      'euler_reconciliation_residual_tolerance',
+      euler_reconciliation_residual_tolerance,
+    ),
+  ):
+    numeric = float(value)
+    if not isfinite(numeric) or numeric <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
 
   def stop(
     reason: MocChainTerminationReason,
@@ -16499,6 +16521,8 @@ def plan_reflected_domain_global_shock_remesh_chain(
   ) -> MocChainTerminationDecision:
     nonlocal solver_error, solver_measurement, solver_result
     nonlocal solver_euler_audits, solver_euler_boundary_curves
+    nonlocal solver_euler_geometry_reconciliations
+    nonlocal solver_euler_ambient_physical_fields
     if total_cell_count is not None and next_cell_index > total_cell_count:
       return stop(
         MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
@@ -16563,34 +16587,48 @@ def plan_reflected_domain_global_shock_remesh_chain(
 
       audit_rows: list[dict[str, Any]] = []
       boundary_curve_rows: list[dict[str, Any]] = []
+      geometry_reconciliation_rows: list[dict[str, Any]] = []
+      ambient_physical_field_rows: list[dict[str, Any]] = []
       for attempt_index, attempt in enumerate(solver_result.attempts):
+        attempt_identity = {
+          'attempt_index': attempt_index,
+          'outer_source_index': attempt.outer_source_index,
+          'target_centerline_index': attempt.target_centerline_index,
+          'compression_envelope_skew': attempt.compression_envelope_skew,
+        }
         selected_field = attempt.first_cell_result.selected_physical_field
         field = None if selected_field is None else selected_field.field
         if field is None:
           audit_rows.append({
-            'attempt_index': attempt_index,
-            'outer_source_index': attempt.outer_source_index,
-            'target_centerline_index': attempt.target_centerline_index,
-            'compression_envelope_skew': attempt.compression_envelope_skew,
+            **attempt_identity,
             'field_available': False,
             'audit': None,
           })
           boundary_curve_rows.append({
-            'attempt_index': attempt_index,
-            'outer_source_index': attempt.outer_source_index,
-            'target_centerline_index': attempt.target_centerline_index,
-            'compression_envelope_skew': attempt.compression_envelope_skew,
+            **attempt_identity,
             'field_available': False,
             'curve': None,
+            'geometry_reconciliation': None,
+            'ambient_physical_field': None,
+            'message': 'selected physical field unavailable',
+          })
+          geometry_reconciliation_rows.append({
+            **attempt_identity,
+            'field_available': False,
+            'geometry_reconciliation': None,
+            'message': 'selected physical field unavailable',
+          })
+          ambient_physical_field_rows.append({
+            **attempt_identity,
+            'field_available': False,
+            'geometry_reconciliation_verified': False,
+            'ambient_physical_field': None,
             'message': 'selected physical field unavailable',
           })
           continue
         audit = measure_moc_physical_field_euler_audit(field)
         audit_rows.append({
-          'attempt_index': attempt_index,
-          'outer_source_index': attempt.outer_source_index,
-          'target_centerline_index': attempt.target_centerline_index,
-          'compression_envelope_skew': attempt.compression_envelope_skew,
+          **attempt_identity,
           'field_available': True,
           'audit': audit.as_report(),
         })
@@ -16608,12 +16646,30 @@ def plan_reflected_domain_global_shock_remesh_chain(
           and len(points) >= 2
         ):
           boundary_curve_rows.append({
-            'attempt_index': attempt_index,
-            'outer_source_index': attempt.outer_source_index,
-            'target_centerline_index': attempt.target_centerline_index,
-            'compression_envelope_skew': attempt.compression_envelope_skew,
+            **attempt_identity,
             'field_available': True,
             'curve': None,
+            'geometry_reconciliation': None,
+            'ambient_physical_field': None,
+            'message': (
+              'selected physical field does not carry equal upstream, '
+              'downstream, pressure, and shock-point samples'
+            ),
+          })
+          geometry_reconciliation_rows.append({
+            **attempt_identity,
+            'field_available': True,
+            'geometry_reconciliation': None,
+            'message': (
+              'selected physical field does not carry equal upstream, '
+              'downstream, pressure, and shock-point samples'
+            ),
+          })
+          ambient_physical_field_rows.append({
+            **attempt_identity,
+            'field_available': True,
+            'geometry_reconciliation_verified': False,
+            'ambient_physical_field': None,
             'message': (
               'selected physical field does not carry equal upstream, '
               'downstream, pressure, and shock-point samples'
@@ -16630,6 +16686,8 @@ def plan_reflected_domain_global_shock_remesh_chain(
             strict=True,
           )
         )
+        boundary_curve = None
+        boundary_curve_message: str | None = None
         try:
           boundary_curve = fit_euler_consistent_shock_boundary(
             upstream_states,
@@ -16639,26 +16697,109 @@ def plan_reflected_domain_global_shock_remesh_chain(
             shock_angle_tolerance_rad=shock_angle_tolerance_rad,
           )
         except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
-          boundary_curve_rows.append({
-            'attempt_index': attempt_index,
-            'outer_source_index': attempt.outer_source_index,
-            'target_centerline_index': attempt.target_centerline_index,
-            'compression_envelope_skew': attempt.compression_envelope_skew,
-            'field_available': True,
-            'curve': None,
-            'message': f'Euler-consistent shock boundary fit failed: {error}',
-          })
-          continue
+          boundary_curve_message = (
+            f'Euler-consistent shock boundary fit failed: {error}'
+          )
+
+        try:
+          geometry_reconciliation = fit_euler_consistent_shock_boundary_from_geometry(
+            upstream_states,
+            upstream_static_pressures,
+            points,
+            branch=branch,
+            position_tolerance_m=position_tolerance_m,
+            shock_angle_tolerance_rad=(
+              euler_reconciliation_shock_angle_tolerance_rad
+            ),
+            residual_tolerance=euler_reconciliation_residual_tolerance,
+          )
+        except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+          geometry_reconciliation = None
+          geometry_reconciliation_message = (
+            'geometry-conditioned Euler shock boundary fit failed: '
+            f'{error}'
+          )
+        else:
+          geometry_reconciliation_message = geometry_reconciliation.message
+
+        ambient_physical_field = None
+        if (
+          geometry_reconciliation is not None
+          and geometry_reconciliation.converged
+          and geometry_reconciliation.local_euler_verified
+        ):
+          ambient_pressure = source_band.ambient_pressure_Pa
+          if ambient_pressure is None:
+            ambient_physical_field_message = (
+              'ambient physical-field reconciliation requires source-band '
+              'ambient pressure'
+            )
+          else:
+            try:
+              ambient_physical_field = assemble_euler_ambient_physical_field(
+                geometry_reconciliation,
+                ambient_pressure,
+                target_centerline_y_m=source_band.target_centerline_y_m,
+                position_tolerance_m=position_tolerance_m,
+                invariant_tolerance=invariant_tolerance,
+                pressure_tolerance=pressure_tolerance,
+                tangent_tolerance=tangent_tolerance,
+                maximum_boundary_iterations=maximum_boundary_iterations,
+              )
+            except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+              ambient_physical_field_message = (
+                'Euler ambient physical-field reconciliation failed: '
+                f'{error}'
+              )
+            else:
+              ambient_physical_field_message = ambient_physical_field.message
+        else:
+          ambient_physical_field_message = (
+            'ambient physical-field reconciliation requires a locally '
+            'Euler-verified geometry reconciliation'
+          )
+
+        geometry_report = (
+          None
+          if geometry_reconciliation is None
+          else geometry_reconciliation.as_report()
+        )
+        ambient_report = (
+          None
+          if ambient_physical_field is None
+          else ambient_physical_field.as_report()
+        )
         boundary_curve_rows.append({
-          'attempt_index': attempt_index,
-          'outer_source_index': attempt.outer_source_index,
-          'target_centerline_index': attempt.target_centerline_index,
-          'compression_envelope_skew': attempt.compression_envelope_skew,
+          **attempt_identity,
           'field_available': True,
-          'curve': boundary_curve.as_report(),
+          'curve': (
+            None if boundary_curve is None else boundary_curve.as_report()
+          ),
+          'geometry_reconciliation': geometry_report,
+          'ambient_physical_field': ambient_report,
+          'message': boundary_curve_message,
+        })
+        geometry_reconciliation_rows.append({
+          **attempt_identity,
+          'field_available': True,
+          'geometry_reconciliation': geometry_report,
+          'message': geometry_reconciliation_message,
+        })
+        ambient_physical_field_rows.append({
+          **attempt_identity,
+          'field_available': True,
+          'geometry_reconciliation_verified': bool(
+            geometry_reconciliation is not None
+            and geometry_reconciliation.converged
+            and geometry_reconciliation.local_euler_verified
+          ),
+          'ambient_physical_field': ambient_report,
+          'message': ambient_physical_field_message,
         })
       solver_euler_audits = tuple(audit_rows)
       solver_euler_boundary_curves = tuple(boundary_curve_rows)
+      solver_euler_geometry_reconciliations = tuple(geometry_reconciliation_rows)
+      solver_euler_ambient_physical_fields = tuple(ambient_physical_field_rows)
     except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
       solver_error = f'{type(error).__name__}: {error}'
       return stop(
@@ -16731,6 +16872,42 @@ def plan_reflected_domain_global_shock_remesh_chain(
       )
     ),
     'global_reflected_shock_remesh_euler_boundary_required_for_promotion': True,
+    'global_reflected_shock_remesh_euler_geometry_reconciliations': (
+      solver_euler_geometry_reconciliations
+    ),
+    'global_reflected_shock_remesh_euler_geometry_reconciliation_accepted': bool(
+      solver_euler_geometry_reconciliations
+      and all(
+        row['field_available']
+        and row['geometry_reconciliation'] is not None
+        and row['geometry_reconciliation']['local_euler_verified']
+        and row['geometry_reconciliation']['orientation'] == (
+          'mixed-characteristic-boundary'
+        )
+        and row['geometry_reconciliation']['chain_promotion_blocked']
+        for row in solver_euler_geometry_reconciliations
+      )
+    ),
+    'global_reflected_shock_remesh_euler_geometry_reconciliation_required_for_promotion': True,
+    'global_reflected_shock_remesh_euler_ambient_physical_fields': (
+      solver_euler_ambient_physical_fields
+    ),
+    'global_reflected_shock_remesh_euler_ambient_physical_field_accepted': bool(
+      solver_euler_ambient_physical_fields
+      and all(
+        row['field_available']
+        and row['geometry_reconciliation_verified']
+        and row['ambient_physical_field'] is not None
+        and row['ambient_physical_field']['physical_closure_verified']
+        and row['ambient_physical_field']['chain_promotion_blocked']
+        for row in solver_euler_ambient_physical_fields
+      )
+    ),
+    'global_reflected_shock_remesh_euler_ambient_physical_field_required_for_promotion': True,
+    'global_reflected_shock_remesh_euler_reconciliation_tolerances': {
+      'shock_angle_tolerance_rad': euler_reconciliation_shock_angle_tolerance_rad,
+      'residual_tolerance': euler_reconciliation_residual_tolerance,
+    },
     'global_reflected_shock_remesh_audit_accepted': bool(
       solver_measurement is not None
       and solver_measurement.converged
@@ -16777,6 +16954,8 @@ def plan_reflected_domain_global_shock_remesh_chain_from_physical_field(
   pressure_tolerance: float = 1.0e-8,
   tangent_tolerance: float = 1.0e-8,
   shock_angle_tolerance_rad: float = 1.0e-2,
+  euler_reconciliation_shock_angle_tolerance_rad: float = 1.0e-8,
+  euler_reconciliation_residual_tolerance: float = 1.0e-8,
   maximum_segment_iterations: int = 24,
   maximum_boundary_iterations: int = 16,
   maximum_shooting_iterations: int = 40,
@@ -16934,6 +17113,12 @@ def plan_reflected_domain_global_shock_remesh_chain_from_physical_field(
       pressure_tolerance=pressure_tolerance,
       tangent_tolerance=tangent_tolerance,
       shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+      euler_reconciliation_shock_angle_tolerance_rad=(
+        euler_reconciliation_shock_angle_tolerance_rad
+      ),
+      euler_reconciliation_residual_tolerance=(
+        euler_reconciliation_residual_tolerance
+      ),
       maximum_segment_iterations=maximum_segment_iterations,
       maximum_boundary_iterations=maximum_boundary_iterations,
       maximum_shooting_iterations=maximum_shooting_iterations,

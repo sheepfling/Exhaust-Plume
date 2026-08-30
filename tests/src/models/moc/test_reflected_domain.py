@@ -1127,6 +1127,38 @@ def test_global_reflected_shock_remesh_planner_preserves_research_stop():
     for row in boundary_curves
   )
   assert planner.diagnostics[
+    'global_reflected_shock_remesh_euler_geometry_reconciliation_accepted'
+  ] is True
+  geometry_reconciliations = planner.diagnostics[
+    'global_reflected_shock_remesh_euler_geometry_reconciliations'
+  ]
+  assert len(geometry_reconciliations) == 2
+  assert all(
+    row['field_available']
+    and row['geometry_reconciliation']['status'] == 'converged_local_euler_shock'
+    and row['geometry_reconciliation']['local_euler_verified']
+    and row['geometry_reconciliation']['orientation'] == (
+      'mixed-characteristic-boundary'
+    )
+    for row in geometry_reconciliations
+  )
+  assert planner.diagnostics[
+    'global_reflected_shock_remesh_euler_ambient_physical_field_accepted'
+  ] is False
+  ambient_physical_fields = planner.diagnostics[
+    'global_reflected_shock_remesh_euler_ambient_physical_fields'
+  ]
+  assert len(ambient_physical_fields) == 2
+  assert all(
+    row['field_available']
+    and row['geometry_reconciliation_verified']
+    and row['ambient_physical_field']['status'] == (
+      'euler_physical_ambient_boundary_failure'
+    )
+    and not row['ambient_physical_field']['physical_closure_verified']
+    for row in ambient_physical_fields
+  )
+  assert planner.diagnostics[
     'global_reflected_shock_remesh_independent_measurement'
   ]['status'] == 'converged'
   assert planner.production_claim_allowed is False

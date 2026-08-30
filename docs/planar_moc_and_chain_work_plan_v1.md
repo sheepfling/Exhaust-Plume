@@ -3069,3 +3069,32 @@ state is substituted. The next physics task is still the globally coupled
 reflected shock/free-boundary construction whose axis, shock geometry,
 entropy, and Euler residuals close together, followed by refinement and
 indexed external validation.
+
+## Geometry-conditioned Euler shock reconciliation checkpoint
+
+The global remesh planner now retains a second, independent interpretation of
+each selected shock geometry through
+``fit_euler_consistent_shock_boundary_from_geometry``. It derives the local
+downstream turn from the actual retained shock tangent, then re-solves the
+attached oblique shock and normalized Rankine--Hugoniot jump. This closes the
+question "can this stored geometry carry a locally conservative shock?" without
+silently treating the existing global attempt's downstream angles as physical
+boundary data.
+
+The canonical two-attempt sweep passes this geometry-conditioned local Euler
+reconciliation with a mixed-characteristic orientation. The original
+downstream-angle fit remains independently recorded and is not replaced. Each
+reconciliation is also sent to the exact ambient physical-field assembler as a
+coupling probe. Both canonical attempts stop at ambient attachment because the
+reconciled post-shock pressure does not match the source-band ambient pressure;
+the reports retain that typed failure rather than adjusting the shock or
+ambient boundary after the fact.
+
+This is evidence for a local shock-boundary seam only. It does not close the
+reflected axis, the downstream characteristic field, or a continued shock-cell
+chain. The planner still retains one seed cell, zero physical chain cells,
+``chain_promotion_blocked=true``, and
+``production_claim_allowed=false``. The next implementation gate is a global
+free-boundary solve that couples the remeshed ``C-`` frontier, shock geometry,
+ambient attachment, and reflected centerline in one converged problem, then
+provides refinement evidence and indexed external observations.

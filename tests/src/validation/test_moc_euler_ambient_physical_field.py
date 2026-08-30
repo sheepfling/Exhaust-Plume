@@ -7,6 +7,7 @@ from exhaust_plume.models.moc import (
   CharacteristicFamily,
   CharacteristicState,
   MocChainTerminationReason,
+  MocEulerShockBoundaryStatus,
   MocEulerAmbientFirstWedgeRemeshStatus,
   MocEulerAmbientFirstWedgeCharacteristicStatus,
   MocEulerAmbientFirstWedgeCharacteristicFieldStatus,
@@ -15,6 +16,7 @@ from exhaust_plume.models.moc import (
   MocEulerAmbientPhysicalFieldStatus,
   assemble_euler_ambient_physical_field,
   fit_euler_consistent_shock_boundary,
+  fit_euler_consistent_shock_boundary_from_geometry,
   plan_euler_ambient_first_wedge_remesh_mock,
   plan_euler_ambient_first_wedge_characteristic_remesh,
   plan_euler_ambient_first_wedge_characteristic_field,
@@ -187,6 +189,62 @@ def _refined_shaped_exact_shock(sample_count: int):
       for state, turn in zip(upstream_states, turns, strict=True)
     ),
   )
+
+
+def test_geometry_conditioned_euler_shock_reconciliation_closes_local_curve() -> None:
+  shock = _shaped_exact_shock()
+
+  result = fit_euler_consistent_shock_boundary_from_geometry(
+    shock.upstream_states,
+    shock.upstream_static_pressure_Pa,
+    shock.shock_points_m,
+  )
+
+  assert result.status is MocEulerShockBoundaryStatus.CONVERGED_LOCAL_SHOCK
+  assert result.converged
+  assert result.local_euler_verified
+  assert result.companion_boundary_required
+  assert result.maximum_tangent_residual_rad is not None
+  assert result.maximum_tangent_residual_rad < 1.0e-8
+  assert result.maximum_shock_jump_residual is not None
+  assert result.maximum_shock_jump_residual < 1.0e-8
+  assert max(
+    abs(first - second)
+    for first, second in zip(
+      result.target_downstream_flow_angles_rad,
+      shock.target_downstream_flow_angles_rad,
+      strict=True,
+    )
+  ) < 1.0e-12
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+
+
+def test_geometry_conditioned_euler_shock_reconciliation_rejects_characteristic_geometry() -> None:
+  result = fit_euler_consistent_shock_boundary_from_geometry(
+    (
+      CharacteristicState(
+        x_m=0.0,
+        y_m=0.0,
+        theta_rad=0.0,
+        mach=2.0,
+        gamma=1.4,
+      ),
+      CharacteristicState(
+        x_m=1.0,
+        y_m=0.0,
+        theta_rad=0.0,
+        mach=2.0,
+        gamma=1.4,
+      ),
+    ),
+    (100000.0, 100000.0),
+    ((0.0, 0.0), (1.0, 0.0)),
+  )
+
+  assert result.status is MocEulerShockBoundaryStatus.GEOMETRY_FAILURE
+  assert not result.converged
+  assert result.chain_promotion_blocked
 
 
 def test_exact_ambient_physical_field_closes_local_mesh_but_stops_chain() -> None:

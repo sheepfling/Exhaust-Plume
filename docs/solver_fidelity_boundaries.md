@@ -1499,3 +1499,30 @@ closed reflected candidate remains below chain promotion until its independent
 Euler/refinement and indexed external-validation gates pass. No result from
 this probe updates the fast/basic visualization, signature, ray-transfer, or
 focal-plane-array providers.
+
+## Global shock-geometry reconciliation checkpoint
+
+The global reflected-shock remesh planner now records a geometry-conditioned
+Euler reconciliation for every selected attempt. The solver-owned
+``fit_euler_consistent_shock_boundary_from_geometry`` primitive differentiates
+the retained shock tangent from the downstream-angle boundary data: it derives
+the attached turn from the tangent, reconstructs the downstream state, and
+checks the local Rankine--Hugoniot and characteristic-orientation equations.
+The ordinary downstream-angle fit remains available as a separate audit, so a
+diagnostic reinterpretation cannot overwrite the original attempt.
+
+On the canonical two-attempt sweep, both retained geometries pass the local
+Euler reconciliation and are classified as mixed-characteristic boundaries.
+The planner then runs an exact ambient physical-field coupling probe against
+the same source-band ambient pressure. Both attempts fail at the ambient
+attachment residual, so the result exposes a measured global closure gap rather
+than manufacturing a closed boundary. These diagnostics are local evidence;
+they do not establish a reflected free boundary, a two-family downstream field,
+or a physical continued shock-cell chain.
+
+The fidelity boundary remains hard: the planner retains zero physical chain
+cells and keeps ``chain_promotion_blocked=true`` and
+``production_claim_allowed=false``. The next gate is a globally coupled
+reflected/free-boundary solve followed by independent Euler residual,
+refinement, and indexed external-validation evidence. The fast/basic,
+signature, ray-transfer, and focal-plane-array providers remain isolated.

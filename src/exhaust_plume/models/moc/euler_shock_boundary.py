@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from math import atan2, cos, hypot, isfinite, pi, sin, sqrt, tan
+from math import atan, atan2, cos, hypot, isfinite, pi, sin, sqrt, tan
 from typing import Any, Sequence
 
 from exhaust_plume.models.moc.compression import solve_attached_compression_to_turn
@@ -26,6 +26,7 @@ __all__ = (
   'MocEulerShockBoundaryCurveResult',
   'solve_euler_consistent_attached_shock_segment',
   'fit_euler_consistent_shock_boundary',
+  'fit_euler_consistent_shock_boundary_from_geometry',
 )
 
 
@@ -1124,4 +1125,198 @@ def fit_euler_consistent_shock_boundary(
         else 'the downstream characteristic orientation is outside the Mach cone'
       )
     ),
+  )
+
+
+def fit_euler_consistent_shock_boundary_from_geometry(
+  upstream_states: Sequence[CharacteristicState],
+  upstream_pressure_Pa: Sequence[float],
+  shock_points_m: Sequence[tuple[float, float]],
+  *,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-10,
+  shock_angle_tolerance_rad: float = 1.0e-8,
+  residual_tolerance: float = 1.0e-8,
+) -> MocEulerShockBoundaryCurveResult:
+  """Reconcile downstream turns to a retained shock geometry.
+
+  ``fit_euler_consistent_shock_boundary`` takes downstream flow angles as
+  boundary data and checks whether the supplied geometry agrees with them.
+  This companion operation reverses that local question: it derives the
+  downstream turn at each sample from the actual shock tangent, then delegates
+  the conservative Rankine--Hugoniot and characteristic-orientation checks to
+  the ordinary curve fitter.
+
+  The operation is intentionally only a geometry-conditioned boundary solve.
+  It does not infer an ambient attachment, a companion boundary, a reflected
+  post-shock field, or a continued chain cell.  In particular, a successful
+  curve is not evidence that the retained geometry came from a globally
+  coupled free-boundary solution.
+  """
+
+  try:
+    samples = tuple(upstream_states)
+    pressures = tuple(float(value) for value in upstream_pressure_Pa)
+    points = tuple(
+      (float(point[0]), float(point[1]))
+      for point in shock_points_m
+    )
+    position_tolerance = float(position_tolerance_m)
+    angle_tolerance = float(shock_angle_tolerance_rad)
+    tolerance = float(residual_tolerance)
+  except (TypeError, ValueError, IndexError):
+    return _curve_failure(
+      MocEulerShockBoundaryStatus.INVALID_INPUT,
+      'geometry-conditioned shock inputs must contain finite numeric sequences',
+      residual_tolerance=1.0e-8,
+      shock_angle_tolerance_rad=1.0e-8,
+    )
+  if not isfinite(position_tolerance) or position_tolerance <= 0.0:
+    raise ValueError('position_tolerance_m must be finite and positive')
+  if not isfinite(angle_tolerance) or angle_tolerance <= 0.0:
+    raise ValueError('shock_angle_tolerance_rad must be finite and positive')
+  if not isfinite(tolerance) or tolerance <= 0.0:
+    raise ValueError('residual_tolerance must be finite and positive')
+  if not isinstance(branch, ShockBranch):
+    return _curve_failure(
+      MocEulerShockBoundaryStatus.INVALID_INPUT,
+      'branch must be a ShockBranch',
+      residual_tolerance=tolerance,
+      shock_angle_tolerance_rad=angle_tolerance,
+    )
+  if len(samples) < 2:
+    return _curve_failure(
+      MocEulerShockBoundaryStatus.INVALID_INPUT,
+      'geometry-conditioned shock curve requires at least two samples',
+      residual_tolerance=tolerance,
+      shock_angle_tolerance_rad=angle_tolerance,
+    )
+  if not (
+    len(samples)
+    == len(pressures)
+    == len(points)
+  ):
+    return _curve_failure(
+      MocEulerShockBoundaryStatus.INVALID_INPUT,
+      'geometry-conditioned states, pressures, and points must have equal lengths',
+      residual_tolerance=tolerance,
+      shock_angle_tolerance_rad=angle_tolerance,
+    )
+  if not all(isinstance(state, CharacteristicState) for state in samples):
+    return _curve_failure(
+      MocEulerShockBoundaryStatus.INVALID_INPUT,
+      'upstream_states must contain CharacteristicState values',
+      residual_tolerance=tolerance,
+      shock_angle_tolerance_rad=angle_tolerance,
+    )
+
+  gamma = samples[0].gamma
+  for index, (state, pressure, point) in enumerate(
+    zip(samples, pressures, points, strict=True)
+  ):
+    if abs(state.gamma - gamma) > tolerance:
+      return _curve_failure(
+        MocEulerShockBoundaryStatus.INVALID_INPUT,
+        f'geometry-conditioned sample {index} uses a different gamma',
+        residual_tolerance=tolerance,
+        shock_angle_tolerance_rad=angle_tolerance,
+      )
+    if (
+      not all(isfinite(value) for value in point)
+      or abs(state.x_m - point[0]) > position_tolerance
+      or abs(state.y_m - point[1]) > position_tolerance
+    ):
+      return _curve_failure(
+        MocEulerShockBoundaryStatus.INVALID_INPUT,
+        f'geometry-conditioned sample {index} state does not lie on its shock point',
+        residual_tolerance=tolerance,
+        shock_angle_tolerance_rad=angle_tolerance,
+      )
+    if not isfinite(pressure) or pressure <= 0.0:
+      return _curve_failure(
+        MocEulerShockBoundaryStatus.INVALID_INPUT,
+        f'geometry-conditioned upstream pressure {index} must be finite and positive',
+        residual_tolerance=tolerance,
+        shock_angle_tolerance_rad=angle_tolerance,
+      )
+    if index:
+      previous = points[index - 1]
+      if (
+        point[0] - previous[0] <= position_tolerance
+        or point[1] - previous[1] > position_tolerance
+      ):
+        return _curve_failure(
+          MocEulerShockBoundaryStatus.INVALID_INPUT,
+          'geometry-conditioned shock points must be strictly downstream in x and nonincreasing in y',
+          residual_tolerance=tolerance,
+          shock_angle_tolerance_rad=angle_tolerance,
+        )
+
+  target_angles: list[float] = []
+  for index, state in enumerate(samples):
+    point = points[index]
+    if index == 0:
+      tangent_angle = atan2(
+        points[1][1] - point[1],
+        points[1][0] - point[0],
+      )
+    elif index == len(points) - 1:
+      tangent_angle = atan2(
+        point[1] - points[index - 1][1],
+        point[0] - points[index - 1][0],
+      )
+    else:
+      tangent_angle = atan2(
+        points[index + 1][1] - points[index - 1][1],
+        points[index + 1][0] - points[index - 1][0],
+      )
+    shock_angle = float(tangent_angle)
+    beta = state.theta_rad - shock_angle
+    mach_angle = state.mu_rad
+    if (
+      not isfinite(beta)
+      or beta <= mach_angle
+      or beta >= 0.5 * pi
+    ):
+      return _curve_failure(
+        MocEulerShockBoundaryStatus.GEOMETRY_FAILURE,
+        (
+          f'geometry-conditioned sample {index} has no positive attached '
+          'turn on the selected shock branch'
+        ),
+        residual_tolerance=tolerance,
+        shock_angle_tolerance_rad=angle_tolerance,
+      )
+    numerator = 2.0 / tan(beta) * (
+      state.mach * state.mach * sin(beta) * sin(beta) - 1.0
+    )
+    denominator = state.mach * state.mach * (
+      state.gamma + cos(2.0 * beta)
+    ) + 2.0
+    if not isfinite(numerator) or not isfinite(denominator) or denominator <= 0.0:
+      return _curve_failure(
+        MocEulerShockBoundaryStatus.GEOMETRY_FAILURE,
+        f'geometry-conditioned sample {index} has an invalid beta-to-turn relation',
+        residual_tolerance=tolerance,
+        shock_angle_tolerance_rad=angle_tolerance,
+      )
+    turn = atan(numerator / denominator)
+    if not isfinite(turn) or turn <= 0.0:
+      return _curve_failure(
+        MocEulerShockBoundaryStatus.NONCOMPRESSIVE_TURN,
+        f'geometry-conditioned sample {index} does not require compression',
+        residual_tolerance=tolerance,
+        shock_angle_tolerance_rad=angle_tolerance,
+      )
+    target_angles.append(state.theta_rad - turn)
+
+  return fit_euler_consistent_shock_boundary(
+    samples,
+    pressures,
+    points,
+    tuple(target_angles),
+    branch=branch,
+    position_tolerance_m=position_tolerance,
+    shock_angle_tolerance_rad=angle_tolerance,
+    residual_tolerance=tolerance,
   )

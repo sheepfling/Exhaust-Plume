@@ -45,6 +45,7 @@ from exhaust_plume.models.moc.euler_shock_boundary import (
   MocEulerShockBoundaryResult,
   MocEulerShockBoundaryCurveResult,
   fit_euler_consistent_shock_boundary,
+  fit_euler_consistent_shock_boundary_from_geometry,
   solve_euler_consistent_attached_shock_segment,
 )
 from exhaust_plume.models.moc.euler_characteristic_field import (
@@ -1044,6 +1045,7 @@ __all__ = (
   'MocEulerShockBoundaryResult',
   'MocEulerShockBoundaryCurveResult',
   'fit_euler_consistent_shock_boundary',
+  'fit_euler_consistent_shock_boundary_from_geometry',
   'solve_euler_consistent_attached_shock_segment',
   'MocEulerAmbientCompanionBoundaryStatus',
   'MocEulerAmbientCompanionBoundaryResult',
