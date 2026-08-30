@@ -32,6 +32,7 @@ from exhaust_plume.models.moc import (
   MocPrescribedMixedRegimeClosureMock,
   MocPrescribedAmbientClosedPostShockChainMock,
   MocSolverGeneratedMixedRegimeClosureReference,
+  MocSolverGeneratedVariableEntropyMixedRegimeClosureReference,
   MocSolverGeneratedAmbientClosedPostShockChainReference,
   MocPostShockBoundaryState,
   MocPrimitiveStatus,
@@ -935,6 +936,83 @@ def test_continued_chain_planner_accepts_integrated_control_section_reference() 
   ] is True
   assert planner.chain_promotion_blocked
   assert planner.production_claim_allowed is False
+
+
+def test_continued_chain_planner_runs_variable_entropy_terminal_reference() -> None:
+  field = _canonical_ambient_closed_field()
+
+  planner = (
+    plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closure_with_mixed_regime(
+      field,
+      start_x_m=0.5,
+      end_x_m=8.0,
+      terminal_end_x_m=5.0,
+      reference=MocTerminalReflectionPatchAmbientClosureChainReference(
+        total_cell_count=3,
+      ),
+      policy=MocChainContinuationPolicy(max_cells=5, require_state_carry=True),
+      variable_entropy_solver=(
+        MocSolverGeneratedVariableEntropyMixedRegimeClosureReference()
+      ),
+    )
+  )
+
+  assert planner.resolved
+  assert planner.physical_termination
+  assert planner.physical_closure_verified is False
+  assert planner.mixed_regime_model_closure_verified is False
+  assert planner.mixed_regime_variable_entropy_reference_verified
+  assert planner.terminal_planner is not None
+  reference = planner.terminal_planner.mixed_regime_variable_entropy_reference
+  assert reference is not None
+  assert reference.converged
+  assert reference.physical_closure_verified is False
+  assert reference.chain_promotion_blocked
+  assert reference.production_claim_allowed is False
+  assert reference.control_section.source.endswith('-control-section')
+  assert planner.terminal_planner.diagnostics[
+    'mixed_regime_solver_mode'
+  ] == 'solver-owned-variable-entropy-reference'
+  assert planner.terminal_planner.diagnostics[
+    'variable_entropy_reference_audit_accepted'
+  ] is True
+  assert planner.terminal_planner.diagnostics[
+    'terminal_closure_audit_accepted'
+  ] is False
+  assert planner.chain_promotion_blocked
+  assert planner.production_claim_allowed is False
+
+
+def test_continued_chain_variable_entropy_mode_preserves_fidelity_boundary() -> None:
+  field = _canonical_ambient_closed_field()
+  variable_entropy_solver = (
+    MocSolverGeneratedVariableEntropyMixedRegimeClosureReference()
+  )
+  planner_call = {
+    'start_x_m': 0.5,
+    'end_x_m': 8.0,
+    'terminal_end_x_m': 5.0,
+    'reference': MocTerminalReflectionPatchAmbientClosureChainReference(
+      total_cell_count=3,
+    ),
+    'policy': MocChainContinuationPolicy(max_cells=5, require_state_carry=True),
+  }
+
+  with pytest.raises(ValueError, match='only one'):
+    plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closure_with_mixed_regime(
+      field,
+      **planner_call,
+      mock=MocPrescribedMixedRegimeClosureMock(),
+      variable_entropy_solver=variable_entropy_solver,
+    )
+
+  with pytest.raises(ValueError, match='cannot attach'):
+    plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closure_with_mixed_regime(
+      field,
+      **planner_call,
+      variable_entropy_solver=variable_entropy_solver,
+      attach_mixed_regime_field=True,
+    )
 
 
 def test_continued_chain_planner_records_planar_handoff_after_prefix() -> None:

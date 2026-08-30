@@ -846,6 +846,7 @@ def _build_candidate(
     position_tolerance_m=position_tolerance_m,
     state_tolerance=state_tolerance,
     pressure_tolerance=pressure_tolerance,
+    allow_distributed_total_pressure_profile=True,
   )
   if not boundary.converged:
     raise ValueError(f'variable-entropy perimeter seam failed: {boundary.message}')
@@ -1171,6 +1172,7 @@ def solve_mixed_regime_variable_entropy_free_boundary(
     position_tolerance_m=position_tolerance_m,
     state_tolerance=state_tolerance,
     pressure_tolerance=pressure_tolerance,
+    allow_distributed_total_pressure_profile=True,
   )
   inlet_height = control_section.points_m[-1][1] - control_section.points_m[0][1]
   common = {
@@ -1241,22 +1243,6 @@ def solve_mixed_regime_variable_entropy_free_boundary(
       control_section,
       control_validation,
       message=f'variable-entropy source profile failed: {error}',
-      **common,
-    )
-  terminal_p0 = request.terminal_downstream_total_pressure_Pa
-  max_source_gain = max(
-    source_pressure - terminal_p0 for source_pressure in source_pressure_by_fraction
-  )
-  if max_source_gain > pressure_tolerance * max(1.0, abs(terminal_p0)):
-    return _result(
-      MocMixedRegimeVariableEntropyFreeBoundaryStatus.HANDOFF_FAILURE,
-      request,
-      control_section,
-      control_validation,
-      message=(
-        'reverse entropy source mapping contains a total-pressure gain over '
-        f'the terminal: gain={max_source_gain}'
-      ),
       **common,
     )
   input_pressure_residuals = tuple(

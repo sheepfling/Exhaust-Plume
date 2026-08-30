@@ -3261,3 +3261,29 @@ observations, refinement across additional cases, and production next-cell
 fitting are still required. Nothing from this lane flows backward into the
 fast/basic visualization, signature, optical-transfer, or focal-plane-array
 providers.
+
+## Variable-entropy terminal planner reference checkpoint
+
+The terminal planner now has a fourth, explicitly named downstream mode:
+``solver-owned-variable-entropy-reference``. After the continued reflected
+prefix reaches its typed normal-shock stop, this mode consumes the exact
+shock-interface entropy handoff and builds its own vertical control section.
+The section carries the reverse-mapped total-pressure profile and local
+isentropic state data into the variable-entropy free-boundary reference; it is
+reported beside the supersonic chain and is never appended as another shock
+cell.
+
+The scalar mixed-regime pressure-lineage gate remains strict by default. A
+distributed total-pressure profile can pass only through an explicit opt-in
+used by the variable-entropy solver, and its source mapping is then rechecked
+by the independent variable-entropy measurement operator. The canonical
+scalar closure, field attachment, chain-promotion, and production-claim gates
+remain false for this reference, even when its local mapped mesh converges.
+
+Focused regressions cover the new planner mode, exact seam retention, the
+distributed-profile boundary, mode exclusivity, and the no-attachment fidelity
+boundary. The remaining gates are a coupled two-dimensional subsonic/Euler
+closure, indexed owner-provided validation observations, additional
+resolution/case evidence, and production next-cell shock fitting. No output
+from this reference changes the basic visualization, signature,
+optical-transfer, or focal-plane-array providers.

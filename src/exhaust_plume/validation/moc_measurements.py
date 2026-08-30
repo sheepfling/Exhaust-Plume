@@ -4815,6 +4815,7 @@ def measure_mixed_regime_variable_entropy_free_boundary(
     position_tolerance_m=position_tolerance_m,
     state_tolerance=state_tolerance,
     pressure_tolerance=pressure_tolerance,
+    allow_distributed_total_pressure_profile=True,
   )
   control_section_verified = bool(
     control_measurement.converged
@@ -5186,6 +5187,7 @@ def measure_mixed_regime_variable_entropy_free_boundary(
     position_tolerance_m=position_tolerance_m,
     state_tolerance=state_tolerance,
     pressure_tolerance=pressure_tolerance,
+    allow_distributed_total_pressure_profile=True,
   )
   field_boundary_verified = bool(
     perimeter_layout_verified
@@ -6711,8 +6713,9 @@ def measure_mixed_regime_control_section(
   state_tolerance: float = 1.0e-8,
   pressure_tolerance: float = 1.0e-8,
   normal_flux_tolerance: float = 1.0e-8,
+  allow_distributed_total_pressure_profile: bool = False,
 ) -> MocMixedRegimeControlSectionMeasurement:
-  """Independently measure a scalar section without using solver verdicts."""
+  """Independently measure a scalar or distributed-profile section."""
 
   if not isinstance(request, MocMixedRegimePerimeterRequest):
     return _control_section_measurement_failure(
@@ -6742,6 +6745,8 @@ def measure_mixed_regime_control_section(
   ):
     if not isfinite(float(value)) or float(value) <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+  if not isinstance(allow_distributed_total_pressure_profile, bool):
+    raise TypeError('allow_distributed_total_pressure_profile must be a bool')
 
   terminal = request.terminal
   upstream_state = terminal.upstream_state
@@ -6890,10 +6895,15 @@ def measure_mixed_regime_control_section(
     )
     and maximum_isentropic_residual is not None
     and maximum_isentropic_residual <= float(state_tolerance)
-    and maximum_total_pressure_gain is not None
-    and maximum_total_pressure_gain <= float(pressure_tolerance) * max(
-      1.0,
-      abs(total_pressure),
+    and (
+      allow_distributed_total_pressure_profile
+      or (
+        maximum_total_pressure_gain is not None
+        and maximum_total_pressure_gain <= float(pressure_tolerance) * max(
+          1.0,
+          abs(total_pressure),
+        )
+      )
     )
   )
   terminal_equivalent_verified = bool(

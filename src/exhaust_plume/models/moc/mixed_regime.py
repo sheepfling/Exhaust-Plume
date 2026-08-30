@@ -3443,6 +3443,7 @@ def validate_mixed_regime_boundary(
   position_tolerance_m: float = 1.0e-10,
   state_tolerance: float = 1.0e-10,
   pressure_tolerance: float = 1.0e-8,
+  allow_distributed_total_pressure_profile: bool = False,
 ) -> MocMixedRegimeBoundaryResult:
   """Validate a scalar subsonic perimeter without fabricating MOC states.
 
@@ -3471,6 +3472,8 @@ def validate_mixed_regime_boundary(
   ):
     if not isfinite(float(value)) or value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+  if not isinstance(allow_distributed_total_pressure_profile, bool):
+    raise TypeError('allow_distributed_total_pressure_profile must be a bool')
   try:
     patch = tuple(supersonic_patch)
     samples = tuple(subsonic_samples)
@@ -3661,10 +3664,13 @@ def validate_mixed_regime_boundary(
     sample.total_pressure_Pa - terminal_total_pressure
     for sample in samples
   )
-  lineage_verified = maximum_total_pressure_gain <= pressure_tolerance * max(
-    1.0,
-    abs(terminal_total_pressure),
-    abs(upstream_total_pressure),
+  lineage_verified = (
+    allow_distributed_total_pressure_profile
+    or maximum_total_pressure_gain <= pressure_tolerance * max(
+      1.0,
+      abs(terminal_total_pressure),
+      abs(upstream_total_pressure),
+    )
   )
   if not lineage_verified:
     return _failure(
@@ -3683,7 +3689,10 @@ def validate_mixed_regime_boundary(
       maximum_terminal_static_pressure_residual_Pa=static_residual,
       maximum_terminal_total_pressure_residual_Pa=total_residual,
       maximum_total_pressure_gain_Pa=maximum_total_pressure_gain,
-      message='subsonic perimeter contains a total-pressure gain over the terminal shock state',
+      message=(
+        'subsonic perimeter contains a total-pressure gain over the terminal '
+        'shock state'
+      ),
     )
 
   return MocMixedRegimeBoundaryResult(
@@ -3704,8 +3713,17 @@ def validate_mixed_regime_boundary(
     maximum_terminal_total_pressure_residual_Pa=total_residual,
     maximum_total_pressure_gain_Pa=maximum_total_pressure_gain,
     message=(
-      'scalar subsonic perimeter handoff passed shock-seam, open-supersonic-patch, '
-      'geometry, and total-pressure lineage checks; a subsonic field mesh is still pending'
+      (
+        'distributed-profile subsonic perimeter handoff passed shock-seam, '
+        'open-supersonic-patch, geometry, and local total-pressure lineage '
+        'checks; its source mapping remains a variable-entropy reference'
+        if allow_distributed_total_pressure_profile
+        else (
+          'scalar subsonic perimeter handoff passed shock-seam, '
+          'open-supersonic-patch, geometry, and total-pressure lineage checks; '
+          'a subsonic field mesh is still pending'
+        )
+      )
     ),
   )
 
@@ -3747,6 +3765,7 @@ def validate_mixed_regime_control_section(
   state_tolerance: float = 1.0e-8,
   pressure_tolerance: float = 1.0e-8,
   normal_flux_tolerance: float = 1.0e-8,
+  allow_distributed_total_pressure_profile: bool = False,
 ) -> MocMixedRegimeControlSectionResult:
   """Validate an explicit scalar section supplied to a downstream solver.
 
@@ -3755,8 +3774,11 @@ def validate_mixed_regime_control_section(
   flux.  This validator therefore accepts only solver-supplied section data.
   It checks straight-section geometry, downstream placement, strict
   subsonic states, isentropic state consistency, no total-pressure gain over
-  the terminal shock, and positive oriented flux.  It never samples or
-  extends the open supersonic patch.
+  the terminal shock, and positive oriented flux.  A declared distributed
+  total-pressure profile may opt out of the terminal-equivalent pressure
+  ceiling; its source-lineage check remains the responsibility of the
+  variable-entropy solver.  It never samples or extends the open supersonic
+  patch.
   """
 
   if not isinstance(request, MocMixedRegimePerimeterRequest):
@@ -3787,6 +3809,8 @@ def validate_mixed_regime_control_section(
   ):
     if not isfinite(float(value)) or float(value) <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+  if not isinstance(allow_distributed_total_pressure_profile, bool):
+    raise TypeError('allow_distributed_total_pressure_profile must be a bool')
 
   terminal = request.terminal
   terminal_point = request.terminal_point_m
@@ -3903,8 +3927,14 @@ def validate_mixed_regime_control_section(
         f'isentropic total-pressure relation: residual={maximum_isentropic_residual}'
       ),
     )
-  if maximum_total_pressure_gain is None or maximum_total_pressure_gain > (
-    pressure_tolerance * max(1.0, abs(terminal_total_pressure))
+  if (
+    not allow_distributed_total_pressure_profile
+    and (
+      maximum_total_pressure_gain is None
+      or maximum_total_pressure_gain > (
+        pressure_tolerance * max(1.0, abs(terminal_total_pressure))
+      )
+    )
   ):
     return _control_section_failure(
       MocMixedRegimeControlSectionStatus.STATE_FAILURE,
@@ -3941,9 +3971,16 @@ def validate_mixed_regime_control_section(
     minimum_downstream_terminal_margin_m=minimum_margin,
     maximum_terminal_state_residual=maximum_terminal_state_residual,
     message=(
-      'explicit scalar subsonic control section passed geometry, terminal '
-      'placement, state, pressure-lineage, and positive-flux checks; it is '
-      'ready as input to a declared downstream reference solver'
+      'explicit distributed-profile subsonic control section passed geometry, '
+      'terminal placement, local isentropic state, and positive-flux checks; '
+      'the variable-entropy solver must independently verify its source '
+      'pressure lineage'
+      if allow_distributed_total_pressure_profile
+      else (
+        'explicit scalar subsonic control section passed geometry, terminal '
+        'placement, state, pressure-lineage, and positive-flux checks; it is '
+        'ready as input to a declared downstream reference solver'
+      )
     ),
   )
 

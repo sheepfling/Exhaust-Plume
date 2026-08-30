@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from enum import Enum
 from hashlib import sha256
-from math import isfinite
+from math import atan2, isfinite, tan
 from types import MappingProxyType
 from typing import Any, Callable, Sequence
 
@@ -179,6 +179,10 @@ from exhaust_plume.models.moc.mixed_regime_entropy_transport import (
   MocMixedRegimeEntropyTransportResult,
   solve_mixed_regime_entropy_transport_boundary,
 )
+from exhaust_plume.models.moc.mixed_regime_variable_entropy import (
+  MocMixedRegimeVariableEntropyFreeBoundaryResult,
+  solve_mixed_regime_variable_entropy_free_boundary,
+)
 from exhaust_plume.models.moc.mixed_regime_planar import (
   MocMixedRegimePlanarFieldSolver,
   MocMixedRegimePlanarPotentialReference,
@@ -241,6 +245,7 @@ __all__ = (
   'MocCausticUpstreamContinuationPlannerResult',
   'MocPrescribedMixedRegimeClosureMock',
   'MocSolverGeneratedMixedRegimeClosureReference',
+  'MocSolverGeneratedVariableEntropyMixedRegimeClosureReference',
   'MocPrescribedPostShockChainMock',
   'MocSolverGeneratedPostShockChainReference',
   'MocFieldCoupledPostShockChainReference',
@@ -344,6 +349,7 @@ __all__ = (
   'plan_ambient_closed_post_shock_chain_terminal_patch_with_planar_handoff',
   'plan_ambient_closed_post_shock_chain_terminal_patch_mock',
   'plan_ambient_closed_post_shock_chain_terminal_patch_reference',
+  'plan_ambient_closed_post_shock_chain_terminal_patch_variable_entropy_reference',
   'plan_first_cell_terminal_closure',
   'plan_first_cell_free_boundary_correction',
   'plan_prescribed_first_cell_terminal_closure_mock',
@@ -2876,6 +2882,218 @@ class MocSolverGeneratedMixedRegimeClosureReference:
 
 
 @dataclass(frozen=True, slots=True)
+class MocSolverGeneratedVariableEntropyMixedRegimeClosureReference:
+  """Planner reference that carries shock entropy into a mapped subsonic field.
+
+  The reference owns the downstream control section instead of accepting one
+  from a caller.  Its section is a deterministic vertical cut beginning at
+  the terminal axis; total pressure and gamma are reverse-mapped from the
+  exact shock-interface entropy handoff.  The resulting field is a local
+  variable-entropy stream-tube reference, not a canonical two-dimensional
+  Euler or reflected-MOC closure.
+  """
+
+  control_section_offset_m: float = 0.02
+  control_section_height_m: float = 0.05
+  control_section_sample_count: int = 4
+  downstream_length_m: float = 0.20
+  initial_outlet_height_m: float = 0.04
+  ambient_pressure_Pa: float | None = None
+  ambient_pressure_ratio: float = 0.98
+  axial_station_count: int = 7
+  maximum_iterations: int = 32
+  model: str = (
+    'solver-owned-streamline-variable-entropy-free-boundary-reference'
+  )
+
+  def __post_init__(self) -> None:
+    for name, value in (
+      ('control_section_offset_m', self.control_section_offset_m),
+      ('control_section_height_m', self.control_section_height_m),
+      ('downstream_length_m', self.downstream_length_m),
+      ('initial_outlet_height_m', self.initial_outlet_height_m),
+      ('ambient_pressure_ratio', self.ambient_pressure_ratio),
+    ):
+      if not isfinite(float(value)) or float(value) <= 0.0:
+        raise ValueError(f'{name} must be finite and positive')
+    if self.ambient_pressure_ratio >= 1.0:
+      raise ValueError('ambient_pressure_ratio must be less than one')
+    if self.ambient_pressure_Pa is not None and (
+      not isfinite(float(self.ambient_pressure_Pa))
+      or self.ambient_pressure_Pa <= 0.0
+    ):
+      raise ValueError(
+        'ambient_pressure_Pa must be finite and positive when supplied'
+      )
+    for name, value, minimum in (
+      ('control_section_sample_count', self.control_section_sample_count, 3),
+      ('axial_station_count', self.axial_station_count, 5),
+      ('maximum_iterations', self.maximum_iterations, 1),
+    ):
+      if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
+        raise ValueError(
+          f'{name} must be an integer greater than or equal to {minimum}'
+        )
+    model = str(self.model)
+    if not model:
+      raise ValueError('model must be a non-empty string')
+    object.__setattr__(
+      self,
+      'control_section_offset_m',
+      float(self.control_section_offset_m),
+    )
+    object.__setattr__(
+      self,
+      'control_section_height_m',
+      float(self.control_section_height_m),
+    )
+    object.__setattr__(self, 'downstream_length_m', float(self.downstream_length_m))
+    object.__setattr__(
+      self,
+      'initial_outlet_height_m',
+      float(self.initial_outlet_height_m),
+    )
+    object.__setattr__(
+      self,
+      'ambient_pressure_Pa',
+      None
+      if self.ambient_pressure_Pa is None
+      else float(self.ambient_pressure_Pa),
+    )
+    object.__setattr__(self, 'ambient_pressure_ratio', float(self.ambient_pressure_ratio))
+    object.__setattr__(self, 'model', model)
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    return False
+
+  def _ambient_pressure(
+    self,
+    handoff: MocMixedRegimeEntropyHandoffResult,
+  ) -> float:
+    if self.ambient_pressure_Pa is not None:
+      return self.ambient_pressure_Pa
+    if not handoff.samples:
+      raise ValueError('entropy handoff must contain samples')
+    return (
+      self.ambient_pressure_ratio
+      * handoff.samples[0].downstream_total_pressure_Pa
+    )
+
+  def build_control_section(
+    self,
+    request: MocMixedRegimePerimeterRequest,
+    handoff: MocMixedRegimeEntropyHandoffResult,
+  ) -> MocMixedRegimeControlSection:
+    """Build the solver-owned vertical section from the exact entropy seam."""
+
+    if not isinstance(request, MocMixedRegimePerimeterRequest):
+      raise TypeError('request must be a MocMixedRegimePerimeterRequest')
+    if not isinstance(handoff, MocMixedRegimeEntropyHandoffResult):
+      raise TypeError(
+        'handoff must be a MocMixedRegimeEntropyHandoffResult'
+      )
+    if handoff.request != request:
+      raise ValueError('entropy handoff must retain the exact mixed-regime request')
+    if not handoff.converged or not handoff.entropy_transport_verified:
+      raise ValueError(
+        'a converged entropy handoff is required to build the control section'
+      )
+    terminal_state = request.terminal.upstream_state
+    if terminal_state is None:
+      raise ValueError('terminal does not expose an upstream state')
+    terminal_mach = request.terminal_downstream_mach
+    terminal_angle = request.terminal_downstream_flow_angle_rad
+    gamma = terminal_state.gamma
+    inlet_slope = tan(terminal_angle)
+    terminal_x, terminal_y = request.terminal_point_m
+    section_x = terminal_x + self.control_section_offset_m
+    fractions = tuple(
+      index / (self.control_section_sample_count - 1)
+      for index in range(self.control_section_sample_count)
+    )
+    samples = tuple(
+      MocMixedRegimeFieldSample(
+        point_m=(
+          section_x,
+          terminal_y + fraction * self.control_section_height_m,
+        ),
+        mach=terminal_mach,
+        flow_angle_rad=atan2(fraction * inlet_slope, 1.0),
+        static_pressure_Pa=(
+          total_pressure
+          / (
+            1.0 + 0.5 * (gamma - 1.0) * terminal_mach * terminal_mach
+          ) ** (gamma / (gamma - 1.0))
+        ),
+        total_pressure_Pa=total_pressure,
+        gamma=gamma,
+      )
+      for fraction in fractions
+      for source_arc in (
+        handoff.cumulative_arc_length_m[-1] * (1.0 - fraction),
+      )
+      for total_pressure in (
+        handoff.total_pressure_at_arc_length(source_arc),
+      )
+    )
+    return MocMixedRegimeControlSection(
+      points_m=tuple(sample.point_m for sample in samples),
+      samples=samples,
+      normal_angle_rad=0.0,
+      source=f'{self.model}-control-section',
+    )
+
+  def solve(
+    self,
+    request: MocMixedRegimePerimeterRequest,
+    handoff: MocMixedRegimeEntropyHandoffResult,
+    *,
+    control_section: MocMixedRegimeControlSection | None = None,
+  ) -> MocMixedRegimeVariableEntropyFreeBoundaryResult:
+    """Run the mapped variable-entropy reference from the exact seam."""
+
+    if control_section is None:
+      control_section = self.build_control_section(request, handoff)
+    elif not isinstance(control_section, MocMixedRegimeControlSection):
+      raise TypeError(
+        'control_section must be a MocMixedRegimeControlSection or None'
+      )
+    return solve_mixed_regime_variable_entropy_free_boundary(
+      request,
+      handoff,
+      control_section,
+      ambient_pressure_Pa=self._ambient_pressure(handoff),
+      downstream_length_m=self.downstream_length_m,
+      initial_outlet_height_m=self.initial_outlet_height_m,
+      axial_station_count=self.axial_station_count,
+      maximum_iterations=self.maximum_iterations,
+    )
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'model': self.model,
+      'planning_only': True,
+      'production_claim_allowed': self.production_claim_allowed,
+      'control_section_offset_m': self.control_section_offset_m,
+      'control_section_height_m': self.control_section_height_m,
+      'control_section_sample_count': self.control_section_sample_count,
+      'downstream_length_m': self.downstream_length_m,
+      'initial_outlet_height_m': self.initial_outlet_height_m,
+      'ambient_pressure_Pa': self.ambient_pressure_Pa,
+      'ambient_pressure_ratio': self.ambient_pressure_ratio,
+      'axial_station_count': self.axial_station_count,
+      'maximum_iterations': self.maximum_iterations,
+      'control_section_model': 'solver-owned-vertical-entropy-mapped-section',
+      'claim_status': (
+        'solver-owned-variable-entropy-free-boundary-reference; '
+        'canonical-2d-euler-reflected-moc-and-external-validation-pending'
+      ),
+    }
+  ####
+
+
+@dataclass(frozen=True, slots=True)
 class MocFirstCellFreeBoundaryCorrectionPlannerResult:
   """Planner guard for a first-cell free-boundary correction.
 
@@ -3177,6 +3395,9 @@ class MocPhysicalPostShockTerminalPatchPlannerResult:
   mixed_regime_planar_handoff: MocMixedRegimePlanarSolveResult | None = None
   mixed_regime_entropy_handoff: MocMixedRegimeEntropyHandoffResult | None = None
   mixed_regime_entropy_transport: MocMixedRegimeEntropyTransportResult | None = None
+  mixed_regime_variable_entropy_reference: (
+    MocMixedRegimeVariableEntropyFreeBoundaryResult | None
+  ) = None
 
   def __post_init__(self) -> None:
     if not isinstance(self.chain_planner, MocChainPlannerResult):
@@ -3226,6 +3447,28 @@ class MocPhysicalPostShockTerminalPatchPlannerResult:
         raise ValueError(
           'mixed_regime_reference must retain the exact transition seam'
         )
+    if self.mixed_regime_variable_entropy_reference is not None:
+      if not isinstance(
+        self.mixed_regime_variable_entropy_reference,
+        MocMixedRegimeVariableEntropyFreeBoundaryResult,
+      ):
+        raise TypeError(
+          'mixed_regime_variable_entropy_reference must be a '
+          'MocMixedRegimeVariableEntropyFreeBoundaryResult or None'
+        )
+      if self.transition is not None:
+        if self.transition.mixed_regime_request is None:
+          raise ValueError(
+            'mixed_regime_variable_entropy_reference requires a transition '
+            'mixed-regime seam'
+          )
+        if self.mixed_regime_variable_entropy_reference.request != (
+          self.transition.mixed_regime_request
+        ):
+          raise ValueError(
+            'mixed_regime_variable_entropy_reference must retain the exact '
+            'transition seam'
+          )
     if self.mixed_regime_planar_handoff is not None:
       if not isinstance(
         self.mixed_regime_planar_handoff,
@@ -3334,6 +3577,18 @@ class MocPhysicalPostShockTerminalPatchPlannerResult:
     )
 
   @property
+  def mixed_regime_variable_entropy_reference_verified(self) -> bool:
+    """Whether the independent variable-entropy reference audit passed."""
+
+    return bool(
+      self.mixed_regime_variable_entropy_reference is not None
+      and self.mixed_regime_variable_entropy_reference.converged
+      and self.diagnostics.get(
+        'variable_entropy_reference_audit_accepted'
+      ) is True
+    )
+
+  @property
   def mixed_regime_planar_handoff_verified(self) -> bool:
     """Whether the adjacent planar downstream seam passed its local gates."""
 
@@ -3422,6 +3677,14 @@ class MocPhysicalPostShockTerminalPatchPlannerResult:
         None
         if self.mixed_regime_reference is None
         else self.mixed_regime_reference.as_report()
+      ),
+      'mixed_regime_variable_entropy_reference': (
+        None
+        if self.mixed_regime_variable_entropy_reference is None
+        else self.mixed_regime_variable_entropy_reference.as_report()
+      ),
+      'mixed_regime_variable_entropy_reference_verified': (
+        self.mixed_regime_variable_entropy_reference_verified
       ),
       'mixed_regime_planar_handoff': (
         None
@@ -3537,6 +3800,15 @@ class MocAmbientClosedPostShockChainTerminalPlannerResult:
     )
 
   @property
+  def mixed_regime_variable_entropy_reference_verified(self) -> bool:
+    """Whether the terminal variable-entropy reference audit passed."""
+
+    return bool(
+      self.terminal_planner is not None
+      and self.terminal_planner.mixed_regime_variable_entropy_reference_verified
+    )
+
+  @property
   def mixed_regime_planar_handoff(self) -> MocMixedRegimePlanarSolveResult | None:
     """Return the optional planar handoff beside the continued prefix."""
 
@@ -3620,6 +3892,9 @@ class MocAmbientClosedPostShockChainTerminalPlannerResult:
       'physical_closure_verified': self.physical_closure_verified,
       'mixed_regime_model_closure_verified': (
         self.mixed_regime_model_closure_verified
+      ),
+      'mixed_regime_variable_entropy_reference_verified': (
+        self.mixed_regime_variable_entropy_reference_verified
       ),
       'mixed_regime_planar_handoff_verified': (
         self.mixed_regime_planar_handoff_verified
@@ -19751,6 +20026,9 @@ def plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closu
   terminal_policy: MocChainContinuationPolicy | None = None,
   mock: MocPrescribedMixedRegimeClosureMock | None = None,
   solver: MocSolverGeneratedMixedRegimeClosureReference | None = None,
+  variable_entropy_solver: (
+    MocSolverGeneratedVariableEntropyMixedRegimeClosureReference | None
+  ) = None,
   solve_field: Callable[
     [MocMixedRegimePerimeterRequest],
     MocMixedRegimeFieldResult | None,
@@ -19767,10 +20045,11 @@ def plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closu
   The reflected-patch reference owns the accepted supersonic prefix.  Once a
   new physical field has actually been accepted into that prefix, this
   wrapper sends that final field through the one-step terminal-patch planner.
-  The terminal planner may exercise the prescribed mixed-regime mock or the
-  scalar free-boundary reference, but its result remains separate from the
-  supersonic cells.  If the prefix stops before a new field is accepted, no
-  terminal result is fabricated.
+  The terminal planner may exercise the prescribed mixed-regime mock, the
+  scalar free-boundary reference, or the solver-owned variable-entropy
+  reference, but its result remains separate from the supersonic cells.  If
+  the prefix stops before a new field is accepted, no terminal result is
+  fabricated.
 
   This is a research orchestration helper.  It does not promote the chain or
   any mixed-regime field into the fast visualization or reduced-order
@@ -19951,6 +20230,7 @@ def plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closu
     policy=effective_terminal_policy,
     mock=mock,
     solver=solver,
+    variable_entropy_solver=variable_entropy_solver,
     solve_field=solve_field,
     control_section=control_section,
     use_integrated_flux=use_integrated_flux,
@@ -19970,6 +20250,9 @@ def plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closu
     'terminal_physical_closure_verified': terminal.physical_closure_verified,
     'terminal_mixed_regime_model_closure_verified': (
       terminal.mixed_regime_model_closure_verified
+    ),
+    'terminal_mixed_regime_variable_entropy_reference_verified': (
+      terminal.mixed_regime_variable_entropy_reference_verified
     ),
     'terminal_report': terminal.as_report(),
   })
@@ -20984,6 +21267,9 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
   policy: MocChainContinuationPolicy | None = None,
   mock: MocPrescribedMixedRegimeClosureMock | None = None,
   solver: MocSolverGeneratedMixedRegimeClosureReference | None = None,
+  variable_entropy_solver: (
+    MocSolverGeneratedVariableEntropyMixedRegimeClosureReference | None
+  ) = None,
   solve_field: Callable[
     [MocMixedRegimePerimeterRequest],
     MocMixedRegimeFieldResult | None,
@@ -21002,7 +21288,8 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
   supersonic lane.  Once that transition reaches a typed normal-shock stop,
   the retained request is sent to exactly one explicitly selected downstream
   mode: the default prescribed mock, the solver-owned scalar free-boundary
-  reference, or a caller-supplied mixed-regime field callback.  The returned
+  reference, the solver-owned variable-entropy free-boundary reference, or a
+  caller-supplied mixed-regime field callback.  The returned
   mixed-regime result is evidence beside the chain by default.  Callers may
   explicitly set ``attach_mixed_regime_field`` to retain a field on the
   terminal transition after the exact seam checks pass; that still never
@@ -21010,7 +21297,9 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
   ``free_boundary_refinement_sample_counts`` optionally reruns the
   solver-owned reference at increasing perimeter resolutions and records the
   independent refinement measurement; it is valid only with ``solver``.
-  ``control_section`` is accepted only with ``solver``.  The default section
+  ``control_section`` is accepted only with ``solver``.  The variable-entropy
+  reference builds its own vertical section from the exact entropy handoff.
+  The default section
   mode requires terminal-equivalent scalar states; ``use_integrated_flux``
   selects the explicitly named distributed-flux quasi-one-dimensional
   reference for a varying section.
@@ -21032,6 +21321,14 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
     raise TypeError(
       'solver must be a MocSolverGeneratedMixedRegimeClosureReference or None'
     )
+  if variable_entropy_solver is not None and not isinstance(
+    variable_entropy_solver,
+    MocSolverGeneratedVariableEntropyMixedRegimeClosureReference,
+  ):
+    raise TypeError(
+      'variable_entropy_solver must be a '
+      'MocSolverGeneratedVariableEntropyMixedRegimeClosureReference or None'
+    )
   if solve_field is not None and not callable(solve_field):
     raise TypeError('solve_field must be callable when supplied')
   if control_section is not None and not isinstance(
@@ -21041,8 +21338,16 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
     raise TypeError(
       'control_section must be a MocMixedRegimeControlSection or None'
     )
-  if control_section is not None and solver is None:
+  if (
+    control_section is not None
+    and solver is None
+    and variable_entropy_solver is None
+  ):
     raise ValueError('control_section requires the solver-generated reference')
+  if control_section is not None and variable_entropy_solver is not None:
+    raise ValueError(
+      'control_section is solver-owned for the variable-entropy reference'
+    )
   if not isinstance(use_integrated_flux, bool):
     raise TypeError('use_integrated_flux must be a bool')
   if use_integrated_flux and control_section is None:
@@ -21053,6 +21358,11 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
     raise ValueError('control_section is supported only by the solver-generated reference')
   if not isinstance(attach_mixed_regime_field, bool):
     raise TypeError('attach_mixed_regime_field must be a bool')
+  if attach_mixed_regime_field and variable_entropy_solver is not None:
+    raise ValueError(
+      'the variable-entropy reference cannot attach its research field to '
+      'the terminal mixed-regime closure'
+    )
   if (
     mixed_regime_entropy_source_arc_length_m is None
   ) != (
@@ -21096,10 +21406,13 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
         'free boundary refinement sample counts must increase strictly'
       )
   supplied_modes = sum(
-    value is not None for value in (mock, solver, solve_field)
+    value is not None
+    for value in (mock, solver, variable_entropy_solver, solve_field)
   )
   if supplied_modes > 1:
-    raise ValueError('supply only one of mock, solver, or solve_field')
+    raise ValueError(
+      'supply only one of mock, solver, variable_entropy_solver, or solve_field'
+    )
   if supplied_modes == 0:
     mock = MocPrescribedMixedRegimeClosureMock()
 
@@ -21134,6 +21447,10 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
 
   mixed_regime_closure: MocMixedRegimeClosureResult | None = None
   mixed_regime_reference: MocMixedRegimeFreeBoundaryResult | None = None
+  mixed_regime_variable_entropy_reference: (
+    MocMixedRegimeVariableEntropyFreeBoundaryResult | None
+  ) = None
+  variable_entropy_control_section: MocMixedRegimeControlSection | None = None
   mixed_regime_entropy_handoff: MocMixedRegimeEntropyHandoffResult | None = None
   diagnostics: dict[str, Any] = {
     'planner_model': 'ambient-closed-field-terminal-patch-mixed-regime-planner',
@@ -21168,6 +21485,9 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
     'terminal_supersonic_audit_accepted': False,
     'free_boundary_reference_audit': None,
     'free_boundary_reference_audit_accepted': False,
+    'variable_entropy_reference_audit': None,
+    'variable_entropy_reference_audit_accepted': False,
+    'variable_entropy_control_section': None,
     'free_boundary_refinement_sample_counts': (
       list(refinement_counts) if refinement_counts else None
     ),
@@ -21190,6 +21510,13 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
     )
     if control_section is not None:
       diagnostics['control_section'] = control_section.as_report()
+  elif variable_entropy_solver is not None:
+    diagnostics['mixed_regime_solver_mode'] = (
+      'solver-owned-variable-entropy-reference'
+    )
+    diagnostics['solver_generated_variable_entropy_reference'] = (
+      variable_entropy_solver.as_report()
+    )
   else:
     diagnostics['mixed_regime_solver_mode'] = 'caller-supplied-field'
 
@@ -21234,6 +21561,27 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
           else solver.solve(request)
         )
         mixed_regime_closure = mixed_regime_reference.closure
+      elif variable_entropy_solver is not None:
+        if mixed_regime_entropy_handoff is None or not entropy_verified:
+          raise ValueError(
+            'variable-entropy reference requires a verified entropy handoff'
+          )
+        variable_entropy_control_section = (
+          variable_entropy_solver.build_control_section(
+            request,
+            mixed_regime_entropy_handoff,
+          )
+        )
+        diagnostics['variable_entropy_control_section'] = (
+          variable_entropy_control_section.as_report()
+        )
+        mixed_regime_variable_entropy_reference = (
+          variable_entropy_solver.solve(
+            request,
+            mixed_regime_entropy_handoff,
+            control_section=variable_entropy_control_section,
+          )
+        )
       else:
         assert solve_field is not None
         mixed_regime_closure = run_mixed_regime_closure_solver(
@@ -21257,9 +21605,23 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
         diagnostics['solver_generated_mixed_regime_result'] = (
           mixed_regime_reference.as_report()
         )
+      if mixed_regime_variable_entropy_reference is not None:
+        diagnostics['solver_generated_variable_entropy_result'] = (
+          mixed_regime_variable_entropy_reference.as_report()
+        )
+        diagnostics['mixed_regime_variable_entropy_reference_status'] = (
+          mixed_regime_variable_entropy_reference.status.value
+        )
       if mixed_regime_closure is not None and not mixed_regime_closure.converged:
         diagnostics['mixed_regime_closure_message'] = (
           mixed_regime_closure.message
+        )
+      if (
+        mixed_regime_variable_entropy_reference is not None
+        and not mixed_regime_variable_entropy_reference.converged
+      ):
+        diagnostics['mixed_regime_variable_entropy_reference_message'] = (
+          mixed_regime_variable_entropy_reference.message
         )
 
       terminal_closure_audit_accepted = False
@@ -21380,6 +21742,46 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
                 and refinement_measurement.chain_promotion_blocked
                 and not refinement_measurement.production_claim_allowed
               )
+
+      variable_entropy_reference_audit_accepted = False
+      if mixed_regime_variable_entropy_reference is not None:
+        try:
+          if mixed_regime_entropy_handoff is None:
+            raise ValueError(
+              'variable-entropy reference has no exact entropy handoff'
+            )
+          from exhaust_plume.validation.moc_measurements import (
+            measure_mixed_regime_variable_entropy_free_boundary,
+          )
+
+          variable_entropy_measurement = (
+            measure_mixed_regime_variable_entropy_free_boundary(
+              request,
+              mixed_regime_entropy_handoff,
+              mixed_regime_variable_entropy_reference.control_section,
+              mixed_regime_variable_entropy_reference,
+            )
+          )
+        except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+          diagnostics['variable_entropy_reference_audit_error'] = str(error)
+        else:
+          diagnostics['variable_entropy_reference_audit'] = (
+            variable_entropy_measurement.as_report()
+          )
+          variable_entropy_reference_audit_accepted = bool(
+            variable_entropy_measurement.converged
+            and variable_entropy_measurement.reference_verified
+            and variable_entropy_measurement.chain_promotion_blocked
+            and not variable_entropy_measurement.physical_closure_verified
+            and not variable_entropy_measurement.production_claim_allowed
+            and mixed_regime_variable_entropy_reference.converged
+            and mixed_regime_variable_entropy_reference.chain_promotion_blocked
+            and not mixed_regime_variable_entropy_reference.physical_closure_verified
+            and not mixed_regime_variable_entropy_reference.production_claim_allowed
+          )
+          diagnostics['variable_entropy_reference_audit_accepted'] = (
+            variable_entropy_reference_audit_accepted
+          )
       if (
         attach_mixed_regime_field
         and mixed_regime_closure is not None
@@ -21454,6 +21856,9 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
     diagnostics=diagnostics,
     mixed_regime_entropy_handoff=mixed_regime_entropy_handoff,
     mixed_regime_entropy_transport=mixed_regime_entropy_transport,
+    mixed_regime_variable_entropy_reference=(
+      mixed_regime_variable_entropy_reference
+    ),
   )
 ####
 
@@ -21951,6 +22356,34 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_reference(
     end_x_m=end_x_m,
     terminal_end_x_m=terminal_end_x_m,
     solver=reference,
+    **kwargs,
+  )
+####
+
+
+def plan_ambient_closed_post_shock_chain_terminal_patch_variable_entropy_reference(
+  seed: MocPhysicalPostShockFieldResult,
+  *,
+  start_x_m: float,
+  end_x_m: float,
+  terminal_end_x_m: float,
+  solver: (
+    MocSolverGeneratedVariableEntropyMixedRegimeClosureReference | None
+  ) = None,
+  **kwargs: Any,
+) -> MocPhysicalPostShockTerminalPatchPlannerResult:
+  """Run the terminal transition through the variable-entropy reference."""
+
+  reference = (
+    MocSolverGeneratedVariableEntropyMixedRegimeClosureReference()
+    if solver is None else solver
+  )
+  return plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
+    seed,
+    start_x_m=start_x_m,
+    end_x_m=end_x_m,
+    terminal_end_x_m=terminal_end_x_m,
+    variable_entropy_solver=reference,
     **kwargs,
   )
 ####

@@ -1089,6 +1089,28 @@ def test_mixed_regime_boundary_rejects_total_pressure_gain() -> None:
   assert not result.total_pressure_lineage_verified
 
 
+def test_mixed_regime_boundary_distributed_profile_requires_explicit_opt_in() -> None:
+  terminal = _terminal()
+  assert terminal.downstream_total_pressure_Pa is not None
+  result = validate_mixed_regime_boundary(
+    terminal,
+    _supersonic_patch(),
+    supersonic_patch_converged=True,
+    subsonic_samples=_samples(
+      terminal,
+      interior_total_pressure=terminal.downstream_total_pressure_Pa * 1.1,
+    ),
+    allow_distributed_total_pressure_profile=True,
+  )
+
+  assert result.status is MocMixedRegimeBoundaryStatus.CONVERGED_BOUNDARY_HANDOFF
+  assert result.converged
+  assert result.total_pressure_lineage_verified
+  assert result.maximum_total_pressure_gain_Pa is not None
+  assert result.maximum_total_pressure_gain_Pa > 0.0
+  assert 'distributed-profile' in result.message
+
+
 def test_downstream_condition_can_select_only_the_declared_boundary_edges() -> None:
   terminal = _terminal()
   boundary = validate_mixed_regime_boundary(
