@@ -241,6 +241,7 @@ def test_internal_entropy_characteristic_shock_coupling_has_independent_audit() 
   assert audit.incoming_handoff_verified
   assert audit.path_coverage_verified is False
   assert audit.status_consistent
+  assert audit.fidelity_flags_verified
   assert audit.field_audit is not None
   assert audit.field_audit.local_consistency_verified
   assert audit.termination_reason == (

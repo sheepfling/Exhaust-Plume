@@ -70,6 +70,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicShockCouplingAudit:
   physical_closure_verified: bool
   chain_promotion_blocked: bool
   production_claim_allowed: bool
+  fidelity_flags_verified: bool
   termination_reason: str | None
   maximum_state_residual: float | None = None
   maximum_pressure_residual: float | None = None
@@ -125,6 +126,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicShockCouplingAudit:
       'physical_closure_verified',
       'chain_promotion_blocked',
       'production_claim_allowed',
+      'fidelity_flags_verified',
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
@@ -164,6 +166,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicShockCouplingAudit:
         )
       )
       and self.status_consistent
+      and self.fidelity_flags_verified
       and not self.physical_closure_verified
       and self.chain_promotion_blocked
       and not self.production_claim_allowed
@@ -190,6 +193,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicShockCouplingAudit:
       'physical_closure_verified': False,
       'chain_promotion_blocked': True,
       'production_claim_allowed': False,
+      'fidelity_flags_verified': self.fidelity_flags_verified,
       'termination_reason': self.termination_reason,
       'message': self.message,
     }
@@ -210,6 +214,7 @@ def _failure(
   physical_closure_verified: bool = False,
   chain_promotion_blocked: bool = True,
   production_claim_allowed: bool = False,
+  fidelity_flags_verified: bool = False,
   termination_reason: str | None = None,
   maximum_state_residual: float | None = None,
   maximum_pressure_residual: float | None = None,
@@ -230,6 +235,7 @@ def _failure(
     physical_closure_verified=physical_closure_verified,
     chain_promotion_blocked=chain_promotion_blocked,
     production_claim_allowed=production_claim_allowed,
+    fidelity_flags_verified=fidelity_flags_verified,
     termination_reason=termination_reason,
     maximum_state_residual=maximum_state_residual,
     maximum_pressure_residual=maximum_pressure_residual,
@@ -282,6 +288,20 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_shock_coupling(
       'the retained entropy-characteristic field failed its independent audit',
       coupling_status=coupling.status.value,
       field_audit=field_audit,
+    )
+  fidelity_flags_verified = bool(
+    coupling.physical_closure_verified is False
+    and coupling.chain_promotion_blocked
+    and coupling.production_claim_allowed is False
+  )
+  if not fidelity_flags_verified:
+    return _failure(
+      MocEulerAmbientFirstWedgeEntropyCharacteristicShockCouplingAuditStatus
+      .FLAG_FAILURE,
+      'bounded entropy-characteristic shock coupling weakened its fidelity boundary',
+      coupling_status=coupling.status.value,
+      field_audit=field_audit,
+      fidelity_flags_verified=False,
     )
   incoming_handoff_verified = coupling.incoming_handoff == field.continuation_boundary
   if not incoming_handoff_verified:
@@ -441,6 +461,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_shock_coupling(
       incoming_handoff_verified=True,
       path_coverage_verified=path_coverage_verified,
       status_consistent=False,
+      fidelity_flags_verified=True,
       covered_sample_count=covered_count,
       first_missing_sample_index=first_missing,
       termination_reason=coupling.as_chain_termination_decision().reason.value,
@@ -456,6 +477,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_shock_coupling(
     incoming_handoff_verified=True,
     path_coverage_verified=path_coverage_verified,
     status_consistent=True,
+    fidelity_flags_verified=True,
     covered_sample_count=covered_count,
     first_missing_sample_index=first_missing,
     termination_reason=coupling.as_chain_termination_decision().reason.value,

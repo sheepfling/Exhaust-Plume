@@ -11880,6 +11880,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or not euler_ambient_first_wedge_entropy_characteristic_shock_coupling_audit.incoming_handoff_verified
     or euler_ambient_first_wedge_entropy_characteristic_shock_coupling_audit.path_coverage_verified
     or not euler_ambient_first_wedge_entropy_characteristic_shock_coupling_audit.status_consistent
+    or not euler_ambient_first_wedge_entropy_characteristic_shock_coupling_audit.fidelity_flags_verified
     or euler_ambient_first_wedge_entropy_characteristic_shock_coupling_audit.covered_sample_count
     != 1
     or euler_ambient_first_wedge_entropy_characteristic_shock_coupling_audit.first_missing_sample_index

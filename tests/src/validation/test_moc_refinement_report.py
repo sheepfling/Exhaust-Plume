@@ -384,6 +384,7 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert entropy_characteristic_shock_coupling['independent_audit']['incoming_handoff_verified'] is True
   assert entropy_characteristic_shock_coupling['independent_audit']['path_coverage_verified'] is False
   assert entropy_characteristic_shock_coupling['independent_audit']['status_consistent'] is True
+  assert entropy_characteristic_shock_coupling['independent_audit']['fidelity_flags_verified'] is True
   assert entropy_characteristic_shock_coupling['independent_audit']['first_missing_sample_index'] == 1
   assert entropy_characteristic_shock_coupling['coupling']['physical_closure_verified'] is False
   assert entropy_characteristic_shock_coupling['coupling']['chain_promotion_blocked'] is True
