@@ -3129,3 +3129,30 @@ validation are still separate gates. It contributes zero physical chain
 cells, cannot update the basic visualization, signature, ray-transfer, or
 focal-plane-array lanes, and remains the explicit handoff for the next
 refinement and external-observation work.
+
+## Global exact-Euler resolution audit checkpoint
+
+The local bridge now has an independent resolution operator,
+``measure_moc_reflected_domain_global_euler_shock_boundary_refinement``. It
+accepts caller-retained exact-Euler fields at declared resolutions, reruns no
+solver, and independently remeasures the source seam, endpoint Mach-wave
+tangents, shock-boundary audit, and conservative cell residuals. The operator
+also requires strictly increasing shock sample counts, non-decreasing field
+cell counts, finite residuals, at least one residual reduction, and a
+converging continuous source-frontier location.
+
+The direct canonical fixture passes the 5/9/11 ladder with 19/53/76 field
+cells and decreasing maximum cell Euler residuals of approximately
+``5.84e-4``, ``3.61e-4``, and ``3.01e-4``. The standalone solver-generated
+report uses its stable 9/11/13 ladder with 53/76/103 cells; its bounded
+five-sample attempt is retained as a typed attempt failure rather than being
+omitted or treated as a converged coarse case. This keeps resolution evidence
+specific to the source lineage that produced it.
+
+Passing this operator is local numerical refinement evidence only. Its report
+sets ``canonical_free_boundary_verified=false``,
+``canonical_euler_verified=false``, and
+``external_validation_verified=false``; it keeps
+``chain_promotion_blocked=true`` and contributes no promoted physical cells.
+The missing indexed observation archive remains the next gate before any
+physical shock-cell-chain promotion or product-provider change.

@@ -262,6 +262,13 @@ from exhaust_plume.validation.moc_euler_refinement import (
   MocEulerAmbientFirstWedgeRemeshRefinementMeasurement,
   measure_moc_euler_ambient_first_wedge_remesh_refinement,
 )
+from exhaust_plume.validation.moc_reflected_domain_refinement import (
+  MOC_REFLECTED_DOMAIN_GLOBAL_EULER_SHOCK_BOUNDARY_REFINEMENT_OPERATOR_ID,
+  MocReflectedDomainGlobalEulerShockBoundaryRefinementStatus,
+  MocReflectedDomainGlobalEulerShockBoundaryRefinementCase,
+  MocReflectedDomainGlobalEulerShockBoundaryRefinementMeasurement,
+  measure_moc_reflected_domain_global_euler_shock_boundary_refinement,
+)
 from exhaust_plume.validation.moc_euler_characteristic import (
   MOC_EULER_AMBIENT_FIRST_WEDGE_CHARACTERISTIC_AUDIT_OPERATOR_ID,
   MocEulerAmbientFirstWedgeCharacteristicAuditStatus,
@@ -442,6 +449,7 @@ __all__ = (
   'MOC_REFLECTED_DOMAIN_SOLVER_OWNED_FIRST_CELL_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_GLOBAL_SHOCK_REMESH_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_GLOBAL_EULER_SHOCK_BOUNDARY_OPERATOR_ID',
+  'MOC_REFLECTED_DOMAIN_GLOBAL_EULER_SHOCK_BOUNDARY_REFINEMENT_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_ALTERNATING_PHYSICAL_FIELD_CHAIN_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_ALTERNATING_PHYSICAL_FIELD_CHAIN_REFINEMENT_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_OUTER_SOURCE_OPERATOR_ID',
@@ -498,6 +506,9 @@ __all__ = (
   'MocReflectedDomainGlobalShockRemeshMeasurementStatus',
   'MocReflectedDomainGlobalEulerShockBoundaryMeasurement',
   'MocReflectedDomainGlobalEulerShockBoundaryMeasurementStatus',
+  'MocReflectedDomainGlobalEulerShockBoundaryRefinementStatus',
+  'MocReflectedDomainGlobalEulerShockBoundaryRefinementCase',
+  'MocReflectedDomainGlobalEulerShockBoundaryRefinementMeasurement',
   'MocReflectedDomainAlternatingPhysicalFieldChainMeasurement',
   'MocReflectedDomainAlternatingPhysicalFieldChainMeasurementStatus',
   'MocReflectedDomainAlternatingPhysicalFieldChainRefinementCase',
@@ -673,6 +684,7 @@ __all__ = (
   'measure_moc_reflected_domain_solver_owned_first_cell',
   'measure_moc_reflected_domain_global_shock_remesh',
   'measure_moc_reflected_domain_global_euler_shock_boundary',
+  'measure_moc_reflected_domain_global_euler_shock_boundary_refinement',
   'measure_moc_reflected_domain_alternating_physical_field_chain',
   'measure_moc_reflected_domain_alternating_physical_field_chain_refinement',
   'measure_moc_reflected_domain_outer_source_curve',

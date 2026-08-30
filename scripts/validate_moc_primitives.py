@@ -325,6 +325,11 @@ from exhaust_plume.validation.moc_external_comparisons import (  # noqa: E402
   audit_moc_external_validation_splits,
   review_moc_shock_cell_external_promotion,
 )
+from exhaust_plume.validation.moc_reflected_domain_refinement import (  # noqa: E402
+  MocReflectedDomainGlobalEulerShockBoundaryRefinementCase,
+  MocReflectedDomainGlobalEulerShockBoundaryRefinementStatus,
+  measure_moc_reflected_domain_global_euler_shock_boundary_refinement,
+)
 from exhaust_plume.validation.moc_euler import (  # noqa: E402
   MocEulerAmbientCompanionBoundaryAuditStatus,
   MocEulerAmbientShockFieldAuditStatus,
@@ -989,6 +994,8 @@ def _reflected_domain_remesh_probe(
   global_euler_shock_boundary = None
   global_euler_shock_boundary_measurement = None
   global_euler_shock_boundary_error = None
+  global_euler_shock_boundary_refinement = None
+  global_euler_shock_boundary_refinement_error = None
   try:
     if alternating_source is None:
       raise ValueError('alternating source fixture did not converge')
@@ -1020,6 +1027,47 @@ def _reflected_domain_remesh_probe(
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     global_shock_remesh_error = f'{type(error).__name__}: {error}'
     global_euler_shock_boundary_error = f'{type(error).__name__}: {error}'
+
+  if (
+    alternating_source is not None
+    and global_euler_shock_boundary is not None
+  ):
+    try:
+      refinement_cases = [
+        MocReflectedDomainGlobalEulerShockBoundaryRefinementCase(
+          resolution=9,
+          result=global_euler_shock_boundary,
+        ),
+      ]
+      for resolution in (11, 13):
+        resolution_remesh = solve_reflected_domain_global_shock_remesh(
+          alternating_source,
+          outer_source_indices=(2,),
+          target_centerline_indices=(3,),
+          compression_amplitude_lower_rad=0.007,
+          compression_amplitude_upper_rad=0.03,
+          compression_envelope_skews=(0.0,),
+          sample_count=resolution,
+          shock_angle_tolerance_rad=0.02,
+        )
+        refinement_cases.append(
+          MocReflectedDomainGlobalEulerShockBoundaryRefinementCase(
+            resolution=resolution,
+            result=solve_reflected_domain_global_euler_shock_boundary(
+              resolution_remesh,
+            ),
+          )
+        )
+      refinement_cases.sort(key=lambda case: case.resolution)
+      global_euler_shock_boundary_refinement = (
+        measure_moc_reflected_domain_global_euler_shock_boundary_refinement(
+          tuple(refinement_cases),
+        )
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      global_euler_shock_boundary_refinement_error = (
+        f'{type(error).__name__}: {error}'
+      )
 
   solver_owned_first_cell_planner = None
   solver_owned_first_cell_planner_error = None
@@ -1379,6 +1427,14 @@ def _reflected_domain_remesh_probe(
     and global_euler_shock_boundary_measurement.local_euler_consistency_verified
     and global_euler_shock_boundary_measurement.physical_closure_verified
     and global_euler_shock_boundary_measurement.fidelity_isolation_verified
+    and global_euler_shock_boundary_refinement is not None
+    and global_euler_shock_boundary_refinement.status is (
+      MocReflectedDomainGlobalEulerShockBoundaryRefinementStatus.CONVERGED
+    )
+    and global_euler_shock_boundary_refinement.converged
+    and global_euler_shock_boundary_refinement.local_consistency_verified
+    and global_euler_shock_boundary_refinement.physical_closure_verified
+    and global_euler_shock_boundary_refinement.fidelity_isolation_verified
     and global_shock_remesh_planner is not None
     and global_shock_remesh_planner.production_claim_allowed is False
     and global_shock_remesh_planner.chain.resolved
@@ -1543,6 +1599,14 @@ def _reflected_domain_remesh_probe(
     ),
     'global_reflected_shock_remesh_global_euler_closure_error': (
       global_euler_shock_boundary_error
+    ),
+    'global_reflected_shock_remesh_global_euler_closure_refinement': (
+      None
+      if global_euler_shock_boundary_refinement is None
+      else global_euler_shock_boundary_refinement.as_report()
+    ),
+    'global_reflected_shock_remesh_global_euler_closure_refinement_error': (
+      global_euler_shock_boundary_refinement_error
     ),
     'global_reflected_shock_remesh_planner': (
       None

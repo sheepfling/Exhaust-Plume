@@ -1540,3 +1540,17 @@ free-boundary evidence, refinement, mixed-regime continuation, and indexed
 external observations are still required. No result from this bridge may
 promote a chain cell or update the basic visualization, signature,
 ray-transfer, or focal-plane-array providers.
+
+The bridge's refinement evidence is a separate operator,
+``op.moc.reflected-domain-global-euler-shock-boundary-refinement``. It only
+remeasures retained fields supplied at declared resolutions; it does not
+rerun the solver or reinterpret a refined field as a physical chain cell. Its
+gates include ordered sample/cell growth, independent source and Euler audits,
+finite non-worsening residuals with a measured reduction, endpoint tangent
+agreement, and continuous-frontier convergence. The canonical 5/9/11 fixture
+passes with 19/53/76 cells; the solver-generated report records a stable
+9/11/13 ladder with 53/76/103 cells because its five-sample attempt fails the
+bounded first-cell solve. Both are retained as lineage-specific research
+evidence. The operator leaves canonical and external validation false,
+``chain_promotion_blocked=true``, and all fast/basic, signature,
+ray-transfer, and focal-plane-array providers untouched.

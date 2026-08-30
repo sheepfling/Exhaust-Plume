@@ -101,6 +101,9 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   alternating_physical_chain_refinement = reflected_domain[
     'alternating_physical_field_chain_refinement'
   ]
+  global_euler_refinement = reflected_domain[
+    'global_reflected_shock_remesh_global_euler_closure_refinement'
+  ]
   reflected_probe = report['geometry_cases']['reflected_zone_shock_coupling']
   reflected_chain_boundary = report['geometry_cases']['reflected_zone_chain_boundary_probe']
   trace_extension = report['geometry_cases']['reflected_boundary_trace_extension']
@@ -179,6 +182,21 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert generated['pressure_loss_verified'] is True
   assert refinement['status'] == 'diagnostic-all-solver-generated-resolutions-converged'
   assert len(refinement['cases']) == 3
+  assert global_euler_refinement['status'] == (
+    'converged_global_euler_shock_boundary_refinement'
+  )
+  assert global_euler_refinement['local_consistency_verified'] is True
+  assert global_euler_refinement['resolutions'] == [9, 11, 13]
+  assert global_euler_refinement['shock_sample_counts'] == [9, 11, 13]
+  assert global_euler_refinement['field_cell_counts'] == [53, 76, 103]
+  assert global_euler_refinement['checks'][
+    'residual_nonincreasing_verified'
+  ] is True
+  assert global_euler_refinement['checks']['residual_decrease_verified'] is True
+  assert global_euler_refinement['checks']['chain_promotion_blocked'] is True
+  assert global_euler_refinement['production_claim_allowed'] is False
+  assert global_euler_refinement['canonical_euler_verified'] is False
+  assert global_euler_refinement['external_validation_verified'] is False
   assert generated_chain['accepted'] is True
   assert generated_chain['resolved'] is True
   assert generated_chain['cell_count'] == 5

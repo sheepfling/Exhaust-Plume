@@ -76,6 +76,11 @@ from exhaust_plume.validation.moc_measurements import (
   measure_moc_reflected_domain_outer_source_curve,
   measure_moc_reflected_domain_remesh,
 )
+from exhaust_plume.validation.moc_reflected_domain_refinement import (
+  MocReflectedDomainGlobalEulerShockBoundaryRefinementCase,
+  MocReflectedDomainGlobalEulerShockBoundaryRefinementStatus,
+  measure_moc_reflected_domain_global_euler_shock_boundary_refinement,
+)
 
 
 def _canonical_field():
@@ -1096,6 +1101,78 @@ def test_global_euler_shock_boundary_closes_continuous_source_frontier():
   assert report['source_frontier_verified'] is True
   assert report['shock_boundary']['zero_strength_endpoints_allowed'] is True
   assert report['physical_field']['physical_closure_verified'] is True
+
+
+def test_global_euler_shock_boundary_refinement_audits_resolution_ladder():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  source = solve_reflected_domain_alternating_source(patch, ambient_pressure)
+  cases = []
+  for resolution in (5, 9, 11):
+    global_result = solve_reflected_domain_global_shock_remesh(
+      source,
+      outer_source_indices=(2,),
+      target_centerline_indices=(3,),
+      compression_amplitude_lower_rad=0.007,
+      compression_amplitude_upper_rad=0.03,
+      compression_envelope_skews=(0.0,),
+      sample_count=resolution,
+      shock_angle_tolerance_rad=0.02,
+    )
+    cases.append(
+      MocReflectedDomainGlobalEulerShockBoundaryRefinementCase(
+        resolution=resolution,
+        result=solve_reflected_domain_global_euler_shock_boundary(
+          global_result,
+        ),
+      )
+    )
+
+  measurement = measure_moc_reflected_domain_global_euler_shock_boundary_refinement(
+    tuple(cases),
+  )
+
+  assert measurement.status is (
+    MocReflectedDomainGlobalEulerShockBoundaryRefinementStatus.CONVERGED
+  )
+  assert measurement.converged
+  assert measurement.local_consistency_verified
+  assert measurement.resolutions == (5, 9, 11)
+  assert measurement.shock_sample_counts == (5, 9, 11)
+  assert measurement.field_cell_counts == (19, 53, 76)
+  assert measurement.residual_nonincreasing_verified
+  assert measurement.residual_decrease_verified
+  assert measurement.endpoint_tangents_verified
+  assert measurement.source_frontier_convergence_verified
+  assert measurement.physical_closure_verified
+  assert measurement.fidelity_isolation_verified
+  assert measurement.chain_promotion_blocked
+  assert measurement.production_claim_allowed is False
+  assert measurement.as_report()['canonical_euler_verified'] is False
+  assert measurement.as_report()['external_validation_verified'] is False
+
+  tampered_cases = (
+    *cases[:-1],
+    replace(
+      cases[-1],
+      result=replace(
+        cases[-1].result,
+        first_endpoint_tangent_residual_rad=0.25,
+      ),
+    ),
+  )
+  tampered_measurement = (
+    measure_moc_reflected_domain_global_euler_shock_boundary_refinement(
+      tampered_cases,
+    )
+  )
+  assert tampered_measurement.status is (
+    MocReflectedDomainGlobalEulerShockBoundaryRefinementStatus.CASE_FAILURE
+  )
+  assert tampered_measurement.case_audits_verified is False
+  assert tampered_measurement.audits[-1].endpoint_tangents_verified is False
+  assert tampered_measurement.converged is False
 
 
 def test_global_euler_shock_boundary_rejects_invalid_tolerance_as_typed_result():
