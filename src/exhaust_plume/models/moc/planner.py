@@ -127,6 +127,9 @@ from exhaust_plume.models.moc.euler_entropy_characteristic_coupling import (
 from exhaust_plume.models.moc.euler_entropy_characteristic_free_boundary import (
   solve_euler_ambient_first_wedge_entropy_characteristic_free_boundary,
 )
+from exhaust_plume.models.moc.euler_entropy_characteristic_continuation import (
+  solve_euler_ambient_first_wedge_entropy_characteristic_continuation,
+)
 from exhaust_plume.models.moc.euler_entropy_refinement import (
   MocEulerAmbientFirstWedgeEntropyCarryRefinementResult,
   refine_euler_ambient_first_wedge_entropy_carry,
@@ -263,6 +266,7 @@ __all__ = (
   'plan_euler_ambient_first_wedge_entropy_characteristic_field_chain_mock',
   'plan_euler_ambient_first_wedge_entropy_characteristic_shock_coupling_probe',
   'plan_euler_ambient_first_wedge_entropy_characteristic_free_boundary_probe',
+  'plan_euler_ambient_first_wedge_entropy_characteristic_continuation_probe',
   'MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerStep',
   'MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerResult',
   'plan_euler_ambient_first_wedge_entropy_carry_refinement',
@@ -12801,6 +12805,94 @@ def plan_euler_ambient_first_wedge_entropy_characteristic_free_boundary_probe(
     ),
     'reflected_free_boundary_attempt_count': len(attempt_reports),
     'reflected_free_boundary_attempts': attempt_reports,
+    'external_validation_required': True,
+    'synthetic_downstream_field_created': False,
+    'physical_chain_cell_count': 0,
+  })
+  return replace(planner, diagnostics=diagnostics)
+
+
+def plan_euler_ambient_first_wedge_entropy_characteristic_continuation_probe(
+  seed: MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult,
+  *,
+  ambient_pressure_Pa: float,
+  cycle_count: int = 4,
+  target_centerline_y_m: float = 0.0,
+  target_centerline_flow_angle_rad: float = 0.0,
+  position_tolerance_m: float = 1.0e-8,
+  characteristic_residual_tolerance: float = 1.0e-8,
+  pressure_lineage_tolerance: float = 1.0e-8,
+  cell_residual_tolerance: float = 1.0e-2,
+  maximum_iterations: int = 48,
+) -> MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainPlannerResult:
+  """Run one bounded variable-entropy source-band continuation attempt.
+
+  The continuation result is recorded as a typed planner stop.  The planner
+  intentionally does not replay the bounded source band as an entropy field
+  or manufacture physical ``MocChainCell`` values from its interpolated
+  samples; those remain downstream Euler and external-validation gates.
+  """
+
+  if not isinstance(
+    seed,
+    MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult,
+  ):
+    raise TypeError(
+      'seed must be a '
+      'MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult'
+    )
+  attempt_reports: list[dict[str, Any]] = []
+
+  def solve_next(
+    current: MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult,
+    _next_field_index: int,
+    incoming_handoff: tuple[MocChainBoundarySample, ...],
+  ) -> MocChainTerminationDecision:
+    attempt = solve_euler_ambient_first_wedge_entropy_characteristic_continuation(
+      current,
+      incoming_handoff,
+      ambient_pressure_Pa,
+      cycle_count=cycle_count,
+      target_centerline_y_m=target_centerline_y_m,
+      target_centerline_flow_angle_rad=target_centerline_flow_angle_rad,
+      position_tolerance_m=position_tolerance_m,
+      characteristic_residual_tolerance=characteristic_residual_tolerance,
+      pressure_lineage_tolerance=pressure_lineage_tolerance,
+      cell_residual_tolerance=cell_residual_tolerance,
+      maximum_iterations=maximum_iterations,
+    )
+    attempt_report = attempt.as_report()
+    attempt_reports.append(attempt_report)
+    decision = attempt.as_chain_termination_decision()
+    diagnostics = dict(decision.diagnostics)
+    diagnostics.update({
+      'planner_model': (
+        'euler-ambient-first-wedge-entropy-characteristic-continuation-probe'
+      ),
+      'continuation_attempt': attempt_report,
+      'external_validation_required': True,
+      'synthetic_downstream_field_created': False,
+      'physical_chain_cell_count': 0,
+    })
+    return replace(decision, diagnostics=diagnostics)
+
+  planner = plan_euler_ambient_first_wedge_entropy_characteristic_field_chain(
+    seed,
+    solve_next,
+    total_field_count=1,
+    position_tolerance_m=position_tolerance_m,
+    claim_status=(
+      'solver-generated-bounded-euler-entropy-characteristic-continuation-'
+      'probe; reflected-shock-and-physical-chain-closure-pending'
+    ),
+  )
+  diagnostics = dict(planner.diagnostics)
+  diagnostics.update({
+    'planner_model': (
+      'euler-ambient-first-wedge-entropy-characteristic-continuation-probe'
+    ),
+    'continuation_attempt_count': len(attempt_reports),
+    'continuation_attempts': attempt_reports,
     'external_validation_required': True,
     'synthetic_downstream_field_created': False,
     'physical_chain_cell_count': 0,

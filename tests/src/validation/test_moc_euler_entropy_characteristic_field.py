@@ -11,6 +11,7 @@ from exhaust_plume.models.moc import (
   MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainMock,
   MocEulerAmbientFirstWedgeEntropyCharacteristicShockCouplingStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryStatus,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationStatus,
   MocEulerAmbientFirstWedgeEntropyCarryStatus,
   assemble_euler_ambient_physical_field,
   plan_euler_ambient_first_wedge_entropy_characteristic_field,
@@ -18,11 +19,13 @@ from exhaust_plume.models.moc import (
   plan_euler_ambient_first_wedge_entropy_characteristic_field_chain_mock,
   plan_euler_ambient_first_wedge_entropy_characteristic_shock_coupling_probe,
   plan_euler_ambient_first_wedge_entropy_characteristic_free_boundary_probe,
+  plan_euler_ambient_first_wedge_entropy_characteristic_continuation_probe,
   solve_euler_ambient_first_wedge_characteristic_remesh,
   solve_euler_ambient_first_wedge_entropy_carry,
   solve_euler_ambient_first_wedge_entropy_characteristic_field,
   solve_euler_ambient_first_wedge_entropy_characteristic_shock_coupling,
   solve_euler_ambient_first_wedge_entropy_characteristic_free_boundary,
+  solve_euler_ambient_first_wedge_entropy_characteristic_continuation,
   solve_attached_compression_to_turn,
   fit_euler_consistent_shock_boundary,
 )
@@ -31,10 +34,12 @@ from exhaust_plume.validation import (
   MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainAuditStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicShockCouplingAuditStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryAuditStatus,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationAuditStatus,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_field,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_field_chain,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_shock_coupling,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_free_boundary,
+  measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation,
 )
 
 
@@ -346,6 +351,129 @@ def test_internal_entropy_characteristic_free_boundary_planner_and_audit_keep_st
   assert audit.physical_closure_verified is False
   assert audit.chain_promotion_blocked
   assert audit.production_claim_allowed is False
+
+
+def test_internal_entropy_characteristic_continuation_builds_bounded_cell_band() -> None:
+  _, field = _internal_field()
+  ambient_pressure = field.static_pressure_at(
+    field.continuation_boundary[0].point_m,
+  )
+  assert ambient_pressure is not None
+
+  result = solve_euler_ambient_first_wedge_entropy_characteristic_continuation(
+    field,
+    field.continuation_boundary,
+    ambient_pressure,
+    cycle_count=4,
+  )
+
+  assert result.status is (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationStatus
+    .CONVERGED_BOUNDED_CONTINUATION
+  )
+  assert result.converged
+  assert result.local_consistency_verified
+  assert result.state_sampling_available
+  assert result.ambient_pressure_Pa == ambient_pressure
+  assert len(result.centerline_states) == 4
+  assert len(result.outer_states) == 4
+  assert len(result.centerline_segments) == 4
+  assert len(result.outer_segments) == 4
+  assert result.terminal_segment is not None
+  assert len(result.cells) == 7
+  assert len(result.cell_samples) == 7
+  assert result.topology.connected
+  assert result.topology.forms_closed_zone
+  assert result.topology.nonmanifold_edge_count == 0
+  assert result.continuation_boundary_verified
+  assert len(result.continuation_boundary) == 2
+  assert result.cell_euler_residuals_finite
+  assert result.maximum_cell_euler_residual is not None
+  assert result.maximum_cell_euler_residual > 1.0e-2
+  assert result.cell_euler_residuals_verified is False
+  assert result.physical_closure_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+
+  for sample in result.cell_samples:
+    centroid = tuple(
+      sum(point[index] for point in sample.vertices_xr_m) / 3.0
+      for index in (0, 1)
+    )
+    assert result.state_at(centroid) is not None
+    assert result.total_pressure_at(centroid) is not None
+    assert result.static_pressure_at(centroid) is not None
+  assert result.state_at((2.0, 0.2)) is None
+
+
+def test_internal_entropy_characteristic_continuation_audit_keeps_euler_gate_separate() -> None:
+  _, field = _internal_field()
+  ambient_pressure = field.static_pressure_at(
+    field.continuation_boundary[0].point_m,
+  )
+  assert ambient_pressure is not None
+  result = solve_euler_ambient_first_wedge_entropy_characteristic_continuation(
+    field,
+    field.continuation_boundary,
+    ambient_pressure,
+    cycle_count=4,
+  )
+
+  audit = measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation(
+    result,
+  )
+
+  assert audit.status is (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationAuditStatus
+    .CONVERGED_LOCAL_CONTINUATION_AUDIT
+  )
+  assert audit.converged
+  assert audit.local_consistency_verified
+  assert audit.field_audit is not None
+  assert audit.field_audit.local_consistency_verified
+  assert audit.incoming_handoff_verified
+  assert audit.segment_links_verified
+  assert audit.reflection_anchor_verified
+  assert audit.alternating_seams_verified
+  assert audit.pressure_lineage_verified
+  assert audit.ambient_boundary_verified
+  assert audit.continuation_boundary_verified
+  assert audit.topology_verified
+  assert audit.cell_samples_verified
+  assert audit.cell_euler_residuals_finite
+  assert audit.cell_euler_residuals_verified is False
+  assert audit.status_consistent
+  assert audit.fidelity_flags_verified
+  assert audit.physical_closure_verified is False
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False
+
+
+def test_internal_entropy_characteristic_continuation_planner_records_typed_stop() -> None:
+  _, field = _internal_field()
+  ambient_pressure = field.static_pressure_at(
+    field.continuation_boundary[0].point_m,
+  )
+  assert ambient_pressure is not None
+
+  planner = plan_euler_ambient_first_wedge_entropy_characteristic_continuation_probe(
+    field,
+    ambient_pressure_Pa=ambient_pressure,
+    cycle_count=4,
+  )
+
+  assert planner.field_count == 1
+  assert planner.continued_field_count == 0
+  assert planner.termination.reason is MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+  assert planner.termination.physical_termination is False
+  assert planner.diagnostics['continuation_attempt_count'] == 1
+  assert planner.diagnostics['continuation_attempts'][0]['cell_count'] == 7
+  assert planner.diagnostics['external_validation_required'] is True
+  assert planner.diagnostics['synthetic_downstream_field_created'] is False
+  assert planner.physical_chain_cell_count == 0
+  assert planner.physical_closure_verified is False
+  assert planner.chain_promotion_blocked
+  assert planner.production_claim_allowed is False
 
 
 def test_internal_entropy_characteristic_field_has_independent_audit() -> None:

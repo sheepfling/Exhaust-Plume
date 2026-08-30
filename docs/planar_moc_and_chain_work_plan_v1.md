@@ -2841,3 +2841,32 @@ Next implementation sequence:
 - keep the planner mock and the higher-fidelity lane separately labeled in
   visualization reports so exploratory chain views cannot be mistaken for a
   production solver.
+
+## Bounded continued shock-cell-chain source band
+
+The first solver-owned continuation beyond the finite entropy field is now
+implemented as ``solve_euler_ambient_first_wedge_entropy_characteristic_continuation``.
+It solves alternating variable-entropy ``C-`` centerline reflections and
+``C+`` ambient-boundary segments, transports the retained log-total-pressure
+gradient, and emits a bounded seven-cell source band for the canonical
+four-cycle fixture. The outgoing perimeter is a typed two-sample ``C-``
+handoff, so the next research solver has a concrete frontier rather than a
+translated or interpolated mock field.
+
+The associated
+``plan_euler_ambient_first_wedge_entropy_characteristic_continuation_probe``
+records this source band as one planner attempt and terminates with
+``OPEN_PHYSICAL_CLOSURE``. It never creates a synthetic downstream field or
+physical ``MocChainCell``. The explicit replay planner mock remains separate
+and continues to serve deterministic field-sequence tests.
+
+The independent
+``op.moc.euler-ambient-first-wedge-entropy-characteristic-continuation-audit``
+recomputes segment geometry, variable-entropy compatibility, pressure
+transport, ambient matching, topology, and conservative cell residuals. The
+canonical source band passes the local characteristic audit and has finite
+Euler residuals, but its maximum residual is approximately ``0.01812``
+against the current ``0.01`` gate. The next implementation gate is therefore
+conservative refinement of this variable-entropy band, followed by a coupled
+Euler shock/free-boundary closure and indexed external validation before any
+continued shock-cell chain can be promoted.

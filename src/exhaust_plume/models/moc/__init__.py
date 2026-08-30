@@ -397,6 +397,13 @@ from exhaust_plume.models.moc.euler_entropy_characteristic_free_boundary import 
   MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryResult,
   solve_euler_ambient_first_wedge_entropy_characteristic_free_boundary,
 )
+from exhaust_plume.models.moc.euler_entropy_characteristic_continuation import (
+  MocEulerAmbientFirstWedgeEntropyCharacteristicSegmentStatus,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicSegmentResult,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationStatus,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationResult,
+  solve_euler_ambient_first_wedge_entropy_characteristic_continuation,
+)
 from exhaust_plume.models.moc.euler_entropy_refinement import (
   MocEulerAmbientFirstWedgeEntropyCarryRefinementStatus,
   MocEulerAmbientFirstWedgeEntropyCarryRefinementResult,
@@ -561,6 +568,7 @@ from exhaust_plume.models.moc.planner import (
   plan_euler_ambient_first_wedge_entropy_characteristic_field_chain_mock,
   plan_euler_ambient_first_wedge_entropy_characteristic_shock_coupling_probe,
   plan_euler_ambient_first_wedge_entropy_characteristic_free_boundary_probe,
+  plan_euler_ambient_first_wedge_entropy_characteristic_continuation_probe,
   MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerStep,
   MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerResult,
   plan_euler_ambient_first_wedge_entropy_carry_refinement,
@@ -762,6 +770,7 @@ __all__ = (
   'plan_euler_ambient_first_wedge_entropy_characteristic_field_chain_mock',
   'plan_euler_ambient_first_wedge_entropy_characteristic_shock_coupling_probe',
   'plan_euler_ambient_first_wedge_entropy_characteristic_free_boundary_probe',
+  'plan_euler_ambient_first_wedge_entropy_characteristic_continuation_probe',
   'MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerStep',
   'MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerResult',
   'plan_euler_ambient_first_wedge_entropy_carry_refinement',
@@ -1043,6 +1052,11 @@ __all__ = (
   'MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryStatus',
   'MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryResult',
   'solve_euler_ambient_first_wedge_entropy_characteristic_free_boundary',
+  'MocEulerAmbientFirstWedgeEntropyCharacteristicSegmentStatus',
+  'MocEulerAmbientFirstWedgeEntropyCharacteristicSegmentResult',
+  'MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationStatus',
+  'MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationResult',
+  'solve_euler_ambient_first_wedge_entropy_characteristic_continuation',
   'MocEulerAmbientFirstWedgeEntropyCarryRefinementStatus',
   'MocEulerAmbientFirstWedgeEntropyCarryRefinementResult',
   'refine_euler_ambient_first_wedge_entropy_carry',
