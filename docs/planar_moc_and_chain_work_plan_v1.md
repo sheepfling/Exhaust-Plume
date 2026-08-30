@@ -3030,3 +3030,21 @@ shows the shock crossing the original remesh frontier; that crossing is the
 declared reason the bridge exists, not evidence that the remesh was silently
 extended. A globally continued multi-cell chain remains pending indexed
 validation and refinement-stable physical promotion.
+
+## Reflected centerline seam checkpoint
+
+The physical-field terminal-patch adapter now exposes a typed
+``MocCenterlineSeamComparisonResult``. It compares the accepted upstream
+centerline trace with the axis produced by reflecting the projected terminal
+``C+`` trace, and records sample-count, coordinate, state, and total-pressure
+residuals together with the first failing sample. The comparison is evidence
+only; it does not relax the exact seam requirement or promote a chain cell.
+
+The n=32 bridge regression reaches the terminal patch and then stops with
+``STATE_NOT_CARRIED``: both traces have ten samples, the first mismatch is
+sample 2 in position, and the maximum coordinate residual is greater than
+``1e-2 m`` while state and pressure residuals remain below their tolerances.
+This is the measured global reflected/free-boundary gap: the local bridge is
+closed, but its reflected axis is not the same axis that closed the upstream
+field. The planner therefore retains one accepted source field, zero
+continued cells, and the global reconciliation solve remains the next task.

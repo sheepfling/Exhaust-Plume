@@ -8,6 +8,7 @@ import pytest
 from exhaust_plume.models.moc import (
   CharacteristicState,
   CharacteristicFamily,
+  MocChainBoundarySample,
   MocAmbientClosedChainSourceMode,
   MocAmbientClosedPostShockChainCandidate,
   MocAmbientBoundarySample,
@@ -40,6 +41,7 @@ from exhaust_plume.models.moc import (
   assemble_ambient_boundary_post_shock_field,
   assemble_ambient_boundary_post_shock_field_with_centerline_reflection,
   assemble_terminal_trace_centerline_patch,
+  compare_centerline_seam,
   build_reflected_trace_compression_profile,
   build_terminal_reflection_patch_upstream_source,
   centerline_characteristic_point,
@@ -70,6 +72,48 @@ from exhaust_plume.models.moc import (
   validate_ambient_pressure_boundary,
   validate_moc_mesh,
 )
+
+
+def test_centerline_seam_comparison_reports_pointwise_residuals() -> None:
+  expected = tuple(
+    MocChainBoundarySample(
+      state=CharacteristicState(
+        x_m=point[0],
+        y_m=point[1],
+        theta_rad=0.0,
+        mach=2.0,
+        gamma=1.4,
+      ),
+      total_pressure_Pa=1.0e6,
+    )
+    for point in ((1.0, 0.2), (1.5, 0.1), (2.0, 0.0))
+  )
+  actual = tuple(
+    MocChainBoundarySample(
+      state=replace(
+        sample.state,
+        x_m=sample.state.x_m + (0.004 if index == 1 else 0.0),
+      ),
+      total_pressure_Pa=sample.total_pressure_Pa,
+    )
+    for index, sample in enumerate(expected)
+  )
+
+  comparison = compare_centerline_seam(
+    expected,
+    actual,
+    position_tolerance_m=3.0e-3,
+    state_tolerance=1.0e-8,
+  )
+
+  assert comparison.verified is False
+  assert comparison.first_mismatch_index == 1
+  assert comparison.mismatch_kind == 'position'
+  assert comparison.maximum_coordinate_residual_m == pytest.approx(0.004)
+  assert comparison.maximum_absolute_state_residual == pytest.approx(0.0)
+  assert comparison.maximum_absolute_total_pressure_residual_Pa == pytest.approx(0.0)
+  assert comparison.maximum_relative_total_pressure_residual == pytest.approx(0.0)
+  assert comparison.as_report()['verified'] is False
 
 
 def _shock_fit() -> MocShockBoundaryFitResult:
@@ -1129,6 +1173,10 @@ def test_physical_field_terminal_patch_transition_reaches_typed_normal_shock_sto
   assert decision.physical_termination
   assert decision.reason is MocChainTerminationReason.PHYSICAL_TERMINATION
   assert decision.diagnostics['centerline_seam_verified'] is True
+  seam_report = decision.diagnostics['centerline_seam_comparison']
+  assert seam_report['verified'] is True
+  assert seam_report['expected_sample_count'] == seam_report['actual_sample_count']
+  assert seam_report['maximum_coordinate_residual_m'] < 3.0e-3
   assert decision.diagnostics['source_strip_report']['cell_count'] == 44
   assert decision.diagnostics['reflection_patch_report']['converged'] is True
   downstream_report = decision.diagnostics['downstream_shock_report']
@@ -1168,6 +1216,8 @@ def test_physical_field_terminal_patch_transition_retains_mixed_regime_seam() ->
   assert transition.chain_promotion_blocked
   assert transition.source_strip is not None
   assert transition.reflection_patch is not None
+  assert transition.centerline_seam_comparison is not None
+  assert transition.centerline_seam_comparison.verified
   assert transition.downstream_shock is not None
   assert transition.terminal_field is not None
   assert transition.terminal_field.supersonic_region_closed

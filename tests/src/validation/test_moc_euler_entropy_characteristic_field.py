@@ -7,6 +7,7 @@ from exhaust_plume.models.moc import (
   CharacteristicState,
   MocChainTerminationReason,
   MocChainTerminationDecision,
+  MocPhysicalPostShockFieldResult,
   MocEulerAmbientFirstWedgeEntropyCharacteristicFieldStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainMock,
   MocEulerAmbientFirstWedgeEntropyCharacteristicShockCouplingStatus,
@@ -36,6 +37,7 @@ from exhaust_plume.models.moc import (
   solve_euler_ambient_first_wedge_entropy_characteristic_shock_coupling,
   solve_euler_ambient_first_wedge_entropy_characteristic_free_boundary,
   solve_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary,
+  solve_ambient_closed_post_shock_chain_cell_from_terminal_reflection_patch_ambient_closure_or_termination,
   solve_euler_ambient_first_wedge_entropy_characteristic_continuation,
   extract_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier,
   audit_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier_path,
@@ -1096,6 +1098,74 @@ def test_internal_entropy_characteristic_remesh_free_boundary_planner_frontier_b
   assert attempt['external_validation_required'] is True
   assert planner.diagnostics['synthetic_downstream_field_created'] is False
   assert planner.diagnostics['physical_chain_cell_count'] == 0
+
+
+def test_internal_entropy_characteristic_bridge_records_global_centerline_seam_gap() -> None:
+  _, field = _internal_field()
+  start = field.continuation_boundary[0]
+  ambient_pressure = field.static_pressure_at(start.point_m)
+  assert ambient_pressure is not None
+  continuation = solve_euler_ambient_first_wedge_entropy_characteristic_continuation(
+    field,
+    field.continuation_boundary,
+    ambient_pressure,
+    cycle_count=4,
+  )
+  remesh = remesh_euler_ambient_first_wedge_entropy_characteristic_continuation(
+    continuation,
+    subdivision_side_count=32,
+  )
+  handoff = remesh.continuation_boundary
+  remesh_ambient_pressure = remesh.diagnostic_static_pressure_at(
+    handoff[0].point_m,
+  )
+  assert remesh_ambient_pressure is not None
+  attempt = solve_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary(
+    remesh,
+    handoff,
+    handoff[0].point_m,
+    remesh_ambient_pressure,
+    handoff[0].state.theta_rad - 1.0e-6,
+    handoff[0].state.theta_rad + 1.0e-6,
+    sample_count=9,
+    position_tolerance_m=1.0e-8,
+    allow_zero_strength_attachment=True,
+    allow_zero_strength_endpoints=True,
+    use_outgoing_frontier_bridge=True,
+  )
+  assert attempt.physical_field is not None
+  physical_field = attempt.physical_field.field
+  assert isinstance(physical_field, MocPhysicalPostShockFieldResult)
+  current = physical_field.as_coupled_chain_cell(
+    start_x_m=0.5,
+    end_x_m=physical_field.ambient_boundary_points_m[-1][0],
+    cell_index=1,
+  )
+
+  decision = (
+    solve_ambient_closed_post_shock_chain_cell_from_terminal_reflection_patch_ambient_closure_or_termination(
+      current,
+      2,
+      current.continuation_boundary,
+      physical_field,
+      end_x_m=8.0,
+      outer_downstream_flow_angle_lower_rad=handoff[0].state.theta_rad - 1.0e-6,
+      outer_downstream_flow_angle_upper_rad=handoff[0].state.theta_rad + 1.0e-6,
+      sample_count=9,
+    )
+  )
+
+  assert decision.reason is MocChainTerminationReason.STATE_NOT_CARRIED
+  assert decision.physical_termination is False
+  comparison = decision.diagnostics['centerline_seam_comparison']
+  assert comparison['verified'] is False
+  assert comparison['mismatch_kind'] == 'position'
+  assert comparison['first_mismatch_index'] == 2
+  assert comparison['expected_sample_count'] == comparison['actual_sample_count']
+  assert comparison['maximum_coordinate_residual_m'] > 1.0e-2
+  assert comparison['maximum_absolute_state_residual'] < 1.0e-10
+  assert comparison['maximum_relative_total_pressure_residual'] < 1.0e-10
+  assert decision.diagnostics['centerline_seam_verified'] is False
 
 
 def test_internal_entropy_characteristic_remesh_free_boundary_planner_keeps_boundary_typed() -> None:

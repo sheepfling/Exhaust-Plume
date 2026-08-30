@@ -78,6 +78,8 @@ if TYPE_CHECKING:
 __all__ = (
   'MocPhysicalPostShockFieldStatus',
   'MocPhysicalPostShockFieldResult',
+  'MocCenterlineSeamComparisonResult',
+  'compare_centerline_seam',
   'MocAmbientClosedPostShockChainCandidate',
   'MocPhysicalPostShockFieldContinuationSolve',
   'MocPhysicalPostShockTerminalPatchTransitionResult',
@@ -254,6 +256,276 @@ class MocAmbientClosedPostShockChainCandidate:
       ),
     }
 ####
+
+
+@dataclass(frozen=True, slots=True)
+class MocCenterlineSeamComparisonResult:
+  """Pointwise evidence for a reflected centerline seam comparison.
+
+  A reflected patch may be locally converged while its projected axis is not
+  the same geometric/state boundary as the accepted upstream field.  This
+  result keeps that distinction explicit: it measures the seam, but never
+  turns a passing comparison into a physical chain-promotion decision.
+  """
+
+  expected_sample_count: int
+  actual_sample_count: int
+  maximum_coordinate_residual_m: float | None
+  maximum_absolute_state_residual: float | None
+  maximum_absolute_total_pressure_residual_Pa: float | None
+  maximum_relative_total_pressure_residual: float | None
+  first_mismatch_index: int | None
+  mismatch_kind: str | None
+  position_tolerance_m: float
+  state_tolerance: float
+  verified: bool
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    for name in ('expected_sample_count', 'actual_sample_count'):
+      value = getattr(self, name)
+      if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f'{name} must be a nonnegative integer')
+    for name in (
+      'maximum_coordinate_residual_m',
+      'maximum_absolute_state_residual',
+      'maximum_absolute_total_pressure_residual_Pa',
+      'maximum_relative_total_pressure_residual',
+    ):
+      value = getattr(self, name)
+      if value is not None:
+        numeric_value = float(value)
+        if not isfinite(numeric_value) or numeric_value < 0.0:
+          raise ValueError(f'{name} must be finite and nonnegative when supplied')
+        object.__setattr__(self, name, numeric_value)
+    for name in ('position_tolerance_m', 'state_tolerance'):
+      numeric_value = float(getattr(self, name))
+      if not isfinite(numeric_value) or numeric_value <= 0.0:
+        raise ValueError(f'{name} must be finite and positive')
+      object.__setattr__(self, name, numeric_value)
+    if self.first_mismatch_index is not None:
+      if (
+        isinstance(self.first_mismatch_index, bool)
+        or not isinstance(self.first_mismatch_index, int)
+        or self.first_mismatch_index < 0
+      ):
+        raise ValueError(
+          'first_mismatch_index must be a nonnegative integer when supplied'
+        )
+    if self.mismatch_kind not in (
+      None,
+      'sample_count',
+      'position',
+      'state',
+      'total_pressure',
+    ):
+      raise ValueError(
+        'mismatch_kind must be sample_count, position, state, '
+        'total_pressure, or None'
+      )
+    if (self.first_mismatch_index is None) != (self.mismatch_kind is None):
+      raise ValueError(
+        'first_mismatch_index and mismatch_kind must be supplied together'
+      )
+    if self.first_mismatch_index is not None and self.first_mismatch_index > max(
+      self.expected_sample_count,
+      self.actual_sample_count,
+    ):
+      raise ValueError(
+        'first_mismatch_index must be within the compared sample counts'
+      )
+    if not isinstance(self.verified, bool):
+      raise TypeError('verified must be a bool')
+    if self.verified and (
+      self.expected_sample_count != self.actual_sample_count
+      or self.mismatch_kind is not None
+    ):
+      raise ValueError(
+        'a verified seam must have equal sample counts and no mismatch kind'
+      )
+    if not self.verified and self.mismatch_kind is None:
+      raise ValueError('an unverified seam must retain a mismatch kind')
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  def as_report(self) -> dict[str, object]:
+    return {
+      'expected_sample_count': self.expected_sample_count,
+      'actual_sample_count': self.actual_sample_count,
+      'maximum_coordinate_residual_m': self.maximum_coordinate_residual_m,
+      'maximum_absolute_state_residual': self.maximum_absolute_state_residual,
+      'maximum_absolute_total_pressure_residual_Pa': (
+        self.maximum_absolute_total_pressure_residual_Pa
+      ),
+      'maximum_relative_total_pressure_residual': (
+        self.maximum_relative_total_pressure_residual
+      ),
+      'first_mismatch_index': self.first_mismatch_index,
+      'mismatch_kind': self.mismatch_kind,
+      'position_tolerance_m': self.position_tolerance_m,
+      'state_tolerance': self.state_tolerance,
+      'verified': self.verified,
+      'message': self.message,
+    }
+  ####
+
+
+def compare_centerline_seam(
+  expected: Sequence[MocChainBoundarySample],
+  actual: Sequence[MocChainBoundarySample],
+  *,
+  position_tolerance_m: float = 5.0e-3,
+  state_tolerance: float = 1.0e-8,
+) -> MocCenterlineSeamComparisonResult:
+  """Compare two typed centerline traces without changing either trace.
+
+  The comparison order matches the chain adapter's acceptance contract:
+  sample count, point coordinates, thermodynamic state, then total pressure.
+  The returned residuals are diagnostic evidence for a future global
+  reflected/free-boundary solve; callers must still apply their own fidelity
+  and promotion policy.
+  """
+
+  try:
+    expected_trace = tuple(expected)
+    actual_trace = tuple(actual)
+  except TypeError as error:
+    raise TypeError(
+      'expected and actual centerline seams must be iterable'
+    ) from error
+  if any(
+    not isinstance(sample, MocChainBoundarySample)
+    for sample in (*expected_trace, *actual_trace)
+  ):
+    raise TypeError(
+      'expected and actual centerline seams must contain '
+      'MocChainBoundarySample values'
+    )
+  try:
+    position_tolerance = float(position_tolerance_m)
+    resolved_state_tolerance = float(state_tolerance)
+  except (TypeError, ValueError) as error:
+    raise ValueError('seam tolerances must be numeric') from error
+  if not isfinite(position_tolerance) or position_tolerance <= 0.0:
+    raise ValueError('position_tolerance_m must be finite and positive')
+  if not isfinite(resolved_state_tolerance) or resolved_state_tolerance <= 0.0:
+    raise ValueError('state_tolerance must be finite and positive')
+
+  pair_count = min(len(expected_trace), len(actual_trace))
+  maximum_coordinate_residual = None
+  maximum_state_residual = None
+  maximum_absolute_pressure_residual = None
+  maximum_relative_pressure_residual = None
+  for expected_sample, actual_sample in zip(
+    expected_trace[:pair_count],
+    actual_trace[:pair_count],
+    strict=True,
+  ):
+    expected_state = expected_sample.state
+    actual_state = actual_sample.state
+    coordinate_residual = max(
+      abs(actual_state.x_m - expected_state.x_m),
+      abs(actual_state.y_m - expected_state.y_m),
+    )
+    state_residual = max(
+      abs(actual_state.theta_rad - expected_state.theta_rad),
+      abs(actual_state.mach - expected_state.mach),
+      abs(actual_state.gamma - expected_state.gamma),
+    )
+    pressure_residual = abs(
+      actual_sample.total_pressure_Pa - expected_sample.total_pressure_Pa
+    )
+    relative_pressure_residual = pressure_residual / max(
+      1.0,
+      abs(expected_sample.total_pressure_Pa),
+      abs(actual_sample.total_pressure_Pa),
+    )
+    maximum_coordinate_residual = max(
+      coordinate_residual,
+      0.0 if maximum_coordinate_residual is None else maximum_coordinate_residual,
+    )
+    maximum_state_residual = max(
+      state_residual,
+      0.0 if maximum_state_residual is None else maximum_state_residual,
+    )
+    maximum_absolute_pressure_residual = max(
+      pressure_residual,
+      0.0
+      if maximum_absolute_pressure_residual is None
+      else maximum_absolute_pressure_residual,
+    )
+    maximum_relative_pressure_residual = max(
+      relative_pressure_residual,
+      0.0
+      if maximum_relative_pressure_residual is None
+      else maximum_relative_pressure_residual,
+    )
+
+  first_mismatch_index: int | None = None
+  mismatch_kind: str | None = None
+  message = 'centerline reflection preserved the accepted field seam'
+  if len(expected_trace) != len(actual_trace):
+    first_mismatch_index = pair_count
+    mismatch_kind = 'sample_count'
+    message = (
+      'centerline reflection changed axis sample count from '
+      f'{len(expected_trace)} to {len(actual_trace)}'
+    )
+  else:
+    for index, (expected_sample, actual_sample) in enumerate(
+      zip(expected_trace, actual_trace, strict=True)
+    ):
+      expected_state = expected_sample.state
+      actual_state = actual_sample.state
+      coordinate_residual = max(
+        abs(actual_state.x_m - expected_state.x_m),
+        abs(actual_state.y_m - expected_state.y_m),
+      )
+      if coordinate_residual > position_tolerance:
+        first_mismatch_index = index
+        mismatch_kind = 'position'
+        message = f'centerline reflection changed axis point {index}'
+        break
+      state_residual = max(
+        abs(actual_state.theta_rad - expected_state.theta_rad),
+        abs(actual_state.mach - expected_state.mach),
+        abs(actual_state.gamma - expected_state.gamma),
+      )
+      if state_residual > resolved_state_tolerance:
+        first_mismatch_index = index
+        mismatch_kind = 'state'
+        message = f'centerline reflection changed axis state {index}'
+        break
+      pressure_residual = abs(
+        actual_sample.total_pressure_Pa - expected_sample.total_pressure_Pa
+      )
+      relative_pressure_residual = pressure_residual / max(
+        1.0,
+        abs(expected_sample.total_pressure_Pa),
+        abs(actual_sample.total_pressure_Pa),
+      )
+      if relative_pressure_residual > resolved_state_tolerance:
+        first_mismatch_index = index
+        mismatch_kind = 'total_pressure'
+        message = (
+          f'centerline reflection changed axis total pressure {index}'
+        )
+        break
+  verified = mismatch_kind is None
+  return MocCenterlineSeamComparisonResult(
+    expected_sample_count=len(expected_trace),
+    actual_sample_count=len(actual_trace),
+    maximum_coordinate_residual_m=maximum_coordinate_residual,
+    maximum_absolute_state_residual=maximum_state_residual,
+    maximum_absolute_total_pressure_residual_Pa=maximum_absolute_pressure_residual,
+    maximum_relative_total_pressure_residual=maximum_relative_pressure_residual,
+    first_mismatch_index=first_mismatch_index,
+    mismatch_kind=mismatch_kind,
+    position_tolerance_m=position_tolerance,
+    state_tolerance=resolved_state_tolerance,
+    verified=verified,
+    message=message,
+  )
 
 
 @dataclass(frozen=True, slots=True)
@@ -1235,6 +1507,7 @@ class MocPhysicalPostShockTerminalPatchTransitionResult:
   terminal_field: 'MocTerminalShockCellFieldResult | None' = None
   mixed_regime_request: MocMixedRegimePerimeterRequest | None = None
   mixed_regime_field: MocMixedRegimeFieldResult | None = None
+  centerline_seam_comparison: MocCenterlineSeamComparisonResult | None = None
 
   def __post_init__(self) -> None:
     if not isinstance(self.decision, MocChainTerminationDecision):
@@ -1334,6 +1607,14 @@ class MocPhysicalPostShockTerminalPatchTransitionResult:
         raise ValueError(
           'terminal_field must retain the exact attached mixed-regime field'
         )
+    if self.centerline_seam_comparison is not None and not isinstance(
+      self.centerline_seam_comparison,
+      MocCenterlineSeamComparisonResult,
+    ):
+      raise TypeError(
+        'centerline_seam_comparison must be a '
+        'MocCenterlineSeamComparisonResult or None'
+      )
     object.__setattr__(self, 'mixed_regime_request', self.mixed_regime_request)
     object.__setattr__(self, 'mixed_regime_field', self.mixed_regime_field)
 
@@ -1502,6 +1783,11 @@ class MocPhysicalPostShockTerminalPatchTransitionResult:
         None
         if self.reflection_patch is None
         else self.reflection_patch.as_report()
+      ),
+      'centerline_seam_comparison': (
+        None
+        if self.centerline_seam_comparison is None
+        else self.centerline_seam_comparison.as_report()
       ),
       'downstream_shock': (
         None
@@ -2700,6 +2986,7 @@ def solve_ambient_closed_post_shock_terminal_patch_transition(
   downstream_shock: MocTerminalReflectionPatchShockSolveResult | None = None
   terminal_field: 'MocTerminalShockCellFieldResult | None' = None
   mixed_regime_request: MocMixedRegimePerimeterRequest | None = None
+  centerline_seam_comparison: MocCenterlineSeamComparisonResult | None = None
 
   def decision(
     reason: MocChainTerminationReason,
@@ -2720,6 +3007,7 @@ def solve_ambient_closed_post_shock_terminal_patch_transition(
       downstream_shock=downstream_shock,
       terminal_field=terminal_field,
       mixed_regime_request=mixed_regime_request,
+      centerline_seam_comparison=centerline_seam_comparison,
     )
 
   if not isinstance(current_cell, MocChainCell):
@@ -2930,58 +3218,32 @@ def solve_ambient_closed_post_shock_terminal_patch_transition(
 
   state_tolerance = max(float(invariant_tolerance), 1.0e-8)
   expected_axis = tuple(
-    zip(
-      upstream_field.centerline_boundary_points_m,
+    MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
+    for state, pressure in zip(
       upstream_field.centerline_boundary_states,
       upstream_field.centerline_boundary_total_pressure_Pa,
       strict=True,
     )
   )
   actual_axis = tuple(
-    zip(
-      patch.axis_points_m,
+    MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
+    for state, pressure in zip(
       patch.axis_states,
       patch.axis_total_pressure_Pa,
       strict=True,
     )
   )
-  seam_error: str | None = None
-  if len(actual_axis) != len(expected_axis):
-    seam_error = (
-      'centerline reflection patch changed the physical field axis sample '
-      f'count from {len(expected_axis)} to {len(actual_axis)}'
-    )
-  else:
-    for index, (expected, actual) in enumerate(zip(expected_axis, actual_axis, strict=True)):
-      expected_point, expected_state, expected_pressure = expected
-      actual_point, actual_state, actual_pressure = actual
-      if any(
-        abs(first - second) > seam_position_tolerance
-        for first, second in zip(expected_point, actual_point, strict=True)
-      ):
-        seam_error = f'centerline reflection changed axis point {index}'
-        break
-      if any(
-        abs(first - second) > state_tolerance
-        for first, second in (
-          (expected_state.theta_rad, actual_state.theta_rad),
-          (expected_state.mach, actual_state.mach),
-          (expected_state.gamma, actual_state.gamma),
-        )
-      ):
-        seam_error = f'centerline reflection changed axis state {index}'
-        break
-      if abs(expected_pressure - actual_pressure) > state_tolerance * max(
-        1.0,
-        abs(expected_pressure),
-        abs(actual_pressure),
-      ):
-        seam_error = f'centerline reflection changed axis total pressure {index}'
-        break
-  if seam_error is not None:
+  centerline_seam_comparison = compare_centerline_seam(
+    expected_axis,
+    actual_axis,
+    position_tolerance_m=seam_position_tolerance,
+    state_tolerance=state_tolerance,
+  )
+  if not centerline_seam_comparison.verified:
     common_diagnostics.update({
       'centerline_seam_verified': False,
-      'centerline_seam_error': seam_error,
+      'centerline_seam_error': centerline_seam_comparison.message,
+      'centerline_seam_comparison': centerline_seam_comparison.as_report(),
     })
     return decision(
       MocChainTerminationReason.STATE_NOT_CARRIED,
@@ -2989,6 +3251,9 @@ def solve_ambient_closed_post_shock_terminal_patch_transition(
       common_diagnostics,
     )
   common_diagnostics['centerline_seam_verified'] = True
+  common_diagnostics['centerline_seam_comparison'] = (
+    centerline_seam_comparison.as_report()
+  )
 
   start_point = patch.outgoing_trace_points_m[0]
   if start_point[0] < current_cell.end_x_m - position_tolerance_m:
@@ -3539,60 +3804,32 @@ def solve_ambient_closed_post_shock_chain_cell_from_terminal_reflection_patch_am
 
   state_tolerance = max(float(invariant_tolerance), 1.0e-8)
   expected_axis = tuple(
-    zip(
-      upstream_field.centerline_boundary_points_m,
+    MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
+    for state, pressure in zip(
       upstream_field.centerline_boundary_states,
       upstream_field.centerline_boundary_total_pressure_Pa,
       strict=True,
     )
   )
   actual_axis = tuple(
-    zip(
-      reflection_patch.axis_points_m,
+    MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
+    for state, pressure in zip(
       reflection_patch.axis_states,
       reflection_patch.axis_total_pressure_Pa,
       strict=True,
     )
   )
-  seam_error: str | None = None
-  if len(actual_axis) != len(expected_axis):
-    seam_error = (
-      'centerline reflection patch changed the physical field axis sample '
-      f'count from {len(expected_axis)} to {len(actual_axis)}'
-    )
-  else:
-    for index, (expected, actual) in enumerate(
-      zip(expected_axis, actual_axis, strict=True)
-    ):
-      expected_point, expected_state, expected_pressure = expected
-      actual_point, actual_state, actual_pressure = actual
-      if any(
-        abs(first - second) > seam_position_tolerance
-        for first, second in zip(expected_point, actual_point, strict=True)
-      ):
-        seam_error = f'centerline reflection changed axis point {index}'
-        break
-      if any(
-        abs(first - second) > state_tolerance
-        for first, second in (
-          (expected_state.theta_rad, actual_state.theta_rad),
-          (expected_state.mach, actual_state.mach),
-          (expected_state.gamma, actual_state.gamma),
-        )
-      ):
-        seam_error = f'centerline reflection changed axis state {index}'
-        break
-      if abs(expected_pressure - actual_pressure) > state_tolerance * max(
-        1.0,
-        abs(expected_pressure),
-        abs(actual_pressure),
-      ):
-        seam_error = f'centerline reflection changed axis total pressure {index}'
-        break
-  if seam_error is not None:
+  centerline_seam_comparison = compare_centerline_seam(
+    expected_axis,
+    actual_axis,
+    position_tolerance_m=seam_position_tolerance,
+    state_tolerance=state_tolerance,
+  )
+  if not centerline_seam_comparison.verified:
     common_diagnostics.update({
       'centerline_seam_verified': False,
-      'centerline_seam_error': seam_error,
+      'centerline_seam_error': centerline_seam_comparison.message,
+      'centerline_seam_comparison': centerline_seam_comparison.as_report(),
     })
     return decision(
       MocChainTerminationReason.STATE_NOT_CARRIED,
@@ -3600,6 +3837,9 @@ def solve_ambient_closed_post_shock_chain_cell_from_terminal_reflection_patch_am
       common_diagnostics,
     )
   common_diagnostics['centerline_seam_verified'] = True
+  common_diagnostics['centerline_seam_comparison'] = (
+    centerline_seam_comparison.as_report()
+  )
 
   patch_start = reflection_patch.outgoing_trace_points_m[0]
   if patch_start[0] < current_cell.end_x_m - position_tolerance:

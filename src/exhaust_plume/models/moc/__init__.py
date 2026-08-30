@@ -343,6 +343,7 @@ from exhaust_plume.models.moc.coupled import (
 )
 from exhaust_plume.models.moc.physical_cell import (
   MocAmbientClosedPostShockChainCandidate,
+  MocCenterlineSeamComparisonResult,
   MocPhysicalPostShockFieldContinuationSolve,
   MocPhysicalPostShockFieldResult,
   MocPhysicalPostShockFieldStatus,
@@ -354,6 +355,7 @@ from exhaust_plume.models.moc.physical_cell import (
   solve_ambient_closed_post_shock_chain_cell_from_physical_field_terminal_patch_or_termination,
   solve_ambient_closed_post_shock_chain_cell_from_terminal_reflection_patch_ambient_closure_or_termination,
   solve_ambient_closed_post_shock_chain_cell_from_physical_field_or_termination,
+  compare_centerline_seam,
   continue_ambient_closed_post_shock_chain,
 )
 from exhaust_plume.models.moc.euler_physical_field import (
@@ -952,6 +954,8 @@ __all__ = (
   'MocInvariantClosureStatus',
   'MocPhysicalPostShockFieldResult',
   'MocPhysicalPostShockFieldStatus',
+  'MocCenterlineSeamComparisonResult',
+  'compare_centerline_seam',
   'MocAmbientClosedPostShockChainCandidate',
   'MocPhysicalPostShockFieldContinuationSolve',
   'MocAmbientShockBoundaryMarchStatus',
