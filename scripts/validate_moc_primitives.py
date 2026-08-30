@@ -10420,7 +10420,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
         subdivision_side_count=side_count,
         position_tolerance_m=1.0e-8,
       )
-      for side_count in (1, 2, 4)
+      for side_count in (1, 2, 4, 8, 16, 32)
     )
   )
   euler_ambient_first_wedge_entropy_characteristic_continuation_remesh_audits = tuple(
@@ -10440,7 +10440,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
       entropy_characteristic_field,
       ambient_pressure_Pa=entropy_characteristic_free_boundary_ambient_pressure,
       cycle_count=4,
-      subdivision_side_counts=(1, 2, 4),
+      subdivision_side_counts=(1, 2, 4, 8, 16, 32),
       position_tolerance_m=1.0e-8,
     )
   )
@@ -12404,19 +12404,19 @@ def build_moc_primitive_report() -> dict[str, Any]:
   euler_ambient_first_wedge_entropy_characteristic_continuation_remesh_failure = (
     len(
       euler_ambient_first_wedge_entropy_characteristic_continuation_remesh_results
-    ) != 3
+    ) != 6
     or tuple(
       remesh.subdivision_side_count
       for remesh in (
         euler_ambient_first_wedge_entropy_characteristic_continuation_remesh_results
       )
-    ) != (1, 2, 4)
+    ) != (1, 2, 4, 8, 16, 32)
     or tuple(
       remesh.cell_count
       for remesh in (
         euler_ambient_first_wedge_entropy_characteristic_continuation_remesh_results
       )
-    ) != (7, 28, 112)
+    ) != (7, 28, 112, 448, 1792, 7168)
     or any(
       remesh.status
       is not MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshStatus
@@ -12433,6 +12433,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
       or remesh.topology.nonmanifold_edge_count != 0
       or not remesh.cell_euler_residuals_finite
       or remesh.cell_euler_residuals_verified
+      != (remesh.subdivision_side_count == 32)
       or remesh.interior_characteristic_rows_required
       != (remesh.subdivision_side_count > 2)
       or (
@@ -12448,7 +12449,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
     )
     or len(
       euler_ambient_first_wedge_entropy_characteristic_continuation_remesh_audits
-    ) != 3
+    ) != 6
     or any(
       audit.status
       is not MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshAuditStatus
@@ -12473,6 +12474,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
       or not audit.continuation_boundary_verified
       or not audit.cell_euler_residuals_finite
       or audit.cell_euler_residuals_verified
+      != (audit.subdivision_side_count == 32)
       or not audit.solver_status_consistent
       or not audit.external_validation_required
       or not audit.fidelity_flags_verified
@@ -12499,13 +12501,13 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or euler_ambient_first_wedge_entropy_characteristic_continuation_remesh_planner.production_claim_allowed
     or euler_ambient_first_wedge_entropy_characteristic_continuation_remesh_planner.diagnostics.get(
       'remesh_side_counts'
-    ) != (1, 2, 4)
+    ) != (1, 2, 4, 8, 16, 32)
     or len(
       euler_ambient_first_wedge_entropy_characteristic_continuation_remesh_planner.diagnostics.get(
         'remesh_ladder',
         (),
       )
-    ) != 3
+    ) != 6
     or any(
       entry.get('local_characteristic_remesh_verified') is not True
       for entry in euler_ambient_first_wedge_entropy_characteristic_continuation_remesh_planner.diagnostics.get(
@@ -12516,7 +12518,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or euler_ambient_first_wedge_entropy_characteristic_continuation_remesh_planner.diagnostics.get(
       'remesh_ladder',
       (),
-    )[-1].get('interior_characteristic_intersection_count') != 21
+    )[-1].get('interior_characteristic_intersection_count') != 3255
     or euler_ambient_first_wedge_entropy_characteristic_continuation_remesh_planner.diagnostics.get(
       'remesh_ladder',
       (),
@@ -12542,7 +12544,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary.reflected_free_boundary_verified
     or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary.physical_closure_verified
     or not euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary.source_remesh_verified
-    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary.source_cell_euler_residuals_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary.source_cell_euler_residuals_verified
     or not euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary.chain_promotion_blocked
     or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary.production_claim_allowed
     or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_planner is None
@@ -12571,7 +12573,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or not euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_audit.local_consistency_verified
     or not euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_audit.incoming_handoff_verified
     or not euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_audit.source_remesh_verified
-    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_audit.source_cell_euler_residuals_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_audit.source_cell_euler_residuals_verified
     or not euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_audit.source_cell_euler_residuals_flag_consistent
     or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_audit.path_coverage_verified
     or not euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_audit.status_consistent
@@ -14402,7 +14404,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'assemble a downstream physical characteristic field on the correct side of the locally Euler-consistent shock Cauchy curve',
       'replace the bounded solver-owned companion-boundary reference with a globally coupled Euler/free-boundary field and close its ambient/reflected boundary conditions',
       'implement an attachment-aware exact-Euler first interior wedge/remesh; the generic paired-node stencil cannot start at the shared shock/ambient point',
-      'independently pass the conservative Euler residual gate for the solver-owned multi-row C+/C- remesh without relaxing local characteristic or physical-promotion boundaries',
+    'demonstrate refinement-stable conservative Euler acceptance for the solver-owned multi-row C+/C- remesh across additional reflected cases without relaxing local characteristic or physical-promotion boundaries',
       'couple the continued entropy-characteristic C- frontier to a globally closed reflected/free-boundary shock solve before allowing physical chain promotion',
       'production next-cell shock fitting that consumes the typed state/total-pressure handoff without a geometric template',
       'grid/refinement convergence for the assembled reflected zone and mild attached-overexpanded cases',

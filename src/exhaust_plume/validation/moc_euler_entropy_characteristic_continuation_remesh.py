@@ -774,11 +774,17 @@ def _intersection_metadata_verified(
   intersection: MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshIntersection,
   source: MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationResult,
   *,
+  subdivision_side_count: int,
   characteristic_tolerance: float,
   pressure_tolerance: float,
   position_tolerance_m: float,
 ) -> bool:
-  if intersection.parent_cell_index >= len(source.cell_samples):
+  if (
+    intersection.parent_cell_index >= len(source.cell_samples)
+    or intersection.plus_source_row_index < 1
+    or intersection.minus_source_row_index >= subdivision_side_count
+    or intersection.plus_source_row_index >= intersection.minus_source_row_index
+  ):
     return False
   parent = source.cell_samples[intersection.parent_cell_index]
   base_indices = (
@@ -790,8 +796,8 @@ def _intersection_metadata_verified(
   pressures = tuple(
     float(parent.total_pressure_Pa[index]) for index in base_indices
   )
-  plus_fraction = intersection.plus_source_row_index / 4.0
-  minus_fraction = intersection.minus_source_row_index / 4.0
+  plus_fraction = intersection.plus_source_row_index / subdivision_side_count
+  minus_fraction = intersection.minus_source_row_index / subdivision_side_count
   _plus_point, plus_state, plus_pressure = _boundary_state(
     states[0],
     states[1],
@@ -1185,8 +1191,14 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_re
     intersection_ids = tuple(
       intersection.intersection_index for intersection in intersections
     )
+    expected_intersection_count = (
+      (result.subdivision_side_count - 1)
+      * (result.subdivision_side_count - 2)
+      // 2
+      * len(source.cell_samples)
+    )
     intersections_verified = bool(
-      len(intersections) == 3 * len(source.cell_samples)
+      len(intersections) == expected_intersection_count
       and len(set(intersection_ids)) == len(intersection_ids)
     )
     maximum_intersection_geometry = 0.0
@@ -1209,6 +1221,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_re
         metadata_verified = _intersection_metadata_verified(
           intersection,
           source,
+          subdivision_side_count=result.subdivision_side_count,
           characteristic_tolerance=characteristic_tolerance,
           pressure_tolerance=pressure_tolerance,
           position_tolerance_m=position_tolerance,

@@ -800,21 +800,27 @@ def test_internal_entropy_characteristic_continuation_remesh_planner_records_lad
   assert planner.physical_closure_verified is False
   assert planner.chain_promotion_blocked
   assert planner.production_claim_allowed is False
-  assert planner.diagnostics['remesh_side_counts'] == (1, 2, 4)
-  assert len(planner.diagnostics['remesh_ladder']) == 3
+  assert planner.diagnostics['remesh_side_counts'] == (1, 2, 4, 8, 16, 32)
+  assert len(planner.diagnostics['remesh_ladder']) == 6
   assert [
     entry['cell_count'] for entry in planner.diagnostics['remesh_ladder']
-  ] == [7, 28, 112]
+  ] == [7, 28, 112, 448, 1792, 7168]
   assert all(
     entry['local_characteristic_remesh_verified']
     for entry in planner.diagnostics['remesh_ladder']
   )
   assert planner.diagnostics['remesh_ladder'][-1][
     'interior_characteristic_intersection_count'
-  ] == 21
+  ] == 3255
   assert planner.diagnostics['remesh_ladder'][-1][
     'interior_characteristic_intersections_verified'
   ]
+  assert planner.diagnostics['remesh_ladder'][-1][
+    'cell_euler_residuals_verified'
+  ]
+  assert planner.diagnostics['remesh_ladder'][-1][
+    'maximum_cell_euler_residual'
+  ] < 1.0e-2
   assert planner.diagnostics['remesh_consumed_as_chain_cell'] is False
   assert planner.diagnostics['external_validation_required'] is True
 

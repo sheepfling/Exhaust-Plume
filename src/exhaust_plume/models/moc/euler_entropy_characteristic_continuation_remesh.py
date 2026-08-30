@@ -4,8 +4,8 @@ The continuation source band is useful as a coarse alternating characteristic
 construction, but its barycentric refinement is only a projection.  This
 module solves the two characteristic boundary edges of each source triangle
 as short variable-entropy boundary-value problems and reuses one exact edge
-trace wherever neighboring triangles meet.  The four-interval case also
-solves a bounded interior C+/C- row stencil; global closure remains separate.
+trace wherever neighboring triangles meet.  Power-of-two interval cases solve
+the bounded interior C+/C- row stencil; global closure remains separate.
 
 The resulting mesh is research evidence.  It has no shock jump, no globally
 closed reflected free boundary, and no physical shock-cell-chain promotion.
@@ -231,12 +231,11 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshIntersection:
       if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f'{name} must be a nonnegative integer')
     if (
-      self.plus_source_row_index >= 4
-      or self.minus_source_row_index >= 4
+      self.plus_source_row_index < 1
       or self.plus_source_row_index >= self.minus_source_row_index
     ):
       raise ValueError(
-        'intersection source row indices must be ordered values below four'
+        'intersection source row indices must be distinct and ordered'
       )
     for name in ('plus_source', 'minus_source', 'state'):
       if not isinstance(getattr(self, name), CharacteristicState):
@@ -1001,7 +1000,11 @@ def _solve_edge(
       compatibility_residuals=(compatibility_residual,),
       pressure_residuals=(pressure_residual,),
     )
-  if side_count == 4:
+  if side_count > 2:
+    if side_count % 2 != 0:
+      raise ValueError(
+        'characteristic edge interval counts above two must be even'
+      )
     midpoint_edge = _solve_edge(
       start,
       end,
@@ -1022,7 +1025,7 @@ def _solve_edge(
       start_pressure,
       midpoint_pressure,
       family,
-      2,
+      side_count // 2,
       gradient,
       characteristic_residual_tolerance=characteristic_residual_tolerance,
       pressure_lineage_tolerance=pressure_lineage_tolerance,
@@ -1034,7 +1037,7 @@ def _solve_edge(
       midpoint_pressure,
       end_pressure,
       family,
-      2,
+      side_count // 2,
       gradient,
       characteristic_residual_tolerance=characteristic_residual_tolerance,
       pressure_lineage_tolerance=pressure_lineage_tolerance,
@@ -1057,8 +1060,8 @@ def _solve_edge(
     )
   if side_count != 2:
     raise ValueError(
-      'the bounded characteristic remesh currently supports one, two, or '
-      'four edge intervals'
+      'the bounded characteristic remesh requires a power-of-two edge '
+      'interval count'
     )
   _midpoint, midpoint_guess, _midpoint_pressure = _boundary_state(
     start,
@@ -1365,7 +1368,8 @@ def _solve_interior_intersection(
     or minus_forward_margin <= position_tolerance_m
   ):
     raise ValueError(
-      'interior characteristic intersection is not forward from both sources'
+      'interior characteristic intersection is not forward from both sources '
+      f'(plus={plus_forward_margin}, minus={minus_forward_margin})'
     )
   return MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshIntersection(
     intersection_index=intersection_index,
@@ -1540,11 +1544,13 @@ def remesh_euler_ambient_first_wedge_entropy_characteristic_continuation(
   if (
     isinstance(subdivision_side_count, bool)
     or not isinstance(subdivision_side_count, int)
-    or subdivision_side_count not in (1, 2, 4)
+    or subdivision_side_count < 1
+    or subdivision_side_count > 32
+    or (subdivision_side_count & (subdivision_side_count - 1)) != 0
   ):
     raise ValueError(
-      'subdivision_side_count must be one, two, or four for the bounded '
-      'characteristic remesh'
+      'subdivision_side_count must be a power of two from one through 32 '
+      'for the bounded characteristic remesh'
     )
   if (
     isinstance(maximum_iterations, bool)
@@ -1721,67 +1727,49 @@ def remesh_euler_ambient_first_wedge_entropy_characteristic_continuation(
           ],
         ]
       else:
-        intersection_by_pair: dict[
-          tuple[int, int],
-          MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshIntersection,
-        ] = {}
-        for plus_index, minus_index in ((1, 2), (1, 3), (2, 3)):
-          intersection = _solve_interior_intersection(
-            len(intersections),
-            parent_index,
-            plus_index,
-            minus_index,
-            base_row[plus_index][1],
-            base_row[minus_index][1],
-            base_row[plus_index][2],
-            base_row[minus_index][2],
-            gradient,
-            plus_forward_direction_sign=1 if even else -1,
-            minus_forward_direction_sign=-1 if even else 1,
-            position_tolerance_m=position_tolerance,
-            characteristic_residual_tolerance=characteristic_tolerance,
-            pressure_lineage_tolerance=pressure_tolerance,
-            maximum_iterations=maximum_iterations,
-          )
-          intersections.append(intersection)
-          intersection_by_pair[(plus_index, minus_index)] = intersection
-
         def row_item(
           state: CharacteristicState,
           pressure: float,
         ) -> tuple[tuple[float, float], CharacteristicState, float]:
           return ((state.x_m, state.y_m), state, pressure)
 
-        rows = [
-          base_row,
-          [
-            row_item(left_edge.states[1], left_edge.pressures[1]),
+        rows = [base_row]
+        for row_index in range(1, subdivision_side_count):
+          row = [
             row_item(
-              intersection_by_pair[(1, 2)].state,
-              intersection_by_pair[(1, 2)].total_pressure_Pa,
-            ),
+              left_edge.states[row_index],
+              left_edge.pressures[row_index],
+            )
+          ]
+          for plus_index in range(1, subdivision_side_count - row_index):
+            minus_index = plus_index + row_index
+            intersection = _solve_interior_intersection(
+              len(intersections),
+              parent_index,
+              plus_index,
+              minus_index,
+              base_row[plus_index][1],
+              base_row[minus_index][1],
+              base_row[plus_index][2],
+              base_row[minus_index][2],
+              gradient,
+              plus_forward_direction_sign=1 if even else -1,
+              minus_forward_direction_sign=-1 if even else 1,
+              position_tolerance_m=position_tolerance,
+              characteristic_residual_tolerance=characteristic_tolerance,
+              pressure_lineage_tolerance=pressure_tolerance,
+              maximum_iterations=maximum_iterations,
+            )
+            intersections.append(intersection)
+            row.append(row_item(intersection.state, intersection.total_pressure_Pa))
+          row.append(
             row_item(
-              intersection_by_pair[(1, 3)].state,
-              intersection_by_pair[(1, 3)].total_pressure_Pa,
-            ),
-            row_item(right_edge.states[1], right_edge.pressures[1]),
-          ],
-          [
-            row_item(left_edge.states[2], left_edge.pressures[2]),
-            row_item(
-              intersection_by_pair[(2, 3)].state,
-              intersection_by_pair[(2, 3)].total_pressure_Pa,
-            ),
-            row_item(right_edge.states[2], right_edge.pressures[2]),
-          ],
-          [
-            row_item(left_edge.states[3], left_edge.pressures[3]),
-            row_item(right_edge.states[3], right_edge.pressures[3]),
-          ],
-          [
-            row_item(apex, apex_pressure),
-          ],
-        ]
+              right_edge.states[row_index],
+              right_edge.pressures[row_index],
+            )
+          )
+          rows.append(row)
+        rows.append([row_item(apex, apex_pressure)])
       for row_index in range(len(rows) - 1):
         row = rows[row_index]
         next_row = rows[row_index + 1]
@@ -1897,10 +1885,16 @@ def remesh_euler_ambient_first_wedge_entropy_characteristic_continuation(
     default=None,
   )
   rows_required = subdivision_side_count > 2
+  expected_intersection_count = (
+    (subdivision_side_count - 1)
+    * (subdivision_side_count - 2)
+    // 2
+    * len(source_continuation.cell_samples)
+  )
   intersections_verified = bool(
     rows_required
     and (
-      len(intersections) == 3 * len(source_continuation.cell_samples)
+      len(intersections) == expected_intersection_count
       and all(intersection.forward_verified for intersection in intersections)
       and (
         maximum_intersection_geometry is not None

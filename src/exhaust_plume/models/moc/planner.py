@@ -13064,7 +13064,7 @@ def plan_euler_ambient_first_wedge_entropy_characteristic_continuation_remesh_pr
   *,
   ambient_pressure_Pa: float,
   cycle_count: int = 4,
-  subdivision_side_counts: Sequence[int] = (1, 2, 4),
+  subdivision_side_counts: Sequence[int] = (1, 2, 4, 8, 16, 32),
   target_centerline_y_m: float = 0.0,
   target_centerline_flow_angle_rad: float = 0.0,
   position_tolerance_m: float = 1.0e-8,
@@ -13075,11 +13075,11 @@ def plan_euler_ambient_first_wedge_entropy_characteristic_continuation_remesh_pr
 ) -> MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainPlannerResult:
   """Plan a bounded solver-owned characteristic remesh ladder.
 
-  The one-, two-, and four-interval traces are recorded as diagnostic
-  evidence.  The four-interval case includes a local interior C+/C- row
-  stencil.  None of these results are converted to downstream entropy fields
-  or physical shock-cell-chain cells; the continuation remains an explicit
-  fidelity stop.
+  The power-of-two traces through 32 intervals are recorded as diagnostic
+  evidence.  Every case above two intervals includes the local interior
+  C+/C- row stencil.  None of these results are converted to downstream
+  entropy fields or physical shock-cell-chain cells; the continuation remains
+  an explicit fidelity stop.
   """
 
   if not isinstance(
@@ -13099,11 +13099,13 @@ def plan_euler_ambient_first_wedge_entropy_characteristic_continuation_remesh_pr
   if not side_counts or any(
     isinstance(side_count, bool)
     or not isinstance(side_count, int)
-    or side_count not in (1, 2, 4)
+    or side_count < 1
+    or side_count > 32
+    or (side_count & (side_count - 1)) != 0
     for side_count in side_counts
   ):
     raise ValueError(
-    'subdivision_side_counts must contain only one, two, or four'
+      'subdivision_side_counts must contain powers of two from one through 32'
     )
   if any(
     right <= left for left, right in zip(side_counts, side_counts[1:])
@@ -13241,7 +13243,7 @@ def plan_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_p
   outer_downstream_flow_angle_lower_rad: float,
   outer_downstream_flow_angle_upper_rad: float,
   cycle_count: int = 4,
-  subdivision_side_count: int = 4,
+  subdivision_side_count: int = 32,
   target_centerline_y_m: float = 0.0,
   target_centerline_flow_angle_rad: float = 0.0,
   sample_count: int = 17,
@@ -13276,6 +13278,16 @@ def plan_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_p
     raise TypeError(
       'seed must be a '
       'MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult'
+    )
+  if (
+    isinstance(subdivision_side_count, bool)
+    or not isinstance(subdivision_side_count, int)
+    or subdivision_side_count < 1
+    or subdivision_side_count > 32
+    or (subdivision_side_count & (subdivision_side_count - 1)) != 0
+  ):
+    raise ValueError(
+      'subdivision_side_count must be a power of two from one through 32'
     )
   continuation_reports: list[dict[str, Any]] = []
   remesh_reports: list[dict[str, Any]] = []

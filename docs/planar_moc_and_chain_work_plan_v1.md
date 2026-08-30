@@ -11,7 +11,7 @@ reduced-order shock-train provider.
 | --- | --- | --- | --- |
 | `shock-cell-basic-v1` | fast, easy visual exploration | frozen compatibility-backed visual lane | do not change while MOC work proceeds |
 | `shock-train-reduced-order-v1` | bounded engineering-approximate continued chain | implemented with one resolved compatibility first cell plus scaled downstream cells | remains explicitly `scaled-reduced-order` |
-| `planar-moc-research-v2` | numerical planar characteristic research and future resolved first cell/chain | open fan/reflected lattice, sampled attached-shock fit, solver-generated marched attached-shock reference field, shock-seeded closed post-shock field, ambient-perimeter shooting seam, a state-carrying chain boundary, and a bounded multi-row characteristic-remesh/free-boundary probe | requires conservative Euler acceptance of the remesh, globally coupled reflected-field/free-boundary closure, production next-cell free-boundary solving, refinement, and independent validation |
+| `planar-moc-research-v2` | numerical planar characteristic research and future resolved first cell/chain | open fan/reflected lattice, sampled attached-shock fit, solver-generated marched attached-shock reference field, shock-seeded closed post-shock field, ambient-perimeter shooting seam, a state-carrying chain boundary, and a bounded multi-row characteristic-remesh/free-boundary probe | requires refinement-stable conservative Euler acceptance, globally coupled reflected-field/free-boundary closure, production next-cell free-boundary solving, and independent validation |
 | signature, ray, and focal-plane-array lanes | downstream measurement products | separate contracts and providers | consume only an accepted upstream field/operator |
 
 The MOC lane must never import a reduced-order cell and relabel it as a
@@ -2897,15 +2897,23 @@ The next fidelity seam is now a separate solver-owned remesh:
 ``remesh_euler_ambient_first_wedge_entropy_characteristic_continuation``.
 For each source triangle it solves the two slanted characteristic edges as
 short variable-entropy boundary-value traces and caches each shared edge in
-one canonical orientation. The bounded implementation supports one, two, or
-four edge intervals, producing 7, 28, or 112 triangular cells and 8 shared
-characteristic edge traces on the canonical four-cycle continuation source.
-The four-interval case also solves 21 interior C+/C- intersections (three per
-source triangle), retaining the source pressures, transported pressure, both
-compatibility residuals, and explicit forward-direction margins. All three
-meshes are connected, simply bounded open zones with no non-manifold edges;
-the open perimeter is retained as evidence rather than filled by extrapolated
-cells.
+one canonical orientation. The bounded implementation supports the
+power-of-two interval ladder ``1, 2, 4, 8, 16, 32``, producing
+``7, 28, 112, 448, 1792, 7168`` triangular cells and 8 shared characteristic
+edge traces on the canonical four-cycle continuation source. For every case
+above two intervals, the row layout is indexed in characteristic coordinates:
+each interior node joins base points on the same C+ and C- source families.
+This avoids treating neighboring nodes from different characteristics as a
+single trace as the mesh is refined.
+
+The interior row stencil contains
+``(n - 1)(n - 2)/2`` C+/C- intersections per source triangle. The ladder
+therefore contains 21, 147, 735, and 3255 intersections at 4, 8, 16, and 32
+intervals respectively, retaining the source pressures, transported pressure,
+both compatibility residuals, and explicit forward-direction margins. All
+six meshes are connected, simply bounded open zones with no non-manifold
+edges; the open perimeter is retained as evidence rather than filled by
+extrapolated cells.
 
 The two-interval case independently passes the characteristic geometry,
 variable-entropy compatibility, pressure-lineage, and topology gates. Its
@@ -2919,28 +2927,30 @@ Euler gate remains separate and fails at approximately ``0.02394`` against
 the ``0.01`` threshold, so this is a locally coherent remesh, not an accepted
 Euler field.
 
-The four-interval case independently replays the interior intersection
-equations and passes the local characteristic and pressure-lineage gates. Its
-maximum intersection geometry, compatibility, and pressure residuals are
-approximately ``2.19e-15``, ``5.79e-16``, and ``8.88e-16``. The independently
-recomputed conservative Euler residual remains approximately ``0.02428``
-against the ``0.01`` gate, so the added row stencil is still diagnostic
-evidence rather than a conservative Euler field.
+The four-, eight-, sixteen-, and thirty-two-interval cases independently replay
+the interior intersection equations and pass the local characteristic and
+pressure-lineage gates. Their independently recomputed maximum conservative
+Euler residuals are approximately ``0.01732, 0.01374, 0.01186, 0.00918``.
+The thirty-two-interval case therefore passes the bounded ``0.01`` local
+conservative-Euler gate. This closes the local remesh acceptance gate for the
+canonical source band, but does not by itself establish refinement stability
+across reflected cases or authorize a physical chain cell.
 
 The matching
 ``plan_euler_ambient_first_wedge_entropy_characteristic_continuation_remesh_probe``
-now records the one-, two-, and four-interval ladder while preserving
+now records the one-, two-, four-, eight-, sixteen-, and thirty-two-interval
+ladder while preserving
 ``OPEN_PHYSICAL_CLOSURE``, zero physical chain cells, and the explicit
 external-validation requirement. This closes the projection-to-solver-owned
-edge-and-local-row seam only. A globally closed reflected/free-boundary shock,
-indexed external observations, and physical shock-cell-chain promotion remain
-pending; the four-interval local lattice is not exported as a downstream field
-or chain-cell provider.
+edge-and-local-row seam and the canonical local conservative-Euler gate only.
+A globally closed reflected/free-boundary shock, indexed external observations,
+and physical shock-cell-chain promotion remain pending; the remesh ladder is
+not exported as a downstream field or chain-cell provider.
 
 ## Bounded remesh reflected/free-boundary probe checkpoint
 
-The four-interval remesh now exposes a typed, bounded diagnostic sampler to a
-separate reflected/free-boundary closure probe:
+The thirty-two-interval remesh now exposes a typed, bounded diagnostic sampler
+to a separate reflected/free-boundary closure probe:
 ``solve_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary``.
 The probe consumes the exact outgoing ``C-`` handoff and only samples states,
 static pressure, and total pressure inside the remesh. If the trial shock
@@ -2948,14 +2958,14 @@ leaves that domain, the result retains the covered prefix and first missing
 sample as ``UPSTREAM_REMESH_BOUNDARY``; it does not reuse the last state,
 extrapolate the field, or infer a physical endpoint.
 
-On the canonical case, the local remesh is characteristic-consistent, but its
-independent maximum conservative Euler residual is approximately ``0.02428``
-against the ``0.01`` acceptance gate. The closure probe consequently stops at
+On the canonical case, the local remesh is characteristic-consistent and its
+independent maximum conservative Euler residual is approximately ``0.00918``,
+inside the ``0.01`` acceptance gate. The closure probe nevertheless stops at
 shock sample ``1`` with one covered sample and first missing index ``1``. Its
 independent audit returns a local boundary audit, confirms the remesh and
 handoff bookkeeping, and deliberately reports incomplete shock-path coverage;
-source Euler acceptance, global reflected/free-boundary closure, external
-observations, and physical chain promotion remain false.
+global reflected/free-boundary closure, external observations, and physical
+chain promotion remain false.
 
 The matching
 ``plan_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_probe``
