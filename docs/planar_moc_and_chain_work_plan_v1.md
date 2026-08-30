@@ -3002,3 +3002,31 @@ separately justified terminal model) that supplies a valid downstream
 condition beyond the outgoing frontier. No continued shock-cell-chain cell is
 promoted until that solve, refinement-stable Euler evidence, and indexed
 external validation all pass.
+
+## Bounded outgoing-frontier bridge checkpoint
+
+The remesh free-boundary probe now has an explicit opt-in
+``use_outgoing_frontier_bridge`` lane. It consumes the dense solver-owned
+outgoing ``C-`` frontier, solves one variable-entropy ambient ``C+`` segment
+from the frontier's centerline endpoint to a new ambient-boundary endpoint,
+and uses the resulting three-vertex triangle as a bounded diagnostic source
+for the reflected shock march. The remesh itself is unchanged, and the
+bridge sampler refuses points outside the bridge or retained remesh cells.
+
+On the canonical thirty-two-interval case, the bridge passes its local
+geometry, compatibility, and pressure-lineage equations. With the explicit
+zero-strength Mach-wave endpoint contract and nine shock samples, the shock
+march reaches the centerline with all nine upstream samples covered; the
+coupled physical field reports an ambient-closed local closure probe. The
+independent audit reconstructs the bridge triangle and residual equations,
+replays the combined bounded sampler, and returns
+``CONVERGED_LOCAL_CLOSED_AUDIT``.
+
+This is a terminal closure diagnostic, not a new physical shock-cell-chain
+provider. The planner records the bridge status while retaining zero
+continued fields, zero physical chain cells, ``FIDELITY_NOT_ALLOWED``, and the
+external-validation requirement. The frontier-only coverage report still
+shows the shock crossing the original remesh frontier; that crossing is the
+declared reason the bridge exists, not evidence that the remesh was silently
+extended. A globally continued multi-cell chain remains pending indexed
+validation and refinement-stable physical promotion.

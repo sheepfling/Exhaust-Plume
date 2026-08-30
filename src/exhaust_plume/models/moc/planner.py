@@ -13262,13 +13262,16 @@ def plan_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_p
   allow_zero_strength_attachment: bool = False,
   allow_zero_strength_endpoints: bool = False,
   zero_strength_start_trace: Sequence[MocChainBoundarySample] | None = None,
+  use_outgoing_frontier_bridge: bool = False,
 ) -> MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainPlannerResult:
   """Plan local remesh plus a bounded reflected/free-boundary closure probe.
 
-  The closure solver receives only the remesh's diagnostic sampler.  A
-  missing sample is therefore retained as an upstream-remesh boundary, and
-  the planner never converts either the remesh or a geometrically closed
-  candidate into a physical shock-cell-chain cell.
+  The closure solver receives only bounded diagnostic samplers.  By default
+  that is the remesh sampler and a missing sample is retained as an
+  upstream-remesh boundary.  With ``use_outgoing_frontier_bridge``, the exact
+  dense C- frontier seeds one locally solved ambient C+ triangle before the
+  shock attempt.  The planner still never converts either diagnostic region
+  or a geometrically closed candidate into a physical shock-cell-chain cell.
   """
 
   if not isinstance(
@@ -13279,6 +13282,8 @@ def plan_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_p
       'seed must be a '
       'MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult'
     )
+  if not isinstance(use_outgoing_frontier_bridge, bool):
+    raise ValueError('use_outgoing_frontier_bridge must be a bool')
   if (
     isinstance(subdivision_side_count, bool)
     or not isinstance(subdivision_side_count, int)
@@ -13328,6 +13333,8 @@ def plan_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_p
         'remesh_free_boundary_attempt_count': 0,
         'remesh_free_boundary_attempts': tuple(closure_reports),
         'outgoing_frontier_attempts': tuple(frontier_reports),
+        'outgoing_frontier_bridge_enabled': use_outgoing_frontier_bridge,
+        'outgoing_frontier_bridge_verified': False,
         'external_validation_required': True,
         'synthetic_downstream_field_created': False,
         'physical_chain_cell_count': 0,
@@ -13360,6 +13367,8 @@ def plan_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_p
         'remesh_free_boundary_attempt_count': 0,
         'remesh_free_boundary_attempts': tuple(closure_reports),
         'outgoing_frontier_attempts': tuple(frontier_reports),
+        'outgoing_frontier_bridge_enabled': use_outgoing_frontier_bridge,
+        'outgoing_frontier_bridge_verified': False,
         'external_validation_required': True,
         'synthetic_downstream_field_created': False,
         'physical_chain_cell_count': 0,
@@ -13391,6 +13400,7 @@ def plan_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_p
       allow_zero_strength_attachment=allow_zero_strength_attachment,
       allow_zero_strength_endpoints=allow_zero_strength_endpoints,
       zero_strength_start_trace=zero_strength_start_trace,
+      use_outgoing_frontier_bridge=use_outgoing_frontier_bridge,
     )
     closure_report = closure.as_report()
     closure_reports.append(closure_report)
@@ -13449,6 +13459,15 @@ def plan_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_p
         None
         if frontier_coverage is None
         else frontier_coverage.first_exterior_signed_offset_m
+      ),
+      'outgoing_frontier_bridge_enabled': use_outgoing_frontier_bridge,
+      'outgoing_frontier_bridge_verified': (
+        closure.outgoing_frontier_bridge_verified
+      ),
+      'outgoing_frontier_bridge_status': (
+        None
+        if closure.outgoing_frontier_bridge is None
+        else closure.outgoing_frontier_bridge.status.value
       ),
       'outgoing_frontier_attempts': tuple(frontier_reports),
       'remesh_free_boundary_consumed_as_chain_cell': False,
@@ -13518,6 +13537,18 @@ def plan_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_p
       None
       if latest_frontier_coverage is None
       else latest_frontier_coverage.get('first_exterior_signed_offset_m')
+    ),
+    'outgoing_frontier_bridge_enabled': use_outgoing_frontier_bridge,
+    'outgoing_frontier_bridge_verified': bool(
+      closure_reports
+      and closure_reports[-1].get('outgoing_frontier_bridge_verified', False)
+    ),
+    'outgoing_frontier_bridge_status': (
+      None
+      if not closure_reports
+      else closure_reports[-1].get('outgoing_frontier_bridge', {}).get('status')
+      if isinstance(closure_reports[-1].get('outgoing_frontier_bridge'), dict)
+      else None
     ),
     'outgoing_frontier_attempts': tuple(frontier_reports),
     'remesh_free_boundary_consumed_as_chain_cell': False,

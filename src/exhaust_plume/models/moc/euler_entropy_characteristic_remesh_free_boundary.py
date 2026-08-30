@@ -3,8 +3,9 @@
 The solver-owned remesh is a diagnostic upstream band, not an accepted Euler
 field.  This module gives that band an explicit, bounded callback seam for a
 reflected/free-boundary shock attempt.  Leaving the remesh is reported as a
-domain boundary; no extrapolated upstream state and no physical shock-cell
-chain cell are created.
+domain boundary by default; an opt-in terminal C+ bridge can cover one
+explicitly solved downstream triangle.  No extrapolated upstream state and no
+physical shock-cell-chain cell are created.
 """
 
 from __future__ import annotations
@@ -12,7 +13,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum
-from math import isfinite
+from math import exp, isfinite, log
 from typing import Any
 
 from exhaust_plume.models.moc.chain import (
@@ -24,6 +25,11 @@ from exhaust_plume.models.moc.coupled import (
   MocAmbientPhysicalFieldResult,
   solve_marched_attached_shock_with_ambient_centerline_physical_field,
 )
+from exhaust_plume.models.moc.euler_entropy_characteristic_continuation import (
+  MocEulerAmbientFirstWedgeEntropyCharacteristicSegmentResult,
+  _solve_ambient_segment,
+  _triangle_weights,
+)
 from exhaust_plume.models.moc.euler_entropy_characteristic_continuation_remesh import (
   MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshResult,
 )
@@ -32,9 +38,16 @@ from exhaust_plume.models.moc.euler_entropy_characteristic_frontier import (
   audit_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier_path,
   extract_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier,
 )
+from exhaust_plume.models.moc.euler_first_wedge_remesh import (
+  MocEulerAmbientFirstWedgeCellSample,
+)
 from exhaust_plume.models.moc.free_boundary import (
   MocFreeBoundaryShockResult,
   MocFreeBoundaryShockStatus,
+)
+from exhaust_plume.models.moc.primitives import (
+  CharacteristicState,
+  inverse_prandtl_meyer_angle_rad,
 )
 from exhaust_plume.util.aero.shock_validity import ShockBranch
 
@@ -77,6 +90,193 @@ def _finite_point(point_m: Sequence[float]) -> tuple[float, float] | None:
 
 
 @dataclass(frozen=True, slots=True)
+class _FrontierBridgeDiagnosticSampler:
+  """Sample one bounded terminal bridge followed by the retained remesh."""
+
+  samples: tuple[MocEulerAmbientFirstWedgeCellSample, ...]
+
+  def __post_init__(self) -> None:
+    samples = tuple(self.samples)
+    if any(
+      not isinstance(sample, MocEulerAmbientFirstWedgeCellSample)
+      for sample in samples
+    ):
+      raise TypeError('frontier bridge samples must be typed cell samples')
+    object.__setattr__(self, 'samples', samples)
+
+  def _weights_at(
+    self,
+    point_m: Sequence[float],
+    *,
+    position_tolerance_m: float,
+  ) -> tuple[tuple[float, float, float], MocEulerAmbientFirstWedgeCellSample] | None:
+    try:
+      point = (float(point_m[0]), float(point_m[1]))
+      tolerance = float(position_tolerance_m)
+    except (IndexError, TypeError, ValueError):
+      return None
+    if not all(isfinite(value) for value in point):
+      return None
+    if not isfinite(tolerance) or tolerance <= 0.0:
+      raise ValueError('position_tolerance_m must be finite and positive')
+    for sample in self.samples:
+      weights = _triangle_weights(
+        point,
+        sample.vertices_xr_m,
+        tolerance,
+      )
+      if weights is not None:
+        return weights, sample
+    return None
+
+  def state_at(
+    self,
+    point_m: Sequence[float],
+    *,
+    position_tolerance_m: float,
+  ) -> CharacteristicState | None:
+    sampled = self._weights_at(
+      point_m,
+      position_tolerance_m=position_tolerance_m,
+    )
+    if sampled is None:
+      return None
+    weights, sample = sampled
+    try:
+      point = (float(point_m[0]), float(point_m[1]))
+      theta = sum(
+        weight * state.theta_rad
+        for weight, state in zip(weights, sample.states, strict=True)
+      )
+      nu = sum(
+        weight * state.nu_rad
+        for weight, state in zip(weights, sample.states, strict=True)
+      )
+      inversion = inverse_prandtl_meyer_angle_rad(nu, sample.states[0].gamma)
+      if not inversion.converged or inversion.value is None:
+        return None
+      return CharacteristicState(
+        x_m=point[0],
+        y_m=point[1],
+        theta_rad=theta,
+        mach=inversion.value,
+        gamma=sample.states[0].gamma,
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+      return None
+
+  def total_pressure_at(
+    self,
+    point_m: Sequence[float],
+    *,
+    position_tolerance_m: float,
+  ) -> float | None:
+    sampled = self._weights_at(
+      point_m,
+      position_tolerance_m=position_tolerance_m,
+    )
+    if sampled is None:
+      return None
+    weights, sample = sampled
+    try:
+      return exp(
+        sum(
+          weight * log(pressure)
+          for weight, pressure in zip(
+            weights,
+            sample.total_pressure_Pa,
+            strict=True,
+          )
+        )
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+      return None
+
+  def static_pressure_at(
+    self,
+    point_m: Sequence[float],
+    *,
+    position_tolerance_m: float,
+  ) -> float | None:
+    state = self.state_at(
+      point_m,
+      position_tolerance_m=position_tolerance_m,
+    )
+    total_pressure = self.total_pressure_at(
+      point_m,
+      position_tolerance_m=position_tolerance_m,
+    )
+    if state is None or total_pressure is None:
+      return None
+    try:
+      return total_pressure / (
+        1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
+      ) ** (state.gamma / (state.gamma - 1.0))
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+      return None
+
+
+def _solve_outgoing_frontier_bridge(
+  remesh: MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshResult,
+  frontier: Any,
+  ambient_pressure_Pa: float,
+  target_centerline_y_m: float,
+  *,
+  position_tolerance_m: float,
+  characteristic_residual_tolerance: float,
+  maximum_iterations: int,
+) -> tuple[
+  MocEulerAmbientFirstWedgeEntropyCharacteristicSegmentResult | None,
+  MocEulerAmbientFirstWedgeCellSample | None,
+]:
+  """Solve one bounded C+ triangle from the exact C- frontier to ambient."""
+
+  if (
+    not frontier.converged
+    or len(frontier.samples) < 2
+    or remesh.source_pressure_gradient is None
+  ):
+    return None, None
+  outer = frontier.samples[0]
+  axis = frontier.samples[-1]
+  segment = _solve_ambient_segment(
+    axis.state,
+    axis.total_pressure_Pa,
+    outer.state,
+    remesh.source_pressure_gradient,
+    ambient_pressure_Pa,
+    target_centerline_y_m,
+    position_tolerance_m=position_tolerance_m,
+    characteristic_residual_tolerance=characteristic_residual_tolerance,
+    maximum_iterations=maximum_iterations,
+  )
+  if (
+    not segment.converged
+    or segment.end_state is None
+    or segment.end_total_pressure_Pa is None
+  ):
+    return segment, None
+  endpoint = segment.end_state
+  try:
+    bridge_sample = MocEulerAmbientFirstWedgeCellSample(
+      vertices_xr_m=(
+        outer.point_m,
+        axis.point_m,
+        (endpoint.x_m, endpoint.y_m),
+      ),
+      states=(outer.state, axis.state, endpoint),
+      total_pressure_Pa=(
+        outer.total_pressure_Pa,
+        axis.total_pressure_Pa,
+        segment.end_total_pressure_Pa,
+      ),
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+    return segment, None
+  return segment, bridge_sample
+
+
+@dataclass(frozen=True, slots=True)
 class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryResult:
   """A bounded closure attempt that never promotes a remesh to a chain cell."""
 
@@ -101,6 +301,11 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryResult:
     MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierCoverageResult
     | None
   ) = None
+  allow_zero_strength_endpoints: bool = False
+  outgoing_frontier_bridge_enabled: bool = False
+  outgoing_frontier_bridge: (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicSegmentResult | None
+  ) = None
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -118,6 +323,15 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryResult:
       MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierCoverageResult,
     ):
       raise TypeError('frontier_coverage must be typed or None')
+    if not isinstance(self.allow_zero_strength_endpoints, bool):
+      raise TypeError('allow_zero_strength_endpoints must be a bool')
+    if not isinstance(self.outgoing_frontier_bridge_enabled, bool):
+      raise TypeError('outgoing_frontier_bridge_enabled must be a bool')
+    if self.outgoing_frontier_bridge is not None and not isinstance(
+      self.outgoing_frontier_bridge,
+      MocEulerAmbientFirstWedgeEntropyCharacteristicSegmentResult,
+    ):
+      raise TypeError('outgoing_frontier_bridge must be typed or None')
     if self.physical_field is not None and not isinstance(
       self.physical_field,
       MocAmbientPhysicalFieldResult,
@@ -214,6 +428,20 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryResult:
     )
 
   @property
+  def outgoing_frontier_bridge_verified(self) -> bool:
+    """Whether the optional terminal C+ bridge was locally solved."""
+
+    return bool(
+      self.outgoing_frontier_bridge_enabled
+      and self.outgoing_frontier_bridge is not None
+      and self.outgoing_frontier_bridge.converged
+      and self.outgoing_frontier_bridge.start_state is not None
+      and self.outgoing_frontier_bridge.end_state is not None
+      and self.outgoing_frontier_bridge.start_total_pressure_Pa is not None
+      and self.outgoing_frontier_bridge.end_total_pressure_Pa is not None
+    )
+
+  @property
   def frontier_coverage_status(self) -> str | None:
     return (
       None
@@ -232,9 +460,28 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryResult:
 
   @property
   def reflected_free_boundary_verified(self) -> bool:
+    if self.physical_field is None or self.physical_field.field is None:
+      return False
+    expected_handoff = self.incoming_handoff
+    if (
+      self.outgoing_frontier_bridge_enabled
+      and self.frontier_coverage is not None
+      and self.frontier_coverage.frontier is not None
+    ):
+      expected_handoff = self.frontier_coverage.frontier.samples
+    field = self.physical_field.field
     return bool(
-      self.physical_field is not None
-      and self.physical_field.physical_closure_verified
+      self.physical_field.physical_closure_verified
+      and field.incoming_handoff_states == tuple(
+        sample.state for sample in expected_handoff
+      )
+      and field.incoming_handoff_total_pressure_Pa == tuple(
+        sample.total_pressure_Pa for sample in expected_handoff
+      )
+      and (
+        not self.outgoing_frontier_bridge_enabled
+        or self.outgoing_frontier_bridge_verified
+      )
     )
 
   @property
@@ -258,6 +505,10 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryResult:
       self.source_remesh_verified
       and self.source_cell_euler_residuals_verified
       and self.reflected_free_boundary_verified
+      and (
+        not self.outgoing_frontier_bridge_enabled
+        or self.outgoing_frontier_bridge_verified
+      )
     )
 
   @property
@@ -283,9 +534,25 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryResult:
         is MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryStatus
         .UPSTREAM_REMESH_BOUNDARY
       )
+      and (
+        not self.outgoing_frontier_bridge_enabled
+        or self.outgoing_frontier_bridge_verified
+      )
       and self.chain_promotion_blocked
       and not self.production_claim_allowed
     )
+
+  @property
+  def coupled_handoff_sample_count(self) -> int:
+    """Number of samples actually handed to the reflected-field assembler."""
+
+    if (
+      self.outgoing_frontier_bridge_enabled
+      and self.frontier_coverage is not None
+      and self.frontier_coverage.frontier is not None
+    ):
+      return self.frontier_coverage.frontier.sample_count
+    return len(self.incoming_handoff)
 
   def as_chain_termination_decision(self) -> MocChainTerminationDecision:
     if self.status is (
@@ -325,6 +592,17 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryResult:
         'first_missing_sample_index': self.first_missing_sample_index,
         'path_coverage_verified': self.path_coverage_verified,
         'outgoing_frontier_verified': self.outgoing_frontier_verified,
+        'outgoing_frontier_bridge_enabled': (
+          self.outgoing_frontier_bridge_enabled
+        ),
+        'outgoing_frontier_bridge_verified': (
+          self.outgoing_frontier_bridge_verified
+        ),
+        'outgoing_frontier_bridge_status': (
+          None
+          if self.outgoing_frontier_bridge is None
+          else self.outgoing_frontier_bridge.status.value
+        ),
         'frontier_coverage_status': self.frontier_coverage_status,
         'frontier_coverage_requested_sample_count': (
           None
@@ -380,6 +658,13 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryResult:
       ),
       'path_coverage_verified': self.path_coverage_verified,
       'outgoing_frontier_verified': self.outgoing_frontier_verified,
+      'outgoing_frontier_bridge_enabled': self.outgoing_frontier_bridge_enabled,
+      'outgoing_frontier_bridge_verified': self.outgoing_frontier_bridge_verified,
+      'outgoing_frontier_bridge': (
+        None
+        if self.outgoing_frontier_bridge is None
+        else self.outgoing_frontier_bridge.as_report()
+      ),
       'frontier_coverage_status': self.frontier_coverage_status,
       'frontier_coverage': (
         None
@@ -392,12 +677,14 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryResult:
       'production_claim_allowed': False,
       'external_validation_required': True,
       'incoming_handoff_sample_count': len(self.incoming_handoff),
+      'coupled_handoff_sample_count': self.coupled_handoff_sample_count,
       'start_point_m': self.start_point_m,
       'ambient_pressure_Pa': self.ambient_pressure_Pa,
       'outer_flow_angle_bracket': self.outer_flow_angle_bracket,
       'target_centerline_y_m': self.target_centerline_y_m,
       'target_centerline_flow_angle_rad': self.target_centerline_flow_angle_rad,
       'allow_zero_strength_attachment': self.allow_zero_strength_attachment,
+      'allow_zero_strength_endpoints': self.allow_zero_strength_endpoints,
       'shock_sample_count': self.shock_sample_count,
       'covered_sample_count': self.covered_sample_count,
       'first_missing_sample_index': self.first_missing_sample_index,
@@ -434,6 +721,11 @@ def _result(
     MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierCoverageResult
     | None
   ) = None,
+  allow_zero_strength_endpoints: bool = False,
+  outgoing_frontier_bridge_enabled: bool = False,
+  outgoing_frontier_bridge: (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicSegmentResult | None
+  ) = None,
   message: str,
 ) -> MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryResult:
   return MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryResult(
@@ -454,6 +746,9 @@ def _result(
     source_cell_euler_residuals_verified=source_cell_euler_residuals_verified,
     position_tolerance_m=position_tolerance_m,
     frontier_coverage=frontier_coverage,
+    allow_zero_strength_endpoints=allow_zero_strength_endpoints,
+    outgoing_frontier_bridge_enabled=outgoing_frontier_bridge_enabled,
+    outgoing_frontier_bridge=outgoing_frontier_bridge,
     message=message,
   )
 
@@ -482,8 +777,15 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary(
   allow_zero_strength_attachment: bool = False,
   allow_zero_strength_endpoints: bool = False,
   zero_strength_start_trace: Sequence[MocChainBoundarySample] | None = None,
+  use_outgoing_frontier_bridge: bool = False,
 ) -> MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryResult:
-  """Probe reflected closure without treating the remesh as a physical field."""
+  """Probe reflected closure without treating the remesh as a physical field.
+
+  When ``use_outgoing_frontier_bridge`` is enabled, the exact dense outgoing
+  ``C-`` frontier seeds one locally solved ambient ``C+`` triangle.  That
+  triangle is a bounded diagnostic source only; it does not alter the remesh
+  or authorize promotion into a physical shock-cell chain.
+  """
 
   source_residual = None if remesh is None else remesh.maximum_cell_euler_residual
   source_euler_verified = bool(
@@ -573,6 +875,9 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary(
     'target_centerline_y_m': target_y,
     'target_centerline_flow_angle_rad': target_angle,
     'allow_zero_strength_attachment': allow_zero_strength_attachment,
+    'allow_zero_strength_endpoints': allow_zero_strength_endpoints,
+    'outgoing_frontier_bridge_enabled': use_outgoing_frontier_bridge,
+    'outgoing_frontier_bridge': None,
   }
   if not all(
     isfinite(value)
@@ -601,6 +906,8 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary(
     bool,
   ):
     raise ValueError('zero-strength options must be bool values')
+  if not isinstance(use_outgoing_frontier_bridge, bool):
+    raise ValueError('use_outgoing_frontier_bridge must be a bool')
   if not isinstance(branch, ShockBranch):
     return _result(
       MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryStatus
@@ -609,20 +916,118 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary(
       message='branch must be a ShockBranch',
       **base,
     )
-  try:
-    start_pressure = remesh.diagnostic_static_pressure_at(
-      point,
+  frontier = extract_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier(
+    remesh,
+    position_tolerance_m=tolerance,
+  )
+  bridge_sampler = None
+  if use_outgoing_frontier_bridge:
+    if not frontier.converged or len(frontier.samples) < 2:
+      frontier_coverage = (
+        audit_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier_path(
+          frontier,
+          (point,),
+          position_tolerance_m=tolerance,
+        )
+      )
+      return _result(
+        MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryStatus
+        .REFLECTED_FIELD_FAILURE,
+        remesh,
+        message=(
+          'outgoing frontier bridge requires an exact, locally verified C- '
+          'frontier with at least two samples'
+        ),
+        frontier_coverage=frontier_coverage,
+        **base,
+      )
+    if any(
+      abs(point[index] - frontier.samples[0].point_m[index]) > tolerance
+      for index in (0, 1)
+    ):
+      frontier_coverage = (
+        audit_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier_path(
+          frontier,
+          (point,),
+          position_tolerance_m=tolerance,
+        )
+      )
+      return _result(
+        MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryStatus
+        .HANDOFF_FAILURE,
+        remesh,
+        message=(
+          'outgoing frontier bridge requires start_point_m to equal the '
+          'outer point of the exact C- frontier'
+        ),
+        frontier_coverage=frontier_coverage,
+        **base,
+      )
+    bridge_segment, bridge_sample = _solve_outgoing_frontier_bridge(
+      remesh,
+      frontier,
+      ambient_pressure,
+      target_y,
+      position_tolerance_m=tolerance,
+      characteristic_residual_tolerance=pressure_tolerance,
+      maximum_iterations=maximum_segment_iterations,
+    )
+    base['outgoing_frontier_bridge'] = bridge_segment
+    if bridge_segment is None or bridge_sample is None:
+      frontier_coverage = (
+        audit_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier_path(
+          frontier,
+          (point,),
+          position_tolerance_m=tolerance,
+        )
+      )
+      bridge_status = (
+        None if bridge_segment is None else bridge_segment.status.value
+      )
+      return _result(
+        MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryStatus
+        .REFLECTED_FIELD_FAILURE,
+        remesh,
+        message=(
+          'outgoing frontier ambient C+ bridge did not converge or could not '
+          f'form a bounded diagnostic triangle (status={bridge_status})'
+        ),
+        frontier_coverage=frontier_coverage,
+        **base,
+      )
+    bridge_sampler = _FrontierBridgeDiagnosticSampler(
+      (bridge_sample, *remesh.cell_samples),
+    )
+
+  def state_at(sample_point: tuple[float, float]) -> CharacteristicState | None:
+    if bridge_sampler is not None:
+      return bridge_sampler.state_at(
+        sample_point,
+        position_tolerance_m=tolerance,
+      )
+    return remesh.diagnostic_state_at(
+      sample_point,
       position_tolerance_m=tolerance,
     )
+
+  def static_pressure_at(sample_point: tuple[float, float]) -> float | None:
+    if bridge_sampler is not None:
+      return bridge_sampler.static_pressure_at(
+        sample_point,
+        position_tolerance_m=tolerance,
+      )
+    return remesh.diagnostic_static_pressure_at(
+      sample_point,
+      position_tolerance_m=tolerance,
+    )
+
+  try:
+    start_pressure = static_pressure_at(point)
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     start_pressure = None
     sampler_error = str(error)
   else:
     sampler_error = ''
-  frontier = extract_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier(
-    remesh,
-    position_tolerance_m=tolerance,
-  )
   if start_pressure is None:
     frontier_coverage = (
       audit_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier_path(
@@ -645,21 +1050,15 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary(
 
   try:
     physical_field = solve_marched_attached_shock_with_ambient_centerline_physical_field(
-      lambda sample_point: remesh.diagnostic_state_at(
-        sample_point,
-        position_tolerance_m=tolerance,
-      ),
-      lambda sample_point: remesh.diagnostic_static_pressure_at(
-        sample_point,
-        position_tolerance_m=tolerance,
-      ),
+      state_at,
+      static_pressure_at,
       point,
       ambient_pressure,
       lower_angle,
       upper_angle,
       target_centerline_y_m=target_y,
       target_centerline_flow_angle_rad=target_angle,
-      incoming_handoff=handoff,
+      incoming_handoff=(frontier.samples if use_outgoing_frontier_bridge else handoff),
       sample_count=sample_count,
       branch=branch,
       position_tolerance_m=tolerance,

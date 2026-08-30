@@ -10516,6 +10516,60 @@ def build_moc_primitive_report() -> dict[str, Any]:
       allow_zero_strength_attachment=True,
     )
   )
+  euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge = (
+    None
+    if entropy_characteristic_remesh is None
+    or not entropy_characteristic_remesh_handoff
+    or entropy_characteristic_remesh_start is None
+    or entropy_characteristic_remesh_ambient_pressure is None
+    else solve_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary(
+      entropy_characteristic_remesh,
+      entropy_characteristic_remesh_handoff,
+      entropy_characteristic_remesh_start.point_m,
+      entropy_characteristic_remesh_ambient_pressure,
+      entropy_characteristic_remesh_start.state.theta_rad - 1.0e-6,
+      entropy_characteristic_remesh_start.state.theta_rad + 1.0e-6,
+      sample_count=9,
+      position_tolerance_m=1.0e-8,
+      allow_zero_strength_attachment=True,
+      allow_zero_strength_endpoints=True,
+      use_outgoing_frontier_bridge=True,
+    )
+  )
+  euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_audit = (
+    None
+    if euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge is None
+    else measure_moc_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary(
+      euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge,
+      position_tolerance_m=1.0e-8,
+    )
+  )
+  euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_planner = (
+    None
+    if entropy_characteristic_field is None
+    or entropy_characteristic_free_boundary_ambient_pressure is None
+    else plan_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_probe(
+      entropy_characteristic_field,
+      ambient_pressure_Pa=entropy_characteristic_free_boundary_ambient_pressure,
+      outer_downstream_flow_angle_lower_rad=(
+        entropy_characteristic_free_boundary_start.state.theta_rad - 1.0e-6
+        if entropy_characteristic_free_boundary_start is not None
+        else 0.0
+      ),
+      outer_downstream_flow_angle_upper_rad=(
+        entropy_characteristic_free_boundary_start.state.theta_rad + 1.0e-6
+        if entropy_characteristic_free_boundary_start is not None
+        else 1.0e-6
+      ),
+      cycle_count=4,
+      subdivision_side_count=32,
+      sample_count=9,
+      position_tolerance_m=1.0e-8,
+      allow_zero_strength_attachment=True,
+      allow_zero_strength_endpoints=True,
+      use_outgoing_frontier_bridge=True,
+    )
+  )
   euler_ambient_first_wedge_remesh_refinement = (
     measure_moc_euler_ambient_first_wedge_remesh_refinement(
       tuple(
@@ -11076,6 +11130,21 @@ def build_moc_primitive_report() -> dict[str, Any]:
         None
         if euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_planner is None
         else euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_planner.as_report()
+      ),
+      'characteristic_remesh_free_boundary_frontier_bridge': (
+        None
+        if euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge is None
+        else euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge.as_report()
+      ),
+      'characteristic_remesh_free_boundary_frontier_bridge_audit': (
+        None
+        if euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_audit is None
+        else euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_audit.as_report()
+      ),
+      'characteristic_remesh_free_boundary_frontier_bridge_planner_probe': (
+        None
+        if euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_planner is None
+        else euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_planner.as_report()
       ),
       'claim_status': (
         'solver-generated-bounded-variable-entropy-alternating-source-band; '
@@ -12617,6 +12686,78 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or not euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_audit.chain_promotion_blocked
     or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_audit.production_claim_allowed
   )
+  euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_failure = (
+    euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge is None
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge.status
+    is not MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryStatus.CONVERGED_CLOSURE_PROBE
+    or not euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge.outgoing_frontier_bridge_enabled
+    or not euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge.outgoing_frontier_bridge_verified
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge.outgoing_frontier_bridge is None
+    or not euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge.outgoing_frontier_bridge.converged
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge.shock is None
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge.shock.status
+    is not MocFreeBoundaryShockStatus.CONVERGED_FIELD
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge.shock_sample_count != 9
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge.covered_sample_count != 9
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge.first_missing_sample_index is not None
+    or not euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge.path_coverage_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge.reflected_free_boundary_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge.physical_closure_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge.chain_promotion_blocked
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge.production_claim_allowed
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge.frontier_coverage is None
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge.frontier_coverage.status
+    is not MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierCoverageStatus.FRONTIER_EXTERIOR
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge.frontier_coverage.first_exterior_sample_index != 5
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge.frontier_coverage.first_exterior_signed_offset_m is None
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge.frontier_coverage.first_exterior_signed_offset_m <= 0.0
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_planner is None
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_planner.field_count != 1
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_planner.continued_field_count != 0
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_planner.termination.reason
+    is not MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_planner.termination.physical_termination
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_planner.physical_chain_cell_count != 0
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_planner.physical_closure_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_planner.chain_promotion_blocked
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_planner.production_claim_allowed
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_planner.diagnostics.get(
+      'outgoing_frontier_bridge_enabled'
+    ) is not True
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_planner.diagnostics.get(
+      'outgoing_frontier_bridge_verified'
+    ) is not True
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_planner.diagnostics.get(
+      'outgoing_frontier_bridge_status'
+    ) != 'converged_variable_entropy_characteristic_segment'
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_planner.diagnostics.get(
+      'outgoing_frontier_sample_count'
+    ) != 33
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_planner.diagnostics.get(
+      'frontier_path_coverage_status'
+    ) != 'converged_bounded_entropy_characteristic_frontier_path'
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_planner.diagnostics.get(
+      'frontier_first_exterior_sample_index'
+    ) is not None
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_audit is None
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_audit.status
+    is not MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryAuditStatus.CONVERGED_LOCAL_CLOSED_AUDIT
+    or not euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_audit.converged
+    or not euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_audit.local_consistency_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_audit.path_coverage_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_audit.outgoing_frontier_bridge_enabled
+    or not euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_audit.outgoing_frontier_bridge_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_audit.coupled_handoff_consumption_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_audit.reflected_free_boundary_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_audit.frontier_coverage_verified
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_audit.frontier_sample_count != 33
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_audit.frontier_first_exterior_sample_index != 5
+    or not euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_audit.external_validation_required
+    or not euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_audit.fidelity_flags_verified
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_audit.physical_closure_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_audit.chain_promotion_blocked
+    or euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_audit.production_claim_allowed
+  )
   euler_companion_field_planner_failure = (
     euler_companion_field_planner.planner_kind is not MocChainPlannerKind.UPSTREAM_COUPLED_RESEARCH
     or not euler_companion_field_planner.resolved
@@ -13055,6 +13196,21 @@ def build_moc_primitive_report() -> dict[str, Any]:
         ),
       }
     ] if euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_failure else []),
+    *([
+      {
+        'case': 'euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge',
+        'status': (
+          'missing'
+          if euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_audit is None
+          else euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_audit.status.value
+        ),
+        'message': (
+          'the bounded outgoing-frontier bridge did not preserve its local '
+          'closure, dense handoff consumption, independent audit, and '
+          'non-promotion gates'
+        ),
+      }
+    ] if euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_frontier_bridge_failure else []),
     *([
       {
         'case': 'euler_solver_owned_ambient_companion_boundary',

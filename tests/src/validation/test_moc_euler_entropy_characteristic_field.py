@@ -951,6 +951,153 @@ def test_internal_entropy_characteristic_remesh_free_boundary_probe_stops_at_rem
   assert audit.production_claim_allowed is False
 
 
+def test_internal_entropy_characteristic_remesh_free_boundary_frontier_bridge_closes_locally() -> None:
+  _, field = _internal_field()
+  start = field.continuation_boundary[0]
+  ambient_pressure = field.static_pressure_at(start.point_m)
+  assert ambient_pressure is not None
+  continuation = solve_euler_ambient_first_wedge_entropy_characteristic_continuation(
+    field,
+    field.continuation_boundary,
+    ambient_pressure,
+    cycle_count=4,
+  )
+  remesh = remesh_euler_ambient_first_wedge_entropy_characteristic_continuation(
+    continuation,
+    subdivision_side_count=32,
+  )
+  handoff = remesh.continuation_boundary
+  remesh_ambient_pressure = remesh.diagnostic_static_pressure_at(
+    handoff[0].point_m,
+  )
+  assert remesh_ambient_pressure is not None
+
+  attempt = solve_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary(
+    remesh,
+    handoff,
+    handoff[0].point_m,
+    remesh_ambient_pressure,
+    handoff[0].state.theta_rad - 1.0e-6,
+    handoff[0].state.theta_rad + 1.0e-6,
+    sample_count=9,
+    position_tolerance_m=1.0e-8,
+    allow_zero_strength_attachment=True,
+    allow_zero_strength_endpoints=True,
+    use_outgoing_frontier_bridge=True,
+  )
+
+  assert attempt.status is (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryStatus
+    .CONVERGED_CLOSURE_PROBE
+  )
+  assert attempt.outgoing_frontier_bridge_enabled
+  assert attempt.outgoing_frontier_bridge_verified
+  assert attempt.outgoing_frontier_bridge is not None
+  assert attempt.outgoing_frontier_bridge.converged
+  assert attempt.outgoing_frontier_bridge.family.value == 'C+'
+  assert attempt.shock is not None
+  assert attempt.shock.converged
+  assert attempt.shock_sample_count == 9
+  assert attempt.covered_sample_count == 9
+  assert attempt.first_missing_sample_index is None
+  assert attempt.path_coverage_verified
+  assert attempt.frontier_coverage is not None
+  assert attempt.frontier_coverage.status is (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierCoverageStatus
+    .FRONTIER_EXTERIOR
+  )
+  assert attempt.frontier_coverage.first_exterior_sample_index == 5
+  assert attempt.reflected_free_boundary_verified
+  assert attempt.physical_closure_verified
+  assert attempt.chain_promotion_blocked
+  assert attempt.production_claim_allowed is False
+  assert attempt.as_chain_termination_decision().reason is (
+    MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+  )
+
+  audit = measure_moc_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary(
+    attempt,
+    position_tolerance_m=1.0e-8,
+  )
+  assert audit.status is (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryAuditStatus
+    .CONVERGED_LOCAL_CLOSED_AUDIT
+  )
+  assert audit.converged
+  assert audit.local_consistency_verified
+  assert audit.path_coverage_verified
+  assert audit.outgoing_frontier_bridge_enabled
+  assert audit.outgoing_frontier_bridge_verified
+  assert audit.outgoing_frontier_bridge_status == (
+    'converged_variable_entropy_characteristic_segment'
+  )
+  assert audit.frontier_coverage_verified
+  assert audit.status_consistent
+  assert audit.reflected_free_boundary_verified
+  assert audit.coupled_handoff_consumption_verified
+  assert audit.physical_closure_verified is False
+  assert audit.chain_promotion_blocked
+  assert audit.external_validation_required
+
+  tampered = replace(
+    attempt,
+    outgoing_frontier_bridge=replace(
+      attempt.outgoing_frontier_bridge,
+      geometry_residual=0.5,
+    ),
+  )
+  tampered_audit = (
+    measure_moc_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary(
+      tampered,
+      position_tolerance_m=1.0e-8,
+    )
+  )
+  assert not tampered_audit.converged
+  assert tampered_audit.outgoing_frontier_bridge_enabled
+  assert not tampered_audit.outgoing_frontier_bridge_verified
+
+
+def test_internal_entropy_characteristic_remesh_free_boundary_planner_frontier_bridge_remains_nonphysical() -> None:
+  _, field = _internal_field()
+  start = field.continuation_boundary[0]
+  ambient_pressure = field.static_pressure_at(start.point_m)
+  assert ambient_pressure is not None
+
+  planner = plan_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_probe(
+    field,
+    ambient_pressure_Pa=ambient_pressure,
+    outer_downstream_flow_angle_lower_rad=start.state.theta_rad - 1.0e-6,
+    outer_downstream_flow_angle_upper_rad=start.state.theta_rad + 1.0e-6,
+    sample_count=9,
+    position_tolerance_m=1.0e-8,
+    allow_zero_strength_attachment=True,
+    allow_zero_strength_endpoints=True,
+    use_outgoing_frontier_bridge=True,
+  )
+
+  assert planner.field_count == 1
+  assert planner.continued_field_count == 0
+  assert planner.termination.reason is MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+  assert planner.termination.physical_termination is False
+  assert planner.physical_chain_cell_count == 0
+  assert planner.physical_closure_verified is False
+  assert planner.chain_promotion_blocked
+  assert planner.production_claim_allowed is False
+  assert planner.diagnostics['outgoing_frontier_bridge_enabled'] is True
+  assert planner.diagnostics['outgoing_frontier_bridge_verified'] is True
+  attempt = planner.diagnostics['remesh_free_boundary_attempts'][0]
+  assert attempt['outgoing_frontier_bridge_enabled'] is True
+  assert attempt['outgoing_frontier_bridge_verified'] is True
+  assert attempt['outgoing_frontier_bridge']['status'] == (
+    'converged_variable_entropy_characteristic_segment'
+  )
+  assert attempt['physical_closure_verified'] is True
+  assert attempt['chain_promotion_blocked'] is True
+  assert attempt['external_validation_required'] is True
+  assert planner.diagnostics['synthetic_downstream_field_created'] is False
+  assert planner.diagnostics['physical_chain_cell_count'] == 0
+
+
 def test_internal_entropy_characteristic_remesh_free_boundary_planner_keeps_boundary_typed() -> None:
   _, field = _internal_field()
   start = field.continuation_boundary[0]
