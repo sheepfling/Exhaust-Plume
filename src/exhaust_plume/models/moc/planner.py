@@ -16767,6 +16767,7 @@ def plan_reflected_domain_global_shock_remesh_chain(
               ambient_physical_field = assemble_euler_ambient_physical_field(
                 geometry_reconciliation,
                 ambient_pressure,
+                incoming_handoff=incoming_handoff,
                 target_centerline_y_m=source_band.target_centerline_y_m,
                 position_tolerance_m=position_tolerance_m,
                 invariant_tolerance=invariant_tolerance,

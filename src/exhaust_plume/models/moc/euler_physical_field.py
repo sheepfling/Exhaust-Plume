@@ -18,7 +18,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 from math import isfinite
-from typing import Any
+from typing import Any, Sequence
 
 from exhaust_plume.models.moc.ambient_boundary import (
   MocAmbientBoundarySample,
@@ -195,6 +195,20 @@ class MocEulerAmbientPhysicalFieldResult:
       )
     )
 
+  @property
+  def incoming_handoff(self) -> tuple[MocChainBoundarySample, ...]:
+    """Expose the exact prior-cell frontier retained by the physical field."""
+
+    if self.field is None:
+      return ()
+    return self.field.incoming_handoff
+
+  @property
+  def carries_incoming_handoff(self) -> bool:
+    """Whether this candidate retained a solver-supplied upstream frontier."""
+
+    return bool(self.incoming_handoff)
+
   def as_chain_termination_decision(self) -> MocChainTerminationDecision:
     """Return the explicit research-chain boundary for this candidate."""
 
@@ -249,6 +263,7 @@ class MocEulerAmbientPhysicalFieldResult:
       'physical_field_verified': self.physical_field_verified,
       'physical_closure_verified': self.physical_closure_verified,
       'state_sampling_available': self.state_sampling_available,
+      'incoming_handoff_sample_count': len(self.incoming_handoff),
       'downstream_handoff_sample_count': len(self.downstream_handoff),
       'chain_promotion_blocked': self.chain_promotion_blocked,
       'production_claim_allowed': self.production_claim_allowed,
@@ -334,6 +349,7 @@ def assemble_euler_ambient_physical_field(
   shock_boundary: MocEulerShockBoundaryCurveResult,
   ambient_pressure_Pa: float,
   *,
+  incoming_handoff: Sequence[MocChainBoundarySample] | None = None,
   target_centerline_y_m: float = 0.0,
   position_tolerance_m: float = 1.0e-10,
   invariant_tolerance: float = 1.0e-10,
@@ -357,6 +373,43 @@ def assemble_euler_ambient_physical_field(
       field=None,
       ambient_pressure_Pa=None,
       message='shock_boundary must be a MocEulerShockBoundaryCurveResult',
+    )
+  try:
+    resolved_incoming_handoff = (
+      () if incoming_handoff is None else tuple(incoming_handoff)
+    )
+  except TypeError:
+    return _failure(
+      MocEulerAmbientPhysicalFieldStatus.INVALID_INPUT,
+      shock_boundary=shock_boundary,
+      ambient_march=None,
+      field=None,
+      ambient_pressure_Pa=None,
+      message=(
+        'incoming_handoff must be an iterable of MocChainBoundarySample '
+        'values'
+      ),
+    )
+  if any(
+    not isinstance(sample, MocChainBoundarySample)
+    for sample in resolved_incoming_handoff
+  ):
+    return _failure(
+      MocEulerAmbientPhysicalFieldStatus.INVALID_INPUT,
+      shock_boundary=shock_boundary,
+      ambient_march=None,
+      field=None,
+      ambient_pressure_Pa=None,
+      message='incoming_handoff must contain MocChainBoundarySample values',
+    )
+  if incoming_handoff is not None and len(resolved_incoming_handoff) < 3:
+    return _failure(
+      MocEulerAmbientPhysicalFieldStatus.INVALID_INPUT,
+      shock_boundary=shock_boundary,
+      ambient_march=None,
+      field=None,
+      ambient_pressure_Pa=None,
+      message='incoming_handoff requires at least three state samples',
     )
   try:
     ambient_pressure = float(ambient_pressure_Pa)
@@ -462,6 +515,9 @@ def assemble_euler_ambient_physical_field(
         for sample in ambient_march.boundary_samples
       ),
       ambient_pressure,
+      incoming_handoff=(
+        resolved_incoming_handoff if incoming_handoff is not None else None
+      ),
       position_tolerance_m=position_tolerance,
       invariant_tolerance=invariant_tolerance_value,
       pressure_tolerance=pressure_tolerance_value,
@@ -494,6 +550,19 @@ def assemble_euler_ambient_physical_field(
       message=(
         'exact shock and ambient boundaries assembled, but the reflected '
         f'physical field did not pass closure gates: {field.message}'
+      ),
+    )
+  if field.incoming_handoff != resolved_incoming_handoff:
+    return _failure(
+      MocEulerAmbientPhysicalFieldStatus.FIELD_FAILURE,
+      shock_boundary=shock_boundary,
+      ambient_march=ambient_march,
+      field=field,
+      ambient_pressure_Pa=ambient_pressure,
+      entropy_residuals=entropy_residuals,
+      message=(
+        'exact Euler physical-field assembly did not retain the supplied '
+        'incoming handoff exactly'
       ),
     )
   return MocEulerAmbientPhysicalFieldResult(

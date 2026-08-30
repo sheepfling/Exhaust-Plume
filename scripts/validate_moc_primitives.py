@@ -1416,6 +1416,7 @@ def _reflected_domain_remesh_probe(
       MocReflectedDomainGlobalEulerShockBoundaryStatus.CONVERGED
     )
     and global_euler_shock_boundary.converged
+    and global_euler_shock_boundary.incoming_handoff_verified
     and global_euler_shock_boundary.physical_closure_verified
     and global_euler_shock_boundary.chain_promotion_blocked
     and global_euler_shock_boundary.production_claim_allowed is False
@@ -1425,6 +1426,7 @@ def _reflected_domain_remesh_probe(
     )
     and global_euler_shock_boundary_measurement.converged
     and global_euler_shock_boundary_measurement.local_euler_consistency_verified
+    and global_euler_shock_boundary_measurement.incoming_handoff_verified
     and global_euler_shock_boundary_measurement.physical_closure_verified
     and global_euler_shock_boundary_measurement.fidelity_isolation_verified
     and global_euler_shock_boundary_refinement is not None

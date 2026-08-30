@@ -16529,6 +16529,7 @@ class MocReflectedDomainGlobalEulerShockBoundaryMeasurement:
   source_frontier_verified: bool
   endpoint_tangents_verified: bool
   upstream_sampling_verified: bool
+  incoming_handoff_verified: bool
   shock_boundary_verified: bool
   ambient_boundary_verified: bool
   physical_field_verified: bool
@@ -16576,6 +16577,7 @@ class MocReflectedDomainGlobalEulerShockBoundaryMeasurement:
       'source_frontier_verified',
       'endpoint_tangents_verified',
       'upstream_sampling_verified',
+      'incoming_handoff_verified',
       'shock_boundary_verified',
       'ambient_boundary_verified',
       'physical_field_verified',
@@ -16670,6 +16672,7 @@ class MocReflectedDomainGlobalEulerShockBoundaryMeasurement:
         'source_frontier_verified': self.source_frontier_verified,
         'endpoint_tangents_verified': self.endpoint_tangents_verified,
         'upstream_sampling_verified': self.upstream_sampling_verified,
+        'incoming_handoff_verified': self.incoming_handoff_verified,
         'shock_boundary_verified': self.shock_boundary_verified,
         'ambient_boundary_verified': self.ambient_boundary_verified,
         'physical_field_verified': self.physical_field_verified,
@@ -16704,6 +16707,7 @@ def _reflected_domain_global_euler_shock_boundary_measurement_failure(
   source_frontier_verified: bool = False,
   endpoint_tangents_verified: bool = False,
   upstream_sampling_verified: bool = False,
+  incoming_handoff_verified: bool = False,
   shock_boundary_verified: bool = False,
   ambient_boundary_verified: bool = False,
   physical_field_verified: bool = False,
@@ -16732,6 +16736,7 @@ def _reflected_domain_global_euler_shock_boundary_measurement_failure(
     source_frontier_verified=source_frontier_verified,
     endpoint_tangents_verified=endpoint_tangents_verified,
     upstream_sampling_verified=upstream_sampling_verified,
+    incoming_handoff_verified=incoming_handoff_verified,
     shock_boundary_verified=shock_boundary_verified,
     ambient_boundary_verified=ambient_boundary_verified,
     physical_field_verified=physical_field_verified,
@@ -17083,11 +17088,17 @@ def measure_moc_reflected_domain_global_euler_shock_boundary(
     and field_euler_measurement.converged
     and field_euler_measurement.local_euler_consistency_verified
   )
+  incoming_handoff_verified = bool(
+    physical_result is not None
+    and result.incoming_handoff_verified
+    and physical_result.incoming_handoff == source_band.incoming_handoff
+  )
   physical_closure_verified = bool(
     result.physical_closure_verified
     and source_frontier_verified
     and endpoint_tangents_verified
     and upstream_sampling_verified
+    and incoming_handoff_verified
     and shock_boundary_verified
     and ambient_boundary_verified
     and physical_field_verified
@@ -17124,6 +17135,7 @@ def measure_moc_reflected_domain_global_euler_shock_boundary(
     source_frontier_verified=source_frontier_verified,
     endpoint_tangents_verified=endpoint_tangents_verified,
     upstream_sampling_verified=upstream_sampling_verified,
+    incoming_handoff_verified=incoming_handoff_verified,
     shock_boundary_verified=shock_boundary_verified,
     ambient_boundary_verified=ambient_boundary_verified,
     physical_field_verified=physical_field_verified,

@@ -2000,11 +2000,37 @@ class MocReflectedDomainGlobalEulerShockBoundaryResult:
     return bool(
       self.status is MocReflectedDomainGlobalEulerShockBoundaryStatus.CONVERGED
       and self.source_frontier_verified
+      and self.incoming_handoff_verified
       and self.shock_boundary is not None
       and self.shock_boundary.converged
       and self.physical_field is not None
       and self.physical_field.converged
       and self.physical_field.physical_closure_verified
+    )
+  ####
+
+  @property
+  def incoming_handoff(self) -> tuple[MocChainBoundarySample, ...]:
+    """Return the exact prior-cell frontier retained by the closed field."""
+
+    if self.physical_field is None:
+      return ()
+    return self.physical_field.incoming_handoff
+  ####
+
+  @property
+  def incoming_handoff_verified(self) -> bool:
+    """Verify that the field carries the source band's frontier exactly."""
+
+    source_band = (
+      None
+      if self.global_remesh is None
+      else self.global_remesh.source_band
+    )
+    return bool(
+      source_band is not None
+      and self.physical_field is not None
+      and self.incoming_handoff == source_band.incoming_handoff
     )
   ####
 
@@ -2068,6 +2094,8 @@ class MocReflectedDomainGlobalEulerShockBoundaryResult:
         'termination_model': 'global-reflected-euler-shock-boundary',
         'status': self.status.value,
         'source_frontier_verified': self.source_frontier_verified,
+        'incoming_handoff_verified': self.incoming_handoff_verified,
+        'incoming_handoff_sample_count': len(self.incoming_handoff),
         'physical_closure_verified': self.physical_closure_verified,
         'canonical_free_boundary_verified': self.canonical_free_boundary_verified,
         'canonical_euler_verified': self.canonical_euler_verified,
@@ -2082,6 +2110,8 @@ class MocReflectedDomainGlobalEulerShockBoundaryResult:
     return {
       'status': self.status.value,
       'converged': self.converged,
+      'incoming_handoff_verified': self.incoming_handoff_verified,
+      'incoming_handoff_sample_count': len(self.incoming_handoff),
       'physical_closure_verified': self.physical_closure_verified,
       'canonical_free_boundary_verified': self.canonical_free_boundary_verified,
       'canonical_euler_verified': self.canonical_euler_verified,
@@ -2476,6 +2506,11 @@ def solve_reflected_domain_global_euler_shock_boundary(
     physical_field = assemble_euler_ambient_physical_field(
       curve,
       ambient_pressure,
+      incoming_handoff=(
+        source_band.incoming_handoff
+        if source_band.incoming_handoff
+        else None
+      ),
       target_centerline_y_m=target_y,
       position_tolerance_m=position_tolerance_m,
       invariant_tolerance=invariant_tolerance,

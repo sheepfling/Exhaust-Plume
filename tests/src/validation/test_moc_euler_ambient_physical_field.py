@@ -6,6 +6,7 @@ from math import atan2, tan
 from exhaust_plume.models.moc import (
   CharacteristicFamily,
   CharacteristicState,
+  MocChainBoundarySample,
   MocChainTerminationReason,
   MocEulerShockBoundaryStatus,
   MocEulerAmbientFirstWedgeRemeshStatus,
@@ -251,16 +252,29 @@ def test_exact_ambient_physical_field_closes_local_mesh_but_stops_chain() -> Non
   shock = _shaped_exact_shock()
   assert shock.converged
   assert shock.local_euler_verified
+  incoming_handoff = tuple(
+    MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
+    for state, pressure in zip(
+      shock.upstream_states[:3],
+      shock.upstream_total_pressure_Pa[:3],
+      strict=True,
+    )
+  )
 
   result = assemble_euler_ambient_physical_field(
     shock,
     shock.downstream_static_pressure_Pa[0],
+    incoming_handoff=incoming_handoff,
   )
 
   assert result.status is MocEulerAmbientPhysicalFieldStatus.CONVERGED_AMBIENT_CLOSED
   assert result.converged
   assert result.physical_closure_verified
   assert result.state_sampling_available
+  assert result.incoming_handoff == incoming_handoff
+  assert result.field is not None
+  assert result.field.incoming_handoff == incoming_handoff
+  assert result.carries_incoming_handoff
   assert len(result.downstream_handoff) > 1
   assert result.entropy_lineage_verified is False
   assert result.chain_promotion_blocked
@@ -268,6 +282,24 @@ def test_exact_ambient_physical_field_closes_local_mesh_but_stops_chain() -> Non
   decision = result.as_chain_termination_decision()
   assert decision.reason is MocChainTerminationReason.FIDELITY_NOT_ALLOWED
   assert decision.physical_termination is False
+
+
+def test_exact_ambient_physical_field_rejects_short_incoming_handoff() -> None:
+  shock = _shaped_exact_shock()
+  result = assemble_euler_ambient_physical_field(
+    shock,
+    shock.downstream_static_pressure_Pa[0],
+    incoming_handoff=(
+      MocChainBoundarySample(
+        state=shock.upstream_states[0],
+        total_pressure_Pa=shock.upstream_total_pressure_Pa[0],
+      ),
+    ),
+  )
+
+  assert result.status is MocEulerAmbientPhysicalFieldStatus.INVALID_INPUT
+  assert not result.converged
+  assert not result.carries_incoming_handoff
 
 
 def test_exact_ambient_physical_field_audit_exposes_cell_gate() -> None:

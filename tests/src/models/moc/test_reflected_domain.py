@@ -623,6 +623,7 @@ def test_reflected_domain_alternating_source_couples_to_physical_shock_field():
   source = solve_reflected_domain_alternating_source(
     patch,
     ambient_pressure,
+    incoming_handoff=_handoff(field),
   )
 
   result = solve_reflected_domain_alternating_physical_field(
@@ -1016,12 +1017,13 @@ def test_global_reflected_shock_remesh_retains_bounded_profile_sweep_without_clo
 
 
 def test_global_euler_shock_boundary_closes_continuous_source_frontier():
-  _field, patch = _patch()
-  ambient_pressure = _field.ambient_boundary.ambient_pressure_Pa
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
   assert ambient_pressure is not None
   source = solve_reflected_domain_alternating_source(
     patch,
     ambient_pressure,
+    incoming_handoff=_handoff(field),
   )
   global_result = solve_reflected_domain_global_shock_remesh(
     source,
@@ -1065,6 +1067,9 @@ def test_global_euler_shock_boundary_closes_continuous_source_frontier():
   assert result.physical_field is not None
   assert result.physical_field.converged
   assert result.physical_field.physical_closure_verified
+  assert result.incoming_handoff_verified
+  assert result.incoming_handoff == source.incoming_handoff
+  assert result.physical_field.incoming_handoff == source.incoming_handoff
   assert result.canonical_free_boundary_verified is False
   assert result.canonical_euler_verified is False
   assert result.external_validation_verified is False
@@ -1081,6 +1086,7 @@ def test_global_euler_shock_boundary_closes_continuous_source_frontier():
   assert measurement.converged
   assert measurement.local_euler_consistency_verified
   assert measurement.source_frontier_verified
+  assert measurement.incoming_handoff_verified
   assert measurement.endpoint_tangents_verified
   assert measurement.upstream_sampling_verified
   assert measurement.ambient_boundary_verified
@@ -1366,6 +1372,7 @@ def test_global_reflected_shock_remesh_planner_preserves_research_stop():
     'converged_global_euler_shock_field'
   )
   assert global_euler_closure['physical_closure_verified'] is True
+  assert global_euler_closure['incoming_handoff_verified'] is True
   assert planner.diagnostics[
     'global_reflected_shock_remesh_global_euler_closure_independent_audit_accepted'
   ] is True
@@ -1374,6 +1381,7 @@ def test_global_reflected_shock_remesh_planner_preserves_research_stop():
   ]
   assert global_euler_measurement['status'] == 'converged'
   assert global_euler_measurement['checks']['source_frontier_verified'] is True
+  assert global_euler_measurement['checks']['incoming_handoff_verified'] is True
   assert global_euler_measurement['checks']['physical_closure_verified'] is True
   assert planner.diagnostics[
     'global_reflected_shock_remesh_global_euler_closure_required_for_promotion'

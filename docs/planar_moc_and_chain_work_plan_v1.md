@@ -3197,3 +3197,21 @@ The remaining implementation order is therefore explicit:
 5. Run disjoint external comparison and promotion review, then consider only a
    dedicated resolved-planar-MOC provider. No result may flow backward into a
    lower-fidelity product lane.
+
+## Exact-Euler frontier handoff checkpoint
+
+The exact-Euler ambient/centerline bridge now accepts an optional typed
+incoming ``MocChainBoundarySample`` frontier. It validates the trace before
+solving, passes the frontier into the physical-field assembler, and verifies
+that the assembled field retained the same state and total-pressure samples
+exactly. The global reflected-shock closure forwards its source-band handoff
+through this seam and exposes an independent
+``incoming_handoff_verified`` measurement gate.
+
+This closes a real data-lineage gap: the global field can now carry the prior
+cell's frontier for a future research continuation instead of merely checking
+the handoff before solving. It still does not promote a ``MocChainCell``. The
+global result remains below the canonical mixed-regime/free-boundary closure,
+indexed validation, and production next-cell fitting gates, and the fast,
+basic-visualization, signature, optical-transfer, and focal-plane-array lanes
+remain unchanged.
