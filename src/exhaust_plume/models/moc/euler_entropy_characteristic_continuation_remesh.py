@@ -4,9 +4,8 @@ The continuation source band is useful as a coarse alternating characteristic
 construction, but its barycentric refinement is only a projection.  This
 module solves the two characteristic boundary edges of each source triangle
 as short variable-entropy boundary-value problems and reuses one exact edge
-trace wherever neighboring triangles meet.  The first implementation is
-deliberately bounded to one or two intervals per source triangle; interior
-multi-row characteristic intersections remain an explicit next gate.
+trace wherever neighboring triangles meet.  The four-interval case also
+solves a bounded interior C+/C- row stencil; global closure remains separate.
 
 The resulting mesh is research evidence.  It has no shock jump, no globally
 closed reflected free boundary, and no physical shock-cell-chain promotion.
@@ -47,6 +46,7 @@ from exhaust_plume.models.moc.zone import MocCharacteristicCell
 __all__ = (
   'MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshStatus',
   'MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshEdge',
+  'MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshIntersection',
   'MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshResult',
   'remesh_euler_ambient_first_wedge_entropy_characteristic_continuation',
 )
@@ -189,6 +189,159 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshEdge:
 
 
 @dataclass(frozen=True, slots=True)
+class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshIntersection:
+  """One solver-owned interior C+/C- characteristic intersection."""
+
+  intersection_index: int
+  parent_cell_index: int
+  plus_source_row_index: int
+  minus_source_row_index: int
+  plus_source: CharacteristicState
+  minus_source: CharacteristicState
+  state: CharacteristicState
+  plus_source_total_pressure_Pa: float
+  minus_source_total_pressure_Pa: float
+  plus_total_pressure_Pa: float
+  minus_total_pressure_Pa: float
+  total_pressure_Pa: float
+  plus_geometry_residual: float
+  minus_geometry_residual: float
+  plus_compatibility_residual: float
+  minus_compatibility_residual: float
+  plus_pressure_residual: float
+  minus_pressure_residual: float
+  plus_forward_direction_sign: int
+  minus_forward_direction_sign: int
+  plus_forward_margin_m: float
+  minus_forward_margin_m: float
+
+  def __post_init__(self) -> None:
+    if (
+      isinstance(self.intersection_index, bool)
+      or not isinstance(self.intersection_index, int)
+      or self.intersection_index < 0
+    ):
+      raise ValueError('intersection_index must be a nonnegative integer')
+    for name in (
+      'parent_cell_index',
+      'plus_source_row_index',
+      'minus_source_row_index',
+    ):
+      value = getattr(self, name)
+      if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f'{name} must be a nonnegative integer')
+    if (
+      self.plus_source_row_index >= 4
+      or self.minus_source_row_index >= 4
+      or self.plus_source_row_index >= self.minus_source_row_index
+    ):
+      raise ValueError(
+        'intersection source row indices must be ordered values below four'
+      )
+    for name in ('plus_source', 'minus_source', 'state'):
+      if not isinstance(getattr(self, name), CharacteristicState):
+        raise TypeError(f'{name} must be a CharacteristicState')
+    for name in ('plus_forward_direction_sign', 'minus_forward_direction_sign'):
+      value = getattr(self, name)
+      if (
+        isinstance(value, bool)
+        or not isinstance(value, int)
+        or value not in (-1, 1)
+      ):
+        raise ValueError(f'{name} must be either -1 or 1')
+    for name in (
+      'plus_source_total_pressure_Pa',
+      'minus_source_total_pressure_Pa',
+      'plus_total_pressure_Pa',
+      'minus_total_pressure_Pa',
+      'total_pressure_Pa',
+    ):
+      value = float(getattr(self, name))
+      if not isfinite(value) or value <= 0.0:
+        raise ValueError(f'{name} must be finite and positive')
+      object.__setattr__(self, name, value)
+    for name in (
+      'plus_geometry_residual',
+      'minus_geometry_residual',
+      'plus_compatibility_residual',
+      'minus_compatibility_residual',
+      'plus_pressure_residual',
+      'minus_pressure_residual',
+      'plus_forward_margin_m',
+      'minus_forward_margin_m',
+    ):
+      value = float(getattr(self, name))
+      if not isfinite(value) or value < 0.0:
+        raise ValueError(f'{name} must be finite and nonnegative')
+      object.__setattr__(self, name, value)
+    if (
+      hypot(
+        self.plus_source.x_m - self.state.x_m,
+        self.plus_source.y_m - self.state.y_m,
+      ) <= 0.0
+      or hypot(
+        self.minus_source.x_m - self.state.x_m,
+        self.minus_source.y_m - self.state.y_m,
+      ) <= 0.0
+    ):
+      raise ValueError('intersection state must be distinct from both sources')
+
+  @property
+  def maximum_geometry_residual(self) -> float:
+    return max(self.plus_geometry_residual, self.minus_geometry_residual)
+
+  @property
+  def maximum_compatibility_residual(self) -> float:
+    return max(
+      self.plus_compatibility_residual,
+      self.minus_compatibility_residual,
+    )
+
+  @property
+  def maximum_pressure_residual(self) -> float:
+    return max(self.plus_pressure_residual, self.minus_pressure_residual)
+
+  @property
+  def forward_verified(self) -> bool:
+    return bool(
+      self.plus_forward_margin_m > 0.0
+      and self.minus_forward_margin_m > 0.0
+    )
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'intersection_index': self.intersection_index,
+      'parent_cell_index': self.parent_cell_index,
+      'plus_source_row_index': self.plus_source_row_index,
+      'minus_source_row_index': self.minus_source_row_index,
+      'plus_source_point_m': [self.plus_source.x_m, self.plus_source.y_m],
+      'minus_source_point_m': [self.minus_source.x_m, self.minus_source.y_m],
+      'point_m': [self.state.x_m, self.state.y_m],
+      'theta_rad': self.state.theta_rad,
+      'mach': self.state.mach,
+      'plus_source_total_pressure_Pa': self.plus_source_total_pressure_Pa,
+      'minus_source_total_pressure_Pa': self.minus_source_total_pressure_Pa,
+      'plus_total_pressure_Pa': self.plus_total_pressure_Pa,
+      'minus_total_pressure_Pa': self.minus_total_pressure_Pa,
+      'total_pressure_Pa': self.total_pressure_Pa,
+      'plus_geometry_residual': self.plus_geometry_residual,
+      'minus_geometry_residual': self.minus_geometry_residual,
+      'maximum_geometry_residual': self.maximum_geometry_residual,
+      'plus_compatibility_residual': self.plus_compatibility_residual,
+      'minus_compatibility_residual': self.minus_compatibility_residual,
+      'maximum_compatibility_residual': self.maximum_compatibility_residual,
+      'plus_pressure_residual': self.plus_pressure_residual,
+      'minus_pressure_residual': self.minus_pressure_residual,
+      'plus_forward_direction_sign': self.plus_forward_direction_sign,
+      'minus_forward_direction_sign': self.minus_forward_direction_sign,
+      'maximum_pressure_residual': self.maximum_pressure_residual,
+      'plus_forward_margin_m': self.plus_forward_margin_m,
+      'minus_forward_margin_m': self.minus_forward_margin_m,
+      'forward_verified': self.forward_verified,
+    }
+
+
+@dataclass(frozen=True, slots=True)
 class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshResult:
   """A locally solved continuation remesh below physical shock-cell closure."""
 
@@ -200,11 +353,17 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshResult:
   characteristic_edges: tuple[
     MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshEdge, ...
   ]
+  interior_characteristic_intersections: tuple[
+    MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshIntersection, ...
+  ]
   topology: MocTopologyResult
   source_pressure_gradient: tuple[float, float] | None
   maximum_geometry_residual: float | None
   maximum_compatibility_residual: float | None
   maximum_pressure_residual: float | None
+  maximum_intersection_geometry_residual: float | None
+  maximum_intersection_compatibility_residual: float | None
+  maximum_intersection_pressure_residual: float | None
   cell_euler_residuals: tuple[float, ...]
   maximum_cell_euler_residual: float | None
   characteristic_geometry_verified: bool
@@ -215,6 +374,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshResult:
   cell_euler_residuals_finite: bool
   cell_euler_residuals_verified: bool
   interior_characteristic_rows_required: bool = False
+  interior_characteristic_intersections_verified: bool = False
   interior_characteristic_closure_verified: bool = False
   physical_closure_verified: bool = False
   chain_promotion_blocked: bool = True
@@ -269,6 +429,18 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshResult:
     object.__setattr__(self, 'cells', cells)
     object.__setattr__(self, 'cell_samples', samples)
     object.__setattr__(self, 'characteristic_edges', edges)
+    intersections = tuple(self.interior_characteristic_intersections)
+    if any(
+      not isinstance(
+        intersection,
+        MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshIntersection,
+      )
+      for intersection in intersections
+    ):
+      raise TypeError(
+        'interior_characteristic_intersections must contain typed intersections'
+      )
+    object.__setattr__(self, 'interior_characteristic_intersections', intersections)
     if self.source_pressure_gradient is not None:
       gradient = tuple(float(value) for value in self.source_pressure_gradient)
       if len(gradient) != 2 or not all(isfinite(value) for value in gradient):
@@ -278,6 +450,9 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshResult:
       'maximum_geometry_residual',
       'maximum_compatibility_residual',
       'maximum_pressure_residual',
+      'maximum_intersection_geometry_residual',
+      'maximum_intersection_compatibility_residual',
+      'maximum_intersection_pressure_residual',
       'maximum_cell_euler_residual',
     ):
       value = getattr(self, name)
@@ -301,6 +476,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshResult:
       'cell_euler_residuals_finite',
       'cell_euler_residuals_verified',
       'interior_characteristic_rows_required',
+      'interior_characteristic_intersections_verified',
       'interior_characteristic_closure_verified',
       'physical_closure_verified',
       'chain_promotion_blocked',
@@ -311,6 +487,13 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshResult:
         raise TypeError(f'{name} must be a bool')
     if self.interior_characteristic_closure_verified:
       raise ValueError('this bounded remesh cannot claim interior closure')
+    if (
+      self.interior_characteristic_intersections_verified
+      and not self.interior_characteristic_rows_required
+    ):
+      raise ValueError(
+        'interior characteristic intersections require interior rows'
+      )
     if self.physical_closure_verified:
       raise ValueError('continuation remesh cannot claim physical closure')
     if not self.chain_promotion_blocked:
@@ -355,6 +538,136 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshResult:
     })
 
   @property
+  def diagnostic_sampling_available(self) -> bool:
+    """Whether this bounded remesh can serve a diagnostic source callback.
+
+    This sampler is intentionally distinct from the production field
+    ``state_sampling_available`` contract.  The remesh can be locally
+    characteristic while its conservative Euler residual remains above the
+    acceptance gate, so these samples may be used only to probe whether a
+    later reflected/free-boundary solve stays inside the retained band.
+    """
+
+    return bool(
+      self.local_characteristic_remesh_verified
+      and self.cells
+      and len(self.cell_samples) == len(self.cells)
+    )
+
+  def _diagnostic_weights_at(
+    self,
+    point_m: Sequence[float],
+    *,
+    position_tolerance_m: float,
+  ) -> tuple[tuple[float, float, float], MocEulerAmbientFirstWedgeCellSample] | None:
+    if not self.diagnostic_sampling_available:
+      return None
+    try:
+      point = (float(point_m[0]), float(point_m[1]))
+      tolerance = float(position_tolerance_m)
+    except (IndexError, TypeError, ValueError):
+      return None
+    if not all(isfinite(value) for value in point):
+      return None
+    if not isfinite(tolerance) or tolerance <= 0.0:
+      raise ValueError('position_tolerance_m must be finite and positive')
+    for sample in self.cell_samples:
+      weights = _triangle_interpolation_weights(
+        point,
+        sample.vertices_xr_m,
+        tolerance_m=tolerance,
+      )
+      if weights is not None:
+        return weights, sample
+    return None
+
+  def diagnostic_state_at(
+    self,
+    point_m: Sequence[float],
+    *,
+    position_tolerance_m: float = 1.0e-8,
+  ) -> CharacteristicState | None:
+    """Interpolate a state only inside this bounded diagnostic remesh."""
+
+    sampled = self._diagnostic_weights_at(
+      point_m,
+      position_tolerance_m=position_tolerance_m,
+    )
+    if sampled is None:
+      return None
+    weights, sample = sampled
+    try:
+      point = (float(point_m[0]), float(point_m[1]))
+    except (IndexError, TypeError, ValueError):
+      return None
+    theta = sum(
+      weight * state.theta_rad
+      for weight, state in zip(weights, sample.states, strict=True)
+    )
+    nu = sum(
+      weight * state.nu_rad
+      for weight, state in zip(weights, sample.states, strict=True)
+    )
+    inversion = inverse_prandtl_meyer_angle_rad(nu, sample.states[0].gamma)
+    if not inversion.converged or inversion.value is None:
+      return None
+    return CharacteristicState(
+      x_m=point[0],
+      y_m=point[1],
+      theta_rad=theta,
+      mach=inversion.value,
+      gamma=sample.states[0].gamma,
+    )
+
+  def diagnostic_total_pressure_at(
+    self,
+    point_m: Sequence[float],
+    *,
+    position_tolerance_m: float = 1.0e-8,
+  ) -> float | None:
+    """Interpolate carried total pressure inside the diagnostic remesh."""
+
+    sampled = self._diagnostic_weights_at(
+      point_m,
+      position_tolerance_m=position_tolerance_m,
+    )
+    if sampled is None:
+      return None
+    weights, sample = sampled
+    return exp(
+      sum(
+        weight * log(pressure)
+        for weight, pressure in zip(
+          weights,
+          sample.total_pressure_Pa,
+          strict=True,
+        )
+      )
+    )
+
+  def diagnostic_static_pressure_at(
+    self,
+    point_m: Sequence[float],
+    *,
+    position_tolerance_m: float = 1.0e-8,
+  ) -> float | None:
+    """Return isentropic static pressure for a bounded diagnostic sample."""
+
+    state = self.diagnostic_state_at(
+      point_m,
+      position_tolerance_m=position_tolerance_m,
+    )
+    total_pressure = self.diagnostic_total_pressure_at(
+      point_m,
+      position_tolerance_m=position_tolerance_m,
+    )
+    if state is None or total_pressure is None:
+      return None
+    return total_pressure / (
+      1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
+    ) ** (state.gamma / (state.gamma - 1.0))
+
+  @property
   def local_characteristic_remesh_verified(self) -> bool:
     return bool(
       self.converged
@@ -367,6 +680,10 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshResult:
       and self.topology.forms_closed_zone
       and self.topology.nonmanifold_edge_count == 0
       and self.cell_euler_residuals_finite
+      and (
+        not self.interior_characteristic_rows_required
+        or self.interior_characteristic_intersections_verified
+      )
       and not self.interior_characteristic_closure_verified
       and not self.physical_closure_verified
       and self.chain_promotion_blocked
@@ -396,13 +713,20 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshResult:
       )
       else MocChainTerminationReason.FIDELITY_NOT_ALLOWED
     )
+    next_gate = (
+      'reflected-free-boundary-shock-closure-and-independent-euler-'
+      'validation-before-continued-shock-cell-chain'
+      if self.interior_characteristic_intersections_verified
+      else 'interior-variable-entropy-characteristic-rows-and-reflected-'
+      'free-boundary-shock-closure'
+    )
     return MocChainTerminationDecision(
       physical_termination=False,
       reason=reason,
       message=(
         'solver-owned continuation remesh is locally characteristic but has '
-        'no interior multi-row closure, reflected free-boundary shock closure, '
-        'or external validation; physical promotion remains blocked'
+        'no globally closed reflected free-boundary shock, conservative Euler '
+        'acceptance, or external validation; physical promotion remains blocked'
         if reason is MocChainTerminationReason.FIDELITY_NOT_ALLOWED
         else self.message
       ),
@@ -415,10 +739,22 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshResult:
         'maximum_geometry_residual': self.maximum_geometry_residual,
         'maximum_compatibility_residual': self.maximum_compatibility_residual,
         'maximum_pressure_residual': self.maximum_pressure_residual,
+        'maximum_intersection_geometry_residual': (
+          self.maximum_intersection_geometry_residual
+        ),
+        'maximum_intersection_compatibility_residual': (
+          self.maximum_intersection_compatibility_residual
+        ),
+        'maximum_intersection_pressure_residual': (
+          self.maximum_intersection_pressure_residual
+        ),
         'maximum_cell_euler_residual': self.maximum_cell_euler_residual,
         'cell_euler_residuals_verified': self.cell_euler_residuals_verified,
         'interior_characteristic_rows_required': (
           self.interior_characteristic_rows_required
+        ),
+        'interior_characteristic_intersections_verified': (
+          self.interior_characteristic_intersections_verified
         ),
         'interior_characteristic_closure_verified': False,
         'physical_closure_verified': False,
@@ -426,10 +762,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshResult:
         'production_claim_allowed': False,
         'physical_chain_cell_count': 0,
         'external_validation_required': True,
-        'required_next_gate': (
-          'interior-variable-entropy-characteristic-rows-and-reflected-'
-          'free-boundary-shock-closure'
-        ),
+        'required_next_gate': next_gate,
       },
     )
 
@@ -449,10 +782,23 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshResult:
       'maximum_geometry_residual': self.maximum_geometry_residual,
       'maximum_compatibility_residual': self.maximum_compatibility_residual,
       'maximum_pressure_residual': self.maximum_pressure_residual,
+      'maximum_intersection_geometry_residual': (
+        self.maximum_intersection_geometry_residual
+      ),
+      'maximum_intersection_compatibility_residual': (
+        self.maximum_intersection_compatibility_residual
+      ),
+      'maximum_intersection_pressure_residual': (
+        self.maximum_intersection_pressure_residual
+      ),
       'cell_euler_residuals': list(self.cell_euler_residuals),
       'maximum_cell_euler_residual': self.maximum_cell_euler_residual,
       'characteristic_edges': [
         edge.as_report() for edge in self.characteristic_edges
+      ],
+      'interior_characteristic_intersections': [
+        intersection.as_report()
+        for intersection in self.interior_characteristic_intersections
       ],
       'topology': {
         'status': self.topology.status.value,
@@ -474,6 +820,9 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshResult:
         'cell_euler_residuals_verified': self.cell_euler_residuals_verified,
         'interior_characteristic_rows_required': (
           self.interior_characteristic_rows_required
+        ),
+        'interior_characteristic_intersections_verified': (
+          self.interior_characteristic_intersections_verified
         ),
         'interior_characteristic_closure_verified': False,
         'physical_closure_verified': False,
@@ -565,6 +914,34 @@ def _boundary_state(
   return point, state, pressure
 
 
+def _triangle_interpolation_weights(
+  point: tuple[float, float],
+  vertices: Sequence[tuple[float, float]],
+  *,
+  tolerance_m: float,
+) -> tuple[float, float, float] | None:
+  """Return barycentric weights for a bounded nondegenerate triangle."""
+
+  if len(vertices) != 3:
+    return None
+  (ax, ay), (bx, by), (cx, cy) = vertices
+  denominator = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy)
+  if not isfinite(denominator) or abs(denominator) <= max(
+    tolerance_m * tolerance_m,
+    1.0e-24,
+  ):
+    return None
+  px, py = point
+  first = ((by - cy) * (px - cx) + (cx - bx) * (py - cy)) / denominator
+  second = ((cy - ay) * (px - cx) + (ax - cx) * (py - cy)) / denominator
+  third = 1.0 - first - second
+  if min(first, second, third) < -1.0e-10:
+    return None
+  if max(first, second, third) > 1.0 + 1.0e-10:
+    return None
+  return first, second, third
+
+
 def _solve_edge(
   start: CharacteristicState,
   end: CharacteristicState,
@@ -624,10 +1001,64 @@ def _solve_edge(
       compatibility_residuals=(compatibility_residual,),
       pressure_residuals=(pressure_residual,),
     )
+  if side_count == 4:
+    midpoint_edge = _solve_edge(
+      start,
+      end,
+      start_pressure,
+      end_pressure,
+      family,
+      2,
+      gradient,
+      characteristic_residual_tolerance=characteristic_residual_tolerance,
+      pressure_lineage_tolerance=pressure_lineage_tolerance,
+      maximum_iterations=maximum_iterations,
+    )
+    midpoint = midpoint_edge.states[1]
+    midpoint_pressure = midpoint_edge.pressures[1]
+    first_edge = _solve_edge(
+      start,
+      midpoint,
+      start_pressure,
+      midpoint_pressure,
+      family,
+      2,
+      gradient,
+      characteristic_residual_tolerance=characteristic_residual_tolerance,
+      pressure_lineage_tolerance=pressure_lineage_tolerance,
+      maximum_iterations=maximum_iterations,
+    )
+    second_edge = _solve_edge(
+      midpoint,
+      end,
+      midpoint_pressure,
+      end_pressure,
+      family,
+      2,
+      gradient,
+      characteristic_residual_tolerance=characteristic_residual_tolerance,
+      pressure_lineage_tolerance=pressure_lineage_tolerance,
+      maximum_iterations=maximum_iterations,
+    )
+    return _EdgeSolve(
+      points=first_edge.points + second_edge.points[1:],
+      states=first_edge.states + second_edge.states[1:],
+      pressures=first_edge.pressures + second_edge.pressures[1:],
+      geometry_residuals=(
+        first_edge.geometry_residuals + second_edge.geometry_residuals
+      ),
+      compatibility_residuals=(
+        first_edge.compatibility_residuals
+        + second_edge.compatibility_residuals
+      ),
+      pressure_residuals=(
+        first_edge.pressure_residuals + second_edge.pressure_residuals
+      ),
+    )
   if side_count != 2:
     raise ValueError(
-      'the bounded characteristic remesh currently supports one or two '
-      'edge intervals'
+      'the bounded characteristic remesh currently supports one, two, or '
+      'four edge intervals'
     )
   _midpoint, midpoint_guess, _midpoint_pressure = _boundary_state(
     start,
@@ -747,6 +1178,221 @@ def _solve_edge(
   )
 
 
+def _forward_margin_m(
+  start: CharacteristicState,
+  end: CharacteristicState,
+  family: CharacteristicFamily,
+  direction_sign: int,
+) -> float:
+  """Return the downstream row-direction projection for a characteristic."""
+
+  displacement = (end.x_m - start.x_m, end.y_m - start.y_m)
+  direction = start.direction(family)
+  return float(direction_sign) * (
+    displacement[0] * direction[0] + displacement[1] * direction[1]
+  )
+
+
+def _solve_interior_intersection(
+  intersection_index: int,
+  parent_cell_index: int,
+  plus_source_row_index: int,
+  minus_source_row_index: int,
+  plus_source: CharacteristicState,
+  minus_source: CharacteristicState,
+  plus_pressure: float,
+  minus_pressure: float,
+  gradient: tuple[float, float],
+  *,
+  plus_forward_direction_sign: int,
+  minus_forward_direction_sign: int,
+  position_tolerance_m: float,
+  characteristic_residual_tolerance: float,
+  pressure_lineage_tolerance: float,
+  maximum_iterations: int,
+) -> MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshIntersection:
+  """Solve a forward C+/C- crossing from two base-row source states."""
+
+  _point, boundary_guess, _guess_pressure = _boundary_state(
+    plus_source,
+    minus_source,
+    plus_pressure,
+    minus_pressure,
+    0.5,
+  )
+  source_span = hypot(
+    minus_source.x_m - plus_source.x_m,
+    minus_source.y_m - plus_source.y_m,
+  )
+  plus_direction = plus_source.direction(CharacteristicFamily.PLUS)
+  minus_direction = minus_source.direction(CharacteristicFamily.MINUS)
+  row_direction = (
+    plus_forward_direction_sign * plus_direction[0]
+    + minus_forward_direction_sign * minus_direction[0],
+    plus_forward_direction_sign * plus_direction[1]
+    + minus_forward_direction_sign * minus_direction[1],
+  )
+  guess = CharacteristicState(
+    x_m=boundary_guess.x_m + 0.25 * source_span * row_direction[0],
+    y_m=boundary_guess.y_m + 0.25 * source_span * row_direction[1],
+    theta_rad=boundary_guess.theta_rad,
+    mach=boundary_guess.mach,
+    gamma=boundary_guess.gamma,
+  )
+
+  def compatibility(
+    first: CharacteristicState,
+    second: CharacteristicState,
+    family: CharacteristicFamily,
+  ) -> float:
+    actual = (
+      second.k_plus
+      if family is CharacteristicFamily.PLUS
+      else second.k_minus
+    )
+    initial = (
+      first.k_plus if family is CharacteristicFamily.PLUS else first.k_minus
+    )
+    return actual - initial - _compatibility_source(first, second, gradient)
+
+  def residual(vector: Sequence[float]) -> tuple[float, float, float, float]:
+    candidate = CharacteristicState(
+      x_m=float(vector[0]),
+      y_m=float(vector[1]),
+      theta_rad=float(vector[2]),
+      mach=float(vector[3]),
+      gamma=plus_source.gamma,
+    )
+    return (
+      _characteristic_geometry_residual(
+        plus_source,
+        candidate,
+        CharacteristicFamily.PLUS,
+      ),
+      _characteristic_geometry_residual(
+        minus_source,
+        candidate,
+        CharacteristicFamily.MINUS,
+      ),
+      compatibility(plus_source, candidate, CharacteristicFamily.PLUS),
+      compatibility(minus_source, candidate, CharacteristicFamily.MINUS),
+    )
+
+  try:
+    solved = least_squares(
+      residual,
+      (guess.x_m, guess.y_m, guess.theta_rad, guess.mach),
+      bounds=(
+        (
+          min(plus_source.x_m, minus_source.x_m) - 100.0,
+          min(plus_source.y_m, minus_source.y_m) - 100.0,
+          -3.0,
+          1.0001,
+        ),
+        (
+          max(plus_source.x_m, minus_source.x_m) + 100.0,
+          max(plus_source.y_m, minus_source.y_m) + 100.0,
+          3.0,
+          64.0,
+        ),
+      ),
+      max_nfev=max(128, maximum_iterations * 32),
+      xtol=1.0e-13,
+      ftol=1.0e-13,
+      gtol=1.0e-13,
+      x_scale='jac',
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    raise ValueError(f'interior characteristic intersection failed: {error}') from error
+  candidate = CharacteristicState(
+    x_m=float(solved.x[0]),
+    y_m=float(solved.x[1]),
+    theta_rad=float(solved.x[2]),
+    mach=float(solved.x[3]),
+    gamma=plus_source.gamma,
+  )
+  residuals = residual(solved.x)
+  plus_geometry_residual = abs(residuals[0])
+  minus_geometry_residual = abs(residuals[1])
+  plus_compatibility_residual = abs(residuals[2])
+  minus_compatibility_residual = abs(residuals[3])
+  maximum_characteristic_residual = max(
+    plus_geometry_residual,
+    minus_geometry_residual,
+    plus_compatibility_residual,
+    minus_compatibility_residual,
+  )
+  if maximum_characteristic_residual > characteristic_residual_tolerance:
+    raise ValueError(
+      'interior characteristic geometry or compatibility residual exceeded '
+      f'tolerance ({maximum_characteristic_residual})'
+    )
+  plus_transport = _transport_total_pressure(
+    plus_source,
+    plus_pressure,
+    (candidate.x_m, candidate.y_m),
+    gradient,
+  )
+  minus_transport = _transport_total_pressure(
+    minus_source,
+    minus_pressure,
+    (candidate.x_m, candidate.y_m),
+    gradient,
+  )
+  candidate_pressure = exp(
+    0.5 * (log(plus_transport) + log(minus_transport))
+  )
+  plus_pressure_residual = abs(log(candidate_pressure / plus_transport))
+  minus_pressure_residual = abs(log(candidate_pressure / minus_transport))
+  if max(plus_pressure_residual, minus_pressure_residual) > pressure_lineage_tolerance:
+    raise ValueError(
+      'interior characteristic pressure-lineage residual exceeded tolerance'
+    )
+  plus_forward_margin = _forward_margin_m(
+    plus_source,
+    candidate,
+    CharacteristicFamily.PLUS,
+    plus_forward_direction_sign,
+  )
+  minus_forward_margin = _forward_margin_m(
+    minus_source,
+    candidate,
+    CharacteristicFamily.MINUS,
+    minus_forward_direction_sign,
+  )
+  if (
+    plus_forward_margin <= position_tolerance_m
+    or minus_forward_margin <= position_tolerance_m
+  ):
+    raise ValueError(
+      'interior characteristic intersection is not forward from both sources'
+    )
+  return MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshIntersection(
+    intersection_index=intersection_index,
+    parent_cell_index=parent_cell_index,
+    plus_source_row_index=plus_source_row_index,
+    minus_source_row_index=minus_source_row_index,
+    plus_source=plus_source,
+    minus_source=minus_source,
+    state=candidate,
+    plus_source_total_pressure_Pa=plus_pressure,
+    minus_source_total_pressure_Pa=minus_pressure,
+    plus_total_pressure_Pa=plus_transport,
+    minus_total_pressure_Pa=minus_transport,
+    total_pressure_Pa=candidate_pressure,
+    plus_geometry_residual=plus_geometry_residual,
+    minus_geometry_residual=minus_geometry_residual,
+    plus_compatibility_residual=plus_compatibility_residual,
+    minus_compatibility_residual=minus_compatibility_residual,
+    plus_pressure_residual=plus_pressure_residual,
+    minus_pressure_residual=minus_pressure_residual,
+    plus_forward_direction_sign=plus_forward_direction_sign,
+    minus_forward_direction_sign=minus_forward_direction_sign,
+    plus_forward_margin_m=plus_forward_margin,
+    minus_forward_margin_m=minus_forward_margin,
+  )
+
+
 def _failure(
   status: MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshStatus,
   source_continuation: MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationResult | None,
@@ -757,11 +1403,17 @@ def _failure(
   characteristic_edges: Sequence[
     MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshEdge
   ] = (),
+  interior_characteristic_intersections: Sequence[
+    MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshIntersection
+  ] = (),
   topology: MocTopologyResult | None = None,
   source_pressure_gradient: tuple[float, float] | None = None,
   geometry_residual: float | None = None,
   compatibility_residual: float | None = None,
   pressure_residual: float | None = None,
+  intersection_geometry_residual: float | None = None,
+  intersection_compatibility_residual: float | None = None,
+  intersection_pressure_residual: float | None = None,
   residuals: Sequence[float] = (),
   maximum_residual: float | None = None,
   characteristic_geometry_verified: bool = False,
@@ -772,6 +1424,7 @@ def _failure(
   residuals_finite: bool = False,
   residuals_verified: bool = False,
   interior_characteristic_rows_required: bool = False,
+  interior_characteristic_intersections_verified: bool = False,
   position_tolerance_m: float = 1.0e-8,
   characteristic_residual_tolerance: float = 1.0e-6,
   pressure_lineage_tolerance: float = 1.0e-8,
@@ -779,19 +1432,45 @@ def _failure(
   maximum_iterations: int = 48,
   message: str,
 ) -> MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshResult:
+  cells = tuple(cells)
+  samples = tuple(samples)
+  residual_values = tuple(float(value) for value in residuals)
+  if len(residual_values) != len(cells):
+    if len(samples) == len(cells):
+      try:
+        residual_values = tuple(
+          _cell_euler_residual(
+            sample.vertices_xr_m,
+            sample.states,
+            sample.total_pressure_Pa,
+          )
+          for sample in samples
+        )
+      except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+        residual_values = (0.0,) * len(cells)
+    else:
+      residual_values = (0.0,) * len(cells)
   return MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshResult(
     status=status,
     source_continuation=source_continuation,
     subdivision_side_count=subdivision_side_count,
-    cells=tuple(cells),
-    cell_samples=tuple(samples),
+    cells=cells,
+    cell_samples=samples,
     characteristic_edges=tuple(characteristic_edges),
+    interior_characteristic_intersections=tuple(
+      interior_characteristic_intersections
+    ),
     topology=validate_moc_mesh(()) if topology is None else topology,
     source_pressure_gradient=source_pressure_gradient,
     maximum_geometry_residual=geometry_residual,
     maximum_compatibility_residual=compatibility_residual,
     maximum_pressure_residual=pressure_residual,
-    cell_euler_residuals=tuple(residuals),
+    maximum_intersection_geometry_residual=intersection_geometry_residual,
+    maximum_intersection_compatibility_residual=(
+      intersection_compatibility_residual
+    ),
+    maximum_intersection_pressure_residual=intersection_pressure_residual,
+    cell_euler_residuals=residual_values,
     maximum_cell_euler_residual=maximum_residual,
     characteristic_geometry_verified=characteristic_geometry_verified,
     variable_entropy_compatibility_verified=variable_entropy_compatibility_verified,
@@ -801,6 +1480,9 @@ def _failure(
     cell_euler_residuals_finite=residuals_finite,
     cell_euler_residuals_verified=residuals_verified,
     interior_characteristic_rows_required=interior_characteristic_rows_required,
+    interior_characteristic_intersections_verified=(
+      interior_characteristic_intersections_verified
+    ),
     position_tolerance_m=position_tolerance_m,
     characteristic_residual_tolerance=characteristic_residual_tolerance,
     pressure_lineage_tolerance=pressure_lineage_tolerance,
@@ -858,10 +1540,10 @@ def remesh_euler_ambient_first_wedge_entropy_characteristic_continuation(
   if (
     isinstance(subdivision_side_count, bool)
     or not isinstance(subdivision_side_count, int)
-    or subdivision_side_count not in (1, 2)
+    or subdivision_side_count not in (1, 2, 4)
   ):
     raise ValueError(
-      'subdivision_side_count must be one or two for the bounded '
+      'subdivision_side_count must be one, two, or four for the bounded '
       'characteristic remesh'
     )
   if (
@@ -900,6 +1582,9 @@ def remesh_euler_ambient_first_wedge_entropy_characteristic_continuation(
     _EdgeSolve,
   ] = {}
   edge_values: list[MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshEdge] = []
+  intersections: list[
+    MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshIntersection
+  ] = []
   cells: list[MocCharacteristicCell] = []
   samples: list[MocEulerAmbientFirstWedgeCellSample] = []
   try:
@@ -987,7 +1672,10 @@ def remesh_euler_ambient_first_wedge_entropy_characteristic_continuation(
             )
           )
         local_edges.append(solved_edge)
-      left_edge, right_edge = local_edges
+      if even:
+        left_edge, right_edge = local_edges[0], _reverse_edge(local_edges[1])
+      else:
+        left_edge, right_edge = _reverse_edge(local_edges[0]), local_edges[1]
       base_row = [
         _boundary_state(
           base_start,
@@ -1009,19 +1697,17 @@ def remesh_euler_ambient_first_wedge_entropy_characteristic_continuation(
             )
           ],
         ]
-      else:
-        left_mid = left_edge.points[1]
-        right_mid = right_edge.points[1]
+      elif subdivision_side_count == 2:
         rows = [
           base_row,
           [
             (
-              left_mid,
+              left_edge.points[1],
               left_edge.states[1],
               left_edge.pressures[1],
             ),
             (
-              right_mid,
+              right_edge.points[1],
               right_edge.states[1],
               right_edge.pressures[1],
             ),
@@ -1032,6 +1718,68 @@ def remesh_euler_ambient_first_wedge_entropy_characteristic_continuation(
               apex,
               apex_pressure,
             )
+          ],
+        ]
+      else:
+        intersection_by_pair: dict[
+          tuple[int, int],
+          MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshIntersection,
+        ] = {}
+        for plus_index, minus_index in ((1, 2), (1, 3), (2, 3)):
+          intersection = _solve_interior_intersection(
+            len(intersections),
+            parent_index,
+            plus_index,
+            minus_index,
+            base_row[plus_index][1],
+            base_row[minus_index][1],
+            base_row[plus_index][2],
+            base_row[minus_index][2],
+            gradient,
+            plus_forward_direction_sign=1 if even else -1,
+            minus_forward_direction_sign=-1 if even else 1,
+            position_tolerance_m=position_tolerance,
+            characteristic_residual_tolerance=characteristic_tolerance,
+            pressure_lineage_tolerance=pressure_tolerance,
+            maximum_iterations=maximum_iterations,
+          )
+          intersections.append(intersection)
+          intersection_by_pair[(plus_index, minus_index)] = intersection
+
+        def row_item(
+          state: CharacteristicState,
+          pressure: float,
+        ) -> tuple[tuple[float, float], CharacteristicState, float]:
+          return ((state.x_m, state.y_m), state, pressure)
+
+        rows = [
+          base_row,
+          [
+            row_item(left_edge.states[1], left_edge.pressures[1]),
+            row_item(
+              intersection_by_pair[(1, 2)].state,
+              intersection_by_pair[(1, 2)].total_pressure_Pa,
+            ),
+            row_item(
+              intersection_by_pair[(1, 3)].state,
+              intersection_by_pair[(1, 3)].total_pressure_Pa,
+            ),
+            row_item(right_edge.states[1], right_edge.pressures[1]),
+          ],
+          [
+            row_item(left_edge.states[2], left_edge.pressures[2]),
+            row_item(
+              intersection_by_pair[(2, 3)].state,
+              intersection_by_pair[(2, 3)].total_pressure_Pa,
+            ),
+            row_item(right_edge.states[2], right_edge.pressures[2]),
+          ],
+          [
+            row_item(left_edge.states[3], left_edge.pressures[3]),
+            row_item(right_edge.states[3], right_edge.pressures[3]),
+          ],
+          [
+            row_item(apex, apex_pressure),
           ],
         ]
       for row_index in range(len(rows) - 1):
@@ -1087,12 +1835,14 @@ def remesh_euler_ambient_first_wedge_entropy_characteristic_continuation(
       cells=cells,
       samples=samples,
       characteristic_edges=edge_values,
+      interior_characteristic_intersections=intersections,
       source_pressure_gradient=gradient,
       characteristic_geometry_verified=False,
       variable_entropy_compatibility_verified=False,
       pressure_lineage_carried=False,
       continuation_boundary_verified=source_continuation.continuation_boundary_verified,
       interior_characteristic_rows_required=subdivision_side_count > 2,
+      interior_characteristic_intersections_verified=False,
       message=f'characteristic continuation remesh failed: {error}',
       **common,
     )
@@ -1109,11 +1859,13 @@ def remesh_euler_ambient_first_wedge_entropy_characteristic_continuation(
       cells=cells,
       samples=samples,
       characteristic_edges=edge_values,
+      interior_characteristic_intersections=intersections,
       topology=topology,
       source_pressure_gradient=gradient,
       topology_verified=False,
       continuation_boundary_verified=source_continuation.continuation_boundary_verified,
-      interior_characteristic_rows_required=False,
+      interior_characteristic_rows_required=subdivision_side_count > 2,
+      interior_characteristic_intersections_verified=False,
       message=f'characteristic continuation remesh topology failed: {topology.message}',
       **common,
     )
@@ -1129,11 +1881,65 @@ def remesh_euler_ambient_first_wedge_entropy_characteristic_continuation(
     (edge.maximum_pressure_residual for edge in edge_values),
     default=0.0,
   )
-  geometry_verified = bool(maximum_geometry <= characteristic_tolerance)
+  maximum_intersection_geometry = max(
+    (intersection.maximum_geometry_residual for intersection in intersections),
+    default=None,
+  )
+  maximum_intersection_compatibility = max(
+    (
+      intersection.maximum_compatibility_residual
+      for intersection in intersections
+    ),
+    default=None,
+  )
+  maximum_intersection_pressure = max(
+    (intersection.maximum_pressure_residual for intersection in intersections),
+    default=None,
+  )
+  rows_required = subdivision_side_count > 2
+  intersections_verified = bool(
+    rows_required
+    and (
+      len(intersections) == 3 * len(source_continuation.cell_samples)
+      and all(intersection.forward_verified for intersection in intersections)
+      and (
+        maximum_intersection_geometry is not None
+        and maximum_intersection_geometry <= characteristic_tolerance
+      )
+      and (
+        maximum_intersection_compatibility is not None
+        and maximum_intersection_compatibility <= characteristic_tolerance
+      )
+      and (
+        maximum_intersection_pressure is not None
+        and maximum_intersection_pressure <= pressure_tolerance
+      )
+    )
+  )
+  maximum_geometry = max(
+    maximum_geometry,
+    maximum_intersection_geometry or 0.0,
+  )
+  maximum_compatibility = max(
+    maximum_compatibility,
+    maximum_intersection_compatibility or 0.0,
+  )
+  maximum_pressure = max(
+    maximum_pressure,
+    maximum_intersection_pressure or 0.0,
+  )
+  geometry_verified = bool(
+    maximum_geometry <= characteristic_tolerance
+    and (not rows_required or intersections_verified)
+  )
   compatibility_verified = bool(
     maximum_compatibility <= characteristic_tolerance
+    and (not rows_required or intersections_verified)
   )
-  pressure_verified = bool(maximum_pressure <= pressure_tolerance)
+  pressure_verified = bool(
+    maximum_pressure <= pressure_tolerance
+    and (not rows_required or intersections_verified)
+  )
   lineage_verified = bool(
     pressure_verified
     and source_continuation.pressure_lineage_verified
@@ -1167,7 +1973,14 @@ def remesh_euler_ambient_first_wedge_entropy_characteristic_continuation(
     else status_type.EDGE_SOLVE_FAILURE
   )
   message = (
-    'solver-owned variable-entropy characteristic edge remesh converged; '
+    'solver-owned variable-entropy characteristic remesh and local interior '
+    'row stencil converged; reflected/free-boundary closure, Euler '
+    'conservation acceptance, external validation, and physical chain '
+    'promotion remain pending'
+    if rows_required
+    and intersections_verified
+    and char_status is status_type.CONVERGED_LOCAL_CHARACTERISTIC_REMESH
+    else 'solver-owned variable-entropy characteristic edge remesh converged; '
     'interior characteristic rows, reflected/free-boundary closure, Euler '
     'conservation acceptance, and physical chain promotion remain pending'
     if char_status is status_type.CONVERGED_LOCAL_CHARACTERISTIC_REMESH
@@ -1180,11 +1993,17 @@ def remesh_euler_ambient_first_wedge_entropy_characteristic_continuation(
     cells=tuple(cells),
     cell_samples=tuple(samples),
     characteristic_edges=tuple(edge_values),
+    interior_characteristic_intersections=tuple(intersections),
     topology=topology,
     source_pressure_gradient=gradient,
     maximum_geometry_residual=maximum_geometry,
     maximum_compatibility_residual=maximum_compatibility,
     maximum_pressure_residual=maximum_pressure,
+    maximum_intersection_geometry_residual=maximum_intersection_geometry,
+    maximum_intersection_compatibility_residual=(
+      maximum_intersection_compatibility
+    ),
+    maximum_intersection_pressure_residual=maximum_intersection_pressure,
     cell_euler_residuals=residuals,
     maximum_cell_euler_residual=maximum_residual,
     characteristic_geometry_verified=geometry_verified,
@@ -1194,7 +2013,8 @@ def remesh_euler_ambient_first_wedge_entropy_characteristic_continuation(
     topology_verified=topology_verified,
     cell_euler_residuals_finite=residuals_finite,
     cell_euler_residuals_verified=residuals_verified,
-    interior_characteristic_rows_required=False,
+    interior_characteristic_rows_required=rows_required,
+    interior_characteristic_intersections_verified=intersections_verified,
     position_tolerance_m=position_tolerance,
     characteristic_residual_tolerance=characteristic_tolerance,
     pressure_lineage_tolerance=pressure_tolerance,

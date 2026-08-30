@@ -14,6 +14,7 @@ from exhaust_plume.models.moc import (
   MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshStatus,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryStatus,
   MocEulerAmbientFirstWedgeEntropyCarryStatus,
   assemble_euler_ambient_physical_field,
   plan_euler_ambient_first_wedge_entropy_characteristic_field,
@@ -24,6 +25,7 @@ from exhaust_plume.models.moc import (
   plan_euler_ambient_first_wedge_entropy_characteristic_continuation_probe,
   plan_euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_probe,
   plan_euler_ambient_first_wedge_entropy_characteristic_continuation_remesh_probe,
+  plan_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_probe,
   refine_euler_ambient_first_wedge_entropy_characteristic_continuation,
   remesh_euler_ambient_first_wedge_entropy_characteristic_continuation,
   solve_euler_ambient_first_wedge_characteristic_remesh,
@@ -31,6 +33,7 @@ from exhaust_plume.models.moc import (
   solve_euler_ambient_first_wedge_entropy_characteristic_field,
   solve_euler_ambient_first_wedge_entropy_characteristic_shock_coupling,
   solve_euler_ambient_first_wedge_entropy_characteristic_free_boundary,
+  solve_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary,
   solve_euler_ambient_first_wedge_entropy_characteristic_continuation,
   solve_attached_compression_to_turn,
   fit_euler_consistent_shock_boundary,
@@ -45,6 +48,7 @@ from exhaust_plume.validation import (
   MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementCase,
   MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementMeasurementStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshAuditStatus,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryAuditStatus,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_field,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_field_chain,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_shock_coupling,
@@ -53,6 +57,7 @@ from exhaust_plume.validation import (
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_refinement,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_ladder,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_remesh,
+  measure_moc_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary,
 )
 
 
@@ -697,6 +702,85 @@ def test_internal_entropy_characteristic_continuation_remesh_solves_shared_edges
   assert audit.production_claim_allowed is False
 
 
+def test_internal_entropy_characteristic_continuation_remesh_solves_interior_rows_without_physical_promotion() -> None:
+  _, field = _internal_field()
+  ambient_pressure = field.static_pressure_at(
+    field.continuation_boundary[0].point_m,
+  )
+  assert ambient_pressure is not None
+  continuation = solve_euler_ambient_first_wedge_entropy_characteristic_continuation(
+    field,
+    field.continuation_boundary,
+    ambient_pressure,
+    cycle_count=4,
+  )
+
+  remesh = remesh_euler_ambient_first_wedge_entropy_characteristic_continuation(
+    continuation,
+    subdivision_side_count=4,
+  )
+  assert remesh.status is (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshStatus
+    .CONVERGED_LOCAL_CHARACTERISTIC_REMESH
+  )
+  assert remesh.converged
+  assert remesh.local_characteristic_remesh_verified
+  assert remesh.cell_count == 112
+  assert remesh.state_sample_count == 75
+  assert len(remesh.characteristic_edges) == 8
+  assert all(len(edge.points_xr_m) == 5 for edge in remesh.characteristic_edges)
+  assert len(remesh.interior_characteristic_intersections) == 21
+  assert remesh.interior_characteristic_rows_required
+  assert remesh.interior_characteristic_intersections_verified
+  assert remesh.maximum_intersection_geometry_residual is not None
+  assert remesh.maximum_intersection_geometry_residual <= 1.0e-6
+  assert remesh.maximum_intersection_compatibility_residual is not None
+  assert remesh.maximum_intersection_compatibility_residual <= 1.0e-6
+  assert remesh.maximum_intersection_pressure_residual is not None
+  assert remesh.maximum_intersection_pressure_residual <= 1.0e-8
+  assert all(
+    intersection.forward_verified
+    for intersection in remesh.interior_characteristic_intersections
+  )
+  assert remesh.topology.connected
+  assert remesh.topology.forms_closed_zone
+  assert remesh.topology.nonmanifold_edge_count == 0
+  assert remesh.cell_euler_residuals_finite
+  assert remesh.maximum_cell_euler_residual is not None
+  assert remesh.maximum_cell_euler_residual > 1.0e-2
+  assert remesh.cell_euler_residuals_verified is False
+  assert remesh.interior_characteristic_closure_verified is False
+  assert remesh.physical_closure_verified is False
+  assert remesh.chain_promotion_blocked
+  assert remesh.production_claim_allowed is False
+
+  audit = measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_remesh(
+    remesh,
+  )
+  assert audit.status is (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshAuditStatus
+    .CONVERGED_LOCAL_AUDIT
+  )
+  assert audit.converged
+  assert audit.local_consistency_verified
+  assert audit.structural_consistency_verified
+  assert audit.interior_characteristic_intersection_count == 21
+  assert audit.interior_characteristic_rows_required
+  assert audit.interior_characteristic_intersections_verified
+  assert audit.maximum_intersection_geometry_residual is not None
+  assert audit.maximum_intersection_geometry_residual <= 1.0e-6
+  assert audit.maximum_intersection_compatibility_residual is not None
+  assert audit.maximum_intersection_compatibility_residual <= 1.0e-6
+  assert audit.maximum_intersection_pressure_residual is not None
+  assert audit.maximum_intersection_pressure_residual <= 1.0e-8
+  assert audit.cell_euler_residuals_verified is False
+  assert audit.external_validation_required
+  assert audit.fidelity_flags_verified
+  assert audit.physical_closure_verified is False
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False
+
+
 def test_internal_entropy_characteristic_continuation_remesh_planner_records_ladder_without_consuming_cells() -> None:
   _, field = _internal_field()
   ambient_pressure = field.static_pressure_at(
@@ -716,17 +800,131 @@ def test_internal_entropy_characteristic_continuation_remesh_planner_records_lad
   assert planner.physical_closure_verified is False
   assert planner.chain_promotion_blocked
   assert planner.production_claim_allowed is False
-  assert planner.diagnostics['remesh_side_counts'] == (1, 2)
-  assert len(planner.diagnostics['remesh_ladder']) == 2
+  assert planner.diagnostics['remesh_side_counts'] == (1, 2, 4)
+  assert len(planner.diagnostics['remesh_ladder']) == 3
   assert [
     entry['cell_count'] for entry in planner.diagnostics['remesh_ladder']
-  ] == [7, 28]
+  ] == [7, 28, 112]
   assert all(
     entry['local_characteristic_remesh_verified']
     for entry in planner.diagnostics['remesh_ladder']
   )
+  assert planner.diagnostics['remesh_ladder'][-1][
+    'interior_characteristic_intersection_count'
+  ] == 21
+  assert planner.diagnostics['remesh_ladder'][-1][
+    'interior_characteristic_intersections_verified'
+  ]
   assert planner.diagnostics['remesh_consumed_as_chain_cell'] is False
   assert planner.diagnostics['external_validation_required'] is True
+
+
+def test_internal_entropy_characteristic_remesh_free_boundary_probe_stops_at_remesh_boundary() -> None:
+  _, field = _internal_field()
+  continuation_ambient_pressure = field.static_pressure_at(
+    field.continuation_boundary[0].point_m,
+  )
+  assert continuation_ambient_pressure is not None
+  continuation = solve_euler_ambient_first_wedge_entropy_characteristic_continuation(
+    field,
+    field.continuation_boundary,
+    continuation_ambient_pressure,
+    cycle_count=4,
+  )
+  remesh = remesh_euler_ambient_first_wedge_entropy_characteristic_continuation(
+    continuation,
+    subdivision_side_count=4,
+  )
+  handoff = remesh.continuation_boundary
+  ambient_pressure = remesh.diagnostic_static_pressure_at(handoff[0].point_m)
+  assert ambient_pressure is not None
+
+  attempt = solve_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary(
+    remesh,
+    handoff,
+    handoff[0].point_m,
+    ambient_pressure,
+    handoff[0].state.theta_rad - 1.0e-6,
+    handoff[0].state.theta_rad + 1.0e-6,
+    sample_count=9,
+    position_tolerance_m=1.0e-8,
+    allow_zero_strength_attachment=True,
+  )
+
+  assert attempt.status is (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryStatus
+    .UPSTREAM_REMESH_BOUNDARY
+  )
+  assert attempt.shock is not None
+  assert attempt.shock.status.value == 'upstream_field_failure'
+  assert attempt.shock_sample_count == 1
+  assert attempt.covered_sample_count == 1
+  assert attempt.first_missing_sample_index == 1
+  assert attempt.source_remesh_verified
+  assert attempt.source_cell_euler_residuals_verified is False
+  assert attempt.reflected_free_boundary_verified is False
+  assert attempt.physical_closure_verified is False
+  assert attempt.chain_promotion_blocked
+  assert attempt.production_claim_allowed is False
+  assert attempt.as_chain_termination_decision().reason is (
+    MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+  )
+
+  audit = measure_moc_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary(
+    attempt,
+    position_tolerance_m=1.0e-8,
+  )
+  assert audit.status is (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryAuditStatus
+    .CONVERGED_LOCAL_BOUNDARY_AUDIT
+  )
+  assert audit.converged
+  assert audit.local_consistency_verified
+  assert audit.source_remesh_verified
+  assert audit.source_cell_euler_residuals_verified is False
+  assert audit.source_cell_euler_residuals_flag_consistent
+  assert audit.path_coverage_verified is False
+  assert audit.status_consistent
+  assert audit.external_validation_required
+  assert audit.fidelity_flags_verified
+  assert audit.physical_closure_verified is False
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False
+
+
+def test_internal_entropy_characteristic_remesh_free_boundary_planner_keeps_boundary_typed() -> None:
+  _, field = _internal_field()
+  start = field.continuation_boundary[0]
+  ambient_pressure = field.static_pressure_at(start.point_m)
+  assert ambient_pressure is not None
+  planner = plan_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_probe(
+    field,
+    ambient_pressure_Pa=ambient_pressure,
+    outer_downstream_flow_angle_lower_rad=start.state.theta_rad - 1.0e-6,
+    outer_downstream_flow_angle_upper_rad=start.state.theta_rad + 1.0e-6,
+    sample_count=9,
+    position_tolerance_m=1.0e-8,
+    allow_zero_strength_attachment=True,
+  )
+
+  assert planner.field_count == 1
+  assert planner.continued_field_count == 0
+  assert planner.termination.reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+  assert planner.termination.physical_termination is False
+  assert planner.physical_chain_cell_count == 0
+  assert planner.physical_closure_verified is False
+  assert planner.chain_promotion_blocked
+  assert planner.production_claim_allowed is False
+  assert planner.diagnostics['remesh_free_boundary_attempt_count'] == 1
+  attempt = planner.diagnostics['remesh_free_boundary_attempts'][0]
+  assert attempt['status'] == (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryStatus
+    .UPSTREAM_REMESH_BOUNDARY.value
+  )
+  assert attempt['first_missing_sample_index'] == 1
+  assert planner.diagnostics['remesh_free_boundary_consumed_as_chain_cell'] is False
+  assert planner.diagnostics['external_validation_required'] is True
+  assert planner.diagnostics['synthetic_downstream_field_created'] is False
 
 
 def test_internal_entropy_characteristic_field_has_independent_audit() -> None:

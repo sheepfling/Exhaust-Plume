@@ -11,7 +11,7 @@ reduced-order shock-train provider.
 | --- | --- | --- | --- |
 | `shock-cell-basic-v1` | fast, easy visual exploration | frozen compatibility-backed visual lane | do not change while MOC work proceeds |
 | `shock-train-reduced-order-v1` | bounded engineering-approximate continued chain | implemented with one resolved compatibility first cell plus scaled downstream cells | remains explicitly `scaled-reduced-order` |
-| `planar-moc-research-v2` | numerical planar characteristic research and future resolved first cell/chain | open fan/reflected lattice, sampled attached-shock fit, solver-generated marched attached-shock reference field, shock-seeded closed post-shock field, ambient-perimeter shooting seam, and a state-carrying chain boundary | requires reflected-field coupling, a converged physical ambient perimeter, production next-cell free-boundary solving, refinement, and independent validation |
+| `planar-moc-research-v2` | numerical planar characteristic research and future resolved first cell/chain | open fan/reflected lattice, sampled attached-shock fit, solver-generated marched attached-shock reference field, shock-seeded closed post-shock field, ambient-perimeter shooting seam, a state-carrying chain boundary, and a bounded multi-row characteristic-remesh/free-boundary probe | requires conservative Euler acceptance of the remesh, globally coupled reflected-field/free-boundary closure, production next-cell free-boundary solving, refinement, and independent validation |
 | signature, ray, and focal-plane-array lanes | downstream measurement products | separate contracts and providers | consume only an accepted upstream field/operator |
 
 The MOC lane must never import a reduced-order cell and relabel it as a
@@ -2897,9 +2897,12 @@ The next fidelity seam is now a separate solver-owned remesh:
 ``remesh_euler_ambient_first_wedge_entropy_characteristic_continuation``.
 For each source triangle it solves the two slanted characteristic edges as
 short variable-entropy boundary-value traces and caches each shared edge in
-one canonical orientation. The bounded implementation supports one or two
-edge intervals, producing 7 or 28 triangular cells and 8 shared characteristic
-edge traces on the canonical four-cycle continuation source. The resulting
+one canonical orientation. The bounded implementation supports one, two, or
+four edge intervals, producing 7, 28, or 112 triangular cells and 8 shared
+characteristic edge traces on the canonical four-cycle continuation source.
+The four-interval case also solves 21 interior C+/C- intersections (three per
+source triangle), retaining the source pressures, transported pressure, both
+compatibility residuals, and explicit forward-direction margins. All three
 meshes are connected, simply bounded open zones with no non-manifold edges;
 the open perimeter is retained as evidence rather than filled by extrapolated
 cells.
@@ -2916,11 +2919,49 @@ Euler gate remains separate and fails at approximately ``0.02394`` against
 the ``0.01`` threshold, so this is a locally coherent remesh, not an accepted
 Euler field.
 
+The four-interval case independently replays the interior intersection
+equations and passes the local characteristic and pressure-lineage gates. Its
+maximum intersection geometry, compatibility, and pressure residuals are
+approximately ``2.19e-15``, ``5.79e-16``, and ``8.88e-16``. The independently
+recomputed conservative Euler residual remains approximately ``0.02428``
+against the ``0.01`` gate, so the added row stencil is still diagnostic
+evidence rather than a conservative Euler field.
+
 The matching
 ``plan_euler_ambient_first_wedge_entropy_characteristic_continuation_remesh_probe``
-records the one- and two-interval ladder while preserving
+now records the one-, two-, and four-interval ladder while preserving
 ``OPEN_PHYSICAL_CLOSURE``, zero physical chain cells, and the explicit
 external-validation requirement. This closes the projection-to-solver-owned
-edge seam only. Interior multi-row ``C+``/``C-`` intersections, a globally
-closed reflected/free-boundary shock, indexed external observations, and
-physical shock-cell-chain promotion remain pending.
+edge-and-local-row seam only. A globally closed reflected/free-boundary shock,
+indexed external observations, and physical shock-cell-chain promotion remain
+pending; the four-interval local lattice is not exported as a downstream field
+or chain-cell provider.
+
+## Bounded remesh reflected/free-boundary probe checkpoint
+
+The four-interval remesh now exposes a typed, bounded diagnostic sampler to a
+separate reflected/free-boundary closure probe:
+``solve_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary``.
+The probe consumes the exact outgoing ``C-`` handoff and only samples states,
+static pressure, and total pressure inside the remesh. If the trial shock
+leaves that domain, the result retains the covered prefix and first missing
+sample as ``UPSTREAM_REMESH_BOUNDARY``; it does not reuse the last state,
+extrapolate the field, or infer a physical endpoint.
+
+On the canonical case, the local remesh is characteristic-consistent, but its
+independent maximum conservative Euler residual is approximately ``0.02428``
+against the ``0.01`` acceptance gate. The closure probe consequently stops at
+shock sample ``1`` with one covered sample and first missing index ``1``. Its
+independent audit returns a local boundary audit, confirms the remesh and
+handoff bookkeeping, and deliberately reports incomplete shock-path coverage;
+source Euler acceptance, global reflected/free-boundary closure, external
+observations, and physical chain promotion remain false.
+
+The matching
+``plan_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_probe``
+records this as one typed attempt with one source field, zero continued fields,
+zero physical chain cells, no synthetic downstream field, and an explicit
+external-validation requirement. This is the planner boundary for the next
+implementation increment: enlarge or replace the bounded upstream field with
+a globally coupled, Euler-accepted reflected ``C-`` frontier before a physical
+shock-cell chain can be extended.

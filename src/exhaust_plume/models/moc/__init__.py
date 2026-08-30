@@ -412,8 +412,14 @@ from exhaust_plume.models.moc.euler_entropy_characteristic_continuation_refineme
 from exhaust_plume.models.moc.euler_entropy_characteristic_continuation_remesh import (
   MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshEdge,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshIntersection,
   MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshResult,
   remesh_euler_ambient_first_wedge_entropy_characteristic_continuation,
+)
+from exhaust_plume.models.moc.euler_entropy_characteristic_remesh_free_boundary import (
+  MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryStatus,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryResult,
+  solve_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary,
 )
 from exhaust_plume.models.moc.euler_entropy_refinement import (
   MocEulerAmbientFirstWedgeEntropyCarryRefinementStatus,
@@ -582,6 +588,7 @@ from exhaust_plume.models.moc.planner import (
   plan_euler_ambient_first_wedge_entropy_characteristic_continuation_probe,
   plan_euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_probe,
   plan_euler_ambient_first_wedge_entropy_characteristic_continuation_remesh_probe,
+  plan_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_probe,
   MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerStep,
   MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerResult,
   plan_euler_ambient_first_wedge_entropy_carry_refinement,
@@ -786,6 +793,7 @@ __all__ = (
   'plan_euler_ambient_first_wedge_entropy_characteristic_continuation_probe',
   'plan_euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_probe',
   'plan_euler_ambient_first_wedge_entropy_characteristic_continuation_remesh_probe',
+  'plan_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary_probe',
   'MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerStep',
   'MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerResult',
   'plan_euler_ambient_first_wedge_entropy_carry_refinement',
@@ -1077,8 +1085,12 @@ __all__ = (
   'refine_euler_ambient_first_wedge_entropy_characteristic_continuation',
   'MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshStatus',
   'MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshEdge',
+  'MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshIntersection',
   'MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshResult',
   'remesh_euler_ambient_first_wedge_entropy_characteristic_continuation',
+  'MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryStatus',
+  'MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryResult',
+  'solve_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary',
   'MocEulerAmbientFirstWedgeEntropyCarryRefinementStatus',
   'MocEulerAmbientFirstWedgeEntropyCarryRefinementResult',
   'refine_euler_ambient_first_wedge_entropy_carry',
