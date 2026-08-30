@@ -2071,6 +2071,15 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
     and entry['geometry']['status'] == 'converged'
     for entry in planner['terminal_trace_validation']
   )
+  assert report['next_gates'] == [
+    'bind an owner-provided indexed shock-cell observation archive and verify provenance, digest, coordinate convention, and calibration/validation split',
+    'run independent exact-index shock-cell-chain comparison against the owner archive with a declared residual and uncertainty policy; no interpolation or synthetic observations',
+    'close a canonical reflected free-boundary/mixed-regime downstream field that couples the C- frontier, shock geometry, ambient attachment, reflected centerline, entropy, and Euler residuals on one converged solve',
+    'extend the global exact-Euler resolution ladder across additional reflected and mild attached/overexpanded cases, including a stable physical terminal criterion',
+    'implement production next-cell shock fitting from the typed state/total-pressure frontier only after canonical closure; remove prescribed shock geometry and template schedules from the production path',
+    'audit disjoint calibration/validation cases and preserve the fidelity matrix before any provider integration',
+    'only after all physical and external gates pass, review promotion into a dedicated resolved-planar-moc provider; never feed it into basic visualization, signature, ray-transfer, or focal-plane-array providers',
+  ]
   assert invariant_closure['status'] == 'shooting_failure'
   assert invariant_closure['source_extension']['status'] == 'converged_terminal_source_window'
   assert invariant_closure['source_extension']['strip']['source_window_kind'] == 'terminal-source-window'

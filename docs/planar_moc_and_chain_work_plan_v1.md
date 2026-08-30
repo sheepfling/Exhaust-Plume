@@ -3156,3 +3156,44 @@ sets ``canonical_free_boundary_verified=false``,
 ``chain_promotion_blocked=true`` and contributes no promoted physical cells.
 The missing indexed observation archive remains the next gate before any
 physical shock-cell-chain promotion or product-provider change.
+
+## Continued shock-cell planner/mock checkpoint
+
+The continued-cell lane now has two deliberately separate fixtures. The
+compact ``MocPrescribedPostShockChainMock`` defaults to three cells for unit
+tests; the standalone validation artifact configures the same planner for five
+cells so the trace contains a meaningful continued prefix and a terminal
+``SOLVER_RETURNED_NO_NEXT_CELL`` boundary. The solver-generated five-cell
+reference is a separate research fixture and is not treated as the prescribed
+mock.
+
+Every accepted mock or reference step consumes the exact prior post-shock
+field perimeter, state samples, pressure samples, and total-pressure handoff.
+It then creates a fresh downstream domain and field, which lets the independent
+chain and planner operators verify contiguous indices, geometry freshness,
+hand-off fingerprints, pressure loss, and the terminal decision. A failed
+continuation keeps the accepted prefix and returns a typed boundary; it does
+not fill the chain with extrapolated or uniform state.
+
+This planner is a contract and audit fixture, not a production shock-cell
+model. Prescribed shock geometry, explicit per-cell schedules, and the
+solver-generated reference law remain outside the production path. The current
+local exact-Euler field and its resolution ladder likewise remain research
+evidence: they do not promote cells or alter the basic visualization,
+signature, optical-transfer, or focal-plane-array lanes.
+
+The remaining implementation order is therefore explicit:
+
+1. Bind the owner-provided indexed shock-cell archive and verify its
+   provenance, digest, coordinates, and calibration/validation split. The
+   missing archive cannot be replaced with synthetic observations.
+2. Close a canonical reflected free-boundary/mixed-regime field that couples
+   the continued ``C-`` frontier, shock geometry, ambient attachment, reflected
+   centerline, entropy, and Euler residuals in one solve.
+3. Extend the exact-Euler resolution ladder over additional reflected and mild
+   attached/overexpanded cases, with a stable physical terminal criterion.
+4. Implement production next-cell shock fitting from the typed state and
+   total-pressure frontier without prescribed geometry or template schedules.
+5. Run disjoint external comparison and promotion review, then consider only a
+   dedicated resolved-planar-MOC provider. No result may flow backward into a
+   lower-fidelity product lane.
