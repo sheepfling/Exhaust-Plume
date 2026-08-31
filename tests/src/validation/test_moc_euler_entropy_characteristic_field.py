@@ -21,6 +21,8 @@ from exhaust_plume.models.moc import (
   MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierCoverageStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryStatus,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationStatus,
+  reconcile_euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain,
   MocEulerAmbientFirstWedgeEntropyCarryStatus,
   assemble_euler_ambient_physical_field,
   plan_euler_ambient_first_wedge_entropy_characteristic_field,
@@ -65,6 +67,9 @@ from exhaust_plume.validation import (
   MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementMeasurementStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshAuditStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryAuditStatus,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationAuditStatus,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationRefinementCase,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationRefinementStatus,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_field,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_field_chain,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_shock_coupling,
@@ -76,6 +81,8 @@ from exhaust_plume.validation import (
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_ladder,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_remesh,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary,
+  measure_moc_euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation,
+  measure_moc_euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation_refinement_ladder,
 )
 
 
@@ -1588,6 +1595,155 @@ def test_internal_entropy_characteristic_continuation_closure_chain_closes_local
   assert audit.physical_closure_verified is False
   assert audit.chain_promotion_blocked
   assert audit.production_claim_allowed is False
+
+
+def test_internal_entropy_characteristic_frontiers_reconcile_and_audit_without_promotion() -> None:
+  _, field = _internal_field()
+  ambient_pressure = field.static_pressure_at(
+    field.continuation_boundary[0].point_m,
+  )
+  assert ambient_pressure is not None
+  planner = plan_euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_reference(
+    field,
+    ambient_pressure_Pa=ambient_pressure,
+    total_closure_count=2,
+    cycle_count=4,
+    subdivision_side_count=32,
+  )
+
+  reconciliation = reconcile_euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain(
+    planner,
+  )
+
+  assert reconciliation.status is (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationStatus
+    .CONVERGED_GLOBAL_RECONCILIATION
+  )
+  assert reconciliation.converged
+  assert reconciliation.global_reconciled
+  assert reconciliation.frontier_count == 2
+  assert reconciliation.seam_count == 1
+  assert reconciliation.frontier_sample_counts == (33, 33)
+  assert reconciliation.frontier_anchor_links_verified
+  assert reconciliation.frontier_order_verified
+  assert reconciliation.source_band_bridges_verified
+  assert reconciliation.seams_verified
+  assert reconciliation.frontier_sequence_verified
+  assert reconciliation.minimum_frontier_spacing_m is not None
+  assert reconciliation.minimum_frontier_spacing_m > 0.0
+  assert reconciliation.maximum_endpoint_position_residual_m == 0.0
+  assert reconciliation.physical_chain_cell_count == 0
+  assert reconciliation.physical_closure_verified is False
+  assert reconciliation.chain_promotion_blocked
+  assert reconciliation.production_claim_allowed is False
+
+  audit = measure_moc_euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation(
+    reconciliation,
+  )
+  assert audit.status is (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationAuditStatus
+    .CONVERGED_GLOBAL_AUDIT
+  )
+  assert audit.converged
+  assert audit.local_consistency_verified
+  assert audit.reextracted_frontier_count == 2
+  assert audit.result_frontier_fingerprints_verified
+  assert audit.frontier_records_verified
+  assert audit.anchor_links_verified
+  assert audit.frontier_order_verified
+  assert audit.source_band_bridges_verified
+  assert audit.seams_verified
+  assert audit.termination_verified
+  assert audit.fidelity_flags_verified
+  assert audit.physical_chain_cell_count == 0
+  assert audit.physical_closure_verified is False
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False
+
+  tampered_anchor = replace(
+    reconciliation.anchors[0],
+    frontier_record_link_verified=False,
+  )
+  tampered = replace(
+    reconciliation,
+    anchors=(tampered_anchor, *reconciliation.anchors[1:]),
+  )
+  tampered_audit = (
+    measure_moc_euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation(
+      tampered,
+    )
+  )
+  assert tampered_audit.status is (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationAuditStatus
+    .ANCHOR_FAILURE
+  )
+  assert not tampered_audit.converged
+  assert not tampered_audit.local_consistency_verified
+
+
+def test_internal_entropy_characteristic_frontier_reconciliation_refines_across_angle_cases() -> None:
+  _, field = _internal_field()
+  ambient_pressure = field.static_pressure_at(
+    field.continuation_boundary[0].point_m,
+  )
+  assert ambient_pressure is not None
+  cases = []
+  for angle in (1.0e-6, 2.0e-6, 5.0e-6):
+    planner = plan_euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_reference(
+      field,
+      ambient_pressure_Pa=ambient_pressure,
+      total_closure_count=2,
+      cycle_count=4,
+      subdivision_side_count=32,
+      outer_flow_angle_half_width_rad=angle,
+    )
+    reconciliation = reconcile_euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain(
+      planner,
+    )
+    cases.append(
+      MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationRefinementCase(
+        case_id=f'angle-{angle:g}',
+        outer_flow_angle_half_width_rad=angle,
+        cycle_count=4,
+        subdivision_side_count=32,
+        closure_count=2,
+        result=reconciliation,
+      )
+    )
+
+  measurement = (
+    measure_moc_euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation_refinement_ladder(
+      cases,
+      expected_case_ids=('angle-1e-06', 'angle-2e-06', 'angle-5e-06'),
+    )
+  )
+
+  assert measurement.status is (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationRefinementStatus
+    .CONVERGED_LOCAL_REFINEMENT
+  )
+  assert measurement.converged
+  assert measurement.local_consistency_verified
+  assert measurement.case_ids_verified
+  assert measurement.parameter_refinement_verified
+  assert measurement.shape_verified
+  assert measurement.audits_verified
+  assert measurement.frontier_records_verified
+  assert measurement.anchor_links_verified
+  assert measurement.frontier_order_verified
+  assert measurement.source_band_bridges_verified
+  assert measurement.seams_verified
+  assert measurement.termination_verified
+  assert measurement.residuals_finite
+  assert measurement.residuals_bounded
+  assert measurement.refinement_stable_verified
+  assert measurement.frontier_counts == (2, 2, 2)
+  assert measurement.seam_counts == (1, 1, 1)
+  assert measurement.frontier_sample_counts == ((33, 33),) * 3
+  assert measurement.physical_chain_cell_count == 0
+  assert measurement.physical_closure_verified is False
+  assert measurement.chain_promotion_blocked
+  assert measurement.production_claim_allowed is False
 
 
 def test_internal_entropy_characteristic_continuation_closure_chain_mock_replays_typed_candidate() -> None:

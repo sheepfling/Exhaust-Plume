@@ -1603,3 +1603,31 @@ physical chain cells, ``physical_closure_verified=false``,
 Global source-frontier reconciliation, multi-case refinement, and indexed
 external validation remain required. The fast/basic visualization, signature,
 ray-transfer, and focal-plane-array lanes remain unchanged.
+
+## Global exact-frontier reconciliation and case refinement
+
+The continued-band lane now has a solver-owned
+``reconcile_euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain``
+boundary. It re-extracts the exact terminal ``C-`` edge from every accepted
+remesh, verifies the dense frontier record against the local closure, anchors
+the outer and centerline endpoints to the retained continuation boundary, and
+checks each adjacent band's compressed two-endpoint handoff and downstream
+ordering. A positive axial separation is reported as downstream band advance;
+it is not filled with an interpolated or synthetic field.
+
+The canonical two-band run has two 33-sample frontiers, one reconciled seam,
+zero endpoint residual, and a measured 1.1226 m band advance. The independent
+``op.moc.euler-ambient-first-wedge-entropy-characteristic-frontier-reconciliation-audit``
+re-extracts those frontiers and rechecks the existing nested closure-chain
+audit, fingerprints, endpoint residuals, seam links, termination, and fidelity
+flags. A three-case ladder at 1, 2, and 5 microradian outer-angle brackets
+passes with the same two-frontier/one-seam shape and bounded residuals.
+
+This closes the local global-frontier bookkeeping gate, not the physical
+shock-cell gate: pointwise dense continuity across inter-band domains,
+canonical reflected/mixed-regime closure, indexed external observations, and
+production next-cell fitting remain open. The result continues to report zero
+physical chain cells, ``chain_promotion_blocked=true``, and
+``production_claim_allowed=false``. Nothing from this lane flows into the
+basic visualization, signature, optical-transfer, or focal-plane-array
+providers.

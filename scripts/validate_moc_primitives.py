@@ -80,6 +80,8 @@ from exhaust_plume.models.moc import (  # noqa: E402
   MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierCoverageStatus,
   MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryStatus,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationStatus,
+  reconcile_euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain,
   MocFreeBoundaryShockStatus,
   plan_euler_ambient_first_wedge_remesh_mock,
   plan_euler_ambient_first_wedge_characteristic_remesh,
@@ -409,6 +411,13 @@ from exhaust_plume.validation.moc_euler_entropy_characteristic_continuation_chai
 from exhaust_plume.validation.moc_euler_entropy_characteristic_continuation_closure import (  # noqa: E402
   MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainAuditStatus,
   measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain,
+)
+from exhaust_plume.validation.moc_euler_entropy_characteristic_frontier_reconciliation import (  # noqa: E402
+  MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationAuditStatus,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationRefinementCase,
+  MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationRefinementStatus,
+  measure_moc_euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation,
+  measure_moc_euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation_refinement_ladder,
 )
 from exhaust_plume.validation.moc_euler_entropy_characteristic_continuation_refinement import (  # noqa: E402
   MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementCase,
@@ -10908,6 +10917,73 @@ def build_moc_primitive_report() -> dict[str, Any]:
       position_tolerance_m=1.0e-8,
     )
   )
+  euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation = (
+    None
+    if euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain is None
+    else reconcile_euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain(
+      euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain,
+      position_tolerance_m=1.0e-8,
+    )
+  )
+  euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation_audit = (
+    None
+    if euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation is None
+    else measure_moc_euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation(
+      euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation,
+      position_tolerance_m=1.0e-8,
+    )
+  )
+  euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation_cases = ()
+  if (
+    entropy_characteristic_field is not None
+    and entropy_characteristic_free_boundary_ambient_pressure is not None
+    and euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation is not None
+  ):
+    case_reconciliations = (
+      euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation,
+    )
+    for angle in (2.0e-6, 5.0e-6):
+      case_planner = plan_euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_reference(
+        entropy_characteristic_field,
+        ambient_pressure_Pa=entropy_characteristic_free_boundary_ambient_pressure,
+        total_closure_count=2,
+        cycle_count=4,
+        subdivision_side_count=32,
+        outer_flow_angle_half_width_rad=angle,
+        position_tolerance_m=1.0e-8,
+      )
+      case_reconciliations += (
+        reconcile_euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain(
+          case_planner,
+          position_tolerance_m=1.0e-8,
+        ),
+      )
+    euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation_cases = tuple(
+      MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationRefinementCase(
+        case_id=f'outer-angle-{angle:g}',
+        outer_flow_angle_half_width_rad=angle,
+        cycle_count=4,
+        subdivision_side_count=32,
+        closure_count=2,
+        result=reconciliation,
+      )
+      for angle, reconciliation in zip(
+        (1.0e-6, 2.0e-6, 5.0e-6),
+        case_reconciliations,
+        strict=True,
+      )
+    )
+  euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation_refinement = (
+    measure_moc_euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation_refinement_ladder(
+      euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation_cases,
+      expected_case_ids=(
+        'outer-angle-1e-06',
+        'outer-angle-2e-06',
+        'outer-angle-5e-06',
+      ),
+      position_tolerance_m=1.0e-8,
+    )
+  )
   euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_cases = (
     ()
     if euler_ambient_first_wedge_entropy_characteristic_continuation is None
@@ -11640,6 +11716,19 @@ def build_moc_primitive_report() -> dict[str, Any]:
         None
         if euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_audit is None
         else euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_audit.as_report()
+      ),
+      'global_frontier_reconciliation': (
+        None
+        if euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation is None
+        else euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation.as_report()
+      ),
+      'global_frontier_reconciliation_independent_audit': (
+        None
+        if euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation_audit is None
+        else euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation_audit.as_report()
+      ),
+      'global_frontier_reconciliation_refinement': (
+        euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation_refinement.as_report()
       ),
       'refinement_ladder': (
         euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_measurement.as_report()
@@ -13115,6 +13204,43 @@ def build_moc_primitive_report() -> dict[str, Any]:
     or not euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_audit.chain_promotion_blocked
     or euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_audit.production_claim_allowed
   )
+  euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation_failure = (
+    euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation is None
+    or euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation.status
+    is not MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationStatus.CONVERGED_GLOBAL_RECONCILIATION
+    or not euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation.global_reconciled
+    or euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation.frontier_count != 2
+    or euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation.seam_count != 1
+    or not euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation.frontier_anchor_links_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation.frontier_order_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation.source_band_bridges_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation.seams_verified
+    or euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation.physical_chain_cell_count != 0
+    or euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation.physical_closure_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation.chain_promotion_blocked
+    or euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation.production_claim_allowed
+    or euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation_audit is None
+    or euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation_audit.status
+    is not MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationAuditStatus.CONVERGED_GLOBAL_AUDIT
+    or not euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation_audit.local_consistency_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation_audit.result_frontier_fingerprints_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation_audit.frontier_records_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation_audit.anchor_links_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation_audit.seams_verified
+    or euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation_refinement.status
+    is not MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationRefinementStatus.CONVERGED_LOCAL_REFINEMENT
+    or not euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation_refinement.local_consistency_verified
+    or euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation_refinement.case_ids
+    != ('outer-angle-1e-06', 'outer-angle-2e-06', 'outer-angle-5e-06')
+    or euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation_refinement.frontier_counts
+    != (2, 2, 2)
+    or euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation_refinement.seam_counts
+    != (1, 1, 1)
+    or euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation_refinement.physical_chain_cell_count != 0
+    or euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation_refinement.physical_closure_verified
+    or not euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation_refinement.chain_promotion_blocked
+    or euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation_refinement.production_claim_allowed
+  )
   euler_ambient_first_wedge_entropy_characteristic_continuation_remesh_failure = (
     len(
       euler_ambient_first_wedge_entropy_characteristic_continuation_remesh_results
@@ -13831,6 +13957,21 @@ def build_moc_primitive_report() -> dict[str, Any]:
         ),
       }
     ] if euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain_failure else []),
+    *([
+      {
+        'case': 'euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation',
+        'status': (
+          'missing'
+          if euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation is None
+          else euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation.status.value
+        ),
+        'message': (
+          'global exact C- frontier reconciliation or its three-case angle '
+          'refinement ladder did not preserve anchors, seam ordering, '
+          'independent audit, and the non-promotion boundary'
+        ),
+      }
+    ] if euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation_failure else []),
     *([
       {
         'case': 'euler_ambient_first_wedge_entropy_characteristic_continuation_refinement',

@@ -3341,3 +3341,30 @@ require global source-frontier reconciliation, refinement across cases, and
 indexed external validation before production next-cell shock fitting. No
 candidate can update the basic visualization, signature, ray-transfer, or
 focal-plane-array providers.
+
+## Global frontier reconciliation checkpoint
+
+The next long-goal slice is now implemented as an explicit solver-owned
+reconciliation result. For every accepted continued closure band, the
+reconciler re-extracts the exact outgoing ``C-`` remesh frontier, matches it to
+the retained continuation endpoints and closure frontier record, and then
+checks the adjacent-band seam through the exact compressed handoff. It records
+frontier fingerprints, sample counts, endpoint residuals, axial ordering, and
+positive downstream band spacing without fabricating a state in the intervening
+domain.
+
+The independent validation operator repeats the closure-chain audit and
+re-extracts the frontiers before accepting the stored result. The validation
+script also runs three real two-band cases with outer-angle half-widths of 1,
+2, and 5 microradians at the n=32 local remesh resolution. All three retain
+two 33-sample frontiers and one verified seam, providing cross-case stability
+evidence for this research lane.
+
+The reconciliation and case ladder remain below physical promotion. They do
+not prove dense pointwise inter-band continuity, solve the missing globally
+coupled reflected/mixed-regime field, consume indexed owner validation data, or
+create ``MocChainCell`` objects. The next work remains physical canonical
+closure, additional resolution and reflected/attached cases, external
+calibration/validation comparison, and production next-cell shock fitting in a
+dedicated resolved-planar-MOC provider. Lower-fidelity visualization,
+signature, optical-transfer, and focal-plane-array providers remain isolated.
