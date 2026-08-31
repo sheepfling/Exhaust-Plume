@@ -134,6 +134,13 @@ from exhaust_plume.providers.straight_visual import (
     StraightVisualDefinition,
     StraightVisualProvider,
 )
+from exhaust_plume.providers.shock_cell_visual import (
+    ShockCellVisualConfiguration,
+    ShockCellVisualDefinition,
+    ShockCellVisualOperatingState,
+    ShockCellVisualProvider,
+    ShockCellVisualSession,
+)
 from exhaust_plume.providers.straight_analytical import (
     StraightAnalyticalConfiguration,
     StraightAnalyticalDefinition,
@@ -264,6 +271,11 @@ __all__ = (
     'StraightVisualConfiguration',
     'StraightVisualDefinition',
     'StraightVisualProvider',
+    'ShockCellVisualConfiguration',
+    'ShockCellVisualDefinition',
+    'ShockCellVisualOperatingState',
+    'ShockCellVisualProvider',
+    'ShockCellVisualSession',
     'StraightAnalyticalConfiguration',
     'StraightAnalyticalDefinition',
     'StraightAnalyticalOperatingState',

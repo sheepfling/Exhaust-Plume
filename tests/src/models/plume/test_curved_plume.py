@@ -5,6 +5,7 @@ from math import cos, pi, sin
 from unittest import TestCase
 
 import numpy as np
+import pytest
 from numpy.testing import assert_allclose
 from numpy.typing import NDArray
 
@@ -221,6 +222,93 @@ class TestCurvedPlume(TestCase):
           ambient_field=ambient,
           entrainment_model=ConstantEntrainment(0.),
           options=CurvedPlumeOptions(max_arc_length_m=1.),
+      )
+    ####
+  ####
+
+  def test_equilibrium_event_stops_before_later_speed_failure(self) -> None:
+    pressure_Pa = 101325.
+    ambient = UniformAmbientField(AmbientState(
+        velocity_mps=np.zeros(3),
+        pressure_Pa=pressure_Pa,
+        temperature_K=300.,
+        density_kgpm3=1.2,
+        specific_heat_JpkgK=1000.,
+        gas_constant_JpkgK=287.05,
+    ))
+    source = CurvedPlumeSource(
+        position_m=np.zeros(3),
+        velocity_mps=np.asarray((0., 0., 1.)),
+        mass_flow_kgps=1.,
+        temperature_K=300.,
+        static_pressure_Pa=pressure_Pa,
+        specific_heat_JpkgK=1000.,
+        gas_constant_JpkgK=287.05,
+    )
+    result = solveCurvedPlume(
+        source=source,
+        ambient_field=ambient,
+        entrainment_model=ConstantEntrainment(1.3),
+        thermodynamics=ConstantDensityMixtureThermodynamics(density_kgpm3=1.2),
+        options=CurvedPlumeOptions(
+            max_arc_length_m=30.,
+            number_of_stations=61,
+            max_step_m=.05,
+            minimum_speed_mps=.05,
+            enable_equilibrium_termination=True,
+            equilibrium_exhaust_mass_fraction=.2,
+            equilibrium_temperature_excess_K=1.,
+            equilibrium_relative_speed_mps=.2,
+        ),
+    )
+
+    expected_equilibrium_arc_length_m = (1. / .2 - 1.) / 1.3
+    assert result.termination is CurvedPlumeTermination.EQUILIBRIUM
+    assert result.arc_lengths_m[-1] == pytest.approx(expected_equilibrium_arc_length_m, rel=1.e-8)
+    assert result.arc_lengths_m[-1] != pytest.approx(3., abs=1.e-12)
+    assert result.stations[-1].speed_mps == pytest.approx(.2, rel=1.e-8)
+    assert result.stations[-1].exhaust_mass_fraction == pytest.approx(.2, rel=1.e-8)
+  ####
+
+  def test_spatially_varying_ambient_caloric_properties_are_rejected(self) -> None:
+    pressure_Pa = 101325.
+    ambient_state = AmbientState(
+        velocity_mps=np.zeros(3),
+        pressure_Pa=pressure_Pa,
+        temperature_K=300.,
+        density_kgpm3=1.2,
+        specific_heat_JpkgK=1000.,
+        gas_constant_JpkgK=287.05,
+    )
+
+    class VaryingCaloricAmbientField:
+      def sample(self, position_m: NDArray[np.float64]) -> AmbientState:
+        variation = max(float(position_m[2]), 0.)
+        return AmbientState(
+            velocity_mps=ambient_state.velocity_mps,
+            pressure_Pa=ambient_state.pressure_Pa,
+            temperature_K=ambient_state.temperature_K,
+            density_kgpm3=ambient_state.density_kgpm3,
+            specific_heat_JpkgK=ambient_state.specific_heat_JpkgK + variation,
+            gas_constant_JpkgK=ambient_state.gas_constant_JpkgK + variation,
+        )
+      ####
+    ####
+
+    source = CurvedPlumeSource(
+        position_m=np.zeros(3),
+        velocity_mps=np.asarray((0., 0., 10.)),
+        mass_flow_kgps=1.,
+        temperature_K=500.,
+        static_pressure_Pa=pressure_Pa,
+    )
+    with self.assertRaisesRegex(ValueError, 'Spatial variation of ambient caloric properties'):
+      solveCurvedPlume(
+          source=source,
+          ambient_field=VaryingCaloricAmbientField(),
+          entrainment_model=ConstantEntrainment(0.),
+          thermodynamics=ConstantDensityMixtureThermodynamics(density_kgpm3=1.2),
+          options=CurvedPlumeOptions(max_arc_length_m=1., number_of_stations=11, max_step_m=.05),
       )
     ####
   ####

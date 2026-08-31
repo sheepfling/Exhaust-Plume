@@ -1,5 +1,6 @@
 {
   "report_id": "exhaust-plume-api-v1-freeze-report",
+  "scope": "historical API v1 freeze evidence at reviewed_head_sha; follow-on cleanup is recorded in docs/api_v1_cleanup.md",
   "status": "accepted",
   "release_target": "0.1.0a2",
   "reviewed_head_sha": "282fe02",

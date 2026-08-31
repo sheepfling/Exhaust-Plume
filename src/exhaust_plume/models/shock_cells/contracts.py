@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from exhaust_plume.geometry.contracts import GeometryStatus
 from exhaust_plume.models.nozzle.contracts import AmbientState, NozzleExitState
-from exhaust_plume.contracts.snapshot import TerminationReason
+from exhaust_plume.contracts.termination import TerminationReason
 from exhaust_plume.util.aero.flow_state import FlowState
 
 __all__ = (

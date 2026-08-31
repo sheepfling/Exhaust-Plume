@@ -1,4 +1,8 @@
-"""Common provider/session/snapshot lifecycle and capability discovery."""
+"""Compatibility provider lifecycle for pre-v1 product DTOs.
+
+New provider implementations must use ``exhaust_plume.api.v1`` and the
+typed ``ProductProvider`` lifecycle.
+"""
 
 from __future__ import annotations
 

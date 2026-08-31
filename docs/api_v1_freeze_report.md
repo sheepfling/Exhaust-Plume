@@ -9,9 +9,11 @@ The frozen capability and asset inventory is recorded in
 [`public_contract_freeze_v1.json`](../schemas/public_contract_freeze_v1.json).
 
 The reviewed code head is `282fe02`, based on the merged alpha baseline
-`49d6ffd`. The review includes API-008A/B/C, the API-009 conformance harness,
-canonical-facade ports for the prescribed, straight analytical, and signature
-providers, and the legacy prescribed compatibility shell.
+`49d6ffd`. The original freeze includes API-008A/B/C, the API-009 conformance
+harness, canonical-facade ports for the prescribed, straight analytical, and
+signature providers, and the legacy prescribed compatibility shell. The
+follow-on cleanup adds the canonical shock-cell visual provider while keeping
+the old spatial-zone provider as a compatibility surface.
 
 ## Accepted contract boundaries
 
@@ -28,17 +30,27 @@ providers, and the legacy prescribed compatibility shell.
 - Unsupported capability, unsupported major, invalid request, and
   applicability failures remain distinct structured outcomes.
 
-## Evidence
+## Original freeze evidence
 
-The final local gate recorded 270 passing tests, Ruff pass, Pyright pass,
+The original freeze gate recorded 270 passing tests, Ruff pass, Pyright pass,
 deterministic Draft 2020-12 schema/fixture generation and drift validation,
-successful package build, and a passing installed-wheel smoke test.
+successful package build, and a passing installed-wheel smoke test. The
+machine-readable report preserves that historical reviewed head and provider
+registration set; follow-on cleanup evidence is recorded below.
 
-Four real providers pass the shared conformance harness. Legacy spatial/static
-providers are explicitly waived because their older ABI has not been silently
-promoted. Physical shock-train, washed-plume, optical-field, ray-intersection,
-CPU/GPU, and FPA work remains deferred; none is needed to define v1 meaning.
+The canonical provider set now includes the bounded shock-cell visual path.
+The static fixture and old spatial-zone provider remain explicitly outside the
+production v1 provider set. Physical washed-plume, optical-field,
+ray-intersection, CPU/GPU, and FPA work remains deferred; none is needed to
+define v1 meaning.
 
 The old prescribed API remains available through a compatibility shell backed
 by the canonical provider. Existing root imports and 0.1.x envelopes remain
 supported, with removal no earlier than a future incompatible release.
+
+## Follow-on cleanup evidence
+
+The cleanup slice passes 280 tests, Ruff, Pyright, public contract asset drift
+validation, a wheel/sdist build, and the installed-wheel smoke test. The
+historical JSON report is intentionally not rewritten to claim that these
+checks were performed at its original reviewed head.

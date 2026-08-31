@@ -59,6 +59,9 @@ def test_v1_facade_is_aliases_not_a_second_wire_model_tree() -> None:
   assert v1.VISUAL_SECTIONED_TUBE_V1 is contracts.VISUAL_SECTIONED_TUBE_V1
   assert v1.SPECTRAL_RADIANT_INTENSITY_V1 is contracts.SPECTRAL_RADIANT_INTENSITY_V1
   assert v1.SPECTRAL_RAY_TRANSFER_V1 is contracts.SPECTRAL_RAY_TRANSFER_V1
+  assert v1.PlumeProvider is v1.ProductProvider
+  assert v1.PlumeSession is v1.ProductSession
+  assert v1.PlumeSnapshot is v1.ProductSnapshot
 ####
 
 

@@ -148,6 +148,7 @@ def _descriptor(configuration: StraightAnalyticalConfiguration) -> ProviderDescr
     notes=(
       'steady straight axisymmetric calorically-perfect inviscid near-field model',
       'visual sectioned-tube output only; no signature or ray-transfer capability',
+      'fidelity profile: shock-cell-basic-v1',
     ),
   )
 ####

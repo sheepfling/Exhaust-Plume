@@ -1,0 +1,104 @@
+{
+  "matrix_id": "solver-fidelity-matrix-v1",
+  "products": [
+    "plume.visual.sectioned-tube@1",
+    "plume.signature.spectral-radiant-intensity@1",
+    "plume.optical.spectral-ray-transfer@1"
+  ],
+  "lanes": [
+    {
+      "lane_id": "shock-cell-basic-v1",
+      "status": "active",
+      "provider_ids": [
+        "plume.shock-cell-analytical",
+        "plume.straight-analytical"
+      ],
+      "advertised_capabilities": [
+        "plume.visual.sectioned-tube@1"
+      ],
+      "forbidden_capabilities": [
+        "plume.signature.spectral-radiant-intensity@1",
+        "plume.optical.spectral-ray-transfer@1",
+        "plume.image.spectral-radiance@1"
+      ],
+      "focal_plane_array": "not_supported",
+      "model_axes": {
+        "morphology": "straight-axisymmetric",
+        "flow": "steady-inviscid-calorically-perfect",
+        "mixing": "none",
+        "thermochemistry": "frozen-gamma",
+        "radiation": "none",
+        "validation": "regression-and-declared-study-envelope"
+      },
+      "complexity_policy": "frozen-ceiling; higher fidelity requires a new lane"
+    },
+    {
+      "lane_id": "signature-table-mvp-v1",
+      "status": "active",
+      "provider_ids": [
+        "signature.table-lookup"
+      ],
+      "advertised_capabilities": [
+        "plume.signature.spectral-radiant-intensity@1"
+      ],
+      "forbidden_capabilities": [
+        "plume.visual.sectioned-tube@1",
+        "plume.optical.spectral-ray-transfer@1",
+        "plume.image.spectral-radiance@1"
+      ],
+      "focal_plane_array": "not_supported",
+      "model_axes": {
+        "morphology": "axisymmetric-lookup",
+        "flow": "not_solved",
+        "mixing": "not_solved",
+        "thermochemistry": "not_solved",
+        "radiation": "tabulated-source-intensity",
+        "validation": "asset-and-interpolation-contract"
+      },
+      "complexity_policy": "independent provider; no shock-cell backfill"
+    },
+    {
+      "lane_id": "washed-integral-v1",
+      "status": "planned",
+      "provider_ids": [],
+      "target_capabilities": [
+        "plume.visual.sectioned-tube@1",
+        "plume.engineering.flux-section@1"
+      ],
+      "requires": [
+        "dedicated-provider-contract",
+        "conservative-handoff-validation"
+      ],
+      "focal_plane_array": "not_supported"
+    },
+    {
+      "lane_id": "optical-transfer-v1",
+      "status": "planned",
+      "provider_ids": [],
+      "target_capabilities": [
+        "plume.optical.spectral-ray-transfer@1"
+      ],
+      "requires": [
+        "validated-local-optical-field",
+        "ray-transfer-validation"
+      ],
+      "focal_plane_array": "not_supported"
+    },
+    {
+      "lane_id": "focal-plane-array-v1",
+      "status": "planned-downstream",
+      "provider_ids": [],
+      "target_products": [
+        "focal-plane-array"
+      ],
+      "requires": [
+        "plume.optical.spectral-ray-transfer@1",
+        "camera-and-optics-contract",
+        "detector-response-contract",
+        "pixel-exposure-integration",
+        "noise-and-digitization-policy"
+      ],
+      "focal_plane_array": "downstream-adapter"
+    }
+  ]
+}

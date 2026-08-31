@@ -1,9 +1,12 @@
-"""Provider/session/snapshot lifecycle protocols and capability lookup."""
+"""Compatibility provider/session/snapshot lifecycle and capability lookup.
+
+The canonical lifecycle is in ``contracts.lifecycle_v1``. This module keeps
+the older solver-facing snapshot ABI available for 0.1.x consumers.
+"""
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from enum import Enum
+from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Generic, Mapping, Protocol, TypeVar
 
@@ -11,10 +14,13 @@ from exhaust_plume.contracts.capability import CapabilityId
 from exhaust_plume.contracts.descriptor import PlumeProviderDescriptor
 from exhaust_plume.contracts.errors import CapabilityVersionMismatchError, ContractViolationError, UnsupportedCapabilityError
 from exhaust_plume.contracts.provenance import PlumeProvenance
+from exhaust_plume.contracts.termination import TerminationReason as _TerminationReason, TerminationReport
 
 DefinitionT = TypeVar('DefinitionT', contravariant=True)
 ConfigurationT = TypeVar('ConfigurationT', contravariant=True)
 OperatingStateT = TypeVar('OperatingStateT', contravariant=True)
+
+TerminationReason = _TerminationReason
 
 
 class PlumeCapability(Protocol):
@@ -50,43 +56,6 @@ class PlumeSession(Protocol, Generic[OperatingStateT]):
 
   def close(self) -> None:
     ...
-####
-
-
-class TerminationReason(str, Enum):
-  NO_PRESSURE_MISMATCH = 'no-pressure-mismatch'
-  WEAK_WAVE_CUTOFF = 'weak-wave-cutoff'
-  PRESSURE_OSCILLATION_DECAYED = 'pressure-oscillation-decayed'
-  MIXING_LAYER_REACHED_AXIS = 'mixing-layer-reached-axis'
-  CORE_BECAME_SUBSONIC = 'core-became-subsonic'
-  AMBIENT_EQUILIBRIUM = 'ambient-equilibrium'
-  MACH_DISK_REQUIRED = 'mach-disk-required'
-  NOZZLE_SEPARATION_NOT_MODELED = 'nozzle-separation-not-modeled'
-  SPATIAL_DOMAIN_LIMIT = 'spatial-domain-limit'
-  TEMPORAL_DOMAIN_LIMIT = 'temporal-domain-limit'
-  REQUESTED_CONSTRUCTION_LIMIT = 'requested-construction-limit'
-  MAX_CELL_LIMIT = 'max-cell-limit'
-  DETACHED_SHOCK_REQUIRED = 'detached-shock-required'
-  NUMERICAL_FAILURE = 'numerical-failure'
-  PROVIDER_FAILURE = 'provider-failure'
-####
-
-
-@dataclass(frozen=True, slots=True)
-class TerminationReport:
-  """Structured endpoint metadata separate from snapshot validity."""
-
-  reason: TerminationReason
-  is_physical: bool
-  message: str
-  diagnostics: Mapping[str, float | str] = field(default_factory=dict)
-
-  def __post_init__(self) -> None:
-    if not self.message:
-      raise ValueError('termination message must not be empty')
-    ####
-    object.__setattr__(self, 'diagnostics', MappingProxyType(dict(self.diagnostics)))
-  ####
 ####
 
 

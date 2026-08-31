@@ -68,6 +68,50 @@ class AmbientStateField(Protocol):
   def sample(self, position_m: FloatArray) -> AmbientState:
     """Return the local ambient state at ``position_m``."""
     ...
+####
+
+
+def _validateAmbientCaloricProperties(
+    *,
+    ambient: AmbientState,
+    reference: AmbientState,
+) -> None:
+  """Reject spatial caloric changes that the current conserved state cannot represent.
+
+  The integral state conserves total mass, momentum, energy, and exhaust mass,
+  but it does not yet conserve the caloric composition of entrained ambient
+  parcels. Applying a later ambient ``specific_heat_JpkgK`` or
+  ``gas_constant_JpkgK`` to all accumulated ambient mass would therefore alter
+  previously entrained material retroactively. Until those composition moments
+  are added to the conserved state, require these ambient properties to remain
+  constant along a trajectory.
+  """
+  differing_properties: list[str] = []
+  if not np.isclose(
+      ambient.specific_heat_JpkgK,
+      reference.specific_heat_JpkgK,
+      rtol=1.e-12,
+      atol=1.e-12,
+  ):
+    differing_properties.append('specific_heat_JpkgK')
+  ####
+  if not np.isclose(
+      ambient.gas_constant_JpkgK,
+      reference.gas_constant_JpkgK,
+      rtol=1.e-12,
+      atol=1.e-12,
+  ):
+    differing_properties.append('gas_constant_JpkgK')
+  ####
+  if differing_properties:
+    properties = ', '.join(differing_properties)
+    raise ValueError(
+        'Spatial variation of ambient caloric properties is unsupported by '
+        'the current curved-plume conserved state. The following properties '
+        f'must remain constant: {properties}. '
+        'Use a caloric-composition-conserving thermodynamics closure before '
+        'supplying a spatially varying field.'
+    )
   ####
 ####
 
@@ -162,7 +206,6 @@ class MixtureThermodynamics(Protocol):
   ) -> MixtureState:
     """Reconstruct the local thermodynamic state."""
     ...
-  ####
 ####
 
 

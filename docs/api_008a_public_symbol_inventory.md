@@ -343,7 +343,7 @@ This inventory is generated from each package's declared `__all__` on the post-a
 - `write_visual_obj`
 - `write_visual_result_json`
 
-## `exhaust_plume.providers` (54 symbols)
+## `exhaust_plume.providers` (59 symbols)
 
 - `CapabilityBinding`
 - `ClosedSessionError`
@@ -395,12 +395,17 @@ This inventory is generated from each package's declared `__all__` on the post-a
 - `ShockCellConfiguration`
 - `ShockCellDefinition`
 - `ShockCellOperatingState`
+- `ShockCellVisualConfiguration`
+- `ShockCellVisualDefinition`
+- `ShockCellVisualOperatingState`
+- `ShockCellVisualProvider`
+- `ShockCellVisualSession`
 - `engineeringFluxSectionsFromCurvedPlume`
 - `requireCapability`
 - `sectionedTubeFromAxisymmetricZones`
 - `sectionedTubeFromCurvedPlume`
 
-## `exhaust_plume` (180 symbols)
+## `exhaust_plume` (185 symbols)
 
 - `MODULE_NAME`
 - `VERSION`
@@ -466,6 +471,11 @@ This inventory is generated from each package's declared `__all__` on the post-a
 - `StraightVisualConfiguration`
 - `StraightVisualDefinition`
 - `StraightVisualProvider`
+- `ShockCellVisualConfiguration`
+- `ShockCellVisualDefinition`
+- `ShockCellVisualOperatingState`
+- `ShockCellVisualProvider`
+- `ShockCellVisualSession`
 - `StraightAnalyticalConfiguration`
 - `StraightAnalyticalDefinition`
 - `StraightAnalyticalOperatingState`

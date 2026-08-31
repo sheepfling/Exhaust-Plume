@@ -112,13 +112,12 @@ from exhaust_plume.contracts.specs_v1 import (
   VISUAL_SECTIONED_TUBE_V1,
   get_product_capability_spec,
 )
+from exhaust_plume.contracts.termination import TerminationReason, TerminationReport
 from exhaust_plume.contracts.snapshot import (
     PlumeCapability,
     PlumeProvider,
     PlumeSession,
     PlumeSnapshot,
-    TerminationReason,
-    TerminationReport,
 )
 from exhaust_plume.contracts.spatial import AxisymmetricZone, AxisymmetricZoneField, ProjectedAreaCapability, SpatialSupport
 from exhaust_plume.contracts.visual_v1 import (

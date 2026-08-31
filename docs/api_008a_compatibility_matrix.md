@@ -8,15 +8,15 @@ the symbol is deleted in this packet.
 
 | Import surface | Examples | 0.1.x disposition | New code | Follow-up |
 | --- | --- | --- | --- | --- |
-| `exhaust_plume.api.v1` | `VisualSectionedTubeRequest`, `SpectralSignatureResult`, `ProviderDescriptor`, `PUBLIC_CONTRACT_MODELS` | retain as canonical facade | use | API-010 freezes the v1 surface |
+| `exhaust_plume.api.v1` | `VisualSectionedTubeRequest`, `SpectralSignatureResult`, `ProviderDescriptor`, `PUBLIC_CONTRACT_MODELS`, `ProductProvider` | retain as canonical facade | use | API-010 freezes the v1 surface |
 | `exhaust_plume.contracts` common/v1 modules | `Pose`, `ResultMetadata`, `VisualSectionedTubeResult`, `SpectralSignatureResult`, `SpectralRayTransferRequest` | retain as wire authority and compatibility import | prefer `api.v1` aliases | deprecation guidance after v1 freeze; no field drift |
 | `exhaust_plume.api.contracts` | `Pose3`, `ResultEnvelope`, `SectionedTubePayload`, spectral payloads | retain compatibility DTOs | do not extend | adapt/deprecate during API-008B/008C and API-010 |
-| `exhaust_plume.api.lifecycle` | `PlumeProvider`, `PlumeSession`, `PlumeSnapshot`, `ProductRequest` | retain review-witness lifecycle | do not add a parallel lifecycle | API-008B selects the ABI; API-009 adds conformance |
+| `exhaust_plume.api.lifecycle` | `PlumeProvider`, `PlumeSession`, `PlumeSnapshot`, `ProductRequest` | retain review-witness lifecycle | do not add a parallel lifecycle | API-008B establishes the canonical ABI; API-009 tests conformance |
 | `exhaust_plume.api.prescribed` | `PrescribedSectionedTubeProvider` | retain the old envelope as a compatibility shell | delegates lifecycle/evaluation to `providers.PrescribedVisualProvider` | remove no earlier than 0.2.0 |
 | `exhaust_plume.products._base` | `ContractModel`, product metadata, product DTOs | retain implementation compatibility | no new wire DTOs | PRV-001..003 adapt outputs |
 | `exhaust_plume.products` workflows | mesh, plotting, CSV/JSON helpers | retain | use as consumer adapters | keep visual/signature/ray products independent |
-| `exhaust_plume.providers.lifecycle` | `ProviderDescriptor`, `createSession`, `resolveCapability` | retain existing provider ABI | no new providers before API-009 | conformance/migration in API-009/PRV packets |
-| `exhaust_plume.providers.*` | prescribed, straight, signature-table, shock-cell providers | retain and test | use through current compatibility path until ported | PRV-001..003 |
+| `exhaust_plume.providers.lifecycle` | `ProviderDescriptor`, `createSession`, `resolveCapability` | compatibility-only; re-exported from `providers.compatibility` | do not use for new providers | remove no earlier than 0.2.0 after migration review |
+| `exhaust_plume.providers.*` | prescribed, straight, signature-table, shock-cell providers | canonical providers use `ProductProvider`; old static/spatial providers remain compatibility-only | use `api.v1` lifecycle | shock-cell visual port is canonical; remaining legacy providers require migration review |
 | `exhaust_plume` root | physics helpers and convenience contract/provider imports | retain; no deletion | new product examples move to `api.v1` | API-010 curates without breaking 0.1.x |
 
 ## Removal rules

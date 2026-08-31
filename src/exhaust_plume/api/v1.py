@@ -139,12 +139,8 @@ from exhaust_plume.contracts.spatial import (
 )
 from exhaust_plume.contracts.snapshot import (
   PlumeCapability,
-  PlumeProvider,
-  PlumeSession,
-  PlumeSnapshot,
-  TerminationReason,
-  TerminationReport,
 )
+from exhaust_plume.contracts.termination import TerminationReason, TerminationReport
 from exhaust_plume.contracts.visual_v1 import (
   LodProfile,
   VISUAL_SECTIONED_TUBE_CAPABILITY,
@@ -161,6 +157,14 @@ from exhaust_plume.contracts.visual_v1 import (
 )
 
 VersionedSpectralRayTransferResult = SpectralRayTransferResult
+
+# The v1 facade keeps the historical names importable, but they now resolve to
+# the one canonical lifecycle. The original string/capability ABI remains
+# available from ``exhaust_plume.api`` and ``exhaust_plume.providers`` for
+# 0.1.x compatibility callers.
+PlumeProvider = ProductProvider
+PlumeSession = ProductSession
+PlumeSnapshot = ProductSnapshot
 
 __all__ = (
   'AngularDomainError',
