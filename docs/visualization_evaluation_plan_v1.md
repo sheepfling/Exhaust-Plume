@@ -127,6 +127,22 @@ the required observation dataset and metadata.
 This lane is downstream composition. It does not create an FPA provider or a
 measured-image claim by itself.
 
+### Five computational model lanes
+
+The model-facing visualization seam is now standardized by
+`StandardizedModelVisualization` in
+`exhaust_plume.products.model_visualization`. It adapts the fast basic
+shock-cell, calibrated reduced-order shock-train, straight top-hat integral,
+curved/washed integral, and planar-MOC/reflected-domain lanes to the common
+sectioned-tube display. It also retains unit-bearing channels, optional region
+polygons, named boundary paths, and lane-specific fidelity/promotion metadata.
+
+The planar-MOC result is shown as retained 2-D field cells and boundaries plus
+an explicitly illustrative projected envelope. This does not add a public MOC
+provider or authorize a production claim. See
+[`model_visualization_standard_v1.md`](model_visualization_standard_v1.md) for
+the lane matrix and required views.
+
 ## Interaction model
 
 The first implementation should support linked, deterministic selections:

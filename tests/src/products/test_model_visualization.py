@@ -1,0 +1,298 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+import json
+from math import pow
+
+import numpy as np
+import pytest
+
+from exhaust_plume import (
+  AmbientInput,
+  CaloricallyPerfectGas,
+  NozzleExitInput,
+  Pose,
+  ShockCellSolveConfig,
+  VisualSampling,
+  VisualSectionedTubeRequest,
+  derive_ambient_state,
+  derive_uniform_nozzle_exit,
+  solve_shock_cells,
+)
+from exhaust_plume.api.v1 import SnapshotMetadata
+from exhaust_plume.contracts.termination import TerminationReason, TerminationReport
+from exhaust_plume.models.integral import IntegralStraightResult, IntegralStraightState
+from exhaust_plume.models.moc.primitives import CharacteristicState
+from exhaust_plume.models.plume.curved_plume_closures import CurvedPlumeResult, CurvedPlumeTermination
+from exhaust_plume.models.plume.curved_plume_state import CurvedPlumeStation
+from exhaust_plume.models.shock_train import (
+  GeometryFidelity,
+  ShockCellMetrics,
+  ShockTrainCell,
+  ShockTrainResult,
+  ShockTrainStatus,
+)
+from exhaust_plume.products import (
+  MODEL_VISUALIZATION_LANES,
+  ModelVisualizationLane,
+  evaluate_standardized_model_visualization,
+  standardize_all_model_visualizations,
+  standardize_model_visualization,
+)
+
+
+def _basic_result():
+  gas = CaloricallyPerfectGas.dry_air()
+  mach = 3.0
+  ambient_pressure = 100_000.0
+  total_pressure = ambient_pressure * 1.1 * pow(
+    1.0 + (gas.gamma - 1.0) * mach**2 / 2.0,
+    gas.gamma / (gas.gamma - 1.0),
+  )
+  exit_state = derive_uniform_nozzle_exit(
+    NozzleExitInput(
+      mach=mach,
+      total_pressure_Pa=total_pressure,
+      total_temperature_K=800.0,
+      exit_radius_m=1.0,
+    ),
+    gas,
+  )
+  ambient = derive_ambient_state(
+    AmbientInput(pressure_Pa=ambient_pressure, temperature_K=300.0),
+    gas,
+  )
+  return solve_shock_cells(ShockCellSolveConfig(
+    exit=exit_state,
+    ambient=ambient,
+    max_cells=1,
+    expansion_characteristics=2,
+    compression_characteristics=1,
+  ))
+
+
+def _reduced_result() -> ShockTrainResult:
+  metrics = tuple(
+    ShockCellMetrics(
+      cell_index=index,
+      start_x_m=float(index - 1) * 2.0,
+      end_x_m=float(index) * 2.0,
+      length_m=2.0,
+      effective_core_diameter_m=2.0 - 0.2 * index,
+      core_mach=2.5 - 0.1 * index,
+      mean_pressure_Pa=100_000.0 - 5_000.0 * index,
+      maximum_pressure_Pa=110_000.0 - 5_000.0 * index,
+      minimum_pressure_Pa=90_000.0 - 5_000.0 * index,
+      pressure_oscillation_ratio=0.5 / index,
+      mean_pressure_residual=0.01,
+      inlet_total_pressure_Pa=100_000.0,
+      outlet_total_pressure_Pa=99_000.0,
+      geometry_fidelity=(
+        GeometryFidelity.RESOLVED_FIRST_CELL
+        if index == 1 else GeometryFidelity.SCALED_REDUCED_ORDER
+      ),
+    )
+    for index in (1, 2)
+  )
+  return ShockTrainResult(
+    cells=tuple(ShockTrainCell(metrics=metric) for metric in metrics),
+    shock_train_end_x_m=4.0,
+    supersonic_core_end_x_m=4.0,
+    thermal_plume_end_x_m=4.0,
+    termination=TerminationReport(
+      reason=TerminationReason.SPATIAL_DOMAIN_LIMIT,
+      is_physical=False,
+      message='test display limit',
+    ),
+    status=ShockTrainStatus.TRUNCATED,
+    was_domain_truncated=True,
+    calibration_id='test-calibration-v1',
+  )
+
+
+def _straight_result() -> IntegralStraightResult:
+  states = tuple(
+    IntegralStraightState(
+      x_m=float(index),
+      mass_flow_rate_kg_s=1.0 + index,
+      momentum_flux_N=100.0 + index,
+      total_enthalpy_flux_W=1_000.0 + index,
+      velocity_mps=100.0 - index,
+      temperature_K=300.0 + index,
+      pressure_Pa=100_000.0,
+      density_kgpm3=1.0,
+      radius_m=0.5 + 0.1 * index,
+      species_mass_fractions=(),
+    )
+    for index in range(3)
+  )
+  return IntegralStraightResult(
+    states=states,
+    termination_reason=TerminationReason.SPATIAL_DOMAIN_LIMIT,
+    termination_x_m=2.0,
+    termination_is_physical=False,
+    conservation_residuals={'momentum_relative': 0.0, 'total_enthalpy_relative': 0.0},
+  )
+
+
+def _curved_result() -> CurvedPlumeResult:
+  stations = tuple(
+    CurvedPlumeStation(
+      arc_length_m=float(index),
+      position_m=np.asarray((float(index), 0.1 * index, 0.0)),
+      mass_flow_kgps=10.0,
+      momentum_flux_N=np.asarray((1_000.0, 0.0, 0.0)),
+      momentum_derivative_Npm=np.asarray((0.0, 0.0, 0.0)),
+      velocity_mps=np.asarray((100.0, 5.0, 0.0)),
+      total_energy_flow_W=1.0e6,
+      exhaust_mass_flow_kgps=1.0,
+      exhaust_mass_fraction=0.5,
+      temperature_K=1_000.0 - index,
+      pressure_Pa=100_000.0,
+      density_kgpm3=1.0,
+      specific_heat_JpkgK=1_000.0,
+      gas_constant_JpkgK=287.0,
+      area_m2=1.0,
+      radius_m=0.5 + 0.1 * index,
+      ambient_velocity_mps=np.asarray((0.0, 0.0, 0.0)),
+      ambient_temperature_K=300.0,
+      ambient_density_kgpm3=1.0,
+      relative_velocity_mps=np.asarray((100.0, 5.0, 0.0)),
+      entrainment_kgpspm=0.1,
+      curvature_per_m=0.01,
+      slenderness_ratio=0.1,
+    )
+    for index in range(3)
+  )
+  return CurvedPlumeResult(
+    stations=stations,
+    termination=CurvedPlumeTermination.DOMAIN_LIMIT,
+    solver_message='test display limit',
+    function_evaluations=3,
+  )
+
+
+@dataclass(frozen=True)
+class _MocCell:
+  vertices_xr_m: tuple[tuple[float, float], ...]
+
+
+class _MocField:
+  cells = (
+    _MocCell(((0.5, 0.0), (1.0, 0.4), (1.5, 0.0))),
+    _MocCell(((1.0, 0.0), (1.5, 0.0), (2.0, 0.2))),
+  )
+  nodes = ()
+  shock_boundary_points_m = ((0.5, 0.4), (1.0, 0.3), (1.5, 0.0))
+  ambient_boundary_points_m = ((1.5, 0.0), (1.75, 0.15), (2.0, 0.0))
+  centerline_boundary_points_m = ((0.5, 0.0), (1.0, 0.0), (1.5, 0.0), (2.0, 0.0))
+  centerline_boundary_states = tuple(
+    CharacteristicState(x_m=x, y_m=0.0, theta_rad=0.0, mach=2.0, gamma=1.4)
+    for x in (0.5, 1.0, 1.5, 2.0)
+  )
+  centerline_boundary_total_pressure_Pa = (200_000.0, 190_000.0, 180_000.0, 170_000.0)
+  physical_closure_verified = True
+  state_sampling_available = True
+
+  def state_at(self, point: tuple[float, float]) -> CharacteristicState:
+    return CharacteristicState(x_m=point[0], y_m=point[1], theta_rad=0.0, mach=2.0, gamma=1.4)
+
+  def total_pressure_at(self, _point: tuple[float, float]) -> float:
+    return 180_000.0
+
+
+class _MocResult:
+  status = 'converged-global-physical-closure'
+  field = _MocField()
+  physical_closure_verified = True
+  state_sampling_available = True
+  production_claim_allowed = False
+  production_promotion_gates = {
+    'physical_closure_verified': True,
+    'canonical_free_boundary_verified': False,
+    'refinement_verified': False,
+  }
+
+
+def test_all_five_model_lanes_share_one_bundle_shape() -> None:
+  results = {
+    ModelVisualizationLane.BASIC_SHOCK_CELL: _basic_result(),
+    ModelVisualizationLane.REDUCED_ORDER_SHOCK_TRAIN: _reduced_result(),
+    ModelVisualizationLane.STRAIGHT_INTEGRAL: _straight_result(),
+    ModelVisualizationLane.CURVED_INTEGRAL: _curved_result(),
+    ModelVisualizationLane.PLANAR_MOC: _MocResult(),
+  }
+
+  bundles = standardize_all_model_visualizations(results, section_count=12)
+
+  assert tuple(bundle.lane for bundle in bundles) == MODEL_VISUALIZATION_LANES
+  assert all(len(bundle.sectioned_tube.sections) >= 2 for bundle in bundles)
+  assert all(bundle.sectioned_tube.frame_id == 'source-local' for bundle in bundles)
+  assert bundles[0].claims.production_claim_allowed
+  assert not bundles[1].claims.production_claim_allowed
+  assert not bundles[-1].claims.production_claim_allowed
+  assert len(bundles[0].fields) == 1
+  assert len(bundles[-1].fields[0].polygons_xr_m) == 2
+  assert {path.path_id for path in bundles[-1].paths} >= {
+    'moc-shock-boundary',
+    'moc-ambient-boundary',
+    'moc-centerline-boundary',
+  }
+  json.dumps([bundle.model_dump() for bundle in bundles], allow_nan=False)
+
+
+def test_moc_field_values_can_remain_masked_without_becoming_zero() -> None:
+  class MaskedField(_MocField):
+    def state_at(self, _point: tuple[float, float]) -> None:
+      return None
+
+    def total_pressure_at(self, _point: tuple[float, float]) -> None:
+      return None
+
+  class MaskedResult(_MocResult):
+    field = MaskedField()
+
+  bundle = standardize_model_visualization(MaskedResult())
+  assert bundle.fields[0].channels['mach'] == (None, None)
+  assert 'state samples were unavailable' in bundle.warnings[-1]
+
+
+def test_canonical_visual_result_retains_lane_metadata() -> None:
+  bundle = standardize_model_visualization(_curved_result(), section_count=8)
+  snapshot = SnapshotMetadata(
+    snapshot_id='snapshot-visual-test',
+    session_id='session-visual-test',
+    time_s=0.0,
+    source_pose=Pose(
+      frame_id='world',
+      translation_m=(0.0, 0.0, 0.0),
+      rotation_xyzw=(0.0, 0.0, 0.0, 1.0),
+    ),
+    dynamic_state_digest_sha256='dynamic',
+    ambient_state_digest_sha256='ambient',
+    provider_state_digest_sha256='provider',
+  )
+  request = VisualSectionedTubeRequest(
+    output_frame_id='source-local',
+    sampling=VisualSampling(maximum_section_count=8),
+    requested_channels=('temperature', 'curvature'),
+  )
+
+  result = evaluate_standardized_model_visualization(bundle, request, snapshot)
+
+  assert result.metadata.capability.wire_id == 'plume.visual.sectioned-tube@1'
+  assert result.metadata.provenance.metadata['model_lane'] == 'washed-integral-v1'
+  assert result.metadata.provenance.metadata['validation_level'] == 'UNVERIFIED'
+  assert result.channels['temperature'][0] == pytest.approx(1_000.0)
+
+
+def test_all_lane_collection_requires_exactly_the_five_declared_keys() -> None:
+  with pytest.raises(ValueError, match='missing'):
+    standardize_all_model_visualizations({
+      ModelVisualizationLane.BASIC_SHOCK_CELL: _basic_result(),
+    })
+
+  with pytest.raises(ValueError, match='unknown model visualization lane'):
+    standardize_all_model_visualizations({
+      'not-a-model-lane': _basic_result(),
+    })

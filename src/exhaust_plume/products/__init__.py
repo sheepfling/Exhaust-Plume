@@ -95,6 +95,20 @@ from exhaust_plume.products.workflow_fpa_interactive import (
     FPA_INTERACTIVE_GALLERY_SCHEMA,
     write_interactive_fpa_gallery,
 )
+from exhaust_plume.products.model_visualization import (
+    MODEL_VISUALIZATION_LANES,
+    MODEL_VISUALIZATION_SCHEMA,
+    ModelVisualizationClaims,
+    ModelVisualizationLane,
+    ModelVisualChannel,
+    ModelVisualField,
+    ModelVisualPath,
+    StandardizedModelVisualization,
+    evaluate_standardized_model_visualization,
+    standardize_all_model_visualizations,
+    standardize_model_result,
+    standardize_model_visualization,
+)
 
 PlumeProduct: TypeAlias = (
     ConservativeSupportProduct
@@ -124,6 +138,13 @@ __all__ = (
     'GALLERY_MANIFEST_SCHEMA',
     'GalleryArtifact',
     'INTERACTIVE_GALLERY_SCHEMA',
+    'MODEL_VISUALIZATION_LANES',
+    'MODEL_VISUALIZATION_SCHEMA',
+    'ModelVisualizationClaims',
+    'ModelVisualizationLane',
+    'ModelVisualChannel',
+    'ModelVisualField',
+    'ModelVisualPath',
     'OPTICAL_SPECTRAL_RAY_TRANSFER_V1',
     'PlumeProduct',
     'ProductComparisonReport',
@@ -139,6 +160,7 @@ __all__ = (
     'SpectralCoordinateKind',
     'SpectralRadiantIntensityProduct',
     'SpectralRayTransferProduct',
+    'StandardizedModelVisualization',
     'VISUAL_SECTIONED_TUBE_V1',
     'VisualFeatureChannel',
     'VisualMesh',
@@ -174,5 +196,9 @@ __all__ = (
     'write_visual_mesh_json',
     'write_visual_obj',
     'write_visual_result_json',
+    'evaluate_standardized_model_visualization',
+    'standardize_all_model_visualizations',
+    'standardize_model_result',
+    'standardize_model_visualization',
     'VisualizationGalleryManifest',
 )
