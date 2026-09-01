@@ -1631,3 +1631,37 @@ physical chain cells, ``chain_promotion_blocked=true``, and
 ``production_claim_allowed=false``. Nothing from this lane flows into the
 basic visualization, signature, optical-transfer, or focal-plane-array
 providers.
+
+## Globally coupled physical closure and frontier-only shock-cell fitting
+
+The next implementation seam is
+``solve_reflected_domain_global_physical_closure``. It composes the verified
+alternating source band, solver-owned global shock remesh, exact Euler shock
+reconciliation, ambient/reflected-centerline field assembly, and the two
+independent field measurements into one typed local-closure result. Its
+entropy gate compares each downstream shock sample with its matching upstream
+sample and carried ambient perimeter pressure. This is intentionally distinct
+from the legacy uniform-``p0`` audit, which remains useful for detecting an
+incorrectly constant entropy lineage but is expected to reject a physical
+shock with varying total pressure.
+
+``fit_reflected_domain_production_shock_cell`` then accepts only that typed
+closure and its exact ``MocChainBoundarySample`` handoff. It re-samples the
+solver-retained shock geometry and independently re-fits the local Euler jump;
+there is no caller-provided shock-point list, downstream-angle schedule, or
+compression template. A passing result is a frontier-only, solver-generated
+shock-cell candidate with a state-carrying ``MocChainCell`` available for
+inspection and visualization. It is not yet a production chain cell:
+canonical reflected free-boundary coupling, a multi-resolution closure ladder,
+and indexed external validation remain explicit promotion gates. Consequently
+both APIs keep ``chain_promotion_blocked=true`` and
+``production_claim_allowed=false`` in the current checkpoint, and no lower
+fidelity product provider consumes the candidate.
+
+The companion higher-fidelity view is an evaluation artifact rather than a
+mainline product surface. It exposes the retained shock, ambient perimeter,
+reflected centerline, characteristic mesh, per-cell Mach/pressure/total-
+pressure fields, entropy-loss variation, and the still-blocked promotion gates
+with selectable field and slice views. It is for solver evaluation and
+debugging only; the basic visualization, signature, optical-transfer, and
+focal-plane-array contracts remain isolated.

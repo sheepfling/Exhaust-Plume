@@ -21,6 +21,8 @@ from exhaust_plume.models.moc import (
   MocReflectedDomainSolverOwnedFirstCellStatus,
   MocReflectedDomainGlobalShockRemeshStatus,
   MocReflectedDomainGlobalEulerShockBoundaryStatus,
+  MocReflectedDomainGlobalPhysicalClosureStatus,
+  MocProductionShockCellFitStatus,
   MocGlobalEulerContinuedChainReference,
   MocReflectedDomainOuterSourceStatus,
   MocReflectedDomainRemeshStatus,
@@ -49,6 +51,8 @@ from exhaust_plume.models.moc import (
   solve_reflected_domain_solver_owned_first_cell,
   solve_reflected_domain_global_shock_remesh,
   solve_reflected_domain_global_euler_shock_boundary,
+  solve_reflected_domain_global_physical_closure,
+  fit_reflected_domain_production_shock_cell,
   solve_reflected_domain_outer_source_curve,
   solve_underexpanded_expansion_fan,
   solve_uniform_attached_shock_field,
@@ -1110,6 +1114,114 @@ def test_global_euler_shock_boundary_closes_continuous_source_frontier():
   assert report['source_frontier_verified'] is True
   assert report['shock_boundary']['zero_strength_endpoints_allowed'] is True
   assert report['physical_field']['physical_closure_verified'] is True
+
+
+def test_global_physical_closure_carries_variable_entropy_and_gates_cell_promotion():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  source = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+    incoming_handoff=_handoff(field),
+  )
+
+  closure = solve_reflected_domain_global_physical_closure(
+    source,
+    outer_source_indices=(2,),
+    target_centerline_indices=(3,),
+    compression_amplitude_lower_rad=0.007,
+    compression_amplitude_upper_rad=0.03,
+    compression_envelope_skews=(-0.75, 0.0),
+    sample_count=9,
+    shock_angle_tolerance_rad=0.02,
+  )
+
+  assert closure.status is (
+    MocReflectedDomainGlobalPhysicalClosureStatus.CONVERGED_GLOBAL_PHYSICAL_CLOSURE
+  )
+  assert closure.converged
+  assert closure.physical_closure_verified
+  assert closure.source_frontier_verified
+  assert closure.incoming_handoff_verified
+  assert closure.variable_entropy_transport_verified
+  assert closure.maximum_entropy_lineage_residual == pytest.approx(0.0)
+  assert closure.cell_euler_residuals_verified
+  assert closure.field_audit is not None
+  # The legacy audit intentionally checks a uniform p0 lineage.  The new
+  # closure gate checks each shock sample against its own entropy loss.
+  assert closure.field_audit.entropy_lineage_verified is False
+  assert closure.production_claim_allowed is False
+  assert closure.chain_promotion_blocked
+  assert closure.as_chain_termination_decision().reason is (
+    MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+  )
+
+  assert closure.global_euler is not None
+  assert closure.global_euler.physical_field is not None
+  closed_field = closure.global_euler.physical_field.field
+  fit = fit_reflected_domain_production_shock_cell(
+    closure,
+    start_x_m=0.5,
+    end_x_m=closed_field.ambient_boundary_points_m[-1][0] + 0.05,
+    incoming_frontier=closure.incoming_handoff,
+  )
+
+  assert fit.status is MocProductionShockCellFitStatus.CONVERGED_LOCAL_FIT
+  assert fit.local_fit_verified
+  assert fit.frontier_verified
+  assert fit.shock_fit_verified
+  assert fit.candidate_field is closed_field
+  assert fit.candidate_cell is not None
+  assert fit.production_claim_allowed is False
+  assert fit.chain_promotion_blocked
+  assert fit.as_chain_termination_decision().reason is (
+    MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+  )
+  with pytest.raises(ValueError, match='promotion'):
+    fit.as_production_chain_cell()
+
+
+def test_production_shock_cell_fit_requires_the_exact_typed_frontier():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  source = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+    incoming_handoff=_handoff(field),
+  )
+  closure = solve_reflected_domain_global_physical_closure(
+    source,
+    outer_source_indices=(2,),
+    target_centerline_indices=(3,),
+    compression_amplitude_lower_rad=0.007,
+    compression_amplitude_upper_rad=0.03,
+    compression_envelope_skews=(-0.75, 0.0),
+    sample_count=9,
+    shock_angle_tolerance_rad=0.02,
+  )
+  assert closure.global_euler is not None
+  assert closure.global_euler.physical_field is not None
+  closed_field = closure.global_euler.physical_field.field
+  bad_frontier = tuple(
+    replace(sample, total_pressure_Pa=sample.total_pressure_Pa * 1.001)
+    if index == 0
+    else sample
+    for index, sample in enumerate(closure.incoming_handoff)
+  )
+
+  fit = fit_reflected_domain_production_shock_cell(
+    closure,
+    start_x_m=0.5,
+    end_x_m=closed_field.ambient_boundary_points_m[-1][0] + 0.05,
+    incoming_frontier=bad_frontier,
+  )
+
+  assert fit.status is MocProductionShockCellFitStatus.FRONTIER_FAILURE
+  assert fit.frontier_verified is False
+  assert fit.candidate_cell is None
+  assert fit.production_claim_allowed is False
 
 
 def test_global_euler_field_can_seed_a_research_continued_chain_reference():

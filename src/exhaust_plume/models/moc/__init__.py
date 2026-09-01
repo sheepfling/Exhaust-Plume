@@ -304,6 +304,15 @@ from exhaust_plume.models.moc.reflected_domain import (
   solve_reflected_domain_outer_source_curve,
   solve_reflected_domain_remesh,
 )
+from exhaust_plume.models.moc.global_physical_closure import (
+  MocReflectedDomainGlobalPhysicalClosureStatus,
+  MocReflectedDomainGlobalPhysicalClosureResult,
+  solve_reflected_domain_global_physical_closure,
+  MocProductionShockCellFitStatus,
+  MocProductionShockCellFitResult,
+  fit_reflected_domain_production_shock_cell,
+  fit_production_shock_cell_from_frontier,
+)
 from exhaust_plume.models.moc.family_band_solver import (
   MocCausticFamilyBandEnvelopeResult,
   MocCausticFamilyBandEnvelopeStatus,
@@ -983,6 +992,13 @@ __all__ = (
   'solve_reflected_domain_global_euler_shock_boundary',
   'solve_reflected_domain_outer_source_curve',
   'solve_reflected_domain_remesh',
+  'MocReflectedDomainGlobalPhysicalClosureStatus',
+  'MocReflectedDomainGlobalPhysicalClosureResult',
+  'solve_reflected_domain_global_physical_closure',
+  'MocProductionShockCellFitStatus',
+  'MocProductionShockCellFitResult',
+  'fit_reflected_domain_production_shock_cell',
+  'fit_production_shock_cell_from_frontier',
   'MocCausticFamilyBandShockResult',
   'MocCausticFamilyBandShockStatus',
   'MocCausticFamilyBandInvariantShockResult',
