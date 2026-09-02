@@ -109,6 +109,16 @@ from exhaust_plume.products.model_visualization import (
     standardize_model_result,
     standardize_model_visualization,
 )
+from exhaust_plume.products.model_signature import (
+    GRAY_MODEL_SIGNATURE_ADAPTER_SCHEMA,
+    GrayRadiationProfile,
+    ModelSignatureAssessment,
+    ModelSignatureBlockedError,
+    ModelSignatureReadiness,
+    ModelSignatureSampling,
+    assess_model_signature_readiness,
+    evaluate_model_signature,
+)
 
 PlumeProduct: TypeAlias = (
     ConservativeSupportProduct
@@ -136,6 +146,8 @@ __all__ = (
     'FPA_INTERACTIVE_GALLERY_SCHEMA',
     'FpaVisualizationGalleryManifest',
     'GALLERY_MANIFEST_SCHEMA',
+    'GRAY_MODEL_SIGNATURE_ADAPTER_SCHEMA',
+    'GrayRadiationProfile',
     'GalleryArtifact',
     'INTERACTIVE_GALLERY_SCHEMA',
     'MODEL_VISUALIZATION_LANES',
@@ -145,6 +157,10 @@ __all__ = (
     'ModelVisualChannel',
     'ModelVisualField',
     'ModelVisualPath',
+    'ModelSignatureAssessment',
+    'ModelSignatureBlockedError',
+    'ModelSignatureReadiness',
+    'ModelSignatureSampling',
     'OPTICAL_SPECTRAL_RAY_TRANSFER_V1',
     'PlumeProduct',
     'ProductComparisonReport',
@@ -165,7 +181,9 @@ __all__ = (
     'VisualFeatureChannel',
     'VisualMesh',
     'build_sectioned_tube_mesh',
+    'assess_model_signature_readiness',
     'evaluate_nozzle_geometry_visual',
+    'evaluate_model_signature',
     'evaluate_signature_table_asset',
     'evaluate_shock_cell_visual',
     'evaluate_visual_definition',

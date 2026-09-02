@@ -13,12 +13,22 @@ applicability, validation evidence, and complexity ceiling.
 | Lane | Status | Current role | Allowed primary product | Explicit non-claims |
 | --- | --- | --- | --- | --- |
 | `planar-moc-primitives-v1` | boundary-conditioned field/chain foundation; provider pending | Standalone planar characteristic states, scalar inversions, compatibility residuals, pressure- and turn-prescribed attached compression, sampled attached-shock fit, solver-generated marched attached-shock reference field, reflected centerline-to-free-boundary march, reusable triangular source-boundary strip, assembled open characteristic zone, domain-bounded shock-path coupling probe and reflected-zone shock/chain entry point, shock-seeded closed post-shock C+/C- field, shock-sourced C+/ambient-sourced C- physical-boundary strip, ambient-perimeter validator and bounded scalar closure shoot, ambient-axis closure residual and attachment-coordinate global shoot, total-pressure handoff, state-carrying chain adapter, separate elliptic-isentropic subsonic reference field, and independent shock-cell geometry/topology measurement operators | None yet; future MOC first-cell provider only after complete reflected-field coupling, canonical ambient-perimeter physical closure, refinement, and external validation gates | No public visual, signature, optical, detector, or FPA claim; no axisymmetric or reacting-flow claim; the elliptic reference is not a supersonic MOC chain cell |
-| `shock-cell-basic-v1` | active | Fast, steady, straight, low-order shock-cell construction | `plume.visual.sectioned-tube@1`; supporting spatial/engineering handoffs where explicitly advertised | No physical signature, ray transfer, detector image, mixing, chemistry, radiation, or curved/washed flow |
-| `shock-cell-reduced-order-v1` | experimental | One resolved first cell plus explicitly calibrated, scaled downstream shock-train continuation | `plume.visual.sectioned-tube@1` through `plume.shock-train-reduced-order` | No resolved downstream MOC claim, spectral signature, ray transfer, detector image, FPA, or unvalidated universal closure |
+| `shock-cell-basic-v1` | active | Fast, steady, straight, low-order shock-cell construction | `plume.visual.sectioned-tube@1`; supporting spatial/engineering handoffs; explicit gray signature adapter | No physical/validated signature, ray transfer, detector image, mixing, chemistry, radiation, or curved/washed flow |
+| `shock-cell-reduced-order-v1` | experimental | One resolved first cell plus explicitly calibrated, scaled downstream shock-train continuation | `plume.visual.sectioned-tube@1` through `plume.shock-train-reduced-order`; explicit gray signature adapter | No physical/validated downstream spectral signature, resolved downstream MOC claim, detector image, FPA, or unvalidated universal closure |
 | `signature-table-mvp-v1` | active | Independent unresolved spectral lookup | `plume.signature.spectral-radiant-intensity@1` | No solved flow, geometry reconstruction, atmosphere, optics, detector, or focal-plane array |
-| `washed-integral-v1` | planned | Curved, rotor-washed, or crossflow integral continuation | Visual and engineering products only after a provider and validation gate exist | No automatic spectral or ray-transfer claim |
+| `washed-integral-v1` | planned | Curved, rotor-washed, or crossflow integral continuation | Visual and engineering products only after a provider and validation gate exist | No automatic physical signature or ray-transfer claim; current gray bridge is straight-only |
 | `optical-transfer-v1` | active | Straight constant-radius support with exact homogeneous gray transfer | `plume.optical.spectral-ray-transfer@1` | No chemistry, atmosphere, curved transport, detector integration, or focal-plane electronics |
 | `focal-plane-array-v1` | validated downstream adapter; no provider | Camera/optics identity, spectral response, exposure, pixel integration, expected noise variance, and deterministic digitization | A future image/detector product | Not a plume solver; requires validated ray transfer and external detector evidence |
+
+The current flow-to-signature boundary is documented in
+[`model_signature_bridge_v1.md`](model_signature_bridge_v1.md). The basic,
+reduced-order, and straight-integral lanes can enter the canonical signature
+contract only through an explicit caller-owned gray optical profile and the
+bounded orthographic ray-to-far-field adapter. That output is a gray spectral
+engineering result with `production_claim_allowed=false`; it does not infer
+chemistry or molecular radiation. Curved integral and planar-MOC lanes remain
+blocked until path-aware and planar field/ray transport providers are
+available.
 
 The machine-readable copy is
 [`solver_fidelity_matrix_v1.json`](solver_fidelity_matrix_v1.json). The matrix

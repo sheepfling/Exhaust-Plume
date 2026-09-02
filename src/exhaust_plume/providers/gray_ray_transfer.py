@@ -1,6 +1,6 @@
 """Bounded homogeneous gray ray-transfer provider.
 
-This provider intentionally serves only a straight, constant-radius,
+This provider intentionally serves only a straight sectioned,
 calorically independent support with a wavelength-resolved source function and
 absorption coefficient table.  It is a physical transfer kernel, not a
 thermochemical plume or detector model; signature and FPA products remain
@@ -77,7 +77,7 @@ def _spectrum(values: tuple[float, ...], field_name: str) -> tuple[float, ...]:
 
 @dataclass(frozen=True, slots=True)
 class GrayRayTransferDefinition:
-  """Straight support plus wavelength-node optical properties."""
+  """Straight sectioned support plus wavelength-node optical properties."""
 
   frame_id: str
   support: SectionedTubeSupport
@@ -97,9 +97,9 @@ class GrayRayTransferDefinition:
     if self.support.frame_id != self.frame_id:
       raise ProviderConfigurationError('support frame_id must match the definition frame_id')
     ####
-    if not self.support.is_straight or not self.support.is_constant_radius:
+    if not self.support.is_straight:
       raise ProviderConfigurationError(
-        'gray-ray-transfer-v1 currently requires a straight constant-radius support; '
+        'gray-ray-transfer-v1 currently requires a straight constant-radius or sectioned support; '
         'curved support intervals remain geometry-only',
       )
     ####
@@ -150,7 +150,8 @@ def _descriptor(configuration: GrayRayTransferConfiguration) -> ProviderDescript
     supported_morphologies=('straight', 'axisymmetric'),
     deterministic=True,
     notes=(
-      'exact homogeneous segment transfer through a straight constant-radius support',
+      'exact homogeneous segment transfer through a straight sectioned support',
+      'constant-radius support uses an exact finite cylinder; varying radius uses a conservative segment-maximum capsule union',
       'source radiance and background transmittance are returned separately',
       'gray-approximate radiation only; no chemistry, atmosphere, detector, or FPA',
       'curved sectioned-support intervals are available as geometry-only primitives',
@@ -274,7 +275,11 @@ class _GrayRayTransferEvaluator:
         asset_digests_sha256=(self._definition.asset_sha256,) if self._definition.asset_sha256 else (),
         metadata={
           'direction_convention': 'ray origin toward scene; segments composed near-to-far',
-          'support_geometry': 'exact finite straight circular cylinder',
+          'support_geometry': (
+            'exact finite straight circular cylinder'
+            if self._definition.support.is_constant_radius
+            else 'straight piecewise capsule union using segment-maximum radius; conservative support geometry'
+          ),
           'source_function_convention': 'L_out = L_in*T + S*(1-T)',
           'wavelength_interpolation': 'linear within definition domain',
         },
