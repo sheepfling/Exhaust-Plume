@@ -282,24 +282,6 @@ def assess_model_signature_readiness(
             claim_ceiling=common_ceiling,
             reasons=tuple(reasons) if reasons else ("straight section support and explicit gray optical profile are available",),
         )
-    if lane is ModelVisualizationLane.CURVED_INTEGRAL:
-        reasons = (
-            "curved/washed geometry requires a path-aware optical transport provider",
-            "the current gray transport provider is bounded to straight section supports",
-        )
-        return ModelSignatureAssessment(
-            schema=GRAY_MODEL_SIGNATURE_ADAPTER_SCHEMA,
-            lane_id=visualization.lane_id,
-            model_id=visualization.model_id,
-            readiness=ModelSignatureReadiness.BLOCKED_CURVED_TRANSPORT,
-            signature_capability="plume.signature.spectral-radiant-intensity@1",
-            flow_geometry_ready=True,
-            optical_profile_ready=profile_ready,
-            transport_geometry_ready=False,
-            production_claim_allowed=False,
-            claim_ceiling=common_ceiling,
-            reasons=reasons,
-        )
     reasons = (
         "planar-MOC field requires a planar field/ray transport provider",
         "the sectioned-tube envelope is illustrative and cannot stand in for the MOC field",
@@ -500,7 +482,7 @@ def evaluate_model_signature(
     ambient_state: Mapping[str, object] | None = None,
     time_model: TimeModel = TimeModel.STEADY,
 ) -> SpectralSignatureResult:
-    """Evaluate a straight standardized flow lane as a gray signature snapshot.
+    """Evaluate a supported standardized flow lane as a gray signature snapshot.
 
     ``time_s`` and the supplied state mappings are recorded in the immutable
     provider snapshot.  They do not on their own change the static flow or

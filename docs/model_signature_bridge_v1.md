@@ -16,7 +16,7 @@ provenance.
 | `washed-integral-v1` | Isolated `plume.curved-gray-ray-transfer` path provider | Gray-approximate only; production claim blocked | No resolved curved-flow radiation, chemistry, atmosphere, detector, or FPA claim |
 | `planar-moc-primitives-v1` | Requires planar field/ray transport | Blocked | The sectioned-tube envelope is illustrative only |
 
-The three ready lanes produce the canonical
+The four supported lanes produce the canonical
 `plume.signature.spectral-radiant-intensity@1` result through
 `evaluate_model_signature`. The returned metadata declares
 `radiation=gray_approximate`, `derivation=adapted`, and
