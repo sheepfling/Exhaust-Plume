@@ -156,6 +156,31 @@
       "focal_plane_array": "not_supported"
     },
     {
+      "lane_id": "curved-optical-transfer-v1",
+      "status": "experimental",
+      "provider_ids": [
+        "plume.curved-gray-ray-transfer"
+      ],
+      "advertised_capabilities": [
+        "plume.optical.spectral-ray-transfer@1"
+      ],
+      "forbidden_capabilities": [
+        "plume.signature.spectral-radiant-intensity@1",
+        "plume.image.spectral-radiance@1"
+      ],
+      "focal_plane_array": "not_supported",
+      "model_axes": {
+        "morphology": "curved-sectioned-support",
+        "flow": "not_solved",
+        "mixing": "not_solved",
+        "thermochemistry": "not_solved",
+        "radiation": "homogeneous-gray-source-function",
+        "validation": "local path-transfer diagnostics; external comparison pending"
+      },
+      "claim_ceiling": "Gray engineering transfer through conservative piecewise capsule supports only; no resolved curved-flow radiation or detector claim.",
+      "complexity_policy": "separate curved transport lane; does not change straight optical-transfer ceiling"
+    },
+    {
       "lane_id": "focal-plane-array-v1",
       "status": "validated-downstream",
       "provider_ids": [],

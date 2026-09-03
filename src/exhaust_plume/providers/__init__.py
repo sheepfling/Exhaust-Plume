@@ -98,6 +98,7 @@ from exhaust_plume.providers.curved_visual import (
   CurvedIntegralVisualProvider,
   CurvedIntegralVisualSession,
 )
+from exhaust_plume.providers.curved_gray_ray_transfer import CurvedGrayRayTransferProvider
 
 __all__ = (
     'CapabilityBinding',
@@ -106,6 +107,8 @@ __all__ = (
     'CurvedIntegralVisualDefinition',
     'CurvedIntegralVisualProvider',
     'CurvedIntegralVisualSession',
+    'CurvedGrayRayTransferProvider',
+    'CurvedGrayRayTransferProvider',
     'EngineeringFluxSectionCapability',
     'ExecutionBackend',
     'LegacyPlumeProvider',

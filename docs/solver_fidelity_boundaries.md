@@ -18,6 +18,7 @@ applicability, validation evidence, and complexity ceiling.
 | `signature-table-mvp-v1` | active | Independent unresolved spectral lookup | `plume.signature.spectral-radiant-intensity@1` | No solved flow, geometry reconstruction, atmosphere, optics, detector, or focal-plane array |
 | `washed-integral-v1` | active, validation-pending | Curved, rotor-washed, or crossflow integral continuation through the canonical visual provider | `plume.visual.sectioned-tube@1` for engineering visualization only | No automatic physical signature or ray-transfer claim; curved transport and external validation remain open |
 | `optical-transfer-v1` | active | Straight constant-radius support with exact homogeneous gray transfer | `plume.optical.spectral-ray-transfer@1` | No chemistry, atmosphere, curved transport, detector integration, or focal-plane electronics |
+| `curved-optical-transfer-v1` | experimental, validation-pending | Piecewise capsule path transfer through curved sectioned supports | `plume.optical.spectral-ray-transfer@1` for gray engineering diagnostics | No resolved curved-flow radiation, chemistry, atmosphere, detector, FPA, or external-validation claim |
 | `focal-plane-array-v1` | validated downstream adapter; no provider | Camera/optics identity, spectral response, exposure, pixel integration, expected noise variance, and deterministic digitization | A future image/detector product | Not a plume solver; requires validated ray transfer and external detector evidence |
 
 The current flow-to-signature boundary is documented in

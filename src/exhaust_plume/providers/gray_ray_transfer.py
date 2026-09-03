@@ -86,6 +86,7 @@ class GrayRayTransferDefinition:
   absorption_coefficient_per_m: tuple[float, ...]
   asset_id: str = 'gray-ray-transfer-definition'
   asset_sha256: str | None = None
+  allow_curved_support: bool = False
 
   def __post_init__(self) -> None:
     if not self.frame_id or not self.asset_id:
@@ -97,11 +98,6 @@ class GrayRayTransferDefinition:
     if self.support.frame_id != self.frame_id:
       raise ProviderConfigurationError('support frame_id must match the definition frame_id')
     ####
-    if not self.support.is_straight:
-      raise ProviderConfigurationError(
-        'gray-ray-transfer-v1 currently requires a straight constant-radius or sectioned support; '
-        'curved support intervals remain geometry-only',
-      )
     ####
     wavelengths = _axis(self.wavelengths_m, 'wavelengths_m')
     source = _spectrum(self.source_function_w_sr_m, 'source_function_w_sr_m')
@@ -119,6 +115,8 @@ class GrayRayTransferDefinition:
     object.__setattr__(self, 'source_function_w_sr_m', source)
     object.__setattr__(self, 'absorption_coefficient_per_m', absorption)
     object.__setattr__(self, 'asset_sha256', self.asset_sha256.lower() if self.asset_sha256 else None)
+    if not isinstance(self.allow_curved_support, bool):
+      raise ProviderConfigurationError('allow_curved_support must be bool')
   ####
 
 
@@ -277,7 +275,9 @@ class _GrayRayTransferEvaluator:
           'direction_convention': 'ray origin toward scene; segments composed near-to-far',
           'support_geometry': (
             'exact finite straight circular cylinder'
-            if self._definition.support.is_constant_radius
+            if self._definition.support.is_straight and self._definition.support.is_constant_radius
+            else 'curved piecewise capsule path using segment-maximum radius'
+            if not self._definition.support.is_straight
             else 'straight piecewise capsule union using segment-maximum radius; conservative support geometry'
           ),
           'source_function_convention': 'L_out = L_in*T + S*(1-T)',
@@ -321,6 +321,8 @@ class GrayRayTransferProvider:
   ) -> 'GrayRayTransferSession':
     if not isinstance(definition, GrayRayTransferDefinition):
       raise ProviderConfigurationError('definition must be GrayRayTransferDefinition')
+    if not definition.support.is_straight:
+      raise ProviderConfigurationError('gray-ray-transfer-v1 requires a straight support; use the curved provider for curved supports')
     ####
     selected_configuration = configuration or self._configuration
     if selected_configuration != self._configuration:

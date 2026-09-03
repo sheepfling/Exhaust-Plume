@@ -125,8 +125,7 @@ def test_gray_provider_rejects_frame_and_wavelength_outside_domain() -> None:
 
 
 def test_gray_provider_rejects_curved_support_until_curve_transfer_gate_exists() -> None:
-  with pytest.raises(ProviderConfigurationError, match='straight constant-radius'):
-    GrayRayTransferDefinition(
+  definition = GrayRayTransferDefinition(
       frame_id='sensor',
       support=SectionedTubeSupport(
         frame_id='sensor',
@@ -136,4 +135,6 @@ def test_gray_provider_rejects_curved_support_until_curve_transfer_gate_exists()
       wavelengths_m=(1.0e-6, 2.0e-6),
       source_function_w_sr_m=(1.0, 1.0),
       absorption_coefficient_per_m=(1.0, 1.0),
-    )
+  )
+  with pytest.raises(ProviderConfigurationError, match='straight support'):
+    GrayRayTransferProvider().create_session(definition=definition)
