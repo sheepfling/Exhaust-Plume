@@ -25,7 +25,7 @@ def test_lane_release_manifest_separates_local_release_from_external_acceptance(
 
   assert lanes['planar-moc-primitives-v1']['local_release_ready'] is False
   assert lanes['shock-cell-reduced-order-v1']['local_release_ready'] is False
-  assert lanes['washed-integral-v1']['local_release_status'] == 'planned'
+  assert lanes['washed-integral-v1']['local_release_status'] == 'scoped-local-release'
 
 
 def test_lane_manifest_uses_validated_code_tranche_when_head_is_docs_only() -> None:

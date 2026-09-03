@@ -108,7 +108,6 @@ __all__ = (
     'CurvedIntegralVisualDefinition',
     'CurvedIntegralVisualProvider',
     'CurvedIntegralVisualSession',
-    'CurvedGrayRayTransferProvider',
     'MocVisualConfiguration',
     'MocVisualDefinition',
     'MocVisualProvider',
