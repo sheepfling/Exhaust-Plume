@@ -96,7 +96,18 @@
       "ray_provider_prerequisite_present": true,
       "ray_signature_adapter_present": true,
       "source_semantics": "source-only",
-      "status": "boundary-validated-downstream"
+      "status": "boundary-validated-downstream",
+      "visualization_operator_ids": [
+        "op.sensor.fpa-pixel-detector",
+        "op.sensor.fpa-digitization"
+      ],
+      "visualization_projection_contract_passed": true,
+      "visualization_selected_pixel": {
+        "column_index": 1,
+        "expected_electrons": 1.0,
+        "row_index": 0
+      },
+      "visualization_source_content_sha256": "e818f7d2c0bef7e9beb8d521ddf70232c3487d7a4e91f7447e2876bff55dc81a"
     },
     "optical": {
       "analytic_slab_and_chord_passed": true,

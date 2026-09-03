@@ -54,6 +54,13 @@ from exhaust_plume.validation.fpa_operators import (  # noqa: E402
   digitize_expected_electrons,
   integrate_ray_transfer_to_fpa,
 )
+from exhaust_plume.validation.fpa_visualization import (  # noqa: E402
+  FpaDisplayLayer,
+  FpaSourceReference,
+  FpaVisualizationInput,
+  FpaVisualizationSpec,
+  project_fpa_view,
+)
 from exhaust_plume.validation.sensor_operators import (  # noqa: E402
   ATMOSPHERE_PATH_TRANSFER_OPERATOR_ID,
   BANDPASS_DETECTOR_OPERATOR_ID,
@@ -741,6 +748,32 @@ def _run_fpa_boundary() -> dict[str, Any]:
   )
   digitized = digitize_expected_electrons(image, policy=digitization_policy)
   digitized_repeat = digitize_expected_electrons(image, policy=digitization_policy)
+  source_reference = FpaSourceReference.from_ray_result(ray_result)
+  visualization_input = FpaVisualizationInput(
+    image=image,
+    source=source_reference,
+    detector_response=detector,
+    digitized=digitized,
+    digitization_policy=digitization_policy,
+    camera_optics=camera,
+  )
+  expected_view = project_fpa_view(
+    visualization_input,
+    FpaVisualizationSpec.for_source(
+      source_reference,
+      view_kind='fpa.expected-electrons',
+      selection={'row_index': 0, 'column_index': 1},
+      display_layer=FpaDisplayLayer.EXPECTED_ELECTRONS,
+    ),
+  )
+  digitized_view = project_fpa_view(
+    visualization_input,
+    FpaVisualizationSpec.for_source(
+      source_reference,
+      view_kind='fpa.digitized-counts',
+      display_layer=FpaDisplayLayer.DIGITIZED_COUNTS,
+    ),
+  )
   pixel_detector_passed = (
     image.source_semantics == 'source-only'
     and image.validity_mask == ((True, True),)
@@ -759,7 +792,23 @@ def _run_fpa_boundary() -> dict[str, Any]:
     and digitized.camera_optics_id == camera.camera_id
     and digitized.camera_mapping_model_id == camera.mapping_model_id
   )
-  boundary_passed = passed and pixel_detector_passed and digitization_passed
+  visualization_passed = (
+    expected_view.schema == 'plume.visualization.fpa-view@1'
+    and expected_view.display_layer is FpaDisplayLayer.EXPECTED_ELECTRONS
+    and expected_view.layer_values == image.expected_electrons
+    and expected_view.selected_pixel.column_index == 1
+    and expected_view.selected_pixel.expected_electrons == image.expected_electrons[0][1]
+    and digitized_view.display_layer is FpaDisplayLayer.DIGITIZED_COUNTS
+    and digitized_view.layer_values == tuple(
+      tuple(float(value) for value in row)
+      for row in digitized.counts
+    )
+    and digitized_view.operator_ids == (
+      FPA_PIXEL_DETECTOR_OPERATOR_ID,
+      FPA_DIGITIZATION_OPERATOR_ID,
+    )
+  )
+  boundary_passed = passed and pixel_detector_passed and digitization_passed and visualization_passed
   return {
     'lane_id': 'focal-plane-array-v1',
     'status': 'boundary-validated-downstream' if boundary_passed else 'failed',
@@ -774,6 +823,14 @@ def _run_fpa_boundary() -> dict[str, Any]:
     'digitization_operator_id': FPA_DIGITIZATION_OPERATOR_ID,
     'digitization_policy_id': digitization_policy.policy_id,
     'digitization_contract_passed': digitization_passed,
+    'visualization_projection_contract_passed': visualization_passed,
+    'visualization_source_content_sha256': source_reference.content_sha256,
+    'visualization_operator_ids': digitized_view.operator_ids,
+    'visualization_selected_pixel': {
+      'row_index': expected_view.selected_pixel.row_index,
+      'column_index': expected_view.selected_pixel.column_index,
+      'expected_electrons': expected_view.selected_pixel.expected_electrons,
+    },
     'digitized_counts': digitized.counts,
     'digitized_validity_mask': digitized.validity_mask,
     'digitized_saturated_mask': digitized.saturated_mask,

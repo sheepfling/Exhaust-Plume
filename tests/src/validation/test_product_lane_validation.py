@@ -79,6 +79,12 @@ def test_fpa_boundary_does_not_advertise_an_unimplemented_provider() -> None:
   assert report['pixel_detector_contract_passed'] is True
   assert report['camera_optics_contract_passed'] is True
   assert report['digitization_contract_passed'] is True
+  assert report['visualization_projection_contract_passed'] is True
+  assert report['visualization_operator_ids'] == (
+    'op.sensor.fpa-pixel-detector',
+    'op.sensor.fpa-digitization',
+  )
+  assert report['visualization_selected_pixel']['column_index'] == 1
   assert report['source_semantics'] == 'source-only'
 
 
