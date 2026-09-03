@@ -5,6 +5,8 @@ import os
 from pathlib import Path
 
 from exhaust_plume.products import render_fpa_gallery, write_interactive_fpa_gallery
+from exhaust_plume import Pose, SPECTRAL_RAY_TRANSFER_V1, SpectralRayTransferRequest
+from exhaust_plume.providers import CurvedGrayRayTransferProvider
 from exhaust_plume.validation import (
   DetectorResponse,
   FpaCameraOptics,
@@ -98,3 +100,31 @@ def test_interactive_fpa_gallery_is_self_contained_and_exports_view_state(tmp_pa
   assert 'fetch(' not in html
   assert 'expected_electrons' in html
   assert 'digitized_counts' in html
+
+
+def test_fpa_source_reference_preserves_curved_ray_provider_identity() -> None:
+  from tests.src.providers.test_curved_gray_ray_transfer import _definition
+
+  session = CurvedGrayRayTransferProvider().create_session(definition=_definition())
+  snapshot = session.create_snapshot(
+    time_s=4.0,
+    source_pose=Pose(frame_id='world', translation_m=(0.0, 0.0, 0.0), rotation_xyzw=(0.0, 0.0, 0.0, 1.0)),
+    dynamic_state={'throttle_fraction': 0.5},
+    ambient_state={'altitude_m': 1000.0},
+  )
+  result = snapshot.evaluate(
+    SPECTRAL_RAY_TRANSFER_V1,
+    SpectralRayTransferRequest(
+      ray_frame_id='sensor',
+      ray_origins_m=((-1.0, 0.0, 0.0),),
+      ray_directions=((1.0, 0.0, 0.0),),
+      ray_t_min_m=(0.0,),
+      ray_t_max_m=(5.0,),
+      wavelengths_m=(1.0e-6, 2.0e-6),
+    ),
+  )
+  source = FpaSourceReference.from_ray_result(result)
+  assert source.provider_id == 'plume.curved-gray-ray-transfer'
+  assert source.snapshot_id == result.metadata.snapshot.snapshot_id
+  assert len(source.content_sha256) == 64
+  assert source.source_provenance['provider_id'] == source.provider_id

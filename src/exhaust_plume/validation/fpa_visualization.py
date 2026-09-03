@@ -18,6 +18,8 @@ from typing import Any, Literal, Mapping, TypeAlias
 from pydantic import Field, model_validator
 
 from exhaust_plume.api.contracts import SpectralRayTransferResult, StrictFrozenModel
+from exhaust_plume.contracts.ray_transfer_v1 import SpectralRayTransferResult as ProviderRayTransferResult
+from exhaust_plume.contracts.common_v1 import canonical_digest
 from exhaust_plume.api.visualization_spec import (
   AxisScale,
   InvalidSamplePolicy,
@@ -91,14 +93,36 @@ class FpaSourceReference(StrictFrozenModel):
   @classmethod
   def from_ray_result(
     cls,
-    result: SpectralRayTransferResult,
+    result: SpectralRayTransferResult | ProviderRayTransferResult,
     *,
     operator_chain: tuple[str, ...] = (FPA_PIXEL_DETECTOR_OPERATOR_ID,),
   ) -> FpaSourceReference:
     """Capture a ray result's identity without copying its numerical payload."""
 
+    if isinstance(result, ProviderRayTransferResult):
+      metadata = result.metadata
+      provenance = metadata.provenance
+      return cls(
+        capability_id=metadata.capability.wire_id,
+        schema_version='1.0.0',
+        provider_id=provenance.provider_id,
+        session_id=metadata.snapshot.session_id,
+        snapshot_id=metadata.snapshot.snapshot_id,
+        content_sha256=canonical_digest(result),
+        frame_id=metadata.output_frame_id,
+        source_status=metadata.applicability.status.value,
+        source_fidelity={'radiation': metadata.claims.radiation.value},
+        source_applicability={'status': metadata.applicability.status.value},
+        source_provenance={
+          'model_lineage_id': provenance.model_lineage_id,
+          'provider_id': provenance.provider_id,
+          'provider_version': provenance.provider_version,
+          **dict(provenance.metadata),
+        },
+        operator_chain=operator_chain,
+      )
     if not isinstance(result, SpectralRayTransferResult):
-      raise TypeError('result must be a SpectralRayTransferResult')
+      raise TypeError('result must be a supported SpectralRayTransferResult')
     ####
     envelope = result.envelope
     return cls(
