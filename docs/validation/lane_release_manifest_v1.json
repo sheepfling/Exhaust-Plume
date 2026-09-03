@@ -145,6 +145,30 @@
       ]
     },
     {
+      "advertised_capabilities": [
+        "plume.optical.spectral-ray-transfer@1"
+      ],
+      "claim_ceiling": "Gray engineering transfer through conservative piecewise capsule supports only; no resolved curved-flow radiation or detector claim.",
+      "complexity_policy": "separate curved transport lane; does not change straight optical-transfer ceiling",
+      "external_validation_status": "not-applicable",
+      "forbidden_capabilities": [
+        "plume.signature.spectral-radiant-intensity@1",
+        "plume.image.spectral-radiance@1"
+      ],
+      "lane_id": "curved-optical-transfer-v1",
+      "local_release_ready": false,
+      "local_release_status": "not-released-validation-pending",
+      "matrix_status": "experimental",
+      "product_report_status": null,
+      "promotion_guard": {
+        "advertised_disjoint_from_forbidden": true,
+        "low_fidelity_promotion_detected": false
+      },
+      "provider_ids": [
+        "plume.curved-gray-ray-transfer"
+      ]
+    },
+    {
       "advertised_capabilities": [],
       "claim_ceiling": "Deterministic expected-electron and expected-ADC-count adapters only; no externally validated FPA image, measured detector-count, noise-realization, or detection claim.",
       "complexity_policy": null,
