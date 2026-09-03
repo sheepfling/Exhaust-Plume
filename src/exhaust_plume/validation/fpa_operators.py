@@ -176,18 +176,28 @@ class FpaPixelGeometry:
   camera_optics: FpaCameraOptics | None = None
 
   def __post_init__(self) -> None:
-    if isinstance(self.width_px, bool) or self.width_px < 1:
-      raise ValueError('width_px must be a positive integer')
-    ####
-    if isinstance(self.height_px, bool) or self.height_px < 1:
-      raise ValueError('height_px must be a positive integer')
-    ####
-    indices = tuple((int(row), int(column)) for row, column in self.ray_pixel_indices_row_col)
+    width = _positive_dimension(self.width_px, 'width_px')
+    height = _positive_dimension(self.height_px, 'height_px')
+    indices: list[tuple[int, int]] = []
+    for index, pair in enumerate(self.ray_pixel_indices_row_col):
+      if len(pair) != 2:
+        raise ValueError(f'ray_pixel_indices_row_col[{index}] must contain two indices')
+      ####
+      row, column = pair
+      if (
+          isinstance(row, bool)
+          or not isinstance(row, int)
+          or isinstance(column, bool)
+          or not isinstance(column, int)
+      ):
+        raise ValueError('ray pixel indices must contain integers')
+      indices.append((row, column))
+    indices = tuple(indices)
     if not indices:
       raise ValueError('ray_pixel_indices_row_col must not be empty')
     ####
     if any(
-        row < 0 or row >= self.height_px or column < 0 or column >= self.width_px
+        row < 0 or row >= height or column < 0 or column >= width
         for row, column in indices
     ):
       raise ValueError('ray pixel indices must lie inside the declared image grid')
@@ -203,6 +213,8 @@ class FpaPixelGeometry:
     if self.camera_optics is not None and not isinstance(self.camera_optics, FpaCameraOptics):
       raise ValueError('camera_optics must be FpaCameraOptics when supplied')
     ####
+    object.__setattr__(self, 'width_px', width)
+    object.__setattr__(self, 'height_px', height)
     object.__setattr__(self, 'ray_pixel_indices_row_col', indices)
     object.__setattr__(self, 'ray_collection_weights_m2_sr', weights)
   ####

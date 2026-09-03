@@ -175,6 +175,30 @@ def test_fpa_operator_preserves_declared_camera_optics_identity() -> None:
   assert result.camera_mapping_model_id == 'declared-ray-to-pixel-mapping-v1'
 
 
+def test_fpa_pixel_geometry_rejects_coercible_shape_and_index_values() -> None:
+  with pytest.raises(ValueError, match='positive integer'):
+    FpaPixelGeometry(
+      width_px=1.5,
+      height_px=1,
+      ray_pixel_indices_row_col=((0, 0),),
+      ray_collection_weights_m2_sr=(1.0,),
+    )
+  with pytest.raises(ValueError, match='indices must contain integers'):
+    FpaPixelGeometry(
+      width_px=1,
+      height_px=1,
+      ray_pixel_indices_row_col=((0.5, 0),),
+      ray_collection_weights_m2_sr=(1.0,),
+    )
+  with pytest.raises(ValueError, match='indices must contain integers'):
+    FpaPixelGeometry(
+      width_px=1,
+      height_px=1,
+      ray_pixel_indices_row_col=((True, 0),),
+      ray_collection_weights_m2_sr=(1.0,),
+    )
+
+
 def test_fpa_digitization_is_deterministic_and_preserves_invalid_pixels() -> None:
   image = FpaPixelImage(
     width_px=4,
