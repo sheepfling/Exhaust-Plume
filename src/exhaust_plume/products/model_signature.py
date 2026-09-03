@@ -47,7 +47,11 @@ from exhaust_plume.providers.gray_ray_transfer import (
     GrayRayTransferProvider,
 )
 from exhaust_plume.providers.curved_gray_ray_transfer import CurvedGrayRayTransferProvider
-from exhaust_plume.radiation import FarFieldRayIntegration, far_field_from_rays
+from exhaust_plume.radiation import (
+    FarFieldRayIntegration,
+    far_field_from_rays,
+    planck_spectral_radiance_W_m2_sr_m,
+)
 
 __all__ = (
     "GRAY_MODEL_SIGNATURE_ADAPTER_SCHEMA",
@@ -134,6 +138,35 @@ class GrayRadiationProfile:
         object.__setattr__(self, "wavelengths_m", wavelengths)
         object.__setattr__(self, "source_function_w_sr_m", source)
         object.__setattr__(self, "absorption_coefficient_per_m", absorption)
+
+    @classmethod
+    def from_blackbody(
+        cls,
+        wavelengths_m: Sequence[float],
+        temperature_K: float,
+        absorption_coefficient_per_m: Sequence[float],
+        *,
+        emissivity: float = 1.0,
+        profile_id: str = "blackbody-gray-profile",
+    ) -> GrayRadiationProfile:
+        """Build a gray source profile from an explicit thermal continuum.
+
+        Absorption remains caller-supplied. This method supplies only the
+        Planck source term and does not infer chemistry or line emission.
+        """
+
+        wavelengths = tuple(float(value) for value in wavelengths_m)
+        source = planck_spectral_radiance_W_m2_sr_m(
+            wavelengths,
+            temperature_K,
+            emissivity=emissivity,
+        )
+        return cls(
+            wavelengths_m=wavelengths,
+            source_function_w_sr_m=source,
+            absorption_coefficient_per_m=tuple(absorption_coefficient_per_m),
+            profile_id=profile_id,
+        )
 
     ####
 

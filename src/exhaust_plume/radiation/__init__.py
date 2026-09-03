@@ -10,6 +10,11 @@ from exhaust_plume.radiation.far_field import (
   FarFieldRayIntegration,
   far_field_from_rays,
 )
+from exhaust_plume.radiation.planck import (
+  PLANCK_C1_W_M2,
+  PLANCK_C2_M_K,
+  planck_spectral_radiance_W_m2_sr_m,
+)
 
 __all__ = (
   'GrayTransferResult',
@@ -18,4 +23,7 @@ __all__ = (
   'FarFieldRayIntegration',
   'far_field_from_rays',
   'homogeneous_segment_transfer',
+  'PLANCK_C1_W_M2',
+  'PLANCK_C2_M_K',
+  'planck_spectral_radiance_W_m2_sr_m',
 )

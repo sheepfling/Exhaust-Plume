@@ -6,6 +6,13 @@ spectral source radiance or optical depth. The bridge therefore requires an
 explicit `GrayRadiationProfile` and records the flow lane in signature
 provenance.
 
+`GrayRadiationProfile.from_blackbody(...)` supplies an auditable thermal
+continuum source using the SI Planck law and a caller-supplied gray
+absorption spectrum. This is a physically grounded source-term primitive, not
+a chemistry or line-by-line radiation model; its Signature output remains
+gray-approximate and non-production until the corresponding source and
+measurement validation gates are accepted.
+
 ## Lane matrix
 
 | Flow lane | Current signature path | Status | Ceiling |
