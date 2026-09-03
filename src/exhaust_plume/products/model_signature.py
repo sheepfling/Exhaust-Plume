@@ -15,7 +15,7 @@ validation.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum
 from math import isfinite, sqrt
@@ -410,6 +410,7 @@ def _attach_flow_lineage(
     visualization: StandardizedModelVisualization,
     profile: GrayRadiationProfile,
     sampling: ModelSignatureSampling,
+    time_model: TimeModel,
 ) -> SpectralSignatureResult:
     parent = signature.metadata
     parent_provenance = parent.provenance
@@ -439,6 +440,7 @@ def _attach_flow_lineage(
                 "optical_profile_id": profile.profile_id,
                 "optical_profile_digest": optical_profile_digest,
                 "ray_grid_policy": f"{sampling.transverse_sample_count}x{sampling.transverse_sample_count} per observer direction",
+                "signature_time_model": time_model.value,
                 "production_claim_allowed": "false",
             },
         }
@@ -453,7 +455,7 @@ def _attach_flow_lineage(
             "claims": ProductClaims(
                 geometry=GeometryClaim.NOT_APPLICABLE,
                 radiation=RadiationClaim.GRAY_APPROXIMATE,
-                time_model=TimeModel.STEADY,
+                time_model=time_model,
                 derivation=Derivation.ADAPTED,
                 consistency=parent.claims.consistency,
             ),
@@ -482,8 +484,19 @@ def evaluate_model_signature(
     sampling: ModelSignatureSampling | None = None,
     operating_point_id: str | None = None,
     allow_partial_results: bool = False,
+    time_s: float = 0.0,
+    source_pose: Pose | None = None,
+    dynamic_state: Mapping[str, object] | None = None,
+    ambient_state: Mapping[str, object] | None = None,
+    time_model: TimeModel = TimeModel.STEADY,
 ) -> SpectralSignatureResult:
-    """Evaluate a straight standardized flow lane as a gray signature."""
+    """Evaluate a straight standardized flow lane as a gray signature snapshot.
+
+    ``time_s`` and the supplied state mappings are recorded in the immutable
+    provider snapshot.  They do not on their own change the static flow or
+    optical inputs; callers that need a prescribed transient should resolve a
+    visualization and optical profile for each time before calling this seam.
+    """
 
     if not isinstance(visualization, StandardizedModelVisualization):
         raise TypeError("visualization must be StandardizedModelVisualization")
@@ -491,6 +504,15 @@ def evaluate_model_signature(
         raise TypeError("optical_profile must be GrayRadiationProfile")
     if not isinstance(allow_partial_results, bool):
         raise TypeError("allow_partial_results must be bool")
+    resolved_time_s = _finite("time_s", time_s)
+    if source_pose is not None and not isinstance(source_pose, Pose):
+        raise TypeError("source_pose must be Pose or None")
+    if dynamic_state is not None and not isinstance(dynamic_state, Mapping):
+        raise TypeError("dynamic_state must be a mapping or None")
+    if ambient_state is not None and not isinstance(ambient_state, Mapping):
+        raise TypeError("ambient_state must be a mapping or None")
+    if not isinstance(time_model, TimeModel):
+        raise TypeError("time_model must be TimeModel")
     selected_sampling = sampling or ModelSignatureSampling()
     assessment = assess_model_signature_readiness(
         visualization,
@@ -519,8 +541,9 @@ def evaluate_model_signature(
     session = provider.create_session(definition=definition)
     try:
         snapshot = session.create_snapshot(
-            time_s=0.0,
-            source_pose=Pose(
+            time_s=resolved_time_s,
+            source_pose=source_pose
+            or Pose(
                 frame_id=support.frame_id,
                 translation_m=(0.0, 0.0, 0.0),
                 rotation_xyzw=(0.0, 0.0, 0.0, 1.0),
@@ -529,8 +552,9 @@ def evaluate_model_signature(
                 "flow_model_lane": visualization.lane_id,
                 "flow_model_id": visualization.model_id,
                 "optical_profile_id": optical_profile.profile_id,
+                "caller_dynamic_state": dict(dynamic_state or {}),
             },
-            ambient_state={},
+            ambient_state=dict(ambient_state or {}),
         )
         ray_result = snapshot.evaluate(SPECTRAL_RAY_TRANSFER_V1, request)
     finally:
@@ -542,4 +566,10 @@ def evaluate_model_signature(
         allow_partial_results=allow_partial_results,
         operating_point_id=operating_point_id,
     )
-    return _attach_flow_lineage(signature, visualization, optical_profile, selected_sampling)
+    return _attach_flow_lineage(
+        signature,
+        visualization,
+        optical_profile,
+        selected_sampling,
+        time_model,
+    )

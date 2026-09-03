@@ -83,3 +83,19 @@ These checks validate visualization integrity only. They do not promote the
 reduced-order or MOC lanes. The MOC bundle exposes the solver's production
 gates, including canonical free-boundary, independent Euler, refinement, and
 external-validation gates, without changing them.
+
+## Mission-time visualization
+
+`MissionTimeline` turns declared trajectory and vehicle state into immutable
+time samples. `MissionVisualizationEvaluator` resolves a standardized bundle
+at each sample and emits the canonical `plume.visual.sectioned-tube@1`
+product with `time_model=prescribed_transient`. Its snapshot preserves the
+mission time, source pose, dynamic-state digest, and ambient-state digest.
+
+This path applies to all five lanes. It does not claim that a static bundle
+will change solely because its timestamp changed: the caller-owned
+`visualization_at(state)` resolver must run or retrieve the appropriate flow
+model for the scheduled altitude, throttle, nozzle condition, and chemistry
+assumptions. The visual request's `output_frame_id` remains the bundle's local
+support frame; source location and attitude are carried in snapshot metadata
+for a renderer or downstream world-frame composition step.

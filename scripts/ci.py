@@ -16,6 +16,7 @@ def ci_commands(python: str = sys.executable) -> tuple[tuple[str, ...], ...]:
   """Return the ordered, platform-independent CI commands."""
   return (
       (python, "-m", "pytest", "-q"),
+      (python, "-m", "scripts.test_lanes", "--check"),
       (python, "-m", "ruff", "check", "src", "scripts", "tests"),
       (python, "-m", "scripts.check_scope_markers"),
       (python, "-m", "scripts.check_rumdl"),

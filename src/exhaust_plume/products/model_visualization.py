@@ -1347,11 +1347,14 @@ def evaluate_standardized_model_visualization(
   *,
   provider_id: str | None = None,
   provider_version: str = '1.0.0',
+  time_model: TimeModel = TimeModel.STEADY,
 ) -> VisualSectionedTubeResult:
   """Evaluate a standardized bundle through the canonical visual product."""
 
   if not isinstance(visualization, StandardizedModelVisualization):
     raise TypeError('visualization must be a StandardizedModelVisualization')
+  if not isinstance(time_model, TimeModel):
+    raise TypeError('time_model must be TimeModel')
   resolved_provider_id = provider_id or f'plume.visual.model-lane.{visualization.lane.value}'
   if not resolved_provider_id or not provider_version:
     raise ProviderConfigurationError('provider identity and version must not be empty')
@@ -1360,7 +1363,7 @@ def evaluate_standardized_model_visualization(
     provider_version=provider_version,
     geometry_claim=visualization.claims.geometry_claim,
     radiation_claim=RadiationClaim.APPEARANCE_ONLY,
-    time_model=TimeModel.STEADY,
+    time_model=time_model,
     derivation=Derivation.ADAPTED,
     consistency=ConsistencyLevel.INDEPENDENT,
     applicability_status=visualization.applicability_status,

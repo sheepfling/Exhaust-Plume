@@ -62,6 +62,11 @@ spatial/region contract. They are never inferred from a display mesh.
 - direction-unit-sphere view colored by a selected wavelength;
 - uncertainty band or uncertainty heatmap when uncertainty is supplied;
 - direction table showing the exact 3-D unit vector and status;
+- sampled angular-time heatmap for a compatible collection of exact
+  request/result pairs, with an explicit display binning policy and no angular
+  or temporal interpolation;
+- linked exact-direction intensity trace and declared source-pose trajectory
+  for compatible time samples, with invalid samples masked;
 - wavelength selector and direction selector with linked updates;
 - same-axis comparison between independent providers or tables only when
   wavelength and direction domains match.
@@ -205,6 +210,11 @@ evaluation layers for the four strict `ProductResult` families:
   interval. The gallery records that limitation and does not infer it from
   zero radiance or unit transmittance. The strict visual contract likewise does
   not acquire shock-diamond or plume-region claims from tessellation.
+- `exhaust_plume.products.signature_timeline` now joins compatible exact
+  signature request/result pairs into renderer-neutral sampled angular maps,
+  direction traces, and source-pose trajectories. It retains the request axes,
+  forbids changing grids and temporal interpolation, and represents missing or
+  invalid bins as masked values rather than zeros.
 
 The FPA boundary, renderer-neutral projections, static gallery, interactive
 explorer, and validation-readiness checker are implemented. Remaining FPA work
