@@ -42,7 +42,9 @@ def test_fidelity_matrix_has_separate_active_and_downstream_lanes() -> None:
   assert lanes['shock-cell-reduced-order-v1']['provider_ids'] == ['plume.shock-train-reduced-order']
   assert lanes['shock-cell-reduced-order-v1']['focal_plane_array'] == 'not_supported'
   assert lanes['signature-table-mvp-v1']['status'] == 'active'
-  assert lanes['washed-integral-v1']['status'] == 'planned'
+  assert lanes['washed-integral-v1']['status'] == 'active-validation-pending'
+  assert lanes['washed-integral-v1']['provider_ids'] == ['plume.visual.curved-integral']
+  assert lanes['washed-integral-v1']['advertised_capabilities'] == ['plume.visual.sectioned-tube@1']
   assert lanes['optical-transfer-v1']['status'] == 'active'
   assert lanes['focal-plane-array-v1']['status'] == 'validated-downstream'
   assert lanes['shock-cell-basic-v1']['focal_plane_array'] == 'not_supported'
