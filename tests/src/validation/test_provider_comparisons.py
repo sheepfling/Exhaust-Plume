@@ -87,9 +87,12 @@ def test_downstream_boundaries_do_not_advertise_unimplemented_products() -> None
 
   assert [boundary['product_id'] for boundary in boundaries] == [
     'plume.optical.spectral-ray-transfer@1',
+    'plume.optical.spectral-ray-transfer@1',
     'plume.image.spectral-radiance@1',
   ]
-  assert all(boundary['provider_ids'] == [] for boundary in boundaries)
+  assert boundaries[0]['provider_ids'] == []
+  assert boundaries[1]['provider_ids'] == ['plume.curved-gray-ray-transfer']
+  assert boundaries[2]['provider_ids'] == []
   assert all(boundary['claim_status'] == 'not_accepted' for boundary in boundaries)
 
 

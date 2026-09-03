@@ -211,6 +211,17 @@ def _local_provider_inventory() -> dict[str, Any]:
       ],
       'measurement_probe': optical['measurement_probe'],
     },
+    'curved_optical': {
+      'provider_ids': ['plume.curved-gray-ray-transfer'],
+      'product_id': RAY_PRODUCT,
+      'status': 'local-analytic-provider-validation-pending',
+      'claim_ceiling': 'Gray engineering transfer through conservative piecewise capsule supports only; no resolved curved-flow radiation or detector claim.',
+      'required_external_evidence': [
+        'curved-support path/operator comparison',
+        'provider-bound observer and scenario asset',
+        'external validation metric and uncertainty treatment',
+      ],
+    },
     'focal_plane_array': {
       'provider_ids': [],
       'status': fpa['status'],
@@ -613,6 +624,10 @@ def build_comparison_plan(
 def build_unimplemented_boundaries(providers: Mapping[str, Any]) -> list[dict[str, Any]]:
   """Keep downstream product boundaries explicit in the same validation record."""
 
+  curved_optical = providers.get('curved_optical', {
+    'provider_ids': ['plume.curved-gray-ray-transfer'],
+    'required_external_evidence': ['curved-support path/operator comparison'],
+  })
   return [
     {
       'product_id': RAY_PRODUCT,
@@ -623,6 +638,13 @@ def build_unimplemented_boundaries(providers: Mapping[str, Any]) -> list[dict[st
         'source radiance and transmittance separation',
         'provider-bound sensor-space comparison scenario and accepted metrics',
       ],
+    },
+    {
+      'product_id': RAY_PRODUCT,
+      'provider_ids': list(curved_optical['provider_ids']),
+      'status': 'external-validation-pending',
+      'claim_status': 'not_accepted',
+      'required_prerequisites': list(curved_optical['required_external_evidence']),
     },
     {
       'product_id': 'plume.image.spectral-radiance@1',
