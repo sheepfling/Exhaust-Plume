@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from math import fsum, isfinite
 
 from exhaust_plume.validation.measurement_operators import sample_spectral_rows
+from exhaust_plume.contracts.ray_transfer_v1 import SpectralRayTransferResult
 
 
 FPA_PIXEL_DETECTOR_OPERATOR_ID = 'op.sensor.fpa-pixel-detector'
@@ -509,6 +510,32 @@ def integrate_ray_transfer_to_fpa(
 ####
 
 
+def integrate_spectral_ray_result_to_fpa(
+    result: SpectralRayTransferResult,
+    wavelengths_m: tuple[float, ...] | list[float],
+    *,
+    geometry: FpaPixelGeometry,
+    detector: DetectorResponse,
+    exposure_s: float,
+) -> FpaPixelImage:
+  """Adapt a lifecycle ray-transfer result into the deterministic FPA operator.
+
+  The wavelength axis is supplied by the original ray request because the
+  ray-transfer result intentionally carries matrix data but not request axes.
+  """
+
+  if not isinstance(result, SpectralRayTransferResult):
+    raise TypeError('result must be SpectralRayTransferResult')
+  return integrate_ray_transfer_to_fpa(
+    wavelengths_m,
+    result.source_spectral_radiance,
+    geometry=geometry,
+    detector=detector,
+    exposure_s=exposure_s,
+    validity_mask=result.validity_mask,
+  )
+
+
 def digitize_expected_electrons(
     image: FpaPixelImage,
     *,
@@ -590,4 +617,5 @@ __all__ = (
   'FpaPixelImage',
   'digitize_expected_electrons',
   'integrate_ray_transfer_to_fpa',
+  'integrate_spectral_ray_result_to_fpa',
 )

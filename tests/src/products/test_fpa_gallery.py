@@ -16,6 +16,7 @@ from exhaust_plume.validation import (
   FpaVisualizationInput,
   digitize_expected_electrons,
   integrate_ray_transfer_to_fpa,
+  integrate_spectral_ray_result_to_fpa,
 )
 
 
@@ -128,3 +129,24 @@ def test_fpa_source_reference_preserves_curved_ray_provider_identity() -> None:
   assert source.snapshot_id == result.metadata.snapshot.snapshot_id
   assert len(source.content_sha256) == 64
   assert source.source_provenance['provider_id'] == source.provider_id
+
+  base = _inputs()
+  integrated = integrate_spectral_ray_result_to_fpa(
+    result,
+    (1.0e-6, 2.0e-6),
+    geometry=FpaPixelGeometry(
+      width_px=1,
+      height_px=1,
+      ray_pixel_indices_row_col=((0, 0),),
+      ray_collection_weights_m2_sr=(1.0e-6,),
+      camera_optics=base.camera_optics,
+    ),
+    detector=DetectorResponse(
+      wavelengths_m=(1.0e-6, 2.0e-6),
+      quantum_efficiency=(0.5, 0.5),
+      optical_throughput=(1.0, 1.0),
+    ),
+    exposure_s=1.0,
+  )
+  assert integrated.width_px == 1
+  assert integrated.validity_mask == ((True,),)

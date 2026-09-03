@@ -35,6 +35,7 @@ from exhaust_plume.validation.fpa_operators import (
   FpaPixelImage,
   digitize_expected_electrons,
   integrate_ray_transfer_to_fpa,
+  integrate_spectral_ray_result_to_fpa,
 )
 from exhaust_plume.validation.fpa_visualization import (
   FPA_CLAIM_CEILING,
@@ -699,6 +700,7 @@ __all__ = (
   'integrate_los_fov_spectrum',
   'digitize_expected_electrons',
   'integrate_ray_transfer_to_fpa',
+  'integrate_spectral_ray_result_to_fpa',
   'project_fpa_view',
   'compare_peak_normalized_spectral_shape',
   'compare_declared_peak_normalized_spectral_shape',
