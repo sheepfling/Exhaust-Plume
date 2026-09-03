@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import isfinite
 from typing import Any, Mapping
 
 from exhaust_plume.api.v1 import (
@@ -127,6 +128,12 @@ class MocVisualSession:
   def create_snapshot(self, *, time_s: float, source_pose: Pose, dynamic_state: Mapping[str, Any], ambient_state: Mapping[str, Any]) -> ImmutableProductSnapshot:
     if self._closed:
       raise ProviderClosedError('MOC visual session is closed')
+    if not isfinite(float(time_s)):
+      raise ProviderConfigurationError('time_s must be finite')
+    if not isinstance(source_pose, Pose):
+      raise ProviderConfigurationError('source_pose must be Pose')
+    if not isinstance(dynamic_state, Mapping) or not isinstance(ambient_state, Mapping):
+      raise ProviderConfigurationError('dynamic_state and ambient_state must be mappings')
     dynamic_digest = canonical_digest(dynamic_state)
     ambient_digest = canonical_digest(ambient_state)
     state_digest = canonical_digest(self._definition)

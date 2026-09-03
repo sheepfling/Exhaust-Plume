@@ -33,3 +33,14 @@ def test_moc_visual_provider_exposes_research_envelope() -> None:
 def test_moc_visual_provider_rejects_non_moc_result() -> None:
   with pytest.raises(ProviderConfigurationError, match='retained planar-MOC'):
     MocVisualDefinition(frame_id='source-local', result=object())
+
+
+def test_moc_visual_provider_rejects_invalid_snapshot_inputs() -> None:
+  session = MocVisualProvider().create_session(definition=MocVisualDefinition(frame_id='source-local', result=_patch()[0]))
+  with pytest.raises(ProviderConfigurationError, match='finite'):
+    session.create_snapshot(
+      time_s=float('nan'),
+      source_pose=Pose(frame_id='world', translation_m=(0.0, 0.0, 0.0), rotation_xyzw=(0.0, 0.0, 0.0, 1.0)),
+      dynamic_state={},
+      ambient_state={},
+    )
