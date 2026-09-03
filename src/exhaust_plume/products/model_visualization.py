@@ -481,6 +481,11 @@ class StandardizedModelVisualization:
       'warnings': list(self.warnings),
     }
 
+  def digest_sha256(self) -> str:
+    """Return the deterministic identity of this complete model bundle."""
+
+    return canonical_digest(self.model_dump())
+
 
 def _section_channel(
   channel_id: str,

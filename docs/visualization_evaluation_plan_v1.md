@@ -206,6 +206,13 @@ evaluation layers for the four strict `ProductResult` families:
   lineages and validity counts. Mismatched domains are reported as blocked;
   the output is explicitly not validation evidence. Its optional static
   renderer emits an aligned overlay PNG beside the JSON report.
+- `exhaust_plume.products.workflow_model_gallery` provides a separate
+  bundle-bound static gallery for the five computational model lanes. It
+  writes the complete standardized bundle, a deterministic model view spec,
+  3-D overview, orthographic/station views, section-channel plots, and
+  explicitly retained field/path overlays. The bundle digest, claim ceiling,
+  diagnostics, and warnings travel with the artifacts; rendering cannot
+  promote a research or approximate lane.
 - The strict ray contract still has no hit mask, optical depth, or intersection
   interval. The gallery records that limitation and does not infer it from
   zero radiance or unit transmittance. The strict visual contract likewise does

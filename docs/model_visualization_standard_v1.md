@@ -23,6 +23,13 @@ the extra geometry and provenance needed to inspect the source model.
 - source status, applicability, diagnostics, warnings, and an explicit claim
   ceiling.
 
+`render_model_visualization_gallery(bundle, output_dir)` is the static
+evaluation entry point for this bundle shape. Its
+`ModelVisualizationGallerySpec` is bound to the complete bundle digest and
+selects a station, field/channel, and named paths without changing the source
+bundle. The gallery emits JSON plus optional 3-D, orthographic, channel, and
+field/path views; it does not create a provider result or a validation claim.
+
 `standardize_all_model_visualizations` requires exactly one result for each of
 the five lane IDs. `evaluate_standardized_model_visualization` runs the
 sectioned-tube definition through the existing canonical v1 provider path and
