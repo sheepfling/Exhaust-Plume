@@ -178,7 +178,7 @@ class FpaPixelGeometry:
   def __post_init__(self) -> None:
     width = _positive_dimension(self.width_px, 'width_px')
     height = _positive_dimension(self.height_px, 'height_px')
-    indices: list[tuple[int, int]] = []
+    normalized_indices: list[tuple[int, int]] = []
     for index, pair in enumerate(self.ray_pixel_indices_row_col):
       if len(pair) != 2:
         raise ValueError(f'ray_pixel_indices_row_col[{index}] must contain two indices')
@@ -191,8 +191,8 @@ class FpaPixelGeometry:
           or not isinstance(column, int)
       ):
         raise ValueError('ray pixel indices must contain integers')
-      indices.append((row, column))
-    indices = tuple(indices)
+      normalized_indices.append((row, column))
+    indices: tuple[tuple[int, int], ...] = tuple(normalized_indices)
     if not indices:
       raise ValueError('ray_pixel_indices_row_col must not be empty')
     ####

@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from math import isfinite, sqrt
 import re
-from typing import Literal, TypeAlias
+from typing import Any, Literal, TypeAlias, cast
 
 import numpy as np
 
@@ -100,7 +100,7 @@ _AXIAL_SECTION_QUATERNION = (0.5, 0.5, 0.5, 0.5)
 
 def _finite(name: str, value: object) -> float:
   try:
-    numeric = float(value)
+    numeric = float(cast(Any, value))
   except (TypeError, ValueError) as error:
     raise ValueError(f'{name} must be numeric') from error
   if not isfinite(numeric):
@@ -685,12 +685,12 @@ def _reduced_order_visualization(
 ) -> StandardizedModelVisualization:
   if not result.cells:
     raise ValueError('reduced-order shock-train visualization requires at least one cell')
-  raw_stations: list[tuple[float, object]] = []
+  raw_stations: list[tuple[float, Any]] = []
   for cell in result.cells:
     metrics = cell.metrics
     raw_stations.extend(((float(metrics.start_x_m), metrics), (float(metrics.end_x_m), metrics)))
   raw_stations.sort(key=lambda item: item[0])
-  stations: list[tuple[float, object]] = []
+  stations: list[tuple[float, Any]] = []
   for station in raw_stations:
     if stations and abs(station[0] - stations[-1][0]) <= 1.0e-12:
       stations[-1] = station
@@ -909,7 +909,7 @@ def _curved_integral_visualization(
   sections = tuple(
     VisualSection(
       arc_length_m=float(station.arc_length_m) - first_arc,
-      center_m=_vector3('curved plume center', station.position_m),
+      center_m=_vector3('curved plume center', cast(Sequence[float], station.position_m)),
       section_to_output_xyzw=_quaternion_from_frames(normal, binormal, tangent),
       radius_major_m=float(station.radius_m),
       radius_minor_m=float(station.radius_m),
@@ -953,7 +953,10 @@ def _curved_integral_visualization(
     paths=(ModelVisualPath(
       path_id='curved-integral-centerline',
       semantic='curved integral plume centerline',
-      points_m=tuple(_vector3('curved centerline point', station.position_m) for station in selected),
+      points_m=tuple(
+        _vector3('curved centerline point', cast(Sequence[float], station.position_m))
+        for station in selected
+      ),
     ),),
     diagnostics={
       'station_count': len(result.stations),
@@ -1036,7 +1039,8 @@ def _moc_visualization(
   section_count: int,
   maximum_axial_extent_m: float | None,
 ) -> StandardizedModelVisualization:
-  field, source = _moc_field_from_result(result)
+  field_value, source = _moc_field_from_result(result)
+  field: Any = field_value
   if field is None:
     raise ValueError('planar-MOC visualization requires a retained field with cells and boundaries')
   cell_polygons: list[tuple[Vector2, ...]] = []
@@ -1114,20 +1118,21 @@ def _moc_visualization(
   centerline_states = tuple(getattr(field, 'centerline_boundary_states', ()))
   centerline_pressures = tuple(getattr(field, 'centerline_boundary_total_pressure_Pa', ()))
   centerline_points = tuple(getattr(field, 'centerline_boundary_points_m', ()))
-  state_by_x: list[tuple[float, object, float | None]] = []
+  state_by_x: list[tuple[float, Any, float | None]] = []
   if len(centerline_states) == len(centerline_points):
     for index, state in enumerate(centerline_states):
       pressure = centerline_pressures[index] if index < len(centerline_pressures) else None
       state_by_x.append((float(centerline_points[index][0]), state, None if pressure is None else float(pressure)))
-  def sample_axis_state(x_value: float) -> tuple[object | None, float | None]:
+  def sample_axis_state(x_value: float) -> tuple[Any | None, float | None]:
     if state_by_x:
-      return min(state_by_x, key=lambda item: abs(item[0] - x_value))[1:]
+      nearest = min(state_by_x, key=lambda item: abs(item[0] - x_value))
+      return nearest[1], nearest[2]
     sampler = getattr(field, 'state_at', None)
     if callable(sampler):
       state = sampler((x_value, 0.0))
       pressure_sampler = getattr(field, 'total_pressure_at', None)
-      pressure = pressure_sampler((x_value, 0.0)) if callable(pressure_sampler) else None
-      return state, pressure
+      pressure: Any = pressure_sampler((x_value, 0.0)) if callable(pressure_sampler) else None
+      return state, None if pressure is None else float(pressure)
     return None, None
   axis_states = tuple(sample_axis_state(point[0]) for point in centerline)
   base_channels: list[ModelVisualChannel] = [
@@ -1158,9 +1163,9 @@ def _moc_visualization(
       sum(point[1] for point in polygon) / len(polygon),
     )
     sampler = getattr(field, 'state_at', None)
-    state = sampler(centroid) if callable(sampler) else None
+    state: Any = sampler(centroid) if callable(sampler) else None
     total_pressure_sampler = getattr(field, 'total_pressure_at', None)
-    total_pressure = total_pressure_sampler(centroid) if callable(total_pressure_sampler) else None
+    total_pressure: Any = total_pressure_sampler(centroid) if callable(total_pressure_sampler) else None
     field_channel_values['mach'].append(None if state is None else float(getattr(state, 'mach')))
     field_channel_values['flow_angle'].append(None if state is None else float(getattr(state, 'theta_rad')))
     if state is None or total_pressure is None:

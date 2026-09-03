@@ -271,14 +271,14 @@ be accepted.
 
 ## Working branch
 
-The clean completion work is isolated on `work/validation-and-completion`,
-created from the integrated local `main`. The original dirty
-`feature/post-a1-implementation` worktree remains intentionally untouched.
-The bounded provider, solver-boundary, and validation changes recorded here
-are already committed on this completion branch; future higher-fidelity work
-must branch from an explicitly accepted lane rather than mutate the basic
-provider in place. Remote PRs #5, #6, and #7 are merged into remote `main`,
-while this completion branch remains local and has not been pushed.
+The clean integration candidate is isolated on `integration/full-suite`, with
+the working checkout `work/washed-integral-visual` currently at the same
+commit. The original `feature/post-a1-implementation` worktree remains
+intentionally untouched. The bounded provider, solver-boundary, validation,
+and downstream FPA changes recorded here are committed and pushed; future
+higher-fidelity work must branch from an explicitly accepted lane rather than
+mutate the basic provider in place. Remote PRs #5, #6, and #7 are merged into
+remote `main`.
 
 The branch checks are:
 
@@ -301,8 +301,9 @@ python3 scripts/validate_provider_comparisons.py \
 ```
 
 This command currently passes the VIS provider/conformance cases, SIG table
-interpolation cases, the synthetic ray-to-signature operator checks, and the
-negative FPA-advertisement boundary check. Its report intentionally remains
+interpolation cases, the synthetic ray-to-signature operator checks, the
+deterministic FPA detector/ADC boundary, and source-bound FPA view projection
+checks. Its report intentionally remains
 `release_ready: false` until external measurement-operator comparisons and
 product-specific gate acceptance are complete.
 

@@ -235,6 +235,10 @@ The scientific API only requires the dependencies listed under
 `[project].dependencies`. Install the `plot` extra for the command-line runner
 and graphical output.
 
-Ruff checks the complete source and test tree. Pyright checks the focused solver and aerodynamic modules listed in [`pyrightconfig.json`](pyrightconfig.json).
+Ruff checks the complete source and test tree. Pyright checks the release-facing
+API, provider, product, radiation, and detector modules listed in
+[`pyrightconfig.json`](pyrightconfig.json). The experimental MOC research tree
+is intentionally governed by its numerical and conformance lanes until its
+physical closure is accepted.
 
 CI also installs the built wheel into a fresh virtual environment and runs `tests/installed_smoke.py` from outside the repository. That check discovers the installed package resources dynamically before exercising the public API and CLI help path.

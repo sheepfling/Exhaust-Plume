@@ -18,6 +18,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from math import acos, isfinite, sin, sqrt
 from types import MappingProxyType
+from typing import Any, cast
 
 from exhaust_plume.api.v1 import (
     Pose,
@@ -63,7 +64,7 @@ def _finite(name: str, value: object) -> float:
     if isinstance(value, bool):
         raise TypeError(f"{name} must be numeric")
     try:
-        numeric = float(value)
+        numeric = float(cast(Any, value))
     except (TypeError, ValueError) as error:
         raise TypeError(f"{name} must be numeric") from error
     if not isfinite(numeric):
@@ -126,7 +127,10 @@ def _interpolate_pose(first: Pose, second: Pose, fraction: float) -> Pose:
         raise ValueError("mission timeline poses must use one frame_id")
     return Pose(
         frame_id=first.frame_id,
-        translation_m=tuple(left + (right - left) * fraction for left, right in zip(first.translation_m, second.translation_m)),
+        translation_m=cast(
+            tuple[float, float, float],
+            tuple(left + (right - left) * fraction for left, right in zip(first.translation_m, second.translation_m)),
+        ),
         rotation_xyzw=_slerp(first.rotation_xyzw, second.rotation_xyzw, fraction),
     )
 

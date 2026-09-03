@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from math import atan2, degrees, hypot, isfinite
+from typing import Any, cast
 
 from exhaust_plume.api.v1 import Pose, SpectralSignatureRequest, SpectralSignatureResult
 
@@ -51,7 +52,7 @@ def _finite(name: str, value: object) -> float:
     if isinstance(value, bool):
         raise TypeError(f"{name} must be numeric")
     try:
-        numeric = float(value)
+        numeric = float(cast(Any, value))
     except (TypeError, ValueError) as error:
         raise TypeError(f"{name} must be numeric") from error
     if not isfinite(numeric):

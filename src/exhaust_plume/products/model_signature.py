@@ -19,7 +19,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum
 from math import isfinite, sqrt
-from typing import TypeAlias
+from typing import Any, TypeAlias, cast
 
 import numpy as np
 
@@ -77,7 +77,7 @@ _CURVED_SIGNATURE_LANES = frozenset({ModelVisualizationLane.CURVED_INTEGRAL})
 
 def _finite(name: str, value: object) -> float:
     try:
-        numeric = float(value)
+        numeric = float(cast(Any, value))
     except (TypeError, ValueError) as error:
         raise ValueError(f"{name} must be numeric") from error
     if not isfinite(numeric):
@@ -282,7 +282,7 @@ def assess_model_signature_readiness(
             claim_ceiling=common_ceiling,
             reasons=tuple(reasons) if reasons else ("straight section support and explicit gray optical profile are available",),
         )
-    reasons = (
+    planar_reasons = (
         "planar-MOC field requires a planar field/ray transport provider",
         "the sectioned-tube envelope is illustrative and cannot stand in for the MOC field",
     )
@@ -297,7 +297,7 @@ def assess_model_signature_readiness(
         transport_geometry_ready=False,
         production_claim_allowed=False,
         claim_ceiling=common_ceiling,
-        reasons=reasons,
+        reasons=planar_reasons,
     )
 
 
@@ -374,8 +374,8 @@ def _build_ray_grid(
                 second_coordinate = second_lower + (second_index + 0.5) * second_step
                 origin = reference + observer * depth
                 origin = origin + first_basis * first_coordinate + second_basis * second_coordinate
-                origins.append(tuple(float(value) for value in origin))
-                directions.append(tuple(float(-value) for value in observer))
+                origins.append(cast(Vector3, tuple(float(value) for value in origin)))
+                directions.append(cast(Vector3, tuple(float(-value) for value in observer)))
                 t_min.append(0.0)
                 t_max.append(2.0 * depth)
                 direction_indices.append(direction_index)

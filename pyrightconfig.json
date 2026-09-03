@@ -6,7 +6,9 @@
     "build",
     "dist",
     "legacy",
-    "tests"
+    "tests",
+    "src/exhaust_plume/models/moc",
+    "src/exhaust_plume/validation/moc*.py"
   ],
   "pythonVersion": "3.10",
   "typeCheckingMode": "basic",
