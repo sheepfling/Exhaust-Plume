@@ -9,7 +9,7 @@ mock only; it cannot raise a cell's fidelity or closure claim.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from hashlib import sha256
 from math import atan2, isfinite, tan
@@ -1624,7 +1624,7 @@ class MocChainPlannerResult:
   planner_kind: MocChainPlannerKind
   steps: tuple[MocChainPlannerStep, ...] = ()
   claim_status: str = ''
-  diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+  diagnostics: dict[str, Any] | MappingProxyType = field(default_factory=lambda: MappingProxyType({}))
 
   def __post_init__(self) -> None:
     if not isinstance(self.chain, MocChainResult):
@@ -1694,7 +1694,7 @@ class MocEulerCompanionFieldPlannerResult:
   termination: MocChainTerminationDecision
   planner_kind: MocChainPlannerKind
   claim_status: str
-  diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+  diagnostics: dict[str, Any] | MappingProxyType = field(default_factory=lambda: MappingProxyType({}))
 
   def __post_init__(self) -> None:
     if not isinstance(self.field, MocEulerCompanionFieldResult):
@@ -1929,7 +1929,7 @@ class MocEulerCompanionFieldChainPlannerResult:
   termination: MocChainTerminationDecision
   planner_kind: MocChainPlannerKind
   claim_status: str
-  diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+  diagnostics: dict[str, Any] | MappingProxyType = field(default_factory=lambda: MappingProxyType({}))
 
   def __post_init__(self) -> None:
     if not isinstance(self.seed, MocEulerCompanionFieldResult):
@@ -2146,7 +2146,7 @@ class MocEulerAmbientShockFieldPlannerResult:
   termination: MocChainTerminationDecision
   planner_kind: MocChainPlannerKind
   claim_status: str
-  diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+  diagnostics: dict[str, Any] | MappingProxyType = field(default_factory=lambda: MappingProxyType({}))
 
   def __post_init__(self) -> None:
     if not isinstance(self.field, MocEulerAmbientShockFieldResult):
@@ -2359,7 +2359,7 @@ class MocEulerAmbientShockFieldChainPlannerResult:
   termination: MocChainTerminationDecision
   planner_kind: MocChainPlannerKind
   claim_status: str
-  diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+  diagnostics: dict[str, Any] | MappingProxyType = field(default_factory=lambda: MappingProxyType({}))
 
   def __post_init__(self) -> None:
     if not isinstance(self.seed, MocEulerAmbientShockFieldResult):
@@ -3125,7 +3125,7 @@ class MocFirstCellFreeBoundaryCorrectionPlannerResult:
   termination: MocChainTerminationDecision
   planner_kind: MocChainPlannerKind
   claim_status: str
-  diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+  diagnostics: dict[str, Any] | MappingProxyType = field(default_factory=lambda: MappingProxyType({}))
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -3217,7 +3217,7 @@ class MocFirstCellTerminalClosurePlannerResult:
   termination: MocChainTerminationDecision | None
   planner_kind: MocChainPlannerKind
   claim_status: str
-  diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+  diagnostics: dict[str, Any] | MappingProxyType = field(default_factory=lambda: MappingProxyType({}))
   mixed_regime_planar_handoff: MocMixedRegimePlanarSolveResult | None = None
   mixed_regime_entropy_handoff: MocMixedRegimeEntropyHandoffResult | None = None
   mixed_regime_entropy_transport: MocMixedRegimeEntropyTransportResult | None = None
@@ -3409,7 +3409,7 @@ class MocPhysicalPostShockTerminalPatchPlannerResult:
   mixed_regime_reference: MocMixedRegimeFreeBoundaryResult | None
   planner_kind: MocChainPlannerKind
   claim_status: str
-  diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+  diagnostics: dict[str, Any] | MappingProxyType = field(default_factory=lambda: MappingProxyType({}))
   mixed_regime_planar_handoff: MocMixedRegimePlanarSolveResult | None = None
   mixed_regime_entropy_handoff: MocMixedRegimeEntropyHandoffResult | None = None
   mixed_regime_entropy_transport: MocMixedRegimeEntropyTransportResult | None = None
@@ -3748,7 +3748,7 @@ class MocAmbientClosedPostShockChainTerminalPlannerResult:
   terminal_planner: MocPhysicalPostShockTerminalPatchPlannerResult | None
   planner_kind: MocChainPlannerKind
   claim_status: str
-  diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+  diagnostics: dict[str, Any] | MappingProxyType = field(default_factory=lambda: MappingProxyType({}))
 
   def __post_init__(self) -> None:
     if not isinstance(self.chain_planner, MocChainPlannerResult):
@@ -3967,7 +3967,7 @@ class MocCausticUpstreamContinuationPlannerResult:
   termination: MocChainTerminationDecision
   planner_kind: MocChainPlannerKind
   claim_status: str
-  diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+  diagnostics: dict[str, Any] | MappingProxyType = field(default_factory=lambda: MappingProxyType({}))
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -10667,7 +10667,7 @@ class MocEulerPostShockFieldChainPlannerResult:
   termination: MocChainTerminationDecision
   planner_kind: MocChainPlannerKind
   claim_status: str
-  diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+  diagnostics: dict[str, Any] | MappingProxyType = field(default_factory=lambda: MappingProxyType({}))
 
   def __post_init__(self) -> None:
     if not isinstance(self.seed, MocEulerPostShockFieldResult):
@@ -10828,7 +10828,7 @@ class MocEulerAmbientFirstWedgeRemeshPlannerResult:
   termination: MocChainTerminationDecision
   planner_kind: MocChainPlannerKind
   claim_status: str
-  diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+  diagnostics: dict[str, Any] | MappingProxyType = field(default_factory=lambda: MappingProxyType({}))
 
   def __post_init__(self) -> None:
     if not isinstance(self.seed, MocEulerAmbientPhysicalFieldResult):
@@ -11130,7 +11130,7 @@ class MocEulerAmbientFirstWedgeCharacteristicPlannerResult:
   termination: MocChainTerminationDecision
   planner_kind: MocChainPlannerKind
   claim_status: str
-  diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+  diagnostics: dict[str, Any] | MappingProxyType = field(default_factory=lambda: MappingProxyType({}))
 
   def __post_init__(self) -> None:
     if not isinstance(self.seed, MocEulerAmbientPhysicalFieldResult):
@@ -11404,7 +11404,7 @@ class MocEulerAmbientFirstWedgeCharacteristicFieldPlannerResult:
   termination: MocChainTerminationDecision
   planner_kind: MocChainPlannerKind
   claim_status: str
-  diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+  diagnostics: dict[str, Any] | MappingProxyType = field(default_factory=lambda: MappingProxyType({}))
 
   def __post_init__(self) -> None:
     if not isinstance(self.seed, MocEulerAmbientPhysicalFieldResult):
@@ -11682,7 +11682,7 @@ class MocEulerAmbientFirstWedgeEntropyCarryPlannerResult:
   termination: MocChainTerminationDecision
   planner_kind: MocChainPlannerKind
   claim_status: str
-  diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+  diagnostics: dict[str, Any] | MappingProxyType = field(default_factory=lambda: MappingProxyType({}))
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -11973,7 +11973,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFieldPlannerResult:
   termination: MocChainTerminationDecision
   planner_kind: MocChainPlannerKind
   claim_status: str
-  diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+  diagnostics: dict[str, Any] | MappingProxyType = field(default_factory=lambda: MappingProxyType({}))
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -12362,7 +12362,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainPlannerResult:
   termination: MocChainTerminationDecision
   planner_kind: MocChainPlannerKind
   claim_status: str
-  diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+  diagnostics: dict[str, Any] | MappingProxyType = field(default_factory=lambda: MappingProxyType({}))
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -13345,7 +13345,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationChainPlannerResu
   termination: MocChainTerminationDecision
   planner_kind: MocChainPlannerKind
   claim_status: str
-  diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+  diagnostics: dict[str, Any] | MappingProxyType = field(default_factory=lambda: MappingProxyType({}))
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -15255,7 +15255,7 @@ class MocEulerAmbientFirstWedgeEntropyCarryRefinementPlannerResult:
   termination: MocChainTerminationDecision
   planner_kind: MocChainPlannerKind
   claim_status: str
-  diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+  diagnostics: dict[str, Any] | MappingProxyType = field(default_factory=lambda: MappingProxyType({}))
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -21481,7 +21481,7 @@ class MocFirstCellResearchChainPlannerResult:
   chain_planner_measurement: Any | None = None
   physical_field_chain_measurement: Any | None = None
   research_chain_measurement: Any | None = None
-  diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+  diagnostics: dict[str, Any] | MappingProxyType = field(default_factory=lambda: MappingProxyType({}))
 
   def __post_init__(self) -> None:
     if not isinstance(self.candidate, MocFirstCellCandidateResult):
@@ -23681,7 +23681,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainPlan
   termination: MocChainTerminationDecision
   planner_kind: MocChainPlannerKind
   claim_status: str
-  diagnostics: dict[str, Any] | MappingProxyType = MappingProxyType({})
+  diagnostics: dict[str, Any] | MappingProxyType = field(default_factory=lambda: MappingProxyType({}))
 
   def __post_init__(self) -> None:
     if not isinstance(
