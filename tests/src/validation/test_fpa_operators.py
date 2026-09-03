@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from math import nan
+
 import pytest
 
 from exhaust_plume.validation import (
   DetectorResponse,
   FpaCameraOptics,
+  FpaDigitizedExpectation,
   FpaDigitizationPolicy,
   FpaPixelImage,
   FpaPixelGeometry,
@@ -207,3 +210,42 @@ def test_fpa_digitization_rejects_unsupported_adc_conventions() -> None:
     FpaDigitizationPolicy(electrons_per_count=1.0, rounding_mode='floor')
   with pytest.raises(ValueError, match='clip'):
     FpaDigitizationPolicy(electrons_per_count=1.0, saturation_mode='wrap')
+
+
+def test_fpa_images_reject_malformed_direct_construction() -> None:
+  common = {
+    'width_px': 1,
+    'height_px': 1,
+    'wavelengths_m': (1.0e-6, 2.0e-6),
+    'exposure_s': 1.0,
+    'expected_electrons': ((0.0,),),
+    'dark_electrons': ((0.0,),),
+    'noise_variance_e2': ((0.0,),),
+    'validity_mask': ((True,),),
+    'source_semantics': 'source-only',
+    'detector_response_id': 'detector-test',
+  }
+  with pytest.raises(ValueError, match='finite'):
+    FpaPixelImage(**{**common, 'expected_electrons': ((nan,),)})
+  with pytest.raises(ValueError, match='shape'):
+    FpaPixelImage(**{**common, 'validity_mask': ((True, False),)})
+  with pytest.raises(ValueError, match='positive integer'):
+    FpaPixelImage(**{**common, 'width_px': 0})
+
+
+def test_fpa_digitized_expectation_rejects_malformed_direct_construction() -> None:
+  common = {
+    'width_px': 1,
+    'height_px': 1,
+    'counts': ((0,),),
+    'validity_mask': ((True,),),
+    'saturated_mask': ((False,),),
+    'source_operator_id': 'op.sensor.fpa-pixel-detector',
+    'digitization_policy_id': 'policy-test',
+  }
+  with pytest.raises(ValueError, match='nonnegative integers'):
+    FpaDigitizedExpectation(**{**common, 'counts': ((-1,),)})
+  with pytest.raises(ValueError, match='boolean'):
+    FpaDigitizedExpectation(**{**common, 'saturated_mask': ((0,),)})
+  with pytest.raises(ValueError, match='operator_id'):
+    FpaDigitizedExpectation(**{**common, 'operator_id': 'other'})

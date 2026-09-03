@@ -84,6 +84,38 @@ def _matrix(
 ####
 
 
+def _bool_matrix(
+  values: tuple[tuple[bool, ...], ...] | list[tuple[bool, ...]] | list[list[bool]],
+  *,
+  row_count: int,
+  column_count: int,
+  field_name: str,
+) -> BoolMatrix:
+  matrix = tuple(tuple(value for value in row) for row in values)
+  if len(matrix) != row_count or any(len(row) != column_count for row in matrix):
+    raise ValueError(f'{field_name} must have shape ({row_count}, {column_count})')
+  ####
+  if any(not isinstance(value, bool) for row in matrix for value in row):
+    raise ValueError(f'{field_name} must contain boolean values')
+  ####
+  return matrix
+####
+
+
+def _positive_dimension(value: int, field_name: str) -> int:
+  if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+    raise ValueError(f'{field_name} must be a positive integer')
+  return value
+####
+
+
+def _optional_identity(value: str | None, field_name: str) -> str | None:
+  if value is not None and (not isinstance(value, str) or not value):
+    raise ValueError(f'{field_name} must be a nonempty string when supplied')
+  return value
+####
+
+
 @dataclass(frozen=True, slots=True)
 class FpaCameraOptics:
   """Declared camera/optics metadata for a ray-to-pixel mapping.
@@ -270,6 +302,61 @@ class FpaPixelImage:
   camera_mapping_model_id: str | None = None
   operator_id: str = FPA_PIXEL_DETECTOR_OPERATOR_ID
 
+  def __post_init__(self) -> None:
+    width = _positive_dimension(self.width_px, 'width_px')
+    height = _positive_dimension(self.height_px, 'height_px')
+    wavelengths = _positive_axis(self.wavelengths_m, 'wavelengths_m')
+    if not isfinite(self.exposure_s) or self.exposure_s <= 0.0:
+      raise ValueError('exposure_s must be finite and positive')
+    ####
+    expected = _matrix(
+      self.expected_electrons,
+      row_count=height,
+      column_count=width,
+      field_name='expected_electrons',
+      minimum=0.0,
+    )
+    dark = _matrix(
+      self.dark_electrons,
+      row_count=height,
+      column_count=width,
+      field_name='dark_electrons',
+      minimum=0.0,
+    )
+    variance = _matrix(
+      self.noise_variance_e2,
+      row_count=height,
+      column_count=width,
+      field_name='noise_variance_e2',
+      minimum=0.0,
+    )
+    validity = _bool_matrix(
+      self.validity_mask,
+      row_count=height,
+      column_count=width,
+      field_name='validity_mask',
+    )
+    if not isinstance(self.source_semantics, str) or not self.source_semantics:
+      raise ValueError('source_semantics must be a nonempty string')
+    ####
+    if not isinstance(self.detector_response_id, str) or not self.detector_response_id:
+      raise ValueError('detector_response_id must be a nonempty string')
+    ####
+    if not isinstance(self.operator_id, str) or self.operator_id != FPA_PIXEL_DETECTOR_OPERATOR_ID:
+      raise ValueError(f'operator_id must be {FPA_PIXEL_DETECTOR_OPERATOR_ID!r}')
+    ####
+    object.__setattr__(self, 'width_px', width)
+    object.__setattr__(self, 'height_px', height)
+    object.__setattr__(self, 'wavelengths_m', wavelengths)
+    object.__setattr__(self, 'exposure_s', float(self.exposure_s))
+    object.__setattr__(self, 'expected_electrons', expected)
+    object.__setattr__(self, 'dark_electrons', dark)
+    object.__setattr__(self, 'noise_variance_e2', variance)
+    object.__setattr__(self, 'validity_mask', validity)
+    object.__setattr__(self, 'camera_optics_id', _optional_identity(self.camera_optics_id, 'camera_optics_id'))
+    object.__setattr__(self, 'camera_mapping_model_id', _optional_identity(self.camera_mapping_model_id, 'camera_mapping_model_id'))
+  ####
+
 
 @dataclass(frozen=True, slots=True)
 class FpaDigitizationPolicy:
@@ -332,9 +419,52 @@ class FpaDigitizedExpectation:
   saturated_mask: BoolMatrix
   source_operator_id: str
   digitization_policy_id: str
-  camera_optics_id: str | None
-  camera_mapping_model_id: str | None
+  camera_optics_id: str | None = None
+  camera_mapping_model_id: str | None = None
   operator_id: str = FPA_DIGITIZATION_OPERATOR_ID
+
+  def __post_init__(self) -> None:
+    width = _positive_dimension(self.width_px, 'width_px')
+    height = _positive_dimension(self.height_px, 'height_px')
+    counts = tuple(tuple(value for value in row) for row in self.counts)
+    if len(counts) != height or any(len(row) != width for row in counts):
+      raise ValueError(f'counts must have shape ({height}, {width})')
+    ####
+    if any(
+        isinstance(value, bool) or not isinstance(value, int) or value < 0
+        for row in counts for value in row
+    ):
+      raise ValueError('counts must contain nonnegative integers')
+    ####
+    validity = _bool_matrix(
+      self.validity_mask,
+      row_count=height,
+      column_count=width,
+      field_name='validity_mask',
+    )
+    saturation = _bool_matrix(
+      self.saturated_mask,
+      row_count=height,
+      column_count=width,
+      field_name='saturated_mask',
+    )
+    if not isinstance(self.source_operator_id, str) or not self.source_operator_id:
+      raise ValueError('source_operator_id must be a nonempty string')
+    ####
+    if not isinstance(self.digitization_policy_id, str) or not self.digitization_policy_id:
+      raise ValueError('digitization_policy_id must be a nonempty string')
+    ####
+    if not isinstance(self.operator_id, str) or self.operator_id != FPA_DIGITIZATION_OPERATOR_ID:
+      raise ValueError(f'operator_id must be {FPA_DIGITIZATION_OPERATOR_ID!r}')
+    ####
+    object.__setattr__(self, 'width_px', width)
+    object.__setattr__(self, 'height_px', height)
+    object.__setattr__(self, 'counts', counts)
+    object.__setattr__(self, 'validity_mask', validity)
+    object.__setattr__(self, 'saturated_mask', saturation)
+    object.__setattr__(self, 'camera_optics_id', _optional_identity(self.camera_optics_id, 'camera_optics_id'))
+    object.__setattr__(self, 'camera_mapping_model_id', _optional_identity(self.camera_mapping_model_id, 'camera_mapping_model_id'))
+  ####
 
 
 def _trapezoid_integral(axis: tuple[float, ...], values: tuple[float, ...]) -> float:
