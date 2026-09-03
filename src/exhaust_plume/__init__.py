@@ -170,6 +170,12 @@ from exhaust_plume.providers.gray_ray_transfer import (
   GrayRayTransferProvider,
   GrayRayTransferSession,
 )
+from exhaust_plume.providers.curved_visual import (
+  CurvedIntegralVisualConfiguration,
+  CurvedIntegralVisualDefinition,
+  CurvedIntegralVisualProvider,
+  CurvedIntegralVisualSession,
+)
 from exhaust_plume.radiation import FarFieldRayIntegration, far_field_from_rays
 from exhaust_plume.products import (
   VisualMesh,
@@ -251,6 +257,10 @@ __all__ = (
     'CurvedPlumeSourceTerms',
     'CurvedPlumeStation',
     'CurvedPlumeTermination',
+    'CurvedIntegralVisualConfiguration',
+    'CurvedIntegralVisualDefinition',
+    'CurvedIntegralVisualProvider',
+    'CurvedIntegralVisualSession',
     'DevelopingShearForcedEntrainment',
     'EngineParameters',
     'EntrainmentModel',

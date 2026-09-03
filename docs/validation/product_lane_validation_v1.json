@@ -560,6 +560,32 @@
         }
       ],
       "status": "passed"
+    },
+    "washed_integral": {
+      "claim_ceiling": "Engineering-approximate curved sectioned-tube visualization only; no physical signature, ray-transfer, detector, or FPA claim.",
+      "contract_conformance": true,
+      "external_comparison": {
+        "reason": "The curved visual provider has local lifecycle and contract evidence, but no provider-bound curved-flow benchmark or measurement-operator comparison.",
+        "status": "pending"
+      },
+      "lane_id": "washed-integral-v1",
+      "local_geometry_invariants": {
+        "provider_id": "plume.visual.curved-integral",
+        "status": "passed",
+        "checks": [
+          "strictly increasing curved centerline stations",
+          "section-count bound",
+          "engineering-approximate geometry claim",
+          "appearance-only radiation claim",
+          "steady snapshot lifecycle"
+        ]
+      },
+      "product_id": "plume.visual.sectioned-tube@1",
+      "provider_ids": [
+        "plume.visual.curved-integral"
+      ],
+      "radiation_claim": "appearance_only",
+      "status": "passed"
     }
   },
   "local_status": "passed",

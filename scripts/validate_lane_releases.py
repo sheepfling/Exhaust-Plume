@@ -122,6 +122,7 @@ def build_lane_release_manifest() -> dict[str, Any]:
     raise ValueError('solver fidelity matrix must contain a lanes list')
   report_key_by_lane = {
     'shock-cell-basic-v1': 'visual',
+    'washed-integral-v1': 'washed_integral',
     'signature-table-mvp-v1': 'signature',
     'optical-transfer-v1': 'optical',
     'ray-to-signature-consistency-v1': 'cross_product',

@@ -92,10 +92,20 @@ from exhaust_plume.providers.gray_ray_transfer import (
   GrayRayTransferProvider,
   GrayRayTransferSession,
 )
+from exhaust_plume.providers.curved_visual import (
+  CurvedIntegralVisualConfiguration,
+  CurvedIntegralVisualDefinition,
+  CurvedIntegralVisualProvider,
+  CurvedIntegralVisualSession,
+)
 
 __all__ = (
     'CapabilityBinding',
     'ClosedSessionError',
+    'CurvedIntegralVisualConfiguration',
+    'CurvedIntegralVisualDefinition',
+    'CurvedIntegralVisualProvider',
+    'CurvedIntegralVisualSession',
     'EngineeringFluxSectionCapability',
     'ExecutionBackend',
     'LegacyPlumeProvider',

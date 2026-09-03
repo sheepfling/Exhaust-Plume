@@ -100,21 +100,25 @@
       ]
     },
     {
-      "advertised_capabilities": [],
-      "claim_ceiling": null,
-      "complexity_policy": null,
-      "external_validation_status": "not-applicable",
+      "advertised_capabilities": [
+        "plume.visual.sectioned-tube@1"
+      ],
+      "claim_ceiling": "Engineering-approximate curved sectioned-tube visualization only; no physical signature, ray-transfer, detector, or FPA claim.",
+      "complexity_policy": "isolated curved-integral visual provider; does not mutate straight or reduced-order solver ceilings",
+      "external_validation_status": "pending",
       "forbidden_capabilities": [],
       "lane_id": "washed-integral-v1",
-      "local_release_ready": false,
-      "local_release_status": "planned",
-      "matrix_status": "planned",
-      "product_report_status": null,
+      "local_release_ready": true,
+      "local_release_status": "scoped-local-release",
+      "matrix_status": "active-validation-pending",
+      "product_report_status": "passed",
       "promotion_guard": {
         "advertised_disjoint_from_forbidden": true,
         "low_fidelity_promotion_detected": false
       },
-      "provider_ids": []
+      "provider_ids": [
+        "plume.visual.curved-integral"
+      ]
     },
     {
       "advertised_capabilities": [
