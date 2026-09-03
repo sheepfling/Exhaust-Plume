@@ -8,9 +8,16 @@
   "lanes": [
     {
       "lane_id": "planar-moc-primitives-v1",
-      "status": "foundation-validated-provider-pending",
-      "provider_ids": [],
-      "target_capabilities": [],
+      "status": "experimental",
+      "provider_ids": [
+        "plume.visual.planar-moc"
+      ],
+      "advertised_capabilities": [
+        "plume.visual.sectioned-tube@1"
+      ],
+      "target_capabilities": [
+        "plume.visual.sectioned-tube@1"
+      ],
       "focal_plane_array": "not_supported",
       "model_axes": {
         "morphology": "planar",
@@ -20,7 +27,7 @@
         "radiation": "none",
         "validation": "15 scalar cases, compatibility, an 8-cell open fan, attached/mild-overexpanded compression, reflected free-boundary march, boundary-side shock candidate, bounded post-shock field sampling, field-coupled typed chain termination, free-boundary residuals, ambient-axis closure residual and bounded attachment-coordinate shooting, and topology checks; physical first-cell closure and external comparison pending"
       },
-      "claim_ceiling": "Planar scalar/characteristic compatibility diagnostics only; no public visual, signature, optical, or FPA claim",
+      "claim_ceiling": "Research-only illustrative planar field visualization; no production visual, signature, optical, or FPA claim",
       "complexity_policy": "isolated high-fidelity foundation; cannot replace the basic solver before topology, convergence, and measurement gates pass"
     },
     {

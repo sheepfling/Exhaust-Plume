@@ -116,6 +116,7 @@ TEST_LANES = (
             "tests/src/products/test_visualization_gallery.py",
             "tests/src/providers/test_prescribed_visual.py",
             "tests/src/providers/test_curved_visual.py",
+            "tests/src/providers/test_moc_visual.py",
             "tests/src/validation/test_visual_comparisons.py",
         ),
     ),

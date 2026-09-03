@@ -171,6 +171,7 @@ from exhaust_plume.providers.gray_ray_transfer import (
   GrayRayTransferSession,
 )
 from exhaust_plume.providers.curved_gray_ray_transfer import CurvedGrayRayTransferProvider
+from exhaust_plume.providers.moc_visual import MocVisualConfiguration, MocVisualDefinition, MocVisualProvider, MocVisualSession
 from exhaust_plume.providers.curved_visual import (
   CurvedIntegralVisualConfiguration,
   CurvedIntegralVisualDefinition,
@@ -313,6 +314,10 @@ __all__ = (
   'GrayRayTransferProvider',
     'GrayRayTransferSession',
     'CurvedGrayRayTransferProvider',
+    'MocVisualConfiguration',
+    'MocVisualDefinition',
+    'MocVisualProvider',
+    'MocVisualSession',
   'FarFieldRayIntegration',
   'far_field_from_rays',
     'OrthogonalUniformCrossflowExactSolution',

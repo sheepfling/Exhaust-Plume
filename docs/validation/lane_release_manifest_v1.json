@@ -7,21 +7,25 @@
   },
   "lanes": [
     {
-      "advertised_capabilities": [],
-      "claim_ceiling": "Planar scalar/characteristic compatibility diagnostics only; no public visual, signature, optical, or FPA claim",
+      "advertised_capabilities": [
+        "plume.visual.sectioned-tube@1"
+      ],
+      "claim_ceiling": "Research-only illustrative planar field visualization; no production visual, signature, optical, or FPA claim",
       "complexity_policy": "isolated high-fidelity foundation; cannot replace the basic solver before topology, convergence, and measurement gates pass",
       "external_validation_status": "not-applicable",
       "forbidden_capabilities": [],
       "lane_id": "planar-moc-primitives-v1",
       "local_release_ready": false,
       "local_release_status": "not-released-validation-pending",
-      "matrix_status": "foundation-validated-provider-pending",
+      "matrix_status": "experimental",
       "product_report_status": null,
       "promotion_guard": {
         "advertised_disjoint_from_forbidden": true,
         "low_fidelity_promotion_detected": false
       },
-      "provider_ids": []
+      "provider_ids": [
+        "plume.visual.planar-moc"
+      ]
     },
     {
       "advertised_capabilities": [

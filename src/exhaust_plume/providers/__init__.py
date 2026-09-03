@@ -99,6 +99,7 @@ from exhaust_plume.providers.curved_visual import (
   CurvedIntegralVisualSession,
 )
 from exhaust_plume.providers.curved_gray_ray_transfer import CurvedGrayRayTransferProvider
+from exhaust_plume.providers.moc_visual import MocVisualConfiguration, MocVisualDefinition, MocVisualProvider, MocVisualSession
 
 __all__ = (
     'CapabilityBinding',
@@ -108,6 +109,10 @@ __all__ = (
     'CurvedIntegralVisualProvider',
     'CurvedIntegralVisualSession',
     'CurvedGrayRayTransferProvider',
+    'MocVisualConfiguration',
+    'MocVisualDefinition',
+    'MocVisualProvider',
+    'MocVisualSession',
     'CurvedGrayRayTransferProvider',
     'EngineeringFluxSectionCapability',
     'ExecutionBackend',
