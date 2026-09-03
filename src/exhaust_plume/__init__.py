@@ -142,6 +142,13 @@ from exhaust_plume.providers.straight_visual import (
     StraightVisualDefinition,
     StraightVisualProvider,
 )
+from exhaust_plume.providers.shock_cell_visual import (
+    ShockCellVisualConfiguration,
+    ShockCellVisualDefinition,
+    ShockCellVisualOperatingState,
+    ShockCellVisualProvider,
+    ShockCellVisualSession,
+)
 from exhaust_plume.providers.straight_analytical import (
     StraightAnalyticalConfiguration,
     StraightAnalyticalDefinition,
@@ -149,13 +156,6 @@ from exhaust_plume.providers.straight_analytical import (
     StraightAnalyticalPlumeProviderV0,
     StraightAnalyticalProvider,
     StraightAnalyticalSession,
-)
-from exhaust_plume.providers.shock_cell_visual import (
-    ShockCellVisualConfiguration,
-    ShockCellVisualDefinition,
-    ShockCellVisualOperatingState,
-    ShockCellVisualProvider,
-    ShockCellVisualSession,
 )
 from exhaust_plume.providers.signature_table import (
   LookupInterpolationPolicy,
@@ -286,17 +286,17 @@ __all__ = (
     'StraightVisualConfiguration',
     'StraightVisualDefinition',
     'StraightVisualProvider',
+    'ShockCellVisualConfiguration',
+    'ShockCellVisualDefinition',
+    'ShockCellVisualOperatingState',
+    'ShockCellVisualProvider',
+    'ShockCellVisualSession',
     'StraightAnalyticalConfiguration',
     'StraightAnalyticalDefinition',
     'StraightAnalyticalOperatingState',
     'StraightAnalyticalPlumeProviderV0',
     'StraightAnalyticalProvider',
     'StraightAnalyticalSession',
-    'ShockCellVisualConfiguration',
-    'ShockCellVisualDefinition',
-    'ShockCellVisualOperatingState',
-    'ShockCellVisualProvider',
-    'ShockCellVisualSession',
     'GrayRayTransferConfiguration',
     'GrayRayTransferDefinition',
   'GrayRayTransferProvider',
