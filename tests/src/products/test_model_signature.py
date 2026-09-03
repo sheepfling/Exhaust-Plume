@@ -72,7 +72,7 @@ def test_all_three_straight_lanes_reach_gray_signature() -> None:
         assert any(value > 0.0 for row in signature.spectral_radiant_intensity for value in row)
 
 
-def test_curved_and_planar_moc_lanes_report_transport_blocks() -> None:
+def test_curved_lane_reaches_gray_transport_and_planar_moc_remains_blocked() -> None:
     curved = standardize_model_visualization(
         _curved_result(),
         lane=ModelVisualizationLane.CURVED_INTEGRAL,
@@ -85,10 +85,11 @@ def test_curved_and_planar_moc_lanes_report_transport_blocks() -> None:
     curved_assessment = assess_model_signature_readiness(curved, optical_profile=_profile())
     moc_assessment = assess_model_signature_readiness(moc, optical_profile=_profile())
 
-    assert curved_assessment.readiness is ModelSignatureReadiness.BLOCKED_CURVED_TRANSPORT
+    assert curved_assessment.readiness is ModelSignatureReadiness.READY
     assert moc_assessment.readiness is ModelSignatureReadiness.BLOCKED_PLANAR_TRANSPORT
-    with pytest.raises(ModelSignatureBlockedError, match="curved/washed geometry"):
-        evaluate_model_signature(curved, _profile())
+    curved_signature = evaluate_model_signature(curved, _profile())
+    assert curved_signature.metadata.claims.radiation.value == "gray_approximate"
+    assert curved_signature.metadata.provenance.metadata["production_claim_allowed"] == "false"
     with pytest.raises(ModelSignatureBlockedError, match="planar-MOC field"):
         evaluate_model_signature(moc, _profile())
 

@@ -139,7 +139,7 @@ def _curved_result() -> CurvedPlumeResult:
   stations = tuple(
     CurvedPlumeStation(
       arc_length_m=float(index),
-      position_m=np.asarray((float(index), 0.1 * index, 0.0)),
+      position_m=np.asarray((float(index), 0.1 * index * index, 0.0)),
       mass_flow_kgps=10.0,
       momentum_flux_N=np.asarray((1_000.0, 0.0, 0.0)),
       momentum_derivative_Npm=np.asarray((0.0, 0.0, 0.0)),

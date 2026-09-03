@@ -14,7 +14,6 @@ from exhaust_plume.products import (
     MissionTimelineRangeError,
     MissionVisualizationEvaluator,
     ModelSignatureSampling,
-    ModelSignatureBlockedError,
     ModelSignatureReadiness,
     ModelVisualizationLane,
     evaluate_model_signature,
@@ -190,10 +189,10 @@ def test_combined_mission_product_evaluator_preserves_visual_when_signature_is_b
     assert straight_sample.signature.metadata.snapshot.time_s == pytest.approx(5.0)
     assert straight_sample.signature.metadata.claims.time_model is TimeModel.PRESCRIBED_TRANSIENT
     assert curved_sample.visual_product.metadata.claims.time_model is TimeModel.PRESCRIBED_TRANSIENT
-    assert curved_sample.signature is None
-    assert curved_sample.signature_assessment.readiness is ModelSignatureReadiness.BLOCKED_CURVED_TRANSPORT
-    with pytest.raises(ModelSignatureBlockedError, match="blocked-curved-transport"):
-        curved_products.signature_at(5.0)
+    assert curved_sample.signature is not None
+    assert curved_sample.signature.metadata.claims.radiation.value == "gray_approximate"
+    assert curved_sample.signature.metadata.provenance.metadata["production_claim_allowed"] == "false"
+    assert curved_sample.signature_assessment.readiness is ModelSignatureReadiness.READY
 
 
 def test_direct_bridge_accepts_explicit_snapshot_state() -> None:

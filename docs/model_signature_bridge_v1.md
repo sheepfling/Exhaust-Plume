@@ -13,7 +13,7 @@ provenance.
 | `shock-cell-basic-v1` | Straight sectioned support + explicit gray profile + orthographic ray integration | Ready with profile | Gray approximate; visual model remains low-order |
 | `shock-cell-reduced-order-v1` | Same bridge | Ready with profile | Gray approximate; downstream train remains calibrated/reduced-order |
 | `straight-integral-v1` | Same bridge | Ready with profile | Gray approximate; top-hat integral geometry is not resolved radiation |
-| `washed-integral-v1` | Requires path-aware curved transport | Blocked | No curved ray-transfer claim |
+| `washed-integral-v1` | Isolated `plume.curved-gray-ray-transfer` path provider | Gray-approximate only; production claim blocked | No resolved curved-flow radiation, chemistry, atmosphere, detector, or FPA claim |
 | `planar-moc-primitives-v1` | Requires planar field/ray transport | Blocked | The sectioned-tube envelope is illustrative only |
 
 The three ready lanes produce the canonical
@@ -75,9 +75,10 @@ each returns a new cursor, so old snapshots remain reproducible.
 
 `MissionVisualizationEvaluator` emits the canonical visual product for all
 five lanes. `MissionProductEvaluator` builds on it and returns that visual
-product plus a signature when the lane is transport-ready. For curved integral
-and planar-MOC samples, it returns the visual product and a typed blocked
-signature assessment rather than fabricating a straight-ray result.
+product plus a signature when the lane is transport-ready. For planar-MOC
+samples, it returns the visual product and a typed blocked signature assessment
+rather than fabricating a straight-ray result. Curved integral samples use the
+separate gray path provider, but remain approximate and non-production.
 
 ```python
 from exhaust_plume.api.v1 import Pose

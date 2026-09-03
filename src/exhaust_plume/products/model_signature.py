@@ -46,6 +46,7 @@ from exhaust_plume.providers.gray_ray_transfer import (
     GrayRayTransferDefinition,
     GrayRayTransferProvider,
 )
+from exhaust_plume.providers.curved_gray_ray_transfer import CurvedGrayRayTransferProvider
 from exhaust_plume.radiation import FarFieldRayIntegration, far_field_from_rays
 
 __all__ = (
@@ -71,6 +72,7 @@ _STRAIGHT_SIGNATURE_LANES = frozenset(
         ModelVisualizationLane.STRAIGHT_INTEGRAL,
     }
 )
+_CURVED_SIGNATURE_LANES = frozenset({ModelVisualizationLane.CURVED_INTEGRAL})
 
 
 def _finite(name: str, value: object) -> float:
@@ -224,12 +226,14 @@ def _support_from_visualization(visualization: StandardizedModelVisualization) -
 
 def _support_readiness(
     visualization: StandardizedModelVisualization,
+    *,
+    allow_curved: bool = False,
 ) -> tuple[bool, SectionedTubeSupport | None, str | None]:
     try:
         support = _support_from_visualization(visualization)
     except (TypeError, ValueError) as error:
         return False, None, str(error)
-    if not support.is_straight:
+    if not support.is_straight and not allow_curved:
         return False, support, "the standardized section support is not straight"
     return True, support, None
 
@@ -246,8 +250,14 @@ def assess_model_signature_readiness(
     lane = visualization.lane
     profile_ready = optical_profile is not None
     common_ceiling = "gray-approximate; no chemistry, atmosphere, detector, or external validation"
-    if lane in _STRAIGHT_SIGNATURE_LANES:
-        support_ready, _support, support_reason = _support_readiness(visualization)
+    if lane in _STRAIGHT_SIGNATURE_LANES or lane in _CURVED_SIGNATURE_LANES:
+        support_ready, _support, support_reason = _support_readiness(
+            visualization,
+            allow_curved=lane in _CURVED_SIGNATURE_LANES,
+        )
+        if lane in _CURVED_SIGNATURE_LANES and _support is not None and _support.is_straight:
+            support_ready = False
+            support_reason = "the curved signature lane requires a non-straight section support"
         reasons: list[str] = []
         if support_reason is not None:
             reasons.append(support_reason)
@@ -520,7 +530,13 @@ def evaluate_model_signature(
     )
     if not assessment.ready:
         raise ModelSignatureBlockedError(f"{visualization.lane_id} cannot enter the gray signature bridge ({assessment.readiness.value}): {'; '.join(assessment.reasons)}")
-    support_ready, support, support_reason = _support_readiness(visualization)
+    support_ready, support, support_reason = _support_readiness(
+        visualization,
+        allow_curved=visualization.lane in _CURVED_SIGNATURE_LANES,
+    )
+    if visualization.lane in _CURVED_SIGNATURE_LANES and support is not None and support.is_straight:
+        support_ready = False
+        support_reason = "the curved signature lane requires a non-straight section support"
     if not support_ready or support is None:
         raise ModelSignatureBlockedError(support_reason or "flow support is not transport-ready")
     request, integration = _build_ray_grid(support, selected_sampling, optical_profile.wavelengths_m)
@@ -531,13 +547,17 @@ def evaluate_model_signature(
         source_function_w_sr_m=optical_profile.source_function_w_sr_m,
         absorption_coefficient_per_m=optical_profile.absorption_coefficient_per_m,
         asset_id=f"model-gray-optics:{visualization.lane_id}:{optical_profile.profile_id}",
+        allow_curved_support=visualization.lane in _CURVED_SIGNATURE_LANES,
     )
-    provider = GrayRayTransferProvider(
-        GrayRayTransferConfiguration(
-            provider_id="plume.adapter.model-gray-ray-transfer",
-            provider_version="1.0.0",
+    if visualization.lane in _CURVED_SIGNATURE_LANES:
+        provider = CurvedGrayRayTransferProvider()
+    else:
+        provider = GrayRayTransferProvider(
+            GrayRayTransferConfiguration(
+                provider_id="plume.adapter.model-gray-ray-transfer",
+                provider_version="1.0.0",
+            )
         )
-    )
     session = provider.create_session(definition=definition)
     try:
         snapshot = session.create_snapshot(
