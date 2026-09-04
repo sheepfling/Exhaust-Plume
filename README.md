@@ -99,6 +99,8 @@ generic interface boundary is documented in
 [`docs/interface_contracts_v1.md`](docs/interface_contracts_v1.md).
 The product-level MVP workflow is documented in
 [`docs/product_mvp.md`](docs/product_mvp.md).
+The coordinated long-running completion and release plan is documented in
+[`docs/product_suite_completion_plan_v1.md`](docs/product_suite_completion_plan_v1.md).
 The finite study envelope and pressure/throat matrix are documented in
 [`docs/validity_envelope.md`](docs/validity_envelope.md).
 
