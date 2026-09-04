@@ -936,6 +936,19 @@ class MocReflectedDomainGlobalEulerShockBoundaryRefinementRun:
     return False
   ####
 
+  @property
+  def downstream_boundary_closure_verified(self) -> bool:
+    """Whether every retained resolution has a solver-owned downstream closure."""
+
+    return bool(
+      self.closures
+      and all(
+        closure.downstream_boundary_closure_verified
+        for closure in self.closures
+      )
+    )
+  ####
+
   def as_report(self) -> dict[str, Any]:
     return {
       'status': self.measurement.status.value,
@@ -960,6 +973,14 @@ class MocReflectedDomainGlobalEulerShockBoundaryRefinementRun:
             else closure.global_euler.status.value
           ),
           'global_euler_retained': closure.global_euler is not None,
+          'downstream_boundary_model': closure.downstream_boundary_model,
+          'downstream_boundary_closure_verified': (
+            closure.downstream_boundary_closure_verified
+          ),
+          'promotion_blockers': list(closure.promotion_blockers),
+          'production_promotion_gates': dict(
+            closure.production_promotion_gates
+          ),
           'chain_promotion_blocked': closure.chain_promotion_blocked,
           'production_claim_allowed': closure.production_claim_allowed,
         }
@@ -983,6 +1004,9 @@ class MocReflectedDomainGlobalEulerShockBoundaryRefinementRun:
         ),
         'local_physical_closure_verified': (
           self.local_physical_closure_verified
+        ),
+        'downstream_boundary_closure_verified': (
+          self.downstream_boundary_closure_verified
         ),
         'fidelity_isolation_verified': self.fidelity_isolation_verified,
         'chain_promotion_blocked': self.chain_promotion_blocked,
@@ -1383,6 +1407,8 @@ class MocReflectedDomainGlobalEulerShockBoundaryCrossCaseMeasurement:
   source_band_fingerprints: tuple[str, ...] = ()
   requested_resolutions: tuple[tuple[int, ...], ...] = ()
   run_statuses: tuple[str, ...] = ()
+  downstream_boundary_models: tuple[tuple[str, ...], ...] = ()
+  downstream_boundary_closure_verified: bool = False
   case_ids_verified: bool = False
   source_bindings_verified: bool = False
   distinct_source_band_fingerprints_verified: bool = False
@@ -1491,6 +1517,41 @@ class MocReflectedDomainGlobalEulerShockBoundaryCrossCaseMeasurement:
     ####
     object.__setattr__(self, 'run_statuses', derived_statuses)
 
+    derived_downstream_models = tuple(
+      tuple(closure.downstream_boundary_model for closure in run.closures)
+      for run in runs
+    )
+    if self.downstream_boundary_models and tuple(
+      tuple(value) for value in self.downstream_boundary_models
+    ) != derived_downstream_models:
+      raise ValueError(
+        'downstream_boundary_models must match the supplied runs'
+      )
+    ####
+    object.__setattr__(
+      self,
+      'downstream_boundary_models',
+      derived_downstream_models,
+    )
+    derived_downstream_gate = bool(
+      runs
+      and all(
+        closure.downstream_boundary_closure_verified
+        for run in runs
+        for closure in run.closures
+      )
+    )
+    if self.downstream_boundary_closure_verified != derived_downstream_gate:
+      raise ValueError(
+        'downstream_boundary_closure_verified must match the supplied runs'
+      )
+    ####
+    object.__setattr__(
+      self,
+      'downstream_boundary_closure_verified',
+      derived_downstream_gate,
+    )
+
     for name in (
       'case_ids_verified',
       'source_bindings_verified',
@@ -1567,6 +1628,9 @@ class MocReflectedDomainGlobalEulerShockBoundaryCrossCaseMeasurement:
         list(resolutions) for resolutions in self.requested_resolutions
       ],
       'run_statuses': list(self.run_statuses),
+      'downstream_boundary_models': [
+        list(models) for models in self.downstream_boundary_models
+      ],
       'cases': [case.as_report() for case in self.cases],
       'runs': [run.as_report() for run in self.runs],
       'checks': {
@@ -1580,6 +1644,9 @@ class MocReflectedDomainGlobalEulerShockBoundaryCrossCaseMeasurement:
         'local_physical_closure_verified': (
           self.local_physical_closure_verified
         ),
+        'downstream_boundary_closure_verified': (
+          self.downstream_boundary_closure_verified
+        ),
         'fidelity_isolation_verified': self.fidelity_isolation_verified,
         'physical_closure_verified': False,
         'canonical_free_boundary_verified': False,
@@ -1590,6 +1657,9 @@ class MocReflectedDomainGlobalEulerShockBoundaryCrossCaseMeasurement:
         'production_claim_allowed': self.production_claim_allowed,
       },
       'physical_closure_verified': False,
+      'downstream_boundary_closure_verified': (
+        self.downstream_boundary_closure_verified
+      ),
       'canonical_free_boundary_verified': False,
       'canonical_euler_verified': False,
       'external_validation_verified': False,
@@ -1786,6 +1856,18 @@ def measure_moc_reflected_domain_global_euler_shock_boundary_cross_case_refineme
     source_band_fingerprints=source_fingerprints,
     requested_resolutions=tuple(case.resolutions for case in case_values),
     run_statuses=tuple(run.measurement.status.value for run in run_values),
+    downstream_boundary_models=tuple(
+      tuple(closure.downstream_boundary_model for closure in run.closures)
+      for run in run_values
+    ),
+    downstream_boundary_closure_verified=bool(
+      run_values
+      and all(
+        closure.downstream_boundary_closure_verified
+        for run in run_values
+        for closure in run.closures
+      )
+    ),
     case_ids_verified=case_ids_verified,
     source_bindings_verified=source_bindings_verified,
     distinct_source_band_fingerprints_verified=(
@@ -1918,6 +2000,20 @@ class MocReflectedDomainGlobalEulerShockBoundaryCrossCaseRun:
     return False
   ####
 
+  @property
+  def downstream_boundary_closure_verified(self) -> bool:
+    """Whether every named case and resolution has downstream closure."""
+
+    return bool(
+      self.runs
+      and all(
+        closure.downstream_boundary_closure_verified
+        for run in self.runs
+        for closure in run.closures
+      )
+    )
+  ####
+
   def as_report(self) -> dict[str, Any]:
     return {
       'status': self.measurement.status.value,
@@ -1938,6 +2034,9 @@ class MocReflectedDomainGlobalEulerShockBoundaryCrossCaseRun:
         'local_physical_closure_verified': (
           self.local_physical_closure_verified
         ),
+        'downstream_boundary_closure_verified': (
+          self.downstream_boundary_closure_verified
+        ),
         'fidelity_isolation_verified': self.fidelity_isolation_verified,
         'physical_closure_verified': False,
         'canonical_free_boundary_verified': False,
@@ -1947,6 +2046,9 @@ class MocReflectedDomainGlobalEulerShockBoundaryCrossCaseRun:
         'production_claim_allowed': self.production_claim_allowed,
       },
       'physical_closure_verified': False,
+      'downstream_boundary_closure_verified': (
+        self.downstream_boundary_closure_verified
+      ),
       'canonical_free_boundary_verified': False,
       'canonical_euler_verified': False,
       'external_validation_verified': False,

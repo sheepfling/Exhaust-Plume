@@ -1809,6 +1809,24 @@ def test_global_euler_cross_case_runner_keeps_case_ladders_separate():
   )
   assert run.measurement.requested_resolutions == ((5, 9), (5, 9))
   assert run.measurement.distinct_source_band_fingerprints_verified
+  assert run.downstream_boundary_closure_verified is False
+  assert run.as_report()['checks']['downstream_boundary_closure_verified'] is False
+  downstream_models = run.as_report()['measurement']['downstream_boundary_models']
+  assert len(downstream_models) == 2
+  assert all(len(models) == 2 for models in downstream_models)
+  assert all(
+    isinstance(model, str) and model
+    for models in downstream_models
+    for model in models
+  )
+  assert all(
+    closure['downstream_boundary_closure_verified'] is False
+    and closure['downstream_boundary_model']
+    and closure['promotion_blockers']
+    and closure['production_promotion_gates']['downstream_boundary_closure_verified'] is False
+    for case_run in run.as_report()['runs']
+    for closure in case_run['closures']
+  )
   assert run.chain_promotion_blocked
   assert run.production_claim_allowed is False
   assert run.as_report()['measurement']['external_validation_verified'] is False

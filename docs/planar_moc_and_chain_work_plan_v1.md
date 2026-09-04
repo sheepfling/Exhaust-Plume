@@ -3369,6 +3369,18 @@ calibration/validation comparison, and production next-cell shock fitting in a
 dedicated resolved-planar-MOC provider. Lower-fidelity visualization,
 signature, optical-transfer, and focal-plane-array providers remain isolated.
 
+## Cross-case downstream-gate observability checkpoint
+
+Each fresh global-Euler resolution report now carries the selected downstream
+continuation law, its ``downstream_boundary_closure_verified`` gate, the
+promotion blockers, and the complete promotion-gate map.  The named
+reflected/mild-attached cross-case aggregate preserves those values per case
+and per resolution rather than collapsing them into one local-convergence
+flag.  The current compression-envelope law is therefore visible in every
+case ladder while the solver-owned downstream closure gate remains false.
+This is evidence plumbing, not a physical closure result; canonical
+reflected/mixed-regime solving and external validation remain required.
+
 ## Fresh global-closure refinement-run checkpoint
 
 The global-Euler refinement lane now has an executable run wrapper:

@@ -277,3 +277,9 @@ reusing the envelope cannot satisfy the gate.  The result also reports
 concrete promotion blockers so production shock-cell fitting and release
 reviews can distinguish a local exact-Euler field from a completed physical
 closure.
+
+The named reflected/mild-attached resolution runner now carries that same
+downstream-boundary evidence at every case/resolution point: selected law,
+readiness gate, blockers, and promotion-gate map.  This makes cross-case
+review auditable without flattening distinct source bands or treating the
+current compression-envelope law as a physical downstream closure.
