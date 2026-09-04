@@ -67,6 +67,19 @@ PROVIDER_BOUND_EVIDENCE_SCHEMA = (
 )
 
 
+def _provider_bound_evidence_source_label(path: Path | None) -> str | None:
+  """Return a portable label for a provider-evidence handoff path.
+
+  Validation reports are compared across machines and CI jobs.  Retaining the
+  absolute path would make an otherwise identical report differ by checkout
+  location and would expose a local filesystem layout.  The handoff itself is
+  still read from the caller-supplied path; only the report label is reduced to
+  its stable filename.
+  """
+
+  return None if path is None else Path(path).name
+
+
 def load_provider_bound_evidence(
   path: Path,
 ) -> dict[str, ProviderBoundComparisonEvidence]:
@@ -794,8 +807,8 @@ def build_provider_comparison_preflight(
     'corpus_status': corpus_report['status'],
     'operator_reconciliation': corpus_report.get('operator_reconciliation', {}),
     'provider_bound_evidence_schema': PROVIDER_BOUND_EVIDENCE_SCHEMA,
-    'provider_bound_evidence_source': (
-      None if provider_bound_evidence_path is None else str(provider_bound_evidence_path)
+    'provider_bound_evidence_source': _provider_bound_evidence_source_label(
+      provider_bound_evidence_path
     ),
     'release_ready': False,
   }

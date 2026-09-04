@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -11,6 +12,7 @@ from scripts.validate_provider_comparisons import (
   build_unimplemented_boundaries,
   execute_visual_feature_probe,
   load_provider_bound_evidence,
+  _provider_bound_evidence_source_label,
 )
 from exhaust_plume.validation.claims import (
   ComparisonEvidenceStatus,
@@ -253,6 +255,16 @@ def test_provider_bound_evidence_document_rejects_unknown_top_level_fields(tmp_p
 
   with pytest.raises(ValueError, match='only schema_id and evidence'):
     load_provider_bound_evidence(path)
+
+
+def test_provider_bound_evidence_source_label_is_portable() -> None:
+  assert _provider_bound_evidence_source_label(
+    Path('/one/machine/provider-evidence.json')
+  ) == 'provider-evidence.json'
+  assert _provider_bound_evidence_source_label(
+    Path('/another/machine/provider-evidence.json')
+  ) == 'provider-evidence.json'
+  assert _provider_bound_evidence_source_label(None) is None
 
 
 def test_visual_feature_probe_reports_missing_feature_and_branch_contract() -> None:
