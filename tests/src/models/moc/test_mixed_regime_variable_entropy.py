@@ -143,6 +143,24 @@ def test_variable_entropy_reference_closes_local_mesh_and_measures_independently
   assert result.maximum_entrance_continuity_residual > 0.0
   assert result.maximum_transverse_momentum_residual is not None
   assert result.maximum_transverse_momentum_residual > 0.0
+  assert result.conservative_euler_residuals_measured
+  assert result.maximum_conservative_mass_residual is not None
+  assert result.maximum_conservative_mass_residual > 0.0
+  assert result.maximum_conservative_streamwise_momentum_residual is not None
+  assert result.maximum_conservative_streamwise_momentum_residual > 0.0
+  assert result.maximum_conservative_transverse_momentum_residual is not None
+  assert result.maximum_conservative_transverse_momentum_residual > 0.0
+  assert result.maximum_conservative_energy_residual is not None
+  assert result.maximum_conservative_energy_residual > 0.0
+  assert result.maximum_conservative_euler_residual is not None
+  assert result.maximum_conservative_euler_residual == pytest.approx(
+    max(
+      result.maximum_conservative_mass_residual,
+      result.maximum_conservative_streamwise_momentum_residual,
+      result.maximum_conservative_transverse_momentum_residual,
+      result.maximum_conservative_energy_residual,
+    )
+  )
   assert result.maximum_mass_flow_residual == pytest.approx(0.0, abs=1.0e-12)
   assert result.field is not None
   assert result.field.topology.forms_closed_zone
@@ -179,6 +197,13 @@ def test_variable_entropy_reference_closes_local_mesh_and_measures_independently
   assert measurement.free_boundary_condition_verified
   assert measurement.reported_flags_verified
   assert measurement.reference_model_verified
+  assert measurement.conservative_euler_residuals_verified
+  assert measurement.maximum_conservative_mass_residual == pytest.approx(
+    result.maximum_conservative_mass_residual,
+  )
+  assert measurement.maximum_conservative_euler_residual == pytest.approx(
+    result.maximum_conservative_euler_residual,
+  )
   assert measurement.physical_closure_verified is False
   assert measurement.canonical_euler_verified is False
   assert measurement.chain_promotion_blocked
@@ -264,4 +289,29 @@ def test_variable_entropy_measurement_rejects_promotion_flag_mutation() -> None:
   )
   assert not measurement.reference_verified
   assert not measurement.canonical_euler_verified
+####
+
+
+def test_variable_entropy_measurement_rejects_conservative_residual_mutation() -> None:
+  request, handoff, section, result = _solve()
+  assert result.maximum_conservative_euler_residual is not None
+  changed_result = replace(
+    result,
+    maximum_conservative_euler_residual=(
+      result.maximum_conservative_euler_residual + 1.0
+    ),
+  )
+
+  measurement = measure_mixed_regime_variable_entropy_free_boundary(
+    request,
+    handoff,
+    section,
+    changed_result,
+  )
+
+  assert measurement.status is (
+    MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus.CONSISTENCY_FAILURE
+  )
+  assert not measurement.conservative_euler_residuals_verified
+  assert not measurement.reference_verified
 ####

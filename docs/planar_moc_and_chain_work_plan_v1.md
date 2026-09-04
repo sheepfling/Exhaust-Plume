@@ -3502,3 +3502,20 @@ variable-entropy reference still uses a mapped stream-tube model, keeps
 production shock cell.  The next physics step remains a coupled reflected
 2-D Euler/free-boundary solver with refinement and accepted external
 measurement evidence.
+
+## Conservative Euler residual audit checkpoint
+
+The variable-entropy reference now retains a normalized conservative flux
+audit over every triangular cell.  It reports separate mass,
+streamwise-momentum, transverse-momentum, and energy residual maxima plus
+their combined Euler maximum.  ``measure_mixed_regime_variable_entropy_free_boundary``
+reconstructs those fluxes independently and rejects altered reported values,
+so this checkpoint distinguishes an auditable residual measurement from a
+solver claim.
+
+The residuals are evidence of the remaining P2.1 gap, not a closure gate: the
+mapped stream-tube field still keeps
+``physical_closure_verified=false``, ``canonical_euler_verified=false``, and
+chain promotion blocked.  The next implementation step remains a coupled
+reflected 2-D Euler/free-boundary solve whose residuals can be reduced and
+independently validated across a resolution ladder.

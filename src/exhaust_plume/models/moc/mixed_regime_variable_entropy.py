@@ -10,11 +10,13 @@ relation.
 
 This is intentionally an intermediate fidelity model.  It solves steady
 continuity, constant total enthalpy, shock-interface entropy transport, and a
-local ambient/free-boundary condition on a mapped planar mesh.  It reports the
-transverse momentum residual instead of hiding the fact that the mapped
-stream-tube law is not yet a coupled 2-D Euler/MOC solve.  Consequently the
-result remains research-only, cannot seed another supersonic cell, and does
-not change any fast visual, reduced-order, signature, ray, or FPA provider.
+local ambient/free-boundary condition on a mapped planar mesh.  It reports
+  both primitive transverse momentum and independently auditable normalized
+  conservative mass-momentum-energy residuals instead of hiding the fact that
+  the mapped stream-tube law is not yet a coupled 2-D Euler/MOC solve.
+Consequently the result remains research-only, cannot seed another
+supersonic cell, and does not change any fast visual, reduced-order,
+signature, ray, or FPA provider.
 """
 
 from __future__ import annotations
@@ -118,6 +120,12 @@ class MocMixedRegimeVariableEntropyFreeBoundaryResult:
   maximum_entropy_advection_residual: float | None = None
   maximum_entrance_entropy_advection_residual: float | None = None
   maximum_transverse_momentum_residual: float | None = None
+  maximum_conservative_mass_residual: float | None = None
+  maximum_conservative_streamwise_momentum_residual: float | None = None
+  maximum_conservative_transverse_momentum_residual: float | None = None
+  maximum_conservative_energy_residual: float | None = None
+  maximum_conservative_euler_residual: float | None = None
+  conservative_euler_residuals_measured: bool = False
   maximum_mass_flow_residual: float | None = None
   maximum_entrance_mass_flow_residual: float | None = None
   maximum_control_source_pressure_residual_Pa: float | None = None
@@ -239,6 +247,11 @@ class MocMixedRegimeVariableEntropyFreeBoundaryResult:
       'maximum_entropy_advection_residual',
       'maximum_entrance_entropy_advection_residual',
       'maximum_transverse_momentum_residual',
+      'maximum_conservative_mass_residual',
+      'maximum_conservative_streamwise_momentum_residual',
+      'maximum_conservative_transverse_momentum_residual',
+      'maximum_conservative_energy_residual',
+      'maximum_conservative_euler_residual',
       'maximum_mass_flow_residual',
       'maximum_entrance_mass_flow_residual',
       'maximum_control_source_pressure_residual_Pa',
@@ -261,6 +274,7 @@ class MocMixedRegimeVariableEntropyFreeBoundaryResult:
       'free_boundary_condition_verified',
       'field_topology_verified',
       'canonical_euler_verified',
+      'conservative_euler_residuals_measured',
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
@@ -417,6 +431,24 @@ class MocMixedRegimeVariableEntropyFreeBoundaryResult:
       'maximum_transverse_momentum_residual': (
         self.maximum_transverse_momentum_residual
       ),
+      'maximum_conservative_mass_residual': (
+        self.maximum_conservative_mass_residual
+      ),
+      'maximum_conservative_streamwise_momentum_residual': (
+        self.maximum_conservative_streamwise_momentum_residual
+      ),
+      'maximum_conservative_transverse_momentum_residual': (
+        self.maximum_conservative_transverse_momentum_residual
+      ),
+      'maximum_conservative_energy_residual': (
+        self.maximum_conservative_energy_residual
+      ),
+      'maximum_conservative_euler_residual': (
+        self.maximum_conservative_euler_residual
+      ),
+      'conservative_euler_residuals_measured': (
+        self.conservative_euler_residuals_measured
+      ),
       'maximum_mass_flow_residual': self.maximum_mass_flow_residual,
       'maximum_entrance_mass_flow_residual': (
         self.maximum_entrance_mass_flow_residual
@@ -485,6 +517,11 @@ class _VariableEntropyCandidate:
   maximum_entropy_advection_residual: float
   maximum_entrance_entropy_advection_residual: float
   maximum_transverse_momentum_residual: float
+  maximum_conservative_mass_residual: float
+  maximum_conservative_streamwise_momentum_residual: float
+  maximum_conservative_transverse_momentum_residual: float
+  maximum_conservative_energy_residual: float
+  maximum_conservative_euler_residual: float
   maximum_mass_flow_residual: float
   maximum_entrance_mass_flow_residual: float
   field_topology_verified: bool
@@ -619,6 +656,157 @@ def _triangle_gradients(
     hypot(points[0][0] - points[2][0], points[0][1] - points[2][1]),
   )
   return gradient_x, gradient_y, area, diameter
+####
+
+
+def _conservative_euler_residuals(
+  points: Sequence[Point],
+  samples: Sequence[MocMixedRegimeFieldSample],
+  reference_total_pressure_Pa: float,
+) -> tuple[float, float, float, float, float]:
+  """Return normalized steady-Euler residuals for one mapped triangle.
+
+  The variable-entropy reference stores scalar primitive samples rather than
+  a conservative state.  This operator reconstructs a normalized ideal-gas
+  state using ``p_ref`` and ``R T0`` as the pressure and density/velocity
+  scales, then evaluates the strong-form mass-momentum-energy flux
+  divergence.  It is deliberately an audit of the mapped field, not a
+  replacement for a coupled finite-volume or characteristic solver.
+  """
+
+  if len(points) != 3 or len(samples) != 3:
+    raise ValueError('conservative Euler residuals require triangular cells')
+  ####
+  temperatures = tuple(
+    1.0
+    / (1.0 + 0.5 * (sample.gamma - 1.0) * sample.mach * sample.mach)
+    for sample in samples
+  )
+  pressures = tuple(
+    sample.static_pressure_Pa / reference_total_pressure_Pa
+    for sample in samples
+  )
+  densities = tuple(
+    pressure / temperature
+    for pressure, temperature in zip(pressures, temperatures, strict=True)
+  )
+  velocities = tuple(
+    (
+      sample.mach * sqrt(sample.gamma * temperature) * cos(sample.flow_angle_rad),
+      sample.mach * sqrt(sample.gamma * temperature) * sin(sample.flow_angle_rad),
+    )
+    for sample, temperature in zip(samples, temperatures, strict=True)
+  )
+  momentum_x = tuple(
+    density * velocity[0] * velocity[0] + pressure
+    for density, velocity, pressure in zip(
+      densities,
+      velocities,
+      pressures,
+      strict=True,
+    )
+  )
+  momentum_xy = tuple(
+    density * velocity[0] * velocity[1]
+    for density, velocity in zip(densities, velocities, strict=True)
+  )
+  momentum_y = tuple(
+    density * velocity[1] * velocity[1] + pressure
+    for density, velocity, pressure in zip(
+      densities,
+      velocities,
+      pressures,
+      strict=True,
+    )
+  )
+  total_energy = tuple(
+    pressure / (sample.gamma - 1.0)
+    + 0.5 * density * (velocity[0] * velocity[0] + velocity[1] * velocity[1])
+    for sample, density, velocity, pressure in zip(
+      samples,
+      densities,
+      velocities,
+      pressures,
+      strict=True,
+    )
+  )
+  energy_flux_x = tuple(
+    (energy + pressure) * velocity[0]
+    for energy, pressure, velocity in zip(
+      total_energy,
+      pressures,
+      velocities,
+      strict=True,
+    )
+  )
+  energy_flux_y = tuple(
+    (energy + pressure) * velocity[1]
+    for energy, pressure, velocity in zip(
+      total_energy,
+      pressures,
+      velocities,
+      strict=True,
+    )
+  )
+  mass_flux_x = tuple(
+    density * velocity[0]
+    for density, velocity in zip(densities, velocities, strict=True)
+  )
+  mass_flux_y = tuple(
+    density * velocity[1]
+    for density, velocity in zip(densities, velocities, strict=True)
+  )
+  mass_x, _mass_y, _area, diameter = _triangle_gradients(
+    points,
+    mass_flux_x,
+  )
+  _mass_x, mass_y, _area, _diameter = _triangle_gradients(
+    points,
+    mass_flux_y,
+  )
+  streamwise_x, _streamwise_y, _area, diameter = _triangle_gradients(
+    points,
+    momentum_x,
+  )
+  cross_x, cross_y, _area, _diameter = _triangle_gradients(
+    points,
+    momentum_xy,
+  )
+  _transverse_x, transverse_y, _area, _diameter = _triangle_gradients(
+    points,
+    momentum_y,
+  )
+  energy_x, energy_y, _area, _diameter = _triangle_gradients(
+    points,
+    energy_flux_x,
+  )
+  _energy_y_x, energy_y_y, _area, _diameter = _triangle_gradients(
+    points,
+    energy_flux_y,
+  )
+  momentum_scale = max(
+    1.0e-12,
+    *(abs(value) for value in (*momentum_x, *momentum_xy, *momentum_y)),
+  )
+  energy_scale = max(
+    1.0e-12,
+    *(abs(value) for value in (*energy_flux_x, *energy_flux_y)),
+  )
+  mass_scale = max(
+    1.0e-12,
+    *(abs(value) for value in (*mass_flux_x, *mass_flux_y)),
+  )
+  mass_residual = abs(mass_x + mass_y) * diameter / mass_scale
+  streamwise_residual = abs(streamwise_x + cross_y) * diameter / momentum_scale
+  transverse_residual = abs(cross_x + transverse_y) * diameter / momentum_scale
+  energy_residual = abs(energy_x + energy_y_y) * diameter / energy_scale
+  return (
+    mass_residual,
+    streamwise_residual,
+    transverse_residual,
+    energy_residual,
+    max(mass_residual, streamwise_residual, transverse_residual, energy_residual),
+  )
 ####
 
 
@@ -967,9 +1155,25 @@ def _build_candidate(
   entropy_residuals: list[float] = []
   entrance_entropy_residuals: list[float] = []
   transverse_residuals: list[float] = []
+  conservative_mass_residuals: list[float] = []
+  conservative_streamwise_residuals: list[float] = []
+  conservative_transverse_residuals: list[float] = []
+  conservative_energy_residuals: list[float] = []
+  conservative_euler_residuals: list[float] = []
   for cell_index, indices in enumerate(connectivity):
     samples = tuple(node_samples[index] for index in indices)
     points = tuple(sample.point_m for sample in samples)
+    (
+      conservative_mass,
+      conservative_streamwise,
+      conservative_transverse,
+      conservative_energy,
+      conservative_euler,
+    ) = _conservative_euler_residuals(points, samples, reference_p0)
+    conservative_mass_residuals.append(conservative_mass)
+    conservative_streamwise_residuals.append(conservative_streamwise)
+    conservative_transverse_residuals.append(conservative_transverse)
+    conservative_energy_residuals.append(conservative_energy)
     densities = tuple(
       _normalized_density(
         sample.total_pressure_Pa,
@@ -1003,6 +1207,9 @@ def _build_candidate(
     continuity = abs(gradient_mx_x + gradient_my_y) * diameter / max(
       1.0e-12,
       max(hypot(*value) for value in mass_velocity),
+    )
+    conservative_euler_residuals.append(
+      conservative_euler
     )
     entropy_gradient_x, entropy_gradient_y, _, _ = _triangle_gradients(
       points,
@@ -1157,6 +1364,26 @@ def _build_candidate(
       default=0.0,
     ),
     maximum_transverse_momentum_residual=max(transverse_residuals, default=0.0),
+    maximum_conservative_mass_residual=max(
+      conservative_mass_residuals,
+      default=0.0,
+    ),
+    maximum_conservative_streamwise_momentum_residual=max(
+      conservative_streamwise_residuals,
+      default=0.0,
+    ),
+    maximum_conservative_transverse_momentum_residual=max(
+      conservative_transverse_residuals,
+      default=0.0,
+    ),
+    maximum_conservative_energy_residual=max(
+      conservative_energy_residuals,
+      default=0.0,
+    ),
+    maximum_conservative_euler_residual=max(
+      conservative_euler_residuals,
+      default=0.0,
+    ),
     maximum_mass_flow_residual=max(mass_flow_residuals, default=0.0),
     maximum_entrance_mass_flow_residual=max(
       entrance_mass_flow_residuals,
@@ -1603,6 +1830,22 @@ def solve_mixed_regime_variable_entropy_free_boundary(
     'maximum_entropy_advection_residual': candidate.maximum_entropy_advection_residual,
     'maximum_entrance_entropy_advection_residual': candidate.maximum_entrance_entropy_advection_residual,
     'maximum_transverse_momentum_residual': candidate.maximum_transverse_momentum_residual,
+    'maximum_conservative_mass_residual': (
+      candidate.maximum_conservative_mass_residual
+    ),
+    'maximum_conservative_streamwise_momentum_residual': (
+      candidate.maximum_conservative_streamwise_momentum_residual
+    ),
+    'maximum_conservative_transverse_momentum_residual': (
+      candidate.maximum_conservative_transverse_momentum_residual
+    ),
+    'maximum_conservative_energy_residual': (
+      candidate.maximum_conservative_energy_residual
+    ),
+    'maximum_conservative_euler_residual': (
+      candidate.maximum_conservative_euler_residual
+    ),
+    'conservative_euler_residuals_measured': True,
     'maximum_mass_flow_residual': candidate.maximum_mass_flow_residual,
     'maximum_entrance_mass_flow_residual': candidate.maximum_entrance_mass_flow_residual,
     'maximum_control_source_pressure_residual_Pa': max(input_pressure_residuals, default=0.0),

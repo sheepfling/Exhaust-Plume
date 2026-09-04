@@ -351,6 +351,15 @@ check pass for this slice.  This closes the audit-retention subtask only; it
 does not close the canonical reflected/mixed-regime field or authorize any
 production claim.
 
+The follow-on P2.1 evidence slice adds a conservative Euler residual audit to
+that reference.  The solver and independent measurement now retain and
+reproduce normalized mass, streamwise-momentum, transverse-momentum, energy,
+and combined Euler residual maxima over the triangular field, with an explicit
+"measured" flag.  The audit is intentionally diagnostic: nonzero residuals
+identify the unresolved coupled closure, while the reference remains
+non-canonical, chain promotion remains blocked, and production claims remain
+false.  A tampered reported residual is rejected by the independent operator.
+
 ### Next implementation slice
 
 The next physics slice remains completion of `P2.1`: a solver-owned
@@ -364,8 +373,9 @@ accepted only if it:
 1. rejects missing, altered, or reused upstream handoffs;
 2. distinguishes a solver-owned mixed-regime boundary from the current
    compression-envelope continuation law;
-3. reports geometry, pressure, entropy/total-pressure, tangency, and Euler
-   residuals with coverage and validity masks;
+3. reports geometry, pressure, entropy/total-pressure, tangency, and
+   independently reproduced conservative Euler residuals with coverage and
+   validity masks;
 4. has an independent measurement operator that can detect tampered fields;
    and
 5. leaves `physical_closure_verified`, chain promotion, and production claims
