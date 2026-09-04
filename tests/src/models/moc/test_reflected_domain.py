@@ -1290,6 +1290,28 @@ def test_global_physical_closure_carries_variable_entropy_and_gates_cell_promoti
   with pytest.raises(ValueError, match='promotion'):
     fit.as_production_chain_cell()
   ####
+
+  fully_evidenced = closure.bind_promotion_evidence(
+    MocReflectedDomainPromotionEvidence(
+      closure_fingerprint=closure_fingerprint,
+      canonical_free_boundary_evidence_id='canonical-free-boundary-test',
+      canonical_euler_evidence_id='canonical-euler-test',
+      refinement_evidence_id='refinement-run-test-global-euler-9',
+      external_validation_evidence_id='external-validation-test',
+    )
+  )
+  fully_evidenced_fit = replace(fit, closure=fully_evidenced)
+  assert fully_evidenced_fit.local_fit_verified
+  assert all(
+    value
+    for name, value in fully_evidenced_fit.production_promotion_gates.items()
+    if name != 'downstream_boundary_closure_verified'
+  )
+  assert fully_evidenced_fit.production_promotion_gates[
+    'downstream_boundary_closure_verified'
+  ] is False
+  assert fully_evidenced_fit.production_claim_allowed is False
+  assert fully_evidenced_fit.chain_promotion_blocked
 ####
 
 
