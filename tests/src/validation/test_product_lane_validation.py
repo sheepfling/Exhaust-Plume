@@ -51,11 +51,15 @@ def test_visual_lane_local_acceptance_is_separate_from_external_comparison() -> 
 ####
 
 
-def test_signature_lane_local_interpolation_acceptance_is_explicitly_table_only() -> None:
+def test_signature_lane_local_interpolation_and_lte_source_acceptance_are_separate() -> None:
   report = _run_signature_lane()
   assert report['status'] == 'passed'
   assert report['contract_interpolation_passed'] is True
   assert report['local_contract_invariants']['status'] == 'passed'
+  assert report['explicit_lte_line_source']['status'] == 'passed'
+  assert report['explicit_lte_line_source']['radiation_claim'] == 'spectral_engineering'
+  assert report['explicit_lte_line_source']['optical_profile_mode'] == 'lte-line-by-line-voigt'
+  assert report['explicit_lte_line_source']['production_claim_allowed'] == 'false'
   assert report['asset_sha256']
   assert report['measurement_space_operators']['sensor_space_probe']['status'] == 'passed'
   assert report['measurement_space_operators']['measurement_space_guard']['status'] == 'passed'

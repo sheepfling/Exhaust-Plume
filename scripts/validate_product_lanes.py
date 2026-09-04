@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import asdict
 import json
-from math import cos, exp, isclose, pi, sin
+from math import cos, exp, isclose, isfinite, pi, sin
 from pathlib import Path
 import sys
 from typing import Any, Callable
@@ -36,7 +36,19 @@ from exhaust_plume.contracts import (  # noqa: E402
   run_visual_provider_conformance,
 )
 from exhaust_plume.geometry import SectionedTubeSupport, intersect_sectioned_tube  # noqa: E402
-from exhaust_plume.products import SectionedGrayRadiationProfile  # noqa: E402
+from exhaust_plume.models.shock_cells import (  # noqa: E402
+  ShockCellSolveConfig,
+  solve_first_cell_from_exit_state,
+)
+from exhaust_plume.products import (  # noqa: E402
+  LineRadiationProfile,
+  ModelSignatureSampling,
+  ModelVisualizationLane,
+  SectionedGrayRadiationProfile,
+  SpectralLine,
+  evaluate_model_signature,
+  standardize_model_visualization,
+)
 from exhaust_plume.radiation import FarFieldRayIntegration, far_field_from_rays  # noqa: E402
 from exhaust_plume.validation.measurement_operators import (  # noqa: E402
   BAND_INTEGRATION_OPERATOR_ID,
@@ -311,6 +323,84 @@ def _signature_definition() -> SignatureTableDefinition:
 ####
 
 
+def _run_lte_line_signature_probe() -> dict[str, Any]:
+  """Exercise the explicit LTE line bridge without claiming chemistry."""
+
+  operating_state = _analytical_state(1.2)
+  visual_solution = solve_first_cell_from_exit_state(
+    operating_state.nozzle_exit,
+    operating_state.ambient,
+    ShockCellSolveConfig(
+      exit=operating_state.nozzle_exit,
+      ambient=operating_state.ambient,
+      expansion_characteristics=2,
+      compression_characteristics=1,
+      pressure_match_rtol=1.0e-4,
+      max_cells=1,
+    ),
+  )
+  visualization = standardize_model_visualization(
+    visual_solution,
+    lane=ModelVisualizationLane.BASIC_SHOCK_CELL,
+  )
+  line_profile = LineRadiationProfile(
+    wavelengths_m=(4.5e-6, 5.0e-6, 5.5e-6),
+    lines=(
+      SpectralLine.from_thermal_width(
+        center_wavelength_m=5.0e-6,
+        integrated_optical_depth_m=2.0e-7,
+        temperature_K=1_200.0,
+        molecular_mass_kg=4.65e-26,
+        label='product-lane-lte-line',
+      ),
+    ),
+    source_temperature_K=1_200.0,
+    path_length_m=1.0,
+    profile_id='product-lane-lte-line-profile-v1',
+  )
+  signature = evaluate_model_signature(
+    visualization,
+    line_profile,
+    sampling=ModelSignatureSampling(
+      source_to_observer_directions=((1.0, 0.0, 0.0),),
+      transverse_sample_count=5,
+    ),
+  )
+  source = line_profile.source_function_w_sr_m
+  opacity = line_profile.absorption_coefficient_per_m
+  passed = (
+    signature.metadata.claims.radiation.value == 'spectral_engineering'
+    and signature.metadata.provenance.metadata['optical_profile_mode'] == 'lte-line-by-line-voigt'
+    and signature.metadata.provenance.metadata['production_claim_allowed'] == 'false'
+    and len(line_profile.lines) == 1
+    and all(isfinite(value) and value > 0.0 for value in source)
+    and opacity[1] > opacity[0]
+    and opacity[1] > opacity[2]
+    and any(
+      isfinite(value) and value > 0.0
+      for row in signature.spectral_radiant_intensity
+      for value in row
+    )
+  )
+  return {
+    'status': 'passed' if passed else 'failed',
+    'profile_id': line_profile.profile_id,
+    'adapter_schema': signature.metadata.provenance.metadata['signature_adapter_schema'],
+    'optical_profile_mode': signature.metadata.provenance.metadata['optical_profile_mode'],
+    'line_count': len(line_profile.lines),
+    'source_model': 'LTE-Planck-source',
+    'line_shape_model': 'normalized-wavelength-domain-Voigt',
+    'source_temperature_K': line_profile.source_temperature_K,
+    'wavelengths_m': list(line_profile.wavelengths_m),
+    'peak_absorption_coefficient_per_m': max(opacity),
+    'radiation_claim': signature.metadata.claims.radiation.value,
+    'production_claim_allowed': signature.metadata.provenance.metadata['production_claim_allowed'],
+    'claim_status': line_profile.as_report()['claim_status'],
+    'scope': 'explicit caller-owned line optical depths and LTE source only; no chemistry populations, atmosphere, detector, or external validation',
+  }
+####
+
+
 def _run_sensor_space_operator_probe() -> dict[str, Any]:
   """Exercise downstream sensor math without inventing an external case."""
 
@@ -463,11 +553,14 @@ def _run_signature_lane() -> dict[str, Any]:
     and sensor_space['status'] == 'passed'
     and measurement_space_guard_passed
   )
+  line_bridge = _run_lte_line_signature_probe()
+  line_bridge_passed = line_bridge['status'] == 'passed'
   local_validation_passed = (
     contract_passed
     and invariant_report.status == 'passed'
     and measurement_space_operators_passed
     and measurement_space_guard_passed
+    and line_bridge_passed
   )
   return {
     'lane_id': 'signature-table-mvp-v1',
@@ -499,6 +592,7 @@ def _run_signature_lane() -> dict[str, Any]:
       },
       'scope': 'spectral-array and synthetic downstream sensor-operator math only; no external observer, atmosphere, detector, or source calibration',
     },
+    'explicit_lte_line_source': line_bridge,
     'output_shape': [len(result.spectral_radiant_intensity), len(result.spectral_radiant_intensity[0])],
     'output_units': 'W sr^-1 m^-1',
     'wavelengths_m': list(definition.wavelengths_m),
@@ -516,7 +610,7 @@ def _run_signature_lane() -> dict[str, Any]:
       'status': 'pending',
       'reason': 'Recovered spectral observations are sensor-space or relative-shape products; generic LOS, path, and bandpass operators now pass synthetic probes, but the signature provider still lacks a corpus-bound observer, source-calibration, and detector scenario.'
     },
-    'claim_ceiling': 'Versioned table and interpolation behavior only; no intrinsic physical validation claim.',
+    'claim_ceiling': 'Versioned table/interpolation and explicit caller-bound LTE line-source spectral engineering only; no chemistry, atmosphere, detector, or external validation claim.',
   }
 ####
 
